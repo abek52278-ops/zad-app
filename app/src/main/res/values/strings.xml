@@ -1,0 +1,82 @@
+<resources>
+    <string name="app_name">زاد</string>
+    <string name="slogan">بوصلة عائلتك الذكية</string>
+    <string name="welcome">مرحباً بك في زاد</string>
+    <string name="login">تسجيل الدخول</string>
+    <string name="signup">إنشاء حساب</string>
+    <string name="email">البريد الإلكتروني</string>
+    <string name="password">كلمة المرور</string>
+    <string name="get_started">ابدأ الآن</string>
+    <string name="language_toggle">العربية</string>
+    
+    <!-- Drawer Items -->
+    <string name="nav_home">لوحة التحكم</string>
+    <string name="nav_mother_tools">أدوات الأم</string>
+    <string name="nav_inventory">المخزون</string>
+    <string name="nav_shopping">قائمة التسوق</string>
+    <string name="nav_budget">الميزانية</string>
+    <string name="nav_wishlist">قائمة الأمنيات</string>
+    <string name="nav_assistant">ذكاء زاد</string>
+    <string name="nav_family">العائلة</string>
+    <string name="nav_reports">التقارير</string>
+    <string name="nav_store">متجر زاد</string>
+    <string name="nav_help">الدعم الفني</string>
+    <string name="nav_profile">الملف الشخصي</string>
+    
+    <!-- HomeScreen and common -->
+    <string name="allocated_salary">الميزانية المخصصة</string>
+    <string name="currency">ر.س</string>
+    <string name="deposit">إيداع</string>
+    <string name="expense">مصروف</string>
+    <string name="remaining">المتبقي</string>
+    <string name="budget_percent">الميزانية</string>
+    <string name="expense_analysis">تحليل المصروفات</string>
+    <string name="grocery">بقالة</string>
+    <string name="subscriptions">اشتراكات</string>
+    <string name="restaurants">مطاعم</string>
+    <string name="inventory_items">عناصر المخزون</string>
+    <string name="active_subscriptions">الاشتراكات الفعالة</string>
+    <string name="ai_meal_suggestions">اقتراحات وجبات ذكية</string>
+    <string name="view_all">عرض الكل</string>
+    <string name="recent_transactions">أحدث المعاملات</string>
+    <string name="no_transactions">لا توجد معاملات بعد.</string>
+    <string name="view_full_history">عرض السجل الكامل</string>
+    <string name="enable_bank_notifications">تفعيل تنبيهات البنك</string>
+    <string name="enable_bank_notifications_desc">الاستماع للرسائل النصية وتنبيهات البنك</string>
+    <string name="enable">تفعيل</string>
+    <string name="close">إغلاق</string>
+    <string name="family_hub">العائلة الذكية</string>
+    <string name="manage_family">إدارة العائلة</string>
+    <string name="family_desc">إدارة مهام ومصروفات الأبناء</string>
+    <string name="quick_shortcuts">الاختصارات السريعة</string>
+    <string name="zad_ai">ذكاء زاد</string>
+    
+    <!-- Transactions Screen -->
+    <string name="transactions_title">المعاملات</string>
+    <string name="transactions_subtitle">بنك زاد</string>
+    <string name="search_transactions">ابحث عن معاملة...</string>
+    <string name="filter_all">الكل</string>
+    <string name="filter_purchases">مشتريات</string>
+    <string name="filter_subscriptions">اشتراكات</string>
+    <string name="filter_transfers">تحويلات</string>
+    <string name="filter_salary">رواتب</string>
+    <string name="filter_food">مطاعم</string>
+    <string name="current_balance">الرصيد الحالي</string>
+    <string name="positive">إيجابي</string>
+    <string name="negative">سلبي</string>
+    <string name="income_label">الدخل</string>
+    <string name="expense_label">المصروفات</string>
+    <string name="budget_label">الميزانية</string>
+    <string name="no_transactions_filtered">لا توجد معاملات مطابقة</string>
+    <string name="no_transactions_hint">حاول تغيير الفلتر أو البحث</string>
+    <string name="no_transactions_yet">سيتم عرض المعاملات البنكية هنا</string>
+    <string name="delete_transaction_title">حذف المعاملة</string>
+    <string name="delete_transaction_confirm">هل أنت متأكد من حذف معاملة "%s"؟</string>
+    <string name="transaction_count">%d معاملة</string>
+    <string name="transactions_list">المعاملات</string>
+    <string name="sar">ر.س</string>
+    <string name="budget_usage">%d%% من الميزانية</string>
+    
+    <!-- Widget -->
+    <string name="widget_description">يعرض رصيدك وآخر المعاملات من زاد</string>
+</resources>

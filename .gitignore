@@ -1,0 +1,37 @@
+*.iml
+.gradle
+.kotlin
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+.env
+debug.keystore
+
+testsprite_tests\tmp\config.json
+
+# Log and debug files
+*.txt
+!sources.jar
+!app/proguard-rules.pro
+*.log
+deploy_result.txt
+local.properties
+cli_debug.txt
+crash.txt
+build_log.txt
+
+# Ignored large directories
+google-cloud-sdk/
+node_modules/
+.idea/
+testsprite_tests/

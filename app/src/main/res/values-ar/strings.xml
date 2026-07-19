@@ -1,0 +1,48 @@
+<resources>
+    <string name="app_name">زاد</string>
+    <string name="slogan">بوصلة العائلة الذكية</string>
+    <string name="welcome">مرحباً بك في زاد</string>
+    <string name="login">تسجيل الدخول</string>
+    <string name="signup">حساب جديد</string>
+    <string name="email">البريد الإلكتروني</string>
+    <string name="password">كلمة المرور</string>
+    <string name="get_started">ابدأ الآن</string>
+    <string name="language_toggle">English</string>
+    
+    <!-- Drawer Items -->
+    <string name="nav_home">الرئيسية</string>
+    <string name="nav_mother_tools">أدوات الأم</string>
+    <string name="nav_inventory">مخزون البيت</string>
+    <string name="nav_shopping">المقاضي والتسوق</string>
+    <string name="nav_budget">الميزانية</string>
+    <string name="nav_wishlist">الطيبات</string>
+    <string name="nav_assistant">مركز الذكاء</string>
+    <string name="nav_family">العائلة</string>
+    <string name="nav_reports">التقارير</string>
+    <string name="nav_store">متجر زاد</string>
+    <string name="nav_help">الدعم الفني</string>
+    <string name="nav_profile">الملف الشخصي</string>
+    
+    <!-- HomeScreen and common -->
+    <string name="allocated_salary">الراتب المخصص</string>
+    <string name="currency">ريال</string>
+    <string name="deposit">إيداع</string>
+    <string name="expense">مصروف</string>
+    <string name="remaining">المتبقي</string>
+    <string name="budget_percent">الميزانية</string>
+    <string name="expense_analysis">تحليل المصروفات</string>
+    <string name="grocery">مقاضي</string>
+    <string name="subscriptions">اشتراكات</string>
+    <string name="restaurants">مطاعم</string>
+    <string name="inventory_items">عنصر في المخزون</string>
+    <string name="active_subscriptions">اشتراكات نشطة</string>
+    <string name="ai_meal_suggestions">اقتراحات وجبات ذكية</string>
+    <string name="view_all">عرض الكل</string>
+    <string name="recent_transactions">أحدث المعاملات</string>
+    <string name="no_transactions">لا توجد معاملات حتى الآن.</string>
+    <string name="view_full_history">عرض السجل الكامل</string>
+    <string name="enable_bank_notifications">تفعيل إشعارات البنك</string>
+    <string name="enable_bank_notifications_desc">للاستماع للرسائل النصية وتحديث الميزانية</string>
+    <string name="enable">تفعيل</string>
+    <string name="close">إغلاق</string>
+</resources>

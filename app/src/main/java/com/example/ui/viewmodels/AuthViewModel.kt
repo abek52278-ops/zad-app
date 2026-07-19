@@ -1,0 +1,66 @@
+package com.example.ui.viewmodels
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.data.SupabaseRepo
+import com.example.data.SessionHelper
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+sealed class AuthState {
+    object Idle : AuthState()
+    object Loading : AuthState()
+    object Success : AuthState()
+    object PasswordResetSent : AuthState()
+    data class Error(val message: String) : AuthState()
+}
+
+class AuthViewModel(application: Application) : AndroidViewModel(application) {
+    private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
+    val authState: StateFlow<AuthState> = _authState.asStateFlow()
+
+    fun signUp(email: String, pass: String) {
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            val result = SupabaseRepo.signUp(email, pass)
+            if (result) {
+                SessionHelper.saveSession(getApplication())
+                _authState.value = AuthState.Success
+            } else {
+                _authState.value = AuthState.Error("Sign up failed. Check your connection or try another email.")
+            }
+        }
+    }
+
+    fun signIn(email: String, pass: String) {
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            val result = SupabaseRepo.signIn(email, pass)
+            if (result) {
+                SessionHelper.saveSession(getApplication())
+                _authState.value = AuthState.Success
+            } else {
+                _authState.value = AuthState.Error("Login failed. Check your credentials.")
+            }
+        }
+    }
+
+    fun resetPassword(email: String) {
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            val result = SupabaseRepo.resetPassword(email)
+            if (result) {
+                _authState.value = AuthState.PasswordResetSent
+            } else {
+                _authState.value = AuthState.Error("Failed to send reset email. Check if the email is correct.")
+            }
+        }
+    }
+    
+    fun resetState() {
+        _authState.value = AuthState.Idle
+    }
+}

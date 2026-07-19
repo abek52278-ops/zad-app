@@ -1,0 +1,82 @@
+package com.example.data.local
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import com.example.data.ZadInventory
+import com.example.data.ZadSubscription
+import com.example.data.ZadTransaction
+import com.example.data.ZadBehaviorPattern
+import com.example.data.ZadShoppingItem
+import com.example.data.AffiliateProduct
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface ZadDao {
+    @Query("SELECT * FROM zad_transactions ORDER BY createdAt DESC")
+    fun getAllTransactions(): Flow<List<ZadTransaction>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTransactions(transactions: List<ZadTransaction>)
+
+    @Query("SELECT * FROM zad_transactions ORDER BY createdAt DESC")
+    suspend fun getAllTransactionsOnce(): List<ZadTransaction>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertTransaction(transaction: ZadTransaction)
+
+    @Query("SELECT * FROM zad_inventory ORDER BY createdAt DESC")
+    fun getAllInventory(): Flow<List<ZadInventory>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertInventory(inventory: List<ZadInventory>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertInventoryItem(item: ZadInventory)
+
+    @Query("SELECT * FROM zad_subscriptions ORDER BY createdAt DESC")
+    fun getAllSubscriptions(): Flow<List<ZadSubscription>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSubscriptions(subscriptions: List<ZadSubscription>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSubscription(subscription: ZadSubscription)
+    
+    @Query("DELETE FROM zad_subscriptions WHERE id = :id")
+    suspend fun deleteSubscription(id: String)
+
+    @Query("DELETE FROM zad_inventory WHERE id = :id")
+    suspend fun deleteInventory(id: String)
+
+    // Shopping List
+    @Query("SELECT * FROM zad_shopping_list ORDER BY createdAt DESC")
+    fun getAllShoppingItems(): Flow<List<ZadShoppingItem>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertShoppingItem(item: ZadShoppingItem)
+
+    @Query("UPDATE zad_shopping_list SET is_purchased = :purchased WHERE id = :id")
+    suspend fun setShoppingItemPurchased(id: String, purchased: Boolean)
+
+    @Query("DELETE FROM zad_shopping_list WHERE id = :id")
+    suspend fun deleteShoppingItem(id: String)
+
+    @Query("DELETE FROM zad_transactions WHERE id = :id")
+    suspend fun deleteTransaction(id: String)
+
+    // Behavior Patterns
+    @Query("SELECT * FROM zad_behavior_patterns")
+    suspend fun getBehaviorPatterns(): List<ZadBehaviorPattern>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertBehaviorPattern(pattern: ZadBehaviorPattern)
+
+    // Affiliate Products
+    @Query("SELECT * FROM affiliate_products WHERE is_active = 1")
+    suspend fun getAffiliateProducts(): List<AffiliateProduct>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAffiliateProducts(products: List<AffiliateProduct>)
+}

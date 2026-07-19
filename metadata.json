@@ -1,0 +1,6 @@
+{
+  "name": "Zad",
+  "description": "Premium grocery and home management application for the Saudi market.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,1460 @@
+package com.example.ui.viewmodels
+
+import android.app.Application
+import android.util.Log
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.data.*
+import com.example.data.local.ZadDatabase
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
+import java.time.Instant
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
+import io.github.jan.supabase.auth.auth
+import com.example.data.AffiliateProduct
+import com.example.data.AffiliateClick
+import com.example.data.AffiliateCatalogRequest
+import kotlinx.coroutines.delay
+
+data class AiChatMessage(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val text: String,
+    val isUser: Boolean,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+private const val TAG = "ZadViewModel"
+private var lastMealSuggestInventorySize = -1
+
+class ZadViewModel(application: Application) : AndroidViewModel(application) {
+    private val database = ZadDatabase.getDatabase(application)
+    private val dao = database.zadDao()
+
+    private val _inventory = MutableStateFlow<List<ZadInventory>>(emptyList())
+    val inventory: StateFlow<List<ZadInventory>> = _inventory.asStateFlow()
+
+    private val _transactions = MutableStateFlow<List<ZadTransaction>>(emptyList())
+    val transactions: StateFlow<List<ZadTransaction>> = _transactions.asStateFlow()
+
+    private val _subscriptions = MutableStateFlow<List<ZadSubscription>>(emptyList())
+    val subscriptions: StateFlow<List<ZadSubscription>> = _subscriptions.asStateFlow()
+
+    private val _mealSuggestions = MutableStateFlow<String>("جاري تحليل المخزون...")
+    val mealSuggestions: StateFlow<String> = _mealSuggestions.asStateFlow()
+
+    private val _grocerySuggestions = MutableStateFlow<List<GrocerySuggestion>>(emptyList())
+    val grocerySuggestions: StateFlow<List<GrocerySuggestion>> = _grocerySuggestions.asStateFlow()
+
+    private val _shoppingList = MutableStateFlow<List<com.example.data.ZadShoppingItem>>(emptyList())
+    val shoppingList: StateFlow<List<com.example.data.ZadShoppingItem>> = _shoppingList.asStateFlow()
+
+    private val _insights = MutableStateFlow<List<AiInsight>>(emptyList())
+    val insights: StateFlow<List<AiInsight>> = _insights.asStateFlow()
+
+    private val _behaviorPatterns = MutableStateFlow<List<com.example.data.ZadBehaviorPattern>>(emptyList())
+    val behaviorPatterns: StateFlow<List<com.example.data.ZadBehaviorPattern>> = _behaviorPatterns.asStateFlow()
+
+    private val _agentSummary = MutableStateFlow<com.example.data.AiAgentSummary?>(null)
+    val agentSummary: StateFlow<com.example.data.AiAgentSummary?> = _agentSummary.asStateFlow()
+
+    private val _expensePrediction = MutableStateFlow<com.example.data.AiExpensePrediction?>(null)
+    val expensePrediction: StateFlow<com.example.data.AiExpensePrediction?> = _expensePrediction.asStateFlow()
+
+    private val _isAgentLoading = MutableStateFlow(false)
+    val isAgentLoading: StateFlow<Boolean> = _isAgentLoading.asStateFlow()
+
+    // Budget: fetched from Supabase zad_users table
+    private val _budget = MutableStateFlow<Double>(3500.0)
+    val budget: StateFlow<Double> = _budget.asStateFlow()
+
+    private val _remainingBalance = MutableStateFlow<Double>(3500.0)
+    val remainingBalance: StateFlow<Double> = _remainingBalance.asStateFlow()
+
+    // Search query for inventory
+    private val _inventorySearchQuery = MutableStateFlow("")
+    val inventorySearchQuery: StateFlow<String> = _inventorySearchQuery.asStateFlow()
+
+    // Filtered inventory based on search
+    val filteredInventory: StateFlow<List<ZadInventory>> get() = _filteredInventory
+    private val _filteredInventory = MutableStateFlow<List<ZadInventory>>(emptyList())
+
+    // Global Avatar state
+    private val _avatarUri = MutableStateFlow<String?>(null)
+    val avatarUri: StateFlow<String?> = _avatarUri.asStateFlow()
+
+    // User name state (from Supabase profile)
+    private val _userName = MutableStateFlow<String?>(null)
+    val userName: StateFlow<String?> = _userName.asStateFlow()
+
+    // User profile (full object from Supabase)
+    private val _userProfile = MutableStateFlow<ZadUser?>(null)
+
+    // Budget edit dialog
+    private val _showBudgetDialog = MutableStateFlow(false)
+    val showBudgetDialog: StateFlow<Boolean> = _showBudgetDialog.asStateFlow()
+
+    // Notifications
+    private val _appNotifications = MutableStateFlow<List<AppNotification>>(emptyList())
+    val appNotifications: StateFlow<List<AppNotification>> = _appNotifications.asStateFlow()
+
+    // AI Chat
+    private val _aiChatMessages = MutableStateFlow<List<AiChatMessage>>(
+        listOf(AiChatMessage(id = "init", text = "أهلاً بك! أنا زاد 🤖، مساعدك العائلي الذكي. كيف يمكنني مساعدتك اليوم؟\nيمكنك سؤالي عن الوصفات، أو مراجعة ثلاجتك، أو إضافة نواقص للتسوق!", isUser = false))
+    )
+    val aiChatMessages: StateFlow<List<AiChatMessage>> = _aiChatMessages.asStateFlow()
+
+    private val _isAiTyping = MutableStateFlow(false)
+    val isAiTyping: StateFlow<Boolean> = _isAiTyping.asStateFlow()
+
+    init {
+        Log.d(TAG, "ZadViewModel init — collecting from Room DB")
+        // Collect from Room DB (Single Source of Truth)
+        viewModelScope.launch {
+            dao.getAllTransactions().collectLatest { txs ->
+                Log.d(TAG, "Room transactions updated → count=${txs.size}")
+                _transactions.value = txs
+                recalculateRemainingBalance(txs, _budget.value)
+                updateBehaviorPatterns(txs)
+                val baseInsights = if (txs.isEmpty() && _inventory.value.isEmpty()) {
+                    listOf(com.example.data.AiInsight("أهلاً بك في زاد", "أضف معاملات أو عناصر للمخزون لنتمكن من تحليل بياناتك وتقديم توصيات ذكية.", "Tip"))
+                } else {
+                    ZadAiRepository.generateBehavioralInsights(txs, _inventory.value).ifEmpty {
+                        listOf(com.example.data.AiInsight("تحليل زاد", "لا توجد بيانات كافية لاستخراج رؤى جديدة حالياً.", "Tip"))
+                    }
+                }
+                _insights.value = baseInsights
+                analyzeSubscriptionUsage(_subscriptions.value)
+            }
+        }
+        viewModelScope.launch {
+            dao.getAllInventory().collectLatest { inv ->
+                Log.d(TAG, "Room inventory updated → count=${inv.size}")
+                _inventory.value = inv
+                updateFilteredInventory(inv, _inventorySearchQuery.value)
+                checkLowStockItems(inv)
+                predictStockDepletion(inv)
+                // Only call AI when inventory size changes to avoid excessive API calls
+                if (inv.size != lastMealSuggestInventorySize) {
+                    lastMealSuggestInventorySize = inv.size
+                    _mealSuggestions.value = ZadAiRepository.suggestMeals(inv)
+                }
+                val baseInsights = if (_transactions.value.isEmpty() && inv.isEmpty()) {
+                    listOf(com.example.data.AiInsight("أهلاً بك في زاد", "أضف معاملات أو عناصر للمخزون لنتمكن من تحليل بياناتك وتقديم توصيات ذكية.", "Tip"))
+                } else {
+                    ZadAiRepository.generateBehavioralInsights(_transactions.value, inv).ifEmpty {
+                        listOf(com.example.data.AiInsight("تحليل زاد", "لا توجد بيانات كافية لاستخراج رؤى جديدة حالياً.", "Tip"))
+                    }
+                }
+                _insights.value = baseInsights
+                analyzeSubscriptionUsage(_subscriptions.value)
+            }
+        }
+        viewModelScope.launch {
+            dao.getAllShoppingItems().collectLatest { items ->
+                _shoppingList.value = items
+            }
+        }
+        viewModelScope.launch {
+            dao.getAllSubscriptions().collectLatest { subs ->
+                Log.d(TAG, "Room subscriptions updated → count=${subs.size}")
+                _subscriptions.value = subs
+                analyzeSubscriptionUsage(subs)
+            }
+        }
+
+        syncData()
+        loadBudget()
+        loadUserProfile()
+        loadAffiliateProducts()
+    }
+
+    private fun updateFilteredInventory(all: List<ZadInventory>, query: String) {
+        _filteredInventory.value = if (query.isBlank()) all
+        else all.filter { it.itemName.contains(query, ignoreCase = true) }
+    }
+
+    fun setSearchQuery(query: String) {
+        Log.d(TAG, "setSearchQuery() → query='$query'")
+        _inventorySearchQuery.value = query
+        updateFilteredInventory(_inventory.value, query)
+    }
+
+    // Sync with Supabase (Background)
+    fun syncData() {
+        viewModelScope.launch {
+            Log.d(TAG, "syncData() → starting Supabase sync")
+            try {
+                val remoteInventory = SupabaseRepo.getInventory()
+                Log.d(TAG, "syncData() → remoteInventory count=${remoteInventory.size}")
+                if (remoteInventory.isNotEmpty()) dao.insertInventory(remoteInventory)
+
+                val remoteTransactions = SupabaseRepo.getTransactions()
+                Log.d(TAG, "syncData() → remoteTransactions count=${remoteTransactions.size}")
+                if (remoteTransactions.isNotEmpty()) dao.insertTransactions(remoteTransactions)
+
+                val remoteSubscriptions = SupabaseRepo.getSubscriptions()
+                Log.d(TAG, "syncData() → remoteSubscriptions count=${remoteSubscriptions.size}")
+                if (remoteSubscriptions.isNotEmpty()) dao.insertSubscriptions(remoteSubscriptions)
+
+                val remoteShoppingList = SupabaseRepo.getShoppingList()
+                Log.d(TAG, "syncData() → remoteShoppingList count=${remoteShoppingList.size}")
+                if (remoteShoppingList.isNotEmpty()) {
+                    remoteShoppingList.forEach { dao.insertShoppingItem(it) }
+                }
+
+                Log.d(TAG, "syncData() SUCCESS")
+
+                // Optionally trigger the brain after sync
+                // triggerBrain() 
+            } catch (e: Exception) {
+                Log.e(TAG, "syncData() FAILED: ${e.message} — falling back to cached Room data")
+                e.printStackTrace()
+            }
+            loadNotifications()
+        }
+    }
+
+    fun sendAiChatMessage(userText: String) {
+        if (userText.isBlank()) return
+        val userMsg = AiChatMessage(text = userText, isUser = true)
+        _aiChatMessages.value = _aiChatMessages.value + userMsg
+        _isAiTyping.value = true
+
+        viewModelScope.launch {
+            try {
+                val invText = _inventory.value.joinToString("\n") { 
+                    "- ${it.itemName} (${it.quantity} ${it.unit ?: "حبة"})" + 
+                    if (!it.expiryDate.isNullOrBlank()) " [تنتهي: ${it.expiryDate}]" else ""
+                }
+                val txSummary = _transactions.value.takeLast(10).joinToString("\n") { 
+                    "- ${it.title}: ${it.amount} ر.س (${if(it.isExpense) "مصروف" else "دخل"})"
+                }
+                val subSummary = _subscriptions.value.filter { it.isActive }.joinToString("، ") { "${it.title} (${it.amount} ر.س/شهر)" }
+                val totalMonthlyExpense = _transactions.value.filter { it.isExpense }.sumOf { it.amount }
+                val budget = _budget.value
+                
+                // Expiring items in next 3 days
+                val expiringItems = _inventory.value.filter { item ->
+                    item.expiryDate?.let { date ->
+                        try {
+                            val expiry = java.time.LocalDate.parse(date)
+                            val days = java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), expiry)
+                            days in 0..3
+                        } catch(e: Exception) { false }
+                    } ?: false
+                }
+                val expiryWarning = if (expiringItems.isNotEmpty()) 
+                    "⚠️ تنبيه: هذه الأصناف على وشك الانتهاء خلال 3 أيام: ${expiringItems.joinToString(", ") { it.itemName }}" 
+                else ""
+                
+                val systemPrompt = """
+                    أنت 'زاد'، الوكيل العائلي الذكي المتقدم. تتحدث بأسلوب ودود ومختصر ومرح باللغة العربية.
+                    
+                    === مخزون المنزل الحالي ===
+                    ${if(invText.isNotBlank()) invText else "لا يوجد عناصر حالياً."}
+                    
+                    $expiryWarning
+                    
+                    === آخر المعاملات المالية ===
+                    ${if(txSummary.isNotBlank()) txSummary else "لا توجد معاملات."}
+                    إجمالي المصاريف: $totalMonthlyExpense ر.س | الميزانية: $budget ر.س
+                    
+                    === الاشتراكات الشهرية ===
+                    ${if(subSummary.isNotBlank()) subSummary else "لا توجد اشتراكات."}
+                    
+                    مهامك:
+                    1. اقتراح وصفات بناءً على المخزون الحالي (خصوصاً الأصناف على وشك الانتهاء)
+                    2. تحليل المصاريف وإعطاء نصائح توفير
+                    3. اقتراح قائمة التسوق بناءً على ما ينقص
+                    4. الإجابة على أي سؤال عائلي بذكاء
+                    استخدم إيموجي وكن مختصراً ومفيداً.
+                """.trimIndent()
+                
+                val response = com.example.data.ZadAiRepository.callGeminiText(systemPrompt, userText)
+                if (response != null) {
+                    _aiChatMessages.value = _aiChatMessages.value + AiChatMessage(text = response, isUser = false)
+                } else {
+                    _aiChatMessages.value = _aiChatMessages.value + AiChatMessage(text = "عذراً، حدث خطأ في الاتصال بالشبكة 🌐", isUser = false)
+                }
+            } catch(e: Exception) {
+                _aiChatMessages.value = _aiChatMessages.value + AiChatMessage(text = "حدث خطأ غير متوقع.", isUser = false)
+            } finally {
+                _isAiTyping.value = false
+            }
+        }
+    }
+
+    fun loadNotifications() {
+        viewModelScope.launch {
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
+            if (userId != null) {
+                _appNotifications.value = SupabaseRepo.getAppNotifications(userId)
+                // Generate smart notifications after loading
+                generateSmartNotifications(userId)
+            }
+        }
+    }
+
+    fun markNotificationRead(id: String) {
+        viewModelScope.launch {
+            SupabaseRepo.markAppNotificationRead(id)
+            val updated = _appNotifications.value.map {
+                if (it.id == id) it.copy(isRead = true) else it
+            }
+            _appNotifications.value = updated
+        }
+    }
+
+    /** Generates proactive smart alerts and injects them into the notification system */
+    private suspend fun generateSmartNotifications(userId: String) {
+        try {
+            val smartAlerts = mutableListOf<com.example.data.AppNotification>()
+            val today = java.time.LocalDate.now()
+
+            // 1. Budget threshold alert (85%)
+            val spent = _transactions.value.filter { it.isExpense }.sumOf { it.amount }
+            val budgetVal = _budget.value
+            if (budgetVal > 0 && spent >= budgetVal * 0.85) {
+                val pct = (spent / budgetVal * 100).toInt()
+                val existingBudgetAlert = _appNotifications.value.any {
+                    !it.isRead && it.title.contains("ميزانية") && it.title.contains("$pct%")
+                }
+                if (!existingBudgetAlert) {
+                    smartAlerts.add(
+                        com.example.data.AppNotification(
+                            userId = userId,
+                            title = "⚠️ تنبيه الميزانية — $pct%",
+                            message = "لقد صرفت ${String.format("%.0f", spent)} ر.س من ميزانيتك ${budgetVal.toInt()} ر.س. راجع مصاريفك!",
+                            isRead = false
+                        )
+                    )
+                }
+            }
+
+            // 2. Subscription renewal within 3 days
+            _subscriptions.value.filter { it.isActive && !it.renewalDate.isNullOrBlank() }.forEach { sub ->
+                try {
+                    val renewDate = java.time.LocalDate.parse(sub.renewalDate!!.take(10))
+                    val daysLeft = java.time.temporal.ChronoUnit.DAYS.between(today, renewDate)
+                    if (daysLeft in 0..3) {
+                        val existingSub = _appNotifications.value.any {
+                            !it.isRead && it.title.contains(sub.title)
+                        }
+                        if (!existingSub) {
+                            smartAlerts.add(
+                                com.example.data.AppNotification(
+                                    userId = userId,
+                                    title = "🔔 تجديد ${sub.title} قريب!",
+                                    message = "سيتجدد اشتراكك في ${sub.title} بمبلغ ${sub.amount.toInt()} ر.س خلال $daysLeft أيام.",
+                                    isRead = false
+                                )
+                            )
+                        }
+                    }
+                } catch (e: Exception) { /* skip invalid date */ }
+            }
+
+            // 3. Low stock alert
+            val lowStockItems = _inventory.value.filter { item ->
+                item.quantity <= (item.lowStockThreshold ?: 2)
+            }.take(3)
+            if (lowStockItems.isNotEmpty()) {
+                val names = lowStockItems.joinToString("، ") { it.itemName }
+                val existingLowStock = _appNotifications.value.any {
+                    !it.isRead && it.title.contains("مخزون منخفض")
+                }
+                if (!existingLowStock) {
+                    smartAlerts.add(
+                        com.example.data.AppNotification(
+                            userId = userId,
+                            title = "📦 مخزون منخفض",
+                            message = "هذه الأصناف على وشك النفاد: $names. أضفها لقائمة التسوق الآن!",
+                            isRead = false
+                        )
+                    )
+                }
+            }
+
+            // Inject smart alerts into DB + local state
+            smartAlerts.forEach { alert ->
+                try {
+                    SupabaseRepo.sendAppNotification(alert.userId, alert.title, alert.message)
+                } catch (e: Exception) {
+                    Log.e(TAG, "generateSmartNotifications() inject failed: ${e.message}")
+                }
+            }
+
+            // Reload updated notifications
+            if (smartAlerts.isNotEmpty()) {
+                _appNotifications.value = SupabaseRepo.getAppNotifications(userId)
+                Log.d(TAG, "generateSmartNotifications() → injected ${smartAlerts.size} smart alerts")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "generateSmartNotifications() FAILED: ${e.message}")
+        }
+    }
+
+    fun loadBudget() {
+        viewModelScope.launch {
+            Log.d(TAG, "loadBudget() → calling SupabaseRepo.getUserBudget()")
+            val prefs = getApplication<Application>().getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+            val cachedBudget = prefs.getFloat("cached_budget", 3500.0f).toDouble()
+            // Use BudgetTracker's remaining (auto-updated by bank listener) as source of truth
+            val budgetTrackerRemaining = BudgetTracker.getRemaining(getApplication())
+            _budget.value = cachedBudget
+            _remainingBalance.value = budgetTrackerRemaining
+
+            val b = SupabaseRepo.getUserBudget()
+            if (b != 3500.0 || !prefs.contains("cached_budget")) {
+                _budget.value = b
+                prefs.edit().putFloat("cached_budget", b.toFloat()).apply()
+            }
+            // BudgetTracker already handles monthly reset, so use its value directly
+            _remainingBalance.value = BudgetTracker.getRemaining(getApplication())
+            Log.d(TAG, "loadBudget() → budget = ${_budget.value}, remaining = ${_remainingBalance.value}")
+        }
+    }
+
+    fun showBudgetDialog() {
+        Log.d(TAG, "showBudgetDialog() → showing budget edit dialog")
+        _showBudgetDialog.value = true
+    }
+
+    fun hideBudgetDialog() {
+        _showBudgetDialog.value = false
+    }
+
+    fun updateBudget(newBudget: Double) {
+        viewModelScope.launch {
+            Log.d(TAG, "updateBudget() → newBudget=$newBudget")
+            val prefs = getApplication<Application>().getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+            prefs.edit().putFloat("cached_budget", newBudget.toFloat()).apply()
+            _budget.value = newBudget
+            recalculateRemainingBalance(_transactions.value, newBudget)
+
+            val success = SupabaseRepo.updateUserBudget(newBudget)
+            if (success) {
+                Log.d(TAG, "updateBudget() SUCCESS → new budget in state = $newBudget")
+            } else {
+                Log.e(TAG, "updateBudget() FAILED sync to Supabase, but saved locally")
+            }
+        }
+    }
+
+    fun deleteTransaction(id: String) {
+        viewModelScope.launch {
+            Log.d(TAG, "deleteTransaction() → id=$id")
+            dao.deleteTransaction(id)
+            try {
+                SupabaseRepo.deleteTransaction(id)
+            } catch (e: Exception) {
+                Log.e(TAG, "deleteTransaction() Supabase sync FAILED: ${e.message}")
+            }
+            com.example.widgets.TransactionWidget.updateAllWidgets(getApplication())
+        }
+    }
+
+    fun addTransaction(transaction: ZadTransaction) {
+        viewModelScope.launch {
+            Log.d(TAG, "addTransaction() → title=${transaction.title}, amount=${transaction.amount}, isExpense=${transaction.isExpense}")
+            dao.insertTransaction(transaction)
+            Log.d(TAG, "addTransaction() → saved to Room DB, id=${transaction.id}")
+            try {
+                SupabaseRepo.addTransaction(transaction)
+                Log.d(TAG, "addTransaction() → synced to Supabase table=zad_transactions")
+            } catch (e: Exception) {
+                Log.e(TAG, "addTransaction() Supabase sync FAILED: ${e.message}")
+                e.printStackTrace()
+            }
+            com.example.widgets.TransactionWidget.updateAllWidgets(getApplication())
+        }
+    }
+
+    private fun recalculateRemainingBalance(txs: List<ZadTransaction>, currentBudget: Double) {
+        if (currentBudget <= 0.0) return
+
+        val currentMonth = java.time.LocalDate.now().monthValue
+        val currentYear = java.time.LocalDate.now().year
+
+        var spentThisMonth = 0.0
+        var incomeThisMonth = 0.0
+
+        for (tx in txs) {
+            val txDateStr = tx.createdAt
+            if (txDateStr != null) {
+                try {
+                    val txDate = java.time.Instant.parse(txDateStr).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                    if (txDate.monthValue == currentMonth && txDate.year == currentYear) {
+                        if (tx.isExpense) {
+                            spentThisMonth += tx.amount
+                        } else {
+                            incomeThisMonth += tx.amount
+                        }
+                    }
+                } catch(e: Exception) {
+                    // Ignore parsing errors
+                }
+            }
+        }
+
+        val newRemaining = currentBudget - spentThisMonth + incomeThisMonth
+        // Only update if BudgetTracker hasn't been updated by bank listener
+        // (BudgetTracker is the source of truth for real-time deductions)
+        val budgetTrackerRemaining = BudgetTracker.getRemaining(getApplication())
+        // Use BudgetTracker value if it's more recent (lower = more deductions happened)
+        val finalRemaining = if (budgetTrackerRemaining < newRemaining) budgetTrackerRemaining else newRemaining
+        _remainingBalance.value = finalRemaining
+
+        val prefs = getApplication<Application>().getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putFloat("remaining_balance", finalRemaining.toFloat()).apply()
+        Log.d(TAG, "recalculateRemainingBalance → Budget: $currentBudget, Spent: $spentThisMonth, Income: $incomeThisMonth, Remaining: $finalRemaining")
+    }
+
+    fun addInventory(item: ZadInventory) {
+        viewModelScope.launch {
+            Log.d(TAG, "addInventory() → itemName=${item.itemName}, quantity=${item.quantity}")
+            dao.insertInventoryItem(item)
+            Log.d(TAG, "addInventory() → saved to Room DB, id=${item.id}")
+            try {
+                SupabaseRepo.addInventory(item)
+                Log.d(TAG, "addInventory() → synced to Supabase table=zad_inventory")
+            } catch (e: Exception) {
+                Log.e(TAG, "addInventory() Supabase sync FAILED: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun deleteInventory(id: String) {
+        viewModelScope.launch {
+            Log.d(TAG, "deleteInventory() → id=$id")
+            dao.deleteInventory(id)
+            Log.d(TAG, "deleteInventory() → deleted from Room DB")
+            try {
+                SupabaseRepo.deleteInventory(id)
+                Log.d(TAG, "deleteInventory() → synced to Supabase table=zad_inventory")
+            } catch (e: Exception) {
+                Log.e(TAG, "deleteInventory() Supabase sync FAILED: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun addShoppingItem(item: com.example.data.ZadShoppingItem) {
+        viewModelScope.launch {
+            Log.d(TAG, "addShoppingItem() → itemName=${item.itemName}")
+            dao.insertShoppingItem(item)
+            try {
+                SupabaseRepo.addShoppingItem(item)
+                Log.d(TAG, "addShoppingItem() → synced to Supabase table=zad_shopping_list")
+            } catch (e: Exception) {
+                Log.e(TAG, "addShoppingItem() Supabase sync FAILED: ${e.message}")
+            }
+        }
+    }
+
+    fun toggleShoppingItemPurchased(id: String) {
+        viewModelScope.launch {
+            val item = _shoppingList.value.find { it.id == id } ?: return@launch
+            val newStatus = !item.isPurchased
+            Log.d(TAG, "toggleShoppingItemPurchased() → id=$id, was=${item.isPurchased}, now=$newStatus")
+            dao.setShoppingItemPurchased(id, newStatus)
+            _shoppingList.value = _shoppingList.value.map {
+                if (it.id == id) it.copy(isPurchased = newStatus) else it
+            }
+            try {
+                SupabaseRepo.toggleShoppingItemPurchased(id, newStatus)
+            } catch (e: Exception) {
+                Log.e(TAG, "toggleShoppingItemPurchased() Supabase sync FAILED: ${e.message}")
+            }
+        }
+    }
+
+    fun deleteShoppingItem(id: String) {
+        viewModelScope.launch {
+            Log.d(TAG, "deleteShoppingItem() → id=$id")
+            dao.deleteShoppingItem(id)
+            try {
+                SupabaseRepo.deleteShoppingItem(id)
+                Log.d(TAG, "deleteShoppingItem() → synced to Supabase table=zad_shopping_list")
+            } catch (e: Exception) {
+                Log.e(TAG, "deleteShoppingItem() Supabase sync FAILED: ${e.message}")
+            }
+        }
+    }
+
+    fun addSubscription(sub: ZadSubscription) {
+        viewModelScope.launch {
+            Log.d(TAG, "addSubscription() → title=${sub.title}, amount=${sub.amount}")
+            dao.insertSubscription(sub)
+            Log.d(TAG, "addSubscription() → saved to Room DB, id=${sub.id}")
+            try {
+                SupabaseRepo.addSubscription(sub)
+                Log.d(TAG, "addSubscription() → synced to Supabase table=zad_subscriptions")
+            } catch (e: Exception) {
+                Log.e(TAG, "addSubscription() Supabase sync FAILED: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun deleteSubscription(id: String) {
+        viewModelScope.launch {
+            Log.d(TAG, "deleteSubscription() → id=$id")
+            dao.deleteSubscription(id)
+            Log.d(TAG, "deleteSubscription() → deleted from Room DB")
+            try {
+                SupabaseRepo.deleteSubscription(id)
+                Log.d(TAG, "deleteSubscription() → synced to Supabase table=zad_subscriptions")
+            } catch (e: Exception) {
+                Log.e(TAG, "deleteSubscription() Supabase sync FAILED: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun updateSubscriptionActive(id: String, isActive: Boolean) {
+        viewModelScope.launch {
+            Log.d(TAG, "updateSubscriptionActive() → id=$id, isActive=$isActive")
+            // Optimistic local update
+            _subscriptions.value = _subscriptions.value.map {
+                if (it.id == id) it.copy(isActive = isActive) else it
+            }
+            try {
+                SupabaseRepo.updateSubscriptionActive(id, isActive)
+                Log.d(TAG, "updateSubscriptionActive() → synced to Supabase zad_subscriptions.is_active")
+            } catch (e: Exception) {
+                Log.e(TAG, "updateSubscriptionActive() Supabase sync FAILED: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // Convenience overloads
+    fun addTransaction(amount: Double, title: String, isExpense: Boolean, category: String = "Other") {
+        Log.d(TAG, "addTransaction(overload) → amount=$amount, title=$title, isExpense=$isExpense, category=$category")
+        val t = ZadTransaction(amount = amount, title = title, isExpense = isExpense, category = category)
+        addTransaction(t)
+    }
+
+    fun addSubscription(title: String, amount: Double) {
+        Log.d(TAG, "addSubscription(overload) → title=$title, amount=$amount")
+        val s = ZadSubscription(title = title, amount = amount)
+        addSubscription(s)
+    }
+
+    fun detectSubscriptions() {
+        viewModelScope.launch {
+            Log.d(TAG, "detectSubscriptions() → Starting analysis of ${_transactions.value.size} transactions")
+            try {
+                val detected = ZadAiRepository.detectSubscriptions(_transactions.value)
+                Log.d(TAG, "detectSubscriptions() → Found ${detected.size} subscriptions")
+                
+                // For each detected subscription, add it if not already exists by title
+                val currentTitles = _subscriptions.value.map { it.title.lowercase() }
+                for (sub in detected) {
+                    if (sub.name.lowercase() !in currentTitles && sub.confidence > 0.8) {
+                        Log.d(TAG, "Auto-adding detected subscription: ${sub.name}")
+                        addSubscription(
+                            ZadSubscription(
+                                title = sub.name,
+                                amount = sub.amount,
+                                renewalDate = sub.nextBillingDate,
+                                category = "Auto-detected"
+                            )
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "detectSubscriptions() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    fun logout() {
+        viewModelScope.launch {
+            try {
+                SupabaseRepo.client.auth.signOut()
+            } catch (e: Exception) {
+                Log.e(TAG, "logout() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    private fun updateBehaviorPatterns(allTx: List<ZadTransaction>) {
+        viewModelScope.launch {
+            try {
+                val categoryGroups = allTx.filter { it.category != null && it.category != "عام" }.groupBy { it.category!! }
+                val patterns = categoryGroups.mapNotNull { (cat, txs) ->
+                    if (txs.isEmpty()) return@mapNotNull null
+                    val avgAmount = txs.map { it.amount }.average()
+                    
+                    var freqDays = 1
+                    var typicalTime = "غير محدد"
+                    if (txs.size > 1) {
+                        try {
+                            val sortedTxs = txs.mapNotNull { 
+                                it.createdAt?.let { ds -> 
+                                    try { Instant.parse(ds) } catch(e: Exception) { null } 
+                                } 
+                            }.sorted()
+                            
+                            if (sortedTxs.size > 1) {
+                                val firstDate = sortedTxs.first()
+                                val lastDate = sortedTxs.last()
+                                val daysBetween = ChronoUnit.DAYS.between(firstDate, lastDate)
+                                
+                                // Prevent division by zero and ensure realistic frequency
+                                freqDays = if (daysBetween > 0) {
+                                    Math.max(1, (daysBetween / sortedTxs.size).toInt())
+                                } else {
+                                    1
+                                }
+                                
+                                val hours = sortedTxs.map { it.atZone(ZoneId.systemDefault()).hour }
+                                val avgHour = hours.average().toInt()
+                                typicalTime = when(avgHour) {
+                                    in 5..11 -> "صباحاً"
+                                    in 12..16 -> "ظهراً"
+                                    in 17..20 -> "مساءً"
+                                    else -> "ليلاً"
+                                }
+                            }
+                        } catch(e: Exception) {
+                            Log.e(TAG, "Error parsing dates for frequency: ${e.message}")
+                        }
+                    }
+
+                    com.example.data.ZadBehaviorPattern(
+                        userId = txs.first().userId,
+                        category = cat,
+                        avgAmount = avgAmount,
+                        frequencyDays = freqDays,
+                        typicalTimeOfDay = typicalTime,
+                        lastUpdated = Instant.now().toString()
+                    )
+                }
+                patterns.forEach { dao.insertBehaviorPattern(it) }
+                _behaviorPatterns.value = patterns
+                Log.d(TAG, "updateBehaviorPatterns() → Updated ${patterns.size} behavior patterns in Room.")
+            } catch(e: Exception) {
+                Log.e(TAG, "updateBehaviorPatterns() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    private fun checkLowStockItems(inv: List<ZadInventory>) {
+        viewModelScope.launch {
+            try {
+                inv.forEach { item ->
+                    val threshold = item.lowStockThreshold ?: 0
+                    if (item.quantity <= threshold) {
+                        val existing = _shoppingList.value.find { it.itemName == item.itemName && !it.isPurchased }
+                        if (existing == null) {
+                            val lastPrice = _transactions.value.filter { it.title.contains(item.itemName, ignoreCase = true) }
+                                .maxByOrNull { it.createdAt ?: "" }?.amount ?: 0.0
+
+                            val priority = when {
+                                item.quantity <= 1 -> "high"
+                                item.quantity <= threshold / 2 -> "high"
+                                item.quantity <= threshold -> "medium"
+                                else -> "low"
+                            }
+                            
+                            val shopItem = com.example.data.ZadShoppingItem(
+                                userId = item.userId,
+                                itemName = item.itemName,
+                                quantity = maxOf(1, threshold - item.quantity + 1),
+                                estimatedPrice = lastPrice,
+                                isPurchased = false,
+                                createdAt = Instant.now().toString(),
+                                priority = priority,
+                                predictedDaysLeft = if (item.quantity <= 1) 0 else item.quantity
+                            )
+                            dao.insertShoppingItem(shopItem)
+                            Log.d(TAG, "checkLowStockItems() → Added ${item.itemName} to Shopping List (priority=$priority)")
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "checkLowStockItems() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    private fun predictStockDepletion(inv: List<ZadInventory>) {
+        viewModelScope.launch {
+            try {
+                val transactions = _transactions.value
+
+                inv.forEach { item ->
+                    val txs = transactions.filter { it.title.contains(item.itemName, ignoreCase = true) }.sortedByDescending { it.createdAt }
+                    if (txs.size > 1) {
+                        try {
+                            val lastPurchaseStr = txs.first().createdAt ?: return@forEach
+                            val lastPurchaseInstant = Instant.parse(lastPurchaseStr)
+                            val daysSinceLastPurchase = ChronoUnit.DAYS.between(lastPurchaseInstant, Instant.now())
+                            
+                            val firstDateStr = txs.last().createdAt ?: return@forEach
+                            val firstDate = Instant.parse(firstDateStr)
+                            val totalSpan = ChronoUnit.DAYS.between(firstDate, Instant.now())
+                            val freqDays = if (totalSpan > 0) (totalSpan / txs.size).toInt() else 1
+
+                            val dailyUsage = if (freqDays > 0) 1.0 / freqDays else 0.0
+                            val predictedDaysLeft = if (dailyUsage > 0) (item.quantity / dailyUsage).toInt() else 999
+                            
+                            if (predictedDaysLeft <= 3) {
+                                Log.d(TAG, "predictStockDepletion() → ${item.itemName} might run out in $predictedDaysLeft days!")
+                                val existing = _shoppingList.value.find { it.itemName == item.itemName && !it.isPurchased }
+                                if (existing == null) {
+                                    val priority = when {
+                                        predictedDaysLeft <= 0 -> "high"
+                                        predictedDaysLeft <= 1 -> "high"
+                                        else -> "medium"
+                                    }
+                                    val shopItem = com.example.data.ZadShoppingItem(
+                                        userId = item.userId,
+                                        itemName = item.itemName,
+                                        quantity = 1,
+                                        estimatedPrice = txs.first().amount,
+                                        isPurchased = false,
+                                        createdAt = Instant.now().toString(),
+                                        priority = priority,
+                                        predictedDaysLeft = predictedDaysLeft
+                                    )
+                                    dao.insertShoppingItem(shopItem)
+                                    Log.d(TAG, "predictStockDepletion() → Auto-added ${item.itemName} (priority=$priority, daysLeft=$predictedDaysLeft)")
+                                } else {
+                                    val updated = _shoppingList.value.map {
+                                        if (it.id == existing.id) it.copy(predictedDaysLeft = predictedDaysLeft, priority = "high")
+                                        else it
+                                    }
+                                    _shoppingList.value = updated
+                                }
+                            } else if (predictedDaysLeft <= 7) {
+                                val existing = _shoppingList.value.find { it.itemName == item.itemName && !it.isPurchased }
+                                if (existing != null) {
+                                    val updated = _shoppingList.value.map {
+                                        if (it.id == existing.id) it.copy(predictedDaysLeft = predictedDaysLeft)
+                                        else it
+                                    }
+                                    _shoppingList.value = updated
+                                }
+                            }
+                        } catch (e: Exception) {
+                            // Ignore parse errors
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "predictStockDepletion() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    private fun analyzeSubscriptionUsage(subs: List<ZadSubscription>) {
+        viewModelScope.launch {
+            val newInsights = mutableListOf<com.example.data.AiInsight>()
+            val txs = _transactions.value
+            
+            subs.filter { it.isActive }.forEach { sub ->
+                val yearlyCost = sub.amount * 12
+                val relatedTxs = txs.filter { it.title.contains(sub.title, ignoreCase = true) }
+                
+                val hasRecentUsage = relatedTxs.any { 
+                    it.createdAt?.let { ds ->
+                        try {
+                            val instant = Instant.parse(ds)
+                            ChronoUnit.DAYS.between(instant, Instant.now()) < 60
+                        } catch(e: Exception) { false }
+                    } ?: false
+                }
+
+                if (!hasRecentUsage && relatedTxs.isNotEmpty()) {
+                    newInsights.add(
+                        com.example.data.AiInsight(
+                            title = "اشتراك غير مستغل: ${sub.title}",
+                            description = "لم نلاحظ أي نشاط لاشتراك ${sub.title} مؤخراً. التوفير المحتمل: $yearlyCost ر.س سنوياً عند الإلغاء.",
+                            type = "Warning"
+                        )
+                    )
+                } else if (yearlyCost > 1000) {
+                    newInsights.add(
+                        com.example.data.AiInsight(
+                            title = "تكلفة اشتراك عالية: ${sub.title}",
+                            description = "هذا الاشتراك يكلفك $yearlyCost ر.س سنوياً. هل يستحق الاستمرار؟",
+                            type = "Tip"
+                        )
+                    )
+                }
+            }
+
+            if (newInsights.isNotEmpty()) {
+                val current = _insights.value.toMutableList()
+                current.removeAll { it.title.startsWith("اشتراك غير مستغل:") || it.title.startsWith("تكلفة اشتراك عالية:") }
+                current.addAll(0, newInsights)
+                _insights.value = current
+                Log.d(TAG, "analyzeSubscriptionUsage() → Added ${newInsights.size} subscription insights. Total: ${_insights.value.size}")
+            }
+        }
+    }
+
+
+
+    fun fetchGrocerySuggestions(familySize: Int = 4) {
+        viewModelScope.launch {
+            Log.d(TAG, "fetchGrocerySuggestions() → familySize=$familySize")
+            _grocerySuggestions.value = emptyList() // Clear old data
+            try {
+                val suggestions = ZadAiRepository.suggestGroceries(_inventory.value, familySize)
+                Log.d(TAG, "fetchGrocerySuggestions() → received ${suggestions.size} suggestions")
+                _grocerySuggestions.value = suggestions
+            } catch (e: Exception) {
+                Log.e(TAG, "fetchGrocerySuggestions() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    fun analyzeReceiptAndSave(bitmap: android.graphics.Bitmap) {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "analyzeReceiptAndSave() -> Calling Gemini Vision...")
+                val parsed = ZadAiRepository.analyzeReceipt(bitmap)
+                if (parsed != null) {
+                    // 1. Add Transaction
+                    addTransaction(
+                        title = parsed.storeName,
+                        amount = parsed.total,
+                        isExpense = true,
+                        category = parsed.category
+                    )
+                    // 2. Add to Inventory
+                    parsed.items.forEach { item ->
+                        addInventory(
+                            ZadInventory(
+                                itemName = item.name,
+                                quantity = item.quantity.toInt(),
+                                unit = item.unit,
+                                category = item.category
+                            )
+                        )
+                    }
+                    Log.d(TAG, "analyzeReceiptAndSave() -> Success! Added tx and ${parsed.items.size} inventory items.")
+                } else {
+                    Log.e(TAG, "analyzeReceiptAndSave() -> Parsed is null")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "analyzeReceiptAndSave() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    fun fetchMealSuggestions() {
+        viewModelScope.launch {
+            Log.d(TAG, "fetchMealSuggestions() → fetching...")
+            _mealSuggestions.value = "جاري استنباط الطبخات من المخزون..."
+            try {
+                val suggestions = ZadAiRepository.suggestMeals(_inventory.value)
+                _mealSuggestions.value = suggestions
+            } catch (e: Exception) {
+                Log.e(TAG, "fetchMealSuggestions() FAILED: ${e.message}")
+                _mealSuggestions.value = "حدث خطأ أثناء اقتراح الوجبات."
+            }
+        }
+    }
+
+    // --- Zad Brain Trigger (الدماغ المركزي الموحد) ---
+    fun triggerBrain() {
+        viewModelScope.launch {
+            Log.d(TAG, "triggerBrain() -> Fetching current state for Central Brain")
+            val inventory = _inventory.value
+            val transactions = _transactions.value
+            val subscriptions = _subscriptions.value
+            val shoppingList = _shoppingList.value
+            val patterns = _behaviorPatterns.value
+            val budget = _budget.value
+
+            val brainOutput = ZadCentralBrain.fullAnalysis(inventory, transactions, subscriptions, shoppingList, patterns, budget)
+
+            Log.d(TAG, "triggerBrain() -> ${brainOutput.alerts.size} alerts, ${brainOutput.suggestions.size} suggestions, ${brainOutput.autoActions.size} auto-actions")
+
+            // تنفيذ الإجراءات التلقائية
+            brainOutput.autoActions.forEach { action ->
+                when (action.type) {
+                    "ADD_TO_SHOPPING" -> {
+                        val existing = _shoppingList.value.find { it.itemName == action.payload && !it.isPurchased }
+                        if (existing == null) {
+                            addShoppingItem(ZadShoppingItem(
+                                itemName = action.payload,
+                                quantity = 1,
+                                estimatedPrice = 0.0,
+                                priority = "high"
+                            ))
+                        }
+                    }
+                    "SUGGEST_RECIPE" -> {
+                        Log.d(TAG, "Brain suggests recipe using: ${action.payload}")
+                    }
+                    "SEND_NOTIFICATION" -> {
+                        Log.d(TAG, "Brain notification: ${action.payload}")
+                    }
+                }
+            }
+
+            // توليد إشعارات ذكية من التحذيرات
+            if (brainOutput.alerts.isNotEmpty()) {
+                val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
+                if (userId != null) {
+                    brainOutput.alerts.take(3).forEach { alertText ->
+                        try {
+                            val title = when {
+                                alertText.contains("مخزون منخفض") -> "📦 مخزون منخفض"
+                                alertText.contains("تجدد") || alertText.contains("يُجدد") -> "🔔 تجديد اشتراك"
+                                alertText.contains("إنفاق غير مألوف") -> "💰 تنبيه إنفاق"
+                                alertText.contains("تجاوزت الميزانية") -> "🚨 تجاوز الميزانية"
+                                alertText.contains("على وشك النفاد") -> "⚠️ الميزانية"
+                                alertText.contains("تنتهي") -> "⏰ انتهاء صلاحية"
+                                else -> "🔔 تنبيه زاد"
+                            }
+                            SupabaseRepo.sendAppNotification(userId, title, alertText)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Brain notification failed: ${e.message}")
+                        }
+                    }
+                    _appNotifications.value = SupabaseRepo.getAppNotifications(userId)
+                }
+            }
+        }
+    }
+
+    // --- Scan Fridge with Camera (Gemini Vision) ---
+    fun scanFridgeWithCamera(bitmap: android.graphics.Bitmap) {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "scanFridgeWithCamera() -> Calling Gemini Vision for fridge scan...")
+                val result = com.example.data.ZadAiRepository.analyzeInventoryImage(bitmap)
+                if (result != null) {
+                    result.items.forEach { item ->
+                        if (item.name.isNotBlank()) {
+                            addInventory(ZadInventory(
+                                itemName = item.name,
+                                quantity = item.quantity.toInt(),
+                                unit = item.unit,
+                                category = item.category
+                            ))
+                        }
+                    }
+                    Log.d(TAG, "scanFridgeWithCamera() -> Added ${result.items.size} items from fridge scan")
+                } else {
+                    Log.e(TAG, "scanFridgeWithCamera() -> Result is null")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "scanFridgeWithCamera() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    // --- Refresh Smart Shopping (AI-powered) ---
+    fun refreshSmartShopping() {
+        viewModelScope.launch {
+            Log.d(TAG, "refreshSmartShopping() -> Analyzing inventory gaps...")
+            try {
+                checkLowStockItems(_inventory.value)
+                predictStockDepletion(_inventory.value)
+                
+                // Ask Gemini for smart shopping suggestions
+                val invText = _inventory.value.joinToString(", ") { "${it.itemName}(${it.quantity})" }
+                val prompt = "بناءً على هذا المخزون: $invText. اقترح 5 أصناف ينقصها المنزل مع الكمية المقترحة والسعر التقريبي بالجنيه. أجب بـJSON فقط بدون أي إضافات: [{\"name\":\"\",\"qty\":1,\"price\":0.0}]"
+                val response = com.example.data.ZadAiRepository.callGeminiText("", prompt)
+                if (response != null) {
+                    try {
+                        val startIndex = response.indexOf("[")
+                        val endIndex = response.lastIndexOf("]")
+                        if (startIndex != -1 && endIndex != -1 && endIndex >= startIndex) {
+                            val jsonStr = response.substring(startIndex, endIndex + 1)
+                            val items = org.json.JSONArray(jsonStr)
+                            for (i in 0 until items.length()) {
+                                val obj = items.getJSONObject(i)
+                                val name = obj.optString("name", "")
+                                val qty = obj.optInt("qty", 1)
+                                val price = obj.optDouble("price", 0.0)
+                                if (name.isNotBlank()) {
+                                    val existing = _shoppingList.value.find { it.itemName == name }
+                                    if (existing == null) {
+                                        addShoppingItem(com.example.data.ZadShoppingItem(
+                                            itemName = name,
+                                            quantity = qty,
+                                            estimatedPrice = price
+                                        ))
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "refreshSmartShopping() JSON parse: ${e.message}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "refreshSmartShopping() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    // --- Anomaly Detection ---
+    private fun detectSpendingAnomaly(txs: List<ZadTransaction>) {
+        if (txs.size < 10) return
+        val expenses = txs.filter { it.isExpense }.map { it.amount }
+        val mean = expenses.average()
+        val stdDev = Math.sqrt(expenses.map { (it - mean).let { d -> d * d } }.average())
+        val recentWeekExpense = expenses.takeLast(7).sum()
+        val weeklyMean = mean * 7
+        
+        if (recentWeekExpense > weeklyMean + 2 * stdDev) {
+            val pctOver = ((recentWeekExpense - weeklyMean) / weeklyMean * 100).toInt()
+            val anomalyInsight = com.example.data.AiInsight(
+                title = "⚠️ إنفاق غير مألوف هذا الأسبوع",
+                description = "أنفقت $pctOver% أكثر من المعتاد هذا الأسبوع. إجمالي 7 أيام: ${recentWeekExpense.toInt()} ر.س مقابل متوسط ${weeklyMean.toInt()} ر.س",
+                type = "Alert"
+            )
+            val current = _insights.value.toMutableList()
+            current.removeAll { it.title.startsWith("⚠️ إنفاق غير مألوف") }
+            current.add(0, anomalyInsight)
+            _insights.value = current
+            Log.d(TAG, "detectSpendingAnomaly() -> Anomaly detected! $pctOver% over normal")
+        }
+    }
+
+    fun estimatePrice(itemName: String, store: String = "") {
+        viewModelScope.launch {
+            val estimate = com.example.data.ZadAiRepository.estimatePrice(itemName, store)
+            if (estimate != null) {
+                Log.d(TAG, "estimatePrice() → ${estimate.itemName}: ${estimate.lowPrice}-${estimate.highPrice} SAR")
+            }
+        }
+    }
+
+    fun predictNextMonthExpenses() {
+        viewModelScope.launch {
+            try {
+                val patterns = dao.getBehaviorPatterns()
+                val prediction = com.example.data.ZadAiRepository.predictExpenses(
+                    _transactions.value, _budget.value, patterns
+                )
+                _expensePrediction.value = prediction
+                if (prediction != null) {
+                    Log.d(TAG, "predictNextMonthExpenses() → predicted=${prediction.predictedTotal}, confidence=${prediction.confidence}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "predictNextMonthExpenses() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    fun refreshAgentSummary() {
+        viewModelScope.launch {
+            _isAgentLoading.value = true
+            try {
+                val patterns = _behaviorPatterns.value
+                val summary = com.example.data.ZadAiRepository.getAgentSummary(
+                    _inventory.value, _transactions.value, _subscriptions.value,
+                    _budget.value, _shoppingList.value, patterns
+                )
+                _agentSummary.value = summary
+                if (summary != null) {
+                    Log.d(TAG, "refreshAgentSummary() → ${summary.summary.take(100)}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "refreshAgentSummary() FAILED: ${e.message}")
+            } finally {
+                _isAgentLoading.value = false
+            }
+        }
+    }
+
+    fun setAvatarUri(uri: String?) {
+        _avatarUri.value = uri
+    }
+
+    suspend fun processVoiceCommand(audioBase64: String): com.example.data.VoiceAgentResponse? {
+        return com.example.data.ZadAiRepository.processVoiceCommand(audioBase64)
+    }
+
+    fun loadUserProfile() {
+        viewModelScope.launch {
+            try {
+                val profile = SupabaseRepo.getUserProfile()
+                if (profile != null) {
+                    _userProfile.value = profile
+                    if (!profile.name.isNullOrBlank()) {
+                        _userName.value = profile.name
+                    }
+                    if (!profile.avatarUri.isNullOrBlank()) {
+                        _avatarUri.value = profile.avatarUri
+                    }
+                }
+                // Fallback to email if no name set
+                if (_userName.value.isNullOrBlank()) {
+                    val session = SupabaseRepo.client.auth.currentSessionOrNull()
+                    val emailName = session?.user?.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() }
+                    _userName.value = emailName ?: "مستخدم جديد"
+                }
+                Log.d(TAG, "loadUserProfile() → userName=${_userName.value}, avatarUri=${_avatarUri.value}")
+            } catch (e: Exception) {
+                Log.e(TAG, "loadUserProfile() FAILED: ${e.message}")
+                if (_userName.value.isNullOrBlank()) {
+                    val session = SupabaseRepo.client.auth.currentSessionOrNull()
+                    val emailName = session?.user?.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() }
+                    _userName.value = emailName ?: "مستخدم جديد"
+                }
+            }
+        }
+    }
+
+    fun updateUserProfile(name: String, avatarUri: String?) {
+        viewModelScope.launch {
+            try {
+                _userName.value = name
+                if (avatarUri != null) _avatarUri.value = avatarUri
+                SupabaseRepo.updateUserProfile(name, avatarUri)
+                Log.d(TAG, "updateUserProfile() → saved name=$name, avatarUri=$avatarUri")
+            } catch (e: Exception) {
+                Log.e(TAG, "updateUserProfile() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    fun deleteAccount() {
+        viewModelScope.launch {
+            try {
+                SupabaseRepo.deleteAccount()
+                SupabaseRepo.client.auth.signOut()
+                Log.d(TAG, "deleteAccount() SUCCESS")
+            } catch (e: Exception) {
+                Log.e(TAG, "deleteAccount() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    // ─── Amazon Affiliate ───────────────────────────────────────────────
+    private val _affiliateProducts = MutableStateFlow<List<AffiliateProduct>>(emptyList())
+    val affiliateProducts: StateFlow<List<AffiliateProduct>> = _affiliateProducts.asStateFlow()
+
+    private val _matchedProductId = MutableStateFlow<String?>(null)
+    val matchedProductId: StateFlow<String?> = _matchedProductId.asStateFlow()
+
+    private val _isMatchingProduct = MutableStateFlow(false)
+    val isMatchingProduct: StateFlow<Boolean> = _isMatchingProduct.asStateFlow()
+
+    private val matchingCache = mutableMapOf<String, String?>()
+
+    private val _affiliateConsentGiven = MutableStateFlow(false)
+    val affiliateConsentGiven: StateFlow<Boolean> = _affiliateConsentGiven.asStateFlow()
+
+    fun setAffiliateConsent(given: Boolean) {
+        _affiliateConsentGiven.value = given
+    }
+
+    fun loadAffiliateProducts() {
+        viewModelScope.launch {
+            try {
+                val products = SupabaseRepo.getAffiliateProducts()
+                _affiliateProducts.value = products
+                dao.insertAffiliateProducts(products)
+            } catch (e: Exception) {
+                Log.e(TAG, "loadAffiliateProducts() FAILED: ${e.message}")
+                _affiliateProducts.value = dao.getAffiliateProducts()
+            }
+        }
+    }
+
+    fun matchProduct(productName: String) {
+        viewModelScope.launch {
+            if (productName.isBlank()) return@launch
+
+            matchingCache[productName]?.let {
+                _matchedProductId.value = it
+                return@launch
+            }
+
+            _isMatchingProduct.value = true
+            _matchedProductId.value = null
+
+            try {
+                val catalog = _affiliateProducts.value.filter { it.isActive }.map {
+                    mapOf(
+                        "id" to it.id,
+                        "name" to it.productNameAr,
+                        "keywords" to it.productNameSearchKeywords
+                    )
+                }
+
+                Log.d(TAG, "matchProduct() → searching for '$productName' in ${catalog.size} products")
+
+                val response = SupabaseRepo.callEdgeFunction("amazon-creators-search", mapOf(
+                    "action" to "match_product",
+                    "payload" to mapOf(
+                        "product_name" to productName,
+                        "catalog" to catalog
+                    )
+                ))
+
+                val matchId = response["match"] as? String
+                matchingCache[productName] = matchId
+                _matchedProductId.value = matchId
+
+                if (matchId == null) {
+                    SupabaseRepo.recordCatalogRequest(
+                        AffiliateCatalogRequest(searchedTerm = productName)
+                    )
+                }
+
+                Log.d(TAG, "matchProduct() → result=$matchId")
+            } catch (e: Exception) {
+                Log.e(TAG, "matchProduct() FAILED: ${e.message}")
+            } finally {
+                _isMatchingProduct.value = false
+            }
+        }
+    }
+
+    fun recordAffiliateClick(productId: String, sourceScreen: String = "shopping") {
+        viewModelScope.launch {
+            try {
+                Log.d(TAG, "recordAffiliateClick() → product=$productId, source=$sourceScreen")
+                SupabaseRepo.recordAffiliateClick(
+                    AffiliateClick(productId = productId, sourceScreen = sourceScreen)
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "recordAffiliateClick() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    fun buildAmazonLink(asin: String): String {
+        return "https://www.amazon.sa/dp/$asin?tag=zad0b-21"
+    }
+
+    fun clearMatchedProduct() {
+        _matchedProductId.value = null
+    }
+
+    private val _affiliateStats = MutableStateFlow<List<AffiliateClick>>(emptyList())
+    val affiliateStats: StateFlow<List<AffiliateClick>> = _affiliateStats.asStateFlow()
+
+    fun loadAffiliateStats() {
+        viewModelScope.launch {
+            try {
+                val userId = _userProfile.value?.id ?: return@launch
+                _affiliateStats.value = SupabaseRepo.getAffiliateClickStats()
+            } catch (e: Exception) {
+                Log.e(TAG, "loadAffiliateStats() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    // ─── ZAD Core Intelligence ──────────────────────────────────────────
+    private val _coreIntelReply = MutableStateFlow<String?>(null)
+    val coreIntelReply: StateFlow<String?> = _coreIntelReply.asStateFlow()
+
+    private val _isCoreIntelLoading = MutableStateFlow(false)
+    val isCoreIntelLoading: StateFlow<Boolean> = _isCoreIntelLoading.asStateFlow()
+
+    private val _behaviorConsentGiven = MutableStateFlow(false)
+    val behaviorConsentGiven: StateFlow<Boolean> = _behaviorConsentGiven.asStateFlow()
+
+    fun setBehaviorConsent(given: Boolean) {
+        _behaviorConsentGiven.value = given
+    }
+
+    fun askCoreIntel(question: String) {
+        viewModelScope.launch {
+            _isCoreIntelLoading.value = true
+            _coreIntelReply.value = null
+            try {
+                val userId = _userProfile.value?.id ?: ""
+                val response = SupabaseRepo.callEdgeFunction("zad-core-intelligence", mapOf(
+                    "action" to "chat",
+                    "user_id" to userId,
+                    "payload" to mapOf(
+                        "message" to question,
+                        "history" to emptyList<Any>()
+                    )
+                ))
+                _coreIntelReply.value = response["reply"] as? String
+            } catch (e: Exception) {
+                Log.e(TAG, "askCoreIntel() FAILED: ${e.message}")
+                _coreIntelReply.value = "عذراً، حدث خطأ في الاتصال."
+            } finally {
+                _isCoreIntelLoading.value = false
+            }
+        }
+    }
+
+    fun getCoreInsight() {
+        viewModelScope.launch {
+            _isCoreIntelLoading.value = true
+            try {
+                val userId = _userProfile.value?.id ?: ""
+                val response = SupabaseRepo.callEdgeFunction("zad-core-intelligence", mapOf(
+                    "action" to "insight",
+                    "user_id" to userId,
+                    "payload" to emptyMap<String, Any>()
+                ))
+                _coreIntelReply.value = response["insight"] as? String
+            } catch (e: Exception) {
+                Log.e(TAG, "getCoreInsight() FAILED: ${e.message}")
+            } finally {
+                _isCoreIntelLoading.value = false
+            }
+        }
+    }
+
+    fun getPrediction() {
+        viewModelScope.launch {
+            _isCoreIntelLoading.value = true
+            try {
+                val userId = _userProfile.value?.id ?: ""
+                val response = SupabaseRepo.callEdgeFunction("zad-core-intelligence", mapOf(
+                    "action" to "prediction",
+                    "user_id" to userId,
+                    "payload" to emptyMap<String, Any>()
+                ))
+                val pred = response["prediction"] as? Map<String, Any>
+                if (pred != null) {
+                    _coreIntelReply.value = "🔮 توقع الأسبوع القادم: ${pred["next_week"]} ريال\n📅 توقع الشهر القادم: ${pred["next_month"]} ريال\n\n${pred["based_on"]}"
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "getPrediction() FAILED: ${e.message}")
+            } finally {
+                _isCoreIntelLoading.value = false
+            }
+        }
+    }
+
+    fun classifyTransactionItem(title: String, amount: Double, category: String? = null) {
+        viewModelScope.launch {
+            try {
+                val userId = _userProfile.value?.id ?: ""
+                val response = SupabaseRepo.callEdgeFunction("zad-core-intelligence", mapOf(
+                    "action" to "classify",
+                    "user_id" to userId,
+                    "payload" to mapOf(
+                        "title" to title,
+                        "amount" to amount,
+                        "category" to (category ?: "")
+                    )
+                ))
+                val aiCategory = response["category"] as? String
+                if (aiCategory != null && aiCategory != "أخرى") {
+                    Log.d(TAG, "classifyTransactionItem() → classified '$title' as '$aiCategory'")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "classifyTransactionItem() FAILED: ${e.message}")
+            }
+        }
+    }
+}
