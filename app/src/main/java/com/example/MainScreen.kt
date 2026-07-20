@@ -259,7 +259,11 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                 NavHost(
                     navController = navController,
                     startDestination = Screen.Home.route,
-                    modifier = Modifier.padding(innerPadding).fillMaxSize()
+                    modifier = Modifier.padding(innerPadding).fillMaxSize(),
+                    enterTransition = { com.example.ui.components.ZadTransitions.enter },
+                    exitTransition = { com.example.ui.components.ZadTransitions.exit },
+                    popEnterTransition = { com.example.ui.components.ZadTransitions.popEnter },
+                    popExitTransition = { com.example.ui.components.ZadTransitions.popExit }
                 ) {
                     composable(Screen.Home.route) {
                         HomeScreen(

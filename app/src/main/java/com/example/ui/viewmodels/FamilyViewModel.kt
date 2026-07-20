@@ -549,8 +549,13 @@ class FamilyViewModel : ViewModel() {
             _myAllTrees = SupabaseRepo.getMyAllTrees()
             _familyTasbiha = SupabaseRepo.getFamilyTasbiha()
             _activeChallenges = SupabaseRepo.getActiveChallenges()
-            if (_selectedTree == null && _myAllTrees.isNotEmpty()) {
-                _selectedTree = _myAllTrees.first()
+            // ضمان وجود شجرة مختارة دايماً — عشان العدّ يشتغل من أول ضغطة
+            if (_selectedTree == null) {
+                _selectedTree = _myAllTrees.firstOrNull()
+                    ?: _myTasbiha
+                    ?: SupabaseRepo.createNewTree("بستاني الأول").also {
+                        if (it != null) _myAllTrees = SupabaseRepo.getMyAllTrees()
+                    }
             }
         }
     }
@@ -570,16 +575,29 @@ class FamilyViewModel : ViewModel() {
     }
 
     fun tasbihaClick() {
-        val tree = _selectedTree ?: return
+        // مفيش شجرة مختارة؟ نستخدم أي شجرة متاحة بدل الفشل الصامت
+        val tree = _selectedTree ?: _myAllTrees.firstOrNull() ?: _myTasbiha ?: run {
+            loadTasbiha() // يحمّل أو ينشئ شجرة — الضغطة الجاية هتشتغل
+            return
+        }
+        if (_selectedTree == null) _selectedTree = tree
         val newScore = tree.score + 1
         val newClicks = tree.totalClicks + 1
         var newLevel = (newScore / 99) + 1
         if (newLevel > 5) newLevel = 5
-        
-        // Check streak
-        val today = java.time.LocalDate.now().toString()
-        val isNewDay = tree.lastStreakDate != today
-        val newStreak = if (isNewDay) tree.streakDays + 1 else tree.streakDays
+
+        // Streak صحيح: يزيد لو يوم متتالي، يرجع لـ 1 لو انقطعت أكتر من يوم
+        val today = java.time.LocalDate.now()
+        val todayStr = today.toString()
+        val lastDate = tree.lastStreakDate?.let {
+            try { java.time.LocalDate.parse(it) } catch (e: Exception) { null }
+        }
+        val newStreak = when {
+            lastDate == null -> 1
+            lastDate == today -> tree.streakDays.coerceAtLeast(1)
+            lastDate == today.minusDays(1) -> tree.streakDays + 1
+            else -> 1 // انقطع التتابع
+        }
         
         // Check if just matured
         val wasMature = tree.isMature
@@ -589,7 +607,7 @@ class FamilyViewModel : ViewModel() {
             score = newScore, level = newLevel, totalClicks = newClicks,
             lastTasbihAt = java.time.Instant.now().toString(),
             streakDays = newStreak,
-            lastStreakDate = today,
+            lastStreakDate = todayStr,
             isMature = isNowMature,
             maturedAt = if (isNowMature && !wasMature) java.time.Instant.now().toString() else tree.maturedAt
         )

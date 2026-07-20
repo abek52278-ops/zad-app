@@ -100,6 +100,10 @@ MainActivity
 5. **ZadCentralBrain** unified AI brain with behavior learning + predictions
 
 ## COMPLETED FEATURES
+- **Sprint 5 — iOS-grade animation system + Tasbiha fixes (2026-07-20):**
+  - `ZadAnimations.kt`: unified animation toolkit — `ZadSprings` (iOS spring physics presets), `ZadTransitions` (RTL push/pop screen transitions), `Modifier.pressableScale()` (Apple-style press shrink + haptic), `shimmerLoading()`, `floatingIdle()`, `pulseGlow()`, `animatedCountAsState()`, `AppearOnEntry`
+  - NavHost now uses ZadTransitions for all screen navigation (push/pop like iOS)
+  - Tasbiha fixed: silent-return bug when no tree selected (now falls back to any tree or auto-creates "بستاني الأول"), streak logic corrected (consecutive-day +1, reset to 1 after gap, no infinite increment)
 - **Sprint 4 — Profile/Subscriptions/Chat fixes (2026-07-20):**
   - ProfileSubScreens: fixed literal `\$budget` display bug (showed "$budget ر.س" instead of the number); alert switches now persist via `AlertPrefs` (SharedPreferences) and actually gate notifications (BudgetTracker + low-stock alerts respect them); dead "contact support" button now opens mailto intent
   - Subscription intelligence in BrainReport: annual cost projection, cancel suggestion when subs >20% of budget, duplicate streaming services detection
