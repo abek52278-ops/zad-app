@@ -542,6 +542,7 @@ class FamilyViewModel : ViewModel() {
     val selectedTree: TasbihaTree? get() = _selectedTree
     
     private var tasbihaSyncJob: kotlinx.coroutines.Job? = null
+    private var pendingTasbihaDelta: Int = 0
 
     fun loadTasbiha() {
         viewModelScope.launch {
@@ -617,13 +618,16 @@ class FamilyViewModel : ViewModel() {
         _myAllTrees = _myAllTrees.map { if (it.id == tree.id) updated else it }
         if (_myTasbiha?.id == tree.id) _myTasbiha = updated
 
-        // Debounce network requests
+        // Accumulate this tap into the pending delta instead of letting a new
+        // debounce cycle replace the previous one outright — a rapid burst of
+        // taps batches into a single atomic server-side increment, so no tap
+        // is silently dropped even though only one network call fires.
+        pendingTasbihaDelta += 1
+
         tasbihaSyncJob?.cancel()
         tasbihaSyncJob = viewModelScope.launch {
             kotlinx.coroutines.delay(1500) // Wait 1.5 seconds of inactivity before syncing
-            SupabaseRepo.clickTasbiha(updated)
-            // Refresh family list to see others' progress
-            _familyTasbiha = SupabaseRepo.getFamilyTasbiha()
+            flushTasbihaDelta(updated)
         }
 
         viewModelScope.launch {
@@ -658,6 +662,38 @@ class FamilyViewModel : ViewModel() {
                     val msg = "🔥 ${updated.treeName} نشطة لمدة $newStreak أيام متتالية! استمروا!"
                     sendMessage(msg, "TEXT", null)
                 }
+            }
+        }
+    }
+
+    private suspend fun flushTasbihaDelta(latest: TasbihaTree) {
+        val delta = pendingTasbihaDelta
+        if (delta <= 0) return
+        pendingTasbihaDelta = 0
+        val result = SupabaseRepo.incrementTasbihaClicks(latest, delta)
+        if (result == null) {
+            // Flush failed (network/RLS/etc) — put the delta back so the next
+            // successful flush (next tap, or onCleared on the way out) still
+            // accounts for these taps instead of silently dropping them.
+            pendingTasbihaDelta += delta
+        } else {
+            _familyTasbiha = SupabaseRepo.getFamilyTasbiha()
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        val delta = pendingTasbihaDelta
+        val latest = _selectedTree
+        if (delta > 0 && latest != null) {
+            // viewModelScope is already cancelled by the time onCleared runs,
+            // so the pending debounced flush (tasbihaSyncJob) never fires —
+            // without this, leaving the screen mid-burst silently drops every
+            // tap since the last successful sync. Fire-and-forget on a scope
+            // that outlives the ViewModel; best-effort (won't survive an
+            // immediate process kill, but covers normal navigation-away).
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO).launch {
+                SupabaseRepo.incrementTasbihaClicks(latest, delta)
             }
         }
     }

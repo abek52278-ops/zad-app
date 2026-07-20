@@ -12,6 +12,8 @@ import io.github.jan.supabase.functions.Functions
 import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.auth
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
 private const val TAG = "SupabaseRepo"
 
@@ -765,22 +767,45 @@ object SupabaseRepo {
         }
     }
 
-    suspend fun clickTasbiha(updatedTree: TasbihaTree) {
-        try {
-            client.postgrest["family_tasbiha"].update(
-                mapOf(
-                    "score" to updatedTree.score,
-                    "level" to updatedTree.level,
-                    "total_clicks" to updatedTree.totalClicks,
-                    "last_tasbih_at" to updatedTree.lastTasbihAt,
-                    "tree_emoji" to updatedTree.stageEmoji(),
-                    "is_mature" to updatedTree.isMature,
-                    "streak_days" to updatedTree.streakDays
+    @Serializable
+    private data class TasbihaIncrementParams(
+        @SerialName("p_tree_id") val treeId: String,
+        @SerialName("p_delta") val delta: Int,
+        @SerialName("p_level") val level: Int,
+        @SerialName("p_tree_emoji") val treeEmoji: String,
+        @SerialName("p_is_mature") val isMature: Boolean,
+        @SerialName("p_matured_at") val maturedAt: String?,
+        @SerialName("p_streak_days") val streakDays: Int,
+        @SerialName("p_last_streak_date") val lastStreakDate: String?,
+        @SerialName("p_last_tasbih_at") val lastTasbihAt: String?
+    )
+
+    // Atomic delta increment (increment_tasbiha_clicks RPC) — replaces the old
+    // absolute-value clickTasbiha(). The caller accumulates rapid taps into a
+    // single `delta` instead of overwriting total_clicks/score outright, so a
+    // debounced batch flush (or a retry) can never clobber another session's
+    // count or drop taps that happened between reads.
+    suspend fun incrementTasbihaClicks(updatedTree: TasbihaTree, delta: Int): TasbihaTree? {
+        return try {
+            val result = client.postgrest.rpc(
+                "increment_tasbiha_clicks",
+                TasbihaIncrementParams(
+                    treeId = updatedTree.id,
+                    delta = delta,
+                    level = updatedTree.level,
+                    treeEmoji = updatedTree.stageEmoji(),
+                    isMature = updatedTree.isMature,
+                    maturedAt = updatedTree.maturedAt,
+                    streakDays = updatedTree.streakDays,
+                    lastStreakDate = updatedTree.lastStreakDate,
+                    lastTasbihAt = updatedTree.lastTasbihAt
                 )
-            ) { filter { eq("id", updatedTree.id) } }
-            Log.d(TAG, "clickTasbiha() SUCCESS — score=${updatedTree.score}")
+            ).decodeSingle<TasbihaTree>()
+            Log.d(TAG, "incrementTasbihaClicks() SUCCESS — delta=$delta, newTotal=${result.totalClicks}")
+            result
         } catch (e: Exception) {
-            Log.e(TAG, "clickTasbiha() FAILED: ${e.message}")
+            Log.e(TAG, "incrementTasbihaClicks() FAILED: ${e.message}")
+            null
         }
     }
 
