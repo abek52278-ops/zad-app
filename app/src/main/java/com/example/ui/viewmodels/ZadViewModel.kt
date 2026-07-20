@@ -1085,6 +1085,27 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // --- تقرير العقل المهيكل لصفحة ذكاء زاد ---
+    private val _brainReport = kotlinx.coroutines.flow.MutableStateFlow<ZadCentralBrain.BrainReport?>(null)
+    val brainReport: kotlinx.coroutines.flow.StateFlow<ZadCentralBrain.BrainReport?> = _brainReport
+
+    fun generateBrainReport() {
+        viewModelScope.launch {
+            try {
+                _brainReport.value = ZadCentralBrain.generateReport(
+                    context = getApplication(),
+                    inventory = _inventory.value,
+                    transactions = _transactions.value,
+                    subscriptions = _subscriptions.value,
+                    budget = _budget.value
+                )
+                Log.d(TAG, "generateBrainReport() → score=${_brainReport.value?.healthScore}")
+            } catch (e: Exception) {
+                Log.e(TAG, "generateBrainReport() FAILED: ${e.message}")
+            }
+        }
+    }
+
     // --- Zad Brain Trigger (الدماغ المركزي الموحد) ---
     fun triggerBrain() {
         viewModelScope.launch {

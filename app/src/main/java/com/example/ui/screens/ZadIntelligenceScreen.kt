@@ -70,7 +70,10 @@ fun ZadIntelligenceScreen(
         viewModel.refreshAgentSummary()
         viewModel.predictNextMonthExpenses()
         viewModel.detectSubscriptions()
+        viewModel.generateBrainReport()
     }
+
+    val brainReport by viewModel.brainReport.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize().background(background)) {
         IntelligenceTopBar(onOpenDrawer)
@@ -128,7 +131,8 @@ fun ZadIntelligenceScreen(
                     subscriptions = subscriptions,
                     insights = insights,
                     prediction = prediction,
-                    patterns = patterns
+                    patterns = patterns,
+                    report = brainReport
                 )
                 1 -> SubscriptionsTab(
                     subscriptions = subscriptions,
@@ -163,7 +167,8 @@ fun AnalyticsTab(
     subscriptions: List<ZadSubscription>,
     insights: List<AiInsight>,
     prediction: com.example.data.AiExpensePrediction?,
-    patterns: List<com.example.data.ZadBehaviorPattern>
+    patterns: List<com.example.data.ZadBehaviorPattern>,
+    report: com.example.data.ZadCentralBrain.BrainReport? = null
 ) {
     val expenses = transactions.filter { it.isExpense }
     val income = transactions.filter { !it.isExpense }
@@ -185,6 +190,17 @@ fun AnalyticsTab(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // ═══ تقرير العقل: نقاط الصحة المالية ═══
+        if (report != null) {
+            item { HealthScoreCard(report) }
+            if (report.insights.isNotEmpty()) {
+                item { BrainInsightsCard(report.insights) }
+            }
+            if (report.depletionForecasts.isNotEmpty()) {
+                item { DepletionForecastCard(report.depletionForecasts) }
+            }
+        }
+
         // إحصائيات سريعة
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -939,4 +955,183 @@ fun predictNextMonth(monthlyData: List<Pair<String, Double>>): Double {
     val weightedSum = values.zip(weights).sumOf { (v, w) -> v * w }
     val weightTotal = weights.sum()
     return if (weightTotal > 0) weightedSum / weightTotal else values.average()
+}
+
+// ════════════════════════════════════════════════════════════════
+//  BRAIN REPORT CARDS — تقرير العقل المركزي
+// ════════════════════════════════════════════════════════════════
+
+@Composable
+private fun HealthScoreCard(report: com.example.data.ZadCentralBrain.BrainReport) {
+    val scoreColor = when {
+        report.healthScore >= 85 -> Color(0xFF22C55E)
+        report.healthScore >= 65 -> Color(0xFF84CC16)
+        report.healthScore >= 40 -> Color(0xFFF59E0B)
+        else -> Color(0xFFEF4444)
+    }
+    val animatedScore by animateFloatAsState(
+        targetValue = report.healthScore / 100f,
+        animationSpec = tween(900),
+        label = "score"
+    )
+
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = surface,
+        shadowElevation = 2.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(84.dp)) {
+                CircularProgressIndicator(
+                    progress = { animatedScore },
+                    modifier = Modifier.fillMaxSize(),
+                    color = scoreColor,
+                    strokeWidth = 8.dp,
+                    trackColor = scoreColor.copy(alpha = 0.12f)
+                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "${report.healthScore}",
+                        style = Typography.headlineMedium,
+                        fontWeight = FontWeight.Black,
+                        color = scoreColor
+                    )
+                    Text("/100", style = Typography.labelSmall, color = onSurfaceVariant)
+                }
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "الصحة المالية",
+                    style = Typography.labelMedium,
+                    color = onSurfaceVariant
+                )
+                Text(
+                    report.healthLabel,
+                    style = Typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = onSurface
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    "صرفت ${String.format("%,.0f", report.totalSpent)} ر.س • متبقي ${String.format("%,.0f", report.remaining)} ر.س",
+                    style = Typography.bodySmall,
+                    color = onSurfaceVariant
+                )
+                if (report.subscriptionsMonthlyCost > 0) {
+                    Text(
+                        "اشتراكات: ${String.format("%,.0f", report.subscriptionsMonthlyCost)} ر.س/شهر",
+                        style = Typography.bodySmall,
+                        color = onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BrainInsightsCard(insights: List<String>) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = Color(0xFFF5F3FF),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Psychology,
+                    contentDescription = null,
+                    tint = Color(0xFF8B5CF6),
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    "ملاحظات زاد",
+                    style = Typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF6D28D9)
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            insights.take(4).forEach { insight ->
+                Row(modifier = Modifier.padding(vertical = 4.dp)) {
+                    Text("•", color = Color(0xFF8B5CF6), fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        insight,
+                        style = Typography.bodySmall,
+                        color = Color(0xFF4C1D95),
+                        lineHeight = 18.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DepletionForecastCard(forecasts: List<com.example.data.ZadCentralBrain.DepletionForecast>) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = surface,
+        shadowElevation = 1.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Timeline,
+                    contentDescription = null,
+                    tint = primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    "تنبؤات النفاد — من تعلم استهلاكك",
+                    style = Typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = onSurface
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            forecasts.take(5).forEach { f ->
+                val urgent = f.predictedDaysLeft <= 2
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        f.itemName,
+                        style = Typography.bodyMedium,
+                        color = onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (urgent) Color(0xFFFFF5F5) else Color(0xFFF0FDF4)
+                    ) {
+                        Text(
+                            when {
+                                f.predictedDaysLeft <= 0 -> "خلص غالباً!"
+                                f.predictedDaysLeft == 1 -> "يوم واحد"
+                                else -> "${f.predictedDaysLeft} أيام"
+                            },
+                            style = Typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (urgent) Color(0xFFEF4444) else Color(0xFF22C55E),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
 }

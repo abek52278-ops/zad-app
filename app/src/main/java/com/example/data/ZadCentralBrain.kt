@@ -1,5 +1,6 @@
 package com.example.data
 
+import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -321,6 +322,173 @@ object ZadCentralBrain {
             }
         }
         return issues
+    }
+
+    // ===================================================================
+    // BRAIN REPORT — التقرير المهيكل لصفحة ذكاء زاد (أرقام حقيقية للجرافات)
+    // ===================================================================
+
+    data class CategorySpend(
+        val category: String,
+        val spent: Double,
+        val budget: Double
+    ) {
+        val pctUsed: Int get() = if (budget > 0) ((spent / budget) * 100).toInt() else 0
+        val isOverBudget: Boolean get() = budget > 0 && spent > budget
+    }
+
+    data class DailySpend(val date: LocalDate, val amount: Double)
+
+    data class DepletionForecast(val itemName: String, val quantity: Int, val predictedDaysLeft: Int)
+
+    data class BrainReport(
+        val healthScore: Int,                       // 0-100 صحة مالية عامة
+        val healthLabel: String,                    // ممتاز / جيد / يحتاج انتباه / خطر
+        val totalSpent: Double,
+        val totalIncome: Double,
+        val budget: Double,
+        val remaining: Double,
+        val categoryBreakdown: List<CategorySpend>, // للدونات والبارات
+        val dailyTrend: List<DailySpend>,           // آخر 14 يوم للجراف الخطي
+        val topMerchants: List<Pair<String, Double>>,
+        val subscriptionsMonthlyCost: Double,
+        val inventoryTotal: Int,
+        val inventoryLowStock: Int,
+        val inventoryExpiringSoon: Int,
+        val depletionForecasts: List<DepletionForecast>, // تنبؤات النفاد من التعلم
+        val insights: List<String>                  // ملاحظات جاهزة للعرض
+    )
+
+    /**
+     * التقرير الشامل — يجمع كل المحركات في مخرج واحد مهيكل:
+     * BudgetTracker (كروت الفئات) + ConsumptionLearner (تنبؤ النفاد) + المعاملات + المخزون
+     */
+    suspend fun generateReport(
+        context: Context,
+        inventory: List<ZadInventory>,
+        transactions: List<ZadTransaction>,
+        subscriptions: List<ZadSubscription>,
+        budget: Double
+    ): BrainReport = withContext(Dispatchers.IO) {
+        val today = LocalDate.now()
+        val monthStart = today.withDayOfMonth(1)
+
+        fun txDate(tx: ZadTransaction): LocalDate? = tx.createdAt?.let {
+            try { Instant.parse(it).atZone(ZoneId.systemDefault()).toLocalDate() }
+            catch (e: Exception) { try { LocalDate.parse(it.take(10)) } catch (e2: Exception) { null } }
+        }
+
+        val monthTx = transactions.filter { (txDate(it) ?: today) >= monthStart }
+        val totalSpent = monthTx.filter { it.isExpense }.sumOf { it.amount }
+        val totalIncome = monthTx.filter { !it.isExpense }.sumOf { it.amount }
+        val remaining = BudgetTracker.getRemaining(context)
+
+        // 1) كروت الفئات: المصروف الفعلي من المعاملات + البادجت من BudgetTracker
+        val spentByCategory = monthTx.filter { it.isExpense }
+            .groupBy { it.category ?: "أخرى" }
+            .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+        val categoryBreakdown = BudgetTracker.STANDARD_CATEGORIES
+            .map { cat ->
+                CategorySpend(
+                    category = cat,
+                    spent = spentByCategory[cat] ?: BudgetTracker.getCategorySpent(context, cat),
+                    budget = BudgetTracker.getCategoryBudget(context, cat)
+                )
+            }
+            .filter { it.spent > 0 || it.budget > 0 }
+            .sortedByDescending { it.spent }
+
+        // 2) الاتجاه اليومي — آخر 14 يوم
+        val dailyTrend = (0..13).map { offset ->
+            val day = today.minusDays((13 - offset).toLong())
+            val amount = transactions.filter { it.isExpense && txDate(it) == day }.sumOf { it.amount }
+            DailySpend(day, amount)
+        }
+
+        // 3) أعلى التجار
+        val topMerchants = monthTx.filter { it.isExpense }
+            .groupBy { it.merchantName ?: it.title }
+            .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+            .entries.sortedByDescending { it.value }.take(5)
+            .map { it.key to it.value }
+
+        // 4) الاشتراكات الشهرية
+        val subsMonthlyCost = subscriptions.filter { it.isActive }.sumOf { it.amount }
+
+        // 5) صحة المخزون + تنبؤات النفاد من ConsumptionLearner
+        val lowStock = inventory.count { it.quantity <= (it.lowStockThreshold ?: 2) }
+        val expiringSoon = inventory.count { item ->
+            item.expiryDate?.let {
+                try { ChronoUnit.DAYS.between(today, LocalDate.parse(it)) in 0..3 }
+                catch (e: Exception) { false }
+            } ?: false
+        }
+        val depletionForecasts = inventory.mapNotNull { item ->
+            val daysLeft = ConsumptionLearner.predictDaysLeft(context, item.itemName, item.quantity)
+                ?: return@mapNotNull null
+            DepletionForecast(item.itemName, item.quantity, daysLeft)
+        }.sortedBy { it.predictedDaysLeft }.take(8)
+
+        // 6) نقاط الصحة المالية (0-100)
+        var score = 100
+        if (budget > 0) {
+            val pctUsed = (totalSpent / budget * 100).toInt()
+            score -= when {
+                pctUsed >= 100 -> 40
+                pctUsed >= 90 -> 30
+                pctUsed >= 75 -> 15
+                else -> 0
+            }
+        }
+        score -= categoryBreakdown.count { it.isOverBudget } * 8
+        if (inventory.isNotEmpty()) {
+            score -= ((lowStock.toDouble() / inventory.size) * 20).toInt()
+            score -= (expiringSoon * 3).coerceAtMost(10)
+        }
+        if (budget > 0 && subsMonthlyCost > budget * 0.25) score -= 10
+        val healthScore = score.coerceIn(0, 100)
+        val healthLabel = when {
+            healthScore >= 85 -> "ممتاز 🌟"
+            healthScore >= 65 -> "جيد 👍"
+            healthScore >= 40 -> "يحتاج انتباه ⚠️"
+            else -> "خطر 🚨"
+        }
+
+        // 7) ملاحظات جاهزة
+        val insights = mutableListOf<String>()
+        categoryBreakdown.firstOrNull()?.let {
+            insights.add("أعلى إنفاقك هذا الشهر: ${it.category} (${it.spent.toInt()} ر.س)")
+        }
+        categoryBreakdown.filter { it.isOverBudget }.forEach {
+            insights.add("⛔ تجاوزت ميزانية ${it.category} بـ${(it.spent - it.budget).toInt()} ر.س")
+        }
+        if (subsMonthlyCost > 0) insights.add("اشتراكاتك النشطة تكلفك ${subsMonthlyCost.toInt()} ر.س شهرياً")
+        depletionForecasts.firstOrNull { it.predictedDaysLeft <= 2 }?.let {
+            insights.add("🛒 ${it.itemName} متوقع يخلص خلال ${it.predictedDaysLeft.coerceAtLeast(0)} يوم")
+        }
+        val avgDaily = dailyTrend.map { it.amount }.filter { it > 0 }.ifEmpty { listOf(0.0) }.average()
+        if (avgDaily > 0 && remaining > 0) {
+            insights.add("بمعدل إنفاقك الحالي (${avgDaily.toInt()} ر.س/يوم)، الرصيد يكفي ${(remaining / avgDaily).toInt()} يوم")
+        }
+
+        Log.d(TAG, "generateReport() → score=$healthScore, categories=${categoryBreakdown.size}, forecasts=${depletionForecasts.size}")
+        BrainReport(
+            healthScore = healthScore,
+            healthLabel = healthLabel,
+            totalSpent = totalSpent,
+            totalIncome = totalIncome,
+            budget = budget,
+            remaining = remaining,
+            categoryBreakdown = categoryBreakdown,
+            dailyTrend = dailyTrend,
+            topMerchants = topMerchants,
+            subscriptionsMonthlyCost = subsMonthlyCost,
+            inventoryTotal = inventory.size,
+            inventoryLowStock = lowStock,
+            inventoryExpiringSoon = expiringSoon,
+            depletionForecasts = depletionForecasts,
+            insights = insights
+        )
     }
 
     /**
