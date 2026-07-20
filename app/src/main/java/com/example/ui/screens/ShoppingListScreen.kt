@@ -196,8 +196,7 @@ fun ShoppingListScreen(
                                         product = matchedProduct,
                                         onBuyClick = {
                                             viewModel.recordAffiliateClick(matchedProduct.id, "shopping")
-                                            val link = viewModel.buildAmazonLink(matchedProduct.asin)
-                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link)))
+                                            com.example.data.AffiliateHelper.openProduct(context, matchedProduct)
                                         }
                                     )
                                 }

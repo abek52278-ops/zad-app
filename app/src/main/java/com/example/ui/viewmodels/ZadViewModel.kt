@@ -1477,7 +1477,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun buildAmazonLink(asin: String): String {
-        return "https://www.amazon.sa/dp/$asin?tag=zad0b-21"
+        return com.example.data.AffiliateHelper.productUrl(asin)
     }
 
     fun clearMatchedProduct() {

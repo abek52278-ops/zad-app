@@ -301,8 +301,7 @@ fun HomeScreen(
                                 product = product,
                                 onBuyClick = {
                                     viewModel.recordAffiliateClick(product.id, "home")
-                                    val link = viewModel.buildAmazonLink(product.asin)
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(link)))
+                                    com.example.data.AffiliateHelper.openProduct(context, product)
                                 }
                             )
                         }
@@ -2010,8 +2009,7 @@ fun KidsModeContent(
                         product = product,
                         onBuyClick = {
                             viewModel?.recordAffiliateClick(product.id, "kids_home")
-                            val link = viewModel?.buildAmazonLink(product.asin) ?: ""
-                            context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(link)))
+                            com.example.data.AffiliateHelper.openProduct(context, product)
                         }
                     )
                 }
