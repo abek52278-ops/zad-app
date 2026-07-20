@@ -4,7 +4,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.6";
 const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const TEXT_MODEL = "llama-3.3-70b-versatile";
-const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+
+const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const VISION_MODEL = "nvidia/nemotron-nano-12b-v2-vl:free";
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -91,11 +94,16 @@ async function callGroqText(systemPrompt: string, userPrompt: string, maxTokens 
   return data.choices?.[0]?.message?.content || null;
 }
 
-async function callGroqVision(systemPrompt: string, userPrompt: string, imageBase64: string, mimeType: string) {
-  if (!GROQ_API_KEY) return null;
-  const groqResp = await fetch(GROQ_URL, {
+async function callVisionModel(systemPrompt: string, userPrompt: string, imageBase64: string, mimeType: string) {
+  if (!OPENROUTER_API_KEY) return { content: null, raw: { error: "OPENROUTER_API_KEY not set" }, ok: false, status: 0 };
+  const resp = await fetch(OPENROUTER_URL, {
     method: "POST",
-    headers: { "Authorization": "Bearer " + GROQ_API_KEY, "Content-Type": "application/json" },
+    headers: {
+      "Authorization": "Bearer " + OPENROUTER_API_KEY,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://zad-app.com",
+      "X-Title": "Zad",
+    },
     body: JSON.stringify({
       model: VISION_MODEL,
       messages: [
@@ -112,12 +120,12 @@ async function callGroqVision(systemPrompt: string, userPrompt: string, imageBas
       max_tokens: 2000,
     }),
   });
-  const data = await groqResp.json();
-  console.log("[CoreIntel] Groq vision raw response:", JSON.stringify(data));
-  if (!groqResp.ok) {
-    console.error("[CoreIntel] Groq vision HTTP error:", groqResp.status, JSON.stringify(data));
+  const data = await resp.json();
+  console.log("[CoreIntel] OpenRouter vision raw response:", JSON.stringify(data));
+  if (!resp.ok) {
+    console.error("[CoreIntel] OpenRouter vision HTTP error:", resp.status, JSON.stringify(data));
   }
-  return data.choices?.[0]?.message?.content || null;
+  return { content: data.choices?.[0]?.message?.content || null, raw: data, ok: resp.ok, status: resp.status };
 }
 
 async function callGroqJson(systemPrompt: string, userPrompt: string, maxTokens = 1500) {
@@ -318,23 +326,33 @@ Deno.serve(async (req: Request) => {
         if (!image_base64) return jsonResponse({ items: [] });
         const systemPrompt = "You are a vision AI. Analyze the image of refrigerator/pantry contents. Identify every food item visible. Return ONLY JSON: {\"items\":[{\"name\":\"\",\"quantity\":1.0,\"unit\":\"قطعة\",\"category\":\"عام\"}]}";
         const userPrompt = "List all food items visible in this image with estimated quantity, unit, and category.";
-        const visionResult = await callGroqVision(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg");
+        const visionResult = (await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
         if (!visionResult) {
-          console.error("[CoreIntel] analyze_inventory_image: callGroqVision returned null (missing GROQ_API_KEY or fetch/HTTP failure)");
+          console.error("[CoreIntel] analyze_inventory_image: callVisionModel returned null content");
           return jsonResponse({ items: [] });
         }
-        const jsonMatch = visionResult.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) {
-          console.error("[CoreIntel] analyze_inventory_image: no JSON object found in Groq response:", visionResult);
-          return jsonResponse({ items: [] });
+        const objectMatch = visionResult.match(/\{[\s\S]*\}/);
+        if (objectMatch) {
+          try {
+            const parsed = JSON.parse(objectMatch[0]);
+            return jsonResponse({ items: parsed.items || [] });
+          } catch (e) {
+            console.error("[CoreIntel] analyze_inventory_image: JSON.parse (object) failed:", e.message, "raw match:", objectMatch[0]);
+          }
         }
-        try {
-          const parsed = JSON.parse(jsonMatch[0]);
-          return jsonResponse({ items: parsed.items || [] });
-        } catch (e) {
-          console.error("[CoreIntel] analyze_inventory_image: JSON.parse failed:", e.message, "raw match:", jsonMatch[0]);
-          return jsonResponse({ items: [] });
+        // Smaller free vision models sometimes ignore the {"items":[...]} instruction
+        // and reply with a bare array instead — accept that shape too.
+        const arrayMatch = visionResult.match(/\[[\s\S]*\]/);
+        if (arrayMatch) {
+          try {
+            const parsed = JSON.parse(arrayMatch[0]);
+            return jsonResponse({ items: Array.isArray(parsed) ? parsed : [] });
+          } catch (e) {
+            console.error("[CoreIntel] analyze_inventory_image: JSON.parse (array) failed:", e.message, "raw match:", arrayMatch[0]);
+          }
         }
+        console.error("[CoreIntel] analyze_inventory_image: no JSON object or array found in response:", visionResult);
+        return jsonResponse({ items: [] });
       }
 
       // ──────────────────────────────────────────────
@@ -345,7 +363,7 @@ Deno.serve(async (req: Request) => {
         if (!image_base64) return jsonResponse({ total: 0, category: "", storeName: "", items: [] });
         const systemPrompt = "You are a receipt scanning AI. Extract all information from this receipt image. Return ONLY JSON: {\"total\":0.0,\"category\":\"\",\"storeName\":\"\",\"items\":[{\"name\":\"\",\"price\":0.0,\"quantity\":1.0,\"unit\":\"قطعة\",\"category\":\"عام\"}]}";
         const userPrompt = "Extract the total amount, store name, category, and all line items from this receipt.";
-        const visionResult = await callGroqVision(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg");
+        const visionResult = (await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
         if (visionResult) {
           const jsonMatch = visionResult.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
