@@ -101,41 +101,18 @@ object LucideIcons {
 
 @Composable
 fun LucideIcon(
-  name: String,
+  icon: String,
   modifier: Modifier = Modifier,
   size: Dp = 24.dp,
   tint: Color = Color.Unspecified,
   contentDescription: String? = null
 ) {
-  val iconUrl = "https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/$name.svg"
+  val iconUrl = "https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/$icon.svg"
 
   AsyncImage(
     model = iconUrl,
-    contentDescription = contentDescription ?: name,
+    contentDescription = contentDescription ?: icon,
     modifier = modifier.size(size),
     contentScale = ContentScale.Fit
   )
 }
-
-// Convenience overloads
-@Composable
-fun LucideIcon(
-  icon: String,
-  contentDescription: String? = null,
-  modifier: Modifier = Modifier
-) = LucideIcon(
-  name = icon,
-  contentDescription = contentDescription,
-  modifier = modifier
-)
-
-@Composable
-fun LucideIcon(
-  icon: String,
-  size: Int,
-  modifier: Modifier = Modifier
-) = LucideIcon(
-  name = icon,
-  size = size.dp,
-  modifier = modifier
-)
