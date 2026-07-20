@@ -133,9 +133,9 @@ fun SignUpScreen(
                 onCheckedChange = { termsAgreed = it },
                 colors = CheckboxDefaults.colors(checkedColor = primary)
             )
-            Text(text = "أوافق على ", color = Color.Gray, fontSize = 14.sp)
+            Text(text = "I agree to the ", color = Color.Gray, fontSize = 13.sp)
             TextButton(onClick = { showTermsDialog = true }, contentPadding = PaddingValues(0.dp)) {
-                Text(text = "الشروط والسياسات", color = primary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(text = "Terms & Privacy Policy", color = primary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             }
         }
         
@@ -196,57 +196,53 @@ fun SignUpScreen(
     if (showTermsDialog) {
         AlertDialog(
             onDismissRequest = { showTermsDialog = false },
-            title = { 
-                Text(
-                    "الشروط وسياسة الخصوصية", 
-                    style = Typography.titleLarge, 
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                ) 
+            title = {
+                Column {
+                    Text(
+                        TermsContent.TITLE,
+                        style = Typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        "Version ${TermsContent.VERSION} — ${TermsContent.LAST_UPDATED}",
+                        style = Typography.bodySmall,
+                        color = Color.Gray
+                    )
+                }
             },
-            text = { 
+            text = {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 400.dp)
+                        .heightIn(max = 420.dp)
                         .verticalScroll(rememberScrollState())
                 ) {
                     Text(
-                        "آخر تحديث: يوليو ٢٠٢٦\n\n" +
-                        "١. قبول الشروط\n" +
-                        "بإنشائك لحساب واستخدامك لتطبيق زاد (\"التطبيق\")، فإنك توافق على الالتزام بشروط الخدمة هذه.\n\n" +
-                        "٢. إخلاء المسؤولية عن الذكاء الاصطناعي\n" +
-                        "يستخدم تطبيق زاد الذكاء الاصطناعي المتقدم لأتمتة الميزانيات وتحليل المصروفات. ومع ذلك، تقر وتوافق صراحة على:\n" +
-                        "• تطبيق زاد ليس مستشاراً مالياً مرخصاً أو بنكاً.\n" +
-                        "• أي توقعات أو نصائح يقدمها الذكاء الاصطناعي هي لأغراض إعلامية فقط.\n" +
-                        "• لا يتحمل المطورون أي مسؤولية عن أي خسائر مالية أو قرارات خاطئة مبنية على مخرجات التطبيق.\n" +
-                        "• أنت المسؤول الوحيد عن مراجعة وتأكيد كافة معاملاتك المالية.\n\n" +
-                        "٣. خصوصية البيانات والأمان\n" +
-                        "• نقوم بتخزين بياناتك المشفرة بشكل آمن.\n" +
-                        "• لا نقوم ببيع بياناتك الشخصية لأطراف ثالثة.\n\n" +
-                        "٤. أمان الحساب\n" +
-                        "أنت مسؤول عن الحفاظ على سرية بيانات الدخول الخاصة بك.\n\n" +
-                        "بضغطك على 'أوافق'، تقر بأنك قرأت وفهمت ووافقت على إخلاء مسؤولية زاد من أي التزامات قانونية أو مالية.",
-                        style = Typography.bodyMedium,
-                        color = Color.Gray,
-                        lineHeight = 20.sp
+                        TermsContent.FULL_TEXT,
+                        style = Typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 18.sp
                     )
                 }
             },
             confirmButton = {
                 Button(
-                    onClick = { 
+                    onClick = {
                         termsAgreed = true
-                        showTermsDialog = false 
+                        showTermsDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = primary)
                 ) {
-                    Text("أوافق", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                    Text("Agree & Continue", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showTermsDialog = false }) {
-                    Text("رفض", color = Color.Gray)
+                TextButton(onClick = {
+                    termsAgreed = false
+                    showTermsDialog = false
+                }) {
+                    Text("Decline", color = Color.Gray)
                 }
             }
         )

@@ -153,7 +153,10 @@ fun InventoryScreen(
             )
 
             if (lowStockItems.isNotEmpty()) {
-                LowStockBanner(items = lowStockItems)
+                LowStockBanner(
+                    items = lowStockItems,
+                    onShopClick = { viewModel.runAutoReplenish() }
+                )
             }
 
             if (expiringItems.isNotEmpty()) {
@@ -187,7 +190,9 @@ fun InventoryScreen(
                     items(filteredItems, key = { it.id }) { item ->
                         InventoryItemCard(
                             item = item,
-                            onDelete = { viewModel.deleteInventory(item.id) }
+                            onDelete = { viewModel.deleteInventory(item.id) },
+                            onConsume = { viewModel.consumeInventoryItem(item) },
+                            onRestock = { viewModel.injectScannedItems(listOf(item.copy(quantity = 1))) }
                         )
                     }
                 }
@@ -333,7 +338,7 @@ private fun getEstimatedPrice(itemName: String): Double {
 }
 
 @Composable
-private fun LowStockBanner(items: List<ZadInventory>) {
+private fun LowStockBanner(items: List<ZadInventory>, onShopClick: () -> Unit = {}) {
     val totalEstimatedCost = items.sumOf { getEstimatedPrice(it.itemName) }
 
     Row(
@@ -373,8 +378,8 @@ private fun LowStockBanner(items: List<ZadInventory>) {
                 color = onErrorContainer.copy(alpha = 0.8f)
             )
         }
-        TextButton(onClick = { /* TODO: Add to shopping cart */ }) {
-            Text("تسوق", color = dangerColor, fontWeight = FontWeight.Bold)
+        TextButton(onClick = onShopClick) {
+            Text("نزّلها في التسوق", color = dangerColor, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -614,7 +619,9 @@ private fun EmptySearchState() {
 @Composable
 private fun InventoryItemCard(
     item: ZadInventory,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onConsume: () -> Unit = {},
+    onRestock: () -> Unit = {}
 ) {
     val days = daysUntilExpiry(item.expiryDate)
     val catDef = categoryDefFor(item.category)
@@ -672,11 +679,39 @@ private fun InventoryItemCard(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            Text(
-                "${item.quantity} ${item.unit ?: ""}",
-                style = MaterialTheme.typography.bodySmall,
-                color = onSurfaceVariant
-            )
+            // تحكم بالكمية: − استهلاك (يغذي التعلم والنواقص) / + إعادة تعبئة
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = onConsume,
+                    enabled = item.quantity > 0,
+                    modifier = Modifier.size(26.dp)
+                ) {
+                    Icon(
+                        Icons.Default.RemoveCircleOutline,
+                        contentDescription = "استهلاك واحدة",
+                        tint = if (item.quantity > 0) dangerColor else outline,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Text(
+                    "${item.quantity} ${item.unit ?: ""}",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = onSurface,
+                    modifier = Modifier.padding(horizontal = 6.dp)
+                )
+                IconButton(
+                    onClick = onRestock,
+                    modifier = Modifier.size(26.dp)
+                ) {
+                    Icon(
+                        Icons.Default.AddCircleOutline,
+                        contentDescription = "زيادة واحدة",
+                        tint = primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
 
             if (days != null) {
                 Spacer(modifier = Modifier.height(2.dp))

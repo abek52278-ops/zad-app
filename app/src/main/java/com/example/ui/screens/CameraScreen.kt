@@ -142,15 +142,18 @@ fun CameraScreen(
                                     category = result.category
                                 )
                             )
-                            result.items.forEach { item ->
-                                viewModel.addInventory(
+                            // الحقن الذكي: يزوّد الموجود + يشطب من النواقص + يتعلم
+                            viewModel.injectScannedItems(
+                                result.items.map { item ->
                                     ZadInventory(
                                         itemName = item.name,
                                         quantity = maxOf(1, item.quantity.toInt()),
                                         unit = item.unit,
                                         category = item.category
                                     )
-                                )
+                                }
+                            ) { summary ->
+                                analysisStatus = "فاتورة ${result.storeName} (${result.total} ر.س): $summary"
                             }
                             analysisStatus = "تم تسجيل فاتورة ${result.storeName} بقيمة ${result.total} ر.س والمنتجات في المخزون!"
                             try {
@@ -430,18 +433,19 @@ fun CameraScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        parsedItems.forEach { item ->
-                            viewModel.addInventory(
+                        // الحقن الذكي: يزوّد الموجود بدل التكرار + يشطب من النواقص
+                        viewModel.injectScannedItems(
+                            parsedItems.map { item ->
                                 ZadInventory(
                                     itemName = item.name,
                                     quantity = maxOf(1, item.quantity.toInt()),
                                     unit = item.unit,
                                     category = item.category
                                 )
-                            )
-                        }
+                            }
+                        ) { summary -> analysisStatus = "تم الحقن: $summary" }
                         showConfirmationDialog = false
-                        analysisStatus = "تم حقن ${parsedItems.size} منتجات في المخزون!"
+                        analysisStatus = "جاري حقن ${parsedItems.size} منتجات في المخزون..."
                         parsedItems = emptyList()
                         imageBitmap = null
                     },

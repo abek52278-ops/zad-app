@@ -150,6 +150,17 @@ object SupabaseRepo {
         }
     }
 
+    /** Upsert: يحدث الصف لو موجود (نفس id) أو يضيفه — أساسي للحقن الذكي */
+    suspend fun upsertInventory(item: ZadInventory) {
+        try {
+            val userId = client.auth.currentUserOrNull()?.id ?: return
+            client.postgrest["zad_inventory"].upsert(item.copy(userId = userId))
+            Log.d(TAG, "upsertInventory() SUCCESS — ${item.itemName} qty=${item.quantity}")
+        } catch (e: Exception) {
+            Log.e(TAG, "upsertInventory() FAILED: ${e.message}")
+        }
+    }
+
     suspend fun deleteInventory(id: String) {
         try {
             Log.d(TAG, "deleteInventory() → table=zad_inventory, id=$id")

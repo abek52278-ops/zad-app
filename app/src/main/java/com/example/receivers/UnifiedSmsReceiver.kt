@@ -8,6 +8,8 @@ import android.util.Log
 import com.example.data.BudgetTracker
 import com.example.data.SaBankParser
 import com.example.data.SupabaseRepo
+import com.example.data.TxDeduplicator
+import com.example.data.TxType
 import com.example.data.ZadTransaction
 import com.example.data.local.ZadDatabase
 import io.github.jan.supabase.auth.auth
@@ -68,8 +70,16 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
 
     private suspend fun processSms(context: Context, sender: String, text: String) {
         try {
+            // فلترة الضجيج: OTP / مرفوضة / عروض — تتجاهل نهائياً
+            if (SaBankParser.isNoise(text)) return
+
             val parsed = SaBankParser.detectAndParse(sender, "", text)
-            if (parsed != null && (parsed.isExpense || parsed.category == "الراتب" || parsed.category == "الاشتراكات")) {
+            if (parsed != null) {
+                // منع الخصم المزدوج (نفس العملية توصل SMS + إشعار تطبيق البنك)
+                if (!TxDeduplicator.isNewTransaction(context.applicationContext, parsed.amount, parsed.isExpense)) {
+                    Log.d("UnifiedSmsReceiver", "Duplicate blocked: ${parsed.amount}")
+                    return
+                }
                 val transaction = ZadTransaction(
                     title = parsed.title,
                     amount = parsed.amount,
@@ -81,11 +91,14 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
                 db.zadDao().insertTransaction(transaction)
                 try { SupabaseRepo.addTransaction(transaction) } catch (e: Exception) {}
 
-                // Auto-deduct from remaining balance
-                if (parsed.isExpense) {
-                    BudgetTracker.deductExpense(context.applicationContext, parsed.amount, parsed.title, parsed.category)
-                } else {
-                    BudgetTracker.addIncome(context.applicationContext, parsed.amount, parsed.title)
+                // الحقن الدقيق حسب نوع العملية
+                when (parsed.txType) {
+                    TxType.REFUND -> BudgetTracker.applyRefund(context.applicationContext, parsed.amount, parsed.title, parsed.category)
+                    else -> if (parsed.isExpense) {
+                        BudgetTracker.deductExpense(context.applicationContext, parsed.amount, parsed.title, parsed.category)
+                    } else {
+                        BudgetTracker.addIncome(context.applicationContext, parsed.amount, parsed.title)
+                    }
                 }
 
                 if (parsed.category == "الراتب") {
@@ -108,31 +121,29 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
                 
                 Log.d("UnifiedSmsReceiver", "Parsed SMS: ${parsed.bankName} - ${parsed.title} (${parsed.amount} SAR)")
             } else {
-                var transaction: ZadTransaction? = null
+                // Fallback آمن: لازم مبلغ صحيح + نوع عملية صريح — غير كده نتجاهل
+                val amount = SaBankParser.extractAmount(text)
+                val txType = SaBankParser.detectTxType(text)
 
-                val amountRegex1 = Regex("(\\d+(?:\\.\\d{1,2})?)\\s*(SAR|ر\\.س|رس|ريال)")
-                val amountRegex2 = Regex("(SAR|ر\\.س|رس|ريال)\\s*(\\d+(?:\\.\\d{1,2})?)")
-                val amountMatch = amountRegex1.find(text) ?: amountRegex2.find(text)
-
-                if (amountMatch != null) {
-                    val amountStr = amountMatch.groupValues[1].takeIf { it.toDoubleOrNull() != null } ?: amountMatch.groupValues[2]
-                    val amount = amountStr.toDoubleOrNull()
-                    if (amount != null) {
-                        val isExpense = text.contains("خصم") || text.contains("شراء") || text.contains("pay") ||
-                                text.contains("مشتريات") || text.contains("تم الدفع") || text.contains("سحب")
-                        transaction = ZadTransaction(
-                            title = "معاملة من $sender",
-                            amount = amount,
-                            isExpense = isExpense
-                        )
-                    }
-                }
-
-                if (transaction != null) {
+                if (amount != null && txType != null) {
+                    if (!TxDeduplicator.isNewTransaction(context.applicationContext, amount, txType.isExpense)) return
+                    val category = SaBankParser.classify(text, txType)
+                    val transaction = ZadTransaction(
+                        title = "$sender: ${txType.arabicLabel}",
+                        amount = amount,
+                        isExpense = txType.isExpense,
+                        category = category,
+                        createdAt = Instant.now().toString()
+                    )
                     val db = ZadDatabase.getDatabase(context.applicationContext)
-                    db.zadDao().insertTransaction(transaction!!)
-                    try { SupabaseRepo.addTransaction(transaction!!) } catch (e: Exception) {}
-                    Log.d("UnifiedSmsReceiver", "Transaction added: ${transaction!!.title} - ${transaction!!.amount}")
+                    db.zadDao().insertTransaction(transaction)
+                    try { SupabaseRepo.addTransaction(transaction) } catch (e: Exception) {}
+                    if (txType.isExpense) {
+                        BudgetTracker.deductExpense(context.applicationContext, amount, transaction.title, category)
+                    } else {
+                        BudgetTracker.addIncome(context.applicationContext, amount, transaction.title)
+                    }
+                    Log.d("UnifiedSmsReceiver", "Fallback transaction added: ${transaction.title} - $amount")
                 }
             }
         } catch (e: Exception) {

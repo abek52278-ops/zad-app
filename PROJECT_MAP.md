@@ -100,6 +100,18 @@ MainActivity
 5. **ZadCentralBrain** unified AI brain with behavior learning + predictions
 
 ## COMPLETED FEATURES
+- **Sprint 2 — Closed-Loop Inventory (2026-07-20):**
+  - `InventoryFlowEngine.kt`: smart injection (scanned items merge quantities into existing rows via fuzzy Arabic name matching), auto-marks matching shopping-list items purchased (closes the loop), `autoReplenish` (low-stock → auto-added to shopping with priority), `consumeItem` (− button feeds learning + triggers replenish)
+  - `ConsumptionLearner`: records purchase/consumption dates per item, predicts days-to-depletion from average purchase interval
+  - Periodic check-in: "هل خلص X؟" notifications for items predicted depleted (in `generateSmartNotifications`)
+  - `ZadViewModel`: `injectScannedItems` / `consumeInventoryItem` / `runAutoReplenish` (+ Supabase sync via new `upsertInventory`)
+  - CameraScreen: receipt & inventory-scan flows now use smart injection; InventoryScreen: +/− quantity stepper on cards; dead "تسوق" TODO button now wired to `runAutoReplenish`
+- **Sprint 1 — Bank accuracy engine (2026-07-20):**
+  - `SaBankParser` rewritten: noise filters (OTP/declined/promo ignored), explicit `TxType` enum (11 types incl. REFUND), labeled-amount extraction (`بمبلغ X` prioritized, `الرصيد X` excluded), Arabic-Indic digit normalization, no more default-expense guessing (ambiguous → AI fallback)
+  - `TxDeduplicator`: blocks double-counting when the same tx arrives via SMS + bank-app notification (10-min fingerprint window)
+  - `BudgetTracker` upgraded: per-category budget cards (`setCategoryBudget`/`getAllCategoryCards`), precise expense injection into the right card, refund handling, monthly reset resets category spend, two-level alerts (category overrun + total 75/90/100%)
+  - Both `UnifiedBankListener` & `UnifiedSmsReceiver` wired to the new engine; unsafe raw-regex SMS fallback replaced with strict amount+type requirement
+- **Sprint 1 — Professional Terms of Service:** `TermsContent.kt` (full English ToS v2.0: AI disclaimer, limitation of liability, third-party AI providers, indemnification); SignUpScreen dialog + consent row updated to English
 - **Database RLS fix** — SECURITY DEFINER function `get_my_family_ids()` to break infinite recursion on `family_members` (FIX_DATABASE.sql)
 - **Tasbiha independence** — `TasbihaHomeWidget` now navigates to Tasbiha route, not Family
 - **Tasbiha splash screen** — Breathing tree animation, floating particles, glow effect, "ادخل البستان" button

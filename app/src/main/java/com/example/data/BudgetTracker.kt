@@ -7,13 +7,32 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.R
 
+/**
+ * متتبع الميزانية — إجمالي + كروت فئات
+ *
+ * كل فئة ليها بادجت خاص (يدوي أو AI) والمصروف بيتحقن في الكرت الصح تلقائياً
+ * من UnifiedBankListener / UnifiedSmsReceiver بعد التحليل الدقيق.
+ */
 object BudgetTracker {
 
     private const val TAG = "BudgetTracker"
     private const val PREFS_NAME = "zad_prefs"
     private const val KEY_REMAINING = "remaining_balance"
     private const val KEY_BUDGET = "cached_budget"
+    private const val KEY_MONTH = "budget_month"
     private const val CHANNEL_ID = "zad_budget_alerts"
+
+    // مفاتيح كروت الفئات
+    private const val CAT_BUDGET_PREFIX = "cat_budget_"
+    private const val CAT_SPENT_PREFIX = "cat_spent_"
+
+    /** الفئات القياسية في زاد — نفس أسماء SaBankParser */
+    val STANDARD_CATEGORIES = listOf(
+        "البقالة", "المطاعم", "الفواتير", "المواصلات", "الوقود",
+        "الاشتراكات", "الأقساط", "الرعاية الصحية", "التعليم", "تحويلات", "أخرى"
+    )
+
+    // ─── الميزانية الإجمالية ─────────────────────────────────────
 
     fun getRemaining(context: Context): Double {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -21,54 +40,115 @@ object BudgetTracker {
         return prefs.getFloat(KEY_REMAINING, budget.toFloat()).toDouble()
     }
 
-    fun deductExpense(context: Context, amount: Double, title: String, category: String = "") {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    /** إعادة تعيين شهرية: الرصيد يرجع للبادجت + كل مصاريف الفئات تتصفر */
+    private fun checkMonthlyReset(context: Context, prefs: android.content.SharedPreferences): Double {
         val budget = prefs.getFloat(KEY_BUDGET, 3500.0f).toDouble()
-        
-        val savedMonth = prefs.getInt("budget_month", -1)
+        val savedMonth = prefs.getInt(KEY_MONTH, -1)
         val currentMonth = java.time.LocalDate.now().monthValue
-        
         var current = prefs.getFloat(KEY_REMAINING, budget.toFloat()).toDouble()
-        
+
         if (savedMonth != -1 && savedMonth != currentMonth) {
             current = budget
-            prefs.edit().putInt("budget_month", currentMonth).apply()
+            val editor = prefs.edit().putInt(KEY_MONTH, currentMonth)
+            // تصفير مصاريف كل الفئات للشهر الجديد
+            STANDARD_CATEGORIES.forEach { editor.putFloat(CAT_SPENT_PREFIX + it, 0f) }
+            editor.putFloat(KEY_REMAINING, budget.toFloat()).apply()
+            Log.d(TAG, "Monthly reset applied for month $currentMonth")
+        } else if (savedMonth == -1) {
+            prefs.edit().putInt(KEY_MONTH, currentMonth).apply()
         }
-        
+        return current
+    }
+
+    // ─── كروت الفئات ─────────────────────────────────────────────
+
+    fun getCategoryBudget(context: Context, category: String): Double {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getFloat(CAT_BUDGET_PREFIX + category, 0f).toDouble()
+    }
+
+    /** تحديد بادجت فئة — يدوياً من الشاشة أو تلقائياً من AI */
+    fun setCategoryBudget(context: Context, category: String, amount: Double) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putFloat(CAT_BUDGET_PREFIX + category, amount.toFloat()).apply()
+        Log.d(TAG, "Category budget set: $category = $amount")
+    }
+
+    fun getCategorySpent(context: Context, category: String): Double {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getFloat(CAT_SPENT_PREFIX + category, 0f).toDouble()
+    }
+
+    /** كل الكروت دفعة واحدة لشاشة البادجت: (الفئة، البادجت، المصروف) */
+    fun getAllCategoryCards(context: Context): List<Triple<String, Double, Double>> =
+        STANDARD_CATEGORIES.map { cat ->
+            Triple(cat, getCategoryBudget(context, cat), getCategorySpent(context, cat))
+        }
+
+    // ─── الحقن الدقيق للمصروف ────────────────────────────────────
+
+    /**
+     * خصم مصروف: من الإجمالي + من كرت الفئة الصح
+     * التنبيهات على مستويين: الفئة (تجاوز كرت) والإجمالي (75%/90%/نفاد)
+     */
+    fun deductExpense(context: Context, amount: Double, title: String, category: String = "أخرى") {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val budget = prefs.getFloat(KEY_BUDGET, 3500.0f).toDouble()
+        val current = checkMonthlyReset(context, prefs)
+
         val newRemaining = current - amount
         prefs.edit().putFloat(KEY_REMAINING, newRemaining.toFloat()).apply()
-        Log.d(TAG, "deductExpense: $amount | $current → $newRemaining")
 
-        // Alert if budget is low
-        val spentPct = ((budget - newRemaining) / budget * 100).toInt()
-        if (newRemaining <= 0) {
-            sendAlert(context, "⛔ الميزانية منتهية!", "تم استنفاذ الميزانية بالكامل. راجع مصاريفك.")
-        } else if (spentPct >= 90) {
-            sendAlert(context, "⚠️ الميزانية أوشكت على الانتهاء", "استخدمت $spentPct% من ميزانيتك. المتبقي: ${String.format("%,.0f", newRemaining)} ر.س")
-        } else if (spentPct >= 75) {
-            sendAlert(context, "💡 تذكير بالميزانية", "صرفت $spentPct% من ميزانيتك. المتبقي: ${String.format("%,.0f", newRemaining)} ر.س")
+        // حقن في كرت الفئة
+        val cat = if (category in STANDARD_CATEGORIES) category else "أخرى"
+        val catSpent = prefs.getFloat(CAT_SPENT_PREFIX + cat, 0f).toDouble() + amount
+        prefs.edit().putFloat(CAT_SPENT_PREFIX + cat, catSpent.toFloat()).apply()
+        Log.d(TAG, "deductExpense: $amount [$cat] | total: $current → $newRemaining | cat spent: $catSpent")
+
+        // تنبيه تجاوز كرت الفئة
+        val catBudget = prefs.getFloat(CAT_BUDGET_PREFIX + cat, 0f).toDouble()
+        if (catBudget > 0) {
+            val catPct = (catSpent / catBudget * 100).toInt()
+            if (catSpent > catBudget) {
+                sendAlert(context, "⛔ تجاوزت ميزانية $cat", "صرفت ${fmt(catSpent)} ر.س من أصل ${fmt(catBudget)} ر.س المخصصة لـ$cat")
+            } else if (catPct >= 85) {
+                sendAlert(context, "⚠️ ميزانية $cat توشك على النفاد", "استخدمت $catPct% من كرت $cat")
+            }
         }
+
+        // تنبيهات الإجمالي
+        val spentPct = if (budget > 0) ((budget - newRemaining) / budget * 100).toInt() else 0
+        when {
+            newRemaining <= 0 -> sendAlert(context, "⛔ الميزانية منتهية!", "تم استنفاذ الميزانية بالكامل. راجع مصاريفك.")
+            spentPct >= 90 -> sendAlert(context, "⚠️ الميزانية أوشكت على الانتهاء", "استخدمت $spentPct% من ميزانيتك. المتبقي: ${fmt(newRemaining)} ر.س")
+            spentPct >= 75 -> sendAlert(context, "💡 تذكير بالميزانية", "صرفت $spentPct% من ميزانيتك. المتبقي: ${fmt(newRemaining)} ر.س")
+        }
+    }
+
+    /** استرداد (Refund): يرجع للإجمالي ويُخصم من كرت الفئة */
+    fun applyRefund(context: Context, amount: Double, title: String, category: String = "أخرى") {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val current = checkMonthlyReset(context, prefs)
+        prefs.edit().putFloat(KEY_REMAINING, (current + amount).toFloat()).apply()
+
+        val cat = if (category in STANDARD_CATEGORIES) category else "أخرى"
+        val catSpent = (prefs.getFloat(CAT_SPENT_PREFIX + cat, 0f).toDouble() - amount).coerceAtLeast(0.0)
+        prefs.edit().putFloat(CAT_SPENT_PREFIX + cat, catSpent.toFloat()).apply()
+
+        sendAlert(context, "↩️ تم استرداد مبلغ", "$title: +${fmt(amount)} ر.س رجعت لرصيدك")
+        Log.d(TAG, "applyRefund: $amount [$cat]")
     }
 
     fun addIncome(context: Context, amount: Double, title: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val budget = prefs.getFloat(KEY_BUDGET, 3500.0f).toDouble()
-        
-        val savedMonth = prefs.getInt("budget_month", -1)
-        val currentMonth = java.time.LocalDate.now().monthValue
-        
-        var current = prefs.getFloat(KEY_REMAINING, budget.toFloat()).toDouble()
-        
-        if (savedMonth != -1 && savedMonth != currentMonth) {
-            current = budget
-            prefs.edit().putInt("budget_month", currentMonth).apply()
-        }
-        
+        val current = checkMonthlyReset(context, prefs)
         val newRemaining = current + amount
         prefs.edit().putFloat(KEY_REMAINING, newRemaining.toFloat()).apply()
         Log.d(TAG, "addIncome: $amount | $current → $newRemaining")
-        sendAlert(context, "💰 تمت إضافة إيداع", "$title: +${String.format("%,.0f", amount)} ر.س — الرصيد المتبقي: ${String.format("%,.0f", newRemaining)} ر.س")
+        sendAlert(context, "💰 تمت إضافة إيداع", "$title: +${fmt(amount)} ر.س — الرصيد المتبقي: ${fmt(newRemaining)} ر.س")
     }
+
+    private fun fmt(v: Double) = String.format(java.util.Locale.US, "%,.0f", v)
 
     private fun sendAlert(context: Context, title: String, message: String) {
         try {

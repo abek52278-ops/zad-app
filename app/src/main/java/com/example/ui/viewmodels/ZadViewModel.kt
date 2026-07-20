@@ -358,11 +358,21 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 } catch (e: Exception) { /* skip invalid date */ }
             }
 
-            // 3. Low stock alert
+            // 3. Low stock: تنزيل تلقائي في النواقص + إشعار
             val lowStockItems = _inventory.value.filter { item ->
                 item.quantity <= (item.lowStockThreshold ?: 2)
             }.take(3)
             if (lowStockItems.isNotEmpty()) {
+                // الدورة المغلقة: النواقص تنزل تلقائياً في قائمة التسوق
+                try {
+                    val autoAdded = com.example.data.InventoryFlowEngine.autoReplenish(
+                        getApplication(), dao, _inventory.value, _shoppingList.value
+                    )
+                    autoAdded.forEach { try { SupabaseRepo.addShoppingItem(it) } catch (_: Exception) {} }
+                } catch (e: Exception) {
+                    Log.e(TAG, "autoReplenish in smart notifications failed: ${e.message}")
+                }
+
                 val names = lowStockItems.joinToString("، ") { it.itemName }
                 val existingLowStock = _appNotifications.value.any {
                     !it.isRead && it.title.contains("مخزون منخفض")
@@ -372,11 +382,35 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                         com.example.data.AppNotification(
                             userId = userId,
                             title = "📦 مخزون منخفض",
-                            message = "هذه الأصناف على وشك النفاد: $names. أضفها لقائمة التسوق الآن!",
+                            message = "هذه الأصناف نزلت تلقائياً في قائمة التسوق: $names ✅",
                             isRead = false
                         )
                     )
                 }
+            }
+
+            // 4. المتابعة الدورية: التنبؤ يقول المنتج خلص — نسأل العميل
+            try {
+                val checkIns = com.example.data.InventoryFlowEngine.getCheckInCandidates(
+                    getApplication(), _inventory.value
+                ).take(2)
+                for (candidate in checkIns) {
+                    val alreadyAsked = _appNotifications.value.any {
+                        !it.isRead && it.title.contains(candidate.item.itemName)
+                    }
+                    if (!alreadyAsked) {
+                        smartAlerts.add(
+                            com.example.data.AppNotification(
+                                userId = userId,
+                                title = "🤔 هل خلص ${candidate.item.itemName}؟",
+                                message = "حسب معدل استهلاكك، المفروض ${candidate.item.itemName} قرب يخلص. افتح المخزون وحدّث الكمية عشان أتعلم أكتر 📊",
+                                isRead = false
+                            )
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "check-in candidates failed: ${e.message}")
             }
 
             // Inject smart alerts into DB + local state
@@ -525,6 +559,90 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 Log.e(TAG, "addInventory() Supabase sync FAILED: ${e.message}")
                 e.printStackTrace()
+            }
+        }
+    }
+
+    // ─── الدورة المغلقة للمخزون (Closed-Loop) ───────────────────
+
+    /**
+     * الحقن الذكي من التصوير: فاتورة أو رف مخزون
+     * موجود؟ يزوّد الكمية • على النواقص؟ يشطبه • يسجل للتعلم
+     */
+    fun injectScannedItems(items: List<ZadInventory>, onResult: (String) -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val result = com.example.data.InventoryFlowEngine.injectScannedItems(
+                    context = getApplication(),
+                    dao = dao,
+                    currentInventory = _inventory.value,
+                    currentShopping = _shoppingList.value,
+                    scannedItems = items
+                )
+                // مزامنة Supabase
+                result.addedNew.forEach { try { SupabaseRepo.addInventory(it) } catch (_: Exception) {} }
+                result.updatedExisting.forEach { try { SupabaseRepo.upsertInventory(it) } catch (_: Exception) {} }
+                result.removedFromShopping.forEach {
+                    try { SupabaseRepo.toggleShoppingItemPurchased(it.id, true) } catch (_: Exception) {}
+                }
+                Log.d(TAG, "injectScannedItems() → ${result.summary}")
+                onResult(result.summary)
+            } catch (e: Exception) {
+                Log.e(TAG, "injectScannedItems() FAILED: ${e.message}")
+                onResult("حدث خطأ أثناء الحقن")
+            }
+        }
+    }
+
+    /**
+     * استهلاك منتج (زر − أو تصوير ضرفة المخزون):
+     * ينقص الكمية → وصل الحد؟ ينزل تلقائياً في النواقص + إشعار
+     */
+    fun consumeInventoryItem(item: ZadInventory, amount: Int = 1) {
+        viewModelScope.launch {
+            try {
+                val result = com.example.data.InventoryFlowEngine.consumeItem(
+                    getApplication(), dao, item, amount
+                )
+                try { SupabaseRepo.upsertInventory(result.updatedItem) } catch (_: Exception) {}
+
+                if (result.hitLowStock) {
+                    val added = com.example.data.InventoryFlowEngine.autoReplenish(
+                        getApplication(), dao, _inventory.value.map {
+                            if (it.id == result.updatedItem.id) result.updatedItem else it
+                        }, _shoppingList.value
+                    )
+                    added.forEach { try { SupabaseRepo.addShoppingItem(it) } catch (_: Exception) {} }
+                    if (added.isNotEmpty()) {
+                        val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
+                        if (userId != null) {
+                            try {
+                                SupabaseRepo.sendAppNotification(
+                                    userId,
+                                    if (result.depleted) "🛒 ${item.itemName} خلص!" else "📦 ${item.itemName} قرب يخلص",
+                                    "نزّلناه تلقائياً في قائمة التسوق ✅"
+                                )
+                            } catch (_: Exception) {}
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "consumeInventoryItem() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    /** تشغيل التغذية التلقائية للنواقص يدوياً أو من الـ Worker الدوري */
+    fun runAutoReplenish() {
+        viewModelScope.launch {
+            try {
+                val added = com.example.data.InventoryFlowEngine.autoReplenish(
+                    getApplication(), dao, _inventory.value, _shoppingList.value
+                )
+                added.forEach { try { SupabaseRepo.addShoppingItem(it) } catch (_: Exception) {} }
+                Log.d(TAG, "runAutoReplenish() → added ${added.size} items to shopping list")
+            } catch (e: Exception) {
+                Log.e(TAG, "runAutoReplenish() FAILED: ${e.message}")
             }
         }
     }

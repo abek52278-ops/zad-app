@@ -1,11 +1,24 @@
 package com.example.data
 
+import android.content.Context
 import android.util.Log
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 private const val TAG_BANK = "SaBankParser"
+
+/** نوع العملية المالية — التحديد الدقيق بدل التخمين */
+enum class TxType(val isExpense: Boolean, val arabicLabel: String) {
+    PURCHASE(true, "شراء"),
+    WITHDRAWAL(true, "سحب نقدي"),
+    TRANSFER_OUT(true, "حوالة صادرة"),
+    BILL_PAYMENT(true, "سداد فاتورة"),
+    INSTALLMENT(true, "قسط"),
+    SUBSCRIPTION(true, "اشتراك"),
+    FEE(true, "رسوم"),
+    TRANSFER_IN(false, "حوالة واردة"),
+    DEPOSIT(false, "إيداع"),
+    SALARY(false, "راتب"),
+    REFUND(false, "استرداد")
+}
 
 data class ParsedBankTx(
     val amount: Double,
@@ -14,230 +27,296 @@ data class ParsedBankTx(
     val category: String,
     val bankName: String,
     val merchantName: String?,
-    val rawText: String
+    val rawText: String,
+    val txType: TxType = if (isExpense) TxType.PURCHASE else TxType.DEPOSIT
 )
 
+/**
+ * محرك تحليل رسائل البنوك السعودية — النسخة الاحترافية
+ *
+ * المبادئ:
+ * 1. الرفض أفضل من التخمين — رسالة غير مفهومة تروح للـ AI fallback بدل ما تتسجل غلط
+ * 2. فلترة الضجيج أولاً: OTP / عمليات مرفوضة / عروض ترويجية / استعلام رصيد → تتجاهل نهائياً
+ * 3. المبلغ المُسمّى (بمبلغ X) له الأولوية، والرصيد (الرصيد: X) يُستبعد تماماً
+ * 4. اتجاه العملية يتحدد بكلمات صريحة — مفيش "افتراضي مصروف"
+ */
 object SaBankParser {
 
-    private val sarAmountPattern = Regex("""(\d+(?:,\d{3})*(?:\.\d{1,2})?)\s*(?:ر\.س|رس|ريال|SAR)""", RegexOption.IGNORE_CASE)
-    private val sarAmountPatternRev = Regex("""(?:ر\.س|رس|ريال|SAR)\s*(\d+(?:,\d{3})*(?:\.\d{1,2})?)""", RegexOption.IGNORE_CASE)
-    private val numberCleaner = Regex(",")
+    // ─── 1) فلاتر الضجيج — رسائل تُتجاهل نهائياً ─────────────────
 
-    private fun extractAmount(text: String): Double? {
-        val m1 = sarAmountPattern.find(text)
-        val m2 = sarAmountPatternRev.find(text)
-        val raw = m1?.groupValues?.get(1) ?: m2?.groupValues?.get(1) ?: return null
-        return raw.replace(numberCleaner, "").toDoubleOrNull()
+    private val otpKeywords = listOf(
+        "رمز التحقق", "رمز تحقق", "كود التحقق", "الرمز السري", "رمز الدخول",
+        "رمز التفعيل", "لا تشارك", "لا تشاركه", "otp", "verification code",
+        "one-time", "one time password", "do not share", "الرقم السري المؤقت"
+    )
+
+    private val declinedKeywords = listOf(
+        "فشل", "فشلت", "رفض", "مرفوضة", "مرفوض", "لم تتم", "لم تنجح",
+        "غير ناجحة", "تعذر", "رصيد غير كاف", "insufficient", "declined",
+        "failed", "unsuccessful", "rejected", "تم الإلغاء", "ملغاة"
+    )
+
+    private val promoKeywords = listOf(
+        "عرض خاص", "عروض", "خصم يصل", "استمتع", "اشترك الآن", "حمل التطبيق",
+        "سارع", "لفترة محدودة", "كاش باك يصل", "% off", "promo", "offer ends"
+    )
+
+    /** هل الرسالة ضجيج (OTP / مرفوضة / إعلان)؟ — تُستخدم أيضاً من الـ Receivers */
+    fun isNoise(text: String): Boolean {
+        val t = text.lowercase()
+        return otpKeywords.any { t.contains(it) } ||
+                declinedKeywords.any { t.contains(it) } ||
+                promoKeywords.any { t.contains(it) }
     }
 
-    private fun formatDate(date: LocalDate): String = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+    // ─── 2) استخراج المبلغ بدقة ──────────────────────────────────
 
-    private fun merchantFromTitle(title: String): String? {
-        val keywords = listOf("شراء من", "في", "عند", "خصم من", "payment to", "at", "purchase at")
-        for (kw in keywords) {
-            val idx = title.indexOf(kw, ignoreCase = true)
-            if (idx >= 0) return title.substring(idx + kw.length).trim().take(30)
+    private val arabicIndicDigits = mapOf(
+        '٠' to '0', '١' to '1', '٢' to '2', '٣' to '3', '٤' to '4',
+        '٥' to '5', '٦' to '6', '٧' to '7', '٨' to '8', '٩' to '9', '٫' to '.'
+    )
+
+    private fun normalizeDigits(text: String): String =
+        text.map { arabicIndicDigits[it] ?: it }.joinToString("")
+
+    private const val NUM = """(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)"""
+    private const val CUR = """(?:ر\.س|رس|ريال|SAR|SR)"""
+
+    // مبلغ مُسمّى صراحة — أعلى أولوية
+    private val labeledAmount = Regex("""(?:بمبلغ|مبلغ|بقيمة|قيمة|القيمة|amount)\s*:?\s*$CUR?\s*$NUM\s*$CUR?""", RegexOption.IGNORE_CASE)
+    // مبلغ ملاصق للعملة
+    private val amountThenCur = Regex("""$NUM\s*$CUR""", RegexOption.IGNORE_CASE)
+    private val curThenAmount = Regex("""$CUR\s*$NUM""", RegexOption.IGNORE_CASE)
+    // أي رقم مرتبط بالرصيد — يُستبعد
+    private val balanceContext = Regex("""(?:الرصيد|رصيدك|رصيد|المتاح|المتبقي|balance|available)\s*(?:المتاح|الحالي|:)?\s*$CUR?\s*$NUM""", RegexOption.IGNORE_CASE)
+
+    private fun firstNumberIn(match: MatchResult): Double? =
+        match.groupValues.drop(1).firstOrNull { it.isNotBlank() }
+            ?.replace(",", "")?.toDoubleOrNull()
+
+    /**
+     * استخراج مبلغ العملية (وليس الرصيد):
+     * 1. لو فيه "بمبلغ X" → ناخده فوراً
+     * 2. غير كده: ناخد أول مبلغ بعملة *مش* جاي في سياق "الرصيد"
+     */
+    fun extractAmount(rawText: String): Double? {
+        val text = normalizeDigits(rawText)
+
+        labeledAmount.find(text)?.let { m ->
+            firstNumberIn(m)?.let { if (it > 0) return it }
+        }
+
+        // نحدد مواقع أرقام الرصيد عشان نستبعدها
+        val balanceRanges = balanceContext.findAll(text).map { it.range }.toList()
+
+        val candidates = (amountThenCur.findAll(text) + curThenAmount.findAll(text))
+            .filter { m -> balanceRanges.none { it.first <= m.range.first && m.range.first <= it.last } }
+            .mapNotNull { firstNumberIn(it) }
+            .filter { it > 0 }
+            .toList()
+
+        return candidates.minOrNull() // لو فيه أكتر من رقم غير مستبعد، الأصغر غالباً هو مبلغ العملية والأكبر رصيد
+    }
+
+    // ─── 3) تحديد نوع العملية بكلمات صريحة ───────────────────────
+
+    private data class TypeRule(val type: TxType, val keywords: List<String>)
+
+    // الترتيب مهم: الأكثر تحديداً أولاً
+    private val typeRules = listOf(
+        TypeRule(TxType.REFUND, listOf("استرداد", "مسترد", "عكس عملية", "إرجاع مبلغ", "refund", "reversed", "reversal")),
+        TypeRule(TxType.SALARY, listOf("راتب", "مرتب", "salary", "payroll")),
+        TypeRule(TxType.TRANSFER_IN, listOf("حوالة واردة", "تحويل وارد", "وصلتك حوالة", "استلمت حوالة", "received transfer", "incoming transfer")),
+        TypeRule(TxType.DEPOSIT, listOf("إيداع", "ايداع", "أودع", "مودع", "قيد دائن", "دائن", "credited", "deposit", "وارد")),
+        TypeRule(TxType.TRANSFER_OUT, listOf("حوالة صادرة", "تحويل صادر", "تحويل الى", "تحويل إلى", "حوالة الى", "حوالة إلى", "transfer to", "sent to", "تحويل مبلغ")),
+        TypeRule(TxType.WITHDRAWAL, listOf("سحب نقدي", "سحب من الصراف", "صراف آلي", "atm", "سحب مبلغ", "withdrawal", "cash withdrawal")),
+        TypeRule(TxType.BILL_PAYMENT, listOf("سداد", "فاتورة", "sadad", "bill payment", "دفع فاتورة")),
+        TypeRule(TxType.INSTALLMENT, listOf("قسط", "أقساط", "دفعة من", "installment", "تابي", "تمارة", "tabby", "tamara")),
+        TypeRule(TxType.FEE, listOf("رسوم", "عمولة", "fee", "charges", "vat")),
+        TypeRule(TxType.PURCHASE, listOf("شراء", "مشتريات", "عملية شراء", "نقاط البيع", "خصم", "دفع", "تم الدفع", "مدين", "قيد مدين", "purchase", "pos", "debited", "payment", "paid", "spent", "مدفوعات", "أبل باي", "apple pay", "mada", "مدى"))
+    )
+
+    /** يحدد نوع العملية — يرجع null لو مفيش كلمة صريحة (يروح AI fallback) */
+    fun detectTxType(text: String): TxType? {
+        val t = text.lowercase()
+        for (rule in typeRules) {
+            if (rule.keywords.any { t.contains(it) }) return rule.type
         }
         return null
     }
 
-    // ─── Al Rajhi ──────────────────────────────────────────────
-    fun parseAlRajhi(title: String, text: String): ParsedBankTx? {
-        val amount = extractAmount(text) ?: return null
-        val isExpense = !text.contains("إيداع", ignoreCase = true) &&
-                !text.contains("تحويل وار", ignoreCase = true) &&
-                !text.contains("مُودَع", ignoreCase = true) &&
-                !text.contains("قيد دائن", ignoreCase = true)
+    // ─── 4) تصنيف الفئة ─────────────────────────────────────────
 
-        val category = when {
-            text.contains("راتب", ignoreCase = true) || text.contains("مرتب", ignoreCase = true) -> "الراتب"
-            text.contains("محطة", ignoreCase = true) || text.contains("بنزين", ignoreCase = true) || text.contains("وقود", ignoreCase = true) -> "الوقود"
-            text.contains("بقالة", ignoreCase = true) || text.contains("تموين", ignoreCase = true) || text.contains("سوبر", ignoreCase = true) || text.contains("خضار", ignoreCase = true) -> "البقالة"
-            text.contains("مطعم", ignoreCase = true) || text.contains("كافيه", ignoreCase = true) || text.contains("وجبات", ignoreCase = true) || text.contains("hungerstation", ignoreCase = true) || text.contains("mrsool", ignoreCase = true) || text.contains("jahez", ignoreCase = true) || text.contains("توصيل", ignoreCase = true) -> "المطاعم"
-            text.contains("كهرب", ignoreCase = true) || text.contains("سداد", ignoreCase = true) || text.contains("فواتير", ignoreCase = true) || text.contains("المياه", ignoreCase = true) || text.contains("اتصالات", ignoreCase = true) || text.contains("stc", ignoreCase = true) || text.contains("mobily", ignoreCase = true) || text.contains("zain", ignoreCase = true) -> "الفواتير"
-            text.contains("علاج", ignoreCase = true) || text.contains("صيدلية", ignoreCase = true) || text.contains("مستشفى", ignoreCase = true) || text.contains("عيادة", ignoreCase = true) || text.contains("دواء", ignoreCase = true) -> "الرعاية الصحية"
-            text.contains("مواصلات", ignoreCase = true) || text.contains("أوبر", ignoreCase = true) || text.contains("كريم", ignoreCase = true) || text.contains("taxi", ignoreCase = true) || text.contains("نقل", ignoreCase = true) || text.contains("طيران", ignoreCase = true) -> "المواصلات"
-            text.contains("تعليم", ignoreCase = true) || text.contains("مدرسة", ignoreCase = true) || text.contains("جامعة", ignoreCase = true) || text.contains("دورة", ignoreCase = true) || text.contains("تدريب", ignoreCase = true) -> "التعليم"
-            text.contains("تابي", ignoreCase = true) || text.contains("تمارة", ignoreCase = true) || text.contains("قسط", ignoreCase = true) || text.contains("أقساط", ignoreCase = true) -> "الأقساط"
-            text.contains("نتفلكس", ignoreCase = true) || text.contains("netflix", ignoreCase = true) || text.contains("شاهد", ignoreCase = true) || text.contains("شهيد", ignoreCase = true) || text.contains("spotify", ignoreCase = true) || text.contains("youtube", ignoreCase = true) -> "الاشتراكات"
-            text.contains("stc pay", ignoreCase = true) || text.contains("تحويل", ignoreCase = true) -> "تحويلات"
-            else -> "أخرى"
+    private val categoryRules = listOf(
+        "الراتب" to listOf("راتب", "مرتب", "salary"),
+        "البقالة" to listOf("بقالة", "تموين", "سوبر", "خضار", "لحوم", "هايبر", "بنده", "العثيم", "الدانوب", "لولو", "كارفور", "تميمي", "grocery", "supermarket", "panda", "danube", "carrefour", "lulu"),
+        "المطاعم" to listOf("مطعم", "كافيه", "وجبات", "hungerstation", "mrsool", "jahez", "توصيل طعام", "طلبات", "مأكولات", "ستاربكس", "ماكدونالدز", "البيك", "كودو", "هرفي", "دومينوز", "starbucks", "mcdonald", "albaik", "kudu", "herfy", "restaurant", "cafe"),
+        "الفواتير" to listOf("كهرب", "فواتير", "المياه", "اتصالات", "stc", "mobily", "zain", "موبايلي", "زين", "الكهرباء", "المياه الوطنية", "electricity", "water bill"),
+        "الرعاية الصحية" to listOf("علاج", "صيدلية", "مستشفى", "عيادة", "دواء", "النهدي", "الدواء", "nahdi", "pharmacy", "hospital", "clinic"),
+        "المواصلات" to listOf("مواصلات", "أوبر", "كريم", "uber", "careem", "taxi", "نقل", "طيران", "باص", "قطار", "flight", "المطار"),
+        "التعليم" to listOf("تعليم", "مدرسة", "جامعة", "دورة", "تدريب", "منصة تعليم", "school", "university", "course", "udemy"),
+        "الأقساط" to listOf("تابي", "تمارة", "قسط", "أقساط", "tabby", "tamara", "installment", "دفعة من"),
+        "الاشتراكات" to listOf("نتفلكس", "netflix", "شاهد", "shahid", "spotify", "youtube premium", "apple music", "اشتراك شهري", "اشتراك سنوي", "subscription", "anghami", "أنغامي", "osn", "prime"),
+        "الوقود" to listOf("محطة", "بنزين", "وقود", "ديزل", "ساسكو", "الدريس", "نفط", "petrol", "fuel", "sasco", "aldrees", "naft"),
+        "تحويلات" to listOf("حوالة", "تحويل", "transfer", "stc pay")
+    )
+
+    fun classify(text: String, txType: TxType?): String {
+        val t = text.lowercase()
+        // نوع العملية بيرشدنا للفئة مباشرة في حالات معينة
+        when (txType) {
+            TxType.SALARY -> return "الراتب"
+            TxType.INSTALLMENT -> return "الأقساط"
+            TxType.BILL_PAYMENT -> return "الفواتير"
+            TxType.SUBSCRIPTION -> return "الاشتراكات"
+            TxType.TRANSFER_IN, TxType.TRANSFER_OUT -> {
+                // نكمل التصنيف — التحويل ممكن يكون له غرض معروف
+            }
+            else -> {}
+        }
+        for ((category, keywords) in categoryRules) {
+            if (keywords.any { t.contains(it) }) return category
+        }
+        return if (txType == TxType.TRANSFER_IN || txType == TxType.TRANSFER_OUT) "تحويلات" else "أخرى"
+    }
+
+    // ─── 5) استخراج اسم التاجر ───────────────────────────────────
+
+    private val merchantPatterns = listOf(
+        Regex("""(?:لدى|شراء من|من متجر|عند|في متجر|at|purchase at|payment to|to)\s+([^\n,،.]{2,35})""", RegexOption.IGNORE_CASE),
+        Regex("""(?:مع|لـ|إلى)\s+([^\n,،.\d]{3,30})""")
+    )
+
+    fun extractMerchant(text: String): String? {
+        for (p in merchantPatterns) {
+            p.find(text)?.let { m ->
+                val merchant = m.groupValues[1].trim()
+                    .replace(Regex("""(?:بمبلغ|مبلغ|رصيد|بطاقة).*"""), "").trim()
+                if (merchant.length >= 2) return merchant.take(35)
+            }
+        }
+        return null
+    }
+
+    // ─── 6) تعريف البنوك ─────────────────────────────────────────
+
+    private data class BankDef(val name: String, val idKeywords: List<String>)
+
+    private val banks = listOf(
+        BankDef("الراجحي", listOf("alrajhi", "rajhi", "الراجحي")),
+        BankDef("الأهلي السعودي", listOf("snb", "alahli", "ncba", "الأهلي")),
+        BankDef("بنك الرياض", listOf("riyad", "riyadh", "الرياض")),
+        BankDef("ساب", listOf("sabb", "ساب")),
+        BankDef("مصرف الإنماء", listOf("alinma", "enmaa", "الإنماء", "الانماء")),
+        BankDef("البلاد", listOf("albilad", "البلاد")),
+        BankDef("الجزيرة", listOf("aljazira", "الجزيرة")),
+        BankDef("العربي الوطني", listOf("anb", "العربي")),
+        BankDef("stc pay", listOf("stcpay", "stc pay")),
+        BankDef("تابي", listOf("tabby", "تابي")),
+        BankDef("تمارة", listOf("tamara", "تمارة")),
+        BankDef("urpay", listOf("urpay")),
+        BankDef("D360", listOf("d360"))
+    )
+
+    private fun identifyBank(source: String): BankDef? {
+        val s = source.lowercase()
+        return banks.firstOrNull { b -> b.idKeywords.any { s.contains(it) } }
+    }
+
+    // ─── 7) نقطة الدخول الرئيسية ─────────────────────────────────
+
+    /**
+     * التحليل الكامل: مصدر (package أو SMS sender) + عنوان + نص
+     * يرجع null لو: ضجيج / مفيش مبلغ / مفيش نوع عملية واضح → AI fallback يتصرف
+     */
+    fun detectAndParse(source: String, title: String, text: String): ParsedBankTx? {
+        val fullText = "$title $text"
+
+        // 1) فلترة الضجيج — أهم خطوة
+        if (isNoise(fullText)) {
+            Log.d(TAG_BANK, "Ignored noise message (OTP/declined/promo)")
+            return null
         }
 
-        val merchant = merchantFromTitle("$title $text")
+        // 2) المبلغ — بدون مبلغ مفيش عملية
+        val amount = extractAmount(fullText) ?: return null
+
+        // 3) نوع العملية — لازم كلمة صريحة، مفيش تخمين
+        val txType = detectTxType(fullText) ?: run {
+            Log.d(TAG_BANK, "No explicit tx type — deferring to AI fallback")
+            return null
+        }
+
+        // 4) البنك (لو معروف)
+        val bank = identifyBank(source) ?: identifyBank(fullText)
+        val bankName = bank?.name ?: "البنك"
+
+        // تابي وتمارة دايماً أقساط
+        val finalType = when (bankName) {
+            "تابي", "تمارة" -> TxType.INSTALLMENT
+            else -> txType
+        }
+
+        val category = classify(fullText, finalType)
+        val merchant = extractMerchant(fullText)
+
+        val txTitle = buildString {
+            append(bankName)
+            append(": ")
+            append(merchant ?: finalType.arabicLabel)
+        }
 
         return ParsedBankTx(
             amount = amount,
-            isExpense = isExpense,
-            title = "الراجحي: ${title.ifBlank { "معاملة" }}",
+            isExpense = finalType.isExpense,
+            title = txTitle,
             category = category,
-            bankName = "الراجحي",
+            bankName = bankName,
             merchantName = merchant,
-            rawText = text.take(100)
+            rawText = text.take(160),
+            txType = finalType
         )
     }
+}
 
-    // ─── SNB (National Commercial Bank) ────────────────────────
-    fun parseSnb(title: String, text: String): ParsedBankTx? {
-        val amount = extractAmount(text) ?: return null
-        val isExpense = !text.contains("إيداع", ignoreCase = true) &&
-                !text.contains("دائن", ignoreCase = true) &&
-                !text.contains("وارد", ignoreCase = true)
+/**
+ * مانع الخصم المزدوج — نفس العملية بتوصل SMS + إشعار تطبيق البنك
+ * البصمة: المبلغ + الاتجاه + نافذة زمنية 10 دقائق
+ */
+object TxDeduplicator {
 
-        val category = classifyGeneral(text)
+    private const val PREFS = "zad_tx_dedup"
+    private const val KEY = "recent_fingerprints"
+    private const val WINDOW_MS = 10 * 60 * 1000L // 10 دقائق
 
-        return ParsedBankTx(
-            amount = amount,
-            isExpense = isExpense,
-            title = "الأهلي: ${title.ifBlank { "معاملة" }}",
-            category = category,
-            bankName = "الأهلي السعودي",
-            merchantName = merchantFromTitle("$title $text"),
-            rawText = text.take(100)
-        )
-    }
+    /** يرجع true لو العملية جديدة (ويسجلها)، false لو مكررة */
+    @Synchronized
+    fun isNewTransaction(context: Context, amount: Double, isExpense: Boolean): Boolean {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
 
-    // ─── Riyad Bank ────────────────────────────────────────────
-    fun parseRiyad(title: String, text: String): ParsedBankTx? {
-        val amount = extractAmount(text) ?: return null
-        val isExpense = !text.contains("إيداع", ignoreCase = true) &&
-                !text.contains("دائن", ignoreCase = true)
-
-        val category = classifyGeneral(text)
-
-        return ParsedBankTx(
-            amount = amount,
-            isExpense = isExpense,
-            title = "الرياض: ${title.ifBlank { "معاملة" }}",
-            category = category,
-            bankName = "بنك الرياض",
-            merchantName = merchantFromTitle("$title $text"),
-            rawText = text.take(100)
-        )
-    }
-
-    // ─── SABB ──────────────────────────────────────────────────
-    fun parseSabb(title: String, text: String): ParsedBankTx? {
-        val amount = extractAmount(text) ?: return null
-        val isExpense = !text.contains("credit", ignoreCase = true) &&
-                !text.contains("deposit", ignoreCase = true)
-
-        val category = classifyGeneral(text)
-
-        return ParsedBankTx(
-            amount = amount,
-            isExpense = isExpense,
-            title = "ساب: ${title.ifBlank { "معاملة" }}",
-            category = category,
-            bankName = "ساب",
-            merchantName = merchantFromTitle("$title $text"),
-            rawText = text.take(100)
-        )
-    }
-
-    // ─── Alinma ────────────────────────────────────────────────
-    fun parseAlinma(title: String, text: String): ParsedBankTx? {
-        val amount = extractAmount(text) ?: return null
-        val isExpense = !text.contains("إيداع", ignoreCase = true) &&
-                !text.contains("دائن", ignoreCase = true)
-
-        val category = classifyGeneral(text)
-
-        return ParsedBankTx(
-            amount = amount,
-            isExpense = isExpense,
-            title = "الإنماء: ${title.ifBlank { "معاملة" }}",
-            category = category,
-            bankName = "مصرف الإنماء",
-            merchantName = merchantFromTitle("$title $text"),
-            rawText = text.take(100)
-        )
-    }
-
-    // ─── STC Pay ───────────────────────────────────────────────
-    fun parseStcPay(title: String, text: String): ParsedBankTx? {
-        val amount = extractAmount(text) ?: return null
-        val isExpense = text.contains("خصم", ignoreCase = true) ||
-                text.contains("دفع", ignoreCase = true) ||
-                text.contains("شراء", ignoreCase = true) ||
-                text.contains("send", ignoreCase = true) ||
-                text.contains("transfer to", ignoreCase = true)
-
-        val category = classifyGeneral(text)
-
-        return ParsedBankTx(
-            amount = amount,
-            isExpense = isExpense,
-            title = "stc pay: ${title.ifBlank { "معاملة" }}",
-            category = category,
-            bankName = "stc pay",
-            merchantName = merchantFromTitle("$title $text"),
-            rawText = text.take(100)
-        )
-    }
-
-    // ─── Tabby ─────────────────────────────────────────────────
-    fun parseTabby(title: String, text: String): ParsedBankTx? {
-        val amount = extractAmount(text) ?: return null
-        val isExpense = true
-
-        return ParsedBankTx(
-            amount = amount,
-            isExpense = isExpense,
-            title = "تابي: ${title.ifBlank { "قسط" }}",
-            category = "الأقساط",
-            bankName = "تابي",
-            merchantName = merchantFromTitle("$title $text"),
-            rawText = text.take(100)
-        )
-    }
-
-    // ─── Tamara ────────────────────────────────────────────────
-    fun parseTamara(title: String, text: String): ParsedBankTx? {
-        val amount = extractAmount(text) ?: return null
-        val isExpense = true
-
-        return ParsedBankTx(
-            amount = amount,
-            isExpense = isExpense,
-            title = "تمارة: ${title.ifBlank { "قسط" }}",
-            category = "الأقساط",
-            bankName = "تمارة",
-            merchantName = merchantFromTitle("$title $text"),
-            rawText = text.take(100)
-        )
-    }
-
-    // ─── General Classification ─────────────────────────────────
-    private fun classifyGeneral(text: String): String = when {
-        text.contains("راتب", ignoreCase = true) || text.contains("مرتب", ignoreCase = true) -> "الراتب"
-        text.contains("بقالة", ignoreCase = true) || text.contains("تموين", ignoreCase = true) || text.contains("سوبر", ignoreCase = true) || text.contains("خضار", ignoreCase = true) || text.contains("لحوم", ignoreCase = true) -> "البقالة"
-        text.contains("مطعم", ignoreCase = true) || text.contains("كافيه", ignoreCase = true) || text.contains("وجبات", ignoreCase = true) || text.contains("hungerstation", ignoreCase = true) || text.contains("mrsool", ignoreCase = true) || text.contains("jahez", ignoreCase = true) || text.contains("توصيل", ignoreCase = true) || text.contains("طلب", ignoreCase = true) || text.contains("مأكولات", ignoreCase = true) -> "المطاعم"
-        text.contains("كهرب", ignoreCase = true) || text.contains("سداد", ignoreCase = true) || text.contains("فواتير", ignoreCase = true) || text.contains("المياه", ignoreCase = true) || text.contains("اتصالات", ignoreCase = true) || text.contains("stc", ignoreCase = true) || text.contains("mobily", ignoreCase = true) || text.contains("zain", ignoreCase = true) -> "الفواتير"
-        text.contains("علاج", ignoreCase = true) || text.contains("صيدلية", ignoreCase = true) || text.contains("مستشفى", ignoreCase = true) || text.contains("عيادة", ignoreCase = true) || text.contains("دواء", ignoreCase = true) -> "الرعاية الصحية"
-        text.contains("مواصلات", ignoreCase = true) || text.contains("أوبر", ignoreCase = true) || text.contains("كريم", ignoreCase = true) || text.contains("taxi", ignoreCase = true) || text.contains("نقل", ignoreCase = true) || text.contains("طيران", ignoreCase = true) || text.contains("باص", ignoreCase = true) -> "المواصلات"
-        text.contains("تعليم", ignoreCase = true) || text.contains("مدرسة", ignoreCase = true) || text.contains("جامعة", ignoreCase = true) || text.contains("دورة", ignoreCase = true) || text.contains("تدريب", ignoreCase = true) || text.contains("منصة", ignoreCase = true) -> "التعليم"
-        text.contains("تابي", ignoreCase = true) || text.contains("تمارة", ignoreCase = true) || text.contains("قسط", ignoreCase = true) || text.contains("أقساط", ignoreCase = true) -> "الأقساط"
-        text.contains("نتفلكس", ignoreCase = true) || text.contains("netflix", ignoreCase = true) || text.contains("شاهد", ignoreCase = true) || text.contains("شهيد", ignoreCase = true) || text.contains("spotify", ignoreCase = true) || text.contains("youtube", ignoreCase = true) || text.contains("apple music", ignoreCase = true) -> "الاشتراكات"
-        text.contains("محطة", ignoreCase = true) || text.contains("بنزين", ignoreCase = true) || text.contains("وقود", ignoreCase = true) || text.contains("ديزل", ignoreCase = true) -> "الوقود"
-        text.contains("stc pay", ignoreCase = true) || text.contains("تحويل", ignoreCase = true) -> "تحويلات"
-        text.contains("tabby", ignoreCase = true) || text.contains("tamara", ignoreCase = true) -> "الأقساط"
-        else -> "أخرى"
-    }
-
-    // ─── Package-based auto-detect ──────────────────────────────
-    fun detectAndParse(packageName: String, title: String, text: String): ParsedBankTx? {
-        val pkg = packageName.lowercase()
-        return when {
-            pkg.contains("alrajhi") || pkg.contains("rajhi") -> parseAlRajhi(title, text)
-            pkg.contains("snb") || pkg.contains("alahli") || pkg.contains("ncba") || (pkg.contains("national") && pkg.contains("commercial")) -> parseSnb(title, text)
-            pkg.contains("riyad") || pkg.contains("riyadh") -> parseRiyad(title, text)
-            pkg.contains("sabb") -> parseSabb(title, text)
-            pkg.contains("alinma") || pkg.contains("enmaa") -> parseAlinma(title, text)
-            pkg.contains("stcpay") || pkg.contains("stc pay") -> parseStcPay(title, text)
-            pkg.contains("tabby") -> parseTabby(title, text)
-            pkg.contains("tamara") -> parseTamara(title, text)
-            else -> null
+        // البصمات المحفوظة: "amount|isExpense|timestamp"
+        val stored = prefs.getStringSet(KEY, emptySet()) ?: emptySet()
+        val valid = stored.mapNotNull { entry ->
+            val parts = entry.split("|")
+            if (parts.size == 3) {
+                val ts = parts[2].toLongOrNull() ?: return@mapNotNull null
+                if (now - ts < WINDOW_MS) Triple(parts[0], parts[1], ts) else null
+            } else null
         }
+
+        val amountKey = String.format(java.util.Locale.US, "%.2f", amount)
+        val expenseKey = isExpense.toString()
+        val isDuplicate = valid.any { it.first == amountKey && it.second == expenseKey }
+
+        if (isDuplicate) {
+            Log.d(TAG_BANK, "Duplicate transaction blocked: $amountKey SAR (expense=$expenseKey)")
+            return false
+        }
+
+        val updated = valid.map { "${it.first}|${it.second}|${it.third}" }.toMutableSet()
+        updated.add("$amountKey|$expenseKey|$now")
+        prefs.edit().putStringSet(KEY, updated).apply()
+        return true
     }
 }

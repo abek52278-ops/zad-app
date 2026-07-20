@@ -76,10 +76,18 @@ class UnifiedBankListener : NotificationListenerService() {
 
     private suspend fun processAndTrackNotification(packageName: String, title: String, text: String) {
         try {
+            // فلترة الضجيج أولاً: OTP / مرفوضة / عروض — تتجاهل نهائياً
+            if (SaBankParser.isNoise("$title $text")) return
+
             val parsed = SaBankParser.detectAndParse(packageName, title, text)
 
             if (parsed != null) {
-                Log.d("UnifiedBankListener", "Bank parsed: ${parsed.bankName} - ${parsed.title} (${parsed.amount} SAR)")
+                // منع الخصم المزدوج (نفس العملية توصل SMS + إشعار)
+                if (!TxDeduplicator.isNewTransaction(applicationContext, parsed.amount, parsed.isExpense)) {
+                    Log.d("UnifiedBankListener", "Duplicate blocked: ${parsed.amount}")
+                    return
+                }
+                Log.d("UnifiedBankListener", "Bank parsed: ${parsed.bankName} - ${parsed.title} (${parsed.amount} SAR, type=${parsed.txType})")
 
                 val transaction = ZadTransaction(
                     title = parsed.title,
@@ -99,11 +107,14 @@ class UnifiedBankListener : NotificationListenerService() {
                     Log.e("UnifiedBankListener", "Supabase sync failed (offline): ${e.message}")
                 }
 
-                // Auto-deduct from remaining balance
-                if (parsed.isExpense) {
-                    BudgetTracker.deductExpense(applicationContext, parsed.amount, parsed.title, parsed.category)
-                } else {
-                    BudgetTracker.addIncome(applicationContext, parsed.amount, parsed.title)
+                // الحقن الدقيق حسب نوع العملية
+                when (parsed.txType) {
+                    TxType.REFUND -> BudgetTracker.applyRefund(applicationContext, parsed.amount, parsed.title, parsed.category)
+                    else -> if (parsed.isExpense) {
+                        BudgetTracker.deductExpense(applicationContext, parsed.amount, parsed.title, parsed.category)
+                    } else {
+                        BudgetTracker.addIncome(applicationContext, parsed.amount, parsed.title)
+                    }
                 }
 
                 // Salary detection: ADD to budget (not replace)
@@ -148,10 +159,17 @@ class UnifiedBankListener : NotificationListenerService() {
             } else {
                 val aiParsed = ZadAiRepository.analyzeBankNotification(title, text)
                 if (aiParsed != null) {
+                    // نفس الحماية من التكرار على مسار الـ AI
+                    if (!TxDeduplicator.isNewTransaction(applicationContext, aiParsed.amount, aiParsed.isExpense)) return
                     val db = ZadDatabase.getDatabase(applicationContext)
                     val dao = db.zadDao()
                     dao.insertTransaction(aiParsed)
                     try { SupabaseRepo.addTransaction(aiParsed) } catch (e: Exception) {}
+                    if (aiParsed.isExpense) {
+                        BudgetTracker.deductExpense(applicationContext, aiParsed.amount, aiParsed.title, aiParsed.category ?: "أخرى")
+                    } else {
+                        BudgetTracker.addIncome(applicationContext, aiParsed.amount, aiParsed.title)
+                    }
                     Log.d("UnifiedBankListener", "AI-fallback transaction saved: ${aiParsed.title}")
                 }
             }
