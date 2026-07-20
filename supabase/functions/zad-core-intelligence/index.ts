@@ -113,6 +113,10 @@ async function callGroqVision(systemPrompt: string, userPrompt: string, imageBas
     }),
   });
   const data = await groqResp.json();
+  console.log("[CoreIntel] Groq vision raw response:", JSON.stringify(data));
+  if (!groqResp.ok) {
+    console.error("[CoreIntel] Groq vision HTTP error:", groqResp.status, JSON.stringify(data));
+  }
   return data.choices?.[0]?.message?.content || null;
 }
 
@@ -315,16 +319,22 @@ Deno.serve(async (req: Request) => {
         const systemPrompt = "You are a vision AI. Analyze the image of refrigerator/pantry contents. Identify every food item visible. Return ONLY JSON: {\"items\":[{\"name\":\"\",\"quantity\":1.0,\"unit\":\"قطعة\",\"category\":\"عام\"}]}";
         const userPrompt = "List all food items visible in this image with estimated quantity, unit, and category.";
         const visionResult = await callGroqVision(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg");
-        if (visionResult) {
-          const jsonMatch = visionResult.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            try {
-              const parsed = JSON.parse(jsonMatch[0]);
-              return jsonResponse({ items: parsed.items || [] });
-            } catch { /* fall through */ }
-          }
+        if (!visionResult) {
+          console.error("[CoreIntel] analyze_inventory_image: callGroqVision returned null (missing GROQ_API_KEY or fetch/HTTP failure)");
+          return jsonResponse({ items: [] });
         }
-        return jsonResponse({ items: [] });
+        const jsonMatch = visionResult.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          console.error("[CoreIntel] analyze_inventory_image: no JSON object found in Groq response:", visionResult);
+          return jsonResponse({ items: [] });
+        }
+        try {
+          const parsed = JSON.parse(jsonMatch[0]);
+          return jsonResponse({ items: parsed.items || [] });
+        } catch (e) {
+          console.error("[CoreIntel] analyze_inventory_image: JSON.parse failed:", e.message, "raw match:", jsonMatch[0]);
+          return jsonResponse({ items: [] });
+        }
       }
 
       // ──────────────────────────────────────────────
