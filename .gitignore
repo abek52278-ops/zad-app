@@ -35,3 +35,7 @@ google-cloud-sdk/
 node_modules/
 .idea/
 testsprite_tests/
+google-cloud-sdk/  
+node_modules/  
+.gradle/  
+build/  
