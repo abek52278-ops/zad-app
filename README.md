@@ -1,21 +1,30 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# زاد (Zad) — مساعد العائلة الذكي
 
-# Run and deploy your AI Studio app
+تطبيق أندرويد لإدارة المخزون المنزلي، المصاريف، والعائلة، مدعوم بذكاء اصطناعي (Groq / Llama) بيتعلم من سلوكك ويتنبأ باحتياجاتك.
 
-This contains everything you need to run your app locally.
+**التقنيات:** Kotlin · Jetpack Compose (Material 3) · Supabase (Postgres, Auth, Realtime, Edge Functions) · Room · Groq (Llama 3.3 70B + رؤية بالصور)
 
-View your app in AI Studio: https://ai.studio/apps/358829dc-3853-4095-baa9-229d300aaeec
+## أهم الميزات
+- مخزون منزلي بدورة مغلقة: مسح الفواتير/الرف بالكاميرا → يحدّث المخزون → ينزّل النواقص تلقائياً في قائمة التسوق
+- تتبع مصاريف من رسائل SMS/إشعارات البنك + ميزانية لكل فئة
+- ذكاء زاد: نقاط صحة مالية، عداد "قوة الصرف"، تحليل سلوكيات، مقارنة شهرية، شات بسياق كامل عن حياتك المالية والمنزلية
+- عائلة مشتركة: شات، مهام وأهداف للأطفال، بستان تسبيحة، محفظة أطفال
+- إشعارات ذكية استباقية + ملخص صباحي يومي
 
-## Run Locally
+## التشغيل محلياً
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
+**المتطلبات:** [Android Studio](https://developer.android.com/studio) (Narwhal أو أحدث) · JDK 17
 
+1. افتح المشروع في Android Studio ودع IDE يزامن Gradle.
+2. أنشئ ملف `.env` في جذر المشروع (انسخ من `.env.example`) وحط فيه:
+   - `SUPABASE_URL` و `SUPABASE_ANON_KEY` — **مطلوبين** (من إعدادات مشروعك في Supabase)
+   - `GEMINI_API_KEY` — **اختياري**، سيبه زي ما هو. كل ميزات الذكاء الاصطناعي (شات، تحليل، مسح فواتير بالصور) شغالة بمفتاح `GROQ_API_KEY` واحد مُسجّل سيرفر-سايد في Supabase Secrets (Edge Function `zad-ai-proxy`)، مش هنا.
+3. شغّل قاعدة البيانات: نفّذ ملفات `supabase/migrations/*.sql` بالترتيب في Supabase SQL Editor.
+4. شغّل التطبيق على محاكي أو جهاز حقيقي (`minSdk 24`).
 
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
+## بناء APK بدون Android Studio
+
+كل push على `main` بيشغّل [GitHub Actions](.github/workflows/build-debug-apk.yml) وبيبني نسخة Debug جاهزة للتنزيل من تبويب **Actions** (يحتاج الـ repo secrets: `SUPABASE_URL`, `SUPABASE_ANON_KEY`، و`GEMINI_API_KEY` بأي قيمة placeholder).
+
+## البنية
+راجع [PROJECT_MAP.md](./PROJECT_MAP.md) لخريطة كاملة للكود، تدفق البيانات، وسجل التغييرات لكل Sprint.

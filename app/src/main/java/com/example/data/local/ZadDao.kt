@@ -79,4 +79,17 @@ interface ZadDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAffiliateProducts(products: List<AffiliateProduct>)
+
+    // Zad Chat — ذاكرة الشات الدائمة
+    @Query("SELECT * FROM zad_chat_messages ORDER BY timestamp ASC")
+    fun getAllChatMessages(): Flow<List<com.example.data.ZadChatMessage>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertChatMessage(message: com.example.data.ZadChatMessage)
+
+    @Query("DELETE FROM zad_chat_messages")
+    suspend fun clearChatMessages()
+
+    @Query("SELECT COUNT(*) FROM zad_chat_messages")
+    suspend fun getChatMessageCount(): Int
 }

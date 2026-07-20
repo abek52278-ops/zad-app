@@ -46,7 +46,7 @@ fun AssistantScreen(viewModel: ZadViewModel, onOpenDrawer: () -> Unit = {}) {
     }
 
     Column(modifier = Modifier.fillMaxSize().background(background)) {
-        AssistantTopBar(onOpenDrawer)
+        AssistantTopBar(onOpenDrawer, onClearChat = { viewModel.clearChatHistory() })
 
         // Quick Action Chips
         Row(
@@ -266,7 +266,8 @@ fun TypingIndicator() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AssistantTopBar(onOpenDrawer: () -> Unit) {
+fun AssistantTopBar(onOpenDrawer: () -> Unit, onClearChat: () -> Unit = {}) {
+    var showConfirm by remember { mutableStateOf(false) }
     TopAppBar(
         title = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -285,6 +286,9 @@ fun AssistantTopBar(onOpenDrawer: () -> Unit) {
             }
         },
         actions = {
+            IconButton(onClick = { showConfirm = true }) {
+                Icon(Icons.Default.DeleteSweep, contentDescription = "مسح المحادثة", tint = onSurfaceVariant)
+            }
             IconButton(onClick = onOpenDrawer) {
                 Icon(Icons.Default.Menu, contentDescription = "Menu", tint = onSurface)
             }
@@ -293,4 +297,20 @@ fun AssistantTopBar(onOpenDrawer: () -> Unit) {
             containerColor = background
         )
     )
+
+    if (showConfirm) {
+        AlertDialog(
+            onDismissRequest = { showConfirm = false },
+            title = { Text("مسح المحادثة؟", fontWeight = FontWeight.Bold) },
+            text = { Text("هيتمسح كل تاريخ الشات مع زاد ومش هترجع.") },
+            confirmButton = {
+                TextButton(onClick = { onClearChat(); showConfirm = false }) {
+                    Text("مسح", color = dangerColor, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirm = false }) { Text("إلغاء") }
+            }
+        )
+    }
 }

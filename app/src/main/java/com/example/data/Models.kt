@@ -217,3 +217,12 @@ data class AffiliateCatalogRequest(
     @ColumnInfo(name = "created_at")
     @SerialName("created_at") val createdAt: String? = null
 )
+
+/** ذاكرة شات زاد الدائمة — محلية فقط (Room)، مش متزامنة مع Supabase */
+@Entity(tableName = "zad_chat_messages")
+data class ZadChatMessage(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val text: String,
+    @ColumnInfo(name = "is_user") val isUser: Boolean,
+    val timestamp: Long = System.currentTimeMillis()
+)

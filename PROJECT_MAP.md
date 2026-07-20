@@ -100,6 +100,15 @@ MainActivity
 5. **ZadCentralBrain** unified AI brain with behavior learning + predictions
 
 ## COMPLETED FEATURES
+- **Sprint 7 — Zad Intelligence Premium + Full-Context Chat + Kids UI (2026-07-20):**
+  - `ZadCentralBrain.kt`: `BrainReport` extended with `SpendingPower` (safe daily spend gauge, 0-100 power%), `BehaviorProfile` (top spending day, weekend share%, avg transaction, impulse-purchase count, evening share%), `MonthComparison` (this month vs. same-period last month, per-category deltas) — all computed locally from real transactions, no extra AI calls. `buildExportText()` renders the full report as shareable plain text.
+  - `ZadIntelligenceScreen.kt`: `SpendingPowerGaugeCard` (animated semicircle gauge), `MonthComparisonCard`, `BehaviorAnalysisCard` ("زاد يعرفك"), `ExportReportButton` (Android share sheet) — all wired into `AnalyticsTab`.
+  - `ZadViewModel.buildFullChatContext()`: chat now injects full context into every message — inventory (+ depletion forecasts), last 30 transactions, per-category budgets, active subscriptions, shopping list, learned behavior patterns, the brain report, expense prediction, and family state (`updateFamilyContext`, fed from `FamilyViewModel.state` in `MainScreen`). Keeps last 8 messages as conversation memory.
+  - `ZadAiRepository.suggestMealsForUrgentItems()` + `ZadViewModel.generateUrgentRecipes()`: brain-linked recipes — inventory items expiring within 2 days or predicted to deplete within 2 days trigger an AI recipe suggestion automatically, shown via `UrgentRecipeCard` on `HomeScreen`.
+  - `BudgetScreen.kt`: per-category budget UI — `CategoryBudgetCard` list (progress bar, over-budget highlighting) + `CategoryBudgetEditDialog` to set/edit a category's monthly cap; spent amounts computed live from transactions (not just bank-auto-detected ones).
+  - `MorningSummaryWorker.kt`: new daily WorkManager job (`PeriodicWorkRequestBuilder<MorningSummaryWorker>(24h)`, initial delay computed to next 7:00 AM) — single notification with spending power for the day + one urgent item (expiring/depleting/low health score).
+  - `HomeScreen.kt` Kids Mode: cute redesign — `KidAvatar` (deterministic emoji+color per member, no photo needed) in greeting header, chat bubbles, and `FamilyScreen`'s parent-facing kids list; candy-gradient balance card, emoji-based chore cards with coin-chip rewards, playful empty states.
+  - `supabase/migrations/20260720000000_create_affiliate_tables.sql`: **new** — `affiliate_products`/`affiliate_clicks`/`affiliate_catalog_requests` were referenced in app code (`SupabaseRepo`, `Models.kt`) but had no migration; added with RLS (catalog read-only for authenticated users, writes reserved for service_role).
 - **Sprint 5 — iOS-grade animation system + Tasbiha fixes (2026-07-20):**
   - `ZadAnimations.kt`: unified animation toolkit — `ZadSprings` (iOS spring physics presets), `ZadTransitions` (RTL push/pop screen transitions), `Modifier.pressableScale()` (Apple-style press shrink + haptic), `shimmerLoading()`, `floatingIdle()`, `pulseGlow()`, `animatedCountAsState()`, `AppearOnEntry`
   - NavHost now uses ZadTransitions for all screen navigation (push/pop like iOS)
@@ -128,6 +137,7 @@ MainActivity
 - **Sound effects** — ToneGenerator click on each tap (TONE_PROP_BEEP2), level-up sound (TONE_PROP_ACK), haptic feedback (VibrationEffect)
 
 ## ORPHANS & PENDING
-- none currently
+- **Action required:** run `supabase/migrations/20260720000000_create_affiliate_tables.sql` in the Supabase SQL Editor (project `auuftqncrjsnyylolhbu`) — the `affiliate_products`/`affiliate_clicks`/`affiliate_catalog_requests` tables the app already queries were never migrated.
+- No core library desugaring configured (`app/build.gradle.kts`) despite `java.time.*` used throughout (`ZadCentralBrain`, `ZadViewModel`, `BudgetScreen`, workers) with `minSdk = 24` — risks crashing on Android 7/7.1 devices (API 24-25). Pre-existing, not introduced this sprint.
 
 <!-- Update this file after every significant change -->

@@ -53,6 +53,27 @@ fun BudgetScreen(
     val showBudgetDialog by viewModel.showBudgetDialog.collectAsState()
     var showAddTransactionDialog by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf("الكل") }
+    val context = LocalContext.current
+    var categoryCardsRefresh by remember { mutableIntStateOf(0) }
+    var editingCategory by remember { mutableStateOf<String?>(null) }
+    // المصروف الفعلي بيتحسب من المعاملات مباشرة (يشمل اليدوية + البنكية) — الميزانية من BudgetTracker
+    val categoryCards = remember(transactions, categoryCardsRefresh) {
+        val now = java.time.LocalDate.now()
+        val spentByCategory = transactions.filter { tx ->
+            if (!tx.isExpense) return@filter false
+            try {
+                val d = Instant.parse(tx.createdAt ?: "").atZone(ZoneId.systemDefault()).toLocalDate()
+                d.monthValue == now.monthValue && d.year == now.year
+            } catch (e: Exception) { false }
+        }.groupBy { it.category ?: "أخرى" }.mapValues { (_, txs) -> txs.sumOf { it.amount } }
+
+        com.example.data.BudgetTracker.STANDARD_CATEGORIES
+            .map { cat ->
+                Triple(cat, com.example.data.BudgetTracker.getCategoryBudget(context, cat), spentByCategory[cat] ?: 0.0)
+            }
+            .filter { (_, catBudget, spent) -> catBudget > 0 || spent > 0 }
+            .sortedByDescending { it.third }
+    }
 
     val totalIncome = transactions.filter { !it.isExpense }.sumOf { it.amount }
     val totalSpent = transactions.filter { it.isExpense }.sumOf { it.amount }
@@ -246,6 +267,49 @@ fun BudgetScreen(
                     )
                 }
             }
+
+            // ── Category Budget Cards ───────────────────────────────────────
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("ميزانيات الفئات", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                    TextButton(onClick = { editingCategory = "__NEW__" }) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = primary)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("تحديد فئة", style = Typography.labelMedium, color = primary)
+                    }
+                }
+            }
+            if (categoryCards.isEmpty()) {
+                item {
+                    Text(
+                        "لسه ما حددتش ميزانية لأي فئة. اضغط \"تحديد فئة\" عشان زاد يتابعلك كل فئة لوحدها.",
+                        style = Typography.bodySmall,
+                        color = onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+                    )
+                }
+            } else {
+                item {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        categoryCards.forEach { (cat, catBudget, spent) ->
+                            CategoryBudgetCard(
+                                category = cat,
+                                budget = catBudget,
+                                spent = spent,
+                                onClick = { editingCategory = cat }
+                            )
+                        }
+                    }
+                }
+            }
+            item { Spacer(modifier = Modifier.height(8.dp)) }
 
             // ── Filter chips (Material3) ─────────────────────────────────────
             item {
@@ -450,6 +514,130 @@ fun BudgetScreen(
             }
         )
     }
+
+    editingCategory?.let { cat ->
+        val isNew = cat == "__NEW__"
+        CategoryBudgetEditDialog(
+            category = if (isNew) null else cat,
+            currentBudget = if (isNew) 0.0 else com.example.data.BudgetTracker.getCategoryBudget(context, cat),
+            onDismiss = { editingCategory = null },
+            onSave = { chosenCategory, amount ->
+                com.example.data.BudgetTracker.setCategoryBudget(context, chosenCategory, amount)
+                categoryCardsRefresh++
+                editingCategory = null
+            }
+        )
+    }
+}
+
+@Composable
+private fun CategoryBudgetCard(category: String, budget: Double, spent: Double, onClick: () -> Unit) {
+    val pct = if (budget > 0) (spent / budget * 100).toInt() else 0
+    val overBudget = budget > 0 && spent > budget
+    val barColor = when {
+        budget == 0.0 -> onSurfaceVariant.copy(alpha = 0.4f)
+        overBudget -> dangerColor
+        pct >= 85 -> warningColor
+        else -> primary
+    }
+    val animatedFraction by animateFloatAsState(
+        targetValue = if (budget > 0) (spent / budget).toFloat().coerceIn(0f, 1f) else 0f,
+        animationSpec = tween(700), label = "catBudgetBar"
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(1.dp, RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(14.dp))
+            .background(surface)
+            .clickable(onClick = onClick)
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(category, style = Typography.labelLarge, fontWeight = FontWeight.SemiBold, color = onSurface)
+                Text(
+                    if (budget > 0) "${String.format("%,.0f", spent)} / ${String.format("%,.0f", budget)} ر.س"
+                    else "${String.format("%,.0f", spent)} ر.س — بدون حد",
+                    style = Typography.labelSmall,
+                    color = if (overBudget) dangerColor else onSurfaceVariant,
+                    fontWeight = if (overBudget) FontWeight.Bold else FontWeight.Normal
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Box(
+                modifier = Modifier.fillMaxWidth().height(6.dp)
+                    .clip(RoundedCornerShape(3.dp)).background(surfaceContainer)
+            ) {
+                if (budget > 0) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth(animatedFraction).fillMaxHeight()
+                            .clip(RoundedCornerShape(3.dp)).background(barColor)
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.width(10.dp))
+        Icon(Icons.Default.Edit, contentDescription = "تعديل", tint = onSurfaceVariant, modifier = Modifier.size(16.dp))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CategoryBudgetEditDialog(
+    category: String?,
+    currentBudget: Double,
+    onDismiss: () -> Unit,
+    onSave: (String, Double) -> Unit
+) {
+    var selectedCategory by remember { mutableStateOf(category ?: com.example.data.BudgetTracker.STANDARD_CATEGORIES.first()) }
+    var amountText by remember { mutableStateOf(if (currentBudget > 0) currentBudget.toInt().toString() else "") }
+    var expanded by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (category != null) "تعديل ميزانية $category" else "تحديد ميزانية فئة", fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                if (category == null) {
+                    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+                        OutlinedTextField(
+                            value = selectedCategory,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("الفئة") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                            modifier = Modifier.menuAnchor().fillMaxWidth()
+                        )
+                        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                            com.example.data.BudgetTracker.STANDARD_CATEGORIES.forEach { cat ->
+                                DropdownMenuItem(text = { Text(cat) }, onClick = { selectedCategory = cat; expanded = false })
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { if (it.all { c -> c.isDigit() }) amountText = it },
+                    label = { Text("الميزانية الشهرية (ر.س)") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val amount = amountText.toDoubleOrNull() ?: 0.0
+                onSave(category ?: selectedCategory, amount)
+            }) { Text("حفظ", fontWeight = FontWeight.Bold, color = primary) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("إلغاء") }
+        }
+    )
 }
 
 @Composable

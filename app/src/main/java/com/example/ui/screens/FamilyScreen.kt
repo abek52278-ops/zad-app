@@ -382,9 +382,7 @@ private fun KidsSpendingTab(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(secondaryLight), contentAlignment = Alignment.Center) {
-                            Text(child.alias.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold)
-                        }
+                        com.example.ui.screens.KidAvatar(seed = child.id.ifBlank { child.alias }, size = 40.dp)
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(child.alias, fontWeight = FontWeight.Bold, color = onSurface)

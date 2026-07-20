@@ -55,6 +55,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
 import com.example.workers.PeriodicAnalysisWorker
+import com.example.workers.MorningSummaryWorker
 
 import android.content.Intent
 
@@ -85,6 +86,20 @@ class MainActivity : ComponentActivity() {
             "ZadAnalysisWorker",
             ExistingPeriodicWorkPolicy.KEEP,
             workRequest
+        )
+
+        // الملخص الصباحي الذكي — كل يوم الساعة 7 صباحاً
+        val now = java.time.LocalDateTime.now()
+        var next7am = now.withHour(7).withMinute(0).withSecond(0).withNano(0)
+        if (now.isAfter(next7am)) next7am = next7am.plusDays(1)
+        val initialDelayMinutes = java.time.Duration.between(now, next7am).toMinutes()
+        val morningWorkRequest = PeriodicWorkRequestBuilder<MorningSummaryWorker>(24, TimeUnit.HOURS)
+            .setInitialDelay(initialDelayMinutes, TimeUnit.MINUTES)
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "ZadMorningSummaryWorker",
+            ExistingPeriodicWorkPolicy.KEEP,
+            morningWorkRequest
         )
 
         // Start real-time chat notification service

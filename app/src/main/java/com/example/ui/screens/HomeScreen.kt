@@ -94,6 +94,7 @@ fun HomeScreen(
     val shoppingList by viewModel.shoppingList.collectAsState()
     val globalAvatarUri by viewModel.avatarUri.collectAsState()
     val affiliateProducts by viewModel.affiliateProducts.collectAsState()
+    val urgentRecipes by viewModel.urgentRecipes.collectAsState()
 
     val totalIncome = transactions.filter { !it.isExpense }.sumOf { it.amount }
     val totalSpent = transactions.filter { it.isExpense }.sumOf { it.amount }
@@ -276,6 +277,16 @@ fun HomeScreen(
                 // 6b. Tasbiha Widget
                 TasbihaHomeWidget(tree = myTasbiha, onNavigateToTasbiha = onNavigateToTasbiha)
                 Spacer(modifier = Modifier.height(24.dp))
+
+                // 6c. العقل → الوصفات: "عندك دجاج هينتهي بكرة → 3 وصفات بيه"
+                urgentRecipes?.let { urgent ->
+                    UrgentRecipeCard(
+                        triggerItems = urgent.triggerItems,
+                        text = urgent.text,
+                        onOpenChat = onNavigateToAssistant
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
 
                 // 7. AI Chef Widget
                 SmartChefSection(
@@ -899,6 +910,52 @@ fun StatCard(
             color = onSurface,
             fontWeight = FontWeight.Bold
         )
+    }
+}
+
+/** كرت "العقل → الوصفات": يظهر لما فيه أصناف هتخلص/تنتهي مع اقتراحات وصفات فعلية بيها */
+@Composable
+fun UrgentRecipeCard(
+    triggerItems: List<String>,
+    text: String,
+    onOpenChat: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = Color(0xFFFFF7ED),
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onOpenChat
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFFFED7AA)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.HourglassTop, contentDescription = null, tint = Color(0xFFC2410C), modifier = Modifier.size(18.dp))
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "عندك ${triggerItems.take(2).joinToString("، ")} هيخلص قريب 👀",
+                        style = Typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF9A3412)
+                    )
+                    Text("وصفات مقترحة بيه قبل ما يضيع", style = Typography.labelSmall, color = Color(0xFFC2410C))
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text.take(220),
+                style = Typography.bodySmall,
+                color = Color(0xFF7C2D12),
+                lineHeight = 18.sp,
+                maxLines = 5
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("اضغط للمزيد في شات زاد ←", style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFFC2410C))
+        }
     }
 }
 
@@ -1863,36 +1920,55 @@ fun KidsModeContent(
     val myChores = familyState.chores.filter { it.assignedTo == familyState.myMemberInfo.id }
     val myAllowance = familyState.myMemberInfo.balance
     val mySavingsGoal = familyState.myMemberInfo.savingsGoal
+    val myAlias = familyState.myMemberInfo.alias.ifBlank { "بطل" }
     val recentMessages = familyState.messages.takeLast(3)
     val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp).verticalScroll(rememberScrollState())) {
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        // ── Balance Card ──
+        // ── Cute Greeting Header ──
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            KidAvatar(seed = familyState.myMemberInfo.id.ifBlank { myAlias }, size = 52.dp)
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text("أهلاً يا $myAlias! 👋", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
+                Text("يوم حلو وميزانية أحلى ✨", style = Typography.labelMedium, color = onSurfaceVariant)
+            }
+        }
+        Spacer(modifier = Modifier.height(18.dp))
+
+        // ── Balance Card (Candy Gradient) ──
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
-                .background(Brush.linearGradient(listOf(primary, secondary)))
+                .clip(RoundedCornerShape(28.dp))
+                .background(Brush.linearGradient(listOf(kidsPrimary, Color(0xFFEC4899), Color(0xFFF59E0B))))
                 .padding(24.dp)
         ) {
             Column {
-                Text("مصروفك المتاح", color = Color.White.copy(alpha = 0.8f), style = Typography.labelLarge)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🪙", fontSize = 20.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("مصروفك المتاح", color = Color.White.copy(alpha = 0.9f), style = Typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
                     AnimatedContent(
                         targetState = myAllowance,
                         label = "BalanceAnimation"
                     ) { targetAllowance ->
-                        Text("$targetAllowance", color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.Bold)
+                        Text("$targetAllowance", color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.Black)
                     }
-                    Text(" ريال", color = Color.White.copy(alpha = 0.8f), modifier = Modifier.padding(bottom = 6.dp, start = 4.dp))
+                    Text(" ريال", color = Color.White.copy(alpha = 0.85f), modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
                 }
                 if (mySavingsGoal > 0) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("هدف التوفير: $mySavingsGoal ريال", color = Color.White.copy(alpha = 0.9f), style = Typography.labelMedium)
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("🎯 هدف التوفير: $mySavingsGoal ريال", color = Color.White.copy(alpha = 0.95f), style = Typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        Text("🚀", fontSize = 14.sp)
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
                     val progress = (myAllowance / mySavingsGoal).toFloat().coerceIn(0f, 1f)
                     val animatedProgress by animateFloatAsState(
                         targetValue = progress,
@@ -1901,56 +1977,73 @@ fun KidsModeContent(
                     )
                     LinearProgressIndicator(
                         progress = { animatedProgress },
-                        modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+                        modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)),
                         color = Color.White,
                         trackColor = Color.White.copy(alpha = 0.3f),
                     )
                 }
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(18.dp))
                 Button(
                     onClick = onAddRequest,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = primary),
-                    shape = RoundedCornerShape(12.dp)
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = kidsPrimaryDark),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("طلب مصروف إضافي أو شراء", fontWeight = FontWeight.Bold)
+                    Text("✋", fontSize = 14.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("محتاج مصروف زيادة؟", fontWeight = FontWeight.Bold)
                 }
             }
         }
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(22.dp))
 
-        // ── My Chores Section ──
-        Text("مهامي", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
-        Spacer(modifier = Modifier.height(8.dp))
+        // ── My Chores Section (Fun cards) ──
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("⭐", fontSize = 18.sp)
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("مهامي", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
+        }
+        Spacer(modifier = Modifier.height(10.dp))
         if (myChores.isEmpty()) {
-            Text("ليس لديك مهام مطلوبة حالياً!", color = Color.Gray, style = Typography.bodyMedium)
+            Surface(shape = RoundedCornerShape(18.dp), color = Color(0xFFF0FDF4), modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("🎉", fontSize = 22.sp)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("مفيش مهام دلوقتي — استمتع بيومك!", color = Color(0xFF15803D), style = Typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                }
+            }
         } else {
             myChores.forEach { chore ->
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(16.dp))
-                        .background(if (chore.isCompleted) surfaceContainer else surface)
-                        .padding(12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(18.dp))
+                        .background(if (chore.isCompleted) Color(0xFFECFDF5) else surface)
+                        .padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(if (chore.isCompleted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                        contentDescription = null, tint = if (chore.isCompleted) primary else onSurfaceVariant, modifier = Modifier.size(24.dp))
+                    Box(
+                        modifier = Modifier.size(38.dp).clip(CircleShape)
+                            .background(if (chore.isCompleted) Color(0xFF22C55E) else kidsPrimaryLight.copy(alpha = 0.25f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(if (chore.isCompleted) "✅" else "📋", fontSize = 16.sp)
+                    }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(chore.title, fontWeight = FontWeight.Bold, color = onSurface, fontSize = 14.sp)
                         if (chore.rewardAmount > 0) {
-                            Text("مكافأة: +${chore.rewardAmount} ريال", fontSize = 12.sp, color = primary)
+                            Surface(shape = RoundedCornerShape(999.dp), color = Color(0xFFFEF3C7), modifier = Modifier.padding(top = 2.dp)) {
+                                Text("🪙 +${chore.rewardAmount.toInt()} ريال", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF92400E), modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                            }
                         }
                     }
                 }
             }
         }
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(22.dp))
 
         // ── Mini Family Chat ──
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Chat, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(8.dp))
+            Text("💬", fontSize = 18.sp)
+            Spacer(Modifier.width(6.dp))
             Text("آخر رسائل العائلة", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
             Spacer(Modifier.weight(1f))
             TextButton(onClick = onNavigateToFamily) {
@@ -1963,31 +2056,30 @@ fun KidsModeContent(
             Text("لا توجد رسائل بعد", color = Color.Gray, style = Typography.bodyMedium)
         } else {
             recentMessages.forEach { msg ->
-                Surface(shape = RoundedCornerShape(12.dp), color = surfaceContainer, modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                val senderAlias = familyState.members.find { it.userId == msg.senderId }?.alias?.ifBlank { "؟" } ?: "؟"
+                Surface(shape = RoundedCornerShape(14.dp), color = surfaceContainer, modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
                     Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(24.dp).clip(CircleShape).background(primary.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
-                            Text(/* find sender name */ "?", color = primary, fontSize = 10.sp)
-                        }
+                        KidAvatar(seed = msg.senderId.ifBlank { senderAlias }, size = 28.dp)
                         Spacer(Modifier.width(8.dp))
                         Column(modifier = Modifier.weight(1f)) {
+                            Text(senderAlias, fontSize = 10.sp, color = kidsPrimary, fontWeight = FontWeight.Bold)
                             Text(msg.message, fontSize = 13.sp, color = onSurface, maxLines = 1)
-                            Text(msg.createdAt?.take(10) ?: "", fontSize = 9.sp, color = onSurfaceVariant)
                         }
                     }
                 }
             }
         }
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(22.dp))
 
         // ── Tasbiha Widget ──
         Surface(
             onClick = onNavigateToTasbiha,
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(18.dp),
             color = Color(0xFFF1F8E9),
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Park, contentDescription = null, tint = Color(0xFF2E7D32), modifier = Modifier.size(36.dp))
+                Text("🌳", fontSize = 30.sp)
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text("بستان التسبيحة", fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
@@ -1996,12 +2088,16 @@ fun KidsModeContent(
                 Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = Color(0xFF2E7D32))
             }
         }
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(22.dp))
 
         // ── Amazon Suggestions ──
         val activeAffiliate = affiliateProducts.filter { it.isActive }
         if (activeAffiliate.isNotEmpty()) {
-            Text("اقتراحات التسوق", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("🛍️", fontSize = 18.sp)
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("اقتراحات التسوق", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+            }
             Spacer(modifier = Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(activeAffiliate.take(5)) { product ->
@@ -2016,6 +2112,27 @@ fun KidsModeContent(
             }
             Spacer(modifier = Modifier.height(24.dp))
         }
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+private val kidAvatarEmojis = listOf("🦁", "🐼", "🦊", "🐨", "🐯", "🐰", "🐸", "🦉", "🐵", "🐻", "🦄", "🐳")
+private val kidAvatarColors = listOf(
+    Color(0xFFFDE68A), Color(0xFFBFDBFE), Color(0xFFFBCFE8), Color(0xFFBBF7D0),
+    Color(0xFFDDD6FE), Color(0xFFFED7AA), Color(0xFFA7F3D0), Color(0xFFC7D2FE)
+)
+
+/** أفاتار كيوت ثابت لكل طفل (إيموجي + لون) مبني من هاش الاسم/الـID — بدون الحاجة لصورة */
+@Composable
+fun KidAvatar(seed: String, size: androidx.compose.ui.unit.Dp = 40.dp) {
+    val idx = kotlin.math.abs(seed.hashCode())
+    val emoji = kidAvatarEmojis[idx % kidAvatarEmojis.size]
+    val bg = kidAvatarColors[idx % kidAvatarColors.size]
+    Box(
+        modifier = Modifier.size(size).clip(CircleShape).background(bg),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(emoji, fontSize = (size.value * 0.5f).sp)
     }
 }
 

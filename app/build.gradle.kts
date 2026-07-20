@@ -19,7 +19,7 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    
+
     // Secrets are automatically injected into BuildConfig by the secrets-gradle-plugin
   }
 
@@ -46,6 +46,9 @@ android {
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
+    // java.time.* is used throughout (ZadCentralBrain, workers, etc.) but only
+    // ships natively from API 26 — minSdk is 24, so this backports it to API 24-25.
+    isCoreLibraryDesugaringEnabled = true
   }
   buildFeatures {
     compose = true
@@ -140,4 +143,5 @@ dependencies {
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
   implementation("com.google.zxing:core:3.5.3")
+  coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

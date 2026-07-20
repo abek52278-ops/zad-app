@@ -11,15 +11,16 @@ import com.example.data.ZadTransaction
 import androidx.room.TypeConverters
 
 @Database(entities = [
-    ZadTransaction::class, 
-    ZadInventory::class, 
+    ZadTransaction::class,
+    ZadInventory::class,
     ZadSubscription::class,
     com.example.data.ZadBehaviorPattern::class,
     com.example.data.ZadShoppingItem::class,
     com.example.data.AffiliateProduct::class,
     com.example.data.AffiliateClick::class,
-    com.example.data.AffiliateCatalogRequest::class
-], version = 5, exportSchema = false)
+    com.example.data.AffiliateCatalogRequest::class,
+    com.example.data.ZadChatMessage::class
+], version = 6, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class ZadDatabase : RoomDatabase() {
     abstract fun zadDao(): ZadDao
