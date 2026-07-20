@@ -18,13 +18,15 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # GEMINI_API_KEY is intentionally NOT read from secrets — the app doesn't need it
+      # (all AI features run on GROQ_API_KEY server-side in Supabase). "unused" is a
+      # harmless placeholder so the Secrets Gradle Plugin has something to inject.
       - name: Write .env
         run: |
-          echo "GEMINI_API_KEY=${GEMINI_API_KEY:-unused}" >> .env
+          echo "GEMINI_API_KEY=unused" >> .env
           echo "SUPABASE_URL=${SUPABASE_URL}" >> .env
           echo "SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}" >> .env
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 

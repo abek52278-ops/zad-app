@@ -24,7 +24,7 @@
 
 ## بناء APK بدون Android Studio
 
-كل push على `main` بيشغّل [GitHub Actions](.github/workflows/build-debug-apk.yml) وبيبني نسخة Debug جاهزة للتنزيل من تبويب **Actions** (يحتاج الـ repo secrets: `SUPABASE_URL`, `SUPABASE_ANON_KEY`، و`GEMINI_API_KEY` بأي قيمة placeholder).
+كل push على `main` بيشغّل [GitHub Actions](.github/workflows/build-debug-apk.yml) وبيبني نسخة Debug جاهزة للتنزيل من تبويب **Actions** — محتاج بس تضيف secretين في Settings → Secrets and variables → Actions: `SUPABASE_URL` و`SUPABASE_ANON_KEY`. (مفيش `GEMINI_API_KEY` هنا خالص — مش مستخدم).
 
 ## البنية
 راجع [PROJECT_MAP.md](./PROJECT_MAP.md) لخريطة كاملة للكود، تدفق البيانات، وسجل التغييرات لكل Sprint.
