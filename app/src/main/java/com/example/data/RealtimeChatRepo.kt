@@ -6,7 +6,8 @@ import io.github.jan.supabase.realtime.postgresChangeFlow
 import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.RealtimeChannel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.serialization.json.decodeFromJsonElement
 import io.github.jan.supabase.realtime.decodeRecord
 
@@ -28,8 +29,16 @@ object RealtimeChatRepo {
         
         channel.subscribe()
         
-        return changeFlow.map { action ->
-            action.decodeRecord<ChatMessage>()
+        // رسالة معطوبة واحدة ما توقفش الشات كله
+        return changeFlow.mapNotNull { action ->
+            try {
+                action.decodeRecord<ChatMessage>()
+            } catch (e: Exception) {
+                android.util.Log.e("RealtimeChatRepo", "Skipped malformed message: ${e.message}")
+                null
+            }
+        }.catch { e ->
+            android.util.Log.e("RealtimeChatRepo", "Chat flow error (stream kept alive): ${e.message}")
         }
     }
 

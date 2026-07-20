@@ -462,7 +462,27 @@ object ZadCentralBrain {
         categoryBreakdown.filter { it.isOverBudget }.forEach {
             insights.add("⛔ تجاوزت ميزانية ${it.category} بـ${(it.spent - it.budget).toInt()} ر.س")
         }
-        if (subsMonthlyCost > 0) insights.add("اشتراكاتك النشطة تكلفك ${subsMonthlyCost.toInt()} ر.س شهرياً")
+        if (subsMonthlyCost > 0) {
+            insights.add("اشتراكاتك النشطة تكلفك ${subsMonthlyCost.toInt()} ر.س شهرياً (${(subsMonthlyCost * 12).toInt()} ر.س سنوياً)")
+
+            // اقتراح إلغاء: نسبة الاشتراكات من الميزانية مرتفعة
+            if (budget > 0 && subsMonthlyCost > budget * 0.2) {
+                val mostExpensive = subscriptions.filter { it.isActive }.maxByOrNull { it.amount }
+                if (mostExpensive != null) {
+                    insights.add("💡 اشتراكاتك ${(subsMonthlyCost / budget * 100).toInt()}% من ميزانيتك — راجع ${mostExpensive.title} (${mostExpensive.amount.toInt()} ر.س) لو مش مستخدمه")
+                }
+            }
+
+            // كشف خدمات البث المكررة
+            val streamingKeywords = listOf("netflix", "نتفلكس", "شاهد", "shahid", "osn", "prime", "disney")
+            val streamingSubs = subscriptions.filter { sub ->
+                sub.isActive && streamingKeywords.any { sub.title.lowercase().contains(it) }
+            }
+            if (streamingSubs.size >= 2) {
+                val cheapest = streamingSubs.minByOrNull { it.amount }
+                insights.add("📺 عندك ${streamingSubs.size} خدمات بث — إلغاء واحدة يوفر لك ${cheapest?.amount?.toInt() ?: 0} ر.س شهرياً")
+            }
+        }
         depletionForecasts.firstOrNull { it.predictedDaysLeft <= 2 }?.let {
             insights.add("🛒 ${it.itemName} متوقع يخلص خلال ${it.predictedDaysLeft.coerceAtLeast(0)} يوم")
         }

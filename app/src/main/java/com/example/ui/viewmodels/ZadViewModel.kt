@@ -374,10 +374,13 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 val names = lowStockItems.joinToString("، ") { it.itemName }
+                val lowStockAlertsEnabled = getApplication<Application>()
+                    .getSharedPreferences("zad_alert_prefs", android.content.Context.MODE_PRIVATE)
+                    .getBoolean("alert_low_inventory", true)
                 val existingLowStock = _appNotifications.value.any {
                     !it.isRead && it.title.contains("مخزون منخفض")
                 }
-                if (!existingLowStock) {
+                if (!existingLowStock && lowStockAlertsEnabled) {
                     smartAlerts.add(
                         com.example.data.AppNotification(
                             userId = userId,

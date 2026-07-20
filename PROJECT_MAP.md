@@ -100,6 +100,10 @@ MainActivity
 5. **ZadCentralBrain** unified AI brain with behavior learning + predictions
 
 ## COMPLETED FEATURES
+- **Sprint 4 — Profile/Subscriptions/Chat fixes (2026-07-20):**
+  - ProfileSubScreens: fixed literal `\$budget` display bug (showed "$budget ر.س" instead of the number); alert switches now persist via `AlertPrefs` (SharedPreferences) and actually gate notifications (BudgetTracker + low-stock alerts respect them); dead "contact support" button now opens mailto intent
+  - Subscription intelligence in BrainReport: annual cost projection, cancel suggestion when subs >20% of budget, duplicate streaming services detection
+  - RealtimeChatRepo: malformed messages no longer kill the chat flow (mapNotNull + catch)
 - **Sprint 2 — Closed-Loop Inventory (2026-07-20):**
   - `InventoryFlowEngine.kt`: smart injection (scanned items merge quantities into existing rows via fuzzy Arabic name matching), auto-marks matching shopping-list items purchased (closes the loop), `autoReplenish` (low-stock → auto-added to shopping with priority), `consumeItem` (− button feeds learning + triggers replenish)
   - `ConsumptionLearner`: records purchase/consumption dates per item, predicts days-to-depletion from average purchase interval

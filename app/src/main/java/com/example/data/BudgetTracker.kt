@@ -152,6 +152,10 @@ object BudgetTracker {
 
     private fun sendAlert(context: Context, title: String, message: String) {
         try {
+            // احترام إعداد المستخدم: تنبيهات الميزانية ممكن يقفلها من البروفايل
+            val alertsEnabled = context.getSharedPreferences("zad_alert_prefs", Context.MODE_PRIVATE)
+                .getBoolean("alert_budget_overrun", true)
+            if (!alertsEnabled) return
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 val channel = NotificationChannel(CHANNEL_ID, "تنبيهات الميزانية", NotificationManager.IMPORTANCE_HIGH)

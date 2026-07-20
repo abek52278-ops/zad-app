@@ -232,7 +232,7 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
     var newBudgetStr by remember { mutableStateOf(budget.toString()) }
 
     LaunchedEffect(budget) {
-        Log.d(TAG_SUB_PROF, "PaymentAndBudgetScreen loaded — current budget=\$budget")
+        Log.d(TAG_SUB_PROF, "PaymentAndBudgetScreen loaded — current budget=$budget")
         newBudgetStr = budget.toString()
     }
 
@@ -257,7 +257,7 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
                         Row {
                             Button(onClick = {
                                 val parsed = newBudgetStr.toDoubleOrNull() ?: budget
-                                Log.d(TAG_SUB_PROF, "Save budget clicked → parsed=\$parsed → calling viewModel.updateBudget()")
+                                Log.d(TAG_SUB_PROF, "Save budget clicked → parsed=$parsed → calling viewModel.updateBudget()")
                                 viewModel.updateBudget(parsed)
                                 editMode = false
                             }) { Text("حفظ") }
@@ -266,7 +266,7 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
                         }
                     } else {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                            Text("\$budget ر.س", style = Typography.headlineMedium, color = primary, fontWeight = FontWeight.Bold)
+                            Text("${String.format("%,.0f", budget)} ر.س", style = Typography.headlineMedium, color = primary, fontWeight = FontWeight.Bold)
                             IconButton(onClick = { editMode = true }) {
                                 Icon(Icons.Default.Edit, contentDescription = "Edit Budget", tint = primary)
                             }
@@ -297,32 +297,44 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
     }
 }
 
-// 4. Assistant Alerts Screen
+// 4. Assistant Alerts Screen — الإعدادات محفوظة فعلياً وتتحكم في الإشعارات
+object AlertPrefs {
+    private const val PREFS = "zad_alert_prefs"
+    const val KEY_LOW_INVENTORY = "alert_low_inventory"
+    const val KEY_BUDGET_OVERRUN = "alert_budget_overrun"
+    const val KEY_MEAL_SUGGESTIONS = "alert_meal_suggestions"
+
+    fun isEnabled(context: android.content.Context, key: String): Boolean =
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+            .getBoolean(key, true)
+
+    fun setEnabled(context: android.content.Context, key: String, enabled: Boolean) =
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+            .edit().putBoolean(key, enabled).apply()
+}
+
 @Composable
 fun AssistantAlertsScreen(onBack: () -> Unit) {
-    var lowInventoryAlerts by remember { mutableStateOf(true) }
-    var budgetOverrunAlerts by remember { mutableStateOf(true) }
-    var mealSuggestions by remember { mutableStateOf(true) }
-
-    LaunchedEffect(Unit) {
-        Log.d(TAG_SUB_PROF, "AssistantAlertsScreen loaded")
-    }
+    val context = LocalContext.current
+    var lowInventoryAlerts by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_LOW_INVENTORY)) }
+    var budgetOverrunAlerts by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_BUDGET_OVERRUN)) }
+    var mealSuggestions by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_MEAL_SUGGESTIONS)) }
 
     Column(modifier = Modifier.fillMaxSize().background(background)) {
         SubScreenTopBar("تنبيهات المساعد الذكي", onBack)
-        
+
         Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
             AlertSwitchItem("تنبيهات نقص المخزون", "يرسل إشعاراً عند اقتراب نفاذ منتج أساسي", lowInventoryAlerts) {
-                Log.d(TAG_SUB_PROF, "Toggle low inventory alerts → \$it")
                 lowInventoryAlerts = it
+                AlertPrefs.setEnabled(context, AlertPrefs.KEY_LOW_INVENTORY, it)
             }
             AlertSwitchItem("تنبيهات تخطي الميزانية", "تحذير مبكر عند صرف جزء كبير من الميزانية", budgetOverrunAlerts) {
-                Log.d(TAG_SUB_PROF, "Toggle budget overrun alerts → \$it")
                 budgetOverrunAlerts = it
+                AlertPrefs.setEnabled(context, AlertPrefs.KEY_BUDGET_OVERRUN, it)
             }
             AlertSwitchItem("اقتراحات الوجبات", "اقتراح وجبات يومية بناءً على المخزون الحالي", mealSuggestions) {
-                Log.d(TAG_SUB_PROF, "Toggle meal suggestions → \$it")
                 mealSuggestions = it
+                AlertPrefs.setEnabled(context, AlertPrefs.KEY_MEAL_SUGGESTIONS, it)
             }
         }
     }
@@ -360,8 +372,19 @@ fun HelpAndSupportScreen(onBack: () -> Unit) {
             FaqItem("كيف أشارك الميزانية مع عائلتي؟", "من صفحة العائلة، قم بإنشاء عائلة كمدير وشارك كود الدعوة معهم.")
             Spacer(modifier = Modifier.height(32.dp))
             
+            val supportContext = LocalContext.current
             Button(
-                onClick = { Log.d(TAG_SUB_PROF, "Contact Support clicked") },
+                onClick = {
+                    try {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_SENDTO).apply {
+                            data = android.net.Uri.parse("mailto:support@zad-app.com")
+                            putExtra(android.content.Intent.EXTRA_SUBJECT, "Zad App — طلب دعم")
+                        }
+                        supportContext.startActivity(intent)
+                    } catch (e: Exception) {
+                        Log.e(TAG_SUB_PROF, "No email app found: ${e.message}")
+                    }
+                },
                 modifier = Modifier.fillMaxWidth().height(54.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
