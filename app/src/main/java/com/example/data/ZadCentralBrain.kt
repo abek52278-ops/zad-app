@@ -341,6 +341,36 @@ object ZadCentralBrain {
 
     data class DepletionForecast(val itemName: String, val quantity: Int, val predictedDaysLeft: Int)
 
+    /** قوة الصرف — كم يقدر يصرف يومياً بأمان حتى نهاية الشهر */
+    data class SpendingPower(
+        val dailySafeSpend: Double,     // المسموح يومياً من المتبقي
+        val currentDailyAvg: Double,    // معدل صرفه الفعلي يومياً
+        val daysLeftInMonth: Int,
+        val powerPct: Int,              // 0-100: المتبقي كنسبة من البادجت
+        val status: String              // قوي / متوازن / ضعيف / خطر
+    )
+
+    /** البروفايل السلوكي العميق — محسوب محلياً من كل المعاملات */
+    data class BehaviorProfile(
+        val topSpendingDay: String,         // أكثر يوم أسبوع صرفاً
+        val topSpendingDayAvg: Double,
+        val weekendSharePct: Int,           // نسبة صرف الويكند (جمعة+سبت)
+        val avgTransaction: Double,
+        val impulsePurchases: Int,          // معاملات > ضعف المتوسط خلال 30 يوم
+        val biggestExpenseTitle: String,
+        val biggestExpenseAmount: Double,
+        val eveningSharePct: Int            // نسبة الصرف بعد 6 مساءً
+    )
+
+    /** مقارنة هذا الشهر بالشهر الماضي */
+    data class MonthComparison(
+        val thisMonthSpent: Double,
+        val lastMonthSpent: Double,         // للنفس اليوم من الشهر الماضي (مقارنة عادلة)
+        val lastMonthTotal: Double,
+        val deltaPct: Int,                  // موجب = صرف أكثر
+        val categoryDeltas: List<Triple<String, Double, Double>> // (فئة، هذا الشهر، الماضي)
+    )
+
     data class BrainReport(
         val healthScore: Int,                       // 0-100 صحة مالية عامة
         val healthLabel: String,                    // ممتاز / جيد / يحتاج انتباه / خطر
@@ -356,7 +386,10 @@ object ZadCentralBrain {
         val inventoryLowStock: Int,
         val inventoryExpiringSoon: Int,
         val depletionForecasts: List<DepletionForecast>, // تنبؤات النفاد من التعلم
-        val insights: List<String>                  // ملاحظات جاهزة للعرض
+        val insights: List<String>,                 // ملاحظات جاهزة للعرض
+        val spendingPower: SpendingPower,           // عداد قوة الصرف
+        val behaviorProfile: BehaviorProfile?,      // التحليل السلوكي العميق (null لو البيانات قليلة)
+        val monthComparison: MonthComparison?       // مقارنة شهرية (null لو مفيش شهر سابق)
     )
 
     /**
@@ -491,6 +524,103 @@ object ZadCentralBrain {
             insights.add("بمعدل إنفاقك الحالي (${avgDaily.toInt()} ر.س/يوم)، الرصيد يكفي ${(remaining / avgDaily).toInt()} يوم")
         }
 
+        // 8) قوة الصرف — كم يقدر يصرف يومياً بأمان
+        val daysLeftInMonth = (today.lengthOfMonth() - today.dayOfMonth + 1).coerceAtLeast(1)
+        val dailySafeSpend = (remaining / daysLeftInMonth).coerceAtLeast(0.0)
+        val currentDailyAvg = if (today.dayOfMonth > 0) totalSpent / today.dayOfMonth else 0.0
+        val powerPct = if (budget > 0) ((remaining / budget) * 100).toInt().coerceIn(0, 100) else 100
+        val spendingPower = SpendingPower(
+            dailySafeSpend = dailySafeSpend,
+            currentDailyAvg = currentDailyAvg,
+            daysLeftInMonth = daysLeftInMonth,
+            powerPct = powerPct,
+            status = when {
+                powerPct >= 60 -> "قوي 💪"
+                powerPct >= 35 -> "متوازن ⚖️"
+                powerPct >= 15 -> "ضعيف ⚠️"
+                else -> "خطر 🚨"
+            }
+        )
+
+        // 9) البروفايل السلوكي العميق
+        val allExpenses = transactions.filter { it.isExpense }
+        val behaviorProfile = if (allExpenses.size >= 5) {
+            val arabicDays = mapOf(
+                DayOfWeek.SATURDAY to "السبت", DayOfWeek.SUNDAY to "الأحد",
+                DayOfWeek.MONDAY to "الاثنين", DayOfWeek.TUESDAY to "الثلاثاء",
+                DayOfWeek.WEDNESDAY to "الأربعاء", DayOfWeek.THURSDAY to "الخميس",
+                DayOfWeek.FRIDAY to "الجمعة"
+            )
+            fun txDateTime(tx: ZadTransaction) = tx.createdAt?.let {
+                try { Instant.parse(it).atZone(ZoneId.systemDefault()) } catch (e: Exception) { null }
+            }
+            val byDay = allExpenses.mapNotNull { tx -> txDateTime(tx)?.let { it.dayOfWeek to tx.amount } }
+                .groupBy({ it.first }, { it.second })
+            val topDay = byDay.maxByOrNull { it.value.sum() }
+            val weekendSpent = allExpenses.mapNotNull { tx ->
+                txDateTime(tx)?.takeIf { it.dayOfWeek == DayOfWeek.FRIDAY || it.dayOfWeek == DayOfWeek.SATURDAY }
+                    ?.let { tx.amount }
+            }.sum()
+            val totalAll = allExpenses.sumOf { it.amount }.takeIf { it > 0 } ?: 1.0
+            val avgTx = allExpenses.map { it.amount }.average()
+            val last30 = allExpenses.filter { tx ->
+                txDateTime(tx)?.toLocalDate()?.isAfter(today.minusDays(30)) == true
+            }
+            val eveningSpent = allExpenses.mapNotNull { tx ->
+                txDateTime(tx)?.takeIf { it.hour >= 18 }?.let { tx.amount }
+            }.sum()
+            val biggest = allExpenses.maxByOrNull { it.amount }
+            BehaviorProfile(
+                topSpendingDay = topDay?.let { arabicDays[it.key] } ?: "غير معروف",
+                topSpendingDayAvg = topDay?.value?.average() ?: 0.0,
+                weekendSharePct = (weekendSpent / totalAll * 100).toInt(),
+                avgTransaction = avgTx,
+                impulsePurchases = last30.count { it.amount > avgTx * 2 },
+                biggestExpenseTitle = biggest?.title ?: "",
+                biggestExpenseAmount = biggest?.amount ?: 0.0,
+                eveningSharePct = (eveningSpent / totalAll * 100).toInt()
+            )
+        } else null
+
+        // 10) مقارنة هذا الشهر بالشهر الماضي (لنفس اليوم — مقارنة عادلة)
+        val lastMonthStart = monthStart.minusMonths(1)
+        val lastMonthTx = transactions.filter {
+            val d = txDate(it) ?: return@filter false
+            d >= lastMonthStart && d < monthStart
+        }
+        val monthComparison = if (lastMonthTx.any { it.isExpense }) {
+            val sameDayCutoff = lastMonthStart.plusDays((today.dayOfMonth - 1).toLong())
+            val lastMonthSameDay = lastMonthTx.filter { it.isExpense && (txDate(it) ?: lastMonthStart) <= sameDayCutoff }
+                .sumOf { it.amount }
+            val lastMonthTotal = lastMonthTx.filter { it.isExpense }.sumOf { it.amount }
+            val lastByCat = lastMonthTx.filter { it.isExpense }
+                .groupBy { it.category ?: "أخرى" }.mapValues { (_, t) -> t.sumOf { it.amount } }
+            val allCats = (spentByCategory.keys + lastByCat.keys).distinct()
+            MonthComparison(
+                thisMonthSpent = totalSpent,
+                lastMonthSpent = lastMonthSameDay,
+                lastMonthTotal = lastMonthTotal,
+                deltaPct = if (lastMonthSameDay > 0)
+                    (((totalSpent - lastMonthSameDay) / lastMonthSameDay) * 100).toInt() else 0,
+                categoryDeltas = allCats
+                    .map { cat -> Triple(cat, spentByCategory[cat] ?: 0.0, lastByCat[cat] ?: 0.0) }
+                    .sortedByDescending { kotlin.math.abs(it.second - it.third) }
+                    .take(5)
+            )
+        } else null
+
+        // ملاحظات إضافية من المحركات الجديدة
+        if (dailySafeSpend > 0 && currentDailyAvg > dailySafeSpend) {
+            insights.add(0, "⚡ معدل صرفك اليومي (${currentDailyAvg.toInt()} ر.س) أعلى من الآمن (${dailySafeSpend.toInt()} ر.س) — خفف شوية")
+        }
+        monthComparison?.let { mc ->
+            if (mc.deltaPct <= -10) insights.add(0, "🎉 صرفت ${-mc.deltaPct}% أقل من نفس الفترة الشهر الماضي — وفرت ${(mc.lastMonthSpent - mc.thisMonthSpent).toInt()} ر.س!")
+            else if (mc.deltaPct >= 15) insights.add(0, "📈 صرفك زاد ${mc.deltaPct}% عن نفس الفترة الشهر الماضي")
+        }
+        behaviorProfile?.let { bp ->
+            if (bp.impulsePurchases >= 3) insights.add("🛍️ ${bp.impulsePurchases} مشتريات اندفاعية آخر 30 يوم (أكبر من ضعف متوسطك)")
+        }
+
         Log.d(TAG, "generateReport() → score=$healthScore, categories=${categoryBreakdown.size}, forecasts=${depletionForecasts.size}")
         BrainReport(
             healthScore = healthScore,
@@ -507,8 +637,62 @@ object ZadCentralBrain {
             inventoryLowStock = lowStock,
             inventoryExpiringSoon = expiringSoon,
             depletionForecasts = depletionForecasts,
-            insights = insights
+            insights = insights,
+            spendingPower = spendingPower,
+            behaviorProfile = behaviorProfile,
+            monthComparison = monthComparison
         )
+    }
+
+    /** تقرير نصي كامل جاهز للمشاركة/التصدير (واتساب، إيميل، ملف) */
+    fun buildExportText(report: BrainReport): String = buildString {
+        val today = LocalDate.now()
+        appendLine("📊 تقرير زاد المالي — ${today.month.value}/${today.year}")
+        appendLine("═══════════════════════════")
+        appendLine("الصحة المالية: ${report.healthScore}/100 (${report.healthLabel})")
+        appendLine("قوة الصرف: ${report.spendingPower.status} — الآمن يومياً: ${report.spendingPower.dailySafeSpend.toInt()} ر.س")
+        appendLine()
+        appendLine("💰 الأرقام:")
+        appendLine("• الميزانية: ${report.budget.toInt()} ر.س")
+        appendLine("• المصروف: ${report.totalSpent.toInt()} ر.س")
+        appendLine("• الدخل: ${report.totalIncome.toInt()} ر.س")
+        appendLine("• المتبقي: ${report.remaining.toInt()} ر.س")
+        if (report.subscriptionsMonthlyCost > 0)
+            appendLine("• الاشتراكات: ${report.subscriptionsMonthlyCost.toInt()} ر.س/شهر")
+        report.monthComparison?.let { mc ->
+            appendLine()
+            appendLine("📅 مقارنة بالشهر الماضي (نفس الفترة):")
+            appendLine("• هذا الشهر: ${mc.thisMonthSpent.toInt()} ر.س | الماضي: ${mc.lastMonthSpent.toInt()} ر.س (${if (mc.deltaPct >= 0) "+" else ""}${mc.deltaPct}%)")
+        }
+        if (report.categoryBreakdown.isNotEmpty()) {
+            appendLine()
+            appendLine("🗂️ حسب الفئة:")
+            report.categoryBreakdown.forEach { c ->
+                append("• ${c.category}: ${c.spent.toInt()} ر.س")
+                if (c.budget > 0) append(" من ${c.budget.toInt()} (${c.pctUsed}%)")
+                appendLine()
+            }
+        }
+        if (report.topMerchants.isNotEmpty()) {
+            appendLine()
+            appendLine("🏪 أعلى الجهات:")
+            report.topMerchants.forEach { (name, amt) -> appendLine("• $name: ${amt.toInt()} ر.س") }
+        }
+        report.behaviorProfile?.let { bp ->
+            appendLine()
+            appendLine("🧠 سلوكك المالي:")
+            appendLine("• أكثر يوم صرف: ${bp.topSpendingDay}")
+            appendLine("• صرف الويكند: ${bp.weekendSharePct}% من الإجمالي")
+            appendLine("• متوسط المعاملة: ${bp.avgTransaction.toInt()} ر.س")
+            if (bp.impulsePurchases > 0) appendLine("• مشتريات اندفاعية (30 يوم): ${bp.impulsePurchases}")
+        }
+        if (report.insights.isNotEmpty()) {
+            appendLine()
+            appendLine("💡 ملاحظات زاد:")
+            report.insights.take(6).forEach { appendLine("• $it") }
+        }
+        appendLine()
+        appendLine("— تقرير من تطبيق زاد 🥕")
     }
 
     /**

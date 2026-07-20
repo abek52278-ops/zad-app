@@ -144,6 +144,16 @@ object ZadAiRepository {
         return response["text"] as? String ?: "لم أتمكن من إيجاد اقتراحات حالياً."
     }
 
+    /** وصفات مركزة على أصناف هتخلص/تنتهي — مربوطة بالعقل المركزي */
+    suspend fun suggestMealsForUrgentItems(urgentItems: List<String>, inventory: List<ZadInventory>): String {
+        val invList = if (inventory.isEmpty()) "لا يوجد مخزون"
+        else inventory.joinToString(", ") { "${it.itemName} (${it.quantity})" }
+        val itemsPayload = "مهم جداً: اقترح 3 وصفات تستخدم أولاً هذه الأصناف لأنها على وشك الانتهاء أو النفاد: " +
+            urgentItems.joinToString("، ") + ". باقي المخزون المتاح: " + invList
+        val response = callAction("meal_suggestions", mapOf("items" to itemsPayload))
+        return response["text"] as? String ?: "لم أتمكن من إيجاد اقتراحات حالياً."
+    }
+
     suspend fun getRecipeDetails(recipeName: String, inventory: List<ZadInventory>): String {
         val itemsList = if (inventory.isEmpty()) "لا يوجد مخزون حاليا"
         else inventory.joinToString(", ") { "${it.itemName} (${it.quantity})" }

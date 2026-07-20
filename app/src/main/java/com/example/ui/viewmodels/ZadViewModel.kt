@@ -218,6 +218,126 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // سياق العائلة — يتغذى من FamilyViewModel عبر MainScreen
+    private val _familyContext = MutableStateFlow<String?>(null)
+
+    /** يستدعى من MainScreen كلما تغيرت حالة العائلة — عشان الشات يعرف كل حاجة عنها */
+    fun updateFamilyContext(state: FamilyState?) {
+        val active = state as? FamilyState.Active ?: run { _familyContext.value = null; return }
+        _familyContext.value = buildString {
+            appendLine("عدد أفراد العائلة: ${active.members.size}")
+            active.members.forEach { m ->
+                append("- ${m.alias.ifBlank { "عضو" }} (${if (m.role == "admin") "ولي أمر" else "طفل"})")
+                if (m.role != "admin") append(" — رصيده ${m.balance.toInt()} ر.س" +
+                    if (m.savingsGoal > 0) "، هدف توفيره ${m.savingsGoal.toInt()} ر.س" else "")
+                appendLine()
+            }
+            val pendingChores = active.chores.filter { !it.isCompleted }
+            if (pendingChores.isNotEmpty()) {
+                appendLine("مهام غير مكتملة: ${pendingChores.joinToString("، ") {
+                    "${it.title}${if (it.rewardAmount > 0) " (مكافأة ${it.rewardAmount.toInt()} ر.س)" else ""}"
+                }}")
+            }
+            active.goals.firstOrNull()?.let { g ->
+                appendLine("هدف التوفير العائلي: ${g.currentAmount.toInt()} من ${g.targetAmount.toInt()} ر.س")
+            }
+            val pendingGroceries = active.groceries.filter { !it.isPurchased }
+            if (pendingGroceries.isNotEmpty()) {
+                appendLine("مشتريات العائلة المطلوبة: ${pendingGroceries.take(10).joinToString("، ") { it.itemName }}")
+            }
+        }
+    }
+
+    /**
+     * حقن السياق الكامل — الشات يعرف كل حاجة عن العميل:
+     * مخزون + معاملات + بادجت الفئات + اشتراكات + تسوق + تنبؤات + سلوكيات + عائلة
+     */
+    private fun buildFullChatContext(): String {
+        val ctx = getApplication<Application>()
+        val today = java.time.LocalDate.now()
+
+        val invText = _inventory.value.joinToString("\n") { item ->
+            val expiry = item.expiryDate?.takeIf { it.isNotBlank() }?.let { " [ينتهي: $it]" } ?: ""
+            val depletion = com.example.data.ConsumptionLearner
+                .predictDaysLeft(ctx, item.itemName, item.quantity)
+                ?.let { " [متوقع يخلص خلال $it يوم]" } ?: ""
+            "- ${item.itemName}: ${item.quantity} ${item.unit ?: "حبة"}$expiry$depletion"
+        }
+
+        val txText = _transactions.value.sortedByDescending { it.createdAt ?: "" }.take(30).joinToString("\n") {
+            "- ${it.title}: ${it.amount} ر.س (${if (it.isExpense) "مصروف" else "دخل"}${it.category?.let { c -> "، $c" } ?: ""}${it.createdAt?.take(10)?.let { d -> "، $d" } ?: ""})"
+        }
+
+        val catBudgets = com.example.data.BudgetTracker.getAllCategoryCards(ctx)
+            .filter { it.second > 0 || it.third > 0 }
+            .joinToString("\n") { (cat, catBudget, spent) ->
+                "- $cat: صرف ${spent.toInt()} ر.س" + if (catBudget > 0) " من ميزانية ${catBudget.toInt()} ر.س" else " (بدون ميزانية محددة)"
+            }
+
+        val subText = _subscriptions.value.filter { it.isActive }.joinToString("\n") { sub ->
+            "- ${sub.title}: ${sub.amount} ر.س/شهر" + (sub.renewalDate?.take(10)?.let { " (يتجدد $it)" } ?: "")
+        }
+
+        val shoppingText = _shoppingList.value.filter { !it.isPurchased }
+            .joinToString("، ") { it.itemName }
+
+        val patternsText = _behaviorPatterns.value.take(8).joinToString("\n") {
+            "- ${it.category}: متوسط ${it.avgAmount.toInt()} ر.س كل ${it.frequencyDays} يوم"
+        }
+
+        val report = _brainReport.value
+        val brainText = report?.let { r ->
+            buildString {
+                appendLine("الصحة المالية: ${r.healthScore}/100 (${r.healthLabel})")
+                appendLine("قوة الصرف: مسموح ${r.spendingPower.dailySafeSpend.toInt()} ر.س/يوم بأمان، معدله الفعلي ${r.spendingPower.currentDailyAvg.toInt()} ر.س/يوم")
+                r.monthComparison?.let { mc ->
+                    appendLine("مقارنة بالشهر الماضي: ${if (mc.deltaPct >= 0) "+" else ""}${mc.deltaPct}%")
+                }
+                r.behaviorProfile?.let { bp ->
+                    appendLine("سلوكه: أكثر يوم صرف ${bp.topSpendingDay}، ${bp.impulsePurchases} مشتريات اندفاعية آخر 30 يوم")
+                }
+                r.insights.take(4).forEach { appendLine("- $it") }
+            }
+        } ?: ""
+
+        val prediction = _expensePrediction.value?.let {
+            "توقع صرف الشهر القادم: ${it.predictedTotal.toInt()} ر.س (ثقة ${(it.confidence * 100).toInt()}%)"
+        } ?: ""
+
+        val familyText = _familyContext.value ?: "غير منضم لعائلة بعد."
+
+        return """
+            === معلومات العميل ===
+            الاسم: ${_userName.value ?: "مستخدم"} | التاريخ اليوم: $today
+            الميزانية الشهرية: ${_budget.value.toInt()} ر.س | المتبقي: ${com.example.data.BudgetTracker.getRemaining(ctx).toInt()} ر.س
+
+            === مخزون المنزل (بتنبؤات النفاد) ===
+            ${invText.ifBlank { "لا يوجد عناصر حالياً." }}
+
+            === آخر 30 معاملة ===
+            ${txText.ifBlank { "لا توجد معاملات." }}
+
+            === ميزانيات الفئات ===
+            ${catBudgets.ifBlank { "لم تحدد ميزانيات فئات." }}
+
+            === الاشتراكات النشطة ===
+            ${subText.ifBlank { "لا توجد اشتراكات." }}
+
+            === قائمة التسوق المطلوبة ===
+            ${shoppingText.ifBlank { "فارغة." }}
+
+            === أنماط سلوكية متعلمة ===
+            ${patternsText.ifBlank { "لا توجد أنماط بعد." }}
+
+            === تقرير العقل المركزي ===
+            ${brainText.ifBlank { "لم يُحسب بعد." }}
+            $prediction
+
+            === العائلة ===
+            $familyText
+        """.trimIndent()
+    }
+
     fun sendAiChatMessage(userText: String) {
         if (userText.isBlank()) return
         val userMsg = AiChatMessage(text = userText, isUser = true)
@@ -226,54 +346,37 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             try {
-                val invText = _inventory.value.joinToString("\n") { 
-                    "- ${it.itemName} (${it.quantity} ${it.unit ?: "حبة"})" + 
-                    if (!it.expiryDate.isNullOrBlank()) " [تنتهي: ${it.expiryDate}]" else ""
+                // لو تقرير العقل مش جاهز، احسبه عشان الشات يكون عارف كل حاجة
+                if (_brainReport.value == null) {
+                    try {
+                        _brainReport.value = ZadCentralBrain.generateReport(
+                            getApplication(), _inventory.value, _transactions.value,
+                            _subscriptions.value, _budget.value
+                        )
+                    } catch (_: Exception) {}
                 }
-                val txSummary = _transactions.value.takeLast(10).joinToString("\n") { 
-                    "- ${it.title}: ${it.amount} ر.س (${if(it.isExpense) "مصروف" else "دخل"})"
-                }
-                val subSummary = _subscriptions.value.filter { it.isActive }.joinToString("، ") { "${it.title} (${it.amount} ر.س/شهر)" }
-                val totalMonthlyExpense = _transactions.value.filter { it.isExpense }.sumOf { it.amount }
-                val budget = _budget.value
-                
-                // Expiring items in next 3 days
-                val expiringItems = _inventory.value.filter { item ->
-                    item.expiryDate?.let { date ->
-                        try {
-                            val expiry = java.time.LocalDate.parse(date)
-                            val days = java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), expiry)
-                            days in 0..3
-                        } catch(e: Exception) { false }
-                    } ?: false
-                }
-                val expiryWarning = if (expiringItems.isNotEmpty()) 
-                    "⚠️ تنبيه: هذه الأصناف على وشك الانتهاء خلال 3 أيام: ${expiringItems.joinToString(", ") { it.itemName }}" 
-                else ""
-                
+
+                // ذاكرة المحادثة: آخر 8 رسائل عشان يفهم سياق الحوار
+                val history = _aiChatMessages.value.dropLast(1).takeLast(8)
+                    .joinToString("\n") { "${if (it.isUser) "العميل" else "زاد"}: ${it.text}" }
+
                 val systemPrompt = """
-                    أنت 'زاد'، الوكيل العائلي الذكي المتقدم. تتحدث بأسلوب ودود ومختصر ومرح باللغة العربية.
-                    
-                    === مخزون المنزل الحالي ===
-                    ${if(invText.isNotBlank()) invText else "لا يوجد عناصر حالياً."}
-                    
-                    $expiryWarning
-                    
-                    === آخر المعاملات المالية ===
-                    ${if(txSummary.isNotBlank()) txSummary else "لا توجد معاملات."}
-                    إجمالي المصاريف: $totalMonthlyExpense ر.س | الميزانية: $budget ر.س
-                    
-                    === الاشتراكات الشهرية ===
-                    ${if(subSummary.isNotBlank()) subSummary else "لا توجد اشتراكات."}
-                    
-                    مهامك:
-                    1. اقتراح وصفات بناءً على المخزون الحالي (خصوصاً الأصناف على وشك الانتهاء)
-                    2. تحليل المصاريف وإعطاء نصائح توفير
-                    3. اقتراح قائمة التسوق بناءً على ما ينقص
-                    4. الإجابة على أي سؤال عائلي بذكاء
-                    استخدم إيموجي وكن مختصراً ومفيداً.
+                    أنت 'زاد'، الوكيل العائلي الذكي. تعرف كل تفاصيل حياة العميل المالية والمنزلية من البيانات أدناه.
+                    تتحدث بأسلوب ودود ومختصر ومرح باللغة العربية، وتجاوب بأرقام حقيقية من البيانات — لا تخمن أبداً.
+
+                    ${buildFullChatContext()}
+
+                    === آخر الحوار ===
+                    ${history.ifBlank { "بداية المحادثة." }}
+
+                    قواعدك:
+                    1. استخدم الأرقام الفعلية من البيانات أعلاه في كل إجابة (مثلاً: "عندك 3 علب حليب" وليس "ربما لديك حليب")
+                    2. لو سأل "أقدر أشتري X؟" قارن سعره التقريبي بقوة الصرف اليومية والمتبقي وأجب بوضوح
+                    3. اقترح وصفات من المخزون الفعلي فقط، وابدأ بالأصناف اللي هتخلص أو تنتهي صلاحيتها
+                    4. لو لاحظت خطر مالي (تجاوز فئة، اشتراك مكرر) نبّهه حتى لو ما سألش
+                    5. كن مختصراً — 3-5 جمل غالباً، واستخدم إيموجي باعتدال
                 """.trimIndent()
-                
+
                 val response = com.example.data.ZadAiRepository.callGeminiText(systemPrompt, userText)
                 if (response != null) {
                     _aiChatMessages.value = _aiChatMessages.value + AiChatMessage(text = response, isUser = false)
@@ -1103,8 +1206,53 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     budget = _budget.value
                 )
                 Log.d(TAG, "generateBrainReport() → score=${_brainReport.value?.healthScore}")
+                // العقل → الوصفات: لو فيه أصناف هتخلص، اقترح أكلات بيها تلقائياً
+                generateUrgentRecipes()
             } catch (e: Exception) {
                 Log.e(TAG, "generateBrainReport() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    // --- وصفات ذكية مربوطة بالعقل: "عندك دجاج هينتهي بكرة → 3 وصفات بيه" ---
+    data class UrgentRecipes(val triggerItems: List<String>, val text: String)
+
+    private val _urgentRecipes = MutableStateFlow<UrgentRecipes?>(null)
+    val urgentRecipes: StateFlow<UrgentRecipes?> = _urgentRecipes.asStateFlow()
+
+    private var lastUrgentRecipeKey: String? = null
+
+    fun generateUrgentRecipes() {
+        viewModelScope.launch {
+            try {
+                val ctx = getApplication<Application>()
+                val today = java.time.LocalDate.now()
+                // أصناف تنتهي صلاحيتها خلال يومين أو متوقع نفادها خلال يومين
+                val urgent = _inventory.value.filter { item ->
+                    val expiringSoon = item.expiryDate?.let {
+                        try {
+                            java.time.temporal.ChronoUnit.DAYS.between(today, java.time.LocalDate.parse(it)) in 0..2
+                        } catch (e: Exception) { false }
+                    } ?: false
+                    val depletingSoon = com.example.data.ConsumptionLearner
+                        .predictDaysLeft(ctx, item.itemName, item.quantity)?.let { it in 0..2 } ?: false
+                    (expiringSoon || depletingSoon) && item.quantity > 0
+                }.map { it.itemName }.distinct().take(5)
+
+                if (urgent.isEmpty()) {
+                    _urgentRecipes.value = null
+                    return@launch
+                }
+                // ما نكررش نفس النداء لنفس الأصناف
+                val key = urgent.sorted().joinToString(",")
+                if (key == lastUrgentRecipeKey && _urgentRecipes.value != null) return@launch
+                lastUrgentRecipeKey = key
+
+                val text = ZadAiRepository.suggestMealsForUrgentItems(urgent, _inventory.value)
+                _urgentRecipes.value = UrgentRecipes(triggerItems = urgent, text = text)
+                Log.d(TAG, "generateUrgentRecipes() → ${urgent.size} urgent items")
+            } catch (e: Exception) {
+                Log.e(TAG, "generateUrgentRecipes() FAILED: ${e.message}")
             }
         }
     }

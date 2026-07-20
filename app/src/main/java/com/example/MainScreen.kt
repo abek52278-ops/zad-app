@@ -91,6 +91,12 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
     val viewModel: ZadViewModel = viewModel()
     val familyViewModel: FamilyViewModel = viewModel()
 
+    // تغذية سياق العائلة لشات زاد — عشان يعرف كل حاجة عن العيلة
+    val familyStateForChat by familyViewModel.state.collectAsState()
+    LaunchedEffect(familyStateForChat) {
+        viewModel.updateFamilyContext(familyStateForChat)
+    }
+
     val drawerScreens = listOf(
         Screen.Home,
         Screen.Inventory,

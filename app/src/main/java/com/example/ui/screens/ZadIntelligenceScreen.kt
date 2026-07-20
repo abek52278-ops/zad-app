@@ -27,6 +27,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -192,13 +193,21 @@ fun AnalyticsTab(
     ) {
         // ═══ تقرير العقل: نقاط الصحة المالية ═══
         if (report != null) {
+            item { SpendingPowerGaugeCard(report.spendingPower) }
             item { HealthScoreCard(report) }
+            report.monthComparison?.let { mc ->
+                item { MonthComparisonCard(mc) }
+            }
+            report.behaviorProfile?.let { bp ->
+                item { BehaviorAnalysisCard(bp) }
+            }
             if (report.insights.isNotEmpty()) {
                 item { BrainInsightsCard(report.insights) }
             }
             if (report.depletionForecasts.isNotEmpty()) {
                 item { DepletionForecastCard(report.depletionForecasts) }
             }
+            item { ExportReportButton(report) }
         }
 
         // إحصائيات سريعة
@@ -955,6 +964,279 @@ fun predictNextMonth(monthlyData: List<Pair<String, Double>>): Double {
     val weightedSum = values.zip(weights).sumOf { (v, w) -> v * w }
     val weightTotal = weights.sum()
     return if (weightTotal > 0) weightedSum / weightTotal else values.average()
+}
+
+// ════════════════════════════════════════════════════════════════
+//  PREMIUM CARDS — قوة الصرف + مقارنة شهرية + تحليل سلوكي + تصدير
+// ════════════════════════════════════════════════════════════════
+
+@Composable
+private fun SpendingPowerGaugeCard(power: com.example.data.ZadCentralBrain.SpendingPower) {
+    val gaugeColor = when {
+        power.powerPct >= 60 -> Color(0xFF22C55E)
+        power.powerPct >= 35 -> Color(0xFF84CC16)
+        power.powerPct >= 15 -> Color(0xFFF59E0B)
+        else -> Color(0xFFEF4444)
+    }
+    val animatedPct by animateFloatAsState(
+        targetValue = power.powerPct / 100f,
+        animationSpec = tween(1100, easing = FastOutSlowInEasing),
+        label = "gauge"
+    )
+
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = surface,
+        shadowElevation = 3.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Speed, contentDescription = null, tint = gaugeColor, modifier = Modifier.size(22.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("قوة الصرف", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                Spacer(modifier = Modifier.weight(1f))
+                Surface(shape = RoundedCornerShape(10.dp), color = gaugeColor.copy(alpha = 0.12f)) {
+                    Text(
+                        power.status,
+                        style = Typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = gaugeColor,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // العداد نصف الدائري
+            Box(contentAlignment = Alignment.BottomCenter) {
+                Canvas(modifier = Modifier.size(width = 220.dp, height = 120.dp)) {
+                    val strokeWidth = 20.dp.toPx()
+                    val radius = (size.width - strokeWidth) / 2f
+                    val center = Offset(size.width / 2f, size.height - strokeWidth / 4f)
+                    val arcSize = Size(radius * 2, radius * 2)
+                    val topLeft = Offset(center.x - radius, center.y - radius)
+
+                    // خلفية مقسمة مناطق: أحمر → برتقالي → أخضر فاتح → أخضر
+                    val zones = listOf(
+                        Triple(180f, 27f, Color(0xFFEF4444).copy(alpha = 0.25f)),
+                        Triple(207f, 36f, Color(0xFFF59E0B).copy(alpha = 0.25f)),
+                        Triple(243f, 45f, Color(0xFF84CC16).copy(alpha = 0.25f)),
+                        Triple(288f, 72f, Color(0xFF22C55E).copy(alpha = 0.25f))
+                    )
+                    zones.forEach { (start, sweep, color) ->
+                        drawArc(
+                            color = color,
+                            startAngle = start, sweepAngle = sweep - 2f,
+                            useCenter = false, topLeft = topLeft, size = arcSize,
+                            style = Stroke(strokeWidth, cap = StrokeCap.Round)
+                        )
+                    }
+                    // قوس التقدم الفعلي
+                    drawArc(
+                        color = gaugeColor,
+                        startAngle = 180f, sweepAngle = 180f * animatedPct,
+                        useCenter = false, topLeft = topLeft, size = arcSize,
+                        style = Stroke(strokeWidth, cap = StrokeCap.Round)
+                    )
+                    // المؤشر (الإبرة)
+                    val needleAngle = Math.toRadians((180.0 + 180.0 * animatedPct))
+                    val needleLen = radius - strokeWidth
+                    val needleEnd = Offset(
+                        center.x + (needleLen * kotlin.math.cos(needleAngle)).toFloat(),
+                        center.y + (needleLen * kotlin.math.sin(needleAngle)).toFloat()
+                    )
+                    drawLine(
+                        color = onSurface.copy(alpha = 0.75f),
+                        start = center, end = needleEnd,
+                        strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round
+                    )
+                    drawCircle(color = gaugeColor, radius = 7.dp.toPx(), center = center)
+                    drawCircle(color = Color.White, radius = 3.dp.toPx(), center = center)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(bottom = 26.dp)) {
+                    Text(
+                        "${power.dailySafeSpend.toInt()}",
+                        style = Typography.displaySmall,
+                        fontWeight = FontWeight.Black,
+                        color = gaugeColor
+                    )
+                    Text("ر.س / يوم بأمان", style = Typography.labelSmall, color = onSurfaceVariant)
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("${power.daysLeftInMonth}", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                    Text("يوم متبقي", style = Typography.labelSmall, color = onSurfaceVariant)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("${power.currentDailyAvg.toInt()} ر.س", style = Typography.titleMedium, fontWeight = FontWeight.Bold,
+                        color = if (power.currentDailyAvg > power.dailySafeSpend && power.dailySafeSpend > 0) Color(0xFFEF4444) else onSurface)
+                    Text("معدلك الفعلي/يوم", style = Typography.labelSmall, color = onSurfaceVariant)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("${power.powerPct}%", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = gaugeColor)
+                    Text("من الميزانية باقي", style = Typography.labelSmall, color = onSurfaceVariant)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MonthComparisonCard(mc: com.example.data.ZadCentralBrain.MonthComparison) {
+    val improved = mc.deltaPct <= 0
+    val deltaColor = if (improved) Color(0xFF22C55E) else Color(0xFFEF4444)
+    val maxSpend = maxOf(mc.thisMonthSpent, mc.lastMonthSpent, 1.0)
+    val animatedProgress by animateFloatAsState(targetValue = 1f, animationSpec = tween(900), label = "mc")
+
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = surface,
+        shadowElevation = 2.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.CompareArrows, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("مقارنة بالشهر الماضي", style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface)
+                Spacer(modifier = Modifier.weight(1f))
+                Surface(shape = RoundedCornerShape(8.dp), color = deltaColor.copy(alpha = 0.12f)) {
+                    Text(
+                        "${if (mc.deltaPct >= 0) "+" else ""}${mc.deltaPct}%",
+                        style = Typography.labelMedium, fontWeight = FontWeight.Bold, color = deltaColor,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+
+            listOf(
+                Triple("هذا الشهر", mc.thisMonthSpent, primary),
+                Triple("الشهر الماضي (نفس الفترة)", mc.lastMonthSpent, onSurfaceVariant.copy(alpha = 0.45f))
+            ).forEach { (label, value, barColor) ->
+                Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(label, style = Typography.labelSmall, color = onSurfaceVariant)
+                        Text("${String.format("%,.0f", value)} ر.س", style = Typography.labelMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(10.dp)
+                            .clip(RoundedCornerShape(5.dp)).background(surfaceContainer)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(((value / maxSpend) * animatedProgress).toFloat().coerceIn(0.02f, 1f))
+                                .fillMaxHeight().clip(RoundedCornerShape(5.dp)).background(barColor)
+                        )
+                    }
+                }
+            }
+
+            if (mc.categoryDeltas.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("أكبر التغييرات:", style = Typography.labelMedium, fontWeight = FontWeight.SemiBold, color = onSurfaceVariant)
+                Spacer(modifier = Modifier.height(6.dp))
+                mc.categoryDeltas.take(3).forEach { (cat, thisM, lastM) ->
+                    val diff = thisM - lastM
+                    val up = diff > 0
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            if (up) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                            contentDescription = null,
+                            tint = if (up) Color(0xFFEF4444) else Color(0xFF22C55E),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(cat, style = Typography.bodySmall, color = onSurface, modifier = Modifier.weight(1f))
+                        Text(
+                            "${if (up) "+" else ""}${diff.toInt()} ر.س",
+                            style = Typography.labelSmall, fontWeight = FontWeight.Bold,
+                            color = if (up) Color(0xFFEF4444) else Color(0xFF22C55E)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BehaviorAnalysisCard(bp: com.example.data.ZadCentralBrain.BehaviorProfile) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = Color(0xFFECFDF5),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Insights, contentDescription = null, tint = Color(0xFF059669), modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("زاد يعرفك 🧠", style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = Color(0xFF065F46))
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+
+            @Composable
+            fun factRow(emoji: String, text: String) {
+                Row(modifier = Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.Top) {
+                    Text(emoji, style = Typography.bodyMedium)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text, style = Typography.bodySmall, color = Color(0xFF064E3B), lineHeight = 18.sp)
+                }
+            }
+
+            factRow("📅", "أكثر يوم تصرف فيه: ${bp.topSpendingDay} (متوسط ${bp.topSpendingDayAvg.toInt()} ر.س للمعاملة)")
+            if (bp.weekendSharePct >= 30)
+                factRow("🎉", "${bp.weekendSharePct}% من صرفك في الويكند — خطط لطلعاتك مسبقاً توفر أكثر")
+            else
+                factRow("🧘", "صرفك متوزن خلال الأسبوع (الويكند ${bp.weekendSharePct}% فقط)")
+            factRow("💳", "متوسط معاملتك: ${bp.avgTransaction.toInt()} ر.س • أكبر مصروف: ${bp.biggestExpenseTitle} (${bp.biggestExpenseAmount.toInt()} ر.س)")
+            if (bp.impulsePurchases >= 2)
+                factRow("🛍️", "${bp.impulsePurchases} مشتريات اندفاعية آخر 30 يوم — جرب قاعدة الـ24 ساعة قبل الشراء الكبير")
+            if (bp.eveningSharePct >= 50)
+                factRow("🌙", "${bp.eveningSharePct}% من صرفك بعد 6 مساءً — وقت المطاعم والتوصيل غالباً")
+        }
+    }
+}
+
+@Composable
+private fun ExportReportButton(report: com.example.data.ZadCentralBrain.BrainReport) {
+    val context = LocalContext.current
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = primaryContainer,
+        modifier = Modifier.fillMaxWidth(),
+        onClick = {
+            val text = com.example.data.ZadCentralBrain.buildExportText(report)
+            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(android.content.Intent.EXTRA_SUBJECT, "تقرير زاد المالي")
+                putExtra(android.content.Intent.EXTRA_TEXT, text)
+            }
+            try {
+                context.startActivity(android.content.Intent.createChooser(intent, "مشاركة تقرير زاد"))
+            } catch (e: Exception) { /* لا يوجد تطبيق مشاركة */ }
+        }
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(Icons.Default.IosShare, contentDescription = null, tint = onPrimaryContainer, modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("تصدير التقرير الشهري", style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onPrimaryContainer)
+        }
+    }
 }
 
 // ════════════════════════════════════════════════════════════════
