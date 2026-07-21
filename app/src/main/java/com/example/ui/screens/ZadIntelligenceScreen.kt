@@ -52,6 +52,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ZadIntelligenceScreen(
     viewModel: ZadViewModel,
+    familyViewModel: com.example.ui.viewmodels.FamilyViewModel,
     onOpenDrawer: () -> Unit = {}
 ) {
     val transactions by viewModel.transactions.collectAsState()
@@ -146,7 +147,8 @@ fun ZadIntelligenceScreen(
                     serverBehaviorProfile = serverBehaviorProfile,
                     isRefreshingBehaviorProfile = isRefreshingBehaviorProfile,
                     onRefreshBehaviorProfile = { viewModel.refreshBehaviorProfile() },
-                    viewModel = viewModel
+                    viewModel = viewModel,
+                    familyViewModel = familyViewModel
                 )
                 1 -> SubscriptionsTab(
                     subscriptions = subscriptions,
@@ -186,10 +188,12 @@ fun AnalyticsTab(
     serverBehaviorProfile: com.example.data.UserBehaviorProfile? = null,
     isRefreshingBehaviorProfile: Boolean = false,
     onRefreshBehaviorProfile: () -> Unit = {},
-    viewModel: ZadViewModel
+    viewModel: ZadViewModel,
+    familyViewModel: com.example.ui.viewmodels.FamilyViewModel
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val otherCategoryLabel = stringResource(R.string.other_category)
+    val emergencyFund by viewModel.emergencyFund.collectAsState()
     val expenses = transactions.filter { it.isExpense }
     val income = transactions.filter { !it.isExpense }
     val totalExpense = expenses.sumOf { it.amount }
@@ -214,6 +218,7 @@ fun AnalyticsTab(
         if (report != null) {
             item { SpendingPowerGaugeCard(report.spendingPower) }
             item { HealthScoreCard(report) }
+            item { FinancialStressTestCard(transactions, emergencyFund, onUpdateEmergencyFund = { viewModel.updateEmergencyFund(it) }) }
             report.monthComparison?.let { mc ->
                 item { MonthComparisonCard(mc) }
             }
@@ -236,6 +241,11 @@ fun AnalyticsTab(
                 isRefreshing = isRefreshingBehaviorProfile,
                 onRefresh = onRefreshBehaviorProfile
             )
+        }
+
+        // ملاحظة سلوكية: يوم الإنفاق الأعلى مقارنة ببقية الأيام (Feature 4)
+        if (detectWeekdaySpike(serverBehaviorProfile) != null) {
+            item { BehavioralNudgeCard(serverBehaviorProfile) }
         }
 
         // إحصائيات سريعة
@@ -284,6 +294,9 @@ fun AnalyticsTab(
         // توزيع المصروفات
         item { ExpenseDonutCard(categoryMap = categoryMap, total = totalExpense) }
 
+        // رادار التضخم الشخصي (Feature 3)
+        item { InflationRadarCard(transactions) }
+
         // الرسم البياني الشهري
         item {
             MonthlyBarChartCard(
@@ -301,6 +314,12 @@ fun AnalyticsTab(
                 subscriptionsCount = subscriptions.count { it.isActive }
             )
         }
+
+        // توقيت الشراء الذكي للمخزون (Feature 6)
+        item { SmartBuyingTimingCard(inventory, serverBehaviorProfile) }
+
+        // تحديات العائلة المالية (Feature 5)
+        item { FinancialChallengesCard(familyViewModel) }
 
         // محاكي القرارات المالية (What-If)
         item {
@@ -542,6 +561,7 @@ fun SubscriptionsTab(
     var showAddDialog by remember { mutableStateOf(false) }
     var showInactive by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
+    val debts by viewModel.debts.collectAsState()
 
     val filteredSubs = if (showInactive) subscriptions else subscriptions.filter { it.isActive }
     val totalMonthly = filteredSubs.sumOf { it.amount }
@@ -563,6 +583,9 @@ fun SubscriptionsTab(
                 }
             }
         }
+
+        // مخطط سداد الديون (Feature 2) — نفس تبويب الاشتراكات، مجموعتين "التزامات شهرية متكررة"
+        item { DebtPayoffPlannerCard(debts, viewModel) }
 
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -1143,6 +1166,707 @@ fun WhatIfSimulatorCard(viewModel: ZadViewModel, predictedMonthlySpend: Double) 
                     }
                 }
             }
+        }
+    }
+}
+
+// ════════════════════════════════════════════════════════════════
+//  ZAD INTELLIGENCE: 6 NEW FEATURES — pure calc layer (co-located with
+//  result types, same pattern as WhatIfVerdict/WhatIfResult/simulateWhatIf
+//  above: deterministic Kotlin first, AI narrative is an optional add-on)
+// ════════════════════════════════════════════════════════════════
+
+// ── Feature 1: Financial Stress Test ──────────────────────────────────────────
+enum class StressTestStatus { CRITICAL, LOW, HEALTHY }
+
+data class StressTestResult(
+    val coverageDays: Int,
+    val avgDailySpend: Double,
+    val liquidSavings: Double,
+    val targetDays: Int,
+    val suggestedMonthlySaving: Double,
+    val status: StressTestStatus
+)
+
+/** أيام التغطية = رصيد الطوارئ ÷ متوسط الصرف اليومي (آخر 30 يوم). التوفير الشهري المقترح يقفل الفجوة حتى الهدف على مدار 6 أشهر. */
+fun calculateStressTest(
+    transactions: List<ZadTransaction>,
+    liquidSavings: Double,
+    targetDays: Int = 90,
+    windowDays: Int = 30,
+    savingHorizonMonths: Int = 6
+): StressTestResult {
+    val cutoff = java.time.Instant.now().minusSeconds(windowDays * 86400L)
+    val recentExpenseTotal = transactions
+        .filter { it.isExpense }
+        .filter { tx -> try { java.time.Instant.parse(tx.createdAt ?: "") >= cutoff } catch (e: Exception) { false } }
+        .sumOf { it.amount }
+    val avgDailySpend = recentExpenseTotal / windowDays
+    val coverageDays = if (avgDailySpend > 0) (liquidSavings / avgDailySpend).toInt().coerceAtLeast(0) else 0
+    val gapDays = (targetDays - coverageDays).coerceAtLeast(0)
+    val suggestedMonthlySaving = if (gapDays > 0 && avgDailySpend > 0) (gapDays * avgDailySpend) / savingHorizonMonths else 0.0
+    val status = when {
+        coverageDays < 30 -> StressTestStatus.CRITICAL
+        coverageDays < targetDays -> StressTestStatus.LOW
+        else -> StressTestStatus.HEALTHY
+    }
+    return StressTestResult(coverageDays, avgDailySpend, liquidSavings, targetDays, suggestedMonthlySaving, status)
+}
+
+// ── Feature 2: Debt Snowball / Avalanche ──────────────────────────────────────
+enum class DebtStrategy { SNOWBALL, AVALANCHE }
+
+data class DebtPayoffStep(val debtName: String, val order: Int, val monthsToPayoff: Int, val totalInterest: Double)
+
+data class DebtPayoffPlan(val strategy: DebtStrategy, val steps: List<DebtPayoffStep>, val totalMonths: Int, val totalInterestPaid: Double)
+
+/**
+ * يحاكي السداد شهراً بشهر: كل دين ياخد الحد الأدنى، والدين المستهدف (الأصغر رصيد في Snowball،
+ * أو الأعلى فائدة في Avalanche) ياخد أي مبلغ إضافي + الحد الأدنى المُحرَّر من ديون اتسددت بالكامل.
+ */
+fun calculateDebtPayoffPlan(debts: List<com.example.data.ZadDebt>, strategy: DebtStrategy, extraMonthlyPayment: Double = 0.0): DebtPayoffPlan {
+    if (debts.isEmpty()) return DebtPayoffPlan(strategy, emptyList(), 0, 0.0)
+    val ordered = when (strategy) {
+        DebtStrategy.SNOWBALL -> debts.sortedBy { it.remainingBalance }
+        DebtStrategy.AVALANCHE -> debts.sortedByDescending { it.interestRate }
+    }
+    class Working(val debt: com.example.data.ZadDebt) {
+        var balance = debt.remainingBalance
+        var totalInterest = 0.0
+        var payoffMonth = 0
+    }
+    val working = ordered.map { Working(it) }
+    var month = 0
+    var freedMinimums = 0.0
+    val maxMonths = 600 // سقف أمان 50 سنة يمنع حلقة لا نهائية لو الحد الأدنى صفر لكل الديون
+    while (working.any { it.balance > 0.01 } && month < maxMonths) {
+        month++
+        var extraPool = extraMonthlyPayment + freedMinimums
+        val firstActive = working.firstOrNull { it.balance > 0.0 }
+        for (w in working) {
+            if (w.balance <= 0.0) continue
+            val monthlyRate = w.debt.interestRate / 100.0 / 12.0
+            val interest = w.balance * monthlyRate
+            w.totalInterest += interest
+            w.balance += interest
+            var payment = w.debt.minimumPayment.coerceAtLeast(0.0)
+            if (w === firstActive) {
+                payment += extraPool
+                extraPool = 0.0
+            }
+            payment = payment.coerceAtMost(w.balance)
+            w.balance -= payment
+            if (w.balance <= 0.01 && w.payoffMonth == 0) {
+                w.payoffMonth = month
+                freedMinimums += w.debt.minimumPayment
+            }
+        }
+    }
+    val steps = working.mapIndexed { idx, w -> DebtPayoffStep(w.debt.name, idx + 1, w.payoffMonth, w.totalInterest) }
+    return DebtPayoffPlan(strategy, steps, working.maxOf { it.payoffMonth }, working.sumOf { it.totalInterest })
+}
+
+// ── Feature 3: Personalized Inflation Radar ───────────────────────────────────
+data class CategoryInflation(val category: String, val currentMonthAvg: Double, val trailingAvg: Double, val deltaPct: Double)
+
+/** يقارن صرف كل فئة هذا الشهر بمتوسط آخر trailingMonths شهر. فئات بدون تاريخ كافٍ (trailing = 0) تتجاهل عشان مفيش خط أساس يتقاس عليه. */
+fun calculateInflationRadar(transactions: List<ZadTransaction>, context: android.content.Context, trailingMonths: Int = 3): List<CategoryInflation> {
+    val otherLabel = context.getString(R.string.other_category)
+    val now = java.time.ZonedDateTime.now()
+    fun monthKey(dt: java.time.ZonedDateTime) = "${dt.year}-${dt.monthValue.toString().padStart(2, '0')}"
+    val currentKey = monthKey(now)
+    val trailingKeys = (1..trailingMonths).map { monthKey(now.minusMonths(it.toLong())) }.toSet()
+
+    data class Bucket(val category: String, val monthKey: String, val amount: Double)
+    val buckets = transactions.filter { it.isExpense }.mapNotNull { tx ->
+        try {
+            val zdt = java.time.Instant.parse(tx.createdAt ?: "").atZone(java.time.ZoneId.systemDefault())
+            Bucket(tx.category ?: otherLabel, monthKey(zdt), tx.amount)
+        } catch (e: Exception) { null }
+    }
+
+    val currentByCategory = buckets.filter { it.monthKey == currentKey }.groupBy { it.category }.mapValues { (_, l) -> l.sumOf { it.amount } }
+    val trailingByCategory = buckets.filter { it.monthKey in trailingKeys }.groupBy { it.category }
+        .mapValues { (_, l) -> l.sumOf { it.amount } / trailingMonths }
+
+    return (currentByCategory.keys + trailingByCategory.keys).distinct().mapNotNull { cat ->
+        val current = currentByCategory[cat] ?: 0.0
+        val trailing = trailingByCategory[cat] ?: 0.0
+        if (trailing <= 0.0) return@mapNotNull null
+        CategoryInflation(cat, current, trailing, ((current - trailing) / trailing) * 100.0)
+    }.sortedByDescending { it.deltaPct }
+}
+
+// ── Feature 4: Behavioral Nudge Engine ────────────────────────────────────────
+data class WeekdaySpike(val weekday: String, val amount: Double, val avgOtherDays: Double, val spikeRatio: Double)
+
+/** يعتمد على user_behavior_profile.spending_pattern_by_weekday المحسوب على الخادم — يرصد أعلى يوم صرف لو زاد بشكل ملحوظ (1.3x+) عن باقي الأيام. */
+fun detectWeekdaySpike(profile: com.example.data.UserBehaviorProfile?): WeekdaySpike? {
+    val pattern = profile?.spendingPatternByWeekday ?: return null
+    if (pattern.size < 2) return null
+    val maxEntry = pattern.maxByOrNull { it.value } ?: return null
+    val others = pattern.filterKeys { it != maxEntry.key }.values
+    if (others.isEmpty()) return null
+    val avgOthers = others.average()
+    if (avgOthers <= 0.0) return null
+    val ratio = maxEntry.value / avgOthers
+    if (ratio < 1.3) return null
+    return WeekdaySpike(maxEntry.key, maxEntry.value, avgOthers, ratio)
+}
+
+// ── Feature 6: Smart Buying Timing ────────────────────────────────────────────
+data class BuyingTimingSuggestion(val itemName: String, val buyByDate: java.time.LocalDate, val daysUntil: Int, val dailyConsumptionRate: Double)
+
+/** يعتمد على user_behavior_profile.inventory_consumption_rate المحسوب على الخادم — يعرض بس الأصناف اللي محتاجة شراء خلال 60 يوم. */
+fun calculateBuyingTiming(inventory: List<ZadInventory>, profile: com.example.data.UserBehaviorProfile?): List<BuyingTimingSuggestion> {
+    val rates = profile?.inventoryConsumptionRate ?: return emptyList()
+    if (rates.isEmpty()) return emptyList()
+    val today = java.time.LocalDate.now()
+    return inventory.mapNotNull { item ->
+        val rate = rates[item.itemName] ?: return@mapNotNull null
+        if (rate <= 0.0) return@mapNotNull null
+        val daysLeft = (item.quantity / rate).toInt()
+        if (daysLeft > 60) return@mapNotNull null
+        BuyingTimingSuggestion(item.itemName, today.plusDays(daysLeft.toLong()), daysLeft, rate)
+    }.sortedBy { it.daysUntil }
+}
+
+// ════════════════════════════════════════════════════════════════
+//  ZAD INTELLIGENCE: 6 NEW FEATURES — cards
+// ════════════════════════════════════════════════════════════════
+
+// ── Feature 1 card ─────────────────────────────────────────────────────────
+@Composable
+fun FinancialStressTestCard(transactions: List<ZadTransaction>, emergencyFund: Double, onUpdateEmergencyFund: (Double) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val result = remember(transactions, emergencyFund) { calculateStressTest(transactions, emergencyFund) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    var aiNarrative by remember(result) { mutableStateOf<String?>(null) }
+    var isLoadingNarrative by remember { mutableStateOf(false) }
+
+    val (statusColor, statusLabel) = when (result.status) {
+        StressTestStatus.CRITICAL -> dangerColor to stringResource(R.string.stress_test_status_critical)
+        StressTestStatus.LOW -> warningColor to stringResource(R.string.stress_test_status_low)
+        StressTestStatus.HEALTHY -> successColor to stringResource(R.string.stress_test_status_healthy)
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = surface)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.HealthAndSafety, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.stress_test_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                Spacer(modifier = Modifier.weight(1f))
+                TextButton(onClick = { showEditDialog = true }) { Text(stringResource(R.string.stress_test_edit_fund_action), style = Typography.labelSmall) }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(stringResource(R.string.stress_test_subtitle), style = Typography.bodySmall, color = onSurfaceVariant)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(stringResource(R.string.stress_test_coverage_days, result.coverageDays), style = Typography.displaySmall, fontWeight = FontWeight.Bold, color = statusColor)
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(stringResource(R.string.stress_test_target_label, result.targetDays), style = Typography.labelSmall, color = onSurfaceVariant)
+            Spacer(modifier = Modifier.height(10.dp))
+
+            LinearProgressIndicator(
+                progress = { (result.coverageDays.toFloat() / result.targetDays.toFloat()).coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+                color = statusColor,
+                trackColor = statusColor.copy(alpha = 0.15f)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column {
+                    Text(stringResource(R.string.stress_test_emergency_fund_label), style = Typography.labelSmall, color = onSurfaceVariant)
+                    Text(com.example.data.CurrencyFormatter.format(context, result.liquidSavings), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface)
+                }
+                Surface(shape = RoundedCornerShape(10.dp), color = statusColor.copy(alpha = 0.12f)) {
+                    Text(statusLabel, style = Typography.labelMedium, fontWeight = FontWeight.Bold, color = statusColor, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
+                }
+            }
+
+            if (result.suggestedMonthlySaving > 0) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    stringResource(R.string.stress_test_suggested_saving_label, com.example.data.CurrencyFormatter.format(context, result.suggestedMonthlySaving)),
+                    style = Typography.bodySmall, color = onSurfaceVariant
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            AiNarrativeSection(
+                narrative = aiNarrative,
+                isLoading = isLoadingNarrative,
+                onExplain = {
+                    isLoadingNarrative = true
+                    scope.launch {
+                        aiNarrative = try {
+                            ZadAiRepository.narrateStressTest(
+                                result.coverageDays, result.avgDailySpend, result.liquidSavings,
+                                result.targetDays, result.suggestedMonthlySaving, result.status.name
+                            )
+                        } catch (e: Exception) { null } finally { isLoadingNarrative = false }
+                    }
+                }
+            )
+        }
+    }
+
+    if (showEditDialog) {
+        var fundStr by remember { mutableStateOf(if (emergencyFund > 0) emergencyFund.toString() else "") }
+        AlertDialog(
+            onDismissRequest = { showEditDialog = false },
+            title = { Text(stringResource(R.string.stress_test_edit_fund_action), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(
+                    value = fundStr, onValueChange = { fundStr = it },
+                    label = { Text(stringResource(R.string.stress_test_emergency_fund_label)) },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    onUpdateEmergencyFund(fundStr.toDoubleOrNull() ?: 0.0)
+                    showEditDialog = false
+                }) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = { TextButton(onClick = { showEditDialog = false }) { Text(stringResource(R.string.cancel)) } }
+        )
+    }
+}
+
+// ── Feature 3 card ─────────────────────────────────────────────────────────
+@Composable
+fun InflationRadarCard(transactions: List<ZadTransaction>) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val categories = remember(transactions) { calculateInflationRadar(transactions, context) }
+    var aiNarrative by remember(categories) { mutableStateOf<String?>(null) }
+    var isLoadingNarrative by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = surface)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Radar, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.inflation_radar_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(stringResource(R.string.inflation_radar_subtitle), style = Typography.bodySmall, color = onSurfaceVariant)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (categories.isEmpty()) {
+                Text(stringResource(R.string.inflation_radar_no_data), style = Typography.bodySmall, color = onSurfaceVariant)
+            } else {
+                categories.take(5).forEach { cat ->
+                    val isIncrease = cat.deltaPct > 0
+                    val pillColor = if (isIncrease) dangerColor else successColor
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(cat.category, style = Typography.bodyMedium, color = onSurface, modifier = Modifier.weight(1f))
+                        Surface(shape = RoundedCornerShape(10.dp), color = pillColor.copy(alpha = 0.12f)) {
+                            Text(
+                                stringResource(
+                                    if (isIncrease) R.string.inflation_radar_increase_pill else R.string.inflation_radar_decrease_pill,
+                                    "%.0f".format(kotlin.math.abs(cat.deltaPct))
+                                ),
+                                style = Typography.labelMedium, fontWeight = FontWeight.Bold, color = pillColor,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                AiNarrativeSection(
+                    narrative = aiNarrative,
+                    isLoading = isLoadingNarrative,
+                    onExplain = {
+                        isLoadingNarrative = true
+                        scope.launch {
+                            val summary = categories.take(5).joinToString("\n") {
+                                "- ${it.category}: هذا الشهر ${it.currentMonthAvg}, المعتاد ${it.trailingAvg}, تغير ${"%.0f".format(it.deltaPct)}%"
+                            }
+                            aiNarrative = try { ZadAiRepository.narrateInflationRadar(summary) } catch (e: Exception) { null } finally { isLoadingNarrative = false }
+                        }
+                    }
+                )
+            }
+        }
+    }
+}
+
+// ── Feature 4 card ─────────────────────────────────────────────────────────
+@Composable
+fun BehavioralNudgeCard(profile: com.example.data.UserBehaviorProfile?) {
+    val scope = rememberCoroutineScope()
+    val spike = remember(profile) { detectWeekdaySpike(profile) } ?: return
+    var aiNarrative by remember(spike) { mutableStateOf<String?>(null) }
+    var isLoadingNarrative by remember { mutableStateOf(false) }
+
+    Surface(shape = RoundedCornerShape(20.dp), color = Color(0xFFFFF7ED), modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.nudge_card_title), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface)
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                stringResource(R.string.nudge_weekday_spike_text, "%.0f".format((spike.spikeRatio - 1) * 100), spike.weekday),
+                style = Typography.bodySmall, color = onSurface
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            AiNarrativeSection(
+                narrative = aiNarrative,
+                isLoading = isLoadingNarrative,
+                onExplain = {
+                    isLoadingNarrative = true
+                    scope.launch {
+                        aiNarrative = try {
+                            ZadAiRepository.narrateNudge(spike.weekday, spike.amount, spike.avgOtherDays, spike.spikeRatio)
+                        } catch (e: Exception) { null } finally { isLoadingNarrative = false }
+                    }
+                }
+            )
+        }
+    }
+}
+
+// ── Feature 6 card ─────────────────────────────────────────────────────────
+@Composable
+fun SmartBuyingTimingCard(inventory: List<ZadInventory>, serverBehaviorProfile: com.example.data.UserBehaviorProfile?) {
+    val scope = rememberCoroutineScope()
+    val suggestions = remember(inventory, serverBehaviorProfile) { calculateBuyingTiming(inventory, serverBehaviorProfile) }
+    var aiNarrative by remember { mutableStateOf<String?>(null) }
+    var isLoadingNarrative by remember { mutableStateOf(false) }
+    var narratingItem by remember { mutableStateOf<String?>(null) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = surface)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.buying_timing_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(stringResource(R.string.buying_timing_subtitle), style = Typography.bodySmall, color = onSurfaceVariant)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (suggestions.isEmpty()) {
+                Text(stringResource(R.string.buying_timing_no_data), style = Typography.bodySmall, color = onSurfaceVariant)
+            } else {
+                suggestions.take(5).forEach { s ->
+                    val urgencyColor = if (s.daysUntil <= 7) warningColor else onSurfaceVariant
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable {
+                            narratingItem = s.itemName
+                            isLoadingNarrative = true
+                            aiNarrative = null
+                            scope.launch {
+                                aiNarrative = try {
+                                    ZadAiRepository.narrateBuyingTiming(s.itemName, s.daysUntil, s.dailyConsumptionRate)
+                                } catch (e: Exception) { null } finally { isLoadingNarrative = false }
+                            }
+                        },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Schedule, contentDescription = null, tint = urgencyColor, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(s.itemName, style = Typography.bodyMedium, color = onSurface, modifier = Modifier.weight(1f))
+                        Text(
+                            stringResource(R.string.buying_timing_buy_by_label, s.buyByDate.toString(), s.daysUntil),
+                            style = Typography.labelSmall, color = urgencyColor
+                        )
+                    }
+                }
+                if (narratingItem != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    AiNarrativeSection(narrative = aiNarrative, isLoading = isLoadingNarrative, onExplain = null)
+                }
+            }
+        }
+    }
+}
+
+// ── Feature 5 card ─────────────────────────────────────────────────────────
+@Composable
+fun FinancialChallengesCard(familyViewModel: com.example.ui.viewmodels.FamilyViewModel) {
+    val familyState by familyViewModel.state.collectAsState()
+    val challenges by familyViewModel.financialChallenges.collectAsState()
+    val progress by familyViewModel.challengeProgress.collectAsState()
+    var showCreateDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) { familyViewModel.loadFinancialChallenges() }
+
+    val active = familyState
+    Card(
+        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = surface)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.EmojiEvents, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.financial_challenges_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                Spacer(modifier = Modifier.weight(1f))
+                if (active is com.example.ui.viewmodels.FamilyState.Active) {
+                    TextButton(onClick = { showCreateDialog = true }) { Text(stringResource(R.string.financial_challenge_create_action), style = Typography.labelSmall) }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (active !is com.example.ui.viewmodels.FamilyState.Active) {
+                Text(stringResource(R.string.financial_challenge_join_family_hint), style = Typography.bodySmall, color = onSurfaceVariant)
+            } else if (challenges.isEmpty()) {
+                Text(stringResource(R.string.financial_challenge_empty_state), style = Typography.bodySmall, color = onSurfaceVariant)
+            } else {
+                val context = LocalContext.current
+                val myMemberId = active.myMemberInfo.id
+                challenges.forEach { challenge ->
+                    val challengeProgressList = progress[challenge.id].orEmpty()
+                    val myProgress = challengeProgressList.find { it.userId == active.myMemberInfo.userId }
+                    val currentAmount = myProgress?.currentAmount ?: 0.0
+                    val isCompleted = myProgress?.isCompleted == true
+                    val fraction = (currentAmount / challenge.targetAmount.coerceAtLeast(1.0)).toFloat().coerceIn(0f, 1f)
+
+                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(challenge.title, style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = onSurface, modifier = Modifier.weight(1f))
+                            if (isCompleted) {
+                                Text(stringResource(R.string.financial_challenge_completed_label), style = Typography.labelSmall, color = successColor)
+                            } else {
+                                TextButton(onClick = { familyViewModel.contributeToChallenge(challenge.id, myMemberId, challenge.targetAmount - currentAmount) }) {
+                                    Text(stringResource(R.string.financial_challenge_contribute_action), style = Typography.labelSmall)
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        LinearProgressIndicator(
+                            progress = { fraction },
+                            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                            color = if (isCompleted) successColor else primary,
+                            trackColor = primary.copy(alpha = 0.12f)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(
+                                stringResource(
+                                    R.string.financial_challenge_progress_label,
+                                    com.example.data.CurrencyFormatter.format(context, currentAmount),
+                                    com.example.data.CurrencyFormatter.format(context, challenge.targetAmount)
+                                ),
+                                style = Typography.labelSmall, color = onSurfaceVariant
+                            )
+                            if (challenge.rewardAmount > 0) {
+                                Text(
+                                    stringResource(R.string.financial_challenge_reward_label, com.example.data.CurrencyFormatter.format(context, challenge.rewardAmount)),
+                                    style = Typography.labelSmall, color = onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showCreateDialog && active is com.example.ui.viewmodels.FamilyState.Active) {
+        var title by remember { mutableStateOf("") }
+        var targetStr by remember { mutableStateOf("") }
+        var rewardStr by remember { mutableStateOf("") }
+        var durationStr by remember { mutableStateOf("7") }
+        AlertDialog(
+            onDismissRequest = { showCreateDialog = false },
+            title = { Text(stringResource(R.string.financial_challenge_create_action), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text(stringResource(R.string.financial_challenge_title_hint)) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = targetStr, onValueChange = { targetStr = it }, label = { Text(stringResource(R.string.financial_challenge_target_hint)) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = rewardStr, onValueChange = { rewardStr = it }, label = { Text(stringResource(R.string.financial_challenge_reward_hint)) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = durationStr, onValueChange = { durationStr = it }, label = { Text(stringResource(R.string.financial_challenge_duration_hint)) }, modifier = Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val target = targetStr.toDoubleOrNull() ?: return@Button
+                    if (title.isNotBlank()) {
+                        familyViewModel.createFinancialChallenge(title, target, rewardStr.toDoubleOrNull() ?: 0.0, durationStr.toIntOrNull() ?: 7)
+                        showCreateDialog = false
+                    }
+                }) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = { TextButton(onClick = { showCreateDialog = false }) { Text(stringResource(R.string.cancel)) } }
+        )
+    }
+}
+
+// ── Feature 2 card (Subscriptions tab) ────────────────────────────────────────
+@Composable
+fun DebtPayoffPlannerCard(debts: List<com.example.data.ZadDebt>, viewModel: ZadViewModel) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var strategy by remember { mutableStateOf(DebtStrategy.SNOWBALL) }
+    var showAddDialog by remember { mutableStateOf(false) }
+    var aiNarrative by remember { mutableStateOf<String?>(null) }
+    var isLoadingNarrative by remember { mutableStateOf(false) }
+
+    val plan = remember(debts, strategy) { calculateDebtPayoffPlan(debts, strategy) }
+
+    LaunchedEffect(Unit) { viewModel.loadDebts() }
+
+    Card(
+        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = surface)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.AccountBalance, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.debt_planner_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                Spacer(modifier = Modifier.weight(1f))
+                TextButton(onClick = { showAddDialog = true }) { Text(stringResource(R.string.debt_add_action), style = Typography.labelSmall) }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(stringResource(R.string.debt_planner_subtitle), style = Typography.bodySmall, color = onSurfaceVariant)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (debts.isEmpty()) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)) {
+                    Icon(Icons.Default.AccountBalance, contentDescription = null, tint = onSurfaceVariant.copy(alpha = 0.4f), modifier = Modifier.size(48.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(stringResource(R.string.debt_empty_state_title), style = Typography.titleSmall, color = onSurfaceVariant)
+                    Text(stringResource(R.string.debt_empty_state_hint), style = Typography.bodySmall, color = onSurfaceVariant, textAlign = TextAlign.Center)
+                }
+            } else {
+                Row(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    FilterChip(
+                        selected = strategy == DebtStrategy.SNOWBALL,
+                        onClick = { strategy = DebtStrategy.SNOWBALL },
+                        label = { Text(stringResource(R.string.debt_strategy_snowball)) },
+                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = primaryContainer)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    FilterChip(
+                        selected = strategy == DebtStrategy.AVALANCHE,
+                        onClick = { strategy = DebtStrategy.AVALANCHE },
+                        label = { Text(stringResource(R.string.debt_strategy_avalanche)) },
+                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = primaryContainer)
+                    )
+                }
+                Spacer(modifier = Modifier.height(14.dp))
+
+                plan.steps.sortedBy { it.order }.forEach { step ->
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Surface(shape = CircleShape, color = primaryContainer) {
+                            Text("${step.order}", style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = primary, modifier = Modifier.padding(8.dp))
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(step.debtName, style = Typography.bodyMedium, color = onSurface, modifier = Modifier.weight(1f))
+                        Text("${step.monthsToPayoff} " + stringResource(R.string.months_unit), style = Typography.labelSmall, color = onSurfaceVariant)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(stringResource(R.string.debt_total_months_label, plan.totalMonths), style = Typography.bodySmall, fontWeight = FontWeight.SemiBold, color = onSurface)
+                Text(stringResource(R.string.debt_total_interest_label, com.example.data.CurrencyFormatter.format(context, plan.totalInterestPaid)), style = Typography.bodySmall, color = onSurfaceVariant)
+
+                Spacer(modifier = Modifier.height(12.dp))
+                AiNarrativeSection(
+                    narrative = aiNarrative,
+                    isLoading = isLoadingNarrative,
+                    onExplain = {
+                        isLoadingNarrative = true
+                        scope.launch {
+                            val stepsSummary = plan.steps.sortedBy { it.order }.joinToString("\n") { "- ${it.debtName}: ترتيب ${it.order}, يُسدد خلال ${it.monthsToPayoff} شهر" }
+                            aiNarrative = try {
+                                ZadAiRepository.narrateDebtPlan(strategy.name, plan.totalMonths, plan.totalInterestPaid, stepsSummary)
+                            } catch (e: Exception) { null } finally { isLoadingNarrative = false }
+                        }
+                    }
+                )
+            }
+        }
+    }
+
+    if (showAddDialog) {
+        var name by remember { mutableStateOf("") }
+        var remainingStr by remember { mutableStateOf("") }
+        var rateStr by remember { mutableStateOf("") }
+        var minPaymentStr by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showAddDialog = false },
+            title = { Text(stringResource(R.string.debt_add_action), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.debt_name_hint)) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = remainingStr, onValueChange = { remainingStr = it }, label = { Text(stringResource(R.string.debt_remaining_hint)) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = rateStr, onValueChange = { rateStr = it }, label = { Text(stringResource(R.string.debt_interest_rate_hint)) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = minPaymentStr, onValueChange = { minPaymentStr = it }, label = { Text(stringResource(R.string.debt_minimum_payment_hint)) }, modifier = Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val remaining = remainingStr.toDoubleOrNull() ?: return@Button
+                    if (name.isNotBlank()) {
+                        viewModel.addDebt(
+                            com.example.data.ZadDebt(
+                                name = name,
+                                principalAmount = remaining,
+                                remainingBalance = remaining,
+                                interestRate = rateStr.toDoubleOrNull() ?: 0.0,
+                                minimumPayment = minPaymentStr.toDoubleOrNull() ?: 0.0
+                            )
+                        )
+                        showAddDialog = false
+                    }
+                }) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = { TextButton(onClick = { showAddDialog = false }) { Text(stringResource(R.string.cancel)) } }
+        )
+    }
+}
+
+// ── Shared AI narrative section (loading spinner / result box / explain button) ──
+@Composable
+private fun AiNarrativeSection(narrative: String?, isLoading: Boolean, onExplain: (() -> Unit)?) {
+    when {
+        isLoading -> Row(verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = primary)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(stringResource(R.string.ai_narrative_loading), style = Typography.labelSmall, color = onSurfaceVariant)
+        }
+        narrative != null -> Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFF5F3FF), modifier = Modifier.fillMaxWidth()) {
+            Row(modifier = Modifier.padding(12.dp)) {
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color(0xFF8B5CF6), modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(narrative, style = Typography.bodySmall, color = Color(0xFF4C1D95))
+            }
+        }
+        onExplain != null -> TextButton(onClick = onExplain) {
+            Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp), tint = primary)
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(stringResource(R.string.ai_explain_action), style = Typography.labelSmall, color = primary)
         }
     }
 }

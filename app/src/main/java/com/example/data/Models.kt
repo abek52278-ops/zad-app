@@ -80,7 +80,8 @@ data class ZadUser(
     val name: String? = null,
     val budget: Double = 0.0,
     @SerialName("avatar_uri") val avatarUri: String? = null,
-    @SerialName("created_at") val createdAt: String? = null
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("emergency_fund_balance") val emergencyFundBalance: Double = 0.0
 )
 
 @Entity(tableName = "zad_inventory")
@@ -126,6 +127,7 @@ data class UserBehaviorProfile(
     @SerialName("top_spending_categories") val topSpendingCategories: List<BehaviorCategoryTotal> = emptyList(),
     @SerialName("spending_pattern_by_weekday") val spendingPatternByWeekday: Map<String, Double> = emptyMap(),
     @SerialName("subscription_load_monthly") val subscriptionLoadMonthly: Double = 0.0,
+    @SerialName("inventory_consumption_rate") val inventoryConsumptionRate: Map<String, Double> = emptyMap(),
     @SerialName("last_updated_at") val lastUpdatedAt: String? = null
 )
 
@@ -144,6 +146,21 @@ data class ZadSubscription(
     val provider: String? = null,
     @SerialName("due_day") val dueDay: Int? = null,
     @SerialName("auto_deduct") val autoDeduct: Boolean = false
+)
+
+@Serializable
+data class ZadDebt(
+    val id: String = UUID.randomUUID().toString(),
+    @SerialName("user_id") val userId: String? = null,
+    @SerialName("family_id") val familyId: String? = null,
+    val name: String,
+    @SerialName("principal_amount") val principalAmount: Double = 0.0,
+    @SerialName("remaining_balance") val remainingBalance: Double = 0.0,
+    @SerialName("interest_rate") val interestRate: Double = 0.0,
+    @SerialName("minimum_payment") val minimumPayment: Double = 0.0,
+    @SerialName("due_day") val dueDay: Int? = null,
+    @SerialName("is_active") val isActive: Boolean = true,
+    @SerialName("created_at") val createdAt: String? = null
 )
 
 @Entity(tableName = "zad_behavior_patterns")

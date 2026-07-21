@@ -186,6 +186,32 @@ data class TasbihaChallengeProgress(
 )
 
 @Serializable
+data class FinancialChallenge(
+    val id: String = "",
+    @SerialName("family_id") val familyId: String = "",
+    @SerialName("challenge_type") val challengeType: String = "monthly",
+    val title: String = "",
+    val description: String? = null,
+    @SerialName("target_amount") val targetAmount: Double = 0.0,
+    @SerialName("reward_amount") val rewardAmount: Double = 0.0,
+    @SerialName("start_date") val startDate: String? = null,
+    @SerialName("end_date") val endDate: String? = null,
+    @SerialName("is_active") val isActive: Boolean = true,
+    @SerialName("created_at") val createdAt: String? = null
+)
+
+@Serializable
+data class FinancialChallengeProgress(
+    val id: String = "",
+    @SerialName("challenge_id") val challengeId: String = "",
+    @SerialName("user_id") val userId: String = "",
+    @SerialName("current_amount") val currentAmount: Double = 0.0,
+    @SerialName("is_completed") val isCompleted: Boolean = false,
+    @SerialName("completed_at") val completedAt: String? = null,
+    @SerialName("created_at") val createdAt: String? = null
+)
+
+@Serializable
 data class FamilyMemberWithTasbiha(
     val member: FamilyMember,
     val trees: List<TasbihaTree>,

@@ -444,6 +444,63 @@
     <string name="whatif_verdict_safe">Güvenli</string>
     <string name="whatif_verdict_risky">Riskli</string>
     <string name="whatif_verdict_exceeds">Bütçeni aşıyor</string>
+
+    <!-- Zad Intelligence: 6 new features -->
+    <string name="ai_narrative_loading">Zad analiz ediyor...</string>
+    <string name="ai_explain_action">Yapay zekayla açıkla</string>
+    <string name="months_unit">ay</string>
+
+    <string name="stress_test_title">Finansal Dayanıklılık Testi</string>
+    <string name="stress_test_subtitle">Gelirin kesilse kaç gün dayanabilirsin?</string>
+    <string name="stress_test_coverage_days">%1$d gün kapsam</string>
+    <string name="stress_test_target_label">Hedef: %1$d gün</string>
+    <string name="stress_test_emergency_fund_label">Acil durum fonu</string>
+    <string name="stress_test_edit_fund_action">Fonu güncelle</string>
+    <string name="stress_test_suggested_saving_label">Hedefe ulaşmak için ayda %1$s biriktir</string>
+    <string name="stress_test_status_critical">Kritik</string>
+    <string name="stress_test_status_low">Düşük</string>
+    <string name="stress_test_status_healthy">Sağlıklı</string>
+
+    <string name="debt_planner_title">Borç Ödeme Planlayıcı</string>
+    <string name="debt_planner_subtitle">Sana uygun ödeme stratejisini seç</string>
+    <string name="debt_strategy_snowball">Kartopu (önce küçük borç)</string>
+    <string name="debt_strategy_avalanche">Çığ (önce yüksek faiz)</string>
+    <string name="debt_add_action">Borç ekle</string>
+    <string name="debt_total_months_label">Tam ödemeye %1$d ay</string>
+    <string name="debt_total_interest_label">Toplam faiz: %1$s</string>
+    <string name="debt_empty_state_title">Kayıtlı borç yok</string>
+    <string name="debt_empty_state_hint">Borçlarını ekle, ödeme planı yapalım</string>
+    <string name="debt_name_hint">Borç adı</string>
+    <string name="debt_remaining_hint">Kalan tutar</string>
+    <string name="debt_interest_rate_hint">Yıllık faiz oranı %</string>
+    <string name="debt_minimum_payment_hint">Aylık asgari ödeme</string>
+
+    <string name="inflation_radar_title">Kişisel Enflasyon Radarı</string>
+    <string name="inflation_radar_subtitle">Bu ayki harcamanı alışkanlığınla kıyasla</string>
+    <string name="inflation_radar_increase_pill">+%%%1$s</string>
+    <string name="inflation_radar_decrease_pill">-%%%1$s</string>
+    <string name="inflation_radar_no_data">Karşılaştırma için henüz yeterli veri yok</string>
+
+    <string name="nudge_card_title">Davranış Uyarısı</string>
+    <string name="nudge_weekday_spike_text">Diğer günlere göre %2$s günü %%%1$s daha fazla harcıyorsun</string>
+
+    <string name="buying_timing_title">Akıllı Alışveriş Zamanlaması</string>
+    <string name="buying_timing_subtitle">Her ürünü almak için en iyi zaman</string>
+    <string name="buying_timing_buy_by_label">%1$s tarihine kadar al (%2$d gün)</string>
+    <string name="buying_timing_no_data">Henüz yeterli tüketim verisi yok</string>
+
+    <string name="financial_challenges_title">Aile Finansal Meydan Okumaları</string>
+    <string name="financial_challenge_create_action">Yeni meydan okuma</string>
+    <string name="financial_challenge_join_family_hint">Meydan okumalara katılmak için bir aileye katıl</string>
+    <string name="financial_challenge_empty_state">Şu anda aktif meydan okuma yok</string>
+    <string name="financial_challenge_progress_label">%2$s hedefinden %1$s</string>
+    <string name="financial_challenge_reward_label">Ödül: %1$s</string>
+    <string name="financial_challenge_completed_label">Meydan okuma tamamlandı! 🎉</string>
+    <string name="financial_challenge_contribute_action">Meydan okumayı tamamla</string>
+    <string name="financial_challenge_title_hint">Meydan okuma başlığı</string>
+    <string name="financial_challenge_target_hint">Hedef tutar</string>
+    <string name="financial_challenge_reward_hint">Ödül tutarı</string>
+    <string name="financial_challenge_duration_hint">Süre (gün)</string>
     <string name="whatif_exceeds_at_month">(%1$d. ayda aşmaya başlıyor)</string>
     <string name="whatif_ai_loading">Zad kararı analiz ediyor...</string>
 

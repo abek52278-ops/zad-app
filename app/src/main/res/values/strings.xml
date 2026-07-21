@@ -444,6 +444,63 @@
     <string name="whatif_verdict_safe">آمن</string>
     <string name="whatif_verdict_risky">محفوف بالمخاطر</string>
     <string name="whatif_verdict_exceeds">يتجاوز حدود ميزانيتك</string>
+
+    <!-- Zad Intelligence: 6 new features -->
+    <string name="ai_narrative_loading">زاد يقوم بالتحليل...</string>
+    <string name="ai_explain_action">اشرح بالذكاء الاصطناعي</string>
+    <string name="months_unit">شهر</string>
+
+    <string name="stress_test_title">اختبار الصمود المالي</string>
+    <string name="stress_test_subtitle">كم يوماً تستطيع الصمود لو توقف دخلك؟</string>
+    <string name="stress_test_coverage_days">%1$d يوم تغطية</string>
+    <string name="stress_test_target_label">الهدف: %1$d يوم</string>
+    <string name="stress_test_emergency_fund_label">رصيد صندوق الطوارئ</string>
+    <string name="stress_test_edit_fund_action">تحديث الرصيد</string>
+    <string name="stress_test_suggested_saving_label">وفّر %1$s شهرياً للوصول للهدف</string>
+    <string name="stress_test_status_critical">حرج</string>
+    <string name="stress_test_status_low">منخفض</string>
+    <string name="stress_test_status_healthy">صحي</string>
+
+    <string name="debt_planner_title">مخطط سداد الديون</string>
+    <string name="debt_planner_subtitle">اختر استراتيجية السداد المناسبة لك</string>
+    <string name="debt_strategy_snowball">كرة الثلج (الأصغر أولاً)</string>
+    <string name="debt_strategy_avalanche">الانهيار الجليدي (الأعلى فائدة أولاً)</string>
+    <string name="debt_add_action">إضافة دين</string>
+    <string name="debt_total_months_label">%1$d شهر للسداد الكامل</string>
+    <string name="debt_total_interest_label">إجمالي الفوائد: %1$s</string>
+    <string name="debt_empty_state_title">لا توجد ديون مسجلة</string>
+    <string name="debt_empty_state_hint">أضف ديونك لنساعدك في التخطيط للسداد</string>
+    <string name="debt_name_hint">اسم الدين</string>
+    <string name="debt_remaining_hint">المبلغ المتبقي</string>
+    <string name="debt_interest_rate_hint">معدل الفائدة السنوي %</string>
+    <string name="debt_minimum_payment_hint">الحد الأدنى للدفعة الشهرية</string>
+
+    <string name="inflation_radar_title">رادار التضخم الشخصي</string>
+    <string name="inflation_radar_subtitle">مقارنة صرفك هذا الشهر بمعتادك</string>
+    <string name="inflation_radar_increase_pill">+%1$s%%</string>
+    <string name="inflation_radar_decrease_pill">-%1$s%%</string>
+    <string name="inflation_radar_no_data">لا توجد بيانات كافية للمقارنة بعد</string>
+
+    <string name="nudge_card_title">ملاحظة سلوكية</string>
+    <string name="nudge_weekday_spike_text">تصرف أكثر بنسبة %1$s%% يوم %2$s مقارنة ببقية أيامك</string>
+
+    <string name="buying_timing_title">توقيت الشراء الذكي</string>
+    <string name="buying_timing_subtitle">أفضل وقت تشتري فيه كل صنف</string>
+    <string name="buying_timing_buy_by_label">اشترِ قبل %1$s (%2$d يوم)</string>
+    <string name="buying_timing_no_data">لا توجد بيانات استهلاك كافية بعد</string>
+
+    <string name="financial_challenges_title">تحديات العائلة المالية</string>
+    <string name="financial_challenge_create_action">تحدٍ جديد</string>
+    <string name="financial_challenge_join_family_hint">انضم إلى عائلة لتتمكن من المشاركة في التحديات</string>
+    <string name="financial_challenge_empty_state">لا توجد تحديات نشطة حالياً</string>
+    <string name="financial_challenge_progress_label">%1$s من %2$s</string>
+    <string name="financial_challenge_reward_label">المكافأة: %1$s</string>
+    <string name="financial_challenge_completed_label">تم إنجاز التحدي! 🎉</string>
+    <string name="financial_challenge_contribute_action">إتمام التحدي</string>
+    <string name="financial_challenge_title_hint">عنوان التحدي</string>
+    <string name="financial_challenge_target_hint">المبلغ المستهدف</string>
+    <string name="financial_challenge_reward_hint">قيمة المكافأة</string>
+    <string name="financial_challenge_duration_hint">المدة بالأيام</string>
     <string name="whatif_exceeds_at_month">(يبدأ التجاوز من شهر %1$d)</string>
     <string name="whatif_ai_loading">زاد بيحلل القرار...</string>
 

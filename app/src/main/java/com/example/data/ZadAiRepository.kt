@@ -385,6 +385,83 @@ object ZadAiRepository {
         return callGeminiText(systemPrompt, userPrompt)
     }
 
+    // ── Zad Intelligence: 6 new features (narrative layer only — every
+    // number below is already computed locally in ZadIntelligenceScreen.kt;
+    // these calls never invent figures, only phrase them in Arabic) ──
+
+    suspend fun narrateStressTest(
+        coverageDays: Int,
+        avgDailySpend: Double,
+        liquidSavings: Double,
+        targetDays: Int,
+        suggestedMonthlySaving: Double,
+        status: String
+    ): String? {
+        val systemPrompt = "أنت محلل مالي شخصي داخل تطبيق زاد. لخص وضع صمود المستخدم المالي في جملة أو جملتين بالعربي، بدون اختراع أرقام غير الموجودة في البيانات."
+        val userPrompt = """
+            === بيانات اختبار الصمود المالي ===
+            أيام التغطية عند الطوارئ: $coverageDays
+            متوسط الصرف اليومي: $avgDailySpend
+            رصيد الطوارئ الحالي: $liquidSavings
+            الهدف: $targetDays يوم تغطية
+            التوفير الشهري المقترح للوصول للهدف: $suggestedMonthlySaving
+            الحالة: $status
+            === نهاية البيانات ===
+        """.trimIndent()
+        return callGeminiText(systemPrompt, userPrompt)
+    }
+
+    suspend fun narrateDebtPlan(
+        strategy: String,
+        totalMonths: Int,
+        totalInterestPaid: Double,
+        stepsSummary: String
+    ): String? {
+        val systemPrompt = "أنت مستشار ديون داخل تطبيق زاد. اشرح خطة السداد أدناه بجملتين بالعربي، بدون اختراع أرقام غير الموجودة في البيانات."
+        val userPrompt = """
+            === بيانات خطة السداد ===
+            الاستراتيجية: $strategy
+            المدة الكلية: $totalMonths شهر
+            إجمالي الفوائد المدفوعة: $totalInterestPaid
+            الخطوات:
+            $stepsSummary
+            === نهاية البيانات ===
+        """.trimIndent()
+        return callGeminiText(systemPrompt, userPrompt)
+    }
+
+    suspend fun narrateInflationRadar(categoriesSummary: String): String? {
+        val systemPrompt = "أنت محلل تضخم شخصي داخل تطبيق زاد. لخص أكثر فئة ارتفع صرفها بجملة أو جملتين بالعربي، بدون اختراع أرقام غير الموجودة في البيانات."
+        val userPrompt = """
+            === بيانات رادار التضخم الشخصي ===
+            $categoriesSummary
+            === نهاية البيانات ===
+        """.trimIndent()
+        return callGeminiText(systemPrompt, userPrompt)
+    }
+
+    suspend fun narrateNudge(weekday: String, amount: Double, avgOtherDays: Double, spikeRatio: Double): String? {
+        val systemPrompt = "أنت مدرب سلوك مالي داخل تطبيق زاد. قدم نصيحة قصيرة وودودة بالعربي حول نمط الصرف أدناه، بدون اختراع أرقام غير الموجودة في البيانات."
+        val userPrompt = """
+            === بيانات النمط السلوكي ===
+            يوم $weekday: صرف $amount, متوسط باقي الأيام $avgOtherDays, نسبة الزيادة ${spikeRatio}x
+            === نهاية البيانات ===
+        """.trimIndent()
+        return callGeminiText(systemPrompt, userPrompt)
+    }
+
+    suspend fun narrateBuyingTiming(itemName: String, daysUntil: Int, dailyConsumptionRate: Double): String? {
+        val systemPrompt = "أنت مساعد تسوق ذكي داخل تطبيق زاد. اقترح توقيت الشراء المناسب بجملة بالعربي، بدون اختراع أرقام غير الموجودة في البيانات."
+        val userPrompt = """
+            === بيانات توقيت الشراء ===
+            الصنف: $itemName
+            الأيام المتبقية: $daysUntil
+            معدل الاستهلاك اليومي: $dailyConsumptionRate
+            === نهاية البيانات ===
+        """.trimIndent()
+        return callGeminiText(systemPrompt, userPrompt)
+    }
+
     suspend fun brainEvaluate(systemPrompt: String, userPrompt: String): String? {
         val response = callAction("brain_evaluate", mapOf(
             "system_prompt" to systemPrompt,

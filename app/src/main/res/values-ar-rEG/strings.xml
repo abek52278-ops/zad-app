@@ -444,6 +444,63 @@
     <string name="whatif_verdict_safe">آمن</string>
     <string name="whatif_verdict_risky">فيه مخاطرة</string>
     <string name="whatif_verdict_exceeds">هيتخطى ميزانيتك</string>
+
+    <!-- Zad Intelligence: 6 new features -->
+    <string name="ai_narrative_loading">زاد بيحلل...</string>
+    <string name="ai_explain_action">اشرحلي بالذكاء الاصطناعي</string>
+    <string name="months_unit">شهر</string>
+
+    <string name="stress_test_title">اختبار الصمود المالي</string>
+    <string name="stress_test_subtitle">كام يوم تقدر تصمد لو دخلك وقف؟</string>
+    <string name="stress_test_coverage_days">%1$d يوم تغطية</string>
+    <string name="stress_test_target_label">الهدف: %1$d يوم</string>
+    <string name="stress_test_emergency_fund_label">رصيد صندوق الطوارئ</string>
+    <string name="stress_test_edit_fund_action">تحديث الرصيد</string>
+    <string name="stress_test_suggested_saving_label">وفّر %1$s شهرياً عشان توصل للهدف</string>
+    <string name="stress_test_status_critical">حرج</string>
+    <string name="stress_test_status_low">منخفض</string>
+    <string name="stress_test_status_healthy">صحي</string>
+
+    <string name="debt_planner_title">مخطط سداد الديون</string>
+    <string name="debt_planner_subtitle">اختار استراتيجية السداد الأنسب لك</string>
+    <string name="debt_strategy_snowball">كرة الثلج (الأصغر الأول)</string>
+    <string name="debt_strategy_avalanche">الانهيار الجليدي (الأعلى فايدة الأول)</string>
+    <string name="debt_add_action">إضافة دين</string>
+    <string name="debt_total_months_label">%1$d شهر للسداد بالكامل</string>
+    <string name="debt_total_interest_label">إجمالي الفوايد: %1$s</string>
+    <string name="debt_empty_state_title">مفيش ديون متسجلة</string>
+    <string name="debt_empty_state_hint">ضيف ديونك عشان نساعدك تخطط للسداد</string>
+    <string name="debt_name_hint">اسم الدين</string>
+    <string name="debt_remaining_hint">المبلغ المتبقي</string>
+    <string name="debt_interest_rate_hint">معدل الفايدة السنوي %</string>
+    <string name="debt_minimum_payment_hint">أقل دفعة شهرية</string>
+
+    <string name="inflation_radar_title">رادار التضخم الشخصي</string>
+    <string name="inflation_radar_subtitle">قارن صرفك الشهر ده بمعتادك</string>
+    <string name="inflation_radar_increase_pill">+%1$s%%</string>
+    <string name="inflation_radar_decrease_pill">-%1$s%%</string>
+    <string name="inflation_radar_no_data">لسه مفيش بيانات كفاية للمقارنة</string>
+
+    <string name="nudge_card_title">ملاحظة سلوكية</string>
+    <string name="nudge_weekday_spike_text">بتصرف أكتر بـ%1$s%% يوم %2$s عن باقي أيامك</string>
+
+    <string name="buying_timing_title">توقيت الشراء الذكي</string>
+    <string name="buying_timing_subtitle">أحسن وقت تشتري فيه كل صنف</string>
+    <string name="buying_timing_buy_by_label">اشتري قبل %1$s (%2$d يوم)</string>
+    <string name="buying_timing_no_data">لسه مفيش بيانات استهلاك كفاية</string>
+
+    <string name="financial_challenges_title">تحديات العيلة المالية</string>
+    <string name="financial_challenge_create_action">تحدي جديد</string>
+    <string name="financial_challenge_join_family_hint">انضم لعيلة عشان تشارك في التحديات</string>
+    <string name="financial_challenge_empty_state">مفيش تحديات شغالة دلوقتي</string>
+    <string name="financial_challenge_progress_label">%1$s من %2$s</string>
+    <string name="financial_challenge_reward_label">المكافأة: %1$s</string>
+    <string name="financial_challenge_completed_label">خلصت التحدي! 🎉</string>
+    <string name="financial_challenge_contribute_action">خلص التحدي</string>
+    <string name="financial_challenge_title_hint">عنوان التحدي</string>
+    <string name="financial_challenge_target_hint">المبلغ المستهدف</string>
+    <string name="financial_challenge_reward_hint">قيمة المكافأة</string>
+    <string name="financial_challenge_duration_hint">المدة بالأيام</string>
     <string name="whatif_exceeds_at_month">(هيبدأ يتخطاها من شهر %1$d)</string>
     <string name="whatif_ai_loading">زاد بيحلل القرار...</string>
 

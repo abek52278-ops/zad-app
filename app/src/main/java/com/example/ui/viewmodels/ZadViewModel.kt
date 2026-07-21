@@ -1407,6 +1407,67 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // --- ديون العائلة (Feature 2: Debt Snowball/Avalanche) — لا تُخزّن في Room، تُحمّل من Supabase مباشرة مثل behaviorProfile ---
+    private val _debts = kotlinx.coroutines.flow.MutableStateFlow<List<com.example.data.ZadDebt>>(emptyList())
+    val debts: kotlinx.coroutines.flow.StateFlow<List<com.example.data.ZadDebt>> = _debts
+
+    fun loadDebts() {
+        viewModelScope.launch {
+            _debts.value = SupabaseRepo.getDebts()
+            Log.d(TAG, "loadDebts() → count=${_debts.value.size}")
+        }
+    }
+
+    fun addDebt(debt: com.example.data.ZadDebt) {
+        viewModelScope.launch {
+            try {
+                SupabaseRepo.addDebt(debt)
+                _debts.value = SupabaseRepo.getDebts()
+                Log.d(TAG, "addDebt() SUCCESS → name=${debt.name}")
+            } catch (e: Exception) {
+                Log.e(TAG, "addDebt() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    fun deleteDebt(id: String) {
+        viewModelScope.launch {
+            _debts.value = _debts.value.filter { it.id != id }
+            try {
+                SupabaseRepo.deleteDebt(id)
+            } catch (e: Exception) {
+                Log.e(TAG, "deleteDebt() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    fun updateDebtBalance(id: String, newRemainingBalance: Double) {
+        viewModelScope.launch {
+            _debts.value = _debts.value.map { if (it.id == id) it.copy(remainingBalance = newRemainingBalance) else it }
+            try {
+                SupabaseRepo.updateDebtRemainingBalance(id, newRemainingBalance)
+            } catch (e: Exception) {
+                Log.e(TAG, "updateDebtBalance() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    // --- رصيد صندوق الطوارئ (Feature 1: Financial Stress Test) ---
+    private val _emergencyFund = kotlinx.coroutines.flow.MutableStateFlow(0.0)
+    val emergencyFund: kotlinx.coroutines.flow.StateFlow<Double> = _emergencyFund
+
+    fun updateEmergencyFund(newValue: Double) {
+        viewModelScope.launch {
+            _emergencyFund.value = newValue
+            try {
+                SupabaseRepo.updateEmergencyFund(newValue)
+                Log.d(TAG, "updateEmergencyFund() SUCCESS → newValue=$newValue")
+            } catch (e: Exception) {
+                Log.e(TAG, "updateEmergencyFund() FAILED: ${e.message}")
+            }
+        }
+    }
+
     // --- وصفات ذكية مربوطة بالعقل: "عندك دجاج هينتهي بكرة → 3 وصفات بيه" ---
     data class UrgentRecipes(val triggerItems: List<String>, val text: String)
 
@@ -1679,6 +1740,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     if (!profile.avatarUri.isNullOrBlank()) {
                         _avatarUri.value = profile.avatarUri
                     }
+                    _emergencyFund.value = profile.emergencyFundBalance
                 }
                 // Fallback to email if no name set
                 if (_userName.value.isNullOrBlank()) {

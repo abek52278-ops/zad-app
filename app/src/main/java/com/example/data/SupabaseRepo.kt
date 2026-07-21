@@ -320,6 +320,67 @@ object SupabaseRepo {
         }
     }
 
+    // ─── Debts ─────────────────────────────────────────────────────────────────
+    suspend fun getDebts(): List<ZadDebt> {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id
+            Log.d(TAG, "getDebts() → userId=$userId, table=zad_debts")
+            val result = if (userId != null) {
+                client.postgrest["zad_debts"].select {
+                    filter { eq("user_id", userId) }
+                }.decodeList<ZadDebt>()
+            } else {
+                client.postgrest["zad_debts"].select().decodeList<ZadDebt>()
+            }
+            Log.d(TAG, "getDebts() → returned ${result.size} debts")
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "getDebts() FAILED: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun addDebt(debt: ZadDebt) {
+        try {
+            val userId = client.auth.currentUserOrNull()?.id
+            val debtWithUser = debt.copy(userId = userId)
+            Log.d(TAG, "addDebt() → table=zad_debts, name=${debtWithUser.name}, remainingBalance=${debtWithUser.remainingBalance}, userId=$userId")
+            client.postgrest["zad_debts"].insert(debtWithUser)
+            Log.d(TAG, "addDebt() SUCCESS — id=${debtWithUser.id}")
+        } catch (e: Exception) {
+            Log.e(TAG, "addDebt() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun deleteDebt(id: String) {
+        try {
+            Log.d(TAG, "deleteDebt() → table=zad_debts, id=$id")
+            client.postgrest["zad_debts"].delete {
+                filter { eq("id", id) }
+            }
+            Log.d(TAG, "deleteDebt() SUCCESS")
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteDebt() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun updateDebtRemainingBalance(id: String, newBalance: Double) {
+        try {
+            Log.d(TAG, "updateDebtRemainingBalance() → table=zad_debts, id=$id, newBalance=$newBalance")
+            client.postgrest["zad_debts"].update(
+                mapOf("remaining_balance" to newBalance)
+            ) {
+                filter { eq("id", id) }
+            }
+            Log.d(TAG, "updateDebtRemainingBalance() SUCCESS")
+        } catch (e: Exception) {
+            Log.e(TAG, "updateDebtRemainingBalance() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
     // ─── Family ─────────────────────────────────────────────────────────
     suspend fun createFamilyGroup(): FamilyGroup? {
         return try {
@@ -690,6 +751,23 @@ object SupabaseRepo {
         }
     }
 
+    // read-modify-write off the cached profile — a bare upsert(ZadUser(id=..., emergencyFundBalance=...))
+    // would clobber name/avatarUri to null like updateUserProfile()'s existing upsert does.
+    suspend fun updateEmergencyFund(newValue: Double): Boolean {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id ?: return false
+            val current = getUserProfile() ?: ZadUser(id = userId)
+            Log.d(TAG, "updateEmergencyFund() → userId=$userId, newValue=$newValue")
+            client.postgrest["zad_users"].upsert(current.copy(emergencyFundBalance = newValue))
+            Log.d(TAG, "updateEmergencyFund() SUCCESS")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "updateEmergencyFund() FAILED: ${e.message}")
+            e.printStackTrace()
+            false
+        }
+    }
+
     suspend fun deleteAccount(): Boolean {
         return try {
             val userId = client.auth.currentUserOrNull()?.id ?: return false
@@ -935,6 +1013,70 @@ object SupabaseRepo {
             Log.d(TAG, "updateChallengeProgress() SUCCESS")
         } catch (e: Exception) {
             Log.e(TAG, "updateChallengeProgress() FAILED: ${e.message}")
+        }
+    }
+
+    // ── Financial Challenges ──
+
+    suspend fun getActiveFinancialChallenges(): List<FinancialChallenge> {
+        try {
+            val myMember = getMyFamilyMember() ?: return emptyList()
+            return client.postgrest["family_financial_challenges"].select().decodeList<FinancialChallenge>().filter {
+                it.familyId == myMember.familyId && it.isActive
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getActiveFinancialChallenges() FAILED: ${e.message}")
+            return emptyList()
+        }
+    }
+
+    suspend fun createFinancialChallenge(challenge: FinancialChallenge): FinancialChallenge? {
+        try {
+            val inserted = client.postgrest["family_financial_challenges"].insert(challenge).decodeSingle<FinancialChallenge>()
+            Log.d(TAG, "createFinancialChallenge() SUCCESS")
+            return inserted
+        } catch (e: Exception) {
+            Log.e(TAG, "createFinancialChallenge() FAILED: ${e.message}")
+            return null
+        }
+    }
+
+    suspend fun getFinancialChallengeProgress(challengeId: String): List<FinancialChallengeProgress> {
+        try {
+            return client.postgrest["financial_challenge_progress"].select().decodeList<FinancialChallengeProgress>().filter {
+                it.challengeId == challengeId
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getFinancialChallengeProgress() FAILED: ${e.message}")
+            return emptyList()
+        }
+    }
+
+    suspend fun updateFinancialChallengeProgress(challengeId: String, userId: String, addedAmount: Double, isCompleted: Boolean) {
+        try {
+            val existing = client.postgrest["financial_challenge_progress"].select().decodeList<FinancialChallengeProgress>().find {
+                it.challengeId == challengeId && it.userId == userId
+            }
+            if (existing != null) {
+                client.postgrest["financial_challenge_progress"].update(
+                    mapOf(
+                        "current_amount" to (existing.currentAmount + addedAmount),
+                        "is_completed" to isCompleted
+                    )
+                ) { filter { eq("id", existing.id) } }
+            } else {
+                client.postgrest["financial_challenge_progress"].insert(
+                    mapOf(
+                        "challenge_id" to challengeId,
+                        "user_id" to userId,
+                        "current_amount" to addedAmount,
+                        "is_completed" to isCompleted
+                    )
+                )
+            }
+            Log.d(TAG, "updateFinancialChallengeProgress() SUCCESS")
+        } catch (e: Exception) {
+            Log.e(TAG, "updateFinancialChallengeProgress() FAILED: ${e.message}")
         }
     }
 

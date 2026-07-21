@@ -348,6 +348,7 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                     composable(Screen.Assistant.route) {
                         ZadIntelligenceScreen(
                             viewModel = viewModel,
+                            familyViewModel = familyViewModel,
                             onOpenDrawer = { scope.launch { drawerState.open() } }
                         )
                     }
@@ -425,7 +426,13 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                         HelpSupportScreen(onBack = { navController.popBackStack() }) 
                     }
                     composable(Screen.Features.route) { Box(Modifier.fillMaxSize(), contentAlignment=Alignment.Center) { Text("الميزات") } }
-                    composable(Screen.Analytics.route) { ZadIntelligenceScreen(viewModel) { scope.launch { drawerState.open() } } }
+                    composable(Screen.Analytics.route) {
+                        ZadIntelligenceScreen(
+                            viewModel = viewModel,
+                            familyViewModel = familyViewModel,
+                            onOpenDrawer = { scope.launch { drawerState.open() } }
+                        )
+                    }
 
                     // Sub-screens
                     composable(Screen.EditProfile.route) {

@@ -425,6 +425,75 @@ class FamilyViewModel : ViewModel() {
         }
     }
 
+    // --- تحديات العائلة المالية (Feature 5: Gamified Financial Challenges) ---
+    private val _financialChallenges = MutableStateFlow<List<FinancialChallenge>>(emptyList())
+    val financialChallenges: StateFlow<List<FinancialChallenge>> = _financialChallenges.asStateFlow()
+
+    private val _challengeProgress = MutableStateFlow<Map<String, List<FinancialChallengeProgress>>>(emptyMap())
+    val challengeProgress: StateFlow<Map<String, List<FinancialChallengeProgress>>> = _challengeProgress.asStateFlow()
+
+    fun loadFinancialChallenges() {
+        viewModelScope.launch {
+            val challenges = SupabaseRepo.getActiveFinancialChallenges()
+            _financialChallenges.value = challenges
+            _challengeProgress.value = challenges.associate { it.id to SupabaseRepo.getFinancialChallengeProgress(it.id) }
+        }
+    }
+
+    fun createFinancialChallenge(title: String, targetAmount: Double, rewardAmount: Double, durationDays: Int) {
+        viewModelScope.launch {
+            val curr = _state.value
+            if (curr is FamilyState.Active) {
+                val now = java.time.Instant.now()
+                val newChallenge = FinancialChallenge(
+                    familyId = curr.familyGroup.id,
+                    challengeType = if (durationDays <= 7) "weekly" else "monthly",
+                    title = title,
+                    targetAmount = targetAmount,
+                    rewardAmount = rewardAmount,
+                    startDate = now.toString(),
+                    endDate = now.plusSeconds(durationDays * 86400L).toString(),
+                    isActive = true
+                )
+                SupabaseRepo.createFinancialChallenge(newChallenge)
+                loadFinancialChallenges()
+            }
+        }
+    }
+
+    // مكافأة إتمام التحدي تتبع نفس منطق toggleChore()'s reward branch — تحديث رصيد
+    // العضو + إشعار، فقط عند بلوغ الهدف لأول مرة
+    fun contributeToChallenge(challengeId: String, memberId: String, amount: Double) {
+        viewModelScope.launch {
+            val curr = _state.value
+            if (curr !is FamilyState.Active) return@launch
+            val challenge = _financialChallenges.value.find { it.id == challengeId } ?: return@launch
+            val member = curr.members.find { it.id == memberId } ?: return@launch
+            val existingProgress = _challengeProgress.value[challengeId]?.find { it.userId == member.userId }
+            val newAmount = (existingProgress?.currentAmount ?: 0.0) + amount
+            val justCompleted = newAmount >= challenge.targetAmount && existingProgress?.isCompleted != true
+
+            SupabaseRepo.updateFinancialChallengeProgress(challengeId, member.userId, amount, newAmount >= challenge.targetAmount)
+
+            if (justCompleted && challenge.rewardAmount > 0) {
+                val newBalance = member.balance + challenge.rewardAmount
+                SupabaseRepo.updateFamilyMemberBalance(member.id, newBalance)
+                SupabaseRepo.sendAppNotification(
+                    userId = member.userId,
+                    title = "تحدي مكتمل! 🎉",
+                    message = "أنجزت تحدي: ${challenge.title}. تمت إضافة ${challenge.rewardAmount} ريال لرصيدك."
+                )
+                val updatedMembers = curr.members.map { if (it.id == member.id) it.copy(balance = newBalance) else it }
+                _state.value = curr.copy(
+                    members = updatedMembers,
+                    myMemberInfo = if (curr.myMemberInfo.id == member.id) curr.myMemberInfo.copy(balance = newBalance) else curr.myMemberInfo
+                )
+            }
+
+            loadFinancialChallenges()
+        }
+    }
+
     fun updateSavingsGoal(memberId: String, newGoal: Double) {
         viewModelScope.launch {
             val curr = _state.value
