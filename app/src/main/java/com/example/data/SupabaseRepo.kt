@@ -14,6 +14,9 @@ import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.auth
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.jsonObject
 
 private const val TAG = "SupabaseRepo"
 
@@ -819,17 +822,19 @@ object SupabaseRepo {
         return try {
             val result = client.postgrest.rpc(
                 "increment_tasbiha_clicks",
-                TasbihaIncrementParams(
-                    treeId = updatedTree.id,
-                    delta = delta,
-                    level = updatedTree.level,
-                    treeEmoji = updatedTree.stageEmoji(),
-                    isMature = updatedTree.isMature,
-                    maturedAt = updatedTree.maturedAt,
-                    streakDays = updatedTree.streakDays,
-                    lastStreakDate = updatedTree.lastStreakDate,
-                    lastTasbihAt = updatedTree.lastTasbihAt
-                )
+                Json.encodeToJsonElement(
+                    TasbihaIncrementParams(
+                        treeId = updatedTree.id,
+                        delta = delta,
+                        level = updatedTree.level,
+                        treeEmoji = updatedTree.stageEmoji(),
+                        isMature = updatedTree.isMature,
+                        maturedAt = updatedTree.maturedAt,
+                        streakDays = updatedTree.streakDays,
+                        lastStreakDate = updatedTree.lastStreakDate,
+                        lastTasbihAt = updatedTree.lastTasbihAt
+                    )
+                ).jsonObject
             ).decodeSingle<TasbihaTree>()
             Log.d(TAG, "incrementTasbihaClicks() SUCCESS — delta=$delta, newTotal=${result.totalClicks}")
             result

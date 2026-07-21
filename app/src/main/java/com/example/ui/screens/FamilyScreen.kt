@@ -1255,6 +1255,8 @@ fun ChatTab(
     var showEmojiPicker by remember { mutableStateOf<String?>(null) }
     var showQuickReplies by remember { mutableStateOf(false) }
     val sosMessageText = stringResource(R.string.sos_message)
+    val context = LocalContext.current
+    val needAmountPattern = stringResource(R.string.need_amount_purchase)
 
     // Start typing monitor
     LaunchedEffect(myMemberInfo.familyId) {

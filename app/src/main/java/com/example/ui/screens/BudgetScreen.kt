@@ -95,6 +95,7 @@ fun BudgetScreen(
             else -> transactions
         }.sortedByDescending { it.createdAt ?: "" }
     }
+    val todayFallbackLabel = stringResource(R.string.today_label)
 
     Box(modifier = Modifier.fillMaxSize().background(background)) {
         LazyColumn(
@@ -162,7 +163,7 @@ fun BudgetScreen(
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            com.example.data.CurrencyFormatter.format(context, animatedBalance),
+                            com.example.data.CurrencyFormatter.format(context, animatedBalance.toDouble()),
                             style = Typography.displayLarge.copy(fontSize = 40.sp),
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
@@ -417,7 +418,6 @@ fun BudgetScreen(
                     }
                 }
             } else {
-                val todayFallbackLabel = stringResource(R.string.today_label)
                 val grouped = filteredTx.groupBy { tx ->
                     try {
                         val inst = Instant.parse(tx.createdAt ?: "")

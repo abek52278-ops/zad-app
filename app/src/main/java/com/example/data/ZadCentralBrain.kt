@@ -701,12 +701,14 @@ object ZadCentralBrain {
      * Quick analysis for smart notifications from any part of the app
      */
     suspend fun generateSmartNotifications(
+        context: Context,
         inventory: List<ZadInventory>,
         transactions: List<ZadTransaction>,
         subscriptions: List<ZadSubscription>,
         behaviorPatterns: List<ZadBehaviorPattern>
     ): List<SmartNotification> {
         val result = fullAnalysis(
+            context = context,
             inventory = inventory,
             transactions = transactions,
             subscriptions = subscriptions,

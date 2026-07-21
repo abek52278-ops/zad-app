@@ -2208,10 +2208,11 @@ fun NotificationsBottomSheet(
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState()
+    val context = LocalContext.current
     val notifications by viewModel.appNotifications.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
     val budget by viewModel.budget.collectAsState()
-    
+
     val totalSpent = transactions.filter { it.isExpense }.sumOf { it.amount }
     val percentage = if (budget > 0) (totalSpent / budget * 100).toInt().coerceIn(0, 100) else 0
 
