@@ -268,22 +268,23 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     /** يستدعى من MainScreen كلما تغيرت حالة العائلة — عشان الشات يعرف كل حاجة عنها */
     fun updateFamilyContext(state: FamilyState?) {
         val active = state as? FamilyState.Active ?: run { _familyContext.value = null; return }
+        val ctx = getApplication<Application>()
         _familyContext.value = buildString {
             appendLine("عدد أفراد العائلة: ${active.members.size}")
             active.members.forEach { m ->
                 append("- ${m.alias.ifBlank { "عضو" }} (${if (m.role == "admin") "ولي أمر" else "طفل"})")
-                if (m.role != "admin") append(" — رصيده ${m.balance.toInt()} ر.س" +
-                    if (m.savingsGoal > 0) "، هدف توفيره ${m.savingsGoal.toInt()} ر.س" else "")
+                if (m.role != "admin") append(" — رصيده ${com.example.data.CurrencyFormatter.format(ctx, m.balance)}" +
+                    if (m.savingsGoal > 0) "، هدف توفيره ${com.example.data.CurrencyFormatter.format(ctx, m.savingsGoal)}" else "")
                 appendLine()
             }
             val pendingChores = active.chores.filter { !it.isCompleted }
             if (pendingChores.isNotEmpty()) {
                 appendLine("مهام غير مكتملة: ${pendingChores.joinToString("، ") {
-                    "${it.title}${if (it.rewardAmount > 0) " (مكافأة ${it.rewardAmount.toInt()} ر.س)" else ""}"
+                    "${it.title}${if (it.rewardAmount > 0) " (مكافأة ${com.example.data.CurrencyFormatter.format(ctx, it.rewardAmount)})" else ""}"
                 }}")
             }
             active.goals.firstOrNull()?.let { g ->
-                appendLine("هدف التوفير العائلي: ${g.currentAmount.toInt()} من ${g.targetAmount.toInt()} ر.س")
+                appendLine("هدف التوفير العائلي: ${com.example.data.CurrencyFormatter.formatNumber(ctx, g.currentAmount)} من ${com.example.data.CurrencyFormatter.format(ctx, g.targetAmount)}")
             }
             val pendingGroceries = active.groceries.filter { !it.isPurchased }
             if (pendingGroceries.isNotEmpty()) {
@@ -309,7 +310,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         val txText = _transactions.value.sortedByDescending { it.createdAt ?: "" }.take(30).joinToString("\n") {
-            "- ${it.title}: ${it.amount} ر.س (${if (it.isExpense) "مصروف" else "دخل"}${it.category?.let { c -> "، $c" } ?: ""}${it.createdAt?.take(10)?.let { d -> "، $d" } ?: ""})"
+            "- ${it.title}: ${com.example.data.CurrencyFormatter.format(ctx, it.amount)} (${if (it.isExpense) "مصروف" else "دخل"}${it.category?.let { c -> "، $c" } ?: ""}${it.createdAt?.take(10)?.let { d -> "، $d" } ?: ""})"
         }
 
         // المصروف الفعلي بيتحسب من المعاملات مباشرة (بيشمل اليدوية + البنكية)، الميزانية من BudgetTracker
@@ -324,25 +325,25 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             .map { cat -> Triple(cat, com.example.data.BudgetTracker.getCategoryBudget(ctx, cat), spentByCategoryThisMonth[cat] ?: 0.0) }
             .filter { it.second > 0 || it.third > 0 }
             .joinToString("\n") { (cat, catBudget, spent) ->
-                "- $cat: صرف ${spent.toInt()} ر.س" + if (catBudget > 0) " من ميزانية ${catBudget.toInt()} ر.س" else " (بدون ميزانية محددة)"
+                "- $cat: صرف ${com.example.data.CurrencyFormatter.format(ctx, spent)}" + if (catBudget > 0) " من ميزانية ${com.example.data.CurrencyFormatter.format(ctx, catBudget)}" else " (بدون ميزانية محددة)"
             }
 
         val subText = _subscriptions.value.filter { it.isActive }.joinToString("\n") { sub ->
-            "- ${sub.title}: ${sub.amount} ر.س/شهر" + (sub.renewalDate?.take(10)?.let { " (يتجدد $it)" } ?: "")
+            "- ${sub.title}: ${com.example.data.CurrencyFormatter.format(ctx, sub.amount)}/شهر" + (sub.renewalDate?.take(10)?.let { " (يتجدد $it)" } ?: "")
         }
 
         val shoppingText = _shoppingList.value.filter { !it.isPurchased }
             .joinToString("، ") { it.itemName }
 
         val patternsText = _behaviorPatterns.value.take(8).joinToString("\n") {
-            "- ${it.category}: متوسط ${it.avgAmount.toInt()} ر.س كل ${it.frequencyDays} يوم"
+            "- ${it.category}: متوسط ${com.example.data.CurrencyFormatter.format(ctx, it.avgAmount)} كل ${it.frequencyDays} يوم"
         }
 
         val report = _brainReport.value
         val brainText = report?.let { r ->
             buildString {
                 appendLine("الصحة المالية: ${r.healthScore}/100 (${r.healthLabel})")
-                appendLine("قوة الصرف: مسموح ${r.spendingPower.dailySafeSpend.toInt()} ر.س/يوم بأمان، معدله الفعلي ${r.spendingPower.currentDailyAvg.toInt()} ر.س/يوم")
+                appendLine("قوة الصرف: مسموح ${com.example.data.CurrencyFormatter.format(ctx, r.spendingPower.dailySafeSpend)}/يوم بأمان، معدله الفعلي ${com.example.data.CurrencyFormatter.format(ctx, r.spendingPower.currentDailyAvg)}/يوم")
                 r.monthComparison?.let { mc ->
                     appendLine("مقارنة بالشهر الماضي: ${if (mc.deltaPct >= 0) "+" else ""}${mc.deltaPct}%")
                 }
@@ -354,7 +355,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         } ?: ""
 
         val prediction = _expensePrediction.value?.let {
-            "توقع صرف الشهر القادم: ${it.predictedTotal.toInt()} ر.س (ثقة ${(it.confidence * 100).toInt()}%)"
+            "توقع صرف الشهر القادم: ${com.example.data.CurrencyFormatter.format(ctx, it.predictedTotal)} (ثقة ${(it.confidence * 100).toInt()}%)"
         } ?: ""
 
         val familyText = _familyContext.value ?: "غير منضم لعائلة بعد."
@@ -362,7 +363,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         return """
             === معلومات العميل ===
             الاسم: ${_userName.value ?: "مستخدم"} | التاريخ اليوم: $today
-            الميزانية الشهرية: ${_budget.value.toInt()} ر.س | المتبقي: ${com.example.data.BudgetTracker.getRemaining(ctx).toInt()} ر.س
+            الميزانية الشهرية: ${com.example.data.CurrencyFormatter.format(ctx, _budget.value)} | المتبقي: ${com.example.data.CurrencyFormatter.format(ctx, com.example.data.BudgetTracker.getRemaining(ctx))}
 
             === مخزون المنزل (بتنبؤات النفاد) ===
             ${invText.ifBlank { "لا يوجد عناصر حالياً." }}
@@ -476,6 +477,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         try {
             val smartAlerts = mutableListOf<com.example.data.AppNotification>()
             val today = java.time.LocalDate.now()
+            val ctx = getApplication<Application>()
 
             // 1. Budget threshold alert (85%)
             val spent = _transactions.value.filter { it.isExpense }.sumOf { it.amount }
@@ -490,7 +492,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                         com.example.data.AppNotification(
                             userId = userId,
                             title = "⚠️ تنبيه الميزانية — $pct%",
-                            message = "لقد صرفت ${String.format("%.0f", spent)} ر.س من ميزانيتك ${budgetVal.toInt()} ر.س. راجع مصاريفك!",
+                            message = "لقد صرفت ${com.example.data.CurrencyFormatter.format(ctx, spent)} من ميزانيتك ${com.example.data.CurrencyFormatter.format(ctx, budgetVal)}. راجع مصاريفك!",
                             isRead = false
                         )
                     )
@@ -511,7 +513,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                                 com.example.data.AppNotification(
                                     userId = userId,
                                     title = "🔔 تجديد ${sub.title} قريب!",
-                                    message = "سيتجدد اشتراكك في ${sub.title} بمبلغ ${sub.amount.toInt()} ر.س خلال $daysLeft أيام.",
+                                    message = "سيتجدد اشتراكك في ${sub.title} بمبلغ ${com.example.data.CurrencyFormatter.format(ctx, sub.amount)} خلال $daysLeft أيام.",
                                     isRead = false
                                 )
                             )
@@ -1148,7 +1150,8 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val newInsights = mutableListOf<com.example.data.AiInsight>()
             val txs = _transactions.value
-            
+            val ctx = getApplication<Application>()
+
             subs.filter { it.isActive }.forEach { sub ->
                 val yearlyCost = sub.amount * 12
                 val relatedTxs = txs.filter { it.title.contains(sub.title, ignoreCase = true) }
@@ -1166,7 +1169,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     newInsights.add(
                         com.example.data.AiInsight(
                             title = "اشتراك غير مستغل: ${sub.title}",
-                            description = "لم نلاحظ أي نشاط لاشتراك ${sub.title} مؤخراً. التوفير المحتمل: $yearlyCost ر.س سنوياً عند الإلغاء.",
+                            description = "لم نلاحظ أي نشاط لاشتراك ${sub.title} مؤخراً. التوفير المحتمل: ${com.example.data.CurrencyFormatter.format(ctx, yearlyCost)} سنوياً عند الإلغاء.",
                             type = "Warning"
                         )
                     )
@@ -1174,7 +1177,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     newInsights.add(
                         com.example.data.AiInsight(
                             title = "تكلفة اشتراك عالية: ${sub.title}",
-                            description = "هذا الاشتراك يكلفك $yearlyCost ر.س سنوياً. هل يستحق الاستمرار؟",
+                            description = "هذا الاشتراك يكلفك ${com.example.data.CurrencyFormatter.format(ctx, yearlyCost)} سنوياً. هل يستحق الاستمرار؟",
                             type = "Tip"
                         )
                     )
@@ -1468,10 +1471,11 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         val weeklyMean = mean * 7
         
         if (recentWeekExpense > weeklyMean + 2 * stdDev) {
+            val ctx = getApplication<Application>()
             val pctOver = ((recentWeekExpense - weeklyMean) / weeklyMean * 100).toInt()
             val anomalyInsight = com.example.data.AiInsight(
                 title = "⚠️ إنفاق غير مألوف هذا الأسبوع",
-                description = "أنفقت $pctOver% أكثر من المعتاد هذا الأسبوع. إجمالي 7 أيام: ${recentWeekExpense.toInt()} ر.س مقابل متوسط ${weeklyMean.toInt()} ر.س",
+                description = "أنفقت $pctOver% أكثر من المعتاد هذا الأسبوع. إجمالي 7 أيام: ${com.example.data.CurrencyFormatter.format(ctx, recentWeekExpense)} مقابل متوسط ${com.example.data.CurrencyFormatter.format(ctx, weeklyMean)}",
                 type = "Alert"
             )
             val current = _insights.value.toMutableList()
