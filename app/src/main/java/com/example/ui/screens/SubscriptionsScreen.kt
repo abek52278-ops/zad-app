@@ -111,8 +111,15 @@ fun SubscriptionsScreen(
                     ).padding(20.dp)
             ) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier.size(44.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.18f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.CreditCard, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.total_monthly_subscriptions), style = Typography.titleMedium, color = Color.White.copy(alpha = 0.8f))
+                        Text(stringResource(R.string.total_monthly_subscriptions), style = Typography.labelMedium, color = Color.White.copy(alpha = 0.85f))
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(com.example.data.CurrencyFormatter.format(context, totalMonthly), style = Typography.displaySmall, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                     }
@@ -166,11 +173,11 @@ fun SubscriptionsScreen(
             ) {
                 if (filtered.isEmpty()) {
                     item {
-                        Column(modifier = Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.Subscriptions, contentDescription = null, tint = onSurfaceVariant.copy(alpha = 0.4f), modifier = Modifier.size(64.dp))
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(if (selectedTab == 0) stringResource(R.string.no_subscriptions_any) else stringResource(R.string.no_items_in_category), style = Typography.titleMedium, color = onSurfaceVariant)
-                        }
+                        com.example.ui.components.ZadEmptyState(
+                            icon = Icons.Default.Subscriptions,
+                            title = if (selectedTab == 0) stringResource(R.string.no_subscriptions_any) else stringResource(R.string.no_items_in_category),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
+                        )
                     }
                 } else {
                     items(filtered, key = { it.id }) { sub ->
@@ -240,7 +247,15 @@ private fun SubScreenSubscriptionCardFull(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = if (sub.isActive) surface else surfaceContainerLow)
     ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+            // مؤشر لوني بحسب إلحاحية التجديد — نفس لغة التصميم اللي استخدمناها في مؤشر مخزون InventoryScreen
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(if (sub.isActive) daysColor else outlineVariant)
+            )
+            Row(modifier = Modifier.padding(16.dp).weight(1f), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier.size(48.dp).clip(CircleShape).background(catBillsBg),
                 contentAlignment = Alignment.Center
@@ -287,6 +302,7 @@ private fun SubScreenSubscriptionCardFull(
             }
             IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
                 Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_action), tint = dangerColor, modifier = Modifier.size(18.dp))
+            }
             }
         }
     }

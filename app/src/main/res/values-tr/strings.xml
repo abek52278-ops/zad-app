@@ -294,6 +294,12 @@
     <string name="shortages_summary_title">%1$d eksiğin var</string>
     <string name="shortages_summary_subtitle">Bitmeden alışveriş listesine ekle</string>
     <string name="view_shortages_action">Eksikleri gör</string>
+
+    <!-- FamilyScreen: member/task cards visual pass (Phase 4 part 4) -->
+    <string name="chores_count_pill">%1$d görev</string>
+    <string name="tasbiha_count_pill">%1$d zikir</string>
+    <string name="tasks_completed_count">%1$d/%2$d tamamlandı</string>
+    <string name="chores_completed_ratio_pill">%1$d/%2$d görev</string>
     <string-array name="week_day_labels">
         <item>Pazar</item>
         <item>Pazartesi</item>

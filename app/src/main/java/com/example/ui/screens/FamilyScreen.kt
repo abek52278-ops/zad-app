@@ -394,32 +394,32 @@ private fun KidsSpendingTab(
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(child.alias, fontWeight = FontWeight.Bold, color = onSurface)
-                            Text(stringResource(R.string.balance_colon, com.example.data.CurrencyFormatter.format(currencyContext, child.balance)) + if (child.savingsGoal > 0) " | " + stringResource(R.string.goal_colon, com.example.data.CurrencyFormatter.format(currencyContext, child.savingsGoal)) else "", fontSize = 12.sp, color = onSurfaceVariant)
+                            Text(stringResource(R.string.balance_colon, com.example.data.CurrencyFormatter.format(currencyContext, child.balance)) + if (child.savingsGoal > 0) " | " + stringResource(R.string.goal_colon, com.example.data.CurrencyFormatter.format(currencyContext, child.savingsGoal)) else "", style = Typography.labelSmall, color = onSurfaceVariant)
                         }
                         Surface(shape = RoundedCornerShape(8.dp), color = primary.copy(alpha = 0.1f)) {
-                            Text("$completed/${childChores.size} مهام", modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontSize = 11.sp, color = primary)
+                            Text(stringResource(R.string.chores_completed_ratio_pill, completed, childChores.size), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = Typography.labelSmall, color = primary)
                         }
                     }
                     if (childRequests.isNotEmpty()) {
                         Spacer(Modifier.height(8.dp))
                         Surface(shape = RoundedCornerShape(8.dp), color = surface, modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(8.dp)) {
-                                Text(stringResource(R.string.pending_requests_count, childRequests.size), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = onSurfaceVariant)
+                                Text(stringResource(R.string.pending_requests_count, childRequests.size), style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = onSurfaceVariant)
                                 childRequests.filter { it.metadata?.contains("\"status\":\"PENDING\"") == true }.take(3).forEach { req ->
                                     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFFFF9800))
                                         Spacer(Modifier.width(6.dp))
-                                        Text(req.message, fontSize = 12.sp, color = onSurface, modifier = Modifier.weight(1f), maxLines = 1)
+                                        Text(req.message, style = Typography.labelSmall, color = onSurface, modifier = Modifier.weight(1f), maxLines = 1)
                                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                             TextButton(onClick = { onUpdateRequestStatus(req.id, "APPROVED", approvedEmojiText) }, contentPadding = PaddingValues(4.dp)) {
                                                 Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp), tint = primary)
                                                 Spacer(Modifier.width(2.dp))
-                                                Text(stringResource(R.string.approve), fontSize = 10.sp)
+                                                Text(stringResource(R.string.approve), style = Typography.labelSmall)
                                             }
                                             TextButton(onClick = { onUpdateRequestStatus(req.id, "REJECTED", rejectedEmojiText) }, contentPadding = PaddingValues(4.dp), colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
                                                 Icon(Icons.Default.Cancel, contentDescription = null, modifier = Modifier.size(14.dp))
                                                 Spacer(Modifier.width(2.dp))
-                                                Text(stringResource(R.string.reject), fontSize = 10.sp)
+                                                Text(stringResource(R.string.reject), style = Typography.labelSmall)
                                             }
                                         }
                                     }
@@ -512,18 +512,18 @@ private fun MemberDetailCard(
                     ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(member.alias.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 24.sp)
+                    Text(member.alias.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold, style = Typography.titleLarge)
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(member.alias, fontWeight = FontWeight.Bold, color = onSurface, fontSize = 18.sp)
+                        Text(member.alias, fontWeight = FontWeight.Bold, color = onSurface, style = Typography.titleMedium)
                         if (member.role == "admin") {
                             Spacer(Modifier.width(8.dp))
                             Surface(shape = RoundedCornerShape(8.dp), color = primary.copy(alpha = 0.15f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(14.dp), tint = primary)
-                                    Text(stringResource(R.string.admin_badge), fontSize = 11.sp, color = primary, fontWeight = FontWeight.Bold)
+                                    Text(stringResource(R.string.admin_badge), style = Typography.labelSmall, color = primary, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -531,8 +531,8 @@ private fun MemberDetailCard(
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         StatPill(Icons.Default.MonetizationOn, com.example.data.CurrencyFormatter.format(context, member.balance))
-                        StatPill(Icons.Default.CheckCircle, "$completedChores مهام")
-                        StatPill(Icons.Default.Park, "${memberTrees.sumOf { it.score }} تسبيحة")
+                        StatPill(Icons.Default.CheckCircle, stringResource(R.string.chores_count_pill, completedChores))
+                        StatPill(Icons.Default.Park, stringResource(R.string.tasbiha_count_pill, memberTrees.sumOf { it.score }))
                     }
                 }
                 Icon(Icons.Default.ChevronRight, null, tint = onSurfaceVariant)
@@ -568,7 +568,7 @@ private fun StatPill(icon: ImageVector, text: String) {
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp), tint = onSurfaceVariant)
-            Text(text, fontSize = 12.sp, color = onSurfaceVariant)
+            Text(text, style = Typography.labelSmall, color = onSurfaceVariant)
         }
     }
 }
@@ -753,6 +753,7 @@ private fun TasksTab(
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf("الكل") }
     val filters = listOf("الكل", "قادمة", "منجزة")
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     // Group chores by member
     val choresByMember = members.associateWith { member ->
@@ -783,7 +784,7 @@ private fun TasksTab(
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                "${chores.count { it.isCompleted }}/${chores.size} منجزة",
+                stringResource(R.string.tasks_completed_count, chores.count { it.isCompleted }, chores.size),
                 style = Typography.bodyMedium,
                 color = onSurfaceVariant
             )
@@ -861,29 +862,37 @@ private fun TasksTab(
                                 Text(
                                     chore.title,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
+                                    style = Typography.bodyLarge,
                                     color = if (chore.isCompleted) Color.Gray else onSurface,
                                     textDecoration = if (chore.isCompleted) androidx.compose.ui.text.style.TextDecoration.LineThrough else null
                                 )
-                                if (chore.rewardAmount > 0) {
-                                    Text(
-                                        "${chore.rewardAmount} ريال",
-                                        color = if (chore.isCompleted) primary else secondary,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    if (chore.rewardAmount > 0) {
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = (if (chore.isCompleted) primary else secondary).copy(alpha = 0.12f)
+                                        ) {
+                                            Text(
+                                                com.example.data.CurrencyFormatter.format(context, chore.rewardAmount),
+                                                color = if (chore.isCompleted) primary else secondary,
+                                                style = Typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                    if (chore.dueDate != null) {
+                                        Text(
+                                            chore.dueDate.take(10),
+                                            style = Typography.labelSmall,
+                                            color = onSurfaceVariant
+                                        )
+                                    }
                                 }
-                            if (chore.dueDate != null) {
-                                Text(
-                                    chore.dueDate.take(10),
-                                    fontSize = 11.sp,
-                                    color = onSurfaceVariant
-                                )
                             }
                         }
                     }
                 }
-            }
 
                 item { Spacer(Modifier.height(8.dp)) }
             }

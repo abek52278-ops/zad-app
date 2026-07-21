@@ -294,6 +294,12 @@
     <string name="shortages_summary_title">عندك %1$d نواقص</string>
     <string name="shortages_summary_subtitle">ضيفها لقائمة التسوق قبل لا تخلص</string>
     <string name="view_shortages_action">عرض النواقص</string>
+
+    <!-- FamilyScreen: member/task cards visual pass (Phase 4 part 4) -->
+    <string name="chores_count_pill">%1$d مهام</string>
+    <string name="tasbiha_count_pill">%1$d تسبيحة</string>
+    <string name="tasks_completed_count">%1$d/%2$d منجزة</string>
+    <string name="chores_completed_ratio_pill">%1$d/%2$d مهام</string>
     <string-array name="week_day_labels">
         <item>أحد</item>
         <item>اثنين</item>
