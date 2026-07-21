@@ -276,6 +276,7 @@ private fun TransactionTopBar(
 
 @Composable
 private fun TransactionSummaryHeader(income: Double, expense: Double, balance: Double, budget: Double) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val usagePercent = if (budget > 0) (expense / budget * 100).toFloat().coerceIn(0f, 100f) else 0f
     val isOverBudget = expense > budget
 
@@ -318,13 +319,13 @@ private fun TransactionSummaryHeader(income: Double, expense: Double, balance: D
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
-                    String.format("%,.2f", balance),
+                    com.example.data.CurrencyFormatter.formatNumber(context, balance),
                     fontSize = 32.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(Modifier.width(6.dp))
-                Text("ر.س", fontSize = 14.sp, color = Color.White.copy(alpha = 0.6f), modifier = Modifier.padding(bottom = 4.dp))
+                Text(com.example.data.CurrencyFormatter.symbol(context), fontSize = 14.sp, color = Color.White.copy(alpha = 0.6f), modifier = Modifier.padding(bottom = 4.dp))
             }
             Spacer(Modifier.height(16.dp))
 

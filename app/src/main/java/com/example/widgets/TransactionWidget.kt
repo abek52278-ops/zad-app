@@ -15,8 +15,6 @@ import com.example.data.local.ZadDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.text.NumberFormat
-import java.util.Locale
 
 class TransactionWidget : AppWidgetProvider() {
 
@@ -75,11 +73,7 @@ class TransactionWidget : AppWidgetProvider() {
                     val expense = transactions.filter { it.isExpense }.sumOf { it.amount }
                     val balance = income - expense
 
-                    val fmt = NumberFormat.getNumberInstance(Locale.US)
-                    fmt.minimumFractionDigits = 2
-                    fmt.maximumFractionDigits = 2
-
-                    views.setTextViewText(R.id.widget_balance, "${fmt.format(balance)} ر.س")
+                    views.setTextViewText(R.id.widget_balance, com.example.data.CurrencyFormatter.format(context, balance))
 
                     // Add transaction rows
                     val recentTx = transactions.sortedByDescending { it.createdAt ?: "" }.take(3)
@@ -97,7 +91,7 @@ class TransactionWidget : AppWidgetProvider() {
                             val itemView = RemoteViews(context.packageName, R.layout.widget_tx_item)
                             itemView.setTextViewText(R.id.widget_tx_title, tx.title)
                             itemView.setTextViewText(R.id.widget_tx_amount,
-                                "${if (tx.isExpense) "-" else "+"}${fmt.format(tx.amount)} ر.س")
+                                "${if (tx.isExpense) "-" else "+"}${com.example.data.CurrencyFormatter.format(context, tx.amount)}")
                             itemView.setTextColor(R.id.widget_tx_amount,
                                 if (tx.isExpense) Color.parseColor("#E85D5D") else Color.parseColor("#53B175"))
 

@@ -153,9 +153,9 @@ fun CameraScreen(
                                     )
                                 }
                             ) { summary ->
-                                analysisStatus = "فاتورة ${result.storeName} (${result.total} ر.س): $summary"
+                                analysisStatus = "فاتورة ${result.storeName} (${com.example.data.CurrencyFormatter.format(context, result.total)}): $summary"
                             }
-                            analysisStatus = "تم تسجيل فاتورة ${result.storeName} بقيمة ${result.total} ر.س والمنتجات في المخزون!"
+                            analysisStatus = "تم تسجيل فاتورة ${result.storeName} بقيمة ${com.example.data.CurrencyFormatter.format(context, result.total)} والمنتجات في المخزون!"
                             try {
                                 val vib = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? Vibrator
                                 if (Build.VERSION.SDK_INT >= 26) {

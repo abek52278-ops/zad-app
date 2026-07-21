@@ -693,6 +693,7 @@ fun BudgetCardSection(
 @Composable
 fun BudgetEditDialog(currentBudget: Double, onDismiss: () -> Unit, onSave: (Double) -> Unit) {
     var budgetStr by remember { mutableStateOf(currentBudget.toInt().toString()) }
+    val context = LocalContext.current
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("تعديل الميزانية الشهرية") },
@@ -702,7 +703,7 @@ fun BudgetEditDialog(currentBudget: Double, onDismiss: () -> Unit, onSave: (Doub
                 OutlinedTextField(
                     value = budgetStr,
                     onValueChange = { budgetStr = it },
-                    label = { Text("الميزانية (ر.س)") },
+                    label = { Text("الميزانية (${com.example.data.CurrencyFormatter.symbol(context)})") },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -1621,7 +1622,8 @@ fun MiniTransactionsWidget(
     onNavigateToTransactions: () -> Unit
 ) {
     val recentTransactions = transactions.sortedByDescending { it.id }.take(3)
-    
+    val context = LocalContext.current
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = surface),
@@ -1677,7 +1679,7 @@ fun MiniTransactionsWidget(
                             }
                         }
                         Text(
-                            text = "${if (tx.isExpense) "-" else "+"}${tx.amount} ر.س",
+                            text = "${if (tx.isExpense) "-" else "+"}${com.example.data.CurrencyFormatter.format(context, tx.amount)}",
                             style = Typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
                             color = if (tx.isExpense) dangerColor else successColor
@@ -2193,7 +2195,7 @@ fun NotificationsBottomSheet(
             tx.createdAt?.startsWith(today) == true && tx.category == "الاشتراكات"
         }
         recentSubscriptions.forEach { tx ->
-            smartList.add(SmartNotification("تم اكتشاف اشتراك: ${tx.title}", "اشتراك جديد بقيمة ${tx.amount} ر.س", Icons.Default.Subscriptions, Color(0xFF2196F3)))
+            smartList.add(SmartNotification("تم اكتشاف اشتراك: ${tx.title}", "اشتراك جديد بقيمة ${com.example.data.CurrencyFormatter.format(context, tx.amount)}", Icons.Default.Subscriptions, Color(0xFF2196F3)))
         }
 
         smartList
@@ -2510,6 +2512,7 @@ fun DashboardGrid(
     onNavigateToBudget: () -> Unit,
     onNavigateToFamily: () -> Unit
 ) {
+    val context = LocalContext.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -2550,7 +2553,7 @@ fun DashboardGrid(
                     Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = Color.White)
                 }
                 Column {
-                    Text(text = "${budgetLeft.toInt()} ر.س", style = Typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                    Text(text = com.example.data.CurrencyFormatter.format(context, budgetLeft), style = Typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = Color.White)
                     Text(text = stringResource(R.string.remaining), style = Typography.labelMedium, color = Color.White.copy(alpha = 0.8f))
                 }
             }

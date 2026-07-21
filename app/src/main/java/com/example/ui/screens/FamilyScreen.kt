@@ -480,6 +480,7 @@ private fun MemberDetailCard(
     state: FamilyState.Active,
     onClick: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val memberTrees = viewModel.getMemberTrees(member.id)
     val memberChores = state.chores.filter { it.assignedTo == member.id }
     val completedChores = memberChores.count { it.isCompleted }
@@ -521,7 +522,7 @@ private fun MemberDetailCard(
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        StatPill(Icons.Default.MonetizationOn, "${member.balance} ر.س")
+                        StatPill(Icons.Default.MonetizationOn, com.example.data.CurrencyFormatter.format(context, member.balance))
                         StatPill(Icons.Default.CheckCircle, "$completedChores مهام")
                         StatPill(Icons.Default.Park, "${memberTrees.sumOf { it.score }} تسبيحة")
                     }

@@ -53,7 +53,7 @@ class MorningSummaryWorker(
             }
 
             val body = buildString {
-                append("قوة صرفك اليوم: ${report.spendingPower.dailySafeSpend.toInt()} ر.س بأمان (${report.spendingPower.status})")
+                append("قوة صرفك اليوم: ${com.example.data.CurrencyFormatter.format(applicationContext, report.spendingPower.dailySafeSpend)} بأمان (${report.spendingPower.status})")
 
                 val expiring = inventory.filter { item ->
                     item.expiryDate?.let {

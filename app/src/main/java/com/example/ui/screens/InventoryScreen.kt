@@ -339,6 +339,7 @@ private fun getEstimatedPrice(itemName: String): Double {
 
 @Composable
 private fun LowStockBanner(items: List<ZadInventory>, onShopClick: () -> Unit = {}) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val totalEstimatedCost = items.sumOf { getEstimatedPrice(it.itemName) }
 
     Row(
@@ -373,7 +374,7 @@ private fun LowStockBanner(items: List<ZadInventory>, onShopClick: () -> Unit = 
                 color = onErrorContainer
             )
             Text(
-                "التكلفة التقديرية للتسوق: $totalEstimatedCost ر.س",
+                "التكلفة التقديرية للتسوق: ${com.example.data.CurrencyFormatter.format(context, totalEstimatedCost)}",
                 style = MaterialTheme.typography.bodySmall,
                 color = onErrorContainer.copy(alpha = 0.8f)
             )

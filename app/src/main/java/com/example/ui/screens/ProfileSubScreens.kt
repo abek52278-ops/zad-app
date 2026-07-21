@@ -240,6 +240,7 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
     val budget by viewModel.budget.collectAsState()
     var editMode by remember { mutableStateOf(false) }
     var newBudgetStr by remember { mutableStateOf(budget.toString()) }
+    val context = LocalContext.current
 
     LaunchedEffect(budget) {
         Log.d(TAG_SUB_PROF, "PaymentAndBudgetScreen loaded — current budget=$budget")
@@ -276,7 +277,7 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
                         }
                     } else {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                            Text("${String.format("%,.0f", budget)} ر.س", style = Typography.headlineMedium, color = primary, fontWeight = FontWeight.Bold)
+                            Text(com.example.data.CurrencyFormatter.format(context, budget), style = Typography.headlineMedium, color = primary, fontWeight = FontWeight.Bold)
                             IconButton(onClick = { editMode = true }) {
                                 Icon(Icons.Default.Edit, contentDescription = "Edit Budget", tint = primary)
                             }
@@ -289,8 +290,7 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
             Spacer(modifier = Modifier.height(4.dp))
             Text("بيحدد اللغة/اللهجة والعملة المستخدمة في كل التطبيق", style = Typography.bodySmall, color = onSurfaceVariant)
             Spacer(modifier = Modifier.height(12.dp))
-            val marketContext = LocalContext.current
-            var selectedMarket by remember { mutableStateOf(com.example.data.MarketPrefs.getMarket(marketContext)) }
+            var selectedMarket by remember { mutableStateOf(com.example.data.MarketPrefs.getMarket(context)) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 com.example.data.Market.entries.forEach { market ->
                     val isSelected = market == selectedMarket
@@ -299,7 +299,7 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
                             .weight(1f)
                             .clickable {
                                 selectedMarket = market
-                                com.example.data.MarketPrefs.setMarket(marketContext, market)
+                                com.example.data.MarketPrefs.setMarket(context, market)
                             },
                         shape = RoundedCornerShape(12.dp),
                         color = if (isSelected) primary.copy(alpha = 0.15f) else surfaceContainer,
@@ -320,7 +320,6 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
             Spacer(modifier = Modifier.height(24.dp))
             Text("الربط التلقائي للبنوك", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
             Spacer(modifier = Modifier.height(12.dp))
-            val context = LocalContext.current
             fun checkBankSyncGranted() = android.provider.Settings.Secure
                 .getString(context.contentResolver, "enabled_notification_listeners")
                 ?.contains(context.packageName) == true

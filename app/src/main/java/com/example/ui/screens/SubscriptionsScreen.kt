@@ -41,6 +41,7 @@ fun SubscriptionsScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
     var showInactive by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     val tabs = listOf("الكل", "اشتراكات", "فواتير", "أقساط")
     val activeSubs = subscriptions.filter { it.isActive }
@@ -106,7 +107,7 @@ fun SubscriptionsScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text("إجمالي الاشتراكات الشهرية", style = Typography.titleMedium, color = Color.White.copy(alpha = 0.8f))
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text("${String.format("%,.0f", totalMonthly)} ر.س", style = Typography.displaySmall, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                        Text(com.example.data.CurrencyFormatter.format(context, totalMonthly), style = Typography.displaySmall, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         Text("اشتراكات نشطة", style = Typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
@@ -213,6 +214,7 @@ private fun SubScreenSubscriptionCardFull(
     onToggleActive: () -> Unit,
     onDelete: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val today = LocalDate.now()
     val renewal = try {
         if (!sub.renewalDate.isNullOrBlank()) LocalDate.parse(sub.renewalDate.take(10)) else null
@@ -264,7 +266,7 @@ private fun SubScreenSubscriptionCardFull(
                     Text(sub.provider, style = Typography.labelSmall, color = onSurfaceVariant)
                 }
             }
-            Text("${String.format("%,.0f", sub.amount)} ر.س",
+            Text(com.example.data.CurrencyFormatter.format(context, sub.amount),
                 style = Typography.titleMedium, fontWeight = FontWeight.Bold,
                 color = if (sub.isActive) onSurface else onSurfaceVariant)
             Spacer(modifier = Modifier.width(4.dp))
@@ -290,6 +292,7 @@ fun AddSubscriptionDialog(onDismiss: () -> Unit, onSave: (String, Double, String
     var provider by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("اشتراك") }
     var renewalDate by remember { mutableStateOf("") }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -297,7 +300,7 @@ fun AddSubscriptionDialog(onDismiss: () -> Unit, onSave: (String, Double, String
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("اسم الاشتراك (مثال: Netflix)") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text("المبلغ (ر.س)") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text("المبلغ (${com.example.data.CurrencyFormatter.symbol(context)})") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = provider, onValueChange = { provider = it }, label = { Text("مزود الخدمة") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = renewalDate, onValueChange = { renewalDate = it }, label = { Text("تاريخ التجديد (YYYY-MM-DD)") }, modifier = Modifier.fillMaxWidth())
             }
