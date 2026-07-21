@@ -1,12 +1,16 @@
 // deno-lint-ignore-file
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.6";
 
+// GROQ_API_KEY is now used ONLY for audio transcription (transcribeAudio) —
+// OpenRouter has no free-tier audio endpoint (confirmed: 404 on
+// /v1/audio/transcriptions, and chat-based audio input models require a
+// paid balance even on ":free"-suffixed models). Every other AI call in
+// this file — text, JSON, vision — runs on the unified OPENROUTER_API_KEY.
 const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
-const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const TEXT_MODEL = "llama-3.3-70b-versatile";
 
 const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const TEXT_MODEL = "openai/gpt-oss-20b:free";
 const VISION_MODEL = "nvidia/nemotron-nano-12b-v2-vl:free";
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -75,11 +79,21 @@ function classifyTransaction(title: string, amount: number, category?: string): 
 }
 
 
-async function callGroqText(systemPrompt: string, userPrompt: string, maxTokens = 1000, temperature = 0.7) {
-  if (!GROQ_API_KEY) return null;
-  const groqResp = await fetch(GROQ_URL, {
+// openai/gpt-oss-20b:free is a reasoning model — without reasoning:{effort:"low"}
+// and a token budget that covers both the hidden reasoning trace and the
+// final answer, it burns the whole max_tokens budget "thinking" and returns
+// content:null (finish_reason:"length"). Verified directly: 50 tokens ->
+// null content; 500 tokens + effort:"low" -> correct content every time.
+async function callTextModel(systemPrompt: string, userPrompt: string, maxTokens = 1000, temperature = 0.7) {
+  if (!OPENROUTER_API_KEY) return null;
+  const resp = await fetch(OPENROUTER_URL, {
     method: "POST",
-    headers: { "Authorization": "Bearer " + GROQ_API_KEY, "Content-Type": "application/json" },
+    headers: {
+      "Authorization": "Bearer " + OPENROUTER_API_KEY,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://zad-app.com",
+      "X-Title": "Zad",
+    },
     body: JSON.stringify({
       model: TEXT_MODEL,
       messages: [
@@ -87,10 +101,14 @@ async function callGroqText(systemPrompt: string, userPrompt: string, maxTokens 
         { role: "user", content: userPrompt },
       ],
       temperature,
-      max_tokens: maxTokens,
+      max_tokens: Math.max(maxTokens, 300),
+      reasoning: { effort: "low" },
     }),
   });
-  const data = await groqResp.json();
+  const data = await resp.json();
+  if (!resp.ok) {
+    console.error("[CoreIntel] OpenRouter text HTTP error:", resp.status, JSON.stringify(data));
+  }
   return data.choices?.[0]?.message?.content || null;
 }
 
@@ -128,11 +146,45 @@ async function callVisionModel(systemPrompt: string, userPrompt: string, imageBa
   return { content: data.choices?.[0]?.message?.content || null, raw: data, ok: resp.ok, status: resp.status };
 }
 
-async function callGroqJson(systemPrompt: string, userPrompt: string, maxTokens = 1500) {
-  if (!GROQ_API_KEY) return null;
-  const groqResp = await fetch(GROQ_URL, {
+async function transcribeAudio(audioBase64: string, mimeType: string) {
+  if (!GROQ_API_KEY) return { text: null, raw: { error: "GROQ_API_KEY not set" }, ok: false, status: 0 };
+  try {
+    const binary = atob(audioBase64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const ext = mimeType.includes("mp3") ? "mp3" : mimeType.includes("wav") ? "wav" : mimeType.includes("ogg") ? "ogg" : "m4a";
+    const form = new FormData();
+    form.append("file", new Blob([bytes], { type: mimeType }), `audio.${ext}`);
+    form.append("model", "whisper-large-v3-turbo");
+    form.append("language", "ar");
+    form.append("response_format", "json");
+    const resp = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + GROQ_API_KEY },
+      body: form,
+    });
+    const data = await resp.json();
+    console.log("[CoreIntel] Whisper transcription raw response:", JSON.stringify(data));
+    if (!resp.ok) {
+      console.error("[CoreIntel] Whisper HTTP error:", resp.status, JSON.stringify(data));
+    }
+    return { text: data.text || null, raw: data, ok: resp.ok, status: resp.status };
+  } catch (e) {
+    console.error("[CoreIntel] transcribeAudio failed:", e.message);
+    return { text: null, raw: { error: e.message }, ok: false, status: 0 };
+  }
+}
+
+async function callJsonModel(systemPrompt: string, userPrompt: string, maxTokens = 1500) {
+  if (!OPENROUTER_API_KEY) return null;
+  const resp = await fetch(OPENROUTER_URL, {
     method: "POST",
-    headers: { "Authorization": "Bearer " + GROQ_API_KEY, "Content-Type": "application/json" },
+    headers: {
+      "Authorization": "Bearer " + OPENROUTER_API_KEY,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://zad-app.com",
+      "X-Title": "Zad",
+    },
     body: JSON.stringify({
       model: TEXT_MODEL,
       messages: [
@@ -141,12 +193,19 @@ async function callGroqJson(systemPrompt: string, userPrompt: string, maxTokens 
       ],
       response_format: { type: "json_object" },
       temperature: 0.2,
-      max_tokens: maxTokens,
+      max_tokens: Math.max(maxTokens, 300),
+      reasoning: { effort: "low" },
     }),
   });
-  const data = await groqResp.json();
+  const data = await resp.json();
+  if (!resp.ok) {
+    console.error("[CoreIntel] OpenRouter json HTTP error:", resp.status, JSON.stringify(data));
+  }
   const text = data.choices?.[0]?.message?.content || "{}";
-  try { return JSON.parse(text); } catch { return null; }
+  try { return JSON.parse(text); } catch (e) {
+    console.error("[CoreIntel] callJsonModel: JSON.parse failed:", e.message, "raw:", text);
+    return null;
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -175,10 +234,15 @@ Deno.serve(async (req: Request) => {
           ? " User profile: weekly avg " + profile.avg_weekly_spending + " SAR, top categories " + JSON.stringify(profile.top_spending_categories) + ", subscriptions " + profile.subscription_load_monthly + " SAR"
           : " New user - no behavior data yet."
         ) + " Be helpful and accurate. Answer in Arabic. Give financial advice.";
-        if (!GROQ_API_KEY) return jsonResponse({ reply: "AI not available." });
-        const groqResp = await fetch(GROQ_URL, {
+        if (!OPENROUTER_API_KEY) return jsonResponse({ reply: "AI not available." });
+        const chatResp = await fetch(OPENROUTER_URL, {
           method: "POST",
-          headers: { "Authorization": "Bearer " + GROQ_API_KEY, "Content-Type": "application/json" },
+          headers: {
+            "Authorization": "Bearer " + OPENROUTER_API_KEY,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://zad-app.com",
+            "X-Title": "Zad",
+          },
           body: JSON.stringify({
             model: TEXT_MODEL,
             messages: [
@@ -188,10 +252,12 @@ Deno.serve(async (req: Request) => {
             ],
             temperature: 0.7,
             max_tokens: 1000,
+            reasoning: { effort: "low" },
           }),
         });
-        const groqData = await groqResp.json();
-        return jsonResponse({ reply: groqData.choices?.[0]?.message?.content || "Sorry, could not respond." });
+        const chatData = await chatResp.json();
+        if (!chatResp.ok) console.error("[CoreIntel] chat OpenRouter error:", chatResp.status, JSON.stringify(chatData));
+        return jsonResponse({ reply: chatData.choices?.[0]?.message?.content || "Sorry, could not respond." });
       }
 
       // ──────────────────────────────────────────────
@@ -201,26 +267,12 @@ Deno.serve(async (req: Request) => {
         const { title, amount, category } = payload || {};
         const ruleResult = classifyTransaction(title, amount, category);
         if (ruleResult) return jsonResponse({ category: ruleResult, method: "rules" });
-        if (GROQ_API_KEY) {
-          const groqResp = await fetch(GROQ_URL, {
-            method: "POST",
-            headers: { "Authorization": "Bearer " + GROQ_API_KEY, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: TEXT_MODEL,
-              messages: [
-                { role: "system", content: "Classify transaction into one of: food, transport, telecom, subscription, rent, health, entertainment, education, clothing, other. Respond JSON with key category." },
-                { role: "user", content: "Title: " + title + " Amount: " + amount + " SAR" },
-              ],
-              response_format: { type: "json_object" },
-              temperature: 0.1,
-              max_tokens: 50,
-            }),
-          });
-          const data = await groqResp.json();
-          const result = JSON.parse(data.choices?.[0]?.message?.content || "{}");
-          return jsonResponse({ category: result.category || "other", method: "ai" });
-        }
-        return jsonResponse({ category: "other", method: "fallback" });
+        const result = await callJsonModel(
+          "Classify transaction into one of: food, transport, telecom, subscription, rent, health, entertainment, education, clothing, other. Respond JSON with key category.",
+          "Title: " + title + " Amount: " + amount + " SAR",
+          200
+        );
+        return jsonResponse({ category: result?.category || "other", method: result ? "ai" : "fallback" });
       }
 
       // ──────────────────────────────────────────────
@@ -260,7 +312,7 @@ Deno.serve(async (req: Request) => {
         const { items } = payload || {};
         const systemPrompt = "أنت مساعد طبخ ذكي. بناءً على المخزون المتوفر، اقترح وجبات يمكن تحضيرها. أجب بصيغة JSON: {\"text\": \"...\"}";
         const userPrompt = "المخزون: " + (items || "لا يوجد مخزون");
-        const result = await callGroqJson(systemPrompt, userPrompt);
+        const result = await callJsonModel(systemPrompt, userPrompt);
         return jsonResponse({ text: result?.text || "لم أتمكن من إيجاد اقتراحات حالياً." });
       }
 
@@ -271,7 +323,7 @@ Deno.serve(async (req: Request) => {
         const { inventory, family_size } = payload || {};
         const systemPrompt = "أنت مساعد تسوق ذكي. بناءً على المخزون الحالي وحجم العائلة، اقترح مشتريات يحتاجها المنزل. أجب بصيغة JSON: {\"suggestions\":[{\"name\":\"\",\"quantity\":\"\",\"reason\":\"\"}]}";
         const userPrompt = "المخزون: " + (inventory || "لا يوجد") + ", حجم العائلة: " + (family_size || 4);
-        const result = await callGroqJson(systemPrompt, userPrompt, 2000);
+        const result = await callJsonModel(systemPrompt, userPrompt, 2000);
         return jsonResponse({ suggestions: result?.suggestions || [] });
       }
 
@@ -282,7 +334,7 @@ Deno.serve(async (req: Request) => {
         const { transactions, budget } = payload || {};
         const systemPrompt = "أنت محلل مالي. حلل المعاملات المالية وقدم رؤى وتوصيات. أجب بصيغة JSON: {\"insights\":[{\"title\":\"\",\"description\":\"\",\"type\":\"Tip|Prediction|Alert\"}]}";
         const userPrompt = "المعاملات: " + (transactions || "لا توجد") + ", الميزانية: " + (budget || 3500);
-        const result = await callGroqJson(systemPrompt, userPrompt, 2000);
+        const result = await callJsonModel(systemPrompt, userPrompt, 2000);
         return jsonResponse({ insights: result?.insights || [] });
       }
 
@@ -293,7 +345,7 @@ Deno.serve(async (req: Request) => {
         const data = payload || {};
         const systemPrompt = "أنت وكيل زاد الذكي. حلل بيانات المستخدم بالكامل وقدّم ملخصاً شاملاً. أجب بصيغة JSON: {\"summary\":\"\",\"alerts\":[{\"type\":\"\",\"title\":\"\",\"description\":\"\"}],\"suggestions\":[{\"action\":\"\",\"item\":\"\",\"reason\":\"\"}],\"stats\":{\"inventory_count\":0,\"expiring_soon\":0,\"subscriptions_active\":0,\"days_until_budget_end\":30}}";
         const userPrompt = "المخزون: " + (data.inventory || "") + " | المعاملات: " + (data.transactions || "") + " | الاشتراكات: " + (data.subscriptions || "") + " | الميزانية: " + (data.budget || 0) + " | التسوق: " + (data.shopping || "") + " | الأنماط: " + (data.patterns || "");
-        const result = await callGroqJson(systemPrompt, userPrompt, 2500);
+        const result = await callJsonModel(systemPrompt, userPrompt, 2500);
         return jsonResponse({
           summary: result?.summary || "",
           alerts: result?.alerts || [],
@@ -309,7 +361,7 @@ Deno.serve(async (req: Request) => {
         const { bank, sms_text } = payload || {};
         const systemPrompt = "أنت محلل رسائل بنكية. استخرج معلومات المعاملة من نص الإشعار البنكي. أجب بصيغة JSON: {\"amount\":0.0,\"title\":\"\",\"is_expense\":true,\"category\":\"\"}";
         const userPrompt = "البنك: " + (bank || "") + " | النص: " + (sms_text || "");
-        const result = await callGroqJson(systemPrompt, userPrompt);
+        const result = await callJsonModel(systemPrompt, userPrompt);
         return jsonResponse({
           amount: result?.amount || 0,
           title: result?.title || "",
@@ -388,7 +440,7 @@ Deno.serve(async (req: Request) => {
         const { message } = payload || {};
         if (!message) return jsonResponse({ text: "الرجاء كتابة رسالة." });
         const systemPrompt = "أنت مساعد عائلي ذكي. تجيب باللغة العربية بود واختصار. تساعد في إدارة شؤون المنزل، الوصفات، الميزانية، والتسوق.";
-        const result = await callGroqText(systemPrompt, message);
+        const result = await callTextModel(systemPrompt, message);
         return jsonResponse({ text: result || "عفواً، تعذر الاتصال." });
       }
 
@@ -399,7 +451,7 @@ Deno.serve(async (req: Request) => {
         const { item_name, store } = payload || {};
         const systemPrompt = "أنت خبير أسعار في السعودية. قدّر سعر المنتج بناءً على اسمه والمتجر (إن وجد). أجب بصيغة JSON: {\"item_name\":\"\",\"low_price\":0.0,\"avg_price\":0.0,\"high_price\":0.0,\"store\":\"\",\"currency\":\"SAR\"}";
         const userPrompt = "المنتج: " + (item_name || "") + ", المتجر: " + (store || "غير محدد");
-        const result = await callGroqJson(systemPrompt, userPrompt);
+        const result = await callJsonModel(systemPrompt, userPrompt);
         return jsonResponse({
           item_name: result?.item_name || item_name || "",
           low_price: result?.low_price || 0,
@@ -418,7 +470,7 @@ Deno.serve(async (req: Request) => {
         if (!transactions || transactions.length === 0) return jsonResponse({ subscriptions: [] });
         const systemPrompt = "أنت محلل اشتراكات. حلل قائمة المعاملات وحدد أي منها قد يكون اشتراكاً شهرياً أو سنوياً. أجب بصيغة JSON: {\"subscriptions\":[{\"name\":\"\",\"amount\":0.0,\"frequency\":\"monthly\",\"confidence\":0.0,\"next_billing_date\":\"\"}]}";
         const userPrompt = "المعاملات: " + JSON.stringify(transactions);
-        const result = await callGroqJson(systemPrompt, userPrompt, 2000);
+        const result = await callJsonModel(systemPrompt, userPrompt, 2000);
         return jsonResponse({ subscriptions: result?.subscriptions || [] });
       }
 
@@ -429,7 +481,7 @@ Deno.serve(async (req: Request) => {
         const { recipe_name, inventory } = payload || {};
         const systemPrompt = "أنت شيف عربي محترف. قدم وصفة مفصلة باللغة العربية تشمل المكونات والخطوات. أجب بصيغة JSON: {\"text\":\"...\"}";
         const userPrompt = "الوصفة: " + (recipe_name || "") + " | المخزون المتوفر: " + (inventory || "لا يوجد");
-        const result = await callGroqJson(systemPrompt, userPrompt);
+        const result = await callJsonModel(systemPrompt, userPrompt);
         return jsonResponse({ text: result?.text || "لم أتمكن من إيجاد تفاصيل الوصفة حالياً." });
       }
 
@@ -440,7 +492,7 @@ Deno.serve(async (req: Request) => {
         const { category, transactions, current_patterns } = payload || {};
         const systemPrompt = "أنت محلل سلوك مالي. حلل نمط الإنفاق في فئة معينة وقدّم توقعات ونصائح. أجب بصيغة JSON: {\"insight\":\"\",\"avg_spending\":0.0,\"trend\":\"stable\",\"tip\":\"\",\"predicted_next\":0.0,\"confidence\":0.0}";
         const userPrompt = "الفئة: " + (category || "") + " | المعاملات: " + (transactions || "لا توجد") + " | الأنماط الحالية: " + (current_patterns || "");
-        const result = await callGroqJson(systemPrompt, userPrompt);
+        const result = await callJsonModel(systemPrompt, userPrompt);
         return jsonResponse({
           insight: result?.insight || "",
           avg_spending: result?.avg_spending || 0,
@@ -458,7 +510,7 @@ Deno.serve(async (req: Request) => {
         const { transactions, budget, patterns } = payload || {};
         const systemPrompt = "أنت خبير توقعات مالية. بناءً على المعاملات السابقة والأنماط، توقع المصروفات القادمة. أجب بصيغة JSON: {\"predicted_total\":0.0,\"confidence\":0.0,\"breakdown\":[{\"category\":\"\",\"predicted\":0.0,\"avg_monthly\":0.0}],\"warnings\":[],\"tips\":[]}";
         const userPrompt = "المعاملات: " + JSON.stringify(transactions || []) + " | الميزانية: " + (budget || 0) + " | الأنماط: " + JSON.stringify(patterns || []);
-        const result = await callGroqJson(systemPrompt, userPrompt, 2500);
+        const result = await callJsonModel(systemPrompt, userPrompt, 2500);
         return jsonResponse({
           predicted_total: result?.predicted_total || 0,
           confidence: result?.confidence || 0,
@@ -475,7 +527,7 @@ Deno.serve(async (req: Request) => {
         const { title, amount } = payload || {};
         const systemPrompt = "أنت مصنف فواتير. صنف هذه الفاتورة بناءً على عنوانها ومبلغها. أجب بصيغة JSON: {\"type\":\"\",\"provider\":\"\",\"category\":\"\",\"confidence\":0.0,\"is_recurring\":false,\"suggested_frequency_days\":null}";
         const userPrompt = "العنوان: " + (title || "") + " | المبلغ: " + (amount || 0);
-        const result = await callGroqJson(systemPrompt, userPrompt);
+        const result = await callJsonModel(systemPrompt, userPrompt);
         return jsonResponse({
           type: result?.type || "other",
           provider: result?.provider || null,
@@ -493,7 +545,7 @@ Deno.serve(async (req: Request) => {
         const { members, tasks, goals, tasbiha, transactions } = payload || {};
         const systemPrompt = "أنت محلل عائلي. حلل بيانات العائلة وقدّم ملخصاً شاملاً وتوصيات. أجب بصيغة JSON: {\"family_summary\":\"\",\"member_highlights\":[{\"name\":\"\",\"achievement\":\"\",\"suggestion\":\"\"}],\"family_health_score\":50,\"suggested_goal\":\"\",\"fun_fact\":\"\"}";
         const userPrompt = "الأعضاء: " + (members || "") + " | المهام: " + (tasks || "") + " | الأهداف: " + (goals || "") + " | التسبيحات: " + (tasbiha || "") + " | المعاملات: " + (transactions || "");
-        const result = await callGroqJson(systemPrompt, userPrompt, 2000);
+        const result = await callJsonModel(systemPrompt, userPrompt, 2000);
         return jsonResponse({
           family_summary: result?.family_summary || "",
           member_highlights: result?.member_highlights || [],
@@ -510,7 +562,7 @@ Deno.serve(async (req: Request) => {
         const { context, inventory, transactions, patterns } = payload || {};
         const systemPrompt = "أنت مساعد اقتراحات ذكي. بناءً على سياق المستخدم، اقترح إجراءات مفيدة. أجب بصيغة JSON: {\"suggestions\":[{\"action\":\"\",\"title\":\"\",\"description\":\"\",\"priority\":\"medium\",\"emoji\":\"\"}]}";
         const userPrompt = "السياق: " + (context || "") + " | المخزون: " + (inventory || "") + " | المعاملات: " + (transactions || "") + " | الأنماط: " + (patterns || "");
-        const result = await callGroqJson(systemPrompt, userPrompt, 2000);
+        const result = await callJsonModel(systemPrompt, userPrompt, 2000);
         return jsonResponse({ suggestions: result?.suggestions || [] });
       }
 
@@ -521,7 +573,7 @@ Deno.serve(async (req: Request) => {
         const { members, total_balance, completed_tasks, tasbiha_score } = payload || {};
         const systemPrompt = "أنت مستشار أهداف عائلية. بناءً على بيانات العائلة، اقترح هدف ادخار مناسب. أجب بصيغة JSON: {\"goal_title\":\"\",\"target_amount\":0.0,\"reward_suggestion\":\"\",\"duration_days\":30,\"emoji\":\"\"}";
         const userPrompt = "الأعضاء: " + (members || "") + " | الرصيد: " + (total_balance || 0) + " | المهام المنجزة: " + (completed_tasks || 0) + " | التسبيحات: " + (tasbiha_score || 0);
-        const result = await callGroqJson(systemPrompt, userPrompt);
+        const result = await callJsonModel(systemPrompt, userPrompt);
         return jsonResponse({
           goal_title: result?.goal_title || "",
           target_amount: result?.target_amount || 0,
@@ -537,10 +589,10 @@ Deno.serve(async (req: Request) => {
       case "ai_text": {
         const { system_prompt, user_prompt, response_mime_type } = payload || {};
         if (response_mime_type === "application/json") {
-          const result = await callGroqJson(system_prompt || "", user_prompt || "");
+          const result = await callJsonModel(system_prompt || "", user_prompt || "");
           return jsonResponse({ text: JSON.stringify(result) });
         }
-        const result = await callGroqText(system_prompt || "", user_prompt || "");
+        const result = await callTextModel(system_prompt || "", user_prompt || "");
         return jsonResponse({ text: result || "تعذر الاتصال بالذكاء الاصطناعي." });
       }
 
@@ -549,7 +601,7 @@ Deno.serve(async (req: Request) => {
       // ──────────────────────────────────────────────
       case "brain_evaluate": {
         const { system_prompt, user_prompt } = payload || {};
-        const result = await callGroqText(system_prompt || "", user_prompt || "", 2000, 0.3);
+        const result = await callTextModel(system_prompt || "", user_prompt || "", 2000, 0.3);
         return jsonResponse({ text: result || "تعذر التقييم." });
       }
 
@@ -557,15 +609,28 @@ Deno.serve(async (req: Request) => {
       // VOICE_AGENT — Process voice command
       // ──────────────────────────────────────────────
       case "voice_agent": {
-        const { audio_base64 } = payload || {};
+        const { audio_base64, mime_type } = payload || {};
         if (!audio_base64) return jsonResponse({ action: "chat", message: "", data: null });
-        const systemPrompt = "You are a voice command processor for ZAD app. Analyze the transcribed text and determine the intent. Return JSON: {\"action\":\"chat|add_expense|add_income|check_budget|add_inventory\",\"message\":\"response in Arabic\",\"data\":{\"amount\":0,\"title\":\"\",\"category\":\"\"}}";
-        const userPrompt = "Voice command transcript would be processed here. For now, return a default response.";
-        const result = await callGroqJson(systemPrompt, userPrompt);
+
+        const sttResult = await transcribeAudio(audio_base64, mime_type || "audio/m4a");
+        const transcript = sttResult.text;
+        if (!transcript) {
+          console.error("[CoreIntel] voice_agent: transcription failed or empty");
+          return jsonResponse({ action: "chat", message: "لم أتمكن من فهم الصوت، حاول مرة أخرى.", data: null });
+        }
+        console.log("[CoreIntel] voice_agent transcript:", transcript);
+
+        const systemPrompt = "You are a voice command processor for a Saudi Arabic family finance app (ZAD). " +
+          "The user spoke a command in Arabic (possibly with Saudi dialect and colloquial number words). " +
+          "Determine the intent and extract structured data. Parse spoken amounts (e.g. \"خمسين ريال\" = 50, \"مية وعشرين\" = 120) into a numeric value. " +
+          "Return ONLY JSON: {\"action\":\"chat|add_expense|add_income|check_budget|add_inventory\",\"message\":\"short confirmation reply in Arabic\",\"data\":{\"amount\":0,\"title\":\"\",\"category\":\"\"}}. " +
+          "Use action=\"add_expense\" when the user says they spent/paid money, \"add_income\" when they received money, \"check_budget\" when they ask about their budget/balance, \"add_inventory\" when they mention buying/adding a physical item to track, otherwise \"chat\".";
+        const result = await callJsonModel(systemPrompt, transcript);
         return jsonResponse({
           action: result?.action || "chat",
           message: result?.message || "",
           data: result?.data || null,
+          transcript,
         });
       }
 
