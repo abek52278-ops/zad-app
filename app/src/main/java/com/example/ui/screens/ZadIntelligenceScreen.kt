@@ -43,6 +43,7 @@ import com.example.data.ZadTransaction
 import com.example.data.ZadInventory
 import com.example.data.ZadSubscription
 import com.example.data.AiInsight
+import kotlinx.coroutines.launch
 
 // ════════════════════════════════════════════════════════════════
 //  MAIN SCREEN
@@ -301,6 +302,11 @@ fun AnalyticsTab(
             )
         }
 
+        // محاكي القرارات المالية (What-If)
+        item {
+            WhatIfSimulatorCard(viewModel = viewModel, predictedMonthlySpend = predictedNextMonth)
+        }
+
         // الأنماط السلوكية
         if (patterns.isNotEmpty()) {
             item {
@@ -365,6 +371,7 @@ fun IntelligenceInsightCard(insight: AiInsight, viewModel: ZadViewModel) {
         else -> Triple(primaryContainer, primary, Icons.Default.Info)
     }
     var actionDone by remember(insight.actionRefId, insight.actionType) { mutableStateOf(false) }
+    var showCancelConfirm by remember(insight.actionRefId, insight.actionType) { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(bgColor).padding(16.dp)
@@ -391,10 +398,7 @@ fun IntelligenceInsightCard(insight: AiInsight, viewModel: ZadViewModel) {
                 when (insight.actionType) {
                     "cancel_subscription" -> {
                         Button(
-                            onClick = {
-                                viewModel.updateSubscriptionActive(insight.actionRefId, false)
-                                actionDone = true
-                            },
+                            onClick = { showCancelConfirm = true },
                             colors = ButtonDefaults.buttonColors(containerColor = iconColor),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
                             modifier = Modifier.height(34.dp)
@@ -402,6 +406,23 @@ fun IntelligenceInsightCard(insight: AiInsight, viewModel: ZadViewModel) {
                             Text(
                                 stringResource(R.string.cancel_subscription_action, com.example.data.CurrencyFormatter.format(context, insight.actionAmount ?: 0.0)),
                                 style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = Color.White
+                            )
+                        }
+                        if (showCancelConfirm) {
+                            AlertDialog(
+                                onDismissRequest = { showCancelConfirm = false },
+                                title = { Text(stringResource(R.string.confirm_cancel_subscription_title)) },
+                                text = { Text(stringResource(R.string.confirm_cancel_subscription_body)) },
+                                confirmButton = {
+                                    TextButton(onClick = {
+                                        viewModel.updateSubscriptionActive(insight.actionRefId, false)
+                                        actionDone = true
+                                        showCancelConfirm = false
+                                    }) { Text(stringResource(R.string.confirm_cancel_subscription_action), color = dangerColor, fontWeight = FontWeight.Bold) }
+                                },
+                                dismissButton = {
+                                    TextButton(onClick = { showCancelConfirm = false }) { Text(stringResource(R.string.keep_subscription_action)) }
+                                }
                             )
                         }
                     }
@@ -941,6 +962,185 @@ fun PredictionCard(predictedAmount: Double, currentMonthAmount: Double, lowStock
                         style = Typography.labelSmall,
                         color = Color.White.copy(alpha = 0.8f)
                     )
+                }
+            }
+        }
+    }
+}
+
+// ── What-If Simulator ────────────────────────────────────────────────────────
+enum class WhatIfVerdict { SAFE, RISKY, EXCEEDS }
+
+data class WhatIfProjection(val month: Int, val remaining: Double, val installmentActive: Boolean)
+
+data class WhatIfResult(
+    val verdict: WhatIfVerdict,
+    val projection: List<WhatIfProjection>,
+    val firstExceedMonth: Int?
+)
+
+/** يحاكي أثر التزام شهري جديد (قسط) على الميزانية المتوقعة، شهر بشهر، ولحد ما بعد انتهاء القسط بشهرين عشان يبان التعافي. */
+fun simulateWhatIf(monthlyBudget: Double, predictedMonthlySpend: Double, monthlyInstallment: Double, installmentMonths: Int): WhatIfResult {
+    val months = installmentMonths.coerceIn(1, 24)
+    val totalMonths = (months + 2).coerceAtMost(26)
+    var firstExceed: Int? = null
+    val projection = (1..totalMonths).map { m ->
+        val installmentActive = m <= months
+        val remaining = monthlyBudget - predictedMonthlySpend - (if (installmentActive) monthlyInstallment else 0.0)
+        if (installmentActive && remaining < 0 && firstExceed == null) firstExceed = m
+        WhatIfProjection(m, remaining, installmentActive)
+    }
+    val duringInstallment = projection.filter { it.installmentActive }
+    val minRemaining = duringInstallment.minOfOrNull { it.remaining } ?: 0.0
+    val verdict = when {
+        minRemaining < 0 -> WhatIfVerdict.EXCEEDS
+        monthlyBudget > 0 && minRemaining < monthlyBudget * 0.15 -> WhatIfVerdict.RISKY
+        else -> WhatIfVerdict.SAFE
+    }
+    return WhatIfResult(verdict, projection, firstExceed)
+}
+
+@Composable
+fun WhatIfSimulatorCard(viewModel: ZadViewModel, predictedMonthlySpend: Double) {
+    val budget by viewModel.budget.collectAsState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    var purchaseAmountStr by remember { mutableStateOf("") }
+    var installmentStr by remember { mutableStateOf("") }
+    var monthsStr by remember { mutableStateOf("12") }
+    var result by remember { mutableStateOf<WhatIfResult?>(null) }
+    var aiNarrative by remember { mutableStateOf<String?>(null) }
+    var isLoadingNarrative by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = surface)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Calculate, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.whatif_simulator_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(stringResource(R.string.whatif_simulator_subtitle), style = Typography.bodySmall, color = onSurfaceVariant)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = purchaseAmountStr, onValueChange = { purchaseAmountStr = it },
+                label = { Text(stringResource(R.string.whatif_purchase_amount_label, com.example.data.CurrencyFormatter.symbol(context))) },
+                modifier = Modifier.fillMaxWidth(), singleLine = true
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = installmentStr, onValueChange = { installmentStr = it },
+                    label = { Text(stringResource(R.string.whatif_monthly_installment_label, com.example.data.CurrencyFormatter.symbol(context))) },
+                    modifier = Modifier.weight(1f), singleLine = true
+                )
+                OutlinedTextField(
+                    value = monthsStr, onValueChange = { monthsStr = it },
+                    label = { Text(stringResource(R.string.whatif_duration_months_label)) },
+                    modifier = Modifier.weight(1f), singleLine = true
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+
+            val installment = installmentStr.toDoubleOrNull() ?: 0.0
+            val months = monthsStr.toIntOrNull() ?: 0
+            Button(
+                onClick = {
+                    val r = simulateWhatIf(budget, predictedMonthlySpend, installment, months)
+                    result = r
+                    aiNarrative = null
+                    isLoadingNarrative = true
+                    scope.launch {
+                        aiNarrative = try {
+                            ZadAiRepository.evaluateWhatIf(
+                                monthlyBudget = budget,
+                                predictedMonthlySpend = predictedMonthlySpend,
+                                purchaseAmount = purchaseAmountStr.toDoubleOrNull() ?: 0.0,
+                                monthlyInstallment = installment,
+                                installmentMonths = months,
+                                verdict = r.verdict.name,
+                                firstExceedMonth = r.firstExceedMonth
+                            )
+                        } catch (e: Exception) { null } finally {
+                            isLoadingNarrative = false
+                        }
+                    }
+                },
+                enabled = installment > 0 && months > 0,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = primary)
+            ) {
+                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(stringResource(R.string.whatif_run_simulation_action))
+            }
+
+            result?.let { r ->
+                Spacer(modifier = Modifier.height(16.dp))
+                val (verdictColor, verdictLabel) = when (r.verdict) {
+                    WhatIfVerdict.SAFE -> successColor to stringResource(R.string.whatif_verdict_safe)
+                    WhatIfVerdict.RISKY -> warningColor to stringResource(R.string.whatif_verdict_risky)
+                    WhatIfVerdict.EXCEEDS -> dangerColor to stringResource(R.string.whatif_verdict_exceeds)
+                }
+                Surface(shape = RoundedCornerShape(12.dp), color = verdictColor.copy(alpha = 0.12f)) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(verdictColor))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(verdictLabel, style = Typography.labelMedium, fontWeight = FontWeight.Bold, color = verdictColor)
+                        r.firstExceedMonth?.let { fm ->
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(stringResource(R.string.whatif_exceeds_at_month, fm), style = Typography.labelSmall, color = verdictColor)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                val maxAbs = r.projection.maxOf { kotlin.math.abs(it.remaining) }.coerceAtLeast(1.0)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(r.projection.take(12)) { p ->
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(36.dp)) {
+                            val barColor = if (p.remaining < 0) dangerColor else if (p.installmentActive) warningColor else successColor
+                            val heightFraction = (kotlin.math.abs(p.remaining) / maxAbs).toFloat().coerceIn(0.05f, 1f)
+                            Box(
+                                modifier = Modifier.height(70.dp).fillMaxWidth().padding(horizontal = 2.dp),
+                                contentAlignment = Alignment.BottomCenter
+                            ) {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().fillMaxHeight(heightFraction)
+                                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                        .background(barColor)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("${p.month}", style = Typography.labelSmall.copy(fontSize = 9.sp), color = onSurfaceVariant)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                if (isLoadingNarrative) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.whatif_ai_loading), style = Typography.labelSmall, color = onSurfaceVariant)
+                    }
+                } else if (aiNarrative != null) {
+                    Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFF5F3FF), modifier = Modifier.fillMaxWidth()) {
+                        Row(modifier = Modifier.padding(12.dp)) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color(0xFF8B5CF6), modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(aiNarrative ?: "", style = Typography.bodySmall, color = Color(0xFF4C1D95))
+                        }
+                    }
                 }
             }
         }

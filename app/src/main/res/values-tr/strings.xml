@@ -431,6 +431,21 @@
     <string name="insight_action_done">Tamamlandı ✅</string>
     <string name="cancel_subscription_action">İptal et ve %1$s/yıl tasarruf et</string>
     <string name="increase_budget_action">Bütçeyi %1$s\'e yükselt</string>
+    <string name="confirm_cancel_subscription_title">Abonelik iptalini onayla</string>
+    <string name="confirm_cancel_subscription_body">Bu aboneliği iptal etmek istediğinizden emin misiniz?</string>
+    <string name="confirm_cancel_subscription_action">Evet, iptal et</string>
+    <string name="keep_subscription_action">Vazgeç</string>
+    <string name="whatif_simulator_title">Finansal Karar Simülatörü</string>
+    <string name="whatif_simulator_subtitle">Karar vermeden önce bir satın alma veya taksiti dene — gelecek bütçene etkisini gör</string>
+    <string name="whatif_purchase_amount_label">Satın alma tutarı (opsiyonel) (%1$s)</string>
+    <string name="whatif_monthly_installment_label">Aylık taksit (%1$s)</string>
+    <string name="whatif_duration_months_label">Süre (ay)</string>
+    <string name="whatif_run_simulation_action">Simülasyonu çalıştır</string>
+    <string name="whatif_verdict_safe">Güvenli</string>
+    <string name="whatif_verdict_risky">Riskli</string>
+    <string name="whatif_verdict_exceeds">Bütçeni aşıyor</string>
+    <string name="whatif_exceeds_at_month">(%1$d. ayda aşmaya başlıyor)</string>
+    <string name="whatif_ai_loading">Zad kararı analiz ediyor...</string>
 
     <string-array name="month_names_short">
         <item>Ocak</item>

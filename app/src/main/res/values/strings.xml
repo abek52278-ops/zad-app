@@ -431,6 +431,21 @@
     <string name="insight_action_done">تم ✅</string>
     <string name="cancel_subscription_action">إلغاء الاشتراك ووفر %1$s/سنة</string>
     <string name="increase_budget_action">رفع الميزانية إلى %1$s</string>
+    <string name="confirm_cancel_subscription_title">تأكيد إلغاء الاشتراك</string>
+    <string name="confirm_cancel_subscription_body">هل أنت متأكد من إلغاء هذا الاشتراك؟</string>
+    <string name="confirm_cancel_subscription_action">نعم، ألغِ الاشتراك</string>
+    <string name="keep_subscription_action">تراجع</string>
+    <string name="whatif_simulator_title">محاكي القرارات المالية</string>
+    <string name="whatif_simulator_subtitle">جرب قرار شراء أو قسط قبل ما تاخد القرار — شوف تأثيره على ميزانيتك القادمة</string>
+    <string name="whatif_purchase_amount_label">سعر الشراء (اختياري) (%1$s)</string>
+    <string name="whatif_monthly_installment_label">القسط الشهري (%1$s)</string>
+    <string name="whatif_duration_months_label">المدة (شهور)</string>
+    <string name="whatif_run_simulation_action">شغّل المحاكاة</string>
+    <string name="whatif_verdict_safe">آمن</string>
+    <string name="whatif_verdict_risky">محفوف بالمخاطر</string>
+    <string name="whatif_verdict_exceeds">يتجاوز حدود ميزانيتك</string>
+    <string name="whatif_exceeds_at_month">(يبدأ التجاوز من شهر %1$d)</string>
+    <string name="whatif_ai_loading">زاد بيحلل القرار...</string>
 
     <string-array name="month_names_short">
         <item>يناير</item>

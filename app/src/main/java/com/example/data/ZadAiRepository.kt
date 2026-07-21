@@ -361,6 +361,30 @@ object ZadAiRepository {
         return response["text"] as? String
     }
 
+    /** محاكي القرارات المالية (What-If): يبني نص عربي قصير يفسّر أثر التزام شهري جديد على الميزانية، بالاعتماد على الحكم المحلي المحسوب مسبقاً (زاد ما يخترعش أرقام، بس يفسرها). */
+    suspend fun evaluateWhatIf(
+        monthlyBudget: Double,
+        predictedMonthlySpend: Double,
+        purchaseAmount: Double,
+        monthlyInstallment: Double,
+        installmentMonths: Int,
+        verdict: String,
+        firstExceedMonth: Int?
+    ): String? {
+        val systemPrompt = "أنت محلل مالي شخصي داخل تطبيق زاد. حلل بيانات محاكاة القرار المالي أدناه وقدم جملة أو جملتين بالعربي فقط توضحان تأثير هذا القرار على ميزانية المستخدم خلال الأشهر القادمة، بأسلوب مباشر وودود بدون مبالغة. لا تخترع أرقاماً غير موجودة في البيانات، فسّرها فقط."
+        val userPrompt = """
+            === بيانات المحاكاة ===
+            الميزانية الشهرية: $monthlyBudget
+            متوسط الصرف الشهري المتوقع: $predictedMonthlySpend
+            سعر الشراء المطروح: $purchaseAmount
+            القسط الشهري: $monthlyInstallment لمدة $installmentMonths شهر
+            الحكم المحلي (SAFE/RISKY/EXCEEDS): $verdict
+            أول شهر يتجاوز فيه الميزانية: ${firstExceedMonth ?: "لا يوجد"}
+            === نهاية البيانات ===
+        """.trimIndent()
+        return callGeminiText(systemPrompt, userPrompt)
+    }
+
     suspend fun brainEvaluate(systemPrompt: String, userPrompt: String): String? {
         val response = callAction("brain_evaluate", mapOf(
             "system_prompt" to systemPrompt,
