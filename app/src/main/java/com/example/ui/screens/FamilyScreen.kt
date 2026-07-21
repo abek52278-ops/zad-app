@@ -24,11 +24,13 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.R
 import com.example.data.*
 import com.example.ui.screens.auth.AuthTextField
 import com.example.ui.theme.*
@@ -113,14 +115,14 @@ fun NoFamilyScreen(
         )
         Spacer(modifier = Modifier.height(24.dp))
         Text(
-            text = "أهلاً بك في عائلة زاد",
+            text = stringResource(R.string.welcome_to_zad_family),
             style = Typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = onSurface
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "يمكنك إنشاء عائلة جديدة لتكون أنت المدير، أو الانضمام لعائلة موجودة عبر كود الدعوة.",
+            text = stringResource(R.string.family_intro_hint),
             style = Typography.bodyMedium,
             color = Color.Gray,
             textAlign = TextAlign.Center
@@ -135,15 +137,15 @@ fun NoFamilyScreen(
         ) {
             Icon(Icons.Default.Add, null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text(text = "إنشاء عائلة جديدة كمدير (Admin)", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(text = stringResource(R.string.create_new_family_admin), fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
 
         Spacer(modifier = Modifier.height(32.dp))
-        Text("أو", color = Color.Gray)
+        Text(stringResource(R.string.or_word), color = Color.Gray)
         Spacer(modifier = Modifier.height(32.dp))
 
-        AuthTextField(label = "اسمك (Alias)", value = alias, onValueChange = { alias = it }, placeholder = "مثال: الابن أحمد")
-        AuthTextField(label = "كود الدعوة", value = inviteCode, onValueChange = { inviteCode = it }, placeholder = "مثال: ZAD-1234")
+        AuthTextField(label = stringResource(R.string.your_alias_label), value = alias, onValueChange = { alias = it }, placeholder = stringResource(R.string.eg_child_alias))
+        AuthTextField(label = stringResource(R.string.invite_code_label), value = inviteCode, onValueChange = { inviteCode = it }, placeholder = stringResource(R.string.eg_invite_code))
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -155,7 +157,7 @@ fun NoFamilyScreen(
         ) {
             Icon(Icons.Default.ArrowForward, null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text(text = "الانضمام للعائلة", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(text = stringResource(R.string.join_family_action), fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -175,12 +177,17 @@ fun ActiveFamilyScreen(
     var showInviteDialog by remember { mutableStateOf(false) }
 
     val isParent = state.myMemberInfo.role == "admin"
+    val needAmountPattern = stringResource(R.string.need_amount_purchase)
+    val shareInviteTitle = stringResource(R.string.share_invite_title)
+    val joinFamilyShareText = stringResource(R.string.join_family_message)
+    val inviteCodeColon = stringResource(R.string.invite_code_colon)
+    val tapToOpen = stringResource(R.string.tap_to_open)
     val tabs = listOf(
-        TabData(Icons.Default.Chat, "الشات"),
-        TabData(Icons.Default.Assignment, "المهام"),
-        TabData(Icons.Default.People, "الأعضاء"),
-        TabData(Icons.Default.ShoppingCart, "البقالة")
-    ) + if (isParent) listOf(TabData(Icons.Default.AccountBalanceWallet, "الأبناء")) else emptyList()
+        TabData(Icons.Default.Chat, stringResource(R.string.chat_tab)),
+        TabData(Icons.Default.Assignment, stringResource(R.string.tasks_tab)),
+        TabData(Icons.Default.People, stringResource(R.string.members_tab)),
+        TabData(Icons.Default.ShoppingCart, stringResource(R.string.groceries_tab))
+    ) + if (isParent) listOf(TabData(Icons.Default.AccountBalanceWallet, stringResource(R.string.children_tab))) else emptyList()
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Header with family info
@@ -202,13 +209,13 @@ fun ActiveFamilyScreen(
                 ) {
                     Column {
                         Text(
-                            "عائلة ${state.familyGroup.inviteCode}",
+                            stringResource(R.string.family_with_code, state.familyGroup.inviteCode),
                             style = Typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
                         Text(
-                            "${state.members.size} أفراد",
+                            stringResource(R.string.members_count, state.members.size),
                             style = Typography.bodySmall,
                             color = Color.White.copy(alpha = 0.9f)
                         )
@@ -220,9 +227,9 @@ fun ActiveFamilyScreen(
                         IconButton(onClick = {
                             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, "انضم إلى عائلتي في تطبيق زاد!\nكود الدعوة: ${state.familyGroup.inviteCode}\nأو اضغط: zad://invite?code=${state.familyGroup.inviteCode}")
+                                putExtra(Intent.EXTRA_TEXT, "$joinFamilyShareText\n$inviteCodeColon ${state.familyGroup.inviteCode}\n$tapToOpen zad://invite?code=${state.familyGroup.inviteCode}")
                             }
-                            context.startActivity(Intent.createChooser(shareIntent, "مشاركة الدعوة"))
+                            context.startActivity(Intent.createChooser(shareIntent, shareInviteTitle))
                         }) {
                             Icon(Icons.Default.Share, null, tint = Color.White)
                         }
@@ -294,11 +301,11 @@ private fun GroceriesTab(
         item {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
-                Text("البقالة المشتركة", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
+                Text(stringResource(R.string.shared_grocery_list), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                "قائمة المشتريات التي تمت إضافتها من قبل أفراد العائلة أو اقترحها زاد.",
+                stringResource(R.string.shared_grocery_list_hint),
                 style = Typography.bodyMedium,
                 color = onSurfaceVariant
             )
@@ -308,7 +315,7 @@ private fun GroceriesTab(
         if (groceries.isEmpty()) {
             item {
                 Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                    Text("لا توجد طلبات بقالة حالياً.", color = Color.Gray)
+                    Text(stringResource(R.string.no_grocery_requests), color = Color.Gray)
                 }
             }
         }
@@ -351,21 +358,24 @@ private fun KidsSpendingTab(
 ) {
     val children = state.members.filter { it.role == "child" }
     val purchaseRequests = state.messages.filter { it.messageType == "PURCHASE_REQUEST" }
+    val currencyContext = LocalContext.current
+    val approvedEmojiText = stringResource(R.string.approved_emoji)
+    val rejectedEmojiText = stringResource(R.string.rejected_emoji)
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
-            Text("مصاريف الأبناء", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
+            Text(stringResource(R.string.childrens_expenses), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
         }
         Spacer(Modifier.height(4.dp))
-        Text("نظرة عامة على أرصدة وطلبات الأبناء", style = Typography.bodyMedium, color = onSurfaceVariant)
+        Text(stringResource(R.string.children_overview_subtitle), style = Typography.bodyMedium, color = onSurfaceVariant)
         Spacer(Modifier.height(16.dp))
 
         if (children.isEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                Text("لا يوجد أبناء مسجلين بعد", color = Color.Gray)
+                Text(stringResource(R.string.no_children_registered), color = Color.Gray)
             }
             return
         }
@@ -386,7 +396,7 @@ private fun KidsSpendingTab(
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(child.alias, fontWeight = FontWeight.Bold, color = onSurface)
-                            Text("الرصيد: ${child.balance} ريال" + if (child.savingsGoal > 0) " | الهدف: ${child.savingsGoal} ريال" else "", fontSize = 12.sp, color = onSurfaceVariant)
+                            Text(stringResource(R.string.balance_colon, com.example.data.CurrencyFormatter.format(currencyContext, child.balance)) + if (child.savingsGoal > 0) " | " + stringResource(R.string.goal_colon, com.example.data.CurrencyFormatter.format(currencyContext, child.savingsGoal)) else "", fontSize = 12.sp, color = onSurfaceVariant)
                         }
                         Surface(shape = RoundedCornerShape(8.dp), color = primary.copy(alpha = 0.1f)) {
                             Text("$completed/${childChores.size} مهام", modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontSize = 11.sp, color = primary)
@@ -396,22 +406,22 @@ private fun KidsSpendingTab(
                         Spacer(Modifier.height(8.dp))
                         Surface(shape = RoundedCornerShape(8.dp), color = surface, modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(8.dp)) {
-                                Text("الطلبات المعلقة (${childRequests.size})", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = onSurfaceVariant)
+                                Text(stringResource(R.string.pending_requests_count, childRequests.size), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = onSurfaceVariant)
                                 childRequests.filter { it.metadata?.contains("\"status\":\"PENDING\"") == true }.take(3).forEach { req ->
                                     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFFFF9800))
                                         Spacer(Modifier.width(6.dp))
                                         Text(req.message, fontSize = 12.sp, color = onSurface, modifier = Modifier.weight(1f), maxLines = 1)
                                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                            TextButton(onClick = { onUpdateRequestStatus(req.id, "APPROVED", "تمت الموافقة ✅") }, contentPadding = PaddingValues(4.dp)) {
+                                            TextButton(onClick = { onUpdateRequestStatus(req.id, "APPROVED", approvedEmojiText) }, contentPadding = PaddingValues(4.dp)) {
                                                 Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(14.dp), tint = primary)
                                                 Spacer(Modifier.width(2.dp))
-                                                Text("موافقة", fontSize = 10.sp)
+                                                Text(stringResource(R.string.approve), fontSize = 10.sp)
                                             }
-                                            TextButton(onClick = { onUpdateRequestStatus(req.id, "REJECTED", "تم الرفض ❌") }, contentPadding = PaddingValues(4.dp), colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                                            TextButton(onClick = { onUpdateRequestStatus(req.id, "REJECTED", rejectedEmojiText) }, contentPadding = PaddingValues(4.dp), colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
                                                 Icon(Icons.Default.Cancel, contentDescription = null, modifier = Modifier.size(14.dp))
                                                 Spacer(Modifier.width(2.dp))
-                                                Text("رفض", fontSize = 10.sp)
+                                                Text(stringResource(R.string.reject), fontSize = 10.sp)
                                             }
                                         }
                                     }
@@ -437,14 +447,14 @@ private fun MembersTab(state: FamilyState.Active, viewModel: FamilyViewModel) {
     ) {
         item {
             Text(
-                "أفراد العائلة",
+                stringResource(R.string.family_members),
                 style = Typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = onSurface
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "اضغط على أي عضو لتفاصيل إنجازاته",
+                stringResource(R.string.tap_member_for_achievements),
                 style = Typography.bodyMedium,
                 color = onSurfaceVariant
             )
@@ -515,7 +525,7 @@ private fun MemberDetailCard(
                             Surface(shape = RoundedCornerShape(8.dp), color = primary.copy(alpha = 0.15f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(14.dp), tint = primary)
-                                    Text("مدير", fontSize = 11.sp, color = primary, fontWeight = FontWeight.Bold)
+                                    Text(stringResource(R.string.admin_badge), fontSize = 11.sp, color = primary, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -535,7 +545,7 @@ private fun MemberDetailCard(
                 Spacer(modifier = Modifier.height(12.dp))
                 val goalProgress = (member.balance / member.savingsGoal).toFloat().coerceIn(0f, 1f)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("هدف التوفير", style = Typography.labelSmall, color = onSurfaceVariant)
+                    Text(stringResource(R.string.savings_goal_label), style = Typography.labelSmall, color = onSurfaceVariant)
                     Spacer(Modifier.width(8.dp))
                     LinearProgressIndicator(
                         progress = { goalProgress },
@@ -577,6 +587,7 @@ private fun MemberDetailSheet(
     val memberChores = state.chores.filter { it.assignedTo == member.id }
     val completedChores = memberChores.filter { it.isCompleted }
     val pendingChores = memberChores.filter { !it.isCompleted }
+    val currencyContext = LocalContext.current
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -605,7 +616,7 @@ private fun MemberDetailSheet(
                 Column {
                     Text(member.alias, fontWeight = FontWeight.Bold, color = onSurface, fontSize = 22.sp)
                     Text(
-                        if (member.role == "admin") "مدير العائلة" else "عضو",
+                        stringResource(if (member.role == "admin") R.string.family_admin_role else R.string.member_role),
                         color = onSurfaceVariant
                     )
                 }
@@ -618,9 +629,9 @@ private fun MemberDetailSheet(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                StatItem("الرصيد", "${member.balance} ريال")
-                StatItem("الهدف", if (member.savingsGoal > 0) "${member.savingsGoal} ريال" else "---")
-                StatItem("الأشجار", "${memberTrees.size}")
+                StatItem(stringResource(R.string.balance_label), com.example.data.CurrencyFormatter.format(currencyContext, member.balance))
+                StatItem(stringResource(R.string.goal_label), if (member.savingsGoal > 0) com.example.data.CurrencyFormatter.format(currencyContext, member.savingsGoal) else "---")
+                StatItem(stringResource(R.string.trees_label), "${memberTrees.size}")
             }
 
             Spacer(Modifier.height(24.dp))
@@ -628,11 +639,11 @@ private fun MemberDetailSheet(
             // Completed Tasks
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp), tint = primary)
-                Text("المهام المنجزة (${completedChores.size})", fontWeight = FontWeight.Bold, color = onSurface)
+                Text(stringResource(R.string.completed_tasks_count, completedChores.size), fontWeight = FontWeight.Bold, color = onSurface)
             }
             Spacer(Modifier.height(8.dp))
             if (completedChores.isEmpty()) {
-                Text("لا توجد مهام منجزة بعد", color = Color.Gray, fontSize = 14.sp)
+                Text(stringResource(R.string.no_completed_tasks), color = Color.Gray, fontSize = 14.sp)
             } else {
                 completedChores.forEach { chore ->
                     Surface(
@@ -649,7 +660,7 @@ private fun MemberDetailSheet(
                             Column(Modifier.weight(1f)) {
                                 Text(chore.title, fontWeight = FontWeight.Bold, color = onSurface, fontSize = 14.sp)
                                 if (chore.rewardAmount > 0) {
-                                    Text("مكافأة: ${chore.rewardAmount} ريال", color = primary, fontSize = 12.sp)
+                                    Text(stringResource(R.string.reward_colon, com.example.data.CurrencyFormatter.format(currencyContext, chore.rewardAmount)), color = primary, fontSize = 12.sp)
                                 }
                             }
                         }
@@ -662,11 +673,11 @@ private fun MemberDetailSheet(
             // Pending Tasks
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(Icons.Default.Assignment, contentDescription = null, modifier = Modifier.size(18.dp), tint = secondary)
-                Text("المهام القادمة (${pendingChores.size})", fontWeight = FontWeight.Bold, color = onSurface)
+                Text(stringResource(R.string.upcoming_tasks_count, pendingChores.size), fontWeight = FontWeight.Bold, color = onSurface)
             }
             Spacer(Modifier.height(8.dp))
             if (pendingChores.isEmpty()) {
-                Text("لا توجد مهام قادمة", color = Color.Gray, fontSize = 14.sp)
+                Text(stringResource(R.string.no_upcoming_tasks), color = Color.Gray, fontSize = 14.sp)
             } else {
                 pendingChores.forEach { chore ->
                     Surface(
@@ -683,7 +694,7 @@ private fun MemberDetailSheet(
                             Column(Modifier.weight(1f)) {
                                 Text(chore.title, fontWeight = FontWeight.Bold, color = onSurface, fontSize = 14.sp)
                                 if (chore.rewardAmount > 0) {
-                                    Text("مكافأة: ${chore.rewardAmount} ريال", color = secondary, fontSize = 12.sp)
+                                    Text(stringResource(R.string.reward_colon, com.example.data.CurrencyFormatter.format(currencyContext, chore.rewardAmount)), color = secondary, fontSize = 12.sp)
                                 }
                             }
                         }
@@ -697,7 +708,7 @@ private fun MemberDetailSheet(
             if (memberTrees.isNotEmpty()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(Icons.Default.Park, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color(0xFF2E7D32))
-                    Text("أشجار التسبيحة (${memberTrees.size})", fontWeight = FontWeight.Bold, color = onSurface)
+                    Text(stringResource(R.string.tasbiha_trees_count, memberTrees.size), fontWeight = FontWeight.Bold, color = onSurface)
                 }
                 Spacer(Modifier.height(8.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -762,13 +773,13 @@ private fun TasksTab(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(Icons.Default.Assignment, contentDescription = null, modifier = Modifier.size(22.dp), tint = primary)
-                    Text("المهام العائلية", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
+                    Text(stringResource(R.string.family_tasks), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
                 }
                 if (isAdmin) {
                     FilledTonalButton(onClick = { showAddDialog = true }) {
                         Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("إضافة")
+                        Text(stringResource(R.string.add_action))
                     }
                 }
             }
@@ -905,26 +916,27 @@ private fun AddChoreDialog(
     var assignedTo by remember { mutableStateOf(members.firstOrNull()?.id ?: "") }
     var dueDate by remember { mutableStateOf("") }
     var rewardAmount by remember { mutableStateOf("") }
+    val currencyContext = LocalContext.current
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("إضافة مهمة جديدة") },
+        title = { Text(stringResource(R.string.add_new_task)) },
         text = {
             Column {
                 OutlinedTextField(
                     value = title, onValueChange = { title = it },
-                    label = { Text("اسم المهمة") },
-                    placeholder = { Text("مثال: ترتيب الغرفة") },
+                    label = { Text(stringResource(R.string.task_name)) },
+                    placeholder = { Text(stringResource(R.string.eg_tidy_room)) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = rewardAmount, onValueChange = { rewardAmount = it },
-                    label = { Text("المكافأة (ريال)") },
+                    label = { Text(stringResource(R.string.reward_with_currency, com.example.data.CurrencyFormatter.symbol(currencyContext))) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(8.dp))
-                Text("المكلف بالمهمة:", style = Typography.labelMedium, color = onSurface)
+                Text(stringResource(R.string.assigned_to_colon), style = Typography.labelMedium, color = onSurface)
                 Spacer(Modifier.height(4.dp))
                 LazyColumn(modifier = Modifier.heightIn(max = 150.dp)) {
                     items(members) { member ->
@@ -941,7 +953,7 @@ private fun AddChoreDialog(
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = dueDate, onValueChange = { dueDate = it },
-                    label = { Text("تاريخ التسليم (اختياري)") },
+                    label = { Text(stringResource(R.string.due_date_optional)) },
                     placeholder = { Text("2025-01-01") },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -956,9 +968,9 @@ private fun AddChoreDialog(
                     }
                 },
                 enabled = title.isNotBlank()
-            ) { Text("إضافة") }
+            ) { Text(stringResource(R.string.add_action)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )
 }
 
@@ -970,7 +982,12 @@ private fun InviteMemberDialog(
 ) {
     var selectedMethod by remember { mutableStateOf(0) }
     val context = LocalContext.current
-    val shareText = "انضم إلى عائلتي في تطبيق زاد!\nكود الدعوة: $inviteCode\nأو افتح الرابط: zad://invite?code=$inviteCode"
+    val joinFamilyText = stringResource(R.string.join_family_message)
+    val shareText = "$joinFamilyText\n${stringResource(R.string.invite_code_colon)} $inviteCode\n${stringResource(R.string.or_open_link)} zad://invite?code=$inviteCode"
+    val shareInviteTitle = stringResource(R.string.share_invite_title)
+    val joinScanText = stringResource(R.string.join_family_scan_message, inviteCode)
+    val joinLinkText = stringResource(R.string.join_family_link_message, inviteCode)
+    val joinCodeText = stringResource(R.string.join_family_code_message, inviteCode)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -978,7 +995,7 @@ private fun InviteMemberDialog(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.PersonAdd, null, tint = primary)
                 Spacer(Modifier.width(8.dp))
-                Text("دعوة أفراد جدد")
+                Text(stringResource(R.string.invite_new_members))
             }
         },
         text = {
@@ -996,17 +1013,17 @@ private fun InviteMemberDialog(
                     FilterChip(
                         selected = selectedMethod == 1,
                         onClick = { selectedMethod = 1 },
-                        label = { Text("رابط") }
+                        label = { Text(stringResource(R.string.link_method)) }
                     )
                     FilterChip(
                         selected = selectedMethod == 2,
                         onClick = { selectedMethod = 2 },
-                        label = { Text("كود") }
+                        label = { Text(stringResource(R.string.code_method)) }
                     )
                     FilterChip(
                         selected = selectedMethod == 3,
                         onClick = { selectedMethod = 3 },
-                        label = { Text("واتساب") }
+                        label = { Text(stringResource(R.string.whatsapp_method)) }
                     )
                 }
 
@@ -1014,14 +1031,14 @@ private fun InviteMemberDialog(
 
                 when (selectedMethod) {
                     0 -> {
-                        Text("مسح الرمز للانضمام:", style = Typography.labelMedium, color = onSurfaceVariant)
+                        Text(stringResource(R.string.scan_to_join), style = Typography.labelMedium, color = onSurfaceVariant)
                         Spacer(Modifier.height(8.dp))
                         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                             QrCode(content = "zad://invite?code=$inviteCode")
                         }
                     }
                     1 -> {
-                        Text("رابط الدعوة:", style = Typography.labelMedium, color = onSurfaceVariant)
+                        Text(stringResource(R.string.invite_link_colon), style = Typography.labelMedium, color = onSurfaceVariant)
                         Spacer(Modifier.height(8.dp))
                         Surface(shape = RoundedCornerShape(8.dp), color = surfaceContainer) {
                             Row(
@@ -1039,14 +1056,14 @@ private fun InviteMemberDialog(
                         }
                     }
                     2 -> {
-                        Text("كود الدعوة:", style = Typography.labelMedium, color = onSurfaceVariant)
+                        Text(stringResource(R.string.invite_code_colon), style = Typography.labelMedium, color = onSurfaceVariant)
                         Spacer(Modifier.height(8.dp))
                         Surface(shape = RoundedCornerShape(12.dp), color = primary.copy(alpha = 0.1f)) {
                             Text(inviteCode, modifier = Modifier.fillMaxWidth().padding(16.dp), fontWeight = FontWeight.Bold, color = primary, fontSize = 24.sp, textAlign = TextAlign.Center)
                         }
                     }
                     3 -> {
-                        Text("شارك عبر واتساب:", style = Typography.labelMedium, color = onSurfaceVariant)
+                        Text(stringResource(R.string.share_via_whatsapp_colon), style = Typography.labelMedium, color = onSurfaceVariant)
                         Spacer(Modifier.height(12.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(
@@ -1063,7 +1080,7 @@ private fun InviteMemberDialog(
                                             type = "text/plain"
                                             putExtra(Intent.EXTRA_TEXT, shareText)
                                         }
-                                        context.startActivity(Intent.createChooser(fallback, "مشاركة الدعوة"))
+                                        context.startActivity(Intent.createChooser(fallback, shareInviteTitle))
                                     }
                                 },
                                 modifier = Modifier.weight(1f),
@@ -1071,7 +1088,7 @@ private fun InviteMemberDialog(
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Icon(Icons.Default.Chat, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                                    Text("واتساب", color = Color.White)
+                                    Text(stringResource(R.string.whatsapp_method), color = Color.White)
                                 }
                             }
                             Button(
@@ -1080,13 +1097,13 @@ private fun InviteMemberDialog(
                                         type = "text/plain"
                                         putExtra(Intent.EXTRA_TEXT, shareText)
                                     }
-                                    context.startActivity(Intent.createChooser(general, "مشاركة الدعوة"))
+                                    context.startActivity(Intent.createChooser(general, shareInviteTitle))
                                 },
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Icon(Icons.Default.Share, contentDescription = null, tint = onSurface, modifier = Modifier.size(16.dp))
-                                    Text("جميع التطبيقات")
+                                    Text(stringResource(R.string.all_apps))
                                 }
                             }
                         }
@@ -1098,26 +1115,26 @@ private fun InviteMemberDialog(
                 Button(
                     onClick = {
                         val shareText = when (selectedMethod) {
-                            0 -> "انضم إلى عائلتي في تطبيق زاد! امسح الرمز: zad://invite?code=$inviteCode"
-                            1 -> "انضم إلى عائلتي في تطبيق زاد!\nرابط الدعوة: zad://invite?code=$inviteCode"
-                            else -> "انضم إلى عائلتي في تطبيق زاد!\nكود الدعوة: $inviteCode"
+                            0 -> joinScanText
+                            1 -> joinLinkText
+                            else -> joinCodeText
                         }
                         val shareIntent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
                             putExtra(Intent.EXTRA_TEXT, shareText)
                         }
-                        context.startActivity(Intent.createChooser(shareIntent, "مشاركة الدعوة"))
+                        context.startActivity(Intent.createChooser(shareIntent, shareInviteTitle))
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(Icons.Default.Share, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("مشاركة")
+                    Text(stringResource(R.string.share_action))
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("تم") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.done_action)) }
         }
     )
 }
@@ -1136,13 +1153,13 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
         item {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(Icons.Default.MonetizationOn, contentDescription = null, modifier = Modifier.size(20.dp), tint = primary)
-                Text("الميزانية والمكافآت", style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.budget_and_rewards), style = Typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             Spacer(modifier = Modifier.height(16.dp))
         }
 
         if (kids.isEmpty()) {
-            item { Text("لا يوجد أبناء مضافين لعرض إحصائياتهم.", color = Color.Gray) }
+            item { Text(stringResource(R.string.no_children_for_stats), color = Color.Gray) }
             return@LazyColumn
         }
 
@@ -1153,7 +1170,7 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("إحصائيات أرصدة الأبناء", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    Text(stringResource(R.string.children_balance_stats), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     Spacer(modifier = Modifier.height(16.dp))
 
                     kids.forEach { kid ->
@@ -1206,7 +1223,7 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
                     Icon(Icons.Default.MonetizationOn, contentDescription = null, tint = primary, modifier = Modifier.size(32.dp))
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {
-                        Text("إجمالي المكافآت المدفوعة", style = Typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(R.string.total_rewards_paid), style = Typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text("$totalPaidRewards ريال", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = primary)
                     }
                 }
@@ -1230,6 +1247,7 @@ fun ChatTab(
     var showPollDialog by remember { mutableStateOf(false) }
     var showEmojiPicker by remember { mutableStateOf<String?>(null) }
     var showQuickReplies by remember { mutableStateOf(false) }
+    val sosMessageText = stringResource(R.string.sos_message)
 
     // Start typing monitor
     LaunchedEffect(myMemberInfo.familyId) {
@@ -1276,8 +1294,8 @@ fun ChatTab(
                 val today = java.time.LocalDate.now().toString()
                 val yesterday = java.time.LocalDate.now().minusDays(1).toString()
                 val dateLabel = when (msgDate) {
-                    today -> "اليوم"
-                    yesterday -> "أمس"
+                    today -> stringResource(R.string.today_label)
+                    yesterday -> stringResource(R.string.yesterday_label)
                     else -> msgDate.replace("-", "/")
                 }
 
@@ -1410,7 +1428,7 @@ fun ChatTab(
                     IconButton(onClick = { showQuickReplies = !showQuickReplies }) {
                         Icon(Icons.Default.Add, contentDescription = "Quick Replies", tint = primary)
                     }
-                    IconButton(onClick = { onSendMessage("الرجاء الانتباه، حالة طوارئ!", "SOS", null) }) {
+                    IconButton(onClick = { onSendMessage(sosMessageText, "SOS", null) }) {
                         Icon(Icons.Default.Warning, contentDescription = "SOS", tint = dangerColor)
                     }
                     IconButton(onClick = { showPurchaseDialog = true }) {
@@ -1428,7 +1446,7 @@ fun ChatTab(
                                 text = it
                                 viewModel?.onTyping(myMemberInfo.familyId)
                             },
-                            placeholder = { Text("اكتب رسالة أو @Zad...") },
+                            placeholder = { Text(stringResource(R.string.chat_message_placeholder)) },
                             modifier = Modifier.weight(1f),
                             colors = TextFieldDefaults.colors(
                                 focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent,
@@ -1453,24 +1471,24 @@ fun ChatTab(
         var purchaseAmount by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showPurchaseDialog = false },
-            title = { Text("طلب مصروف أو مشتريات") },
+            title = { Text(stringResource(R.string.expense_purchase_request)) },
             text = {
                 Column {
-                    OutlinedTextField(value = purchaseTitle, onValueChange = { purchaseTitle = it }, label = { Text("ماذا تريد أن تشتري؟") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = purchaseTitle, onValueChange = { purchaseTitle = it }, label = { Text(stringResource(R.string.what_to_buy)) }, modifier = Modifier.fillMaxWidth())
                     Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(value = purchaseAmount, onValueChange = { purchaseAmount = it }, label = { Text("المبلغ المطلوب (ريال)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = purchaseAmount, onValueChange = { purchaseAmount = it }, label = { Text(stringResource(R.string.requested_amount_with_currency, com.example.data.CurrencyFormatter.symbol(context))) }, modifier = Modifier.fillMaxWidth())
                 }
             },
             confirmButton = {
                 Button(onClick = {
                     if (purchaseTitle.isNotBlank() && purchaseAmount.isNotBlank()) {
                         val meta = """{"amount":${purchaseAmount.toDoubleOrNull() ?: 0.0}, "status":"PENDING"}"""
-                        onSendMessage("أحتاج $purchaseAmount ريال لشراء $purchaseTitle", "PURCHASE_REQUEST", meta)
+                        onSendMessage(String.format(needAmountPattern, purchaseAmount, purchaseTitle), "PURCHASE_REQUEST", meta)
                         showPurchaseDialog = false
                     }
-                }) { Text("إرسال الطلب") }
+                }) { Text(stringResource(R.string.send_request)) }
             },
-            dismissButton = { TextButton(onClick = { showPurchaseDialog = false }) { Text("إلغاء") } }
+            dismissButton = { TextButton(onClick = { showPurchaseDialog = false }) { Text(stringResource(R.string.cancel)) } }
         )
     }
 
@@ -1479,15 +1497,15 @@ fun ChatTab(
         var pollOptions by remember { mutableStateOf(listOf("", "")) }
         AlertDialog(
             onDismissRequest = { showPollDialog = false },
-            title = { Text("تصويت عائلي") },
+            title = { Text(stringResource(R.string.family_poll)) },
             text = {
                 Column {
-                    OutlinedTextField(value = pollQuestion, onValueChange = { pollQuestion = it }, label = { Text("السؤال") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = pollQuestion, onValueChange = { pollQuestion = it }, label = { Text(stringResource(R.string.question_label)) }, modifier = Modifier.fillMaxWidth())
                     pollOptions.forEachIndexed { i, opt ->
                         OutlinedTextField(value = opt, onValueChange = { n -> pollOptions = pollOptions.toMutableList().apply { set(i, n) } },
-                            label = { Text("خيار ${i + 1}") }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+                            label = { Text(stringResource(R.string.option_number, i + 1)) }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
                     }
-                    TextButton(onClick = { pollOptions = pollOptions + "" }) { Text("+ إضافة خيار") }
+                    TextButton(onClick = { pollOptions = pollOptions + "" }) { Text(stringResource(R.string.add_option)) }
                 }
             },
             confirmButton = {
@@ -1499,9 +1517,9 @@ fun ChatTab(
                         onSendMessage("📊 $pollQuestion", "POLL", meta)
                         showPollDialog = false
                     }
-                }) { Text("إرسال التصويت") }
+                }) { Text(stringResource(R.string.send_poll)) }
             },
-            dismissButton = { TextButton(onClick = { showPollDialog = false }) { Text("إلغاء") } }
+            dismissButton = { TextButton(onClick = { showPollDialog = false }) { Text(stringResource(R.string.cancel)) } }
         )
     }
 }
@@ -1512,7 +1530,7 @@ private fun SosBubble(msg: ChatMessage, senderAlias: String) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.Warning, contentDescription = "SOS", tint = Color.White, modifier = Modifier.size(32.dp))
             Spacer(modifier = Modifier.height(8.dp))
-            Text("نداء طوارئ من $senderAlias!", color = Color.White, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.sos_call_from, senderAlias), color = Color.White, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(4.dp))
             Text(msg.message ?: "", color = Color.White, textAlign = TextAlign.Center)
         }
@@ -1521,12 +1539,14 @@ private fun SosBubble(msg: ChatMessage, senderAlias: String) {
 
 @Composable
 private fun PurchaseBubble(msg: ChatMessage, senderAlias: String, myMemberInfo: com.example.data.FamilyMember, isMe: Boolean, onUpdateRequestStatus: (String, String, String) -> Unit) {
+    val approvedPattern = stringResource(R.string.request_approved_message)
+    val rejectedPattern = stringResource(R.string.request_rejected_message)
     Box(modifier = Modifier.fillMaxWidth(0.85f).clip(RoundedCornerShape(16.dp)).background(surfaceContainerHigh).border(1.dp, primary, RoundedCornerShape(16.dp)).padding(16.dp)) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.ShoppingCart, contentDescription = "Request", tint = primary)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("طلب شراء من $senderAlias", fontWeight = FontWeight.Bold, color = primary)
+                Text(stringResource(R.string.purchase_request_from, senderAlias), fontWeight = FontWeight.Bold, color = primary)
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(msg.message ?: "", color = onSurface)
@@ -1536,20 +1556,20 @@ private fun PurchaseBubble(msg: ChatMessage, senderAlias: String, myMemberInfo: 
             if (isPending && myMemberInfo.role == "admin" && !isMe) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    Button(onClick = { onUpdateRequestStatus(msg.id, "APPROVED", "تمت الموافقة على طلب: ${msg.message}") }, colors = ButtonDefaults.buttonColors(containerColor = primary)) { Text("موافقة وخصم") }
-                    OutlinedButton(onClick = { onUpdateRequestStatus(msg.id, "REJECTED", "تم رفض طلب: ${msg.message}") }, colors = ButtonDefaults.outlinedButtonColors(contentColor = dangerColor)) { Text("رفض") }
+                    Button(onClick = { onUpdateRequestStatus(msg.id, "APPROVED", String.format(approvedPattern, msg.message)) }, colors = ButtonDefaults.buttonColors(containerColor = primary)) { Text(stringResource(R.string.approve_and_deduct)) }
+                    OutlinedButton(onClick = { onUpdateRequestStatus(msg.id, "REJECTED", String.format(rejectedPattern, msg.message)) }, colors = ButtonDefaults.outlinedButtonColors(contentColor = dangerColor)) { Text(stringResource(R.string.reject)) }
                 }
             } else if (isApproved) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp), tint = primary)
-                    Text("تمت الموافقة", style = Typography.labelMedium, color = primary, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.request_approved), style = Typography.labelMedium, color = primary, fontWeight = FontWeight.Bold)
                 }
             } else if (isRejected) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Icon(Icons.Default.Cancel, contentDescription = null, modifier = Modifier.size(16.dp), tint = dangerColor)
-                    Text("مرفوض", style = Typography.labelMedium, color = dangerColor, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.request_rejected), style = Typography.labelMedium, color = dangerColor, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -1573,7 +1593,7 @@ private fun PollBubble(msg: ChatMessage, senderAlias: String, members: List<com.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.BarChart, contentDescription = "Poll", tint = secondary)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("تصويت من $senderAlias", fontWeight = FontWeight.Bold, color = secondary)
+                Text(stringResource(R.string.poll_from, senderAlias), fontWeight = FontWeight.Bold, color = secondary)
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(question.removePrefix("📊 ").removePrefix("POLL: "), fontWeight = FontWeight.Bold, color = onSurface)
@@ -1621,7 +1641,7 @@ private fun TextBubble(msg: ChatMessage, isMe: Boolean, isAi: Boolean, senderAli
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.PlayArrow, contentDescription = null, tint = if (isMe) Color.White else primary, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("رسالة صوتية", color = if (isMe) Color.White else onSurface, fontSize = 13.sp)
+                        Text(stringResource(R.string.voice_message), color = if (isMe) Color.White else onSurface, fontSize = 13.sp)
                     }
                 } else {
                     Text(msg.message ?: "", color = if (isMe) Color.White else onSurface)
@@ -1669,7 +1689,7 @@ fun FamilyTopBar(onOpenDrawer: () -> Unit, unreadCount: Int = 0, onNotifications
                 Icon(Icons.Default.Menu, contentDescription = "Menu", tint = onSurfaceVariant)
             }
         }
-        Text("العائلة الذكية", style = Typography.titleLarge, color = onSurface, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.family_hub), style = Typography.titleLarge, color = onSurface, fontWeight = FontWeight.Bold)
         BadgedBox(
             badge = {
                 if (unreadCount > 0) {

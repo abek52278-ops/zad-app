@@ -25,9 +25,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import coil.compose.AsyncImage
 import com.example.ui.theme.*
 import androidx.compose.runtime.*
@@ -52,7 +54,9 @@ fun ProfileScreen(
     onLogout: () -> Unit = {},
     navController: NavController? = null
 ) {
-    var userEmail by remember { mutableStateOf("تحميل...") }
+    val loadingText = stringResource(R.string.loading_ellipsis)
+    val newUserText = stringResource(R.string.new_user_default)
+    var userEmail by remember { mutableStateOf(loadingText) }
     var userId by remember { mutableStateOf("...") }
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -65,7 +69,7 @@ fun ProfileScreen(
     } else 0
 
     val userNameState by viewModel.userName.collectAsState()
-    val displayUserName = userNameState ?: "مستخدم جديد"
+    val displayUserName = userNameState ?: newUserText
     val globalAvatarUri by viewModel.avatarUri.collectAsState()
     val myTasbiha = familyViewModel.myTasbiha
 
@@ -73,7 +77,7 @@ fun ProfileScreen(
 
     LaunchedEffect(Unit) {
         val session = SupabaseRepo.client.auth.currentSessionOrNull()
-        userEmail = session?.user?.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() } ?: "مستخدم جديد"
+        userEmail = session?.user?.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() } ?: newUserText
         userId = session?.user?.id?.take(8)?.uppercase() ?: "9921"
         viewModel.loadUserProfile()
         animTriggered = true
@@ -123,16 +127,16 @@ fun ProfileScreen(
     if (showDeleteAccountDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteAccountDialog = false },
-            title = { Text("حذف الحساب", fontWeight = FontWeight.Bold, color = dangerColor) },
-            text = { Text("هل أنت متأكد من حذف حسابك نهائياً؟ لا يمكن التراجع عن هذا الإجراء.", color = onSurface) },
+            title = { Text(stringResource(R.string.delete_account), fontWeight = FontWeight.Bold, color = dangerColor) },
+            text = { Text(stringResource(R.string.delete_account_confirm), color = onSurface) },
             confirmButton = {
                 Button(onClick = {
                     viewModel.deleteAccount()
                     showDeleteAccountDialog = false
                     onLogout()
-                }, colors = ButtonDefaults.buttonColors(containerColor = dangerColor)) { Text("نعم، احذف الحساب") }
+                }, colors = ButtonDefaults.buttonColors(containerColor = dangerColor)) { Text(stringResource(R.string.confirm_delete_account)) }
             },
-            dismissButton = { TextButton(onClick = { showDeleteAccountDialog = false }) { Text("إلغاء", color = primary) } },
+            dismissButton = { TextButton(onClick = { showDeleteAccountDialog = false }) { Text(stringResource(R.string.cancel), color = primary) } },
             containerColor = surface
         )
     }
@@ -148,19 +152,12 @@ fun ProfileScreen(
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Default.TrackChanges, contentDescription = null, modifier = Modifier.size(24.dp), tint = primary)
-                    Text("التحليل الذكي للسلوك", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.smart_behavior_analysis), fontWeight = FontWeight.Bold)
                 }
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        "زاد يحلل بيانات صرفك واستهلاكك (المعاملات، المخزون، الاشتراكات) لتقديم:\n\n" +
-                        "• تنبؤات مخصصة للمصاريف\n" +
-                        "• ترشيحات ذكية للمنتجات\n" +
-                        "• تحليل أسبوعي للسلوك المالي\n\n" +
-                        "هذا مطلوب بموجب نظام حماية البيانات الشخصية السعودي (PDPL).\n" +
-                        "يمكنك إلغاء التفعيل في أي وقت."
-                    )
+                    Text(stringResource(R.string.behavior_consent_explanation))
                 }
             },
             confirmButton = {
@@ -170,16 +167,16 @@ fun ProfileScreen(
                         showBehaviorConsentDialog = false
                     },
                     shape = RoundedCornerShape(12.dp)
-                ) { Text(if (viewModel.behaviorConsentGiven.collectAsState().value) "إلغاء التفعيل" else "تفعيل") }
+                ) { Text(if (viewModel.behaviorConsentGiven.collectAsState().value) stringResource(R.string.deactivate) else stringResource(R.string.enable)) }
             },
             dismissButton = {
                 if (viewModel.behaviorConsentGiven.collectAsState().value) {
                     TextButton(onClick = {
                         viewModel.setBehaviorConsent(false)
                         showBehaviorConsentDialog = false
-                    }) { Text("إلغاء التفعيل", color = dangerColor) }
+                    }) { Text(stringResource(R.string.deactivate), color = dangerColor) }
                 } else {
-                    TextButton(onClick = { showBehaviorConsentDialog = false }) { Text("لاحقاً") }
+                    TextButton(onClick = { showBehaviorConsentDialog = false }) { Text(stringResource(R.string.later_action)) }
                 }
             }
         )
@@ -292,7 +289,7 @@ fun ProfileScreen(
                         Text("#ZAD-$userId", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text(displayUserName.ifEmpty { "مستخدم جديد" }.take(1).uppercase(), color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                    Text(displayUserName.ifEmpty { newUserText }.take(1).uppercase(), color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
                 }
             }
 
@@ -304,7 +301,7 @@ fun ProfileScreen(
             ) {
                 AnimatedStatCard(
                     icon = Icons.Default.Inventory2,
-                    label = "في المخزون",
+                    label = stringResource(R.string.in_inventory_label),
                     value = inventory.size,
                     color = primaryFixed,
                     animTriggered = animTriggered,
@@ -312,7 +309,7 @@ fun ProfileScreen(
                 )
                 AnimatedStatCard(
                     icon = Icons.Default.Subscriptions,
-                    label = "اشتراكات",
+                    label = stringResource(R.string.subscriptions),
                     value = subscriptions.size,
                     color = secondary,
                     animTriggered = animTriggered,
@@ -320,7 +317,7 @@ fun ProfileScreen(
                 )
                 AnimatedStatCard(
                     icon = Icons.Default.FamilyRestroom,
-                    label = "أفراد العائلة",
+                    label = stringResource(R.string.family_members),
                     value = familyMembersCount,
                     color = tertiary,
                     animTriggered = animTriggered,
@@ -341,13 +338,13 @@ fun ProfileScreen(
             Spacer(Modifier.height(24.dp))
             Column(modifier = Modifier.padding(horizontal = 20.dp)) {
                 // -- Menu Items with Premium Styling --
-                SectionTitle("الإعدادات")
+                SectionTitle(stringResource(R.string.settings_title))
                 Spacer(Modifier.height(12.dp))
 
                 ProfileMenuItem(
                     icon = Icons.Default.Edit,
-                    title = "تعديل الملف الشخصي",
-                    subtitle = "الاسم، الصورة، والبريد",
+                    title = stringResource(R.string.edit_profile_title),
+                    subtitle = stringResource(R.string.edit_profile_subtitle),
                     gradient = listOf(Color(0xFF0D5C3F), Color(0xFF1A7A55)),
                     onClick = { navController?.navigate(Screen.EditProfile.route) }
                 )
@@ -355,8 +352,8 @@ fun ProfileScreen(
 
                 ProfileMenuItem(
                     icon = Icons.Default.FamilyRestroom,
-                    title = "إدارة العائلة",
-                    subtitle = "الأعضاء والصلاحيات",
+                    title = stringResource(R.string.manage_family),
+                    subtitle = stringResource(R.string.members_and_permissions),
                     gradient = listOf(Color(0xFFC8963E), Color(0xFFE8BC6A)),
                     onClick = { navController?.navigate(Screen.FamilyManagement.route) }
                 )
@@ -364,8 +361,8 @@ fun ProfileScreen(
 
                 ProfileMenuItem(
                     icon = Icons.Default.AccountBalanceWallet,
-                    title = "الميزانية وطرق الدفع",
-                    subtitle = "الميزانية الشهرية والربط البنكي",
+                    title = stringResource(R.string.budget_and_payment_methods),
+                    subtitle = stringResource(R.string.monthly_budget_and_bank_link),
                     gradient = listOf(Color(0xFF1C6EA4), Color(0xFF60A5FA)),
                     onClick = { navController?.navigate(Screen.PaymentBudget.route) }
                 )
@@ -373,8 +370,8 @@ fun ProfileScreen(
 
                 ProfileMenuItem(
                     icon = Icons.Default.SmartToy,
-                    title = "تنبيهات المساعد الذكي",
-                    subtitle = "التحكم في التنبيهات الذكية",
+                    title = stringResource(R.string.assistant_alerts_title),
+                    subtitle = stringResource(R.string.control_smart_alerts),
                     gradient = listOf(Color(0xFF7C3AED), Color(0xFFA78BFA)),
                     onClick = { navController?.navigate(Screen.AssistantAlerts.route) }
                 )
@@ -382,20 +379,20 @@ fun ProfileScreen(
 
                 ProfileMenuItem(
                     icon = Icons.Default.SupportAgent,
-                    title = "الدعم الفني",
-                    subtitle = "تواصل معنا",
+                    title = stringResource(R.string.nav_help),
+                    subtitle = stringResource(R.string.contact_us),
                     gradient = listOf(Color(0xFF0D5C3F), Color(0xFF34C77B)),
                     onClick = { showHelpSupport = true }
                 )
 
                 Spacer(Modifier.height(24.dp))
-                SectionTitle("الحساب")
+                SectionTitle(stringResource(R.string.account_title))
                 Spacer(Modifier.height(12.dp))
 
                 ProfileMenuItem(
                     icon = Icons.Default.DeleteForever,
-                    title = "حذف الحساب",
-                    subtitle = "حذف الحساب نهائياً",
+                    title = stringResource(R.string.delete_account),
+                    subtitle = stringResource(R.string.delete_account_permanently),
                     gradient = listOf(dangerColor, Color(0xFFE57373)),
                     onClick = { showDeleteAccountDialog = true }
                 )
@@ -406,9 +403,9 @@ fun ProfileScreen(
                 val behaviorConsent = viewModel.behaviorConsentGiven.collectAsState().value
                 ProfileMenuItem(
                     icon = if (behaviorConsent) Icons.Default.CheckCircle else Icons.Default.TrackChanges,
-                    title = "التحليل الذكي للسلوك",
-                    subtitle = if (behaviorConsent) "مفعل — يتم تحليل بياناتك لتقديم تنبؤات مخصصة"
-                               else "غير مفعل — فعل لتحصل على تنبؤات ذكية",
+                    title = stringResource(R.string.smart_behavior_analysis),
+                    subtitle = if (behaviorConsent) stringResource(R.string.behavior_analysis_enabled_subtitle)
+                               else stringResource(R.string.behavior_analysis_disabled_subtitle),
                     onClick = { showBehaviorConsentDialog = true }
                 )
 
@@ -435,7 +432,7 @@ fun ProfileScreen(
                 ) {
                     Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(10.dp))
-                    Text("تسجيل الخروج", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text(stringResource(R.string.logout), fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
                 Spacer(Modifier.height(100.dp))
             }
@@ -503,7 +500,7 @@ fun AchievementsSection(
     transactionsCount: Int
 ) {
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-        SectionTitle("الإنجازات")
+        SectionTitle(stringResource(R.string.achievements_title))
         Spacer(Modifier.height(12.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -511,31 +508,31 @@ fun AchievementsSection(
         ) {
             AchievementBadge(
                 icon = Icons.Default.Inventory2,
-                label = "مخزون",
+                label = stringResource(R.string.inventory_short_label),
                 unlocked = inventoryCount >= 5,
                 earned = inventoryCount >= 1
             )
             AchievementBadge(
                 icon = Icons.Default.Subscriptions,
-                label = "اشتراكات",
+                label = stringResource(R.string.subscriptions),
                 unlocked = subscriptionsCount >= 3,
                 earned = subscriptionsCount >= 1
             )
             AchievementBadge(
                 icon = Icons.Default.People,
-                label = "عائلة",
+                label = stringResource(R.string.family_short_label),
                 unlocked = familyMembersCount >= 3,
                 earned = familyMembersCount >= 1
             )
             AchievementBadge(
                 icon = Icons.Default.Favorite,
-                label = "تسبيحة",
+                label = stringResource(R.string.tasbiha_short_label),
                 unlocked = tasbihaCount >= 1,
                 earned = tasbihaCount >= 1
             )
             AchievementBadge(
                 icon = Icons.Default.Payments,
-                label = "معاملات",
+                label = stringResource(R.string.transactions_short_label),
                 unlocked = transactionsCount >= 20,
                 earned = transactionsCount >= 1
             )
@@ -633,10 +630,10 @@ fun ProfileMenuItem(
 fun AvatarSelectionDialog(onDismiss: () -> Unit, onAvatarSelected: (String) -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("اختر شخصيتك", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = primary) },
+        title = { Text(stringResource(R.string.choose_your_avatar), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = primary) },
         text = {
             Column {
-                Text("اختر فاكهتك المفضلة كصورة شخصية لك:", style = Typography.bodyMedium, color = onSurfaceVariant)
+                Text(stringResource(R.string.choose_favorite_fruit_avatar), style = Typography.bodyMedium, color = onSurfaceVariant)
                 Spacer(Modifier.height(16.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     AvatarOption("avatar_carrot", onAvatarSelected)
@@ -645,7 +642,7 @@ fun AvatarSelectionDialog(onDismiss: () -> Unit, onAvatarSelected: (String) -> U
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("إلغاء", color = primary) } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = primary) } },
         containerColor = surface
     )
 }
@@ -672,10 +669,10 @@ fun EditNameDialog(currentName: String, onDismiss: () -> Unit, onSave: (String) 
     var name by remember { mutableStateOf(currentName) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("تعديل الاسم", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = primary) },
-        text = { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("الاسم") }, modifier = Modifier.fillMaxWidth(), singleLine = true) },
-        confirmButton = { Button(onClick = { if (name.isNotBlank()) onSave(name.trim()) }, colors = ButtonDefaults.buttonColors(containerColor = primary)) { Text("حفظ") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء", color = primary) } },
+        title = { Text(stringResource(R.string.edit_name), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = primary) },
+        text = { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.name_label)) }, modifier = Modifier.fillMaxWidth(), singleLine = true) },
+        confirmButton = { Button(onClick = { if (name.isNotBlank()) onSave(name.trim()) }, colors = ButtonDefaults.buttonColors(containerColor = primary)) { Text(stringResource(R.string.save)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = primary) } },
         containerColor = surface
     )
 }

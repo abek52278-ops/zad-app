@@ -24,6 +24,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.example.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -275,11 +277,11 @@ fun BudgetScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("ميزانيات الفئات", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                    Text(stringResource(R.string.category_budgets), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
                     TextButton(onClick = { editingCategory = "__NEW__" }) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = primary)
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("تحديد فئة", style = Typography.labelMedium, color = primary)
+                        Text(stringResource(R.string.set_category), style = Typography.labelMedium, color = primary)
                     }
                 }
             }
@@ -482,7 +484,7 @@ fun BudgetScreen(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Add", modifier = Modifier.size(20.dp))
-                    Text("معاملة", style = Typography.labelMedium, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.add_transaction_fab), style = Typography.labelMedium, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -609,7 +611,7 @@ private fun CategoryBudgetEditDialog(
                             value = selectedCategory,
                             onValueChange = {},
                             readOnly = true,
-                            label = { Text("الفئة") },
+                            label = { Text(stringResource(R.string.category_label)) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                             modifier = Modifier.menuAnchor().fillMaxWidth()
                         )
@@ -624,7 +626,7 @@ private fun CategoryBudgetEditDialog(
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { if (it.all { c -> c.isDigit() }) amountText = it },
-                    label = { Text("الميزانية الشهرية (${com.example.data.CurrencyFormatter.symbol(context)})") },
+                    label = { Text(stringResource(R.string.monthly_budget_with_currency, com.example.data.CurrencyFormatter.symbol(context))) },
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -634,10 +636,10 @@ private fun CategoryBudgetEditDialog(
             TextButton(onClick = {
                 val amount = amountText.toDoubleOrNull() ?: 0.0
                 onSave(category ?: selectedCategory, amount)
-            }) { Text("حفظ", fontWeight = FontWeight.Bold, color = primary) }
+            }) { Text(stringResource(R.string.save), fontWeight = FontWeight.Bold, color = primary) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("إلغاء") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }

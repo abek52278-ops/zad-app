@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -31,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.R
 import com.example.data.ZadInventory
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
@@ -212,7 +214,7 @@ fun InventoryScreen(
                 shape = RoundedCornerShape(16.dp),
                 elevation = FloatingActionButtonDefaults.elevation(4.dp)
             ) {
-                Icon(Icons.Default.DocumentScanner, contentDescription = "تصوير المخزون")
+                Icon(Icons.Default.DocumentScanner, contentDescription = stringResource(R.string.photograph_inventory))
             }
             FloatingActionButton(
                 onClick = { showAddDialog = true },
@@ -221,7 +223,7 @@ fun InventoryScreen(
                 shape = RoundedCornerShape(16.dp),
                 elevation = FloatingActionButtonDefaults.elevation(4.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "إضافة يدوية")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_manually))
             }
         }
     }
@@ -258,14 +260,14 @@ private fun InventoryTopBar(
         CenterAlignedTopAppBar(
             title = {
                 Text(
-                    "المخزون الذكي",
+                    stringResource(R.string.smart_inventory),
                     fontWeight = FontWeight.Bold,
                     color = onBackground
                 )
             },
             navigationIcon = {
                 IconButton(onClick = onOpenDrawer) {
-                    Icon(Icons.Default.Menu, contentDescription = "القائمة")
+                    Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.main_menu))
                 }
             },
             actions = {
@@ -287,7 +289,7 @@ private fun InventoryTopBar(
                 value = searchQuery,
                 onValueChange = onSearchChange,
                 placeholder = {
-                    Text("ابحث في المخزون...", color = onSurfaceVariant)
+                    Text(stringResource(R.string.search_inventory), color = onSurfaceVariant)
                 },
                 leadingIcon = {
                     Icon(
@@ -368,19 +370,19 @@ private fun LowStockBanner(items: List<ZadInventory>, onShopClick: () -> Unit = 
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                "نواقص المخزون (${items.size})",
+                stringResource(R.string.inventory_shortages_count, items.size),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
                 color = onErrorContainer
             )
             Text(
-                "التكلفة التقديرية للتسوق: ${com.example.data.CurrencyFormatter.format(context, totalEstimatedCost)}",
+                stringResource(R.string.estimated_shopping_cost, com.example.data.CurrencyFormatter.format(context, totalEstimatedCost)),
                 style = MaterialTheme.typography.bodySmall,
                 color = onErrorContainer.copy(alpha = 0.8f)
             )
         }
         TextButton(onClick = onShopClick) {
-            Text("نزّلها في التسوق", color = dangerColor, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.add_to_shopping_list), color = dangerColor, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -417,14 +419,14 @@ private fun ExpiringSoonSection(
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    "ينتهي قريباً",
+                    stringResource(R.string.expiring_soon_badge),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = onBackground
                 )
             }
             TextButton(onClick = onNavigateToAssistant) {
-                Text("اقتراح وصفة", color = primary, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.suggest_recipe), color = primary, fontWeight = FontWeight.Medium)
                 Spacer(modifier = Modifier.width(4.dp))
                 Icon(
                     Icons.Default.AutoAwesome,
@@ -468,7 +470,7 @@ private fun ExpiringSoonSection(
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                if (days != null && days <= 0) "منتهي الصلاحية" else "باقي ${days ?: "?"} يوم",
+                                if (days != null && days <= 0) stringResource(R.string.expired) else stringResource(R.string.days_remaining, days?.toString() ?: "?"),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = expiryColor(days)
                             )
@@ -557,14 +559,14 @@ private fun EmptyInventoryState(onNavigateToCamera: () -> Unit) {
             }
             Spacer(modifier = Modifier.height(20.dp))
             Text(
-                "المخزون فارغ",
+                stringResource(R.string.inventory_empty),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = onBackground
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                "ابدأ بإضافة منتجات لتنظم مخزون منزلك",
+                stringResource(R.string.inventory_empty_hint),
                 style = MaterialTheme.typography.bodyMedium,
                 color = onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -580,7 +582,7 @@ private fun EmptyInventoryState(onNavigateToCamera: () -> Unit) {
                 ) {
                     Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("تصوير", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.take_photo), style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -604,12 +606,12 @@ private fun EmptySearchState() {
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                "لا توجد نتائج",
+                stringResource(R.string.no_results),
                 style = MaterialTheme.typography.titleSmall,
                 color = onSurfaceVariant
             )
             Text(
-                "جرّب البحث بكلمة مختلفة",
+                stringResource(R.string.try_different_search),
                 style = MaterialTheme.typography.bodySmall,
                 color = outline
             )
@@ -717,7 +719,7 @@ private fun InventoryItemCard(
             if (days != null) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    if (days <= 0) "منتهي" else "$days يوم",
+                    if (days <= 0) stringResource(R.string.expired_short) else stringResource(R.string.days_count, days),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Medium,
                     color = expiryColor(days)
@@ -737,7 +739,7 @@ private fun InventoryItemCard(
                         color = dangerColor.copy(alpha = 0.1f)
                     ) {
                         Text(
-                            "منخفض",
+                            stringResource(R.string.low_stock_badge),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = dangerColor,
@@ -798,7 +800,7 @@ private fun AddInventoryDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "إضافة منتج جديد",
+                        stringResource(R.string.add_new_product),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = onBackground
@@ -806,7 +808,7 @@ private fun AddInventoryDialog(
                     IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
                         Icon(
                             Icons.Default.Close,
-                            contentDescription = "إغلاق",
+                            contentDescription = stringResource(R.string.close_action),
                             tint = onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
                         )
@@ -816,7 +818,7 @@ private fun AddInventoryDialog(
                 Spacer(modifier = Modifier.height(20.dp))
 
                 Text(
-                    "اسم المنتج",
+                    stringResource(R.string.product_name),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = onSurfaceVariant
@@ -825,7 +827,7 @@ private fun AddInventoryDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    placeholder = { Text("مثلاً: حليب", color = outline) },
+                    placeholder = { Text(stringResource(R.string.eg_milk_placeholder), color = outline) },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -843,7 +845,7 @@ private fun AddInventoryDialog(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "الكمية",
+                            stringResource(R.string.quantity_label),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = onSurfaceVariant
@@ -864,7 +866,7 @@ private fun AddInventoryDialog(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "الوحدة",
+                            stringResource(R.string.unit_label),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = onSurfaceVariant
@@ -909,7 +911,7 @@ private fun AddInventoryDialog(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
-                    "القسم",
+                    stringResource(R.string.section_label),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = onSurfaceVariant
@@ -958,7 +960,7 @@ private fun AddInventoryDialog(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
-                    "تاريخ الصلاحية (اختياري)",
+                    stringResource(R.string.expiry_date_optional),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = onSurfaceVariant
@@ -990,7 +992,7 @@ private fun AddInventoryDialog(
                         contentPadding = PaddingValues(vertical = 12.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = onSurfaceVariant)
                     ) {
-                        Text("إلغاء")
+                        Text(stringResource(R.string.cancel))
                     }
 
                     Button(
@@ -1011,7 +1013,7 @@ private fun AddInventoryDialog(
                     ) {
                         Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("حفظ")
+                        Text(stringResource(R.string.save))
                     }
                 }
             }

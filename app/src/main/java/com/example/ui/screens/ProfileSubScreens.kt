@@ -19,10 +19,12 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.FamilyState
 import com.example.ui.viewmodels.FamilyViewModel
@@ -66,6 +68,9 @@ fun EditProfileScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val accountName by viewModel.userName.collectAsState()
+    val newUserText = stringResource(R.string.new_user_default)
+    val savedChangesText = stringResource(R.string.changes_saved)
+    val saveFailedText = stringResource(R.string.changes_save_failed)
 
     LaunchedEffect(Unit) {
         val session = SupabaseRepo.client.auth.currentSessionOrNull()
@@ -73,12 +78,12 @@ fun EditProfileScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
         // الاسم المعروض في باقي التطبيق (زاد_users.name) هو مصدر الحقيقة —
         // مع fallback للقب العائلة (family_members.alias) لو الاسم الأساسي لسه فاضي
         val myMember = SupabaseRepo.getMyFamilyMember()
-        alias = accountName?.takeIf { it.isNotBlank() && it != "مستخدم جديد" } ?: (myMember?.alias ?: "")
+        alias = accountName?.takeIf { it.isNotBlank() && it != newUserText } ?: (myMember?.alias ?: "")
         Log.d(TAG_SUB_PROF, "EditProfileScreen loaded — userEmail=$email, alias=$alias")
     }
 
     Column(modifier = Modifier.fillMaxSize().background(background)) {
-        SubScreenTopBar("تعديل الملف الشخصي", onBack)
+        SubScreenTopBar(stringResource(R.string.edit_profile_title), onBack)
         
         Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
             // Avatar circle
@@ -95,7 +100,7 @@ fun EditProfileScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
             OutlinedTextField(
                 value = email,
                 onValueChange = {},
-                label = { Text("البريد الإلكتروني") },
+                label = { Text(stringResource(R.string.email)) },
                 modifier = Modifier.fillMaxWidth(),
                 readOnly = true, enabled = false,
                 colors = OutlinedTextFieldDefaults.colors(disabledTextColor = onSurfaceVariant)
@@ -104,9 +109,9 @@ fun EditProfileScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
             OutlinedTextField(
                 value = alias,
                 onValueChange = { alias = it },
-                label = { Text("الاسم / اللقب") },
+                label = { Text(stringResource(R.string.name_alias_label)) },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("مثال: الأب") }
+                placeholder = { Text(stringResource(R.string.eg_father)) }
             )
             Spacer(modifier = Modifier.height(32.dp))
             Button(
@@ -121,17 +126,17 @@ fun EditProfileScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
                         if (saved) {
                             // مزامنة أفضل جهد للقب العائلة كمان لو المستخدم عضو في عائلة بالفعل
                             scope.launch { SupabaseRepo.updateFamilyMemberAlias(alias) }
-                            Toast.makeText(context, "تم حفظ التغييرات", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, savedChangesText, Toast.LENGTH_SHORT).show()
                             onBack()
                         } else {
-                            Toast.makeText(context, "تعذر حفظ التغييرات — تحقق من الاتصال وحاول مرة أخرى", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, saveFailedText, Toast.LENGTH_LONG).show()
                         }
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(54.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("حفظ التغييرات", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.save_changes), fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -154,7 +159,7 @@ fun FamilyManagementScreen(familyViewModel: FamilyViewModel, onBack: () -> Unit)
     }
 
     Column(modifier = Modifier.fillMaxSize().background(background)) {
-        SubScreenTopBar("إدارة العائلة", onBack)
+        SubScreenTopBar(stringResource(R.string.manage_family), onBack)
         
         Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
             if (state is FamilyState.Active) {
@@ -164,12 +169,12 @@ fun FamilyManagementScreen(familyViewModel: FamilyViewModel, onBack: () -> Unit)
                     colors = CardDefaults.cardColors(containerColor = primary)
                 ) {
                     Column(modifier = Modifier.padding(20.dp)) {
-                        Text("كود دعوة العائلة", style = Typography.labelMedium, color = Color.White.copy(alpha = 0.8f))
+                        Text(stringResource(R.string.family_invite_code_label), style = Typography.labelMedium, color = Color.White.copy(alpha = 0.8f))
                         Text(activeState.familyGroup.inviteCode, style = Typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                     }
                 }
                 Spacer(modifier = Modifier.height(24.dp))
-                Text("أفراد العائلة", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                Text(stringResource(R.string.family_members), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
                 Spacer(modifier = Modifier.height(12.dp))
                 activeState.members.forEach { member ->
                     Row(
@@ -199,7 +204,7 @@ fun FamilyManagementScreen(familyViewModel: FamilyViewModel, onBack: () -> Unit)
                                     onDismissRequest = { expanded = false }
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text("ترقية لمدير (Admin)") },
+                                        text = { Text(stringResource(R.string.promote_to_admin)) },
                                         onClick = {
                                             Log.d(TAG_SUB_PROF, "Change role to admin clicked for member ${member.id}")
                                             familyViewModel.changeMemberRole(member.id, "admin")
@@ -207,7 +212,7 @@ fun FamilyManagementScreen(familyViewModel: FamilyViewModel, onBack: () -> Unit)
                                         }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("إرجاع لعضو (Member)") },
+                                        text = { Text(stringResource(R.string.demote_to_member)) },
                                         onClick = {
                                             Log.d(TAG_SUB_PROF, "Change role to member clicked for member ${member.id}")
                                             familyViewModel.changeMemberRole(member.id, "member")
@@ -215,7 +220,7 @@ fun FamilyManagementScreen(familyViewModel: FamilyViewModel, onBack: () -> Unit)
                                         }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("طرد العضو", color = dangerColor) },
+                                        text = { Text(stringResource(R.string.kick_member), color = dangerColor) },
                                         onClick = {
                                             Log.d(TAG_SUB_PROF, "Kick member clicked for member ${member.id}")
                                             familyViewModel.kickMember(member.id)
@@ -228,7 +233,7 @@ fun FamilyManagementScreen(familyViewModel: FamilyViewModel, onBack: () -> Unit)
                     }
                 }
             } else {
-                Text("أنت لست منضماً لأي عائلة حالياً.", color = onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(40.dp))
+                Text(stringResource(R.string.not_in_family_yet), color = onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(40.dp))
             }
         }
     }
@@ -248,7 +253,7 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
     }
 
     Column(modifier = Modifier.fillMaxSize().background(background)) {
-        SubScreenTopBar("طرق الدفع والميزانية", onBack)
+        SubScreenTopBar(stringResource(R.string.payment_and_budget_title), onBack)
         
         Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
             Card(
@@ -256,7 +261,7 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
                 colors = CardDefaults.cardColors(containerColor = surface)
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
-                    Text("الميزانية الشهرية الحالية", style = Typography.labelMedium, color = onSurfaceVariant)
+                    Text(stringResource(R.string.current_monthly_budget), style = Typography.labelMedium, color = onSurfaceVariant)
                     Spacer(modifier = Modifier.height(8.dp))
                     if (editMode) {
                         OutlinedTextField(
@@ -271,9 +276,9 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
                                 Log.d(TAG_SUB_PROF, "Save budget clicked → parsed=$parsed → calling viewModel.updateBudget()")
                                 viewModel.updateBudget(parsed)
                                 editMode = false
-                            }) { Text("حفظ") }
+                            }) { Text(stringResource(R.string.save)) }
                             Spacer(modifier = Modifier.width(8.dp))
-                            TextButton(onClick = { editMode = false }) { Text("إلغاء") }
+                            TextButton(onClick = { editMode = false }) { Text(stringResource(R.string.cancel)) }
                         }
                     } else {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
@@ -286,9 +291,9 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
                 }
             }
             Spacer(modifier = Modifier.height(24.dp))
-            Text("البلد والعملة", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+            Text(stringResource(R.string.country_and_currency), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
             Spacer(modifier = Modifier.height(4.dp))
-            Text("بيحدد اللغة/اللهجة والعملة المستخدمة في كل التطبيق", style = Typography.bodySmall, color = onSurfaceVariant)
+            Text(stringResource(R.string.country_and_currency_hint), style = Typography.bodySmall, color = onSurfaceVariant)
             Spacer(modifier = Modifier.height(12.dp))
             var selectedMarket by remember { mutableStateOf(com.example.data.MarketPrefs.getMarket(context)) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -318,7 +323,7 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
             }
 
             Spacer(modifier = Modifier.height(24.dp))
-            Text("الربط التلقائي للبنوك", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+            Text(stringResource(R.string.auto_bank_sync), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
             Spacer(modifier = Modifier.height(12.dp))
             fun checkBankSyncGranted() = android.provider.Settings.Secure
                 .getString(context.contentResolver, "enabled_notification_listeners")
@@ -334,15 +339,15 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
                 lifecycleOwner.lifecycle.addObserver(observer)
                 onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
             }
-            AlertSwitchItem("تفعيل مزامنة البنوك", "قراءة إشعارات البنك لخصم المشتريات من الميزانية (يتطلب منح صلاحية)", isBankSyncEnabled) {
+            AlertSwitchItem(stringResource(R.string.enable_bank_sync), stringResource(R.string.enable_bank_sync_desc), isBankSyncEnabled) {
                 val intent = android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
                 context.startActivity(intent)
             }
             
             Spacer(modifier = Modifier.height(24.dp))
-            Text("طرق الدفع (قريباً)", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+            Text(stringResource(R.string.payment_methods_soon), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
             Spacer(modifier = Modifier.height(12.dp))
-            Text("سيتم دعم ربط البطاقات البنكية قريباً.", color = onSurfaceVariant)
+            Text(stringResource(R.string.card_linking_soon), color = onSurfaceVariant)
         }
     }
 }
@@ -371,18 +376,18 @@ fun AssistantAlertsScreen(onBack: () -> Unit) {
     var mealSuggestions by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_MEAL_SUGGESTIONS)) }
 
     Column(modifier = Modifier.fillMaxSize().background(background)) {
-        SubScreenTopBar("تنبيهات المساعد الذكي", onBack)
+        SubScreenTopBar(stringResource(R.string.assistant_alerts_title), onBack)
 
         Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
-            AlertSwitchItem("تنبيهات نقص المخزون", "يرسل إشعاراً عند اقتراب نفاذ منتج أساسي", lowInventoryAlerts) {
+            AlertSwitchItem(stringResource(R.string.low_inventory_alerts), stringResource(R.string.low_inventory_alerts_desc), lowInventoryAlerts) {
                 lowInventoryAlerts = it
                 AlertPrefs.setEnabled(context, AlertPrefs.KEY_LOW_INVENTORY, it)
             }
-            AlertSwitchItem("تنبيهات تخطي الميزانية", "تحذير مبكر عند صرف جزء كبير من الميزانية", budgetOverrunAlerts) {
+            AlertSwitchItem(stringResource(R.string.budget_overrun_alerts), stringResource(R.string.budget_overrun_alerts_desc), budgetOverrunAlerts) {
                 budgetOverrunAlerts = it
                 AlertPrefs.setEnabled(context, AlertPrefs.KEY_BUDGET_OVERRUN, it)
             }
-            AlertSwitchItem("اقتراحات الوجبات", "اقتراح وجبات يومية بناءً على المخزون الحالي", mealSuggestions) {
+            AlertSwitchItem(stringResource(R.string.meal_suggestions_alert), stringResource(R.string.meal_suggestions_alert_desc), mealSuggestions) {
                 mealSuggestions = it
                 AlertPrefs.setEnabled(context, AlertPrefs.KEY_MEAL_SUGGESTIONS, it)
             }
@@ -413,13 +418,13 @@ fun HelpAndSupportScreen(onBack: () -> Unit) {
     }
 
     Column(modifier = Modifier.fillMaxSize().background(background)) {
-        SubScreenTopBar("المساعدة والدعم", onBack)
+        SubScreenTopBar(stringResource(R.string.help_and_support_title), onBack)
         
         Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
-            Text("الأسئلة الشائعة", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+            Text(stringResource(R.string.faq_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
             Spacer(modifier = Modifier.height(16.dp))
-            FaqItem("كيف أضيف اشتراكاً جديداً؟", "اذهب لصفحة الاشتراكات واضغط على زر الإضافة العائم بأسفل الشاشة.")
-            FaqItem("كيف أشارك الميزانية مع عائلتي؟", "من صفحة العائلة، قم بإنشاء عائلة كمدير وشارك كود الدعوة معهم.")
+            FaqItem(stringResource(R.string.faq_add_subscription_q), stringResource(R.string.faq_add_subscription_a))
+            FaqItem(stringResource(R.string.faq_share_budget_q), stringResource(R.string.faq_share_budget_a))
             Spacer(modifier = Modifier.height(32.dp))
             
             val supportContext = LocalContext.current
@@ -438,7 +443,7 @@ fun HelpAndSupportScreen(onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().height(54.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("تواصل مع فريق الدعم", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.contact_support_team), fontWeight = FontWeight.Bold)
             }
         }
     }

@@ -28,10 +28,12 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 import com.example.ui.viewmodels.AiChatMessage
@@ -80,9 +82,9 @@ fun ZadIntelligenceScreen(
         IntelligenceTopBar(onOpenDrawer)
 
         val tabs = listOf(
-            Icons.Default.Psychology to "التحليلات",
-            Icons.Default.BarChart to "الاشتراكات",
-            Icons.Default.Chat to "شات زاد"
+            Icons.Default.Psychology to stringResource(R.string.analytics_tab),
+            Icons.Default.BarChart to stringResource(R.string.subscriptions_title),
+            Icons.Default.Chat to stringResource(R.string.zad_chat_tab)
         )
         TabRow(
             selectedTabIndex = selectedTab,
@@ -302,7 +304,7 @@ fun AnalyticsTab(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(pattern.category, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                        Text("المتوسط: ${com.example.data.CurrencyFormatter.format(context, pattern.avgAmount)} | كل ${pattern.frequencyDays} يوم", style = Typography.bodySmall, color = onSurfaceVariant)
+                        Text(stringResource(R.string.avg_every_days, com.example.data.CurrencyFormatter.format(context, pattern.avgAmount), pattern.frequencyDays), style = Typography.bodySmall, color = onSurfaceVariant)
                     }
                 }
             }
@@ -378,7 +380,7 @@ fun SubscriptionsTab(
                     .clip(RoundedCornerShape(20.dp)).background(primary).padding(20.dp)
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                    Text("إجمالي الاشتراكات الشهرية", style = Typography.titleMedium, color = Color.White.copy(alpha = 0.8f))
+                    Text(stringResource(R.string.total_monthly_subscriptions), style = Typography.titleMedium, color = Color.White.copy(alpha = 0.8f))
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(com.example.data.CurrencyFormatter.format(context, totalMonthly), style = Typography.displaySmall, color = Color.White, fontWeight = FontWeight.Bold)
                 }
@@ -387,19 +389,19 @@ fun SubscriptionsTab(
 
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("الاشتراكات", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                Text(stringResource(R.string.subscriptions_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
                 Row {
                     FilterChip(
                         selected = !showInactive,
                         onClick = { showInactive = false },
-                        label = { Text("النشطة") },
+                        label = { Text(stringResource(R.string.active_filter)) },
                         colors = FilterChipDefaults.filterChipColors(selectedContainerColor = primaryContainer)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     FilterChip(
                         selected = showInactive,
                         onClick = { showInactive = true },
-                        label = { Text("الكل") },
+                        label = { Text(stringResource(R.string.filter_all)) },
                         colors = FilterChipDefaults.filterChipColors(selectedContainerColor = primaryContainer)
                     )
                 }
@@ -411,7 +413,7 @@ fun SubscriptionsTab(
                 Column(modifier = Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.Subscriptions, contentDescription = null, tint = onSurfaceVariant.copy(alpha = 0.4f), modifier = Modifier.size(64.dp))
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text("لا توجد اشتراكات ${if (showInactive) "" else "نشطة"}", style = Typography.titleMedium, color = onSurfaceVariant)
+                    Text(stringResource(if (showInactive) R.string.no_subscriptions_any else R.string.no_subscriptions_active), style = Typography.titleMedium, color = onSurfaceVariant)
                 }
             }
         } else {
@@ -500,7 +502,7 @@ fun ZadIntSubscriptionCardFull(
                         Box(
                             modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(outlineVariant).padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
-                            Text("ملغى", style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
+                            Text(stringResource(R.string.cancelled_badge), style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
                         }
                     }
                 }
@@ -549,12 +551,12 @@ fun ExpenseDonutCard(categoryMap: List<Pair<String, Double>>, total: Double) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.BarChart, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("توزيع المصروفات", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                Text(stringResource(R.string.expense_distribution), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
             }
             Spacer(modifier = Modifier.height(16.dp))
             if (categoryMap.isEmpty()) {
                 Box(modifier = Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                    Text("لا توجد معاملات بعد", color = onSurfaceVariant)
+                    Text(stringResource(R.string.no_transactions), color = onSurfaceVariant)
                 }
             } else {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -565,7 +567,7 @@ fun ExpenseDonutCard(categoryMap: List<Pair<String, Double>>, total: Double) {
                             modifier = Modifier.size(160.dp)
                         )
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("الإجمالي", style = Typography.labelSmall, color = onSurfaceVariant)
+                            Text(stringResource(R.string.total_label), style = Typography.labelSmall, color = onSurfaceVariant)
                             Text(com.example.data.CurrencyFormatter.formatNumber(context, total), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
                             Text(com.example.data.CurrencyFormatter.symbol(context), style = Typography.labelSmall, color = onSurfaceVariant)
                         }
@@ -635,12 +637,12 @@ fun MonthlyBarChartCard(monthlyData: List<Pair<String, Double>>, predictedNextMo
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.TrendingUp, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("الإنفاق الشهري", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                    Text(stringResource(R.string.monthly_spending), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
                 }
                 Box(
                     modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(primaryContainer).padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
-                    Text("توقع: ${com.example.data.CurrencyFormatter.format(context, predictedNextMonth)}", style = Typography.labelSmall, color = primary, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.predicted_label, com.example.data.CurrencyFormatter.format(context, predictedNextMonth)), style = Typography.labelSmall, color = primary, fontWeight = FontWeight.Bold)
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
@@ -677,11 +679,11 @@ fun MonthlyBarChartCard(monthlyData: List<Pair<String, Double>>, predictedNextMo
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(primary))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("فعلي", style = Typography.labelSmall, color = onSurfaceVariant)
+                Text(stringResource(R.string.actual_label), style = Typography.labelSmall, color = onSurfaceVariant)
                 Spacer(modifier = Modifier.width(16.dp))
                 Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(Color(0xFFFACC15)))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("توقع زاد", style = Typography.labelSmall, color = onSurfaceVariant)
+                Text(stringResource(R.string.zad_forecast_label), style = Typography.labelSmall, color = onSurfaceVariant)
             }
         }
     }
@@ -702,12 +704,12 @@ fun PredictionCard(predictedAmount: Double, currentMonthAmount: Double, lowStock
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color(0xFFFACC15), modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("توقعات ذكاء زاد", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(stringResource(R.string.zad_ai_predictions), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
             }
             Spacer(modifier = Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
-                    Text("الشهر القادم", style = Typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
+                    Text(stringResource(R.string.next_month_label), style = Typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
                     Text(com.example.data.CurrencyFormatter.format(context, predictedAmount), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
                     Text(
                         if (isUp) "↑ زيادة ${com.example.data.CurrencyFormatter.format(context, diff)}" else "↓ توفير ${com.example.data.CurrencyFormatter.format(context, -diff)}",
@@ -716,7 +718,7 @@ fun PredictionCard(predictedAmount: Double, currentMonthAmount: Double, lowStock
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("المخزون", style = Typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
+                    Text(stringResource(R.string.nav_inventory), style = Typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
                     Text("$lowStockCount ناقص", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
                     Text(
                         if (subscriptionsCount > 0) "$subscriptionsCount اشتراك نشط" else "لا اشتراكات",
@@ -839,7 +841,7 @@ fun ChatTab(
                 value = inputText,
                 onValueChange = onInputChange,
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("اسأل زاد عن ثلاجتك أو ميزانيتك...", color = onSurfaceVariant, style = Typography.bodySmall) },
+                placeholder = { Text(stringResource(R.string.ask_zad_placeholder), color = onSurfaceVariant, style = Typography.bodySmall) },
                 shape = RoundedCornerShape(24.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = primary,
@@ -875,7 +877,7 @@ private fun ZadIntChatBubble(msg: AiChatMessage) {
         ) {
             Column {
                 if (!msg.isUser) {
-                    Text("زاد", fontSize = 10.sp, color = primary, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.app_name), fontSize = 10.sp, color = primary, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(2.dp))
                 }
                 Text(msg.text, color = if (msg.isUser) Color.White else onSurface, style = Typography.bodyMedium)
@@ -916,7 +918,7 @@ fun IntelligenceTopBar(onOpenDrawer: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = primary, modifier = Modifier.size(22.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("ذكاء زاد", style = Typography.headlineMedium, fontWeight = FontWeight.Bold, color = primary)
+                Text(stringResource(R.string.zad_ai), style = Typography.headlineMedium, fontWeight = FontWeight.Bold, color = primary)
             }
         },
         actions = {
@@ -1004,7 +1006,7 @@ private fun SpendingPowerGaugeCard(power: com.example.data.ZadCentralBrain.Spend
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.Speed, contentDescription = null, tint = gaugeColor, modifier = Modifier.size(22.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("قوة الصرف", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                Text(stringResource(R.string.spending_power), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
                 Spacer(modifier = Modifier.weight(1f))
                 Surface(shape = RoundedCornerShape(10.dp), color = gaugeColor.copy(alpha = 0.12f)) {
                     Text(
@@ -1078,16 +1080,16 @@ private fun SpendingPowerGaugeCard(power: com.example.data.ZadCentralBrain.Spend
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("${power.daysLeftInMonth}", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                    Text("يوم متبقي", style = Typography.labelSmall, color = onSurfaceVariant)
+                    Text(stringResource(R.string.days_left_label), style = Typography.labelSmall, color = onSurfaceVariant)
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(com.example.data.CurrencyFormatter.format(context, power.currentDailyAvg), style = Typography.titleMedium, fontWeight = FontWeight.Bold,
                         color = if (power.currentDailyAvg > power.dailySafeSpend && power.dailySafeSpend > 0) Color(0xFFEF4444) else onSurface)
-                    Text("معدلك الفعلي/يوم", style = Typography.labelSmall, color = onSurfaceVariant)
+                    Text(stringResource(R.string.actual_daily_rate), style = Typography.labelSmall, color = onSurfaceVariant)
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("${power.powerPct}%", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = gaugeColor)
-                    Text("من الميزانية باقي", style = Typography.labelSmall, color = onSurfaceVariant)
+                    Text(stringResource(R.string.budget_remaining_pct_label), style = Typography.labelSmall, color = onSurfaceVariant)
                 }
             }
         }
@@ -1112,7 +1114,7 @@ private fun MonthComparisonCard(mc: com.example.data.ZadCentralBrain.MonthCompar
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.CompareArrows, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("مقارنة بالشهر الماضي", style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface)
+                Text(stringResource(R.string.compare_last_month), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface)
                 Spacer(modifier = Modifier.weight(1f))
                 Surface(shape = RoundedCornerShape(8.dp), color = deltaColor.copy(alpha = 0.12f)) {
                     Text(
@@ -1149,7 +1151,7 @@ private fun MonthComparisonCard(mc: com.example.data.ZadCentralBrain.MonthCompar
 
             if (mc.categoryDeltas.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
-                Text("أكبر التغييرات:", style = Typography.labelMedium, fontWeight = FontWeight.SemiBold, color = onSurfaceVariant)
+                Text(stringResource(R.string.biggest_changes), style = Typography.labelMedium, fontWeight = FontWeight.SemiBold, color = onSurfaceVariant)
                 Spacer(modifier = Modifier.height(6.dp))
                 mc.categoryDeltas.take(3).forEach { (cat, thisM, lastM) ->
                     val diff = thisM - lastM
@@ -1190,7 +1192,7 @@ private fun BehaviorAnalysisCard(bp: com.example.data.ZadCentralBrain.BehaviorPr
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Insights, contentDescription = null, tint = Color(0xFF059669), modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("زاد يعرفك 🧠", style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = Color(0xFF065F46))
+                Text(stringResource(R.string.zad_knows_you), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = Color(0xFF065F46))
             }
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -1243,7 +1245,7 @@ private fun ExportReportButton(report: com.example.data.ZadCentralBrain.BrainRep
         ) {
             Icon(Icons.Default.IosShare, contentDescription = null, tint = onPrimaryContainer, modifier = Modifier.size(20.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text("تصدير التقرير الشهري", style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onPrimaryContainer)
+            Text(stringResource(R.string.export_monthly_report), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onPrimaryContainer)
         }
     }
 }
