@@ -171,6 +171,7 @@ fun AnalyticsTab(
     patterns: List<com.example.data.ZadBehaviorPattern>,
     report: com.example.data.ZadCentralBrain.BrainReport? = null
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val expenses = transactions.filter { it.isExpense }
     val income = transactions.filter { !it.isExpense }
     val totalExpense = expenses.sumOf { it.amount }
@@ -216,7 +217,7 @@ fun AnalyticsTab(
                 MiniStatCard(
                     modifier = Modifier.weight(1f),
                     label = "المصروفات",
-                    value = "${String.format("%,.0f", totalExpense)} ر.س",
+                    value = com.example.data.CurrencyFormatter.format(context, totalExpense),
                     icon = Icons.Default.TrendingDown,
                     iconColor = Color(0xFFEF4444),
                     bgColor = Color(0xFFFFF5F5)
@@ -224,7 +225,7 @@ fun AnalyticsTab(
                 MiniStatCard(
                     modifier = Modifier.weight(1f),
                     label = "الدخل",
-                    value = "${String.format("%,.0f", totalIncome)} ر.س",
+                    value = com.example.data.CurrencyFormatter.format(context, totalIncome),
                     icon = Icons.Default.TrendingUp,
                     iconColor = Color(0xFF22C55E),
                     bgColor = Color(0xFFF0FDF4)
@@ -301,7 +302,7 @@ fun AnalyticsTab(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(pattern.category, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                        Text("المتوسط: ${String.format("%,.0f", pattern.avgAmount)} ر.س | كل ${pattern.frequencyDays} يوم", style = Typography.bodySmall, color = onSurfaceVariant)
+                        Text("المتوسط: ${com.example.data.CurrencyFormatter.format(context, pattern.avgAmount)} | كل ${pattern.frequencyDays} يوم", style = Typography.bodySmall, color = onSurfaceVariant)
                     }
                 }
             }
@@ -361,6 +362,7 @@ fun SubscriptionsTab(
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
     var showInactive by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     val filteredSubs = if (showInactive) subscriptions else subscriptions.filter { it.isActive }
     val totalMonthly = filteredSubs.sumOf { it.amount }
@@ -378,7 +380,7 @@ fun SubscriptionsTab(
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                     Text("إجمالي الاشتراكات الشهرية", style = Typography.titleMedium, color = Color.White.copy(alpha = 0.8f))
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text("${String.format("%,.0f", totalMonthly)} ر.س", style = Typography.displaySmall, color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(com.example.data.CurrencyFormatter.format(context, totalMonthly), style = Typography.displaySmall, color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -461,6 +463,7 @@ fun ZadIntSubscriptionCardFull(
     onToggleActive: () -> Unit,
     onDelete: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val today = java.time.LocalDate.now()
     val renewal = try {
         if (!sub.renewalDate.isNullOrBlank()) java.time.LocalDate.parse(sub.renewalDate.take(10)) else null
@@ -512,7 +515,7 @@ fun ZadIntSubscriptionCardFull(
                     )
                 }
             }
-            Text("${String.format("%,.0f", sub.amount)} ر.س", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = if (sub.isActive) onSurface else onSurfaceVariant)
+            Text(com.example.data.CurrencyFormatter.format(context, sub.amount), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = if (sub.isActive) onSurface else onSurfaceVariant)
             Spacer(modifier = Modifier.width(8.dp))
             IconButton(onClick = onToggleActive, modifier = Modifier.size(32.dp)) {
                 Icon(
@@ -532,6 +535,7 @@ fun ZadIntSubscriptionCardFull(
 // ── Donut Chart Card ─────────────────────────────────────────────────────────
 @Composable
 fun ExpenseDonutCard(categoryMap: List<Pair<String, Double>>, total: Double) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val colors = listOf(
         Color(0xFF16A34A), Color(0xFFF59E0B), Color(0xFF3B82F6),
         Color(0xFFEF4444), Color(0xFF8B5CF6), Color(0xFF06B6D4)
@@ -562,8 +566,8 @@ fun ExpenseDonutCard(categoryMap: List<Pair<String, Double>>, total: Double) {
                         )
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("الإجمالي", style = Typography.labelSmall, color = onSurfaceVariant)
-                            Text("${total.toInt()}", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
-                            Text("ر.س", style = Typography.labelSmall, color = onSurfaceVariant)
+                            Text(com.example.data.CurrencyFormatter.formatNumber(context, total), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
+                            Text(com.example.data.CurrencyFormatter.symbol(context), style = Typography.labelSmall, color = onSurfaceVariant)
                         }
                     }
                     Spacer(modifier = Modifier.width(16.dp))
@@ -618,6 +622,7 @@ fun ZadDonutChart(segments: List<Float>, colors: List<Color>, modifier: Modifier
 // ── Monthly Bar Chart ─────────────────────────────────────────────────────────
 @Composable
 fun MonthlyBarChartCard(monthlyData: List<Pair<String, Double>>, predictedNextMonth: Double) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val animatedProgress by animateFloatAsState(targetValue = 1f, animationSpec = tween(1000), label = "bars")
 
     Card(
@@ -635,7 +640,7 @@ fun MonthlyBarChartCard(monthlyData: List<Pair<String, Double>>, predictedNextMo
                 Box(
                     modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(primaryContainer).padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
-                    Text("توقع: ${predictedNextMonth.toInt()} ر.س", style = Typography.labelSmall, color = primary, fontWeight = FontWeight.Bold)
+                    Text("توقع: ${com.example.data.CurrencyFormatter.format(context, predictedNextMonth)}", style = Typography.labelSmall, color = primary, fontWeight = FontWeight.Bold)
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
@@ -685,6 +690,7 @@ fun MonthlyBarChartCard(monthlyData: List<Pair<String, Double>>, predictedNextMo
 // ── Prediction Card ──────────────────────────────────────────────────────────
 @Composable
 fun PredictionCard(predictedAmount: Double, currentMonthAmount: Double, lowStockCount: Int, subscriptionsCount: Int) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val diff = predictedAmount - currentMonthAmount
     val isUp = diff > 0
     Box(
@@ -702,9 +708,9 @@ fun PredictionCard(predictedAmount: Double, currentMonthAmount: Double, lowStock
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
                     Text("الشهر القادم", style = Typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
-                    Text("${predictedAmount.toInt()} ر.س", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(com.example.data.CurrencyFormatter.format(context, predictedAmount), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
                     Text(
-                        if (isUp) "↑ زيادة ${diff.toInt()} ر.س" else "↓ توفير ${(-diff).toInt()} ر.س",
+                        if (isUp) "↑ زيادة ${com.example.data.CurrencyFormatter.format(context, diff)}" else "↓ توفير ${com.example.data.CurrencyFormatter.format(context, -diff)}",
                         style = Typography.labelSmall,
                         color = if (isUp) Color(0xFFFCA5A5) else Color(0xFF86EFAC)
                     )
@@ -972,6 +978,7 @@ fun predictNextMonth(monthlyData: List<Pair<String, Double>>): Double {
 
 @Composable
 private fun SpendingPowerGaugeCard(power: com.example.data.ZadCentralBrain.SpendingPower) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val gaugeColor = when {
         power.powerPct >= 60 -> Color(0xFF22C55E)
         power.powerPct >= 35 -> Color(0xFF84CC16)
@@ -1059,12 +1066,12 @@ private fun SpendingPowerGaugeCard(power: com.example.data.ZadCentralBrain.Spend
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(bottom = 26.dp)) {
                     Text(
-                        "${power.dailySafeSpend.toInt()}",
+                        com.example.data.CurrencyFormatter.formatNumber(context, power.dailySafeSpend),
                         style = Typography.displaySmall,
                         fontWeight = FontWeight.Black,
                         color = gaugeColor
                     )
-                    Text("ر.س / يوم بأمان", style = Typography.labelSmall, color = onSurfaceVariant)
+                    Text("${com.example.data.CurrencyFormatter.symbol(context)} / يوم بأمان", style = Typography.labelSmall, color = onSurfaceVariant)
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -1074,7 +1081,7 @@ private fun SpendingPowerGaugeCard(power: com.example.data.ZadCentralBrain.Spend
                     Text("يوم متبقي", style = Typography.labelSmall, color = onSurfaceVariant)
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("${power.currentDailyAvg.toInt()} ر.س", style = Typography.titleMedium, fontWeight = FontWeight.Bold,
+                    Text(com.example.data.CurrencyFormatter.format(context, power.currentDailyAvg), style = Typography.titleMedium, fontWeight = FontWeight.Bold,
                         color = if (power.currentDailyAvg > power.dailySafeSpend && power.dailySafeSpend > 0) Color(0xFFEF4444) else onSurface)
                     Text("معدلك الفعلي/يوم", style = Typography.labelSmall, color = onSurfaceVariant)
                 }
@@ -1089,6 +1096,7 @@ private fun SpendingPowerGaugeCard(power: com.example.data.ZadCentralBrain.Spend
 
 @Composable
 private fun MonthComparisonCard(mc: com.example.data.ZadCentralBrain.MonthComparison) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val improved = mc.deltaPct <= 0
     val deltaColor = if (improved) Color(0xFF22C55E) else Color(0xFFEF4444)
     val maxSpend = maxOf(mc.thisMonthSpent, mc.lastMonthSpent, 1.0)
@@ -1123,7 +1131,7 @@ private fun MonthComparisonCard(mc: com.example.data.ZadCentralBrain.MonthCompar
                 Column(modifier = Modifier.padding(vertical = 4.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(label, style = Typography.labelSmall, color = onSurfaceVariant)
-                        Text("${String.format("%,.0f", value)} ر.س", style = Typography.labelMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                        Text(com.example.data.CurrencyFormatter.format(context, value), style = Typography.labelMedium, fontWeight = FontWeight.Bold, color = onSurface)
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Box(
@@ -1159,7 +1167,7 @@ private fun MonthComparisonCard(mc: com.example.data.ZadCentralBrain.MonthCompar
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(cat, style = Typography.bodySmall, color = onSurface, modifier = Modifier.weight(1f))
                         Text(
-                            "${if (up) "+" else ""}${diff.toInt()} ر.س",
+                            "${if (up) "+" else ""}${com.example.data.CurrencyFormatter.format(context, diff)}",
                             style = Typography.labelSmall, fontWeight = FontWeight.Bold,
                             color = if (up) Color(0xFFEF4444) else Color(0xFF22C55E)
                         )
@@ -1172,6 +1180,7 @@ private fun MonthComparisonCard(mc: com.example.data.ZadCentralBrain.MonthCompar
 
 @Composable
 private fun BehaviorAnalysisCard(bp: com.example.data.ZadCentralBrain.BehaviorProfile) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     Surface(
         shape = RoundedCornerShape(20.dp),
         color = Color(0xFFECFDF5),
@@ -1194,12 +1203,12 @@ private fun BehaviorAnalysisCard(bp: com.example.data.ZadCentralBrain.BehaviorPr
                 }
             }
 
-            factRow("📅", "أكثر يوم تصرف فيه: ${bp.topSpendingDay} (متوسط ${bp.topSpendingDayAvg.toInt()} ر.س للمعاملة)")
+            factRow("📅", "أكثر يوم تصرف فيه: ${bp.topSpendingDay} (متوسط ${com.example.data.CurrencyFormatter.format(context, bp.topSpendingDayAvg)} للمعاملة)")
             if (bp.weekendSharePct >= 30)
                 factRow("🎉", "${bp.weekendSharePct}% من صرفك في الويكند — خطط لطلعاتك مسبقاً توفر أكثر")
             else
                 factRow("🧘", "صرفك متوزن خلال الأسبوع (الويكند ${bp.weekendSharePct}% فقط)")
-            factRow("💳", "متوسط معاملتك: ${bp.avgTransaction.toInt()} ر.س • أكبر مصروف: ${bp.biggestExpenseTitle} (${bp.biggestExpenseAmount.toInt()} ر.س)")
+            factRow("💳", "متوسط معاملتك: ${com.example.data.CurrencyFormatter.format(context, bp.avgTransaction)} • أكبر مصروف: ${bp.biggestExpenseTitle} (${com.example.data.CurrencyFormatter.format(context, bp.biggestExpenseAmount)})")
             if (bp.impulsePurchases >= 2)
                 factRow("🛍️", "${bp.impulsePurchases} مشتريات اندفاعية آخر 30 يوم — جرب قاعدة الـ24 ساعة قبل الشراء الكبير")
             if (bp.eveningSharePct >= 50)
@@ -1245,6 +1254,7 @@ private fun ExportReportButton(report: com.example.data.ZadCentralBrain.BrainRep
 
 @Composable
 private fun HealthScoreCard(report: com.example.data.ZadCentralBrain.BrainReport) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val scoreColor = when {
         report.healthScore >= 85 -> Color(0xFF22C55E)
         report.healthScore >= 65 -> Color(0xFF84CC16)
@@ -1300,13 +1310,13 @@ private fun HealthScoreCard(report: com.example.data.ZadCentralBrain.BrainReport
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    "صرفت ${String.format("%,.0f", report.totalSpent)} ر.س • متبقي ${String.format("%,.0f", report.remaining)} ر.س",
+                    "صرفت ${com.example.data.CurrencyFormatter.format(context, report.totalSpent)} • متبقي ${com.example.data.CurrencyFormatter.format(context, report.remaining)}",
                     style = Typography.bodySmall,
                     color = onSurfaceVariant
                 )
                 if (report.subscriptionsMonthlyCost > 0) {
                     Text(
-                        "اشتراكات: ${String.format("%,.0f", report.subscriptionsMonthlyCost)} ر.س/شهر",
+                        "اشتراكات: ${com.example.data.CurrencyFormatter.format(context, report.subscriptionsMonthlyCost)}/شهر",
                         style = Typography.bodySmall,
                         color = onSurfaceVariant
                     )
