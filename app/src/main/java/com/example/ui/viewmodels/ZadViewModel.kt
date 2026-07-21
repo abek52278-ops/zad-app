@@ -1717,82 +1717,11 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ─── ZAD Core Intelligence ──────────────────────────────────────────
-    private val _coreIntelReply = MutableStateFlow<String?>(null)
-    val coreIntelReply: StateFlow<String?> = _coreIntelReply.asStateFlow()
-
-    private val _isCoreIntelLoading = MutableStateFlow(false)
-    val isCoreIntelLoading: StateFlow<Boolean> = _isCoreIntelLoading.asStateFlow()
-
     private val _behaviorConsentGiven = MutableStateFlow(false)
     val behaviorConsentGiven: StateFlow<Boolean> = _behaviorConsentGiven.asStateFlow()
 
     fun setBehaviorConsent(given: Boolean) {
         _behaviorConsentGiven.value = given
-    }
-
-    fun askCoreIntel(question: String) {
-        viewModelScope.launch {
-            _isCoreIntelLoading.value = true
-            _coreIntelReply.value = null
-            try {
-                val userId = _userProfile.value?.id ?: ""
-                val response = SupabaseRepo.callEdgeFunction("zad-core-intelligence", mapOf(
-                    "action" to "chat",
-                    "user_id" to userId,
-                    "payload" to mapOf(
-                        "message" to question,
-                        "history" to emptyList<Any>()
-                    )
-                ))
-                _coreIntelReply.value = response["reply"] as? String
-            } catch (e: Exception) {
-                Log.e(TAG, "askCoreIntel() FAILED: ${e.message}")
-                _coreIntelReply.value = "عذراً، حدث خطأ في الاتصال."
-            } finally {
-                _isCoreIntelLoading.value = false
-            }
-        }
-    }
-
-    fun getCoreInsight() {
-        viewModelScope.launch {
-            _isCoreIntelLoading.value = true
-            try {
-                val userId = _userProfile.value?.id ?: ""
-                val response = SupabaseRepo.callEdgeFunction("zad-core-intelligence", mapOf(
-                    "action" to "insight",
-                    "user_id" to userId,
-                    "payload" to emptyMap<String, Any>()
-                ))
-                _coreIntelReply.value = response["insight"] as? String
-            } catch (e: Exception) {
-                Log.e(TAG, "getCoreInsight() FAILED: ${e.message}")
-            } finally {
-                _isCoreIntelLoading.value = false
-            }
-        }
-    }
-
-    fun getPrediction() {
-        viewModelScope.launch {
-            _isCoreIntelLoading.value = true
-            try {
-                val userId = _userProfile.value?.id ?: ""
-                val response = SupabaseRepo.callEdgeFunction("zad-core-intelligence", mapOf(
-                    "action" to "prediction",
-                    "user_id" to userId,
-                    "payload" to emptyMap<String, Any>()
-                ))
-                val pred = response["prediction"] as? Map<String, Any>
-                if (pred != null) {
-                    _coreIntelReply.value = "🔮 توقع الأسبوع القادم: ${pred["next_week"]} ريال\n📅 توقع الشهر القادم: ${pred["next_month"]} ريال\n\n${pred["based_on"]}"
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "getPrediction() FAILED: ${e.message}")
-            } finally {
-                _isCoreIntelLoading.value = false
-            }
-        }
     }
 
     fun classifyTransactionItem(title: String, amount: Double, category: String? = null) {
