@@ -383,6 +383,66 @@
     <string name="member_highlights_title">إنجازات وملاحظات الأفراد</string>
     <string name="ai_suggested_goal_colon">هدف مقترح: %1$s</string>
     <string name="fun_fact_colon">معلومة طريفة: %1$s</string>
+
+    <!-- ZadIntelligenceScreen -->
+    <string name="other_category">حاجات تانية</string>
+    <string name="inventory_items_count_pill">%1$d صنف</string>
+    <string name="active_subscriptions_label">اشتراكات شغالة</string>
+    <string name="behavior_patterns_detected_title">أنماط اكتشفناها في صرفك</string>
+    <string name="zad_smart_insights_title">ملاحظات زاد الذكية</string>
+    <string name="renews_today">بيتجدد النهاردة</string>
+    <string name="expired_since_days">خلص من %1$d يوم</string>
+    <string name="renews_in_days">هيتجدد بعد %1$d يوم</string>
+    <string name="pause_action">إلغاء</string>
+    <string name="activate_action">تفعيل</string>
+    <string name="prediction_bar_label">توقع</string>
+    <string name="increase_amount_label">↑ زيادة %1$s</string>
+    <string name="saving_amount_label">↓ وفرت %1$s</string>
+    <string name="low_stock_count_pill">%1$d ناقص</string>
+    <string name="active_subscriptions_count_pill">%1$d اشتراك شغال</string>
+    <string name="no_subscriptions_label">مفيش اشتراكات</string>
+    <string name="quick_prompt_recipe">اقترح أكلة من اللي في الثلاجة</string>
+    <string name="quick_prompt_analyze_spending">حلل مصاريفي الشهر ده</string>
+    <string name="quick_prompt_shopping_missing">ناقصني إيه علشان أتسوق؟</string>
+    <string name="quick_prompt_save_more">أوفر إزاي أكتر الشهر ده؟</string>
+    <string name="quick_prompt_subscriptions">شوفلي اشتراكاتي</string>
+    <string name="quick_prompt_healthy_meal">وجبة صحية سريعة</string>
+    <string name="ask_zad_hint_short">اسأل زاد عن أي حاجة</string>
+    <string name="send_action">إرسال</string>
+    <string name="safe_per_day_suffix">%1$s / يوم بأمان</string>
+    <string name="this_month_label">الشهر ده</string>
+    <string name="last_month_same_period_label">الشهر اللي فات (نفس الفترة)</string>
+    <string name="zad_export_report_subject">تقرير زاد المالي</string>
+    <string name="share_zad_report_title">شارك تقرير زاد</string>
+    <string name="financial_health_label">الصحة المالية</string>
+    <string name="spent_remaining_summary">صرفت %1$s • باقيلك %2$s</string>
+    <string name="subscriptions_monthly_cost_label">اشتراكات: %1$s/شهر</string>
+    <string name="zad_notes_title">ملاحظات زاد</string>
+    <string name="depletion_forecast_title">توقع نفاد المخزون — من عادات صرفك</string>
+    <string name="will_deplete_soon">هيخلص قريب!</string>
+    <string name="one_day_left_label">يوم واحد</string>
+    <string name="days_left_count_label">%1$d أيام</string>
+    <string name="top_spending_day_fact">أكتر يوم بتصرف فيه: %1$s (متوسط %2$s للمعاملة)</string>
+    <string name="weekend_heavy_spending_fact">%1$d%% من صرفك في الويكند — خطط لطلعاتك بدري توفر أكتر</string>
+    <string name="balanced_week_spending_fact">صرفك متوازن خلال الأسبوع (الويكند %1$d%% بس)</string>
+    <string name="avg_transaction_fact">متوسط معاملتك: %1$s • أكبر مصروف: %2$s (%3$s)</string>
+    <string name="impulse_purchases_fact">%1$d مشتريات فجأة آخر 30 يوم — جرب قاعدة الـ24 ساعة قبل أي شراء كبير</string>
+    <string name="evening_spending_fact">%1$d%% من صرفك بعد 6 المغرب — وقت المطاعم والدليفري غالباً</string>
+
+    <string-array name="month_names_short">
+        <item>يناير</item>
+        <item>فبراير</item>
+        <item>مارس</item>
+        <item>أبريل</item>
+        <item>مايو</item>
+        <item>يونيو</item>
+        <item>يوليو</item>
+        <item>أغسطس</item>
+        <item>سبتمبر</item>
+        <item>أكتوبر</item>
+        <item>نوفمبر</item>
+        <item>ديسمبر</item>
+    </string-array>
     <string name="members_count">%1$d أفراد</string>
     <string name="members_tab">الأعضاء</string>
     <string name="need_amount_purchase">محتاج %1$s أشتري بيها %2$s</string>

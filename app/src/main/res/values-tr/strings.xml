@@ -383,6 +383,66 @@
     <string name="member_highlights_title">Üye başarıları ve notları</string>
     <string name="ai_suggested_goal_colon">Önerilen hedef: %1$s</string>
     <string name="fun_fact_colon">İlginç bilgi: %1$s</string>
+
+    <!-- ZadIntelligenceScreen -->
+    <string name="other_category">Diğer</string>
+    <string name="inventory_items_count_pill">%1$d ürün</string>
+    <string name="active_subscriptions_label">Aktif abonelikler</string>
+    <string name="behavior_patterns_detected_title">Tespit edilen davranış kalıpları</string>
+    <string name="zad_smart_insights_title">Zad akıllı içgörüleri</string>
+    <string name="renews_today">Bugün yenileniyor</string>
+    <string name="expired_since_days">%1$d gündür süresi doldu</string>
+    <string name="renews_in_days">%1$d gün sonra yenilenir</string>
+    <string name="pause_action">Duraklat</string>
+    <string name="activate_action">Etkinleştir</string>
+    <string name="prediction_bar_label">Tahmin</string>
+    <string name="increase_amount_label">↑ Artış %1$s</string>
+    <string name="saving_amount_label">↓ Tasarruf %1$s</string>
+    <string name="low_stock_count_pill">%1$d azalıyor</string>
+    <string name="active_subscriptions_count_pill">%1$d aktif abonelik</string>
+    <string name="no_subscriptions_label">Abonelik yok</string>
+    <string name="quick_prompt_recipe">Buzdolabımdan tarif öner</string>
+    <string name="quick_prompt_analyze_spending">Bu ayki harcamalarımı analiz et</string>
+    <string name="quick_prompt_shopping_missing">Alışverişte neyim eksik?</string>
+    <string name="quick_prompt_save_more">Bu ay nasıl daha fazla tasarruf ederim?</string>
+    <string name="quick_prompt_subscriptions">Aboneliklerimi keşfet</string>
+    <string name="quick_prompt_healthy_meal">Hızlı sağlıklı yemek</string>
+    <string name="ask_zad_hint_short">Zad\'a istediğini sor</string>
+    <string name="send_action">Gönder</string>
+    <string name="safe_per_day_suffix">%1$s / gün güvenli</string>
+    <string name="this_month_label">Bu ay</string>
+    <string name="last_month_same_period_label">Geçen ay (aynı dönem)</string>
+    <string name="zad_export_report_subject">Zad mali raporu</string>
+    <string name="share_zad_report_title">Zad raporunu paylaş</string>
+    <string name="financial_health_label">Mali sağlık</string>
+    <string name="spent_remaining_summary">%1$s harcandı • %2$s kaldı</string>
+    <string name="subscriptions_monthly_cost_label">Abonelikler: %1$s/ay</string>
+    <string name="zad_notes_title">Zad notları</string>
+    <string name="depletion_forecast_title">Tükenme tahminleri — tüketim öğreniminden</string>
+    <string name="will_deplete_soon">Yakında bitiyor!</string>
+    <string name="one_day_left_label">1 gün kaldı</string>
+    <string name="days_left_count_label">%1$d gün</string>
+    <string name="top_spending_day_fact">En çok harcadığın gün: %1$s (işlem başına ortalama %2$s)</string>
+    <string name="weekend_heavy_spending_fact">Harcamalarının %%%1$d\'i hafta sonunda — gezilerini önceden planlamak daha fazla tasarruf sağlar</string>
+    <string name="balanced_week_spending_fact">Harcaman hafta boyunca dengeli (hafta sonu sadece %%%1$d)</string>
+    <string name="avg_transaction_fact">Ortalama işlemin: %1$s • En büyük harcama: %2$s (%3$s)</string>
+    <string name="impulse_purchases_fact">Son 30 günde %1$d ani alışveriş — büyük alımdan önce 24 saat kuralını dene</string>
+    <string name="evening_spending_fact">Harcamalarının %%%1$d\'i saat 18:00\'dan sonra — genelde restoran ve teslimat zamanı</string>
+
+    <string-array name="month_names_short">
+        <item>Ocak</item>
+        <item>Şubat</item>
+        <item>Mart</item>
+        <item>Nisan</item>
+        <item>Mayıs</item>
+        <item>Haziran</item>
+        <item>Temmuz</item>
+        <item>Ağustos</item>
+        <item>Eylül</item>
+        <item>Ekim</item>
+        <item>Kasım</item>
+        <item>Aralık</item>
+    </string-array>
     <string name="members_count">%1$d üye</string>
     <string name="members_tab">Üyeler</string>
     <string name="need_amount_purchase">%2$s almak için %1$s\'e ihtiyacım var</string>

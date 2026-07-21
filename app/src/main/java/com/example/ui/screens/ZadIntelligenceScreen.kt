@@ -6,6 +6,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -27,6 +28,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -184,18 +186,19 @@ fun AnalyticsTab(
     onRefreshBehaviorProfile: () -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val otherCategoryLabel = stringResource(R.string.other_category)
     val expenses = transactions.filter { it.isExpense }
     val income = transactions.filter { !it.isExpense }
     val totalExpense = expenses.sumOf { it.amount }
     val totalIncome = income.sumOf { it.amount }
 
     val categoryMap = expenses
-        .groupBy { it.category ?: "أخرى" }
+        .groupBy { it.category ?: otherCategoryLabel }
         .mapValues { it.value.sumOf { t -> t.amount } }
         .toList()
         .sortedByDescending { it.second }
 
-    val monthlyData = computeMonthlyData(transactions)
+    val monthlyData = computeMonthlyData(transactions, context)
     val predictedNextMonth = predictNextMonth(monthlyData)
     val lowStockCount = inventory.count { it.quantity <= (it.lowStockThreshold ?: 2) }
 
@@ -237,7 +240,7 @@ fun AnalyticsTab(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 MiniStatCard(
                     modifier = Modifier.weight(1f),
-                    label = "المصروفات",
+                    label = stringResource(R.string.expense_label),
                     value = com.example.data.CurrencyFormatter.format(context, totalExpense),
                     icon = Icons.Default.TrendingDown,
                     iconColor = Color(0xFFEF4444),
@@ -245,7 +248,7 @@ fun AnalyticsTab(
                 )
                 MiniStatCard(
                     modifier = Modifier.weight(1f),
-                    label = "الدخل",
+                    label = stringResource(R.string.income_label),
                     value = com.example.data.CurrencyFormatter.format(context, totalIncome),
                     icon = Icons.Default.TrendingUp,
                     iconColor = Color(0xFF22C55E),
@@ -258,15 +261,15 @@ fun AnalyticsTab(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 MiniStatCard(
                     modifier = Modifier.weight(1f),
-                    label = "المخزون",
-                    value = "${inventory.size} صنف",
+                    label = stringResource(R.string.nav_inventory),
+                    value = stringResource(R.string.inventory_items_count_pill, inventory.size),
                     icon = Icons.Default.Inventory2,
                     iconColor = Color(0xFF8B5CF6),
                     bgColor = Color(0xFFF5F3FF)
                 )
                 MiniStatCard(
                     modifier = Modifier.weight(1f),
-                    label = "اشتراكات نشطة",
+                    label = stringResource(R.string.active_subscriptions_label),
                     value = "${subscriptions.count { it.isActive }}",
                     icon = Icons.Default.Subscriptions,
                     iconColor = Color(0xFF0891B2),
@@ -303,7 +306,7 @@ fun AnalyticsTab(
                     Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        "أنماط سلوكية مكتشفة",
+                        stringResource(R.string.behavior_patterns_detected_title),
                         style = Typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = onSurface
@@ -336,7 +339,7 @@ fun AnalyticsTab(
                     Icon(Icons.Default.Lightbulb, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        "رؤى زاد الذكية",
+                        stringResource(R.string.zad_smart_insights_title),
                         style = Typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = onSurface
@@ -537,7 +540,7 @@ fun SubscriptionsTab(
             contentColor = Color.White,
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 88.dp)
         ) {
-            Icon(Icons.Default.Add, contentDescription = "إضافة")
+            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_action))
         }
     }
 
@@ -609,9 +612,9 @@ fun ZadIntSubscriptionCardFull(
                 if (daysLeft != null) {
                     Text(
                         when {
-                            daysLeft == 0 -> "يُجدد اليوم"
-                            daysLeft < 0 -> "منتهي منذ ${-daysLeft} يوم"
-                            else -> "يُجدد بعد $daysLeft يوم"
+                            daysLeft == 0 -> stringResource(R.string.renews_today)
+                            daysLeft < 0 -> stringResource(R.string.expired_since_days, -daysLeft)
+                            else -> stringResource(R.string.renews_in_days, daysLeft)
                         },
                         style = Typography.labelSmall, color = daysColor, fontWeight = FontWeight.SemiBold
                     )
@@ -622,13 +625,13 @@ fun ZadIntSubscriptionCardFull(
             IconButton(onClick = onToggleActive, modifier = Modifier.size(32.dp)) {
                 Icon(
                     if (sub.isActive) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
-                    contentDescription = if (sub.isActive) "إلغاء" else "تفعيل",
+                    contentDescription = if (sub.isActive) stringResource(R.string.pause_action) else stringResource(R.string.activate_action),
                     tint = if (sub.isActive) warningColor else successColor,
                     modifier = Modifier.size(20.dp)
                 )
             }
             IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.Delete, contentDescription = "حذف", tint = dangerColor, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_action), tint = dangerColor, modifier = Modifier.size(18.dp))
             }
         }
     }
@@ -642,6 +645,10 @@ fun ExpenseDonutCard(categoryMap: List<Pair<String, Double>>, total: Double) {
         Color(0xFF16A34A), Color(0xFFF59E0B), Color(0xFF3B82F6),
         Color(0xFFEF4444), Color(0xFF8B5CF6), Color(0xFF06B6D4)
     )
+    // اختيار فئة (بالضغط على القوس نفسه أو على سطرها في القايمة) يبدّل مركز
+    // الدونات من "الإجمالي" لتفاصيل الفئة دي — عرض أمرن بدل رقم إجمالي ثابت.
+    var selectedIndex by remember(categoryMap) { mutableStateOf<Int?>(null) }
+
     Card(
         modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
         shape = RoundedCornerShape(24.dp),
@@ -664,23 +671,42 @@ fun ExpenseDonutCard(categoryMap: List<Pair<String, Double>>, total: Double) {
                         ZadDonutChart(
                             segments = categoryMap.map { it.second.toFloat() },
                             colors = colors.take(categoryMap.size),
+                            selectedIndex = selectedIndex,
+                            onSegmentTap = { i -> selectedIndex = if (selectedIndex == i) null else i },
                             modifier = Modifier.size(160.dp)
                         )
+                        val selected = selectedIndex?.let { categoryMap.getOrNull(it) }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(stringResource(R.string.total_label), style = Typography.labelSmall, color = onSurfaceVariant)
-                            Text(com.example.data.CurrencyFormatter.formatNumber(context, total), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
-                            Text(com.example.data.CurrencyFormatter.symbol(context), style = Typography.labelSmall, color = onSurfaceVariant)
+                            if (selected != null) {
+                                val (cat, amount) = selected
+                                val pct = if (total > 0) (amount / total * 100).toInt() else 0
+                                Text(cat, style = Typography.labelSmall, color = onSurfaceVariant, maxLines = 1)
+                                Text(com.example.data.CurrencyFormatter.formatNumber(context, amount), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
+                                Text("$pct%", style = Typography.labelSmall, color = onSurfaceVariant)
+                            } else {
+                                Text(stringResource(R.string.total_label), style = Typography.labelSmall, color = onSurfaceVariant)
+                                Text(com.example.data.CurrencyFormatter.formatNumber(context, total), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
+                                Text(com.example.data.CurrencyFormatter.symbol(context), style = Typography.labelSmall, color = onSurfaceVariant)
+                            }
                         }
                     }
                     Spacer(modifier = Modifier.width(16.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         categoryMap.take(5).forEachIndexed { i, (cat, amount) ->
                             val pct = if (total > 0) (amount / total * 100).toInt() else 0
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            val isSelected = selectedIndex == i
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable { selectedIndex = if (selectedIndex == i) null else i }
+                                    .background(if (isSelected) (colors.getOrElse(i) { primary }).copy(alpha = 0.1f) else Color.Transparent)
+                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                            ) {
                                 Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(colors.getOrElse(i) { primary }))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Column {
-                                    Text(cat, style = Typography.labelSmall, color = onSurface)
+                                    Text(cat, style = Typography.labelSmall, color = onSurface, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                                     Text("$pct%", style = Typography.labelSmall, color = onSurfaceVariant)
                                 }
                             }
@@ -693,30 +719,65 @@ fun ExpenseDonutCard(categoryMap: List<Pair<String, Double>>, total: Double) {
 }
 
 @Composable
-fun ZadDonutChart(segments: List<Float>, colors: List<Color>, modifier: Modifier = Modifier) {
+fun ZadDonutChart(
+    segments: List<Float>,
+    colors: List<Color>,
+    modifier: Modifier = Modifier,
+    selectedIndex: Int? = null,
+    onSegmentTap: (Int) -> Unit = {}
+) {
     val total = segments.sum()
     val animatedProgress by animateFloatAsState(
         targetValue = 1f,
         animationSpec = tween(1200, easing = FastOutSlowInEasing),
         label = "donut"
     )
-    Canvas(modifier = modifier) {
-        val strokeWidth = 28.dp.toPx()
-        val radius = (size.minDimension - strokeWidth) / 2
-        val center = Offset(size.width / 2, size.height / 2)
-        var startAngle = -90f
+    // حدود كل قطاع بالدرجات — محسوبة مرة كل ما تتغير المعطيات، ومستخدمة لكل من
+    // الرسم واختبار موضع الضغطة (نفس المنطق، مرة واحدة).
+    val boundaries = remember(segments) {
+        var angle = -90f
+        segments.map { value ->
+            val sweep = if (total > 0) (value / total) * 360f else 0f
+            val start = angle
+            angle += sweep
+            start to angle
+        }
+    }
+    Canvas(
+        modifier = modifier.pointerInput(segments) {
+            detectTapGestures { offset ->
+                val center = Offset(size.width / 2f, size.height / 2f)
+                val dx = offset.x - center.x
+                val dy = offset.y - center.y
+                val distance = kotlin.math.sqrt(dx * dx + dy * dy)
+                val outerRadius = kotlin.math.min(size.width, size.height) / 2f
+                val innerRadius = outerRadius - 28.dp.toPx()
+                if (distance < innerRadius || distance > outerRadius) return@detectTapGestures
+                var deg = Math.toDegrees(kotlin.math.atan2(dy, dx).toDouble()).toFloat()
+                if (deg < -90f) deg += 360f
+                val tappedIndex = boundaries.indexOfFirst { (start, end) -> deg >= start && deg < end }
+                if (tappedIndex >= 0) onSegmentTap(tappedIndex)
+            }
+        }
+    ) {
+        val baseStrokeWidth = 28.dp.toPx()
         segments.forEachIndexed { i, value ->
-            val sweep = (value / total) * 360f * animatedProgress
+            val isDimmed = selectedIndex != null && selectedIndex != i
+            val isEmphasized = selectedIndex == i
+            val strokeWidth = if (isEmphasized) baseStrokeWidth * 1.15f else baseStrokeWidth
+            val radius = (size.minDimension - strokeWidth) / 2
+            val center = Offset(size.width / 2, size.height / 2)
+            val (start, end) = boundaries[i]
+            val sweep = (end - start) * animatedProgress
             drawArc(
-                color = colors.getOrElse(i) { Color.Gray },
-                startAngle = startAngle,
+                color = colors.getOrElse(i) { Color.Gray }.copy(alpha = if (isDimmed) 0.3f else 1f),
+                startAngle = start,
                 sweepAngle = sweep - 2f,
                 useCenter = false,
                 topLeft = Offset(center.x - radius, center.y - radius),
                 size = Size(radius * 2, radius * 2),
                 style = Stroke(strokeWidth, cap = StrokeCap.Round)
             )
-            startAngle += sweep
         }
     }
 }
@@ -748,7 +809,8 @@ fun MonthlyBarChartCard(monthlyData: List<Pair<String, Double>>, predictedNextMo
             Spacer(modifier = Modifier.height(16.dp))
 
             val maxVal = maxOf(monthlyData.maxOfOrNull { it.second } ?: 1.0, predictedNextMonth, 1.0)
-            val allData = monthlyData + Pair("توقع", predictedNextMonth)
+            val predictionLabel = stringResource(R.string.prediction_bar_label)
+            val allData = monthlyData + Pair(predictionLabel, predictedNextMonth)
 
             Row(
                 modifier = Modifier.fillMaxWidth().height(140.dp),
@@ -812,16 +874,17 @@ fun PredictionCard(predictedAmount: Double, currentMonthAmount: Double, lowStock
                     Text(stringResource(R.string.next_month_label), style = Typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
                     Text(com.example.data.CurrencyFormatter.format(context, predictedAmount), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
                     Text(
-                        if (isUp) "↑ زيادة ${com.example.data.CurrencyFormatter.format(context, diff)}" else "↓ توفير ${com.example.data.CurrencyFormatter.format(context, -diff)}",
+                        if (isUp) stringResource(R.string.increase_amount_label, com.example.data.CurrencyFormatter.format(context, diff))
+                        else stringResource(R.string.saving_amount_label, com.example.data.CurrencyFormatter.format(context, -diff)),
                         style = Typography.labelSmall,
                         color = if (isUp) Color(0xFFFCA5A5) else Color(0xFF86EFAC)
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text(stringResource(R.string.nav_inventory), style = Typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
-                    Text("$lowStockCount ناقص", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(stringResource(R.string.low_stock_count_pill, lowStockCount), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
                     Text(
-                        if (subscriptionsCount > 0) "$subscriptionsCount اشتراك نشط" else "لا اشتراكات",
+                        if (subscriptionsCount > 0) stringResource(R.string.active_subscriptions_count_pill, subscriptionsCount) else stringResource(R.string.no_subscriptions_label),
                         style = Typography.labelSmall,
                         color = Color.White.copy(alpha = 0.8f)
                     )
@@ -871,12 +934,12 @@ fun ChatTab(
     onSend: () -> Unit
 ) {
     val quickPrompts = listOf(
-        Icons.Default.Restaurant to "اقترح وصفة من الثلاجة",
-        Icons.Default.BarChart to "حلل مصاريفي هذا الشهر",
-        Icons.Default.ShoppingCart to "ما الذي ينقصني للتسوق؟",
-        Icons.Default.MonetizationOn to "كيف أوفر أكثر هذا الشهر؟",
-        Icons.Default.Assignment to "اكتشف اشتراكاتي",
-        Icons.Default.Eco to "وجبة صحية سريعة"
+        Icons.Default.Restaurant to stringResource(R.string.quick_prompt_recipe),
+        Icons.Default.BarChart to stringResource(R.string.quick_prompt_analyze_spending),
+        Icons.Default.ShoppingCart to stringResource(R.string.quick_prompt_shopping_missing),
+        Icons.Default.MonetizationOn to stringResource(R.string.quick_prompt_save_more),
+        Icons.Default.Assignment to stringResource(R.string.quick_prompt_subscriptions),
+        Icons.Default.Eco to stringResource(R.string.quick_prompt_healthy_meal)
     )
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -895,7 +958,7 @@ fun ChatTab(
                             horizontalArrangement = Arrangement.Center
                         ) {
                             Text(
-                                "اسأل زاد عن أي شيء",
+                                stringResource(R.string.ask_zad_hint_short),
                                 style = Typography.labelMedium, color = onSurfaceVariant
                             )
                             Spacer(modifier = Modifier.width(4.dp))
@@ -956,7 +1019,7 @@ fun ChatTab(
                 onClick = onSend,
                 modifier = Modifier.size(46.dp).clip(CircleShape).background(primary)
             ) {
-                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "إرسال", tint = Color.White)
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.send_action), tint = Color.White)
             }
         }
     }
@@ -1034,10 +1097,9 @@ fun IntelligenceTopBar(onOpenDrawer: () -> Unit) {
 //  LOCAL ML HELPERS
 // ════════════════════════════════════════════════════════════════
 
-fun computeMonthlyData(transactions: List<ZadTransaction>): List<Pair<String, Double>> {
+fun computeMonthlyData(transactions: List<ZadTransaction>, context: android.content.Context): List<Pair<String, Double>> {
     if (transactions.isEmpty()) return emptyList()
-    val monthNames = listOf("يناير","فبراير","مارس","أبريل","مايو","يونيو",
-        "يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر")
+    val monthNames = context.resources.getStringArray(R.array.month_names_short).toList()
 
     val grouped = transactions
         .filter { it.isExpense }
@@ -1173,7 +1235,7 @@ private fun SpendingPowerGaugeCard(power: com.example.data.ZadCentralBrain.Spend
                         fontWeight = FontWeight.Black,
                         color = gaugeColor
                     )
-                    Text("${com.example.data.CurrencyFormatter.symbol(context)} / يوم بأمان", style = Typography.labelSmall, color = onSurfaceVariant)
+                    Text(stringResource(R.string.safe_per_day_suffix, com.example.data.CurrencyFormatter.symbol(context)), style = Typography.labelSmall, color = onSurfaceVariant)
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -1227,8 +1289,8 @@ private fun MonthComparisonCard(mc: com.example.data.ZadCentralBrain.MonthCompar
             Spacer(modifier = Modifier.height(14.dp))
 
             listOf(
-                Triple("هذا الشهر", mc.thisMonthSpent, primary),
-                Triple("الشهر الماضي (نفس الفترة)", mc.lastMonthSpent, onSurfaceVariant.copy(alpha = 0.45f))
+                Triple(stringResource(R.string.this_month_label), mc.thisMonthSpent, primary),
+                Triple(stringResource(R.string.last_month_same_period_label), mc.lastMonthSpent, onSurfaceVariant.copy(alpha = 0.45f))
             ).forEach { (label, value, barColor) ->
                 Column(modifier = Modifier.padding(vertical = 4.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -1305,16 +1367,16 @@ private fun BehaviorAnalysisCard(bp: com.example.data.ZadCentralBrain.BehaviorPr
                 }
             }
 
-            factRow("📅", "أكثر يوم تصرف فيه: ${bp.topSpendingDay} (متوسط ${com.example.data.CurrencyFormatter.format(context, bp.topSpendingDayAvg)} للمعاملة)")
+            factRow("📅", stringResource(R.string.top_spending_day_fact, bp.topSpendingDay, com.example.data.CurrencyFormatter.format(context, bp.topSpendingDayAvg)))
             if (bp.weekendSharePct >= 30)
-                factRow("🎉", "${bp.weekendSharePct}% من صرفك في الويكند — خطط لطلعاتك مسبقاً توفر أكثر")
+                factRow("🎉", stringResource(R.string.weekend_heavy_spending_fact, bp.weekendSharePct))
             else
-                factRow("🧘", "صرفك متوزن خلال الأسبوع (الويكند ${bp.weekendSharePct}% فقط)")
-            factRow("💳", "متوسط معاملتك: ${com.example.data.CurrencyFormatter.format(context, bp.avgTransaction)} • أكبر مصروف: ${bp.biggestExpenseTitle} (${com.example.data.CurrencyFormatter.format(context, bp.biggestExpenseAmount)})")
+                factRow("🧘", stringResource(R.string.balanced_week_spending_fact, bp.weekendSharePct))
+            factRow("💳", stringResource(R.string.avg_transaction_fact, com.example.data.CurrencyFormatter.format(context, bp.avgTransaction), bp.biggestExpenseTitle, com.example.data.CurrencyFormatter.format(context, bp.biggestExpenseAmount)))
             if (bp.impulsePurchases >= 2)
-                factRow("🛍️", "${bp.impulsePurchases} مشتريات اندفاعية آخر 30 يوم — جرب قاعدة الـ24 ساعة قبل الشراء الكبير")
+                factRow("🛍️", stringResource(R.string.impulse_purchases_fact, bp.impulsePurchases))
             if (bp.eveningSharePct >= 50)
-                factRow("🌙", "${bp.eveningSharePct}% من صرفك بعد 6 مساءً — وقت المطاعم والتوصيل غالباً")
+                factRow("🌙", stringResource(R.string.evening_spending_fact, bp.eveningSharePct))
         }
     }
 }
@@ -1322,6 +1384,8 @@ private fun BehaviorAnalysisCard(bp: com.example.data.ZadCentralBrain.BehaviorPr
 @Composable
 private fun ExportReportButton(report: com.example.data.ZadCentralBrain.BrainReport) {
     val context = LocalContext.current
+    val exportSubject = stringResource(R.string.zad_export_report_subject)
+    val shareTitle = stringResource(R.string.share_zad_report_title)
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = primaryContainer,
@@ -1330,11 +1394,11 @@ private fun ExportReportButton(report: com.example.data.ZadCentralBrain.BrainRep
             val text = com.example.data.ZadCentralBrain.buildExportText(context, report)
             val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                 type = "text/plain"
-                putExtra(android.content.Intent.EXTRA_SUBJECT, "تقرير زاد المالي")
+                putExtra(android.content.Intent.EXTRA_SUBJECT, exportSubject)
                 putExtra(android.content.Intent.EXTRA_TEXT, text)
             }
             try {
-                context.startActivity(android.content.Intent.createChooser(intent, "مشاركة تقرير زاد"))
+                context.startActivity(android.content.Intent.createChooser(intent, shareTitle))
             } catch (e: Exception) { /* لا يوجد تطبيق مشاركة */ }
         }
     ) {
@@ -1400,7 +1464,7 @@ private fun HealthScoreCard(report: com.example.data.ZadCentralBrain.BrainReport
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "الصحة المالية",
+                    stringResource(R.string.financial_health_label),
                     style = Typography.labelMedium,
                     color = onSurfaceVariant
                 )
@@ -1412,13 +1476,13 @@ private fun HealthScoreCard(report: com.example.data.ZadCentralBrain.BrainReport
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    "صرفت ${com.example.data.CurrencyFormatter.format(context, report.totalSpent)} • متبقي ${com.example.data.CurrencyFormatter.format(context, report.remaining)}",
+                    stringResource(R.string.spent_remaining_summary, com.example.data.CurrencyFormatter.format(context, report.totalSpent), com.example.data.CurrencyFormatter.format(context, report.remaining)),
                     style = Typography.bodySmall,
                     color = onSurfaceVariant
                 )
                 if (report.subscriptionsMonthlyCost > 0) {
                     Text(
-                        "اشتراكات: ${com.example.data.CurrencyFormatter.format(context, report.subscriptionsMonthlyCost)}/شهر",
+                        stringResource(R.string.subscriptions_monthly_cost_label, com.example.data.CurrencyFormatter.format(context, report.subscriptionsMonthlyCost)),
                         style = Typography.bodySmall,
                         color = onSurfaceVariant
                     )
@@ -1445,7 +1509,7 @@ private fun BrainInsightsCard(insights: List<String>) {
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    "ملاحظات زاد",
+                    stringResource(R.string.zad_notes_title),
                     style = Typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF6D28D9)
@@ -1486,7 +1550,7 @@ private fun DepletionForecastCard(forecasts: List<com.example.data.ZadCentralBra
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    "تنبؤات النفاد — من تعلم استهلاكك",
+                    stringResource(R.string.depletion_forecast_title),
                     style = Typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = onSurface
@@ -1514,9 +1578,9 @@ private fun DepletionForecastCard(forecasts: List<com.example.data.ZadCentralBra
                     ) {
                         Text(
                             when {
-                                f.predictedDaysLeft <= 0 -> "خلص غالباً!"
-                                f.predictedDaysLeft == 1 -> "يوم واحد"
-                                else -> "${f.predictedDaysLeft} أيام"
+                                f.predictedDaysLeft <= 0 -> stringResource(R.string.will_deplete_soon)
+                                f.predictedDaysLeft == 1 -> stringResource(R.string.one_day_left_label)
+                                else -> stringResource(R.string.days_left_count_label, f.predictedDaysLeft)
                             },
                             style = Typography.labelSmall,
                             fontWeight = FontWeight.Bold,
