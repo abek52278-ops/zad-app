@@ -469,7 +469,7 @@
     <string name="meal_suggestions_alert">Yemek önerileri</string>
     <string name="meal_suggestions_alert_desc">Mevcut envantere göre günlük yemek önerisi</string>
     <string name="tasbih_reminder_alert">Zikir hatırlatıcısı</string>
-    <string name="tasbih_reminder_alert_desc">Bugün henüz zikir yapmadıysan saat 17:00'de nazik bir hatırlatma</string>
+    <string name="tasbih_reminder_alert_desc">Bugün henüz zikir yapmadıysan saat 17:00\'de nazik bir hatırlatma</string>
     <string name="name_alias_label">Ad / Takma ad</string>
     <string name="not_in_family_yet">Şu anda bir aileye üye değilsin.</string>
     <string name="payment_and_budget_title">Ödeme yöntemleri ve bütçe</string>
@@ -528,7 +528,7 @@
     <!-- ZadIntelligenceScreen: server behavior profile -->
     <string name="behavior_insights_title">Zad harcama alışkanlığını öğreniyor</string>
     <string name="refresh_action">Yenile</string>
-    <string name="no_behavior_data_yet">Henüz yeterli veri yok — Zad'ı daha fazla kullan, harcama düzenini öğrensin</string>
+    <string name="no_behavior_data_yet">Henüz yeterli veri yok — Zad\'ı daha fazla kullan, harcama düzenini öğrensin</string>
     <string name="avg_weekly_spending_label">Ortalama haftalık harcama</string>
     <string name="subscription_load_label">Aylık abonelik yükü</string>
     <string name="top_categories_label">En çok harcanan kategoriler</string>
