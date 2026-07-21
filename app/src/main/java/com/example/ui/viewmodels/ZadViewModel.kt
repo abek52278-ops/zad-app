@@ -1468,6 +1468,50 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // --- محلل الخصومات والعروض الحقيقي + التنبؤ بموجات الغلاء — بحث حي فقط،
+    // تحديث يدوي بزر (مش في LaunchedEffect(Unit) الأوتوماتيكي زي باقي الكروت) ---
+    enum class LiveFetchState { NotFetchedYet, Loading, Fetched, Error }
+
+    private val _liveDeals = kotlinx.coroutines.flow.MutableStateFlow<List<com.example.data.LiveDeal>>(emptyList())
+    val liveDeals: kotlinx.coroutines.flow.StateFlow<List<com.example.data.LiveDeal>> = _liveDeals
+
+    private val _dealsFetchState = kotlinx.coroutines.flow.MutableStateFlow(LiveFetchState.NotFetchedYet)
+    val dealsFetchState: kotlinx.coroutines.flow.StateFlow<LiveFetchState> = _dealsFetchState
+
+    fun refreshLiveDeals(shortageItems: List<String>) {
+        viewModelScope.launch {
+            _dealsFetchState.value = LiveFetchState.Loading
+            try {
+                _liveDeals.value = ZadAiRepository.fetchLiveDealsForInventory(shortageItems)
+                _dealsFetchState.value = LiveFetchState.Fetched
+                Log.d(TAG, "refreshLiveDeals() → found=${_liveDeals.value.size}")
+            } catch (e: Exception) {
+                Log.e(TAG, "refreshLiveDeals() FAILED: ${e.message}")
+                _dealsFetchState.value = LiveFetchState.Error
+            }
+        }
+    }
+
+    private val _priceShockWarnings = kotlinx.coroutines.flow.MutableStateFlow<List<com.example.data.PriceShockWarning>>(emptyList())
+    val priceShockWarnings: kotlinx.coroutines.flow.StateFlow<List<com.example.data.PriceShockWarning>> = _priceShockWarnings
+
+    private val _priceShockFetchState = kotlinx.coroutines.flow.MutableStateFlow(LiveFetchState.NotFetchedYet)
+    val priceShockFetchState: kotlinx.coroutines.flow.StateFlow<LiveFetchState> = _priceShockFetchState
+
+    fun refreshPriceShockWarnings(categories: List<String>) {
+        viewModelScope.launch {
+            _priceShockFetchState.value = LiveFetchState.Loading
+            try {
+                _priceShockWarnings.value = ZadAiRepository.fetchLivePriceShockWarnings(categories)
+                _priceShockFetchState.value = LiveFetchState.Fetched
+                Log.d(TAG, "refreshPriceShockWarnings() → found=${_priceShockWarnings.value.size}")
+            } catch (e: Exception) {
+                Log.e(TAG, "refreshPriceShockWarnings() FAILED: ${e.message}")
+                _priceShockFetchState.value = LiveFetchState.Error
+            }
+        }
+    }
+
     // --- وصفات ذكية مربوطة بالعقل: "عندك دجاج هينتهي بكرة → 3 وصفات بيه" ---
     data class UrgentRecipes(val triggerItems: List<String>, val text: String)
 

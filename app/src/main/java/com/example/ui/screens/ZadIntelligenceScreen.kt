@@ -297,6 +297,9 @@ fun AnalyticsTab(
         // رادار التضخم الشخصي (Feature 3)
         item { InflationRadarCard(transactions) }
 
+        // رادار تغيرات الأسعار في السوق — بحث حي حقيقي (Price Shock Predictor)
+        item { PriceShockRadarCard(categoryMap.map { it.first }.take(5), viewModel) }
+
         // الرسم البياني الشهري
         item {
             MonthlyBarChartCard(
@@ -317,6 +320,14 @@ fun AnalyticsTab(
 
         // توقيت الشراء الذكي للمخزون (Feature 6)
         item { SmartBuyingTimingCard(inventory, serverBehaviorProfile) }
+
+        // العروض المتاحة لنواقصك — بحث حي حقيقي (Deal Matcher)
+        item {
+            LiveDealsCard(
+                shortageItems = inventory.filter { it.quantity <= (it.lowStockThreshold ?: 2) }.map { it.itemName },
+                viewModel = viewModel
+            )
+        }
 
         // تحديات العائلة المالية (Feature 5)
         item { FinancialChallengesCard(familyViewModel) }
@@ -1867,6 +1878,173 @@ private fun AiNarrativeSection(narrative: String?, isLoading: Boolean, onExplain
             Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp), tint = primary)
             Spacer(modifier = Modifier.width(4.dp))
             Text(stringResource(R.string.ai_explain_action), style = Typography.labelSmall, color = primary)
+        }
+    }
+}
+
+// ── Live web search badge (shared by Deal Matcher / Price Shock Radar) ───────
+@Composable
+private fun LiveSearchBadge() {
+    Surface(shape = RoundedCornerShape(8.dp), color = dangerColor.copy(alpha = 0.1f)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(dangerColor))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(stringResource(R.string.live_search_source_badge), style = Typography.labelSmall, color = dangerColor)
+        }
+    }
+}
+
+// ── Deal Matcher card ──────────────────────────────────────────────────────
+@Composable
+fun LiveDealsCard(shortageItems: List<String>, viewModel: ZadViewModel) {
+    val context = LocalContext.current
+    val deals by viewModel.liveDeals.collectAsState()
+    val fetchState by viewModel.dealsFetchState.collectAsState()
+
+    Card(
+        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = surface)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.LocalOffer, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.live_deals_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface, modifier = Modifier.weight(1f))
+                if (fetchState == ZadViewModel.LiveFetchState.Fetched && deals.isNotEmpty()) LiveSearchBadge()
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(stringResource(R.string.live_deals_subtitle), style = Typography.bodySmall, color = onSurfaceVariant)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            when (fetchState) {
+                ZadViewModel.LiveFetchState.NotFetchedYet ->
+                    Text(stringResource(R.string.live_search_not_fetched_hint), style = Typography.bodySmall, color = onSurfaceVariant)
+                ZadViewModel.LiveFetchState.Loading -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = primary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.live_search_loading), style = Typography.labelSmall, color = onSurfaceVariant)
+                }
+                ZadViewModel.LiveFetchState.Fetched, ZadViewModel.LiveFetchState.Error -> {
+                    if (deals.isEmpty()) {
+                        Text(stringResource(R.string.live_search_empty_state), style = Typography.bodySmall, color = onSurfaceVariant)
+                    } else {
+                        deals.take(6).forEach { deal ->
+                            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(deal.item, style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = onSurface, modifier = Modifier.weight(1f))
+                                    if (deal.discountPercent > 0) {
+                                        Surface(shape = RoundedCornerShape(10.dp), color = successColor.copy(alpha = 0.12f)) {
+                                            Text(
+                                                stringResource(R.string.live_deals_discount_pill, "%.0f".format(deal.discountPercent)),
+                                                style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = successColor,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                                Text(
+                                    stringResource(R.string.live_deals_price_at_store, com.example.data.CurrencyFormatter.format(context, deal.price), deal.store),
+                                    style = Typography.bodySmall, color = onSurfaceVariant
+                                )
+                                if (!deal.note.isNullOrBlank()) {
+                                    Text(deal.note, style = Typography.labelSmall, color = onSurfaceVariant.copy(alpha = 0.8f))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = { viewModel.refreshLiveDeals(shortageItems) },
+                enabled = fetchState != ZadViewModel.LiveFetchState.Loading && shortageItems.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(stringResource(R.string.live_search_refresh_action))
+            }
+        }
+    }
+}
+
+// ── Price Shock Predictor card ────────────────────────────────────────────
+@Composable
+fun PriceShockRadarCard(categories: List<String>, viewModel: ZadViewModel) {
+    val warnings by viewModel.priceShockWarnings.collectAsState()
+    val fetchState by viewModel.priceShockFetchState.collectAsState()
+
+    Card(
+        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = surface)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.ShowChart, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.price_shock_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface, modifier = Modifier.weight(1f))
+                if (fetchState == ZadViewModel.LiveFetchState.Fetched && warnings.isNotEmpty()) LiveSearchBadge()
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(stringResource(R.string.price_shock_subtitle), style = Typography.bodySmall, color = onSurfaceVariant)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            when (fetchState) {
+                ZadViewModel.LiveFetchState.NotFetchedYet ->
+                    Text(stringResource(R.string.live_search_not_fetched_hint), style = Typography.bodySmall, color = onSurfaceVariant)
+                ZadViewModel.LiveFetchState.Loading -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = primary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.live_search_loading), style = Typography.labelSmall, color = onSurfaceVariant)
+                }
+                ZadViewModel.LiveFetchState.Fetched, ZadViewModel.LiveFetchState.Error -> {
+                    if (warnings.isEmpty()) {
+                        Text(stringResource(R.string.live_search_empty_state), style = Typography.bodySmall, color = onSurfaceVariant)
+                    } else {
+                        warnings.take(6).forEach { w ->
+                            val isDown = w.direction == "down"
+                            val trendColor = if (isDown) successColor else dangerColor
+                            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        if (isDown) Icons.Default.TrendingDown else Icons.Default.TrendingUp,
+                                        contentDescription = null, tint = trendColor, modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(w.category, style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = onSurface, modifier = Modifier.weight(1f))
+                                    Text(
+                                        stringResource(
+                                            if (isDown) R.string.price_shock_down_label else R.string.price_shock_up_label,
+                                            "%.0f".format(w.expectedChangePct)
+                                        ),
+                                        style = Typography.labelMedium, fontWeight = FontWeight.Bold, color = trendColor
+                                    )
+                                }
+                                if (w.reasoning.isNotBlank()) {
+                                    Text(w.reasoning, style = Typography.bodySmall, color = onSurfaceVariant)
+                                }
+                                if (!w.sourceNote.isNullOrBlank()) {
+                                    Text(w.sourceNote, style = Typography.labelSmall, color = onSurfaceVariant.copy(alpha = 0.8f))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = { viewModel.refreshPriceShockWarnings(categories) },
+                enabled = fetchState != ZadViewModel.LiveFetchState.Loading && categories.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(stringResource(R.string.live_search_refresh_action))
+            }
         }
     }
 }

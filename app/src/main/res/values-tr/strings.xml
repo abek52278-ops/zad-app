@@ -501,6 +501,23 @@
     <string name="financial_challenge_target_hint">Hedef tutar</string>
     <string name="financial_challenge_reward_hint">Ödül tutarı</string>
     <string name="financial_challenge_duration_hint">Süre (gün)</string>
+
+    <!-- Deal Matcher / Price Shock Predictor: live web search, zero mock data -->
+    <string name="live_search_refresh_action">İnternetten güncelle 🔄</string>
+    <string name="live_search_loading">İnternette aranıyor...</string>
+    <string name="live_search_source_badge">Canlı arama sonucu</string>
+    <string name="live_search_empty_state">Şu anda belirli bir sonuç bulunmuyor</string>
+    <string name="live_search_not_fetched_hint">Sonuçları internetten almak için dokun</string>
+
+    <string name="live_deals_title">Eksiklerin İçin Fırsatlar 🏷️</string>
+    <string name="live_deals_subtitle">Eksik ürünlerin için gerçek, güncel fırsatlar</string>
+    <string name="live_deals_price_at_store">%2$s\'de %1$s</string>
+    <string name="live_deals_discount_pill">%%%1$s indirim</string>
+
+    <string name="price_shock_title">Piyasa Fiyat Değişim Radarı 📈</string>
+    <string name="price_shock_subtitle">Gerçek haber ve raporlara dayalı fiyat uyarıları</string>
+    <string name="price_shock_up_label">+%%%1$s</string>
+    <string name="price_shock_down_label">-%%%1$s</string>
     <string name="whatif_exceeds_at_month">(%1$d. ayda aşmaya başlıyor)</string>
     <string name="whatif_ai_loading">Zad kararı analiz ediyor...</string>
 

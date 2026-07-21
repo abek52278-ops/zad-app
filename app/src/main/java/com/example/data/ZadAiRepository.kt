@@ -462,6 +462,49 @@ object ZadAiRepository {
         return callGeminiText(systemPrompt, userPrompt)
     }
 
+    // ── Deal Matcher / Price Shock Predictor: live web search only, zero mock data.
+    // Edge function uses groq/compound (Tavily-backed web_search tool) — every result
+    // here is grounded in a real page or it doesn't appear at all; no fallback figures
+    // are synthesized anywhere in this path. ──
+
+    suspend fun fetchLiveDealsForInventory(
+        shortageItems: List<String>,
+        location: String = MarketPrefs.currentMarket.displayNameAr
+    ): List<LiveDeal> {
+        if (shortageItems.isEmpty()) return emptyList()
+        val response = callAction("fetch_live_deals", mapOf("items" to shortageItems, "location" to location))
+        val dealsRaw = response["deals"] as? List<*> ?: return emptyList()
+        return dealsRaw.mapNotNull { entry ->
+            val map = entry as? Map<*, *> ?: return@mapNotNull null
+            LiveDeal(
+                item = map["item"] as? String ?: return@mapNotNull null,
+                store = map["store"] as? String ?: return@mapNotNull null,
+                price = (map["price"] as? Number)?.toDouble() ?: return@mapNotNull null,
+                discountPercent = (map["discount_percent"] as? Number)?.toDouble() ?: 0.0,
+                note = map["note"] as? String
+            )
+        }
+    }
+
+    suspend fun fetchLivePriceShockWarnings(
+        categories: List<String>,
+        location: String = MarketPrefs.currentMarket.displayNameAr
+    ): List<PriceShockWarning> {
+        if (categories.isEmpty()) return emptyList()
+        val response = callAction("fetch_price_shock_warnings", mapOf("categories" to categories, "location" to location))
+        val warningsRaw = response["warnings"] as? List<*> ?: return emptyList()
+        return warningsRaw.mapNotNull { entry ->
+            val map = entry as? Map<*, *> ?: return@mapNotNull null
+            PriceShockWarning(
+                category = map["category"] as? String ?: return@mapNotNull null,
+                expectedChangePct = (map["expected_change_pct"] as? Number)?.toDouble() ?: 0.0,
+                direction = map["direction"] as? String ?: "up",
+                reasoning = map["reasoning"] as? String ?: "",
+                sourceNote = map["source_note"] as? String
+            )
+        }
+    }
+
     suspend fun brainEvaluate(systemPrompt: String, userPrompt: String): String? {
         val response = callAction("brain_evaluate", mapOf(
             "system_prompt" to systemPrompt,

@@ -149,6 +149,24 @@ data class ZadSubscription(
 )
 
 @Serializable
+data class LiveDeal(
+    val item: String = "",
+    val store: String = "",
+    val price: Double = 0.0,
+    @SerialName("discount_percent") val discountPercent: Double = 0.0,
+    val note: String? = null
+)
+
+@Serializable
+data class PriceShockWarning(
+    val category: String = "",
+    @SerialName("expected_change_pct") val expectedChangePct: Double = 0.0,
+    val direction: String = "up",
+    val reasoning: String = "",
+    @SerialName("source_note") val sourceNote: String? = null
+)
+
+@Serializable
 data class ZadDebt(
     val id: String = UUID.randomUUID().toString(),
     @SerialName("user_id") val userId: String? = null,

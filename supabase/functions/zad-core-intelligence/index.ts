@@ -208,6 +208,50 @@ async function callJsonModel(systemPrompt: string, userPrompt: string, maxTokens
   }
 }
 
+// groq/compound is Groq's agentic system with a built-in, Tavily-backed
+// web_search tool — used ONLY for the two live-search actions below so
+// results are grounded in real pages, never invented. Reuses GROQ_API_KEY
+// (already provisioned for Whisper), no new secret needed. Compound
+// sometimes wraps its JSON answer in prose/markdown fences despite
+// instructions, so we extract leniently like callJsonModel() does.
+async function callCompoundSearch(systemPrompt: string, userPrompt: string, maxTokens = 1500) {
+  if (!GROQ_API_KEY) return null;
+  const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer " + GROQ_API_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "groq/compound",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.2,
+      max_tokens: Math.max(maxTokens, 300),
+    }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) {
+    console.error("[CoreIntel] Groq compound HTTP error:", resp.status, JSON.stringify(data));
+    return null;
+  }
+  const text = data.choices?.[0]?.message?.content || "";
+  const executedTools = data.choices?.[0]?.message?.executed_tools || [];
+  console.log("[CoreIntel] Groq compound executed_tools:", JSON.stringify(executedTools));
+  const arrayMatch = text.match(/\[[\s\S]*\]/);
+  const objectMatch = text.match(/\{[\s\S]*\}/);
+  let parsed: unknown = null;
+  try {
+    if (arrayMatch) parsed = JSON.parse(arrayMatch[0]);
+    else if (objectMatch) parsed = JSON.parse(objectMatch[0]);
+  } catch (e) {
+    console.error("[CoreIntel] callCompoundSearch: JSON.parse failed:", e.message, "raw:", text);
+  }
+  return { parsed, executedTools };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders() });
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
@@ -585,6 +629,38 @@ Deno.serve(async (req: Request) => {
           duration_days: result?.duration_days || 30,
           emoji: result?.emoji || "",
         });
+      }
+
+      // ══════════════════════════════════════════════
+      // LIVE WEB SEARCH ACTIONS — groq/compound only, zero mock data
+      // ══════════════════════════════════════════════
+
+      // ──────────────────────────────────────────────
+      // FETCH_LIVE_DEALS — real store promotions for shortage items
+      // (Deal Matcher)
+      // ──────────────────────────────────────────────
+      case "fetch_live_deals": {
+        const { items, location } = payload || {};
+        if (!items || items.length === 0) return jsonResponse({ deals: [] });
+        const systemPrompt = "أنت باحث عروض تسوق حقيقي. ابحث في الويب عن أحدث العروض والتخفيضات الفعلية المتاحة الآن من متاجر ومحلات سوبرماركت معروفة في المنطقة المحددة للأصناف المطلوبة. لا تخترع أي متجر أو سعر أو نسبة خصم أبداً — إذا لم تجد عرضاً حقيقياً موثقاً لصنف معين، تجاهله تماماً. أجب فقط بمصفوفة JSON بدون أي نص إضافي بالشكل: [{\"item\":\"\",\"store\":\"\",\"price\":0.0,\"discount_percent\":0.0,\"note\":\"\"}]. إذا لم تجد أي عروض حقيقية لأي صنف، أرجع مصفوفة فارغة [].";
+        const userPrompt = "المنطقة: " + (location || "السعودية") + " | الأصناف المطلوب البحث عن عروض لها: " + (Array.isArray(items) ? items.join("، ") : items);
+        const result = await callCompoundSearch(systemPrompt, userPrompt);
+        const deals = Array.isArray(result?.parsed) ? result.parsed : [];
+        return jsonResponse({ deals, sources: result?.executedTools || [] });
+      }
+
+      // ──────────────────────────────────────────────
+      // FETCH_PRICE_SHOCK_WARNINGS — real inflation/price-trend news
+      // (Price Shock Predictor)
+      // ──────────────────────────────────────────────
+      case "fetch_price_shock_warnings": {
+        const { categories, location } = payload || {};
+        if (!categories || categories.length === 0) return jsonResponse({ warnings: [] });
+        const systemPrompt = "أنت محلل اقتصادي يعتمد على مصادر إخبارية حقيقية فقط. ابحث في الويب عن آخر الأخبار والتقارير الاقتصادية الموثوقة (خلال آخر أسبوعين فقط) عن اتجاهات أسعار السلع والتضخم في المنطقة المحددة للفئات المطلوبة. لا تخترع أي نسبة أو خبر أبداً — إذا لم تجد تقريراً حقيقياً حديثاً وموثوقاً عن فئة معينة، تجاهلها تماماً. أجب فقط بمصفوفة JSON بدون أي نص إضافي بالشكل: [{\"category\":\"\",\"expected_change_pct\":0.0,\"direction\":\"up|down\",\"reasoning\":\"\",\"source_note\":\"\"}]. إذا لم تجد أي تقارير حقيقية حديثة، أرجع مصفوفة فارغة [].";
+        const userPrompt = "المنطقة: " + (location || "السعودية") + " | الفئات المطلوب تحليل اتجاه أسعارها: " + (Array.isArray(categories) ? categories.join("، ") : categories);
+        const result = await callCompoundSearch(systemPrompt, userPrompt);
+        const warnings = Array.isArray(result?.parsed) ? result.parsed : [];
+        return jsonResponse({ warnings, sources: result?.executedTools || [] });
       }
 
       // ──────────────────────────────────────────────

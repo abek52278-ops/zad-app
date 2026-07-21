@@ -501,6 +501,23 @@
     <string name="financial_challenge_target_hint">المبلغ المستهدف</string>
     <string name="financial_challenge_reward_hint">قيمة المكافأة</string>
     <string name="financial_challenge_duration_hint">المدة بالأيام</string>
+
+    <!-- Deal Matcher / Price Shock Predictor: live web search, zero mock data -->
+    <string name="live_search_refresh_action">تحديث من النت 🔄</string>
+    <string name="live_search_loading">بيدور في النت...</string>
+    <string name="live_search_source_badge">نتيجة بحث حي</string>
+    <string name="live_search_empty_state">مفيش نتائج بحث محددة متوفرة دلوقتي</string>
+    <string name="live_search_not_fetched_hint">دوس عشان تجيب أحدث النتائج من النت</string>
+
+    <string name="live_deals_title">العروض المتاحة لنواقصك 🏷️</string>
+    <string name="live_deals_subtitle">عروض حقيقية على الأصناف الناقصة عندك</string>
+    <string name="live_deals_price_at_store">%1$s عند %2$s</string>
+    <string name="live_deals_discount_pill">خصم %1$s%%</string>
+
+    <string name="price_shock_title">رادار تغيرات الأسعار في السوق 📈</string>
+    <string name="price_shock_subtitle">تنبيهات أسعار مبنية على أخبار وتقارير حقيقية حديثة</string>
+    <string name="price_shock_up_label">+%1$s%%</string>
+    <string name="price_shock_down_label">-%1$s%%</string>
     <string name="whatif_exceeds_at_month">(هيبدأ يتخطاها من شهر %1$d)</string>
     <string name="whatif_ai_loading">زاد بيحلل القرار...</string>
 
