@@ -428,6 +428,9 @@
     <string name="avg_transaction_fact">Ortalama işlemin: %1$s • En büyük harcama: %2$s (%3$s)</string>
     <string name="impulse_purchases_fact">Son 30 günde %1$d ani alışveriş — büyük alımdan önce 24 saat kuralını dene</string>
     <string name="evening_spending_fact">Harcamalarının %%%1$d\'i saat 18:00\'dan sonra — genelde restoran ve teslimat zamanı</string>
+    <string name="insight_action_done">Tamamlandı ✅</string>
+    <string name="cancel_subscription_action">İptal et ve %1$s/yıl tasarruf et</string>
+    <string name="increase_budget_action">Bütçeyi %1$s\'e yükselt</string>
 
     <string-array name="month_names_short">
         <item>Ocak</item>

@@ -428,6 +428,9 @@
     <string name="avg_transaction_fact">متوسط معاملتك: %1$s • أكبر مصروف: %2$s (%3$s)</string>
     <string name="impulse_purchases_fact">%1$d مشتريات فجأة آخر 30 يوم — جرب قاعدة الـ24 ساعة قبل أي شراء كبير</string>
     <string name="evening_spending_fact">%1$d%% من صرفك بعد 6 المغرب — وقت المطاعم والدليفري غالباً</string>
+    <string name="insight_action_done">تم ✅</string>
+    <string name="cancel_subscription_action">إلغاء الاشتراك ووفر %1$s/سنة</string>
+    <string name="increase_budget_action">ارفع الميزانية لـ %1$s</string>
 
     <string-array name="month_names_short">
         <item>يناير</item>

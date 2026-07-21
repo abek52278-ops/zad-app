@@ -144,7 +144,8 @@ fun ZadIntelligenceScreen(
                     report = brainReport,
                     serverBehaviorProfile = serverBehaviorProfile,
                     isRefreshingBehaviorProfile = isRefreshingBehaviorProfile,
-                    onRefreshBehaviorProfile = { viewModel.refreshBehaviorProfile() }
+                    onRefreshBehaviorProfile = { viewModel.refreshBehaviorProfile() },
+                    viewModel = viewModel
                 )
                 1 -> SubscriptionsTab(
                     subscriptions = subscriptions,
@@ -183,7 +184,8 @@ fun AnalyticsTab(
     report: com.example.data.ZadCentralBrain.BrainReport? = null,
     serverBehaviorProfile: com.example.data.UserBehaviorProfile? = null,
     isRefreshingBehaviorProfile: Boolean = false,
-    onRefreshBehaviorProfile: () -> Unit = {}
+    onRefreshBehaviorProfile: () -> Unit = {},
+    viewModel: ZadViewModel
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val otherCategoryLabel = stringResource(R.string.other_category)
@@ -346,7 +348,7 @@ fun AnalyticsTab(
                     )
                 }
             }
-            items(insights.take(5)) { insight -> IntelligenceInsightCard(insight) }
+            items(insights.take(5)) { insight -> IntelligenceInsightCard(insight, viewModel) }
         }
 
         item { Spacer(modifier = Modifier.height(80.dp)) }
@@ -354,23 +356,74 @@ fun AnalyticsTab(
 }
 
 @Composable
-fun IntelligenceInsightCard(insight: AiInsight) {
+fun IntelligenceInsightCard(insight: AiInsight, viewModel: ZadViewModel) {
+    val context = LocalContext.current
     val (bgColor, iconColor, icon) = when (insight.type) {
         "Alert" -> Triple(Color(0xFFFFF5F5), Color(0xFFEF4444), Icons.Default.Warning)
         "Tip" -> Triple(Color(0xFFF0FDF4), Color(0xFF16A34A), Icons.Default.Lightbulb)
         "Warning" -> Triple(Color(0xFFFFFBEB), Color(0xFFF59E0B), Icons.Default.WarningAmber)
         else -> Triple(primaryContainer, primary, Icons.Default.Info)
     }
-    Row(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(bgColor).padding(16.dp),
-        verticalAlignment = Alignment.Top
+    var actionDone by remember(insight.actionRefId, insight.actionType) { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(bgColor).padding(16.dp)
     ) {
-        Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
-        Spacer(modifier = Modifier.width(12.dp))
-        Column {
-            Text(insight.title, style = Typography.labelLarge, fontWeight = FontWeight.Bold, color = onSurface)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(insight.description, style = Typography.bodySmall, color = onSurfaceVariant)
+        Row(verticalAlignment = Alignment.Top) {
+            Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(insight.title, style = Typography.labelLarge, fontWeight = FontWeight.Bold, color = onSurface)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(insight.description, style = Typography.bodySmall, color = onSurfaceVariant)
+            }
+        }
+
+        if (insight.actionType != null && insight.actionRefId != null) {
+            Spacer(modifier = Modifier.height(10.dp))
+            if (actionDone) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = iconColor, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(stringResource(R.string.insight_action_done), style = Typography.labelSmall, color = iconColor, fontWeight = FontWeight.Bold)
+                }
+            } else {
+                when (insight.actionType) {
+                    "cancel_subscription" -> {
+                        Button(
+                            onClick = {
+                                viewModel.updateSubscriptionActive(insight.actionRefId, false)
+                                actionDone = true
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = iconColor),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                            modifier = Modifier.height(34.dp)
+                        ) {
+                            Text(
+                                stringResource(R.string.cancel_subscription_action, com.example.data.CurrencyFormatter.format(context, insight.actionAmount ?: 0.0)),
+                                style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = Color.White
+                            )
+                        }
+                    }
+                    "increase_budget" -> {
+                        Button(
+                            onClick = {
+                                com.example.data.BudgetTracker.setCategoryBudget(context, insight.actionRefId, insight.actionAmount ?: 0.0)
+                                viewModel.refreshBudgetInsights()
+                                actionDone = true
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = iconColor),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                            modifier = Modifier.height(34.dp)
+                        ) {
+                            Text(
+                                stringResource(R.string.increase_budget_action, com.example.data.CurrencyFormatter.format(context, insight.actionAmount ?: 0.0)),
+                                style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = Color.White
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

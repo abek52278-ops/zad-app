@@ -130,6 +130,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 _insights.value = baseInsights
                 analyzeSubscriptionUsage(_subscriptions.value)
+                analyzeBudgetOverruns(txs)
             }
         }
         viewModelScope.launch {
@@ -155,6 +156,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 _insights.value = baseInsights
                 analyzeSubscriptionUsage(_subscriptions.value)
+                analyzeBudgetOverruns(_transactions.value)
             }
         }
         viewModelScope.launch {
@@ -1224,7 +1226,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                         com.example.data.AiInsight(
                             title = "اشتراك غير مستغل: ${sub.title}",
                             description = "لم نلاحظ أي نشاط لاشتراك ${sub.title} مؤخراً. التوفير المحتمل: ${com.example.data.CurrencyFormatter.format(ctx, yearlyCost)} سنوياً عند الإلغاء.",
-                            type = "Warning"
+                            type = "Warning",
+                            actionType = "cancel_subscription",
+                            actionRefId = sub.id,
+                            actionAmount = yearlyCost
                         )
                     )
                 } else if (yearlyCost > 1000) {
@@ -1232,7 +1237,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                         com.example.data.AiInsight(
                             title = "تكلفة اشتراك عالية: ${sub.title}",
                             description = "هذا الاشتراك يكلفك ${com.example.data.CurrencyFormatter.format(ctx, yearlyCost)} سنوياً. هل يستحق الاستمرار؟",
-                            type = "Tip"
+                            type = "Tip",
+                            actionType = "cancel_subscription",
+                            actionRefId = sub.id,
+                            actionAmount = yearlyCost
                         )
                     )
                 }
@@ -1246,6 +1254,44 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.d(TAG, "analyzeSubscriptionUsage() → Added ${newInsights.size} subscription insights. Total: ${_insights.value.size}")
             }
         }
+    }
+
+    /** يفحص كل فئة عندها ميزانية محددة ووصلت صرفها لـ90% أو أكتر الشهر ده، ويقترح رفعها كبطاقة رؤية قابلة للتنفيذ. */
+    private fun analyzeBudgetOverruns(transactions: List<ZadTransaction>) {
+        val ctx = getApplication<Application>()
+        val now = java.time.LocalDate.now()
+        val spentByCategory = transactions.filter { tx ->
+            if (!tx.isExpense) return@filter false
+            try {
+                val d = Instant.parse(tx.createdAt ?: "").atZone(ZoneId.systemDefault()).toLocalDate()
+                d.monthValue == now.monthValue && d.year == now.year
+            } catch (e: Exception) { false }
+        }.groupBy { it.category ?: "أخرى" }.mapValues { (_, txs) -> txs.sumOf { it.amount } }
+
+        val newInsights = com.example.data.BudgetTracker.STANDARD_CATEGORIES.mapNotNull { cat ->
+            val budget = com.example.data.BudgetTracker.getCategoryBudget(ctx, cat)
+            val spent = spentByCategory[cat] ?: 0.0
+            if (budget <= 0 || spent < budget * 0.9) return@mapNotNull null
+            val suggested = kotlin.math.ceil(spent * 1.2 / 50.0) * 50.0
+            com.example.data.AiInsight(
+                title = "ميزانية $cat على وشك النفاد",
+                description = "صرفت ${com.example.data.CurrencyFormatter.format(ctx, spent)} من أصل ${com.example.data.CurrencyFormatter.format(ctx, budget)} في $cat هذا الشهر.",
+                type = "Warning",
+                actionType = "increase_budget",
+                actionRefId = cat,
+                actionAmount = suggested
+            )
+        }
+
+        val current = _insights.value.toMutableList()
+        current.removeAll { it.actionType == "increase_budget" }
+        current.addAll(0, newInsights)
+        _insights.value = current
+    }
+
+    /** يعاد حسابها فوراً بعد ما المستخدم يعدّل حد فئة من بطاقة رؤية — بدل ما يستنى تحديث معاملات جديد. */
+    fun refreshBudgetInsights() {
+        analyzeBudgetOverruns(_transactions.value)
     }
 
 

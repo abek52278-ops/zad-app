@@ -56,7 +56,13 @@ data class AiParsedReceipt(
 data class AiInsight(
     val title: String,
     val description: String,
-    val type: String
+    val type: String,
+    // بطاقة الرؤية القابلة للتنفيذ: زر مباشر بدل نصيحة نصية بس.
+    // actionType: "cancel_subscription" (actionRefId = subscription id, actionAmount = التوفير السنوي)
+    //           | "increase_budget" (actionRefId = اسم الفئة, actionAmount = الميزانية المقترحة)
+    val actionType: String? = null,
+    val actionRefId: String? = null,
+    val actionAmount: Double? = null
 )
 
 @kotlinx.serialization.Serializable
