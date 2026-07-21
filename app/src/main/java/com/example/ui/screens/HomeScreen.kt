@@ -101,8 +101,23 @@ fun HomeScreen(
     val currentBudget = remainingBalance
 
     val context = LocalContext.current
-    val isNotificationAccessGranted = androidx.core.app.NotificationManagerCompat
-        .getEnabledListenerPackages(context).contains(context.packageName)
+    var isNotificationAccessGranted by remember {
+        mutableStateOf(
+            androidx.core.app.NotificationManagerCompat
+                .getEnabledListenerPackages(context).contains(context.packageName)
+        )
+    }
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                isNotificationAccessGranted = androidx.core.app.NotificationManagerCompat
+                    .getEnabledListenerPackages(context).contains(context.packageName)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     val familyState by familyViewModel.state.collectAsState()
     val userNameState by viewModel.userName.collectAsState()
@@ -157,9 +172,11 @@ fun HomeScreen(
             .background(background)
             .verticalScroll(rememberScrollState())
     ) {
+        val appNotificationsState by viewModel.appNotifications.collectAsState()
         PremiumTopBar(
             userName = userName,
             avatarUrl = globalAvatarUri?.toString(),
+            hasUnreadNotifications = appNotificationsState.any { !it.isRead },
             onNotificationsClick = {
                 Log.d(TAG_HOME, "🔔 Notifications icon clicked — showing panel")
                 showNotificationsPanel = true
@@ -232,7 +249,9 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // 4. Premium Meals Row
-                val recipeTitles = listOf("كبسة دجاج", "سلطة يونانية", "مكرونة بشاميل")
+                // فاضية عمدًا لحد ما يتوفر اقتراح وصفات مبني فعليًا على مخزون المستخدم —
+                // متتحطش أسماء وصفات هنا من غير تحقق حقيقي من المكونات المتاحة.
+                val recipeTitles = emptyList<String>()
                 PremiumMealsRow(
                     meals = recipeTitles,
                     onMealClick = { recipeName ->
@@ -251,7 +270,7 @@ fun HomeScreen(
 
                 // 6. Kids Snippet
                 PremiumKidsSnippet(
-                    onKidsClick = { /* Can show a dialog or navigate to kids mode setup */ }
+                    onKidsClick = onNavigateToFamily
                 )
                 Spacer(modifier = Modifier.height(32.dp))
                 Spacer(modifier = Modifier.height(24.dp))

@@ -65,13 +65,15 @@ fun EditProfileScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
     var alias by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val accountName by viewModel.userName.collectAsState()
 
     LaunchedEffect(Unit) {
         val session = SupabaseRepo.client.auth.currentSessionOrNull()
         email = session?.user?.email ?: ""
-        // Load existing alias from family members
+        // الاسم المعروض في باقي التطبيق (زاد_users.name) هو مصدر الحقيقة —
+        // مع fallback للقب العائلة (family_members.alias) لو الاسم الأساسي لسه فاضي
         val myMember = SupabaseRepo.getMyFamilyMember()
-        alias = myMember?.alias ?: ""
+        alias = accountName?.takeIf { it.isNotBlank() && it != "مستخدم جديد" } ?: (myMember?.alias ?: "")
         Log.d(TAG_SUB_PROF, "EditProfileScreen loaded — userEmail=$email, alias=$alias")
     }
 
@@ -109,13 +111,21 @@ fun EditProfileScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
             Spacer(modifier = Modifier.height(32.dp))
             Button(
                 onClick = {
-                    scope.launch {
-                        Log.d(TAG_SUB_PROF, "Save profile clicked — alias=$alias")
-                        if (alias.isNotBlank()) {
-                            SupabaseRepo.updateFamilyMemberAlias(alias)
-                            Toast.makeText(context, "تم حفظ التغييرات", Toast.LENGTH_SHORT).show()
-                        }
+                    Log.d(TAG_SUB_PROF, "Save profile clicked — alias=$alias")
+                    if (alias.isBlank()) {
                         onBack()
+                        return@Button
+                    }
+                    // zad_users هو المصدر اللي بتقرا منه بقية شاشات التطبيق (اسم الترحيب، الشات، إلخ)
+                    viewModel.updateUserProfile(alias, null) { saved ->
+                        if (saved) {
+                            // مزامنة أفضل جهد للقب العائلة كمان لو المستخدم عضو في عائلة بالفعل
+                            scope.launch { SupabaseRepo.updateFamilyMemberAlias(alias) }
+                            Toast.makeText(context, "تم حفظ التغييرات", Toast.LENGTH_SHORT).show()
+                            onBack()
+                        } else {
+                            Toast.makeText(context, "تعذر حفظ التغييرات — تحقق من الاتصال وحاول مرة أخرى", Toast.LENGTH_LONG).show()
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(54.dp),
@@ -278,15 +288,23 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
             Text("الربط التلقائي للبنوك", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
             Spacer(modifier = Modifier.height(12.dp))
             val context = LocalContext.current
-            var isBankSyncEnabled by remember { 
-                mutableStateOf(
-                    android.provider.Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")?.contains(context.packageName) == true
-                ) 
+            fun checkBankSyncGranted() = android.provider.Settings.Secure
+                .getString(context.contentResolver, "enabled_notification_listeners")
+                ?.contains(context.packageName) == true
+            var isBankSyncEnabled by remember { mutableStateOf(checkBankSyncGranted()) }
+            val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+            DisposableEffect(lifecycleOwner) {
+                val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                    if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                        isBankSyncEnabled = checkBankSyncGranted()
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+                onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
             }
             AlertSwitchItem("تفعيل مزامنة البنوك", "قراءة إشعارات البنك لخصم المشتريات من الميزانية (يتطلب منح صلاحية)", isBankSyncEnabled) {
-                val intent = android.content.Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
+                val intent = android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
                 context.startActivity(intent)
-                isBankSyncEnabled = !isBankSyncEnabled
             }
             
             Spacer(modifier = Modifier.height(24.dp))

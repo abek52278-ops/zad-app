@@ -1056,7 +1056,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                                 isPurchased = false,
                                 createdAt = Instant.now().toString(),
                                 priority = priority,
-                                predictedDaysLeft = if (item.quantity <= 1) 0 else item.quantity
+                                // مفيش بيانات استهلاك حقيقية هنا لحساب أيام النفاد —
+                                // ده بس تنبيه "المخزون واطي"، مش تنبؤ زمني. الحساب الزمني الحقيقي
+                                // بيحصل في predictStockDepletion() اللي بتستخدم تاريخ الشراء الفعلي.
+                                predictedDaysLeft = null
                             )
                             dao.insertShoppingItem(shopItem)
                             Log.d(TAG, "checkLowStockItems() → Added ${item.itemName} to Shopping List (priority=$priority)")
@@ -1088,7 +1091,9 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                             val freqDays = if (totalSpan > 0) (totalSpan / txs.size).toInt() else 1
 
                             val dailyUsage = if (freqDays > 0) 1.0 / freqDays else 0.0
-                            val predictedDaysLeft = if (dailyUsage > 0) (item.quantity / dailyUsage).toInt() else 999
+                            // Math.round مش .toInt() — عشان مخزون فاضل حقيقي (زي 0.9 يوم) يتقرّب لـ 1
+                            // بدل ما يتقطع لـ 0 ويظهر "ينفذ بعد 0 أيام" وهو لسه فيه وقت فعلي
+                            val predictedDaysLeft = if (dailyUsage > 0) Math.round(item.quantity / dailyUsage).toInt().coerceAtLeast(if (item.quantity > 0) 1 else 0) else 999
                             
                             if (predictedDaysLeft <= 3) {
                                 Log.d(TAG, "predictStockDepletion() → ${item.itemName} might run out in $predictedDaysLeft days!")
@@ -1563,15 +1568,19 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun updateUserProfile(name: String, avatarUri: String?) {
+    fun updateUserProfile(name: String, avatarUri: String?, onResult: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
             try {
-                _userName.value = name
-                if (avatarUri != null) _avatarUri.value = avatarUri
-                SupabaseRepo.updateUserProfile(name, avatarUri)
-                Log.d(TAG, "updateUserProfile() → saved name=$name, avatarUri=$avatarUri")
+                val success = SupabaseRepo.updateUserProfile(name, avatarUri)
+                if (success) {
+                    _userName.value = name
+                    if (avatarUri != null) _avatarUri.value = avatarUri
+                }
+                Log.d(TAG, "updateUserProfile() → success=$success, name=$name, avatarUri=$avatarUri")
+                onResult(success)
             } catch (e: Exception) {
                 Log.e(TAG, "updateUserProfile() FAILED: ${e.message}")
+                onResult(false)
             }
         }
     }
@@ -1656,8 +1665,9 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 _matchedProductId.value = matchId
 
                 if (matchId == null) {
+                    val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
                     SupabaseRepo.recordCatalogRequest(
-                        AffiliateCatalogRequest(searchedTerm = productName)
+                        AffiliateCatalogRequest(searchedTerm = productName, userId = userId)
                     )
                 }
 
@@ -1673,9 +1683,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     fun recordAffiliateClick(productId: String, sourceScreen: String = "shopping") {
         viewModelScope.launch {
             try {
-                Log.d(TAG, "recordAffiliateClick() → product=$productId, source=$sourceScreen")
+                val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
+                Log.d(TAG, "recordAffiliateClick() → product=$productId, source=$sourceScreen, user=$userId")
                 SupabaseRepo.recordAffiliateClick(
-                    AffiliateClick(productId = productId, sourceScreen = sourceScreen)
+                    AffiliateClick(productId = productId, userId = userId, sourceScreen = sourceScreen)
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "recordAffiliateClick() FAILED: ${e.message}")

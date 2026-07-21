@@ -32,6 +32,7 @@ import kotlinx.coroutines.delay
 fun PremiumTopBar(
     userName: String,
     avatarUrl: String? = null,
+    hasUnreadNotifications: Boolean = false,
     onNotificationsClick: () -> Unit
 ) {
     Row(
@@ -43,15 +44,31 @@ fun PremiumTopBar(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
             Box(contentAlignment = Alignment.BottomEnd) {
-                AsyncImage(
-                    model = avatarUrl ?: "https://i.pravatar.cc/100?img=11",
-                    contentDescription = "Avatar",
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(surface),
-                    contentScale = ContentScale.Crop
-                )
+                if (avatarUrl.isNullOrBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            userName.trim().take(1).ifEmpty { "؟" }.uppercase(),
+                            fontWeight = FontWeight.Bold,
+                            color = textPrimary
+                        )
+                    }
+                } else {
+                    AsyncImage(
+                        model = avatarUrl,
+                        contentDescription = "Avatar",
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(surface),
+                        contentScale = ContentScale.Crop
+                    )
+                }
                 Box(modifier = Modifier
                     .size(10.dp)
                     .clip(CircleShape)
@@ -67,7 +84,7 @@ fun PremiumTopBar(
                 Text(userName, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = textPrimary)
             }
         }
-        
+
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
                 "زاد",
@@ -84,15 +101,16 @@ fun PremiumTopBar(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = textSecondary, modifier = Modifier.size(20.dp))
-                // Badge
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(6.dp)
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(dangerColor)
-                )
+                if (hasUnreadNotifications) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(6.dp)
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(dangerColor)
+                    )
+                }
             }
         }
     }
@@ -296,11 +314,28 @@ fun PremiumMealsRow(meals: List<String>, onMealClick: (String) -> Unit) {
             Text("المزيد", fontSize = 11.sp, color = primaryLight)
         }
         Spacer(modifier = Modifier.height(11.dp))
+        if (meals.isEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(surface)
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.Restaurant, contentDescription = null, tint = textTertiary, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("لا توجد اقتراحات وجبات حالياً — ضيف أصناف لمخزونك عشان زاد يقترح لك", fontSize = 11.sp, color = textTertiary)
+            }
+            return@Column
+        }
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(11.dp),
             contentPadding = PaddingValues(horizontal = 16.dp)
         ) {
-            items(if (meals.isEmpty()) listOf("كبسة دجاج", "سلطة يونانية", "مكرونة بشاميل") else meals) { meal ->
+            items(meals) { meal ->
                 Box(
                     modifier = Modifier
                         .width(135.dp)
@@ -319,10 +354,7 @@ fun PremiumMealsRow(meals: List<String>, onMealClick: (String) -> Unit) {
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(meal, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textPrimary)
                         Spacer(modifier = Modifier.height(6.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = successColor, modifier = Modifier.size(10.dp))
-                            Text("جاهز للطبخ", fontSize = 9.sp, color = textSecondary)
-                        }
+                        Text("اقتراح — افتح الوصفة للتفاصيل", fontSize = 9.sp, color = textSecondary)
                     }
                 }
             }
@@ -342,13 +374,24 @@ fun PremiumTransactionsRow(transactions: List<com.example.data.ZadTransaction>, 
             Text("سجل كامل", fontSize = 11.sp, color = primaryLight, modifier = Modifier.clickable { onSeeAllClick() })
         }
         Spacer(modifier = Modifier.height(11.dp))
+        if (transactions.isEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(surface)
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = textTertiary, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("لا توجد عمليات مسجلة بعد", fontSize = 12.sp, color = textTertiary)
+            }
+            return@Column
+        }
         Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            val recent = if (transactions.isEmpty()) {
-                listOf(
-                    com.example.data.ZadTransaction(id = "1", userId = "1", amount = 150.0, title = "سوبر ماركت العثيم", category = "grocery", createdAt = "2023-10-01", isExpense = true),
-                    com.example.data.ZadTransaction(id = "2", userId = "1", amount = 50.0, title = "قهوة", category = "cafe", createdAt = "2023-10-02", isExpense = true)
-                )
-            } else transactions.take(3)
+            val recent = transactions.take(3)
 
             for (tx in recent) {
                 Row(
