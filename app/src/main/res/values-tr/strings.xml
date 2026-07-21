@@ -136,7 +136,6 @@
     <string name="add_transaction_fab">İşlem</string>
     <string name="category_label">Kategori</string>
     <string name="monthly_budget_with_currency">Aylık bütçe (%1$s)</string>
-    <string name="transactions_title">İşlemler</string>
     <string name="remaining_balance_label">Kalan bakiye</string>
     <string name="budget_insight_over">Bütçeni aştın! Harcamalarını azaltmayı dene</string>
     <string name="budget_insight_high">Bütçenin %%%1$d\'sine ulaştın. Dikkatli ol</string>

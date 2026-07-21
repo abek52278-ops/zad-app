@@ -136,7 +136,6 @@
     <string name="add_transaction_fab">معاملة</string>
     <string name="category_label">الفئة</string>
     <string name="monthly_budget_with_currency">الميزانية الشهرية (%1$s)</string>
-    <string name="transactions_title">المعاملات</string>
     <string name="remaining_balance_label">الرصيد المتبقي</string>
     <string name="budget_insight_over">تجاوزت الميزانية! حاول تقلل مصاريفك</string>
     <string name="budget_insight_high">وصلت لـ %1$d%% من ميزانيتك. انتبه شوي</string>
