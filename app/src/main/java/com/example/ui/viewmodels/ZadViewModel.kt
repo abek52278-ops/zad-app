@@ -112,6 +112,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     val isAiTyping: StateFlow<Boolean> = _isAiTyping.asStateFlow()
 
     init {
+        com.example.data.MarketPrefs.getMarket(getApplication())
         Log.d(TAG, "ZadViewModel init — collecting from Room DB")
         // Collect from Room DB (Single Source of Truth)
         viewModelScope.launch {
@@ -415,9 +416,11 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 val history = _aiChatMessages.value.dropLast(1).takeLast(8)
                     .joinToString("\n") { "${if (it.isUser) "العميل" else "زاد"}: ${it.text}" }
 
+                val market = com.example.data.MarketPrefs.getMarket(getApplication())
                 val systemPrompt = """
                     أنت 'زاد'، الوكيل العائلي الذكي. تعرف كل تفاصيل حياة العميل المالية والمنزلية من البيانات أدناه.
-                    تتحدث بأسلوب ودود ومختصر ومرح باللغة العربية، وتجاوب بأرقام حقيقية من البيانات — لا تخمن أبداً.
+                    ${market.dialectInstruction}
+                    تتحدث بأسلوب ودود ومختصر ومرح، وتجاوب بأرقام حقيقية من البيانات — لا تخمن أبداً.
 
                     ${buildFullChatContext()}
 

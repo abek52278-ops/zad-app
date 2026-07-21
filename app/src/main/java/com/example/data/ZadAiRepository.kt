@@ -593,6 +593,7 @@ object ZadAiRepository {
             SupabaseRepo.callEdgeFunction(CENTRAL_FUNCTION, mapOf(
                 "action" to action,
                 "user_id" to userId,
+                "dialect" to MarketPrefs.currentMarket.dialectInstruction,
                 "payload" to payload
             ))
         } catch (e: Exception) {

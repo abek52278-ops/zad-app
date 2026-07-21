@@ -213,8 +213,12 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
 
   try {
-    const { action, user_id, payload } = await req.json();
+    const { action, user_id, payload, dialect } = await req.json();
     console.log(`[CoreIntel] action=${action}, user=${user_id}`);
+
+    // توجيه اللهجة/اللغة القادم من MarketPrefs على الجهاز (سعودي/مصري/تركي) —
+    // يُحقن قبل أي system prompt نصي عشان الرد يطابق لهجة/لغة بلد المستخدم.
+    const dialectPrefix = dialect ? dialect + " " : "";
 
     let profile = null;
     if (user_id) {
@@ -230,10 +234,10 @@ Deno.serve(async (req: Request) => {
       case "chat": {
         const { message, history } = payload || {};
         if (!message) return jsonResponse({ error: "Message required" });
-        const systemPrompt = "You are ZAD, smart assistant for home and budget management." + (profile
+        const systemPrompt = dialectPrefix + "You are ZAD, smart assistant for home and budget management." + (profile
           ? " User profile: weekly avg " + profile.avg_weekly_spending + " SAR, top categories " + JSON.stringify(profile.top_spending_categories) + ", subscriptions " + profile.subscription_load_monthly + " SAR"
           : " New user - no behavior data yet."
-        ) + " Be helpful and accurate. Answer in Arabic. Give financial advice.";
+        ) + " Be helpful and accurate. Give financial advice.";
         if (!OPENROUTER_API_KEY) return jsonResponse({ reply: "AI not available." });
         const chatResp = await fetch(OPENROUTER_URL, {
           method: "POST",
@@ -310,7 +314,7 @@ Deno.serve(async (req: Request) => {
       // ──────────────────────────────────────────────
       case "meal_suggestions": {
         const { items } = payload || {};
-        const systemPrompt = "أنت مساعد طبخ ذكي. بناءً على المخزون المتوفر، اقترح وجبات يمكن تحضيرها. أجب بصيغة JSON: {\"text\": \"...\"}";
+        const systemPrompt = dialectPrefix + "أنت مساعد طبخ ذكي. بناءً على المخزون المتوفر، اقترح وجبات يمكن تحضيرها. أجب بصيغة JSON: {\"text\": \"...\"}";
         const userPrompt = "المخزون: " + (items || "لا يوجد مخزون");
         const result = await callJsonModel(systemPrompt, userPrompt);
         return jsonResponse({ text: result?.text || "لم أتمكن من إيجاد اقتراحات حالياً." });
@@ -321,7 +325,7 @@ Deno.serve(async (req: Request) => {
       // ──────────────────────────────────────────────
       case "grocery_suggestions": {
         const { inventory, family_size } = payload || {};
-        const systemPrompt = "أنت مساعد تسوق ذكي. بناءً على المخزون الحالي وحجم العائلة، اقترح مشتريات يحتاجها المنزل. أجب بصيغة JSON: {\"suggestions\":[{\"name\":\"\",\"quantity\":\"\",\"reason\":\"\"}]}";
+        const systemPrompt = dialectPrefix + "أنت مساعد تسوق ذكي. بناءً على المخزون الحالي وحجم العائلة، اقترح مشتريات يحتاجها المنزل. أجب بصيغة JSON: {\"suggestions\":[{\"name\":\"\",\"quantity\":\"\",\"reason\":\"\"}]}";
         const userPrompt = "المخزون: " + (inventory || "لا يوجد") + ", حجم العائلة: " + (family_size || 4);
         const result = await callJsonModel(systemPrompt, userPrompt, 2000);
         return jsonResponse({ suggestions: result?.suggestions || [] });
@@ -332,7 +336,7 @@ Deno.serve(async (req: Request) => {
       // ──────────────────────────────────────────────
       case "spending_insights": {
         const { transactions, budget } = payload || {};
-        const systemPrompt = "أنت محلل مالي. حلل المعاملات المالية وقدم رؤى وتوصيات. أجب بصيغة JSON: {\"insights\":[{\"title\":\"\",\"description\":\"\",\"type\":\"Tip|Prediction|Alert\"}]}";
+        const systemPrompt = dialectPrefix + "أنت محلل مالي. حلل المعاملات المالية وقدم رؤى وتوصيات. أجب بصيغة JSON: {\"insights\":[{\"title\":\"\",\"description\":\"\",\"type\":\"Tip|Prediction|Alert\"}]}";
         const userPrompt = "المعاملات: " + (transactions || "لا توجد") + ", الميزانية: " + (budget || 3500);
         const result = await callJsonModel(systemPrompt, userPrompt, 2000);
         return jsonResponse({ insights: result?.insights || [] });
@@ -343,7 +347,7 @@ Deno.serve(async (req: Request) => {
       // ──────────────────────────────────────────────
       case "agent_summary": {
         const data = payload || {};
-        const systemPrompt = "أنت وكيل زاد الذكي. حلل بيانات المستخدم بالكامل وقدّم ملخصاً شاملاً. أجب بصيغة JSON: {\"summary\":\"\",\"alerts\":[{\"type\":\"\",\"title\":\"\",\"description\":\"\"}],\"suggestions\":[{\"action\":\"\",\"item\":\"\",\"reason\":\"\"}],\"stats\":{\"inventory_count\":0,\"expiring_soon\":0,\"subscriptions_active\":0,\"days_until_budget_end\":30}}";
+        const systemPrompt = dialectPrefix + "أنت وكيل زاد الذكي. حلل بيانات المستخدم بالكامل وقدّم ملخصاً شاملاً. أجب بصيغة JSON: {\"summary\":\"\",\"alerts\":[{\"type\":\"\",\"title\":\"\",\"description\":\"\"}],\"suggestions\":[{\"action\":\"\",\"item\":\"\",\"reason\":\"\"}],\"stats\":{\"inventory_count\":0,\"expiring_soon\":0,\"subscriptions_active\":0,\"days_until_budget_end\":30}}";
         const userPrompt = "المخزون: " + (data.inventory || "") + " | المعاملات: " + (data.transactions || "") + " | الاشتراكات: " + (data.subscriptions || "") + " | الميزانية: " + (data.budget || 0) + " | التسوق: " + (data.shopping || "") + " | الأنماط: " + (data.patterns || "");
         const result = await callJsonModel(systemPrompt, userPrompt, 2500);
         return jsonResponse({
@@ -439,7 +443,7 @@ Deno.serve(async (req: Request) => {
       case "family_assistant": {
         const { message } = payload || {};
         if (!message) return jsonResponse({ text: "الرجاء كتابة رسالة." });
-        const systemPrompt = "أنت مساعد عائلي ذكي. تجيب باللغة العربية بود واختصار. تساعد في إدارة شؤون المنزل، الوصفات، الميزانية، والتسوق.";
+        const systemPrompt = dialectPrefix + "أنت مساعد عائلي ذكي. تجيب بود واختصار. تساعد في إدارة شؤون المنزل، الوصفات، الميزانية، والتسوق.";
         const result = await callTextModel(systemPrompt, message);
         return jsonResponse({ text: result || "عفواً، تعذر الاتصال." });
       }
@@ -479,7 +483,7 @@ Deno.serve(async (req: Request) => {
       // ──────────────────────────────────────────────
       case "recipe_details": {
         const { recipe_name, inventory } = payload || {};
-        const systemPrompt = "أنت شيف عربي محترف. قدم وصفة مفصلة باللغة العربية تشمل المكونات والخطوات. أجب بصيغة JSON: {\"text\":\"...\"}";
+        const systemPrompt = dialectPrefix + "أنت شيف عربي محترف. قدم وصفة مفصلة تشمل المكونات والخطوات. أجب بصيغة JSON: {\"text\":\"...\"}";
         const userPrompt = "الوصفة: " + (recipe_name || "") + " | المخزون المتوفر: " + (inventory || "لا يوجد");
         const result = await callJsonModel(systemPrompt, userPrompt);
         return jsonResponse({ text: result?.text || "لم أتمكن من إيجاد تفاصيل الوصفة حالياً." });
@@ -490,7 +494,7 @@ Deno.serve(async (req: Request) => {
       // ──────────────────────────────────────────────
       case "behavior_analysis": {
         const { category, transactions, current_patterns } = payload || {};
-        const systemPrompt = "أنت محلل سلوك مالي. حلل نمط الإنفاق في فئة معينة وقدّم توقعات ونصائح. أجب بصيغة JSON: {\"insight\":\"\",\"avg_spending\":0.0,\"trend\":\"stable\",\"tip\":\"\",\"predicted_next\":0.0,\"confidence\":0.0}";
+        const systemPrompt = dialectPrefix + "أنت محلل سلوك مالي. حلل نمط الإنفاق في فئة معينة وقدّم توقعات ونصائح. أجب بصيغة JSON: {\"insight\":\"\",\"avg_spending\":0.0,\"trend\":\"stable\",\"tip\":\"\",\"predicted_next\":0.0,\"confidence\":0.0}";
         const userPrompt = "الفئة: " + (category || "") + " | المعاملات: " + (transactions || "لا توجد") + " | الأنماط الحالية: " + (current_patterns || "");
         const result = await callJsonModel(systemPrompt, userPrompt);
         return jsonResponse({
@@ -508,7 +512,7 @@ Deno.serve(async (req: Request) => {
       // ──────────────────────────────────────────────
       case "expense_prediction": {
         const { transactions, budget, patterns } = payload || {};
-        const systemPrompt = "أنت خبير توقعات مالية. بناءً على المعاملات السابقة والأنماط، توقع المصروفات القادمة. أجب بصيغة JSON: {\"predicted_total\":0.0,\"confidence\":0.0,\"breakdown\":[{\"category\":\"\",\"predicted\":0.0,\"avg_monthly\":0.0}],\"warnings\":[],\"tips\":[]}";
+        const systemPrompt = dialectPrefix + "أنت خبير توقعات مالية. بناءً على المعاملات السابقة والأنماط، توقع المصروفات القادمة. أجب بصيغة JSON: {\"predicted_total\":0.0,\"confidence\":0.0,\"breakdown\":[{\"category\":\"\",\"predicted\":0.0,\"avg_monthly\":0.0}],\"warnings\":[],\"tips\":[]}";
         const userPrompt = "المعاملات: " + JSON.stringify(transactions || []) + " | الميزانية: " + (budget || 0) + " | الأنماط: " + JSON.stringify(patterns || []);
         const result = await callJsonModel(systemPrompt, userPrompt, 2500);
         return jsonResponse({
@@ -543,7 +547,7 @@ Deno.serve(async (req: Request) => {
       // ──────────────────────────────────────────────
       case "family_analysis": {
         const { members, tasks, goals, tasbiha, transactions } = payload || {};
-        const systemPrompt = "أنت محلل عائلي. حلل بيانات العائلة وقدّم ملخصاً شاملاً وتوصيات. أجب بصيغة JSON: {\"family_summary\":\"\",\"member_highlights\":[{\"name\":\"\",\"achievement\":\"\",\"suggestion\":\"\"}],\"family_health_score\":50,\"suggested_goal\":\"\",\"fun_fact\":\"\"}";
+        const systemPrompt = dialectPrefix + "أنت محلل عائلي. حلل بيانات العائلة وقدّم ملخصاً شاملاً وتوصيات. أجب بصيغة JSON: {\"family_summary\":\"\",\"member_highlights\":[{\"name\":\"\",\"achievement\":\"\",\"suggestion\":\"\"}],\"family_health_score\":50,\"suggested_goal\":\"\",\"fun_fact\":\"\"}";
         const userPrompt = "الأعضاء: " + (members || "") + " | المهام: " + (tasks || "") + " | الأهداف: " + (goals || "") + " | التسبيحات: " + (tasbiha || "") + " | المعاملات: " + (transactions || "");
         const result = await callJsonModel(systemPrompt, userPrompt, 2000);
         return jsonResponse({
@@ -560,7 +564,7 @@ Deno.serve(async (req: Request) => {
       // ──────────────────────────────────────────────
       case "auto_suggest": {
         const { context, inventory, transactions, patterns } = payload || {};
-        const systemPrompt = "أنت مساعد اقتراحات ذكي. بناءً على سياق المستخدم، اقترح إجراءات مفيدة. أجب بصيغة JSON: {\"suggestions\":[{\"action\":\"\",\"title\":\"\",\"description\":\"\",\"priority\":\"medium\",\"emoji\":\"\"}]}";
+        const systemPrompt = dialectPrefix + "أنت مساعد اقتراحات ذكي. بناءً على سياق المستخدم، اقترح إجراءات مفيدة. أجب بصيغة JSON: {\"suggestions\":[{\"action\":\"\",\"title\":\"\",\"description\":\"\",\"priority\":\"medium\",\"emoji\":\"\"}]}";
         const userPrompt = "السياق: " + (context || "") + " | المخزون: " + (inventory || "") + " | المعاملات: " + (transactions || "") + " | الأنماط: " + (patterns || "");
         const result = await callJsonModel(systemPrompt, userPrompt, 2000);
         return jsonResponse({ suggestions: result?.suggestions || [] });
@@ -571,7 +575,7 @@ Deno.serve(async (req: Request) => {
       // ──────────────────────────────────────────────
       case "family_goals_suggest": {
         const { members, total_balance, completed_tasks, tasbiha_score } = payload || {};
-        const systemPrompt = "أنت مستشار أهداف عائلية. بناءً على بيانات العائلة، اقترح هدف ادخار مناسب. أجب بصيغة JSON: {\"goal_title\":\"\",\"target_amount\":0.0,\"reward_suggestion\":\"\",\"duration_days\":30,\"emoji\":\"\"}";
+        const systemPrompt = dialectPrefix + "أنت مستشار أهداف عائلية. بناءً على بيانات العائلة، اقترح هدف ادخار مناسب. أجب بصيغة JSON: {\"goal_title\":\"\",\"target_amount\":0.0,\"reward_suggestion\":\"\",\"duration_days\":30,\"emoji\":\"\"}";
         const userPrompt = "الأعضاء: " + (members || "") + " | الرصيد: " + (total_balance || 0) + " | المهام المنجزة: " + (completed_tasks || 0) + " | التسبيحات: " + (tasbiha_score || 0);
         const result = await callJsonModel(systemPrompt, userPrompt);
         return jsonResponse({
@@ -620,10 +624,10 @@ Deno.serve(async (req: Request) => {
         }
         console.log("[CoreIntel] voice_agent transcript:", transcript);
 
-        const systemPrompt = "You are a voice command processor for a Saudi Arabic family finance app (ZAD). " +
-          "The user spoke a command in Arabic (possibly with Saudi dialect and colloquial number words). " +
+        const systemPrompt = dialectPrefix + "You are a voice command processor for a family finance app (ZAD). " +
+          "The user spoke a command, possibly with local dialect and colloquial number words. " +
           "Determine the intent and extract structured data. Parse spoken amounts (e.g. \"خمسين ريال\" = 50, \"مية وعشرين\" = 120) into a numeric value. " +
-          "Return ONLY JSON: {\"action\":\"chat|add_expense|add_income|check_budget|add_inventory\",\"message\":\"short confirmation reply in Arabic\",\"data\":{\"amount\":0,\"title\":\"\",\"category\":\"\"}}. " +
+          "Return ONLY JSON: {\"action\":\"chat|add_expense|add_income|check_budget|add_inventory\",\"message\":\"short confirmation reply matching the requested dialect/language\",\"data\":{\"amount\":0,\"title\":\"\",\"category\":\"\"}}. " +
           "Use action=\"add_expense\" when the user says they spent/paid money, \"add_income\" when they received money, \"check_budget\" when they ask about their budget/balance, \"add_inventory\" when they mention buying/adding a physical item to track, otherwise \"chat\".";
         const result = await callJsonModel(systemPrompt, transcript);
         return jsonResponse({

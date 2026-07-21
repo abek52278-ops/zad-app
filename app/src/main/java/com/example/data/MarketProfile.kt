@@ -13,11 +13,22 @@ enum class Market(
     val currencyCode: String,
     val currencySymbol: String,
     /** فاصل الآلاف والعشري بيختلف في تركيا (1.234,56) عن السعودية/مصر (1,234.56) */
-    val useEuropeanNumberFormat: Boolean = false
+    val useEuropeanNumberFormat: Boolean = false,
+    /** توجيه لهجة/لغة يُحقن في system prompt الذكاء الاصطناعي — يحدد إزاي زاد يتكلم مع عميل البلد ده */
+    val dialectInstruction: String = ""
 ) {
-    SAUDI_ARABIA("السعودية", "ar-SA", "SAR", "ر.س"),
-    EGYPT("مصر", "ar-EG", "EGP", "ج.م"),
-    TURKEY("تركيا", "tr-TR", "TRY", "₺", useEuropeanNumberFormat = true);
+    SAUDI_ARABIA(
+        "السعودية", "ar-SA", "SAR", "ر.س",
+        dialectInstruction = "تتحدث باللهجة السعودية/الخليجية الطبيعية في المحادثة اليومية (مثل: \"أبشر\"، \"يعطيك العافية\"، \"وش رايك\"، \"كذا\") — مش فصحى رسمية."
+    ),
+    EGYPT(
+        "مصر", "ar-EG", "EGP", "ج.م",
+        dialectInstruction = "تتحدث باللهجة المصرية العامية الطبيعية في المحادثة اليومية (مثل: \"إزيك\"، \"تمام\"، \"خلاص\"، \"يلا\"، \"معلش\") — مش فصحى رسمية."
+    ),
+    TURKEY(
+        "تركيا", "tr-TR", "TRY", "₺", useEuropeanNumberFormat = true,
+        dialectInstruction = "Respond entirely in natural, conversational Turkish (samimi bir Türkçe ile) — not Arabic, regardless of what language the underlying data labels are in."
+    );
 
     fun toLocale(): Locale {
         val parts = localeTag.split("-")
@@ -30,10 +41,21 @@ object MarketPrefs {
     private const val PREFS = "zad_market_prefs"
     private const val KEY_MARKET = "selected_market"
 
+    /**
+     * كاش في الذاكرة — يسمح لطبقات زي ZadAiRepository (object بلا Context) إنها تقرأ
+     * البلد الحالي عشان تحقن توجيه اللهجة في أي AI call من غير ما تحمل Context في كل دالة.
+     * يتحدّث تلقائياً مع أي getMarket()/setMarket().
+     */
+    @Volatile
+    var currentMarket: Market = Market.SAUDI_ARABIA
+        private set
+
     fun getMarket(context: Context): Market {
         val stored = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString(KEY_MARKET, null)
-        return stored?.let { name -> Market.entries.find { it.name == name } } ?: Market.SAUDI_ARABIA
+        val market = stored?.let { name -> Market.entries.find { it.name == name } } ?: Market.SAUDI_ARABIA
+        currentMarket = market
+        return market
     }
 
     fun setMarket(context: Context, market: Market) {
@@ -41,6 +63,7 @@ object MarketPrefs {
             .edit()
             .putString(KEY_MARKET, market.name)
             .apply()
+        currentMarket = market
     }
 
     /** أول مرة يفتح فيها التطبيق — لسه محددش بلد */
