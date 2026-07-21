@@ -273,6 +273,27 @@
     <string name="your_tree_score">شجرتك: %1$d تسبيحة</string>
     <string name="zad_chef_suggestion_status">اقتراح شيف زاد</string>
     <string name="zad_smart_insight_title">رؤية زاد الذكي ✨</string>
+    <string name="tab_all_products">كل المنتجات</string>
+    <string name="tab_shortages">النواقص</string>
+    <string name="no_shortages_title">مفيش نواقص!</string>
+    <string name="no_shortages_hint">كل احتياجاتك متوفرة بكميات كافية</string>
+    <string name="added_to_list_label">أُضيفت</string>
+
+    <!-- HomeScreen: hero card / quick stats / shortages summary (Phase 4 visual pass) -->
+    <string name="monthly_budget_hero_label">الميزانية الشهرية</string>
+    <string name="spent_label">المصروف</string>
+    <string name="days_label">الأيام</string>
+    <string name="budget_percent_used">%1$d٪ من الميزانية</string>
+    <string name="budget_status_excellent">وضع ممتاز</string>
+    <string name="budget_status_caution">انتبه لمصاريفك</string>
+    <string name="budget_status_watch">تجاوزت الحد الآمن</string>
+    <string name="quick_stat_subscriptions_title">الاشتراكات</string>
+    <string name="quick_stat_inventory_unit">عنصر</string>
+    <string name="quick_stat_subscriptions_unit">فعالة</string>
+    <string name="quick_stat_family_unit">أعضاء</string>
+    <string name="shortages_summary_title">عندك %1$d نواقص</string>
+    <string name="shortages_summary_subtitle">أضفها لقائمة التسوق قبل ما تخلص</string>
+    <string name="view_shortages_action">عرض النواقص</string>
     <string-array name="week_day_labels">
         <item>أحد</item>
         <item>اثنين</item>

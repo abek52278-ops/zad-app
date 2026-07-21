@@ -100,6 +100,15 @@ fun HomeScreen(
     val totalSpent = transactions.filter { it.isExpense }.sumOf { it.amount }
     val currentBudget = remainingBalance
 
+    val shortageCount = remember(inventory) {
+        val lowStock = inventory.filter { it.quantity <= (it.lowStockThreshold ?: 2) }
+        val expiring = inventory.filter { item ->
+            val d = daysUntilExpiry(item.expiryDate)
+            d != null && d <= 3
+        }
+        (lowStock + expiring).distinctBy { it.id }.size
+    }
+
     val context = LocalContext.current
     var isNotificationAccessGranted by remember {
         mutableStateOf(
@@ -225,6 +234,17 @@ fun HomeScreen(
                     daysLeft = daysLeft,
                     onDepositClick = { showAddTransactionDialog = true }
                 )
+
+                if (shortageCount > 0) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    com.example.ui.components.ShortagesSummaryCard(
+                        shortageCount = shortageCount,
+                        onViewShortagesClick = {
+                            InventoryNavState.openShortagesTab = true
+                            onNavigateToInventory()
+                        }
+                    )
+                }
                 Spacer(modifier = Modifier.height(18.dp))
 
                 // 2. Premium Quick Stats
@@ -772,7 +792,10 @@ fun ExpenseAnalysisSection(transactions: List<ZadTransaction> = emptyList()) {
         Spacer(modifier = Modifier.height(24.dp))
 
         if (transactions.isEmpty()) {
-            Text(stringResource(R.string.no_transactions_for_analysis), style = Typography.bodyMedium, color = onSurfaceVariant, modifier = Modifier.padding(vertical = 20.dp))
+            com.example.ui.components.ZadEmptyState(
+                title = stringResource(R.string.no_transactions_for_analysis),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp)
+            )
         } else {
             Row(
                 modifier = Modifier
@@ -1165,7 +1188,10 @@ fun RecentTransactionsSection(transactions: List<ZadTransaction>, onViewAll: () 
         Spacer(modifier = Modifier.height(16.dp))
 
         if (transactions.isEmpty()) {
-            Text(text = stringResource(R.string.no_transactions), style = Typography.bodyMedium, modifier = Modifier.padding(vertical = 16.dp), color = onSurfaceVariant)
+            com.example.ui.components.ZadEmptyState(
+                title = stringResource(R.string.no_transactions),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
+            )
         } else {
             transactions.take(5).forEach { tx ->
                 TransactionItem(
@@ -1291,9 +1317,12 @@ fun AgentSummaryCard(
             Spacer(Modifier.height(12.dp))
 
             if (isLoading) {
-                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                }
+                com.example.ui.components.ZadLoadingState(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp),
+                    color = Color.White.copy(alpha = 0.7f),
+                    size = 24.dp,
+                    strokeWidth = 2.dp
+                )
             } else if (agentSummary != null) {
                 Text(agentSummary.summary, color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp, lineHeight = 18.sp)
 
@@ -1669,7 +1698,10 @@ fun MiniTransactionsWidget(
             }
             Spacer(modifier = Modifier.height(16.dp))
             if (recentTransactions.isEmpty()) {
-                Text(stringResource(R.string.no_transactions_recorded), style = Typography.bodyMedium, color = onSurfaceVariant, modifier = Modifier.padding(vertical = 8.dp))
+                com.example.ui.components.ZadEmptyState(
+                    title = stringResource(R.string.no_transactions_recorded),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                )
             } else {
                 recentTransactions.forEach { tx ->
                     Row(
@@ -1750,11 +1782,9 @@ fun MiniTableCard(
             Spacer(modifier = Modifier.height(12.dp))
             
             if (items.isEmpty()) {
-                Text(
-                    stringResource(R.string.no_items_to_show),
-                    style = Typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 8.dp)
+                com.example.ui.components.ZadEmptyState(
+                    title = stringResource(R.string.no_items_to_show),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
                 )
             } else {
                 items.forEach { item ->
@@ -1814,10 +1844,8 @@ fun ZadProactiveSummaryCard(insights: List<com.example.data.AiInsight>) {
             Spacer(modifier = Modifier.height(16.dp))
 
             if (insights.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.proactive_summary_loading),
-                    style = Typography.bodyMedium,
-                    color = onSurfaceVariant
+                com.example.ui.components.ZadEmptyState(
+                    title = stringResource(R.string.proactive_summary_loading)
                 )
             } else {
                 insights.forEachIndexed { index, insight ->
@@ -2090,7 +2118,7 @@ fun KidsModeContent(
         }
         Spacer(modifier = Modifier.height(8.dp))
         if (recentMessages.isEmpty()) {
-            Text(stringResource(R.string.no_messages_yet), color = Color.Gray, style = Typography.bodyMedium)
+            com.example.ui.components.ZadEmptyState(title = stringResource(R.string.no_messages_yet))
         } else {
             recentMessages.forEach { msg ->
                 val senderAlias = familyState.members.find { it.userId == msg.senderId }?.alias?.ifBlank { unknownAliasFallback } ?: unknownAliasFallback
@@ -2291,12 +2319,11 @@ fun NotificationsBottomSheet(
             }
             
             if (notifications.isEmpty() && smartNotifications.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().height(200.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(stringResource(R.string.no_notifications_yet), style = Typography.bodyMedium, color = Color.Gray)
-                }
+                com.example.ui.components.ZadEmptyState(
+                    icon = Icons.Default.NotificationsNone,
+                    title = stringResource(R.string.no_notifications_yet),
+                    modifier = Modifier.fillMaxWidth().height(200.dp)
+                )
             } else if (notifications.isNotEmpty()) {
                 Text(
                     text = stringResource(R.string.app_notifications_title),

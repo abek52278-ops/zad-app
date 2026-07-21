@@ -273,6 +273,27 @@
     <string name="your_tree_score">Ağacın: %1$d zikir</string>
     <string name="zad_chef_suggestion_status">Zad Şef önerisi</string>
     <string name="zad_smart_insight_title">Zad\'ın akıllı görüşü ✨</string>
+    <string name="tab_all_products">Tüm ürünler</string>
+    <string name="tab_shortages">Eksikler</string>
+    <string name="no_shortages_title">Eksik yok!</string>
+    <string name="no_shortages_hint">İhtiyacın olan her şey yeterli miktarda mevcut</string>
+    <string name="added_to_list_label">Eklendi</string>
+
+    <!-- HomeScreen: hero card / quick stats / shortages summary (Phase 4 visual pass) -->
+    <string name="monthly_budget_hero_label">Aylık bütçe</string>
+    <string name="spent_label">Harcanan</string>
+    <string name="days_label">Gün</string>
+    <string name="budget_percent_used">Bütçenin %%%1$d\'si</string>
+    <string name="budget_status_excellent">Harika durumdasın</string>
+    <string name="budget_status_caution">Harcamalarına dikkat et</string>
+    <string name="budget_status_watch">Güvenli sınırı aştın</string>
+    <string name="quick_stat_subscriptions_title">Abonelikler</string>
+    <string name="quick_stat_inventory_unit">ürün</string>
+    <string name="quick_stat_subscriptions_unit">aktif</string>
+    <string name="quick_stat_family_unit">üye</string>
+    <string name="shortages_summary_title">%1$d eksiğin var</string>
+    <string name="shortages_summary_subtitle">Bitmeden alışveriş listesine ekle</string>
+    <string name="view_shortages_action">Eksikleri gör</string>
     <string-array name="week_day_labels">
         <item>Pazar</item>
         <item>Pazartesi</item>

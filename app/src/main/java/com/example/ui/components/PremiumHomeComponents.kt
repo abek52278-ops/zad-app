@@ -21,10 +21,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.R
 import com.example.ui.theme.*
 import kotlinx.coroutines.delay
 
@@ -125,6 +127,7 @@ fun PremiumHeroCard(
     onDepositClick: () -> Unit
 ) {
     val progress = if (budget > 0) (spent / budget).toFloat().coerceIn(0f, 1f) else 0f
+    val progressPercent = (progress * 100).toInt()
     val currencyContext = LocalContext.current
 
     // Animations
@@ -133,12 +136,18 @@ fun PremiumHeroCard(
         delay(300)
         isVisible = true
     }
-    
+
     val animatedProgress by animateFloatAsState(
         targetValue = if (isVisible) progress else 0f,
         animationSpec = tween(1500, easing = FastOutSlowInEasing),
         label = "progress"
     )
+
+    val (statusEmoji, statusLabel, statusColor) = when {
+        progress >= 0.85f -> Triple("🔴", stringResource(R.string.budget_status_watch), dangerColor)
+        progress >= 0.6f -> Triple("🟡", stringResource(R.string.budget_status_caution), warningColor)
+        else -> Triple("🟢", stringResource(R.string.budget_status_excellent), successColor)
+    }
 
     Box(
         modifier = Modifier
@@ -150,15 +159,25 @@ fun PremiumHeroCard(
                     colors = listOf(primaryDark, primaryContainer, primaryDark)
                 )
             )
-            .padding(22.dp)
+            .padding(24.dp)
     ) {
         Column {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                 Column {
-                    Text("💰 الميزانية الشهرية", fontSize = 11.sp, color = textSecondary)
+                    Text("💰 " + stringResource(R.string.monthly_budget_hero_label), style = Typography.labelSmall, color = textSecondary)
                     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(com.example.data.CurrencyFormatter.formatNumber(currencyContext, budget), fontSize = 34.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
-                        Text(com.example.data.CurrencyFormatter.symbol(currencyContext), fontSize = 13.sp, color = textSecondary, modifier = Modifier.padding(bottom = 6.dp))
+                        Text(
+                            com.example.data.CurrencyFormatter.formatNumber(currencyContext, budget),
+                            style = Typography.displayLarge.copy(fontSize = 34.sp),
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            com.example.data.CurrencyFormatter.symbol(currencyContext),
+                            style = Typography.labelMedium,
+                            color = textSecondary,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
                     }
                 }
                 Surface(
@@ -171,25 +190,25 @@ fun PremiumHeroCard(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = "Deposit", tint = Color.White, modifier = Modifier.size(16.dp))
-                        Text("إيداع", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.deposit), tint = Color.White, modifier = Modifier.size(16.dp))
+                        Text(stringResource(R.string.deposit), style = Typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(18.dp))
-            
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                HeroStatItem("المصروف", com.example.data.CurrencyFormatter.format(currencyContext, spent), Color.White, Modifier.weight(1f))
-                HeroStatItem("المتبقي", com.example.data.CurrencyFormatter.format(currencyContext, remaining), primaryLight, Modifier.weight(1f))
-                HeroStatItem("الأيام", "$daysLeft", Color.White, Modifier.weight(1f))
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                HeroStatItem(stringResource(R.string.spent_label), com.example.data.CurrencyFormatter.format(currencyContext, spent), Color.White, Modifier.weight(1f))
+                HeroStatItem(stringResource(R.string.remaining), com.example.data.CurrencyFormatter.format(currencyContext, remaining), primaryLight, Modifier.weight(1f))
+                HeroStatItem(stringResource(R.string.days_label), "$daysLeft", Color.White, Modifier.weight(1f))
             }
-            
+
             Spacer(modifier = Modifier.height(18.dp))
-            
+
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("${(progress * 100).toInt()}٪ من الميزانية", fontSize = 10.sp, color = textSecondary)
-                Text(if (progress < 0.8f) "🟢 وضع ممتاز" else "🔴 احذر", fontSize = 10.sp, color = textSecondary)
+                Text(stringResource(R.string.budget_percent_used, progressPercent), style = Typography.labelSmall, color = textSecondary)
+                Text("$statusEmoji $statusLabel", style = Typography.labelSmall, color = textSecondary)
             }
             Spacer(modifier = Modifier.height(6.dp))
             LinearProgressIndicator(
@@ -198,7 +217,7 @@ fun PremiumHeroCard(
                     .fillMaxWidth()
                     .height(5.dp)
                     .clip(RoundedCornerShape(50)),
-                color = secondaryLight,
+                color = statusColor,
                 trackColor = surfaceVariant,
             )
         }
@@ -211,11 +230,11 @@ private fun HeroStatItem(label: String, value: String, valueColor: Color, modifi
         modifier = modifier
             .clip(RoundedCornerShape(15.dp))
             .background(Color(0x33000000))
-            .padding(11.dp)
+            .padding(12.dp)
     ) {
-        Text(label, fontSize = 10.sp, color = textSecondary)
+        Text(label, style = Typography.labelSmall, color = textSecondary)
         Spacer(modifier = Modifier.height(2.dp))
-        Text(value, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = valueColor)
+        Text(value, style = Typography.bodyMedium, fontWeight = FontWeight.ExtraBold, color = valueColor)
     }
 }
 
@@ -230,11 +249,11 @@ fun PremiumQuickStatsRow(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(9.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        QuickStatCard("المخزون", "$inventoryCount", "عنصر", Icons.Default.Inventory2, primaryLight, primaryLight.copy(alpha=0.15f), onInventoryClick, Modifier.weight(1f))
-        QuickStatCard("الاشتراكات", "$activeSubsCount", "فعالة", Icons.Default.Subscriptions, warningColor, warningColor.copy(alpha=0.15f), onSubsClick, Modifier.weight(1f))
-        QuickStatCard("العائلة", "$familyCount", "أعضاء", Icons.Default.FamilyRestroom, error, error.copy(alpha=0.15f), onFamilyClick, Modifier.weight(1f))
+        QuickStatCard(stringResource(R.string.nav_inventory), "$inventoryCount", stringResource(R.string.quick_stat_inventory_unit), Icons.Default.Inventory2, primaryLight, primaryLight.copy(alpha=0.15f), onInventoryClick, Modifier.weight(1f))
+        QuickStatCard(stringResource(R.string.quick_stat_subscriptions_title), "$activeSubsCount", stringResource(R.string.quick_stat_subscriptions_unit), Icons.Default.Subscriptions, warningColor, warningColor.copy(alpha=0.15f), onSubsClick, Modifier.weight(1f))
+        QuickStatCard(stringResource(R.string.nav_family), "$familyCount", stringResource(R.string.quick_stat_family_unit), Icons.Default.FamilyRestroom, error, error.copy(alpha=0.15f), onFamilyClick, Modifier.weight(1f))
     }
 }
 
@@ -271,9 +290,9 @@ private fun QuickStatCard(
             Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Text(title, fontSize = 10.sp, color = textTertiary)
-        Text(value, fontSize = 15.sp, fontWeight = FontWeight.Black, color = textPrimary)
-        Text(subtitle, fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = color)
+        Text(title, style = Typography.labelSmall, color = textTertiary)
+        Text(value, style = Typography.titleMedium, fontWeight = FontWeight.Black, color = textPrimary)
+        Text(subtitle, style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = color)
     }
 }
 
@@ -297,8 +316,53 @@ fun PremiumInsightBanner(title: String, subtitle: String, onClick: () -> Unit) {
         }
         Spacer(modifier = Modifier.width(13.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontSize = 12.5.sp, fontWeight = FontWeight.ExtraBold, color = textPrimary)
-            Text(subtitle, fontSize = 10.5.sp, color = textSecondary, lineHeight = 14.sp)
+            Text(title, style = Typography.labelLarge, fontWeight = FontWeight.ExtraBold, color = textPrimary)
+            Text(subtitle, style = Typography.labelSmall, color = textSecondary, lineHeight = 16.sp)
+        }
+    }
+}
+
+@Composable
+fun ShortagesSummaryCard(shortageCount: Int, onViewShortagesClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .clip(RoundedCornerShape(19.dp))
+            .background(dangerColor.copy(alpha = 0.10f))
+            .clickable { onViewShortagesClick() }
+            .padding(15.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(dangerColor.copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Default.ShoppingCartCheckout, contentDescription = null, tint = dangerColor, modifier = Modifier.size(20.dp))
+        }
+        Spacer(modifier = Modifier.width(13.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                stringResource(R.string.shortages_summary_title, shortageCount),
+                style = Typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = textPrimary
+            )
+            Text(
+                stringResource(R.string.shortages_summary_subtitle),
+                style = Typography.labelSmall,
+                color = textSecondary
+            )
+        }
+        Surface(shape = RoundedCornerShape(50), color = dangerColor) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(stringResource(R.string.view_shortages_action), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+            }
         }
     }
 }

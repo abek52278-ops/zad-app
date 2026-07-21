@@ -58,6 +58,21 @@ fun expiryColor(days: Int?): Color = when {
     else -> successColor
 }
 
+/** نسبة المخزون لعرضها كـ progress bar — نفترض "امتلاء" عند 3 أضعاف حد التنبيه، مفيش حقل "أقصى كمية" في الموديل */
+private fun stockRatio(item: ZadInventory): Float {
+    val threshold = (item.lowStockThreshold ?: 2).coerceAtLeast(1)
+    return (item.quantity.toFloat() / (threshold * 3f)).coerceIn(0f, 1f)
+}
+
+private fun stockColor(item: ZadInventory): Color {
+    val threshold = (item.lowStockThreshold ?: 2).coerceAtLeast(1)
+    return when {
+        item.quantity <= threshold -> dangerColor
+        item.quantity <= threshold * 2 -> warningColor
+        else -> successColor
+    }
+}
+
 private data class CategoryDef(
     val key: String,
     val label: String,
@@ -110,6 +125,11 @@ private fun categoryDefFor(key: String?): CategoryDef =
 private val units = listOf("حبة", "كيلو", "جرام", "لتر", "علبة", "كيس", "قرشة", "صندوق")
 private val unitLabels = listOf("حبة", "كجم", "جرام", "لتر", "علبة", "كيس", "قرشة", "صندوق")
 
+/** إشارة خفيفة لفتح تبويب النواقص مباشرة عند الدخول من كارت خارجي (زي HomeScreen) — نفس نمط MainActivity.pendingInviteCode */
+object InventoryNavState {
+    var openShortagesTab by mutableStateOf(false)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InventoryScreen(
@@ -122,6 +142,11 @@ fun InventoryScreen(
     val searchQuery by viewModel.inventorySearchQuery.collectAsState()
     var selectedCategory by remember { mutableStateOf("الكل") }
     var showAddDialog by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf(if (InventoryNavState.openShortagesTab) 1 else 0) }
+
+    LaunchedEffect(Unit) {
+        InventoryNavState.openShortagesTab = false
+    }
 
     val expiringItems = remember(allItems) {
         allItems.filter { item ->
@@ -132,6 +157,10 @@ fun InventoryScreen(
 
     val lowStockItems = remember(allItems) {
         allItems.filter { it.quantity <= (it.lowStockThreshold ?: 2) }
+    }
+
+    val shortageItems = remember(lowStockItems, expiringItems) {
+        (lowStockItems + expiringItems).distinctBy { it.id }
     }
 
     val filteredItems = remember(allItems, selectedCategory, searchQuery) {
@@ -173,30 +202,72 @@ fun InventoryScreen(
                 )
             }
 
-            CategoryPills(
-                selected = selectedCategory,
-                onSelect = { selectedCategory = it }
+            InventoryTabRow(
+                selectedTab = selectedTab,
+                shortageCount = shortageItems.size,
+                onSelect = { selectedTab = it }
             )
 
-            if (allItems.isEmpty() && searchQuery.isBlank()) {
-                EmptyInventoryState(onNavigateToCamera = onNavigateToCamera)
-            } else if (filteredItems.isEmpty()) {
-                EmptySearchState()
+            if (selectedTab == 1) {
+                if (shortageItems.isEmpty()) {
+                    com.example.ui.components.ZadEmptyState(
+                        icon = Icons.Default.CheckCircle,
+                        title = stringResource(R.string.no_shortages_title),
+                        subtitle = stringResource(R.string.no_shortages_hint),
+                        modifier = Modifier.fillMaxSize().padding(bottom = 100.dp),
+                        iconTint = successColor,
+                        iconBackground = successColor.copy(alpha = 0.1f)
+                    )
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(shortageItems, key = { it.id }) { item ->
+                            ShortageItemCard(
+                                item = item,
+                                onAddToShoppingList = {
+                                    viewModel.addShoppingItem(
+                                        com.example.data.ZadShoppingItem(
+                                            itemName = item.itemName,
+                                            quantity = 1,
+                                            estimatedPrice = getEstimatedPrice(item.itemName)
+                                        )
+                                    )
+                                }
+                            )
+                        }
+                    }
+                }
             } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    items(filteredItems, key = { it.id }) { item ->
-                        InventoryItemCard(
-                            item = item,
-                            onDelete = { viewModel.deleteInventory(item.id) },
-                            onConsume = { viewModel.consumeInventoryItem(item) },
-                            onRestock = { viewModel.injectScannedItems(listOf(item.copy(quantity = 1))) }
-                        )
+                CategoryPills(
+                    selected = selectedCategory,
+                    onSelect = { selectedCategory = it }
+                )
+
+                if (allItems.isEmpty() && searchQuery.isBlank()) {
+                    EmptyInventoryState(onNavigateToCamera = onNavigateToCamera)
+                } else if (filteredItems.isEmpty()) {
+                    EmptySearchState()
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(filteredItems, key = { it.id }) { item ->
+                            InventoryItemCard(
+                                item = item,
+                                onDelete = { viewModel.deleteInventory(item.id) },
+                                onConsume = { viewModel.consumeInventoryItem(item) },
+                                onRestock = { viewModel.injectScannedItems(listOf(item.copy(quantity = 1))) }
+                            )
+                        }
                     }
                 }
             }
@@ -484,6 +555,54 @@ private fun ExpiringSoonSection(
 }
 
 @Composable
+private fun InventoryTabRow(
+    selectedTab: Int,
+    shortageCount: Int,
+    onSelect: (Int) -> Unit
+) {
+    TabRow(
+        selectedTabIndex = selectedTab,
+        containerColor = background,
+        contentColor = primary
+    ) {
+        Tab(
+            selected = selectedTab == 0,
+            onClick = { onSelect(0) },
+            text = {
+                Text(
+                    stringResource(R.string.tab_all_products),
+                    fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium
+                )
+            }
+        )
+        Tab(
+            selected = selectedTab == 1,
+            onClick = { onSelect(1) },
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(R.string.tab_shortages),
+                        fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium
+                    )
+                    if (shortageCount > 0) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(shape = CircleShape, color = dangerColor) {
+                            Text(
+                                "$shortageCount",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        )
+    }
+}
+
+@Composable
 private fun CategoryPills(
     selected: String,
     onSelect: (String) -> Unit
@@ -578,10 +697,10 @@ private fun InventoryItemCard(
     val catDef = categoryDefFor(item.category)
     val isLowStock = item.quantity <= (item.lowStockThreshold ?: 2)
 
-    Surface(
+    Card(
         shape = RoundedCornerShape(16.dp),
-        color = surface,
-        shadowElevation = 1.dp,
+        colors = CardDefaults.cardColors(containerColor = surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -664,8 +783,19 @@ private fun InventoryItemCard(
                 }
             }
 
+            Spacer(modifier = Modifier.height(6.dp))
+            LinearProgressIndicator(
+                progress = { stockRatio(item) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp)),
+                color = stockColor(item),
+                trackColor = outlineVariant
+            )
+
             if (days != null) {
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     if (days <= 0) stringResource(R.string.expired_short) else stringResource(R.string.days_count, days),
                     style = MaterialTheme.typography.labelSmall,
@@ -709,6 +839,97 @@ private fun InventoryItemCard(
                         modifier = Modifier.size(16.dp)
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShortageItemCard(
+    item: ZadInventory,
+    onAddToShoppingList: () -> Unit
+) {
+    val days = daysUntilExpiry(item.expiryDate)
+    val catDef = categoryDefFor(item.category)
+    var added by remember(item.id) { mutableStateOf(false) }
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(catDef.bg),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = getIconForItem(item.itemName),
+                        contentDescription = null,
+                        tint = catDef.fg,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        item.itemName,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        if (days != null && days <= 0) stringResource(R.string.expired_short)
+                        else if (days != null) stringResource(R.string.days_count, days)
+                        else stringResource(R.string.quantity_colon_count, item.quantity),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (days != null) expiryColor(days) else dangerColor
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+            LinearProgressIndicator(
+                progress = { stockRatio(item) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp)),
+                color = stockColor(item),
+                trackColor = outlineVariant
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+            Button(
+                onClick = { added = true; onAddToShoppingList() },
+                enabled = !added,
+                shape = RoundedCornerShape(10.dp),
+                contentPadding = PaddingValues(vertical = 8.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (added) successColor else primary,
+                    contentColor = Color.White,
+                    disabledContainerColor = successColor
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    if (added) Icons.Default.Check else Icons.Default.AddShoppingCart,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    stringResource(if (added) R.string.added_to_list_label else R.string.add_to_shopping_list),
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1
+                )
             }
         }
     }

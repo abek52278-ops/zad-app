@@ -79,9 +79,14 @@ fun ZadEmptyState(
 }
 
 @Composable
-fun ZadLoadingState(modifier: Modifier = Modifier.fillMaxSize()) {
+fun ZadLoadingState(
+    modifier: Modifier = Modifier.fillMaxSize(),
+    color: Color = primary,
+    size: androidx.compose.ui.unit.Dp = 40.dp,
+    strokeWidth: androidx.compose.ui.unit.Dp = androidx.compose.material3.ProgressIndicatorDefaults.CircularStrokeWidth
+) {
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(color = primary)
+        CircularProgressIndicator(color = color, modifier = Modifier.size(size), strokeWidth = strokeWidth)
     }
 }
 
