@@ -19,6 +19,9 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[BehaviorProfile] Processing ${userIds.length} users`);
 
+    let successCount = 0;
+    const errors: Array<{ user_id: string; message: string }> = [];
+
     for (const userId of userIds) {
       // Get last 90 days of transactions
       const { data: txns } = await supabase
@@ -70,7 +73,7 @@ Deno.serve(async (req: Request) => {
       const subMonthly = (subs || []).reduce((sum, s) => sum + (s.amount || 0), 0);
 
       // Upsert profile
-      await supabase.from("user_behavior_profile").upsert({
+      const { error: upsertError } = await supabase.from("user_behavior_profile").upsert({
         user_id: userId,
         avg_weekly_spending: Math.round(avgWeeklySpending * 100) / 100,
         top_spending_categories: topCategories,
@@ -78,9 +81,16 @@ Deno.serve(async (req: Request) => {
         subscription_load_monthly: subMonthly,
         last_updated_at: new Date().toISOString(),
       });
+
+      if (upsertError) {
+        console.error(`[BehaviorProfile] Upsert failed for ${userId}: ${upsertError.message}`);
+        errors.push({ user_id: userId, message: upsertError.message });
+        continue;
+      }
+      successCount++;
     }
 
-    return new Response(JSON.stringify({ processed: userIds.length }), {
+    return new Response(JSON.stringify({ users_found: userIds.length, processed: successCount, errors }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (e) {
