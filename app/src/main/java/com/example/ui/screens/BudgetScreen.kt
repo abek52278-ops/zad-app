@@ -140,7 +140,7 @@ fun BudgetScreen(
                                 Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White)
                             }
                             Text(
-                                "المعاملات",
+                                stringResource(R.string.transactions_title),
                                 style = Typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
@@ -154,7 +154,7 @@ fun BudgetScreen(
 
                         // Balance display (animated)
                         Text(
-                            "الرصيد المتبقي",
+                            stringResource(R.string.remaining_balance_label),
                             style = Typography.labelMedium,
                             color = Color.White.copy(alpha = 0.75f),
                             modifier = Modifier.fillMaxWidth(),
@@ -183,7 +183,7 @@ fun BudgetScreen(
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
                             TxSummaryItem(
-                                label = "الدخل",
+                                label = stringResource(R.string.income_label),
                                 amount = totalIncome,
                                 icon = Icons.Default.TrendingUp,
                                 color = Color(0xFF34C77B)
@@ -195,7 +195,7 @@ fun BudgetScreen(
                                     .background(Color.White.copy(alpha = 0.2f))
                             )
                             TxSummaryItem(
-                                label = "المصروفات",
+                                label = stringResource(R.string.expense_label),
                                 amount = totalSpent,
                                 icon = Icons.Default.TrendingDown,
                                 color = Color(0xFFFF6B6B)
@@ -207,7 +207,7 @@ fun BudgetScreen(
                                     .background(Color.White.copy(alpha = 0.2f))
                             )
                             TxSummaryItem(
-                                label = "الميزانية",
+                                label = stringResource(R.string.budget_label),
                                 amount = budget,
                                 icon = Icons.Default.AccountBalanceWallet,
                                 color = Color(0xFFE8BC6A)
@@ -223,10 +223,10 @@ fun BudgetScreen(
             item {
                 val spentPct = if (budget > 0) (totalSpent / budget * 100).toInt() else 0
                 val (aiIcon, aiMsg) = when {
-                    spentPct >= 100 -> Icons.Default.Block to "تجاوزت الميزانية! حاول تقليل المصاريف"
-                    spentPct >= 85 -> Icons.Default.Warning to "وصلت لـ $spentPct% من ميزانيتك. كن حذراً"
-                    spentPct >= 60 -> Icons.Default.Lightbulb to "صرفت $spentPct% من ميزانيتك. أداء جيد"
-                    else -> Icons.Default.CheckCircle to "رائع! أنت في المسار الصحيح. صرفت $spentPct% فقط"
+                    spentPct >= 100 -> Icons.Default.Block to stringResource(R.string.budget_insight_over)
+                    spentPct >= 85 -> Icons.Default.Warning to stringResource(R.string.budget_insight_high, spentPct)
+                    spentPct >= 60 -> Icons.Default.Lightbulb to stringResource(R.string.budget_insight_medium, spentPct)
+                    else -> Icons.Default.CheckCircle to stringResource(R.string.budget_insight_good, spentPct)
                 }
                 val stripColor = when {
                     spentPct >= 100 -> Color(0xFFFF4444)
@@ -288,7 +288,7 @@ fun BudgetScreen(
             if (categoryCards.isEmpty()) {
                 item {
                     Text(
-                        "لسه ما حددتش ميزانية لأي فئة. اضغط \"تحديد فئة\" عشان زاد يتابعلك كل فئة لوحدها.",
+                        stringResource(R.string.no_category_budgets_hint),
                         style = Typography.bodySmall,
                         color = onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
@@ -355,7 +355,7 @@ fun BudgetScreen(
                         .padding(horizontal = 20.dp)
                 ) {
                     Text(
-                        "هذا الشهر",
+                        stringResource(R.string.this_month_label),
                         style = Typography.labelMedium,
                         color = onSurfaceVariant,
                         fontWeight = FontWeight.SemiBold
@@ -401,13 +401,13 @@ fun BudgetScreen(
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                "لا توجد معاملات بعد",
+                                stringResource(R.string.no_transactions),
                                 style = Typography.titleMedium,
                                 color = onSurfaceVariant
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                "أضف معاملة أو اربط البنك لتتبع مصاريفك تلقائياً",
+                                stringResource(R.string.no_transactions_bank_hint),
                                 style = Typography.bodySmall,
                                 color = onSurfaceVariant.copy(alpha = 0.6f),
                                 textAlign = TextAlign.Center,
@@ -417,11 +417,12 @@ fun BudgetScreen(
                     }
                 }
             } else {
+                val todayFallbackLabel = stringResource(R.string.today_label)
                 val grouped = filteredTx.groupBy { tx ->
                     try {
                         val inst = Instant.parse(tx.createdAt ?: "")
                         inst.atZone(ZoneId.systemDefault()).toLocalDate().toString()
-                    } catch (e: Exception) { "اليوم" }
+                    } catch (e: Exception) { todayFallbackLabel }
                 }
 
                 grouped.forEach { (dateStr, txList) ->
@@ -563,7 +564,7 @@ private fun CategoryBudgetCard(category: String, budget: Double, spent: Double, 
                 Text(category, style = Typography.labelLarge, fontWeight = FontWeight.SemiBold, color = onSurface)
                 Text(
                     if (budget > 0) "${com.example.data.CurrencyFormatter.formatNumber(context, spent)} / ${com.example.data.CurrencyFormatter.format(context, budget)}"
-                    else "${com.example.data.CurrencyFormatter.format(context, spent)} — بدون حد",
+                    else stringResource(R.string.spent_no_limit, com.example.data.CurrencyFormatter.format(context, spent)),
                     style = Typography.labelSmall,
                     color = if (overBudget) dangerColor else onSurfaceVariant,
                     fontWeight = if (overBudget) FontWeight.Bold else FontWeight.Normal
@@ -583,7 +584,7 @@ private fun CategoryBudgetCard(category: String, budget: Double, spent: Double, 
             }
         }
         Spacer(modifier = Modifier.width(10.dp))
-        Icon(Icons.Default.Edit, contentDescription = "تعديل", tint = onSurfaceVariant, modifier = Modifier.size(16.dp))
+        Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit_cd), tint = onSurfaceVariant, modifier = Modifier.size(16.dp))
     }
 }
 
@@ -602,7 +603,12 @@ private fun CategoryBudgetEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (category != null) "تعديل ميزانية $category" else "تحديد ميزانية فئة", fontWeight = FontWeight.Bold) },
+        title = {
+            Text(
+                if (category != null) stringResource(R.string.edit_category_budget_title, category) else stringResource(R.string.set_category_budget_title),
+                fontWeight = FontWeight.Bold
+            )
+        },
         text = {
             Column {
                 if (category == null) {
@@ -672,13 +678,15 @@ private fun TxSummaryItem(label: String, amount: Double, icon: ImageVector, colo
 @Composable
 private fun TxDateHeader(dateStr: String, txList: List<ZadTransaction>) {
     val context = LocalContext.current
+    val todayLabel = stringResource(R.string.today_label)
+    val yesterdayLabel = stringResource(R.string.yesterday_label)
     val dayTotal = txList.sumOf { if (it.isExpense) -it.amount else it.amount }
     val label = try {
         val date = java.time.LocalDate.parse(dateStr)
         val today = java.time.LocalDate.now()
         when {
-            date == today -> "اليوم"
-            date == today.minusDays(1) -> "أمس"
+            date == today -> todayLabel
+            date == today.minusDays(1) -> yesterdayLabel
             else -> date.format(DateTimeFormatter.ofPattern("d MMMM", Locale("ar")))
         }
     } catch (e: Exception) { dateStr }

@@ -136,6 +136,19 @@
     <string name="add_transaction_fab">عملية</string>
     <string name="category_label">الفئة</string>
     <string name="monthly_budget_with_currency">الميزانية الشهرية (%1$s)</string>
+    <string name="transactions_title">العمليات</string>
+    <string name="remaining_balance_label">الرصيد المتبقي</string>
+    <string name="budget_insight_over">تعديت الميزانية! حاول تقلل مصاريفك</string>
+    <string name="budget_insight_high">وصلت لـ %1$d%% من ميزانيتك. خللي بالك</string>
+    <string name="budget_insight_medium">صرفت %1$d%% من ميزانيتك. أداء كويس</string>
+    <string name="budget_insight_good">تمام! إنت ماشي صح، صرفت %1$d%% بس</string>
+    <string name="no_category_budgets_hint">لسه ما حددتش ميزانية لأي فئة. دوس \"حدد فئة\" عشان زاد يتابعلك كل فئة لوحدها.</string>
+    <string name="this_month_label">الشهر ده</string>
+    <string name="no_transactions_bank_hint">ضيف عملية أو اربط حسابك البنكي عشان زاد يتابع مصاريفك أوتوماتيك</string>
+    <string name="spent_no_limit">%1$s — من غير حد</string>
+    <string name="edit_cd">تعديل</string>
+    <string name="edit_category_budget_title">تعديل ميزانية %1$s</string>
+    <string name="set_category_budget_title">حدد ميزانية فئة</string>
 
     <!-- ZadIntelligenceScreen -->
     <string name="analytics_tab">التحليلات</string>
@@ -192,6 +205,83 @@
     <string name="expiry_date_optional">تاريخ الصلاحية (اختياري)</string>
     <string name="expired_short">خلصان</string>
     <string name="days_count">%1$d يوم</string>
+    <string name="search_cd">بحث</string>
+    <string name="clear_cd">مسح</string>
+    <string name="suggest_recipe_for_expiring_prompt">اقترحلي وصفة سريعة تستخدم المكونات دي اللي هتخلص قريب:</string>
+    <string name="consume_one_cd">استهلاك واحدة</string>
+    <string name="restock_one_cd">زيادة واحدة</string>
+    <string name="delete_cd">حذف</string>
+
+    <!-- HomeScreen: additional strings (i18n sweep) -->
+    <string name="active_subscriptions_title">الاشتراكات والفواتير النشطة</string>
+    <string name="add_amount">إضافة المبلغ</string>
+    <string name="add_expense_title">إضافة مصروف</string>
+    <string name="add_income_title">إضافة دخل/مرتب</string>
+    <string name="all_good">كله تمام</string>
+    <string name="app_notifications_title">إشعارات التطبيق</string>
+    <string name="budget_exceeded_body">تعديت ميزانيتك الشهرية بنسبة %1$d%%</string>
+    <string name="budget_exceeded_title">تعديت الميزانية!</string>
+    <string name="budget_near_limit_body">صرفت %1$d%% من ميزانيتك الشهرية</string>
+    <string name="budget_near_limit_title">الميزانية قربت تخلص (%1$d%%)</string>
+    <string name="count_colon">العدد: %1$d</string>
+    <string name="critical_shortage_count">%1$d نقص حرج</string>
+    <string name="deduct_amount">خصم المبلغ</string>
+    <string name="expiring_soon_stat_label">هيخلص قريباً</string>
+    <string name="from_ai">من الذكاء الاصطناعي</string>
+    <string name="guest_name_fallback">يا غالي</string>
+    <string name="hero_name_fallback">بطل</string>
+    <string name="home_summary_subtitle">ده ملخص سريع لحالة بيتك النهارده.</string>
+    <string name="household_shortages_title">نواقص البيت والمقاضي</string>
+    <string name="inventory_items_label">عنصر بالمخزون</string>
+    <string name="items_count">%1$d عناصر</string>
+    <string name="items_expiring_soon_hint">عندك %1$s هيخلص قريب 👀</string>
+    <string name="kids_new_purchase_request_message">عايز مصروف/طلب جديد</string>
+    <string name="meal_breakfast_shakshuka">شكشوكة الفطار</string>
+    <string name="meal_breakfast_shakshuka_desc">فطار سريع بالبيض والطماطم المتوفرة.</string>
+    <string name="meal_chicken_pasta">مكرونة بالفراخ</string>
+    <string name="meal_chicken_pasta_desc">وجبة غنية بالفراخ المتوفرة في مخزونك.</string>
+    <string name="meal_quinoa_salad">سلطة الكينوا</string>
+    <string name="meal_quinoa_salad_desc">خفيفة ومغذية، محتاج تشتري ليمون.</string>
+    <string name="meal_status_available">المكونات متوفرة</string>
+    <string name="meal_status_missing_lemon">ناقصك: ليمون</string>
+    <string name="no_description_fallback">من غير وصف</string>
+    <string name="no_items_to_show">مفيش عناصر نعرضها دلوقتي.</string>
+    <string name="no_new_messages">مفيش رسايل جديدة</string>
+    <string name="no_urgent_alerts_hint">مفيش تنبيهات عاجلة دلوقتي. كمل في التحكم بميزانيتك.</string>
+    <string name="notifications_title">الإشعارات</string>
+    <string name="plant_your_tree">ازرع شجرتك!</string>
+    <string name="proactive_summary_loading">بيتم دلوقتي جمع بياناتك وتحليلها عشان يقدملك نصايح مخصصة ليك...</string>
+    <string name="proactive_summary_title">الخلاصة الاستباقية لزاد</string>
+    <string name="product_count">%1$d منتج</string>
+    <string name="purchases_title">المشتريات</string>
+    <string name="quantity_colon_count">الكمية: %1$d</string>
+    <string name="recommendations_count">%1$d توصيات</string>
+    <string name="refresh_cd">تحديث</string>
+    <string name="salary_detected_body">اتحدثت الميزانية أوتوماتيك بالمرتب الجديد</string>
+    <string name="salary_detected_title">تم اكتشاف مرتب جديد!</string>
+    <string name="savings_goal_colon">هدف التوفير: %1$s</string>
+    <string name="smart_notifications_title">إشعارات ذكية</string>
+    <string name="subscription_detected_body">اشتراك جديد بقيمة %1$s</string>
+    <string name="subscription_detected_title">تم اكتشاف اشتراك: %1$s</string>
+    <string name="todays_recommendations_title">توصيات النهارده</string>
+    <string name="top_low_stock_title">أهم المخزون (هيخلص قريب)</string>
+    <string name="total_colon">إجمالي: %1$s</string>
+    <string name="unknown_alias_fallback">؟</string>
+    <string name="unread_family_messages_count">عندك %1$d رسايل جديدة</string>
+    <string name="welcome_back_comma">أهلاً بيك،</string>
+    <string name="welcome_back_name_prefix">أهلاً بيك يا </string>
+    <string name="your_tree_score">شجرتك: %1$d تسبيحة</string>
+    <string name="zad_chef_suggestion_status">اقتراح شيف زاد</string>
+    <string name="zad_smart_insight_title">رؤية زاد الذكي ✨</string>
+    <string-array name="week_day_labels">
+        <item>حد</item>
+        <item>اتنين</item>
+        <item>تلات</item>
+        <item>أربع</item>
+        <item>خميس</item>
+        <item>جمعة</item>
+        <item>سبت</item>
+    </string-array>
 
     <!-- FamilyScreen / ProfileScreen -->
     <string name="add_action">إضافة</string>

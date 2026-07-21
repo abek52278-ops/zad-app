@@ -184,10 +184,11 @@ fun HomeScreen(
         )
         if (isChild) {
             // KIDS MODE UI
+            val newRequestMessage = stringResource(R.string.kids_new_purchase_request_message)
             KidsModeContent(
                 familyState = familyState as? FamilyState.Active,
                 onAddRequest = {
-                    familyViewModel.sendMessage("أحتاج مصروف/طلب جديد", "PURCHASE_REQUEST", """{"amount":0,"status":"PENDING"}""")
+                    familyViewModel.sendMessage(newRequestMessage, "PURCHASE_REQUEST", """{"amount":0,"status":"PENDING"}""")
                 },
                 onNavigateToFamily = onNavigateToFamily,
                 onNavigateToTasbiha = onNavigateToTasbiha,
@@ -240,9 +241,9 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(18.dp))
                 
                 // 3. AI Insight Banner
-                val topInsight = insights.firstOrNull()?.description ?: "لا يوجد تنبيهات عاجلة حالياً. استمر في التحكم بميزانيتك."
+                val topInsight = insights.firstOrNull()?.description ?: stringResource(R.string.no_urgent_alerts_hint)
                 PremiumInsightBanner(
-                    title = "رؤية زاد الذكي ✨",
+                    title = stringResource(R.string.zad_smart_insight_title),
                     subtitle = topInsight,
                     onClick = onNavigateToAssistant
                 )
@@ -482,12 +483,12 @@ fun TopAppBarSection(onOpenDrawer: () -> Unit, userName: String, globalAvatarUri
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(
-                    text = "مرحباً بك،",
+                    text = stringResource(R.string.welcome_back_comma),
                     style = Typography.labelMedium,
                     color = onSurfaceVariant
                 )
                 Text(
-                    text = userName.ifEmpty { "يا غالي" } + " \uD83D\uDC4B",
+                    text = userName.ifEmpty { stringResource(R.string.guest_name_fallback) } + " \uD83D\uDC4B",
                     style = Typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = onSurface
@@ -724,7 +725,7 @@ fun BudgetEditDialog(currentBudget: Double, onDismiss: () -> Unit, onSave: (Doub
 @Composable
 fun ExpenseAnalysisSection(transactions: List<ZadTransaction> = emptyList()) {
     // Groups spending by day of week from actual transactions
-    val dayLabels = listOf("أحد", "اثنين", "ثلاثاء", "أربعاء", "خميس", "جمعة", "سبت")
+    val dayLabels = androidx.compose.ui.res.stringArrayResource(R.array.week_day_labels).toList()
     val dayTotals = FloatArray(7) { 0f }
     transactions.filter { it.isExpense }.forEach { tx ->
         val dayIndex = (tx.id.hashCode().and(0x7FFFFFFF)) % 7
@@ -957,7 +958,7 @@ fun UrgentRecipeCard(
                 Spacer(modifier = Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "عندك ${triggerItems.take(2).joinToString("، ")} هيخلص قريب 👀",
+                        stringResource(R.string.items_expiring_soon_hint, triggerItems.take(2).joinToString("، ")),
                         style = Typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF9A3412)
@@ -1014,37 +1015,44 @@ fun SmartChefSection(
                     val desc = cleanLine.take(80)
                     MealCard(
                         title = title, desc = desc,
-                        status = "اقتراح شيف زاد",
+                        status = stringResource(R.string.zad_chef_suggestion_status),
+                        isAvailable = true,
                         imgUrl = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&q=80",
                         onClick = { onRecipeClick(title) }
                     )
                 }
             } else {
                 item {
+                    val name = stringResource(R.string.meal_chicken_pasta)
                     MealCard(
-                        title = "مكرونة بالدجاج",
-                        desc = "وجبة غنية بالدجاج المتوفر في مخزونك.",
-                        status = "المكونات متوفرة",
+                        title = name,
+                        desc = stringResource(R.string.meal_chicken_pasta_desc),
+                        status = stringResource(R.string.meal_status_available),
+                        isAvailable = true,
                         imgUrl = "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=400&q=80",
-                        onClick = { onRecipeClick("مكرونة بالدجاج") }
+                        onClick = { onRecipeClick(name) }
                     )
                 }
                 item {
+                    val name = stringResource(R.string.meal_quinoa_salad)
                     MealCard(
-                        title = "سلطة الكينوا",
-                        desc = "خفيفة ومغذية، تحتاج إلى شراء الليمون.",
-                        status = "ينقصك: ليمون",
+                        title = name,
+                        desc = stringResource(R.string.meal_quinoa_salad_desc),
+                        status = stringResource(R.string.meal_status_missing_lemon),
+                        isAvailable = false,
                         imgUrl = "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400&q=80",
-                        onClick = { onRecipeClick("سلطة الكينوا") }
+                        onClick = { onRecipeClick(name) }
                     )
                 }
                 item {
+                    val name = stringResource(R.string.meal_breakfast_shakshuka)
                     MealCard(
-                        title = "شكشوكة الإفطار",
-                        desc = "فطور سريع باستخدام البيض والطماطم المتوفرة.",
-                        status = "المكونات متوفرة",
+                        title = name,
+                        desc = stringResource(R.string.meal_breakfast_shakshuka_desc),
+                        status = stringResource(R.string.meal_status_available),
+                        isAvailable = true,
                         imgUrl = "https://images.unsplash.com/photo-1590412200988-a436970781fa?w=400&q=80",
-                        onClick = { onRecipeClick("شكشوكة الإفطار") }
+                        onClick = { onRecipeClick(name) }
                     )
                 }
             }
@@ -1054,8 +1062,7 @@ fun SmartChefSection(
 
 
 @Composable
-fun MealCard(title: String, desc: String, status: String, imgUrl: String, onClick: () -> Unit) {
-    val isAvailable = !status.contains("ينقص")
+fun MealCard(title: String, desc: String, status: String, isAvailable: Boolean, imgUrl: String, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .width(190.dp)
@@ -1277,7 +1284,7 @@ fun AgentSummaryCard(
                     Text(stringResource(R.string.zad_agent), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
                 IconButton(onClick = onRefresh, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Refresh, contentDescription = "تحديث", tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.refresh_cd), tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
                 }
             }
 
@@ -1336,8 +1343,8 @@ fun AgentSummaryCard(
                         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.1f)).padding(12.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        StatItem("المخزون", "${agentSummary.stats.inventoryCount}", Color.White)
-                        StatItem("منتهٍ قريباً", "${agentSummary.stats.expiringSoon}",
+                        StatItem(stringResource(R.string.nav_inventory), "${agentSummary.stats.inventoryCount}", Color.White)
+                        StatItem(stringResource(R.string.expiring_soon_stat_label), "${agentSummary.stats.expiringSoon}",
                             if (agentSummary.stats.expiringSoon > 0) Color(0xFFFF9800) else Color.White.copy(alpha = 0.6f))
                         StatItem(stringResource(R.string.subscriptions), "${agentSummary.stats.subscriptionsActive}", Color.White)
                     }
@@ -1359,6 +1366,7 @@ private fun StatItem(label: String, value: String, valueColor: Color) {
 
 @Composable
 fun PredictionCard(prediction: com.example.data.AiExpensePrediction, budget: Double) {
+    val context = LocalContext.current
     val color = when {
         prediction.predictedTotal > budget -> dangerColor
         prediction.predictedTotal > budget * 0.8 -> Color(0xFFF9A825)
@@ -1378,7 +1386,7 @@ fun PredictionCard(prediction: com.example.data.AiExpensePrediction, budget: Dou
             }
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.Bottom) {
-                Text("%.0f ريال".format(prediction.predictedTotal), color = color, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp)
+                Text(com.example.data.CurrencyFormatter.format(context, prediction.predictedTotal), color = color, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp)
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.prediction_confidence, (prediction.confidence * 100).toInt()), color = onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp))
             }
@@ -1490,10 +1498,11 @@ fun AddTransactionDialog(
     var amount by remember { mutableStateOf("") }
     var isExpense by remember { mutableStateOf(true) }
     var category by remember { mutableStateOf("عام") }
+    val noDescriptionFallback = stringResource(R.string.no_description_fallback)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (isExpense) "إضافة مصروف" else "إضافة دخل/راتب", fontWeight = FontWeight.Bold) },
+        title = { Text(if (isExpense) stringResource(R.string.add_expense_title) else stringResource(R.string.add_income_title), fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 // Type Toggle
@@ -1551,14 +1560,15 @@ fun AddTransactionDialog(
                 onClick = {
                     val parsedAmount = amount.toDoubleOrNull() ?: 0.0
                     val finalCategory = if (!isExpense) "دخل" else category
-                    Log.d(TAG_HOME, "AddTransactionDialog → confirm: amount=$parsedAmount, title=${title.ifEmpty { "بدون وصف" }}, isExpense=$isExpense, category=$finalCategory")
-                    onSave(parsedAmount, title.ifEmpty { "بدون وصف" }, isExpense, finalCategory)
+                    val finalTitle = title.ifEmpty { noDescriptionFallback }
+                    Log.d(TAG_HOME, "AddTransactionDialog → confirm: amount=$parsedAmount, title=$finalTitle, isExpense=$isExpense, category=$finalCategory")
+                    onSave(parsedAmount, finalTitle, isExpense, finalCategory)
                 },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (isExpense) dangerColor else primary
                 )
             ) {
-                Text(if (isExpense) "خصم المبلغ" else "إضافة المبلغ")
+                Text(if (isExpense) stringResource(R.string.deduct_amount) else stringResource(R.string.add_amount))
             }
         },
         dismissButton = {
@@ -1578,36 +1588,40 @@ fun DashboardSummariesSection(
     onNavigateToSubscriptions: () -> Unit,
     onNavigateToShopping: () -> Unit
 ) {
+    val context = LocalContext.current
+    val quantityTemplate = stringResource(R.string.quantity_colon_count)
+    val countTemplate = stringResource(R.string.count_colon)
+
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         // 1. Inventory Summary
         MiniTableCard(
-            title = "أهم المخزون (ينفد قريباً)",
+            title = stringResource(R.string.top_low_stock_title),
             icon = Icons.Default.Inventory2,
             itemsCount = inventory.size,
             items = inventory.filter { it.quantity <= (it.lowStockThreshold ?: 2) }.take(3).map {
-                MiniTableRow(it.itemName, "الكمية: ${it.quantity}", if (it.quantity == 0) dangerColor else primary)
+                MiniTableRow(it.itemName, String.format(quantityTemplate, it.quantity), if (it.quantity == 0) dangerColor else primary)
             },
             onSeeAll = onNavigateToInventory
         )
-        
+
         // 2. Subscriptions Summary
         MiniTableCard(
-            title = "الاشتراكات والفواتير النشطة",
+            title = stringResource(R.string.active_subscriptions_title),
             icon = Icons.Default.CalendarToday,
             itemsCount = subscriptions.filter { it.isActive }.size,
             items = subscriptions.filter { it.isActive }.take(3).map {
-                MiniTableRow(it.title, "${it.amount} ريال", primary)
+                MiniTableRow(it.title, com.example.data.CurrencyFormatter.format(context, it.amount), primary)
             },
             onSeeAll = onNavigateToSubscriptions
         )
 
         // 3. Shopping List Summary
         MiniTableCard(
-            title = "نواقص البيت والمقاضي",
+            title = stringResource(R.string.household_shortages_title),
             icon = Icons.Default.ShoppingCart,
             itemsCount = shoppingList.filter { !it.isPurchased }.size,
             items = shoppingList.filter { !it.isPurchased }.take(3).map {
-                MiniTableRow(it.itemName, "العدد: ${it.quantity}", dangerColor)
+                MiniTableRow(it.itemName, String.format(countTemplate, it.quantity), dangerColor)
             },
             onSeeAll = onNavigateToShopping
         )
@@ -1737,7 +1751,7 @@ fun MiniTableCard(
             
             if (items.isEmpty()) {
                 Text(
-                    "لا توجد عناصر لعرضها حالياً.",
+                    stringResource(R.string.no_items_to_show),
                     style = Typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(vertical = 8.dp)
@@ -1791,7 +1805,7 @@ fun ZadProactiveSummaryCard(insights: List<com.example.data.AiInsight>) {
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
-                    text = "الخلاصة الاستباقية لزاد",
+                    text = stringResource(R.string.proactive_summary_title),
                     style = Typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = onSurface
@@ -1801,7 +1815,7 @@ fun ZadProactiveSummaryCard(insights: List<com.example.data.AiInsight>) {
 
             if (insights.isEmpty()) {
                 Text(
-                    text = "يتم الآن جمع بياناتك وتحليلها لتقديم نصائح استباقية مخصصة لك...",
+                    text = stringResource(R.string.proactive_summary_loading),
                     style = Typography.bodyMedium,
                     color = onSurfaceVariant
                 )
@@ -1850,37 +1864,38 @@ fun QuickGlanceWidgets(
     shoppingTotal: Double,
     insightsCount: Int
 ) {
+    val context = LocalContext.current
     androidx.compose.foundation.lazy.LazyRow(
         contentPadding = PaddingValues(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
             GlanceWidgetCard(
-                title = "المخزون",
+                title = stringResource(R.string.nav_inventory),
                 icon = Icons.Default.Inventory2,
                 color = primary,
-                mainValue = "$inventoryCount منتج",
-                subValue = if (criticalInventoryCount > 0) "$criticalInventoryCount نقص حرج" else "الكل جيد",
+                mainValue = stringResource(R.string.product_count, inventoryCount),
+                subValue = if (criticalInventoryCount > 0) stringResource(R.string.critical_shortage_count, criticalInventoryCount) else stringResource(R.string.all_good),
                 subColor = if (criticalInventoryCount > 0) dangerColor else onSurfaceVariant
             )
         }
         item {
             GlanceWidgetCard(
-                title = "المشتريات",
+                title = stringResource(R.string.purchases_title),
                 icon = Icons.Default.ShoppingCart,
                 color = Color(0xFFE65100), // Orange
-                mainValue = "$shoppingListCount عناصر",
-                subValue = "إجمالي: $shoppingTotal",
+                mainValue = stringResource(R.string.items_count, shoppingListCount),
+                subValue = stringResource(R.string.total_colon, com.example.data.CurrencyFormatter.format(context, shoppingTotal)),
                 subColor = onSurfaceVariant
             )
         }
         item {
             GlanceWidgetCard(
-                title = "توصيات اليوم",
+                title = stringResource(R.string.todays_recommendations_title),
                 icon = Icons.Default.Lightbulb,
                 color = Color(0xFFFBC02D), // Yellow
-                mainValue = "$insightsCount توصيات",
-                subValue = "من الذكاء الاصطناعي",
+                mainValue = stringResource(R.string.recommendations_count, insightsCount),
+                subValue = stringResource(R.string.from_ai),
                 subColor = onSurfaceVariant
             )
         }
@@ -1941,9 +1956,10 @@ fun KidsModeContent(
     val myChores = familyState.chores.filter { it.assignedTo == familyState.myMemberInfo.id }
     val myAllowance = familyState.myMemberInfo.balance
     val mySavingsGoal = familyState.myMemberInfo.savingsGoal
-    val myAlias = familyState.myMemberInfo.alias.ifBlank { "بطل" }
+    val myAlias = familyState.myMemberInfo.alias.ifBlank { stringResource(R.string.hero_name_fallback) }
     val recentMessages = familyState.messages.takeLast(3)
     val context = LocalContext.current
+    val unknownAliasFallback = stringResource(R.string.unknown_alias_fallback)
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp).verticalScroll(rememberScrollState())) {
         Spacer(modifier = Modifier.height(20.dp))
@@ -1979,14 +1995,14 @@ fun KidsModeContent(
                         targetState = myAllowance,
                         label = "BalanceAnimation"
                     ) { targetAllowance ->
-                        Text("$targetAllowance", color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.Black)
+                        Text(com.example.data.CurrencyFormatter.formatNumber(context, targetAllowance), color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.Black)
                     }
-                    Text(" ريال", color = Color.White.copy(alpha = 0.85f), modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
+                    Text(" " + com.example.data.CurrencyFormatter.symbol(context), color = Color.White.copy(alpha = 0.85f), modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
                 }
                 if (mySavingsGoal > 0) {
                     Spacer(modifier = Modifier.height(18.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("🎯 هدف التوفير: $mySavingsGoal ريال", color = Color.White.copy(alpha = 0.95f), style = Typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        Text("🎯 " + stringResource(R.string.savings_goal_colon, com.example.data.CurrencyFormatter.format(context, mySavingsGoal)), color = Color.White.copy(alpha = 0.95f), style = Typography.labelMedium, fontWeight = FontWeight.SemiBold)
                         Text("🚀", fontSize = 14.sp)
                     }
                     Spacer(modifier = Modifier.height(6.dp))
@@ -2052,7 +2068,7 @@ fun KidsModeContent(
                         Text(chore.title, fontWeight = FontWeight.Bold, color = onSurface, fontSize = 14.sp)
                         if (chore.rewardAmount > 0) {
                             Surface(shape = RoundedCornerShape(999.dp), color = Color(0xFFFEF3C7), modifier = Modifier.padding(top = 2.dp)) {
-                                Text("🪙 +${chore.rewardAmount.toInt()} ريال", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF92400E), modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                                Text("🪙 +" + com.example.data.CurrencyFormatter.format(context, chore.rewardAmount), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF92400E), modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
                             }
                         }
                     }
@@ -2077,7 +2093,7 @@ fun KidsModeContent(
             Text(stringResource(R.string.no_messages_yet), color = Color.Gray, style = Typography.bodyMedium)
         } else {
             recentMessages.forEach { msg ->
-                val senderAlias = familyState.members.find { it.userId == msg.senderId }?.alias?.ifBlank { "؟" } ?: "؟"
+                val senderAlias = familyState.members.find { it.userId == msg.senderId }?.alias?.ifBlank { unknownAliasFallback } ?: unknownAliasFallback
                 Surface(shape = RoundedCornerShape(14.dp), color = surfaceContainer, modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
                     Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         KidAvatar(seed = msg.senderId.ifBlank { senderAlias }, size = 28.dp)
@@ -2104,7 +2120,7 @@ fun KidsModeContent(
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(stringResource(R.string.tasbiha_garden), fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
-                    Text(if (myTasbiha != null) "شجرتك: ${myTasbiha.score} تسبيحة" else "ازرع شجرتك!", fontSize = 12.sp, color = Color(0xFF558B2F))
+                    Text(if (myTasbiha != null) stringResource(R.string.your_tree_score, myTasbiha.score) else stringResource(R.string.plant_your_tree), fontSize = 12.sp, color = Color(0xFF558B2F))
                 }
                 Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = Color(0xFF2E7D32))
             }
@@ -2171,6 +2187,15 @@ fun NotificationsBottomSheet(
     val totalSpent = transactions.filter { it.isExpense }.sumOf { it.amount }
     val percentage = if (budget > 0) (totalSpent / budget * 100).toInt().coerceIn(0, 100) else 0
 
+    val salaryDetectedTitle = stringResource(R.string.salary_detected_title)
+    val salaryDetectedBody = stringResource(R.string.salary_detected_body)
+    val budgetExceededTitle = stringResource(R.string.budget_exceeded_title)
+    val budgetExceededBodyTemplate = stringResource(R.string.budget_exceeded_body)
+    val budgetNearLimitTitleTemplate = stringResource(R.string.budget_near_limit_title)
+    val budgetNearLimitBodyTemplate = stringResource(R.string.budget_near_limit_body)
+    val subscriptionDetectedTitleTemplate = stringResource(R.string.subscription_detected_title)
+    val subscriptionDetectedBodyTemplate = stringResource(R.string.subscription_detected_body)
+
     val smartNotifications = remember(transactions, budget, totalSpent) {
         val smartList = mutableListOf<SmartNotification>()
 
@@ -2180,14 +2205,14 @@ fun NotificationsBottomSheet(
             !tx.isExpense && tx.category == "الراتب" && tx.createdAt?.startsWith(today) == true
         }
         if (todaySalary) {
-            smartList.add(SmartNotification("تم اكتشاف راتب جديد!", "تم تحديث الميزانية تلقائياً بالراتب الجديد", Icons.Default.AttachMoney, Color(0xFF4CAF50)))
+            smartList.add(SmartNotification(salaryDetectedTitle, salaryDetectedBody, Icons.Default.AttachMoney, Color(0xFF4CAF50)))
         }
 
         // Budget warnings
         if (percentage >= 100) {
-            smartList.add(SmartNotification("تم تجاوز الميزانية!", "لقد تجاوزت الميزانية الشهرية بنسبة $percentage%", Icons.Default.Warning, Color(0xFFE53935)))
+            smartList.add(SmartNotification(budgetExceededTitle, String.format(budgetExceededBodyTemplate, percentage), Icons.Default.Warning, Color(0xFFE53935)))
         } else if (percentage >= 85) {
-            smartList.add(SmartNotification("الميزانية قاربت على الانتهاء ($percentage%)", "لقد أنفقت $percentage% من ميزانيتك الشهرية", Icons.Default.TrendingUp, Color(0xFFFF9800)))
+            smartList.add(SmartNotification(String.format(budgetNearLimitTitleTemplate, percentage), String.format(budgetNearLimitBodyTemplate, percentage), Icons.Default.TrendingUp, Color(0xFFFF9800)))
         }
 
         // Check for subscriptions detected recently
@@ -2195,7 +2220,7 @@ fun NotificationsBottomSheet(
             tx.createdAt?.startsWith(today) == true && tx.category == "الاشتراكات"
         }
         recentSubscriptions.forEach { tx ->
-            smartList.add(SmartNotification("تم اكتشاف اشتراك: ${tx.title}", "اشتراك جديد بقيمة ${com.example.data.CurrencyFormatter.format(context, tx.amount)}", Icons.Default.Subscriptions, Color(0xFF2196F3)))
+            smartList.add(SmartNotification(String.format(subscriptionDetectedTitleTemplate, tx.title), String.format(subscriptionDetectedBodyTemplate, com.example.data.CurrencyFormatter.format(context, tx.amount)), Icons.Default.Subscriptions, Color(0xFF2196F3)))
         }
 
         smartList
@@ -2213,7 +2238,7 @@ fun NotificationsBottomSheet(
                 .padding(16.dp)
         ) {
             Text(
-                text = "الإشعارات",
+                text = stringResource(R.string.notifications_title),
                 style = Typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
@@ -2223,7 +2248,7 @@ fun NotificationsBottomSheet(
             // Smart Notifications
             if (smartNotifications.isNotEmpty()) {
                 Text(
-                    text = "إشعارات ذكية",
+                    text = stringResource(R.string.smart_notifications_title),
                     style = Typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = primary
@@ -2274,7 +2299,7 @@ fun NotificationsBottomSheet(
                 }
             } else if (notifications.isNotEmpty()) {
                 Text(
-                    text = "إشعارات التطبيق",
+                    text = stringResource(R.string.app_notifications_title),
                     style = Typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = onSurface
@@ -2489,9 +2514,9 @@ fun GreetingBanner(userName: String) {
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text = "أهلاً بك يا ", style = Typography.headlineMedium, fontWeight = FontWeight.Bold, color = onSurface)
+            Text(text = stringResource(R.string.welcome_back_name_prefix), style = Typography.headlineMedium, fontWeight = FontWeight.Bold, color = onSurface)
             Text(
-                text = userName.ifEmpty { "يا غالي" },
+                text = userName.ifEmpty { stringResource(R.string.guest_name_fallback) },
                 style = Typography.headlineMedium.copy(
                     brush = Brush.linearGradient(colors = listOf(primary, primaryFixed))
                 ),
@@ -2499,7 +2524,7 @@ fun GreetingBanner(userName: String) {
             )
         }
         Spacer(modifier = Modifier.height(4.dp))
-        Text(text = "إليك ملخص سريع لحالة منزلك اليوم.", style = Typography.bodyMedium, color = onSurfaceVariant)
+        Text(text = stringResource(R.string.home_summary_subtitle), style = Typography.bodyMedium, color = onSurfaceVariant)
     }
 }
 
@@ -2533,7 +2558,7 @@ fun DashboardGrid(
                 }
                 Column {
                     Text(text = "$inventoryCount", style = Typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = primary)
-                    Text(text = "عنصر بالمخزون", style = Typography.labelMedium, color = outline)
+                    Text(text = stringResource(R.string.inventory_items_label), style = Typography.labelMedium, color = outline)
                 }
             }
         }
@@ -2577,11 +2602,11 @@ fun DashboardGrid(
                 }
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
-                    Text(text = "العائلة", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                    Text(text = stringResource(R.string.nav_family), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
                     if (unreadFamilyMessages > 0) {
-                        Text(text = "لديك $unreadFamilyMessages رسائل جديدة", style = Typography.bodySmall, color = secondary)
+                        Text(text = stringResource(R.string.unread_family_messages_count, unreadFamilyMessages), style = Typography.bodySmall, color = secondary)
                     } else {
-                        Text(text = "لا توجد رسائل جديدة", style = Typography.bodySmall, color = outline)
+                        Text(text = stringResource(R.string.no_new_messages), style = Typography.bodySmall, color = outline)
                     }
                 }
             }

@@ -42,6 +42,8 @@ import com.example.ui.theme.background
 import com.example.ui.screens.auth.OnboardingScreen
 import com.example.ui.screens.auth.LoginScreen
 import com.example.ui.screens.auth.SignUpScreen
+import com.example.ui.screens.auth.MarketSelectionScreen
+import com.example.data.MarketPrefs
 import com.example.ui.viewmodels.AuthViewModel
 import com.example.ui.viewmodels.ZadViewModel
 import com.example.MainScreen
@@ -79,6 +81,8 @@ class MainActivity : ComponentActivity() {
         }
         
         handleIntent(intent)
+
+        MarketPrefs.applyStoredLocale(this)
 
         // Schedule periodic AI analysis (Feature 6)
         val workRequest = PeriodicWorkRequestBuilder<PeriodicAnalysisWorker>(6, TimeUnit.HOURS).build()
@@ -144,24 +148,30 @@ class MainActivity : ComponentActivity() {
 fun AppNavigation(pendingInviteCode: String? = null) {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = viewModel()
-    
+    val context = androidx.compose.ui.platform.LocalContext.current
+
     // Default to LTR for Auth flow (since user requested English auth screens).
     // The main app is RTL, we handle that in MainScreen.
-    
+
+    val navigateAfterSplash: () -> Unit = navigate@{
+        if (!MarketPrefs.hasSelectedMarket(context)) {
+            navController.navigate("market_selection") {
+                popUpTo(0) { inclusive = true }
+            }
+            return@navigate
+        }
+        val session = SupabaseRepo.client.auth.currentSessionOrNull()
+        navController.navigate(if (session != null) "main" else "onboarding") {
+            popUpTo(0) { inclusive = true }
+        }
+    }
+
     NavHost(navController = navController, startDestination = "splash") {
         composable("splash") {
-            SplashScreen(onTimeout = {
-                val session = SupabaseRepo.client.auth.currentSessionOrNull()
-                if (session != null) {
-                    navController.navigate("main") {
-                        popUpTo(0) { inclusive = true }
-                    }
-                } else {
-                    navController.navigate("onboarding") {
-                        popUpTo(0) { inclusive = true }
-                    }
-                }
-            })
+            SplashScreen(onTimeout = navigateAfterSplash)
+        }
+        composable("market_selection") {
+            MarketSelectionScreen(onContinue = navigateAfterSplash)
         }
         composable("onboarding") {
             OnboardingScreen(

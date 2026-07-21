@@ -61,14 +61,10 @@ fun FamilyScreen(
 
             when (val currState = state) {
                 is FamilyState.Loading -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = primary)
-                    }
+                    com.example.ui.components.ZadLoadingState()
                 }
                 is FamilyState.Error -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(currState.message, color = MaterialTheme.colorScheme.error)
-                    }
+                    com.example.ui.components.ZadErrorState(message = currState.message)
                 }
                 is FamilyState.NoFamily -> {
                     NoFamilyScreen(
@@ -314,9 +310,10 @@ private fun GroceriesTab(
 
         if (groceries.isEmpty()) {
             item {
-                Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                    Text(stringResource(R.string.no_grocery_requests), color = Color.Gray)
-                }
+                com.example.ui.components.ZadEmptyState(
+                    title = stringResource(R.string.no_grocery_requests),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
+                )
             }
         }
 
@@ -374,9 +371,10 @@ private fun KidsSpendingTab(
         Spacer(Modifier.height(16.dp))
 
         if (children.isEmpty()) {
-            Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.no_children_registered), color = Color.Gray)
-            }
+            com.example.ui.components.ZadEmptyState(
+                title = stringResource(R.string.no_children_registered),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
+            )
             return
         }
 
@@ -643,7 +641,7 @@ private fun MemberDetailSheet(
             }
             Spacer(Modifier.height(8.dp))
             if (completedChores.isEmpty()) {
-                Text(stringResource(R.string.no_completed_tasks), color = Color.Gray, fontSize = 14.sp)
+                com.example.ui.components.ZadEmptyState(title = stringResource(R.string.no_completed_tasks))
             } else {
                 completedChores.forEach { chore ->
                     Surface(
@@ -677,7 +675,7 @@ private fun MemberDetailSheet(
             }
             Spacer(Modifier.height(8.dp))
             if (pendingChores.isEmpty()) {
-                Text(stringResource(R.string.no_upcoming_tasks), color = Color.Gray, fontSize = 14.sp)
+                com.example.ui.components.ZadEmptyState(title = stringResource(R.string.no_upcoming_tasks))
             } else {
                 pendingChores.forEach { chore ->
                     Surface(
@@ -1159,7 +1157,7 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
         }
 
         if (kids.isEmpty()) {
-            item { Text(stringResource(R.string.no_children_for_stats), color = Color.Gray) }
+            item { com.example.ui.components.ZadEmptyState(title = stringResource(R.string.no_children_for_stats)) }
             return@LazyColumn
         }
 

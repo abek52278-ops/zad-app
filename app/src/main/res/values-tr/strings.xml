@@ -136,6 +136,19 @@
     <string name="add_transaction_fab">İşlem</string>
     <string name="category_label">Kategori</string>
     <string name="monthly_budget_with_currency">Aylık bütçe (%1$s)</string>
+    <string name="transactions_title">İşlemler</string>
+    <string name="remaining_balance_label">Kalan bakiye</string>
+    <string name="budget_insight_over">Bütçeni aştın! Harcamalarını azaltmayı dene</string>
+    <string name="budget_insight_high">Bütçenin %%%1$d\'sine ulaştın. Dikkatli ol</string>
+    <string name="budget_insight_medium">Bütçenin %%%1$d\'sini harcadın. İyi gidiyorsun</string>
+    <string name="budget_insight_good">Harika! Doğru yoldasın. Sadece %%%1$d\'sini harcadın</string>
+    <string name="no_category_budgets_hint">Henüz hiçbir kategori için bütçe belirlemedin. Zad\'ın her kategoriyi ayrı ayrı takip etmesi için \"Kategori belirle\"ye dokun.</string>
+    <string name="this_month_label">Bu ay</string>
+    <string name="no_transactions_bank_hint">İşlemlerini otomatik takip etmek için işlem ekle veya bankanı bağla</string>
+    <string name="spent_no_limit">%1$s — sınırsız</string>
+    <string name="edit_cd">Düzenle</string>
+    <string name="edit_category_budget_title">%1$s bütçesini düzenle</string>
+    <string name="set_category_budget_title">Kategori bütçesi belirle</string>
 
     <!-- ZadIntelligenceScreen -->
     <string name="analytics_tab">Analizler</string>
@@ -192,6 +205,83 @@
     <string name="expiry_date_optional">Son kullanma tarihi (opsiyonel)</string>
     <string name="expired_short">Bitti</string>
     <string name="days_count">%1$d gün</string>
+    <string name="search_cd">Ara</string>
+    <string name="clear_cd">Temizle</string>
+    <string name="suggest_recipe_for_expiring_prompt">Süresi yakında dolacak şu malzemeleri kullanan hızlı bir tarif öner:</string>
+    <string name="consume_one_cd">Bir adet tüket</string>
+    <string name="restock_one_cd">Bir adet ekle</string>
+    <string name="delete_cd">Sil</string>
+
+    <!-- HomeScreen: additional strings (i18n sweep) -->
+    <string name="active_subscriptions_title">Aktif abonelikler ve faturalar</string>
+    <string name="add_amount">Tutar ekle</string>
+    <string name="add_expense_title">Gider ekle</string>
+    <string name="add_income_title">Gelir/maaş ekle</string>
+    <string name="all_good">Her şey yolunda</string>
+    <string name="app_notifications_title">Uygulama bildirimleri</string>
+    <string name="budget_exceeded_body">Aylık bütçeni %%%1$d oranında aştın</string>
+    <string name="budget_exceeded_title">Bütçe aşıldı!</string>
+    <string name="budget_near_limit_body">Aylık bütçenin %%%1$d\'sini harcadın</string>
+    <string name="budget_near_limit_title">Bütçe sınırına yaklaşıyor (%%%1$d)</string>
+    <string name="count_colon">Adet: %1$d</string>
+    <string name="critical_shortage_count">%1$d kritik eksik</string>
+    <string name="deduct_amount">Tutarı düş</string>
+    <string name="expiring_soon_stat_label">Yakında bitiyor</string>
+    <string name="from_ai">Yapay zekadan</string>
+    <string name="guest_name_fallback">değerli kullanıcı</string>
+    <string name="hero_name_fallback">kahraman</string>
+    <string name="home_summary_subtitle">İşte evinin bugünkü durumunun hızlı bir özeti.</string>
+    <string name="household_shortages_title">Evdeki eksikler ve alışveriş listesi</string>
+    <string name="inventory_items_label">envanterdeki ürün</string>
+    <string name="items_count">%1$d ürün</string>
+    <string name="items_expiring_soon_hint">%1$s yakında bitiyor 👀</string>
+    <string name="kids_new_purchase_request_message">Yeni bir harcama/talep istiyorum</string>
+    <string name="meal_breakfast_shakshuka">Kahvaltılık shakshuka</string>
+    <string name="meal_breakfast_shakshuka_desc">Mevcut yumurta ve domatesle hızlı bir kahvaltı.</string>
+    <string name="meal_chicken_pasta">Tavuklu makarna</string>
+    <string name="meal_chicken_pasta_desc">Envanterindeki tavukla zengin bir yemek.</string>
+    <string name="meal_quinoa_salad">Kinoa salatası</string>
+    <string name="meal_quinoa_salad_desc">Hafif ve besleyici, limon satın almalısın.</string>
+    <string name="meal_status_available">Malzemeler mevcut</string>
+    <string name="meal_status_missing_lemon">Eksik: limon</string>
+    <string name="no_description_fallback">Açıklama yok</string>
+    <string name="no_items_to_show">Şu an gösterilecek öğe yok.</string>
+    <string name="no_new_messages">Yeni mesaj yok</string>
+    <string name="no_urgent_alerts_hint">Şu an acil bir uyarı yok. Bütçeni kontrol etmeye devam et.</string>
+    <string name="notifications_title">Bildirimler</string>
+    <string name="plant_your_tree">Ağacını dik!</string>
+    <string name="proactive_summary_loading">Sana özel öneriler sunmak için verilerin şu anda toplanıp analiz ediliyor...</string>
+    <string name="proactive_summary_title">Zad\'ın proaktif özeti</string>
+    <string name="product_count">%1$d ürün</string>
+    <string name="purchases_title">Alışverişler</string>
+    <string name="quantity_colon_count">Miktar: %1$d</string>
+    <string name="recommendations_count">%1$d öneri</string>
+    <string name="refresh_cd">Yenile</string>
+    <string name="salary_detected_body">Bütçe yeni maaşla otomatik olarak güncellendi</string>
+    <string name="salary_detected_title">Yeni maaş tespit edildi!</string>
+    <string name="savings_goal_colon">Tasarruf hedefi: %1$s</string>
+    <string name="smart_notifications_title">Akıllı bildirimler</string>
+    <string name="subscription_detected_body">%1$s tutarında yeni abonelik</string>
+    <string name="subscription_detected_title">Abonelik tespit edildi: %1$s</string>
+    <string name="todays_recommendations_title">Bugünün önerileri</string>
+    <string name="top_low_stock_title">Azalan başlıca ürünler</string>
+    <string name="total_colon">Toplam: %1$s</string>
+    <string name="unknown_alias_fallback">?</string>
+    <string name="unread_family_messages_count">%1$d yeni mesajın var</string>
+    <string name="welcome_back_comma">Hoş geldin,</string>
+    <string name="welcome_back_name_prefix">Hoş geldin </string>
+    <string name="your_tree_score">Ağacın: %1$d zikir</string>
+    <string name="zad_chef_suggestion_status">Zad Şef önerisi</string>
+    <string name="zad_smart_insight_title">Zad\'ın akıllı görüşü ✨</string>
+    <string-array name="week_day_labels">
+        <item>Pazar</item>
+        <item>Pazartesi</item>
+        <item>Salı</item>
+        <item>Çarşamba</item>
+        <item>Perşembe</item>
+        <item>Cuma</item>
+        <item>Cumartesi</item>
+    </string-array>
 
     <!-- FamilyScreen / ProfileScreen -->
     <string name="add_action">Ekle</string>

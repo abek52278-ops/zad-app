@@ -162,11 +162,12 @@ fun InventoryScreen(
             }
 
             if (expiringItems.isNotEmpty()) {
+                val suggestRecipePrompt = stringResource(R.string.suggest_recipe_for_expiring_prompt)
                 ExpiringSoonSection(
                     items = expiringItems,
                     onNavigateToAssistant = {
                         val names = expiringItems.joinToString("، ") { it.itemName }
-                        viewModel.sendAiChatMessage("اقترح لي وصفة سريعة تستخدم هذه المكونات التي تنتهي قريباً: $names")
+                        viewModel.sendAiChatMessage("$suggestRecipePrompt $names")
                         onNavigateToAssistant()
                     }
                 )
@@ -272,7 +273,7 @@ private fun InventoryTopBar(
             },
             actions = {
                 IconButton(onClick = { expanded = !expanded }) {
-                    Icon(Icons.Default.Search, contentDescription = "بحث")
+                    Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search_cd))
                 }
             },
             colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -301,7 +302,7 @@ private fun InventoryTopBar(
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = { onSearchChange("") }) {
-                            Icon(Icons.Default.Close, contentDescription = "مسح", tint = onSurfaceVariant)
+                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear_cd), tint = onSurfaceVariant)
                         }
                     }
                 },
@@ -533,48 +534,13 @@ private fun CategoryPills(
 
 @Composable
 private fun EmptyInventoryState(onNavigateToCamera: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(bottom = 100.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(horizontal = 40.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(96.dp)
-                    .clip(CircleShape)
-                    .background(primary.copy(alpha = 0.08f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Default.Inventory2,
-                    contentDescription = null,
-                    modifier = Modifier.size(44.dp),
-                    tint = primary.copy(alpha = 0.5f)
-                )
-            }
-            Spacer(modifier = Modifier.height(20.dp))
-            Text(
-                stringResource(R.string.inventory_empty),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = onBackground
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                stringResource(R.string.inventory_empty_hint),
-                style = MaterialTheme.typography.bodyMedium,
-                color = onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(20.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+    com.example.ui.components.ZadEmptyState(
+        icon = Icons.Default.Inventory2,
+        title = stringResource(R.string.inventory_empty),
+        subtitle = stringResource(R.string.inventory_empty_hint),
+        modifier = Modifier.fillMaxSize().padding(bottom = 100.dp),
+        action = {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(
                     onClick = onNavigateToCamera,
                     shape = RoundedCornerShape(12.dp),
@@ -586,37 +552,19 @@ private fun EmptyInventoryState(onNavigateToCamera: () -> Unit) {
                 }
             }
         }
-    }
+    )
 }
 
 @Composable
 private fun EmptySearchState() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(bottom = 100.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                Icons.Default.SearchOff,
-                contentDescription = null,
-                modifier = Modifier.size(56.dp),
-                tint = outline
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                stringResource(R.string.no_results),
-                style = MaterialTheme.typography.titleSmall,
-                color = onSurfaceVariant
-            )
-            Text(
-                stringResource(R.string.try_different_search),
-                style = MaterialTheme.typography.bodySmall,
-                color = outline
-            )
-        }
-    }
+    com.example.ui.components.ZadEmptyState(
+        icon = Icons.Default.SearchOff,
+        title = stringResource(R.string.no_results),
+        subtitle = stringResource(R.string.try_different_search),
+        modifier = Modifier.fillMaxSize().padding(bottom = 100.dp),
+        iconTint = outline,
+        iconBackground = outlineVariant
+    )
 }
 
 @Composable
@@ -691,7 +639,7 @@ private fun InventoryItemCard(
                 ) {
                     Icon(
                         Icons.Default.RemoveCircleOutline,
-                        contentDescription = "استهلاك واحدة",
+                        contentDescription = stringResource(R.string.consume_one_cd),
                         tint = if (item.quantity > 0) dangerColor else outline,
                         modifier = Modifier.size(18.dp)
                     )
@@ -709,7 +657,7 @@ private fun InventoryItemCard(
                 ) {
                     Icon(
                         Icons.Default.AddCircleOutline,
-                        contentDescription = "زيادة واحدة",
+                        contentDescription = stringResource(R.string.restock_one_cd),
                         tint = primary,
                         modifier = Modifier.size(18.dp)
                     )
@@ -756,7 +704,7 @@ private fun InventoryItemCard(
                 ) {
                     Icon(
                         Icons.Default.DeleteOutline,
-                        contentDescription = "حذف",
+                        contentDescription = stringResource(R.string.delete_cd),
                         tint = outline,
                         modifier = Modifier.size(16.dp)
                     )
