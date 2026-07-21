@@ -160,7 +160,7 @@ fun BudgetScreen(
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            "${String.format("%,.0f", animatedBalance)} ر.س",
+                            com.example.data.CurrencyFormatter.format(context, animatedBalance),
                             style = Typography.displayLarge.copy(fontSize = 40.sp),
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
@@ -362,7 +362,7 @@ fun BudgetScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (monthIncome > 0) {
                             Text(
-                                "+${String.format("%,.0f", monthIncome)} ر.س",
+                                "+${com.example.data.CurrencyFormatter.format(context, monthIncome)}",
                                 style = Typography.bodyMedium,
                                 color = successColor,
                                 fontWeight = FontWeight.Bold
@@ -370,7 +370,7 @@ fun BudgetScreen(
                         }
                         if (monthSpent > 0) {
                             Text(
-                                "−${String.format("%,.0f", monthSpent)} ر.س",
+                                "−${com.example.data.CurrencyFormatter.format(context, monthSpent)}",
                                 style = Typography.bodyMedium,
                                 color = dangerColor,
                                 fontWeight = FontWeight.Bold
@@ -532,6 +532,7 @@ fun BudgetScreen(
 
 @Composable
 private fun CategoryBudgetCard(category: String, budget: Double, spent: Double, onClick: () -> Unit) {
+    val context = LocalContext.current
     val pct = if (budget > 0) (spent / budget * 100).toInt() else 0
     val overBudget = budget > 0 && spent > budget
     val barColor = when {
@@ -559,8 +560,8 @@ private fun CategoryBudgetCard(category: String, budget: Double, spent: Double, 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(category, style = Typography.labelLarge, fontWeight = FontWeight.SemiBold, color = onSurface)
                 Text(
-                    if (budget > 0) "${String.format("%,.0f", spent)} / ${String.format("%,.0f", budget)} ر.س"
-                    else "${String.format("%,.0f", spent)} ر.س — بدون حد",
+                    if (budget > 0) "${com.example.data.CurrencyFormatter.formatNumber(context, spent)} / ${com.example.data.CurrencyFormatter.format(context, budget)}"
+                    else "${com.example.data.CurrencyFormatter.format(context, spent)} — بدون حد",
                     style = Typography.labelSmall,
                     color = if (overBudget) dangerColor else onSurfaceVariant,
                     fontWeight = if (overBudget) FontWeight.Bold else FontWeight.Normal
@@ -595,6 +596,7 @@ private fun CategoryBudgetEditDialog(
     var selectedCategory by remember { mutableStateOf(category ?: com.example.data.BudgetTracker.STANDARD_CATEGORIES.first()) }
     var amountText by remember { mutableStateOf(if (currentBudget > 0) currentBudget.toInt().toString() else "") }
     var expanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -622,7 +624,7 @@ private fun CategoryBudgetEditDialog(
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { if (it.all { c -> c.isDigit() }) amountText = it },
-                    label = { Text("الميزانية الشهرية (ر.س)") },
+                    label = { Text("الميزانية الشهرية (${com.example.data.CurrencyFormatter.symbol(context)})") },
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -667,6 +669,7 @@ private fun TxSummaryItem(label: String, amount: Double, icon: ImageVector, colo
 
 @Composable
 private fun TxDateHeader(dateStr: String, txList: List<ZadTransaction>) {
+    val context = LocalContext.current
     val dayTotal = txList.sumOf { if (it.isExpense) -it.amount else it.amount }
     val label = try {
         val date = java.time.LocalDate.parse(dateStr)
@@ -692,7 +695,7 @@ private fun TxDateHeader(dateStr: String, txList: List<ZadTransaction>) {
             fontWeight = FontWeight.SemiBold
         )
         Text(
-            "${if (dayTotal >= 0) "+" else ""}${String.format("%,.0f", dayTotal)} ر.س",
+            "${if (dayTotal >= 0) "+" else ""}${com.example.data.CurrencyFormatter.format(context, dayTotal)}",
             style = Typography.labelMedium,
             color = if (dayTotal >= 0) successColor else dangerColor,
             fontWeight = FontWeight.SemiBold
@@ -702,6 +705,7 @@ private fun TxDateHeader(dateStr: String, txList: List<ZadTransaction>) {
 
 @Composable
 private fun TxRowItem(tx: ZadTransaction, onDelete: () -> Unit) {
+    val context = LocalContext.current
     val isExpense = tx.isExpense
     val categoryIcon = when (tx.category?.lowercase()) {
         "طعام", "مطاعم", "المطاعم" -> Icons.Default.Restaurant
@@ -803,13 +807,13 @@ private fun TxRowItem(tx: ZadTransaction, onDelete: () -> Unit) {
 
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                "${if (isExpense) "−" else "+"} ${String.format("%,.2f", tx.amount)}",
+                "${if (isExpense) "−" else "+"} ${com.example.data.CurrencyFormatter.formatNumber(context, tx.amount)}",
                 style = Typography.titleMedium.copy(fontSize = 15.sp),
                 fontWeight = FontWeight.Bold,
                 color = if (isExpense) dangerColor else successColor
             )
             Text(
-                "ر.س",
+                com.example.data.CurrencyFormatter.symbol(context),
                 style = Typography.labelSmall.copy(fontSize = 10.sp),
                 color = onSurfaceVariant
             )

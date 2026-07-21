@@ -110,7 +110,7 @@ object BudgetTracker {
         if (catBudget > 0) {
             val catPct = (catSpent / catBudget * 100).toInt()
             if (catSpent > catBudget) {
-                sendAlert(context, "⛔ تجاوزت ميزانية $cat", "صرفت ${fmt(catSpent)} ر.س من أصل ${fmt(catBudget)} ر.س المخصصة لـ$cat")
+                sendAlert(context, "⛔ تجاوزت ميزانية $cat", "صرفت ${CurrencyFormatter.format(context, catSpent)} من أصل ${CurrencyFormatter.format(context, catBudget)} المخصصة لـ$cat")
             } else if (catPct >= 85) {
                 sendAlert(context, "⚠️ ميزانية $cat توشك على النفاد", "استخدمت $catPct% من كرت $cat")
             }
@@ -120,8 +120,8 @@ object BudgetTracker {
         val spentPct = if (budget > 0) ((budget - newRemaining) / budget * 100).toInt() else 0
         when {
             newRemaining <= 0 -> sendAlert(context, "⛔ الميزانية منتهية!", "تم استنفاذ الميزانية بالكامل. راجع مصاريفك.")
-            spentPct >= 90 -> sendAlert(context, "⚠️ الميزانية أوشكت على الانتهاء", "استخدمت $spentPct% من ميزانيتك. المتبقي: ${fmt(newRemaining)} ر.س")
-            spentPct >= 75 -> sendAlert(context, "💡 تذكير بالميزانية", "صرفت $spentPct% من ميزانيتك. المتبقي: ${fmt(newRemaining)} ر.س")
+            spentPct >= 90 -> sendAlert(context, "⚠️ الميزانية أوشكت على الانتهاء", "استخدمت $spentPct% من ميزانيتك. المتبقي: ${CurrencyFormatter.format(context, newRemaining)}")
+            spentPct >= 75 -> sendAlert(context, "💡 تذكير بالميزانية", "صرفت $spentPct% من ميزانيتك. المتبقي: ${CurrencyFormatter.format(context, newRemaining)}")
         }
     }
 
@@ -135,7 +135,7 @@ object BudgetTracker {
         val catSpent = (prefs.getFloat(CAT_SPENT_PREFIX + cat, 0f).toDouble() - amount).coerceAtLeast(0.0)
         prefs.edit().putFloat(CAT_SPENT_PREFIX + cat, catSpent.toFloat()).apply()
 
-        sendAlert(context, "↩️ تم استرداد مبلغ", "$title: +${fmt(amount)} ر.س رجعت لرصيدك")
+        sendAlert(context, "↩️ تم استرداد مبلغ", "$title: +${CurrencyFormatter.format(context, amount)} رجعت لرصيدك")
         Log.d(TAG, "applyRefund: $amount [$cat]")
     }
 
@@ -145,10 +145,8 @@ object BudgetTracker {
         val newRemaining = current + amount
         prefs.edit().putFloat(KEY_REMAINING, newRemaining.toFloat()).apply()
         Log.d(TAG, "addIncome: $amount | $current → $newRemaining")
-        sendAlert(context, "💰 تمت إضافة إيداع", "$title: +${fmt(amount)} ر.س — الرصيد المتبقي: ${fmt(newRemaining)} ر.س")
+        sendAlert(context, "💰 تمت إضافة إيداع", "$title: +${CurrencyFormatter.format(context, amount)} — الرصيد المتبقي: ${CurrencyFormatter.format(context, newRemaining)}")
     }
-
-    private fun fmt(v: Double) = String.format(java.util.Locale.US, "%,.0f", v)
 
     private fun sendAlert(context: Context, title: String, message: String) {
         try {
