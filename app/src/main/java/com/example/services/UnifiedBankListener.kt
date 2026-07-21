@@ -125,12 +125,12 @@ class UnifiedBankListener : NotificationListenerService() {
                             SupabaseRepo.sendAppNotification(
                                 userId,
                                 "تم إيداع الراتب!",
-                                "تم إيداع راتبك بمبلغ ${parsed.amount} ر.س وزيادة الرصيد المتبقي 🥳"
+                                "تم إيداع راتبك بمبلغ ${com.example.data.CurrencyFormatter.format(applicationContext, parsed.amount)} وزيادة الرصيد المتبقي 🥳"
                             )
                         }
                         showSystemNotification(
                             "تم إيداع الراتب!",
-                            "تم إضافة ${parsed.amount} ر.س لرصيدك المتبقي في زاد 🥳"
+                            "تم إضافة ${com.example.data.CurrencyFormatter.format(applicationContext, parsed.amount)} لرصيدك المتبقي في زاد 🥳"
                         )
                     } catch (e: Exception) {
                         Log.e("UnifiedBankListener", "Salary notification failed: ${e.message}")
@@ -145,12 +145,12 @@ class UnifiedBankListener : NotificationListenerService() {
                             SupabaseRepo.sendAppNotification(
                                 userId,
                                 "تم خصم اشتراك",
-                                "تم خصم اشتراك: ${parsed.title} بمبلغ ${parsed.amount} ر.س"
+                                "تم خصم اشتراك: ${parsed.title} بمبلغ ${com.example.data.CurrencyFormatter.format(applicationContext, parsed.amount)}"
                             )
                         }
                         showSystemNotification(
                             "تنبيه اشتراك",
-                            "تم خصم ${parsed.amount} ر.س لاشتراك ${parsed.title}"
+                            "تم خصم ${com.example.data.CurrencyFormatter.format(applicationContext, parsed.amount)} لاشتراك ${parsed.title}"
                         )
                     } catch (e: Exception) {
                         Log.e("UnifiedBankListener", "Subscription notification failed: ${e.message}")

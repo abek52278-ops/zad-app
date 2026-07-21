@@ -108,15 +108,15 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
                             SupabaseRepo.sendAppNotification(
                                 userId,
                                 "تم إيداع الراتب (عبر SMS)!",
-                                "تم إيداع راتبك بمبلغ ${parsed.amount} ر.س وزيادة الرصيد المتبقي 🥳"
+                                "تم إيداع راتبك بمبلغ ${com.example.data.CurrencyFormatter.format(context, parsed.amount)} وزيادة الرصيد المتبقي 🥳"
                             )
                         }
-                        showSystemNotification(context, "تم إيداع الراتب!", "تم إضافة ${parsed.amount} ر.س لرصيدك المتبقي في زاد 🥳")
+                        showSystemNotification(context, "تم إيداع الراتب!", "تم إضافة ${com.example.data.CurrencyFormatter.format(context, parsed.amount)} لرصيدك المتبقي في زاد 🥳")
                     } catch (e: Exception) {
                         Log.e("UnifiedSmsReceiver", "Salary notification failed: ${e.message}")
                     }
                 } else if (parsed.category == "الاشتراكات") {
-                    showSystemNotification(context, "تنبيه اشتراك", "تم خصم ${parsed.amount} ر.س لاشتراك ${parsed.title}")
+                    showSystemNotification(context, "تنبيه اشتراك", "تم خصم ${com.example.data.CurrencyFormatter.format(context, parsed.amount)} لاشتراك ${parsed.title}")
                 }
                 
                 Log.d("UnifiedSmsReceiver", "Parsed SMS: ${parsed.bankName} - ${parsed.title} (${parsed.amount} SAR)")
