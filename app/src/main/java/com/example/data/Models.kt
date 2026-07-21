@@ -113,6 +113,22 @@ data class ZadTransaction(
     @SerialName("is_verified") val isVerified: Boolean = false
 )
 
+@Serializable
+data class BehaviorCategoryTotal(
+    val category: String = "",
+    val total: Double = 0.0
+)
+
+@Serializable
+data class UserBehaviorProfile(
+    @SerialName("user_id") val userId: String? = null,
+    @SerialName("avg_weekly_spending") val avgWeeklySpending: Double = 0.0,
+    @SerialName("top_spending_categories") val topSpendingCategories: List<BehaviorCategoryTotal> = emptyList(),
+    @SerialName("spending_pattern_by_weekday") val spendingPatternByWeekday: Map<String, Double> = emptyMap(),
+    @SerialName("subscription_load_monthly") val subscriptionLoadMonthly: Double = 0.0,
+    @SerialName("last_updated_at") val lastUpdatedAt: String? = null
+)
+
 @Entity(tableName = "zad_subscriptions")
 @Serializable
 data class ZadSubscription(

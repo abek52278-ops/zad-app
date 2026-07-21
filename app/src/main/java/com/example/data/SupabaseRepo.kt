@@ -213,6 +213,36 @@ object SupabaseRepo {
         }
     }
 
+    suspend fun getBehaviorProfile(): UserBehaviorProfile? {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id
+            if (userId == null) {
+                Log.w(TAG, "getBehaviorProfile() skipped — user not authenticated")
+                return null
+            }
+            val result = client.postgrest["user_behavior_profile"].select {
+                filter { eq("user_id", userId) }
+            }.decodeSingleOrNull<UserBehaviorProfile>()
+            Log.d(TAG, "getBehaviorProfile() → found=${result != null}")
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "getBehaviorProfile() FAILED: ${e.message}")
+            null
+        }
+    }
+
+    suspend fun refreshBehaviorProfile(): Boolean {
+        return try {
+            Log.d(TAG, "refreshBehaviorProfile() → invoking update-behavior-profile")
+            client.functions.invoke("update-behavior-profile")
+            Log.d(TAG, "refreshBehaviorProfile() SUCCESS")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "refreshBehaviorProfile() FAILED: ${e.message}")
+            false
+        }
+    }
+
     suspend fun deleteTransaction(id: String) {
         try {
             Log.d(TAG, "deleteTransaction() → table=zad_transactions, id=$id")

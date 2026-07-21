@@ -406,4 +406,13 @@
     <string name="tree_name_hint">Ağaç adı</string>
     <string name="add_tree_to_garden_desc">Bahçene yeni bir ağaç ekle!</string>
     <string name="tree_name_placeholder_example">Örnek: Elma ağacı</string>
+
+    <!-- ZadIntelligenceScreen: server behavior profile -->
+    <string name="behavior_insights_title">Zad harcama alışkanlığını öğreniyor</string>
+    <string name="refresh_action">Yenile</string>
+    <string name="no_behavior_data_yet">Henüz yeterli veri yok — Zad'ı daha fazla kullan, harcama düzenini öğrensin</string>
+    <string name="avg_weekly_spending_label">Ortalama haftalık harcama</string>
+    <string name="subscription_load_label">Aylık abonelik yükü</string>
+    <string name="top_categories_label">En çok harcanan kategoriler</string>
+    <string name="last_updated_label">Son güncelleme: %1$s</string>
 </resources>

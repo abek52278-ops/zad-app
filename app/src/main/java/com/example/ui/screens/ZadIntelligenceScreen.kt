@@ -59,6 +59,8 @@ fun ZadIntelligenceScreen(
     val isTyping by viewModel.isAiTyping.collectAsState()
     val prediction by viewModel.expensePrediction.collectAsState()
     val patterns by viewModel.behaviorPatterns.collectAsState()
+    val serverBehaviorProfile by viewModel.behaviorProfile.collectAsState()
+    val isRefreshingBehaviorProfile by viewModel.isRefreshingBehaviorProfile.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
     var inputText by remember { mutableStateOf("") }
@@ -74,6 +76,8 @@ fun ZadIntelligenceScreen(
         viewModel.predictNextMonthExpenses()
         viewModel.detectSubscriptions()
         viewModel.generateBrainReport()
+        viewModel.loadBehaviorProfile()
+        viewModel.refreshBehaviorProfile()
     }
 
     val brainReport by viewModel.brainReport.collectAsState()
@@ -135,7 +139,10 @@ fun ZadIntelligenceScreen(
                     insights = insights,
                     prediction = prediction,
                     patterns = patterns,
-                    report = brainReport
+                    report = brainReport,
+                    serverBehaviorProfile = serverBehaviorProfile,
+                    isRefreshingBehaviorProfile = isRefreshingBehaviorProfile,
+                    onRefreshBehaviorProfile = { viewModel.refreshBehaviorProfile() }
                 )
                 1 -> SubscriptionsTab(
                     subscriptions = subscriptions,
@@ -171,7 +178,10 @@ fun AnalyticsTab(
     insights: List<AiInsight>,
     prediction: com.example.data.AiExpensePrediction?,
     patterns: List<com.example.data.ZadBehaviorPattern>,
-    report: com.example.data.ZadCentralBrain.BrainReport? = null
+    report: com.example.data.ZadCentralBrain.BrainReport? = null,
+    serverBehaviorProfile: com.example.data.UserBehaviorProfile? = null,
+    isRefreshingBehaviorProfile: Boolean = false,
+    onRefreshBehaviorProfile: () -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val expenses = transactions.filter { it.isExpense }
@@ -211,6 +221,15 @@ fun AnalyticsTab(
                 item { DepletionForecastCard(report.depletionForecasts) }
             }
             item { ExportReportButton(report) }
+        }
+
+        // بروفايل السلوك المحسوب على الخادم (user_behavior_profile)
+        item {
+            ServerBehaviorProfileCard(
+                profile = serverBehaviorProfile,
+                isRefreshing = isRefreshingBehaviorProfile,
+                onRefresh = onRefreshBehaviorProfile
+            )
         }
 
         // إحصائيات سريعة
@@ -349,6 +368,87 @@ fun IntelligenceInsightCard(insight: AiInsight) {
             Text(insight.title, style = Typography.labelLarge, fontWeight = FontWeight.Bold, color = onSurface)
             Spacer(modifier = Modifier.height(4.dp))
             Text(insight.description, style = Typography.bodySmall, color = onSurfaceVariant)
+        }
+    }
+}
+
+// ── Server Behavior Profile Card (user_behavior_profile) ──────────────────────
+@Composable
+fun ServerBehaviorProfileCard(
+    profile: com.example.data.UserBehaviorProfile?,
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val rotation by animateFloatAsState(
+        targetValue = if (isRefreshing) 360f else 0f,
+        animationSpec = if (isRefreshing) infiniteRepeatable(tween(900, easing = LinearEasing)) else tween(0),
+        label = "refreshSpin"
+    )
+
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = surface,
+        shadowElevation = 2.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Insights, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.behavior_insights_title), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface)
+                Spacer(modifier = Modifier.weight(1f))
+                IconButton(onClick = onRefresh, enabled = !isRefreshing, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = stringResource(R.string.refresh_action),
+                        tint = primary,
+                        modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = rotation }
+                    )
+                }
+            }
+
+            if (profile == null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(stringResource(R.string.no_behavior_data_yet), style = Typography.bodySmall, color = onSurfaceVariant)
+            } else {
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column {
+                        Text(stringResource(R.string.avg_weekly_spending_label), style = Typography.labelSmall, color = onSurfaceVariant)
+                        Text(com.example.data.CurrencyFormatter.format(context, profile.avgWeeklySpending), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(stringResource(R.string.subscription_load_label), style = Typography.labelSmall, color = onSurfaceVariant)
+                        Text(com.example.data.CurrencyFormatter.format(context, profile.subscriptionLoadMonthly), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                    }
+                }
+
+                if (profile.topSpendingCategories.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text(stringResource(R.string.top_categories_label), style = Typography.labelMedium, fontWeight = FontWeight.SemiBold, color = onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        profile.topSpendingCategories.take(3).forEach { cat ->
+                            Surface(shape = RoundedCornerShape(10.dp), color = primaryContainer) {
+                                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                                    Text(cat.category, style = Typography.labelSmall, color = primary, fontWeight = FontWeight.Bold)
+                                    Text(com.example.data.CurrencyFormatter.format(context, cat.total), style = Typography.labelSmall, color = primary)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (!profile.lastUpdatedAt.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        stringResource(R.string.last_updated_label, profile.lastUpdatedAt.take(10)),
+                        style = Typography.labelSmall,
+                        color = onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+            }
         }
     }
 }

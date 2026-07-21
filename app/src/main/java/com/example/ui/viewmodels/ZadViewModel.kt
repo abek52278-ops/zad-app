@@ -1284,6 +1284,32 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // --- بروفايل السلوك المحسوب على الخادم (user_behavior_profile) ---
+    private val _behaviorProfile = kotlinx.coroutines.flow.MutableStateFlow<com.example.data.UserBehaviorProfile?>(null)
+    val behaviorProfile: kotlinx.coroutines.flow.StateFlow<com.example.data.UserBehaviorProfile?> = _behaviorProfile
+
+    private val _isRefreshingBehaviorProfile = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val isRefreshingBehaviorProfile: kotlinx.coroutines.flow.StateFlow<Boolean> = _isRefreshingBehaviorProfile
+
+    fun loadBehaviorProfile() {
+        viewModelScope.launch {
+            _behaviorProfile.value = com.example.data.SupabaseRepo.getBehaviorProfile()
+            Log.d(TAG, "loadBehaviorProfile() → found=${_behaviorProfile.value != null}")
+        }
+    }
+
+    fun refreshBehaviorProfile() {
+        viewModelScope.launch {
+            _isRefreshingBehaviorProfile.value = true
+            try {
+                com.example.data.SupabaseRepo.refreshBehaviorProfile()
+                _behaviorProfile.value = com.example.data.SupabaseRepo.getBehaviorProfile()
+            } finally {
+                _isRefreshingBehaviorProfile.value = false
+            }
+        }
+    }
+
     // --- وصفات ذكية مربوطة بالعقل: "عندك دجاج هينتهي بكرة → 3 وصفات بيه" ---
     data class UrgentRecipes(val triggerItems: List<String>, val text: String)
 

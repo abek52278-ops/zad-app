@@ -408,4 +408,13 @@
     <string name="tree_name_hint">اسم الشجرة</string>
     <string name="add_tree_to_garden_desc">أضف شجرة جديدة لبستانك!</string>
     <string name="tree_name_placeholder_example">مثال: شجرة التفاح</string>
+
+    <!-- ZadIntelligenceScreen: server behavior profile -->
+    <string name="behavior_insights_title">زاد بيتعلم من سلوكك</string>
+    <string name="refresh_action">تحديث</string>
+    <string name="no_behavior_data_yet">لسه مفيش بيانات كافية — استخدم زاد أكتر عشان يتعلم نمط صرفك</string>
+    <string name="avg_weekly_spending_label">متوسط الإنفاق الأسبوعي</string>
+    <string name="subscription_load_label">عبء الاشتراكات الشهري</string>
+    <string name="top_categories_label">أكتر تصنيفات الصرف</string>
+    <string name="last_updated_label">آخر تحديث: %1$s</string>
 </resources>
