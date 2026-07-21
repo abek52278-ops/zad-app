@@ -413,7 +413,13 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                         ) 
                     }
                     composable(Screen.Wishlist.route) { Box(Modifier.fillMaxSize(), contentAlignment=Alignment.Center) { Text("الطيبات") } }
-                    composable(Screen.Reports.route) { Box(Modifier.fillMaxSize(), contentAlignment=Alignment.Center) { Text("التقارير") } }
+                    composable(Screen.Reports.route) {
+                        WeeklyReportScreen(
+                            viewModel = viewModel,
+                            familyViewModel = familyViewModel,
+                            onOpenDrawer = { scope.launch { drawerState.open() } }
+                        )
+                    }
                     composable(Screen.Store.route) { Box(Modifier.fillMaxSize(), contentAlignment=Alignment.Center) { Text("متجر زاد") } }
                     composable(Screen.HelpSupport.route) { 
                         HelpSupportScreen(onBack = { navController.popBackStack() }) 

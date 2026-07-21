@@ -151,14 +151,41 @@ class FamilyViewModel : ViewModel() {
         viewModelScope.launch {
             val curr = _state.value
             if (curr is FamilyState.Active) {
-                SupabaseRepo.sendMessage(curr.familyGroup.id, curr.myMemberInfo.id, message, type, meta)
-                
+                // رسالة عادية مكتوبة بخط اليد (مش زر SOS/طلب مصروف/تصويت الجاهزين) بنفحصها محلياً
+                // قبل الإرسال — لو فيها نية طوارئ أو طلب مصروف واضح بمبلغ، بنرفعها لنوعها الصح تلقائياً.
+                var finalType = type
+                var finalMeta = meta
+                if (type == "TEXT") {
+                    when (classifyMessageIntent(message)) {
+                        MessageIntent.SOS -> finalType = "SOS"
+                        MessageIntent.EXPENSE -> {
+                            extractExpenseAmount(message)?.let { amount ->
+                                finalType = "PURCHASE_REQUEST"
+                                finalMeta = """{"amount":$amount, "status":"PENDING"}"""
+                            }
+                        }
+                        MessageIntent.NORMAL -> {}
+                    }
+                }
+
+                SupabaseRepo.sendMessage(curr.familyGroup.id, curr.myMemberInfo.id, message, finalType, finalMeta)
+
+                if (finalType == "SOS") {
+                    curr.members.filter { it.role == "admin" }.forEach { admin ->
+                        SupabaseRepo.sendAppNotification(
+                            userId = admin.userId,
+                            title = "🚨 نداء طوارئ من ${curr.myMemberInfo.alias}",
+                            message = message
+                        )
+                    }
+                }
+
                 // If the message mentions the AI
-                if (type == "TEXT" && (message.contains("@Zad", ignoreCase = true) || message.contains("@زاد"))) {
+                if (finalType == "TEXT" && (message.contains("@Zad", ignoreCase = true) || message.contains("@زاد"))) {
                     val cleanMessage = message.replace(Regex("@(Zad|زاد)\\s*"), "").trim()
                     val aiResponse = com.example.data.ZadAiRepository.askFamilyAssistant(cleanMessage)
                     SupabaseRepo.sendMessage(curr.familyGroup.id, "zad_ai", aiResponse, "TEXT", null)
-                } else if (type == "TEXT" && (message.contains("أضف") || message.contains("نقص") || message.contains("شراء"))) {
+                } else if (finalType == "TEXT" && (message.contains("أضف") || message.contains("نقص") || message.contains("شراء"))) {
                     val cleanMsg = message.replace(Regex("(أضف|نقص|احتاج|شراء|إلى القائمة|للقائمة)"), "").trim()
                     if (cleanMsg.isNotEmpty()) {
                         val newItem = com.example.data.SharedGroceryItem(
@@ -240,10 +267,11 @@ class FamilyViewModel : ViewModel() {
                             message = "تمت الموافقة على طلبك وتم خصم $amount ريال."
                         )
                         
-                        val updatedMembers = curr.members.map { 
-                            if (it.id == memberToUpdate.id) it.copy(balance = newBalance) else it 
+                        val updatedMembers = curr.members.map {
+                            if (it.id == memberToUpdate.id) it.copy(balance = newBalance) else it
                         }
                         _state.value = curr.copy(messages = updatedMessages, members = updatedMembers)
+                        checkSpendLimits(memberToUpdate, updatedMessages, curr.members)
                     } else {
                         _state.value = curr.copy(messages = updatedMessages)
                     }
@@ -407,6 +435,50 @@ class FamilyViewModel : ViewModel() {
                 }
                 _state.value = curr.copy(members = updatedMembers)
             }
+        }
+    }
+
+    fun updateSpendLimits(memberId: String, dailyLimit: Double?, weeklyLimit: Double?) {
+        viewModelScope.launch {
+            val curr = _state.value
+            if (curr is FamilyState.Active) {
+                SupabaseRepo.updateFamilyMemberLimits(memberId, dailyLimit, weeklyLimit)
+                val updatedMembers = curr.members.map {
+                    if (it.id == memberId) it.copy(dailyLimit = dailyLimit, weeklyLimit = weeklyLimit) else it
+                }
+                _state.value = curr.copy(members = updatedMembers)
+            }
+        }
+    }
+
+    // بعد كل موافقة على طلب مصروف، نتأكد إن العضو (الابن غالباً) ما تخطاش حد إنفاقه اليومي/الأسبوعي.
+    // الاستهلاك نفسه محسوب من رسائل PURCHASE_REQUEST الموافق عليها بدل جدول منفصل — راجع approvedSpendSince.
+    private fun checkSpendLimits(member: FamilyMember, messages: List<ChatMessage>, allMembers: List<FamilyMember>) {
+        viewModelScope.launch {
+            val now = java.time.Instant.now()
+            member.dailyLimit?.takeIf { it > 0 }?.let { limit ->
+                val spent = approvedSpendSince(messages, member.id, now.minus(1, java.time.temporal.ChronoUnit.DAYS))
+                notifyIfNearLimit(member, allMembers, spent, limit, isWeekly = false)
+            }
+            member.weeklyLimit?.takeIf { it > 0 }?.let { limit ->
+                val spent = approvedSpendSince(messages, member.id, now.minus(7, java.time.temporal.ChronoUnit.DAYS))
+                notifyIfNearLimit(member, allMembers, spent, limit, isWeekly = true)
+            }
+        }
+    }
+
+    private suspend fun notifyIfNearLimit(member: FamilyMember, allMembers: List<FamilyMember>, spent: Double, limit: Double, isWeekly: Boolean) {
+        val ratio = spent / limit
+        if (ratio < 0.8) return
+        val period = if (isWeekly) "الأسبوعي" else "اليومي"
+        val (title, message) = if (ratio >= 1.0) {
+            "⚠️ تجاوز الحد $period" to "${member.alias} تجاوز حد الإنفاق $period (${spent.toInt()} من ${limit.toInt()})."
+        } else {
+            "🔔 اقتراب من الحد $period" to "${member.alias} اقترب من حد الإنفاق $period (${spent.toInt()} من ${limit.toInt()})."
+        }
+        SupabaseRepo.sendAppNotification(userId = member.userId, title = title, message = message)
+        allMembers.filter { it.role == "admin" && it.userId != member.userId }.forEach { admin ->
+            SupabaseRepo.sendAppNotification(userId = admin.userId, title = title, message = message)
         }
     }
 

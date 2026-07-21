@@ -633,6 +633,18 @@ object SupabaseRepo {
         }
     }
 
+    suspend fun updateFamilyMemberLimits(memberId: String, dailyLimit: Double?, weeklyLimit: Double?) {
+        try {
+            Log.d(TAG, "updateFamilyMemberLimits() → table=family_members, id=$memberId, daily=$dailyLimit, weekly=$weeklyLimit")
+            client.postgrest["family_members"].update(
+                mapOf("daily_limit" to dailyLimit, "weekly_limit" to weeklyLimit)
+            ) { filter { eq("id", memberId) } }
+            Log.d(TAG, "updateFamilyMemberLimits() SUCCESS")
+        } catch (e: Exception) {
+            Log.e(TAG, "updateFamilyMemberLimits() FAILED: ${e.message}")
+        }
+    }
+
     suspend fun updateFamilyMemberAlias(alias: String) {
         try {
             val myMember = getMyFamilyMember() ?: return

@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS family_members (
     alias TEXT NOT NULL DEFAULT '',
     balance NUMERIC NOT NULL DEFAULT 0,
     savings_goal NUMERIC NOT NULL DEFAULT 0,
+    daily_limit NUMERIC,
+    weekly_limit NUMERIC,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 

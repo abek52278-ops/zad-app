@@ -400,6 +400,11 @@ private fun KidsSpendingTab(
                             Text(stringResource(R.string.chores_completed_ratio_pill, completed, childChores.size), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = Typography.labelSmall, color = primary)
                         }
                     }
+                    if (child.dailyLimit != null && child.dailyLimit > 0) {
+                        Spacer(Modifier.height(8.dp))
+                        val spentToday = com.example.data.approvedSpendSince(state.messages, child.id, java.time.Instant.now().minus(1, java.time.temporal.ChronoUnit.DAYS))
+                        SpendLimitBar(stringResource(R.string.daily_limit_label), spentToday, child.dailyLimit, currencyContext)
+                    }
                     if (childRequests.isNotEmpty()) {
                         Spacer(Modifier.height(8.dp))
                         Surface(shape = RoundedCornerShape(8.dp), color = surface, modifier = Modifier.fillMaxWidth()) {
@@ -526,6 +531,14 @@ private fun MemberDetailCard(
                                     Text(stringResource(R.string.admin_badge), style = Typography.labelSmall, color = primary, fontWeight = FontWeight.Bold)
                                 }
                             }
+                        } else if (member.role == "child") {
+                            Spacer(Modifier.width(8.dp))
+                            Surface(shape = RoundedCornerShape(8.dp), color = secondary.copy(alpha = 0.15f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text("🧒", style = Typography.labelSmall)
+                                    Text(stringResource(R.string.child_role), style = Typography.labelSmall, color = secondary, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     }
                     Spacer(modifier = Modifier.height(4.dp))
@@ -586,6 +599,7 @@ private fun MemberDetailSheet(
     val completedChores = memberChores.filter { it.isCompleted }
     val pendingChores = memberChores.filter { !it.isCompleted }
     val currencyContext = LocalContext.current
+    var showLimitDialog by remember { mutableStateOf(false) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -614,7 +628,13 @@ private fun MemberDetailSheet(
                 Column {
                     Text(member.alias, fontWeight = FontWeight.Bold, color = onSurface, fontSize = 22.sp)
                     Text(
-                        stringResource(if (member.role == "admin") R.string.family_admin_role else R.string.member_role),
+                        stringResource(
+                            when (member.role) {
+                                "admin" -> R.string.family_admin_role
+                                "child" -> R.string.child_role
+                                else -> R.string.member_role
+                            }
+                        ),
                         color = onSurfaceVariant
                     )
                 }
@@ -728,9 +748,115 @@ private fun MemberDetailSheet(
                 }
             }
 
+            // Spend limits (parent-managed, child only)
+            if (member.role == "child" && state.myMemberInfo.role == "admin") {
+                Spacer(Modifier.height(16.dp))
+                SpendLimitSection(member = member, messages = state.messages, onEdit = { showLimitDialog = true })
+            }
+
             Spacer(Modifier.height(32.dp))
         }
     }
+
+    if (showLimitDialog) {
+        SpendLimitDialog(
+            member = member,
+            onConfirm = { daily, weekly ->
+                viewModel.updateSpendLimits(member.id, daily, weekly)
+                showLimitDialog = false
+            },
+            onDismiss = { showLimitDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun SpendLimitSection(member: com.example.data.FamilyMember, messages: List<ChatMessage>, onEdit: () -> Unit) {
+    val currencyContext = LocalContext.current
+    val now = java.time.Instant.now()
+    val spentToday = com.example.data.approvedSpendSince(messages, member.id, now.minus(1, java.time.temporal.ChronoUnit.DAYS))
+    val spentThisWeek = com.example.data.approvedSpendSince(messages, member.id, now.minus(7, java.time.temporal.ChronoUnit.DAYS))
+
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, modifier = Modifier.size(18.dp), tint = secondary)
+        Text(stringResource(R.string.spend_limits_title), fontWeight = FontWeight.Bold, color = onSurface, modifier = Modifier.weight(1f))
+        TextButton(onClick = onEdit) { Text(stringResource(R.string.edit_limits_action), fontSize = 12.sp) }
+    }
+    Spacer(Modifier.height(8.dp))
+    SpendLimitBar(stringResource(R.string.daily_limit_label), spentToday, member.dailyLimit, currencyContext)
+    Spacer(Modifier.height(8.dp))
+    SpendLimitBar(stringResource(R.string.weekly_limit_label), spentThisWeek, member.weeklyLimit, currencyContext)
+}
+
+@Composable
+fun SpendLimitBar(label: String, spent: Double, limit: Double?, currencyContext: android.content.Context) {
+    if (limit == null || limit <= 0) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, style = Typography.labelSmall, color = onSurfaceVariant, modifier = Modifier.weight(1f))
+            Text(stringResource(R.string.no_limit_set), style = Typography.labelSmall, color = onSurfaceVariant)
+        }
+        return
+    }
+    val ratio = (spent / limit).toFloat().coerceIn(0f, 1f)
+    val barColor = when {
+        spent / limit >= 1.0 -> dangerColor
+        spent / limit >= 0.8 -> warningColor
+        else -> primary
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = Typography.labelSmall, color = onSurfaceVariant)
+        Spacer(Modifier.width(8.dp))
+        LinearProgressIndicator(
+            progress = { ratio },
+            modifier = Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)),
+            color = barColor,
+            trackColor = onSurface.copy(alpha = 0.1f)
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            "${com.example.data.CurrencyFormatter.format(currencyContext, spent)} / ${com.example.data.CurrencyFormatter.format(currencyContext, limit)}",
+            style = Typography.labelSmall, color = barColor, fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun SpendLimitDialog(
+    member: com.example.data.FamilyMember,
+    onConfirm: (Double?, Double?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var dailyStr by remember { mutableStateOf(member.dailyLimit?.let { if (it == it.toInt().toDouble()) it.toInt().toString() else it.toString() } ?: "") }
+    var weeklyStr by remember { mutableStateOf(member.weeklyLimit?.let { if (it == it.toInt().toDouble()) it.toInt().toString() else it.toString() } ?: "") }
+    val currencySymbol = com.example.data.CurrencyFormatter.symbol(LocalContext.current)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.spend_limits_title)) },
+        text = {
+            Column {
+                Text(stringResource(R.string.spend_limits_hint, member.alias), style = Typography.bodySmall, color = onSurfaceVariant)
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = dailyStr, onValueChange = { dailyStr = it },
+                    label = { Text(stringResource(R.string.daily_limit_with_currency, currencySymbol)) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = weeklyStr, onValueChange = { weeklyStr = it },
+                    label = { Text(stringResource(R.string.weekly_limit_with_currency, currencySymbol)) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                onConfirm(dailyStr.toDoubleOrNull(), weeklyStr.toDoubleOrNull())
+            }) { Text(stringResource(R.string.done_action)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
+    )
 }
 
 @Composable

@@ -2047,6 +2047,22 @@ fun KidsModeContent(
                         trackColor = Color.White.copy(alpha = 0.3f),
                     )
                 }
+                val myDailyLimit = familyState.myMemberInfo.dailyLimit
+                if (myDailyLimit != null && myDailyLimit > 0) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    val spentToday = com.example.data.approvedSpendSince(familyState.messages, familyState.myMemberInfo.id, java.time.Instant.now().minus(1, java.time.temporal.ChronoUnit.DAYS))
+                    val limitRatio = (spentToday / myDailyLimit).toFloat().coerceIn(0f, 1f)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("💸 " + stringResource(R.string.spent_today_colon, com.example.data.CurrencyFormatter.format(context, spentToday), com.example.data.CurrencyFormatter.format(context, myDailyLimit)), color = Color.White.copy(alpha = 0.95f), style = Typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    LinearProgressIndicator(
+                        progress = { limitRatio },
+                        modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)),
+                        color = if (limitRatio >= 1f) Color(0xFFFECACA) else Color.White,
+                        trackColor = Color.White.copy(alpha = 0.3f),
+                    )
+                }
                 Spacer(modifier = Modifier.height(18.dp))
                 Button(
                     onClick = onAddRequest,

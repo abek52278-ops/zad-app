@@ -190,7 +190,14 @@ fun FamilyManagementScreen(familyViewModel: FamilyViewModel, onBack: () -> Unit)
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(member.alias, fontWeight = FontWeight.Bold, color = onSurface)
-                            Text(member.role, fontSize = 12.sp, color = onSurfaceVariant)
+                            Text(
+                                when (member.role) {
+                                    "admin" -> stringResource(R.string.family_admin_role)
+                                    "child" -> stringResource(R.string.child_role)
+                                    else -> stringResource(R.string.member_role)
+                                },
+                                fontSize = 12.sp, color = onSurfaceVariant
+                            )
                         }
                         
                         // Check if current user is admin to show controls
@@ -217,6 +224,14 @@ fun FamilyManagementScreen(familyViewModel: FamilyViewModel, onBack: () -> Unit)
                                         onClick = {
                                             Log.d(TAG_SUB_PROF, "Change role to member clicked for member ${member.id}")
                                             familyViewModel.changeMemberRole(member.id, "member")
+                                            expanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.set_as_child)) },
+                                        onClick = {
+                                            Log.d(TAG_SUB_PROF, "Change role to child clicked for member ${member.id}")
+                                            familyViewModel.changeMemberRole(member.id, "child")
                                             expanded = false
                                         }
                                     )

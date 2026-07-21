@@ -20,6 +20,8 @@ data class FamilyMember(
     val alias: String = "",
     val balance: Double = 0.0,
     @SerialName("savings_goal") val savingsGoal: Double = 0.0,
+    @SerialName("daily_limit") val dailyLimit: Double? = null,
+    @SerialName("weekly_limit") val weeklyLimit: Double? = null,
     @SerialName("last_seen_at") val lastSeenAt: String? = null,
     @SerialName("created_at") val createdAt: String? = null
 ) {
@@ -205,3 +207,42 @@ data class QuickReplyItem(
     val text: String,
     val action: String = "text"
 )
+
+enum class MessageIntent { NORMAL, EXPENSE, SOS }
+
+private val sosKeywords = listOf(
+    "طوارئ", "طواري", "نجدة", "خطر شديد", "ساعدوني", "ساعديني", "إسعاف", "الإسعاف", "حادث", "حريق",
+    "مخطوف", "خطف", "تعرضت لحادث", "بينزف", "بتنزف", "أنزف", "غريق", "تايه", "ضعت", "مش لاقي طريقي",
+    "emergency", "help me", "accident", "injured"
+)
+
+private val expenseKeywords = listOf(
+    "محتاج", "محتاجة", "عايز", "عاوز", "أحتاج", "اريد", "أريد", "لازمني", "هاخد", "هشتري", "عايزة اشتري"
+)
+
+/** تصنيف سريع محلي لنية الرسالة — بدل استدعاء AI لكل رسالة (تأخير + تكلفة)، فحص كلمات مفتاحية كافٍ لرصد نداء طوارئ حقيقي أو طلب مصروف واضح المبلغ. أي رسالة غامضة تفضل NORMAL. */
+fun classifyMessageIntent(text: String): MessageIntent {
+    val lower = text.trim().lowercase()
+    if (lower.isEmpty()) return MessageIntent.NORMAL
+    if (sosKeywords.any { lower.contains(it.lowercase()) }) return MessageIntent.SOS
+    if (expenseKeywords.any { lower.contains(it.lowercase()) } && Regex("\\d").containsMatchIn(text)) return MessageIntent.EXPENSE
+    return MessageIntent.NORMAL
+}
+
+fun extractExpenseAmount(text: String): Double? =
+    Regex("\\d+(\\.\\d+)?").find(text)?.value?.toDoubleOrNull()
+
+/** مجموع طلبات الشراء الموافق عليها لعضو معين منذ لحظة زمنية معينة — يُستخدم لحساب استهلاك اليوم/الأسبوع مقابل daily_limit/weekly_limit، بالاعتماد على تاريخ رسائل الشات بدل جدول منفصل. */
+fun approvedSpendSince(messages: List<ChatMessage>, memberId: String, since: java.time.Instant): Double {
+    return messages
+        .filter { it.messageType == "PURCHASE_REQUEST" && it.senderId == memberId }
+        .filter { it.metadata?.contains("\"status\":\"APPROVED\"") == true }
+        .filter { msg ->
+            val createdAt = msg.createdAt ?: return@filter false
+            try { java.time.Instant.parse(createdAt) >= since } catch (e: Exception) { false }
+        }
+        .sumOf { msg ->
+            val metaJson = msg.metadata ?: "{}"
+            metaJson.substringAfter("\"amount\":").substringBefore(",").trim().toDoubleOrNull() ?: 0.0
+        }
+}
