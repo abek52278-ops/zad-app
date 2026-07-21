@@ -26,10 +26,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.data.TasbihaTree
 import com.example.data.FamilyMemberWithTasbiha
 import com.example.ui.theme.*
@@ -216,7 +218,7 @@ private fun TasbihaSplashScreen(onEnter: () -> Unit) {
             Spacer(Modifier.height(32.dp))
 
             Text(
-                "بستان التسبيحة",
+                stringResource(R.string.tasbiha_garden),
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
@@ -228,7 +230,7 @@ private fun TasbihaSplashScreen(onEnter: () -> Unit) {
             Spacer(Modifier.height(8.dp))
 
             Text(
-                "نمِ شجرتك بالتسبيحة",
+                stringResource(R.string.tasbiha_splash_subtitle),
                 style = MaterialTheme.typography.bodyLarge,
                 color = Color.White.copy(alpha = 0.8f)
             )
@@ -254,7 +256,7 @@ private fun TasbihaSplashScreen(onEnter: () -> Unit) {
                 Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(28.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "ادخل البستان",
+                    stringResource(R.string.enter_garden_action),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -272,7 +274,11 @@ private fun TasbihaMainContent(
     onOpenDrawer: () -> Unit
 ) {
     var selectedTabIndex by remember { mutableStateOf(0) }
-    val tabs = listOf("بستاني", "أشجار العائلة", "التحديات")
+    val tabs = listOf(
+        stringResource(R.string.tasbiha_tab_my_garden),
+        stringResource(R.string.tasbiha_tab_family_garden),
+        stringResource(R.string.tasbiha_tab_challenges)
+    )
 
     var contentVisible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -301,7 +307,7 @@ private fun TasbihaMainContent(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onOpenDrawer) {
-                        Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White)
+                        Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.nav_menu), tint = Color.White)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Column {
@@ -309,7 +315,7 @@ private fun TasbihaMainContent(
                             Icon(Icons.Default.Park, contentDescription = null, modifier = Modifier.size(24.dp), tint = Color.White)
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                "بستان التسبيحة",
+                                stringResource(R.string.tasbiha_garden),
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
@@ -317,7 +323,7 @@ private fun TasbihaMainContent(
                         }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            "${myAllTrees.size} أشجار | ${myAllTrees.sumOf { it.score }} تسبيحة",
+                            stringResource(R.string.tasbiha_trees_and_score, myAllTrees.size, myAllTrees.sumOf { it.score }),
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color.White.copy(alpha = 0.9f)
                         )
@@ -398,7 +404,7 @@ private fun MyGardenTab(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "أشجاري (${myAllTrees.size})",
+                    stringResource(R.string.my_trees_count, myAllTrees.size),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = onSurface
@@ -406,7 +412,7 @@ private fun MyGardenTab(
                 TextButton(onClick = { showCreateDialog = true }) {
                     Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("شجرة جديدة")
+                    Text(stringResource(R.string.new_tree_action))
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -621,7 +627,7 @@ private fun AnimatedTreeDisplay(
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)) {
                             Icon(Icons.Default.LocalFireDepartment, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFFFF5722))
                             Spacer(Modifier.width(4.dp))
-                            Text("${tree.streakDays} أيام", fontSize = 12.sp, color = Color(0xFFFF5722), fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.streak_days_count, tree.streakDays), fontSize = 12.sp, color = Color(0xFFFF5722), fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -711,7 +717,7 @@ private fun AnimatedTreeDisplay(
                         )
                         Spacer(Modifier.height(4.dp))
                         Text("${tree.score}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = primary)
-                        Text("تسبيحة", style = MaterialTheme.typography.labelSmall, color = onSurfaceVariant)
+                        Text(stringResource(R.string.tasbiha_short_label), style = MaterialTheme.typography.labelSmall, color = onSurfaceVariant)
                     }
                 }
             }
@@ -728,7 +734,7 @@ private fun AnimatedTreeDisplay(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                if (tree.level < 5) "${tree.score} / ${tree.nextLevelAt()} للمرحلة التالية" else "اكتملت!",
+                if (tree.level < 5) stringResource(R.string.progress_to_next_stage, tree.score, tree.nextLevelAt()) else stringResource(R.string.tree_completed_label),
                 style = MaterialTheme.typography.labelSmall, color = onSurfaceVariant
             )
 
@@ -741,7 +747,7 @@ private fun AnimatedTreeDisplay(
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
                     Icon(Icons.Default.Celebration, contentDescription = null, modifier = Modifier.size(20.dp), tint = primary)
                     Spacer(Modifier.width(6.dp))
-                    Text("مبروك! شجرتك كبرت!", fontWeight = FontWeight.Bold, color = primary)
+                    Text(stringResource(R.string.tree_level_up_celebration), fontWeight = FontWeight.Bold, color = primary)
                 }
             }
         }
@@ -754,10 +760,10 @@ private fun TasbihaStats(tree: TasbihaTree) {
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        StatCard("المستوى", "${tree.level}/5") { Icon(Icons.Default.Park, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color(0xFF2E7D32)) }
-        StatCard("النقاط", "${tree.score}") { Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(20.dp)) }
-        StatCard("إجمالي", "${tree.totalClicks}") { Icon(Icons.Default.TouchApp, contentDescription = null, modifier = Modifier.size(20.dp)) }
-        StatCard("السلسلة", "${tree.streakDays}") { Icon(Icons.Default.LocalFireDepartment, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color(0xFFFF5722)) }
+        StatCard(stringResource(R.string.stat_level_label), "${tree.level}/5") { Icon(Icons.Default.Park, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color(0xFF2E7D32)) }
+        StatCard(stringResource(R.string.stat_points_label), "${tree.score}") { Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(20.dp)) }
+        StatCard(stringResource(R.string.stat_total_label), "${tree.totalClicks}") { Icon(Icons.Default.TouchApp, contentDescription = null, modifier = Modifier.size(20.dp)) }
+        StatCard(stringResource(R.string.stat_streak_label), "${tree.streakDays}") { Icon(Icons.Default.LocalFireDepartment, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color(0xFFFF5722)) }
     }
 }
 
@@ -829,7 +835,7 @@ private fun FamilyGardenTab(familyMembers: List<FamilyMemberWithTasbiha>) {
                 Icon(Icons.Default.EmojiEvents, contentDescription = null, modifier = Modifier.size(28.dp), tint = Color(0xFFFFD700))
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "لوحة المتصدرين",
+                    stringResource(R.string.leaderboard_title),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = onSurface
@@ -869,14 +875,14 @@ private fun FamilyMemberTreeCard(memberData: FamilyMemberWithTasbiha) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(memberData.member.alias, fontWeight = FontWeight.Bold, color = onSurface)
                     Text(
-                        "${memberData.trees.size} أشجار | ${memberData.matureTrees} مثمرة",
+                        stringResource(R.string.member_trees_and_mature, memberData.trees.size, memberData.matureTrees),
                         style = MaterialTheme.typography.bodySmall,
                         color = onSurfaceVariant
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text("${memberData.totalScore}", fontWeight = FontWeight.Bold, color = primary, fontSize = 20.sp)
-                    Text("تسبيحة", style = MaterialTheme.typography.labelSmall, color = onSurfaceVariant)
+                    Text(stringResource(R.string.tasbiha_short_label), style = MaterialTheme.typography.labelSmall, color = onSurfaceVariant)
                 }
             }
 
@@ -944,11 +950,11 @@ private fun ChallengesTab(challenges: List<com.example.data.TasbihaChallenge>) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Default.TrackChanges, contentDescription = null, modifier = Modifier.size(24.dp), tint = primary)
-                Text("التحديات العائلية", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
+                Text(stringResource(R.string.family_challenges_title), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                "تحدَ أفراد عائلتك في التسبيحة!",
+                stringResource(R.string.challenge_family_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
                 color = onSurfaceVariant
             )
@@ -969,12 +975,12 @@ private fun ChallengesTab(challenges: List<com.example.data.TasbihaChallenge>) {
                         Icon(Icons.Default.TrackChanges, contentDescription = null, modifier = Modifier.size(48.dp), tint = onSurfaceVariant.copy(alpha = 0.4f))
                         Spacer(Modifier.height(16.dp))
                         Text(
-                            "لا توجد تحديات حالياً",
+                            stringResource(R.string.no_challenges_yet),
                             style = MaterialTheme.typography.titleMedium,
                             color = onSurface
                         )
                         Text(
-                            "اطلب من المدير إنشاء تحدي جديد!",
+                            stringResource(R.string.ask_admin_new_challenge),
                             style = MaterialTheme.typography.bodyMedium,
                             color = onSurfaceVariant
                         )
@@ -1029,12 +1035,12 @@ private fun ChallengeCard(challenge: com.example.data.TasbihaChallenge) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    "الهدف: ${challenge.targetClicks} تسبيحة",
+                    stringResource(R.string.challenge_target_label, challenge.targetClicks),
                     style = MaterialTheme.typography.labelMedium,
                     color = primary
                 )
                 Text(
-                    "⏰ ${challenge.endDate?.take(10) ?: "مستمر"}",
+                    "⏰ ${challenge.endDate?.take(10) ?: stringResource(R.string.challenge_ongoing_label)}",
                     style = MaterialTheme.typography.labelMedium,
                     color = onSurfaceVariant
                 )
@@ -1048,19 +1054,19 @@ private fun RenameDialog(currentName: String, onConfirm: (String) -> Unit, onDis
     var name by remember { mutableStateOf(currentName) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("تسمية الشجرة") },
+        title = { Text(stringResource(R.string.rename_tree_title)) },
         text = {
             OutlinedTextField(
                 value = name, onValueChange = { name = it },
-                label = { Text("اسم الشجرة") },
+                label = { Text(stringResource(R.string.tree_name_hint)) },
                 singleLine = true, modifier = Modifier.fillMaxWidth()
             )
         },
         confirmButton = {
-            TextButton(onClick = { if (name.isNotBlank()) onConfirm(name) }) { Text("حفظ") }
+            TextButton(onClick = { if (name.isNotBlank()) onConfirm(name) }) { Text(stringResource(R.string.save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("إلغاء") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }
@@ -1070,19 +1076,19 @@ private fun CreateTreeDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit)
     var name by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("شجرة جديدة") },
+        title = { Text(stringResource(R.string.new_tree_action)) },
         text = {
             Column {
                 Text(
-                    "أضف شجرة جديدة لبستانك!",
+                    stringResource(R.string.add_tree_to_garden_desc),
                     style = MaterialTheme.typography.bodyMedium,
                     color = onSurfaceVariant
                 )
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
                     value = name, onValueChange = { name = it },
-                    label = { Text("اسم الشجرة") },
-                    placeholder = { Text("مثال: شجرة التفاح") },
+                    label = { Text(stringResource(R.string.tree_name_hint)) },
+                    placeholder = { Text(stringResource(R.string.tree_name_placeholder_example)) },
                     singleLine = true, modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -1091,10 +1097,10 @@ private fun CreateTreeDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit)
             TextButton(
                 onClick = { if (name.isNotBlank()) onConfirm(name) },
                 enabled = name.isNotBlank()
-            ) { Text("إضافة") }
+            ) { Text(stringResource(R.string.add_action)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("إلغاء") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }

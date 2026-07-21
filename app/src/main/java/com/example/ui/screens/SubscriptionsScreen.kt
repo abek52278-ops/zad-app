@@ -23,8 +23,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.data.ZadSubscription
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
@@ -43,7 +45,12 @@ fun SubscriptionsScreen(
     var showInactive by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
-    val tabs = listOf("الكل", "اشتراكات", "فواتير", "أقساط")
+    val tabs = listOf(
+        stringResource(R.string.filter_all),
+        stringResource(R.string.filter_subscriptions),
+        stringResource(R.string.bills_category),
+        stringResource(R.string.installments_category)
+    )
     val activeSubs = subscriptions.filter { it.isActive }
     val totalMonthly = activeSubs.sumOf { it.amount }
 
@@ -70,16 +77,16 @@ fun SubscriptionsScreen(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onOpenDrawer) {
-                        Icon(Icons.Default.Menu, contentDescription = "القائمة", tint = onSurfaceVariant)
+                        Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.nav_menu), tint = onSurfaceVariant)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("الاشتراكات", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = primary)
+                    Text(stringResource(R.string.subscriptions_title), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = primary)
                 }
                 Row {
                     FilterChip(
                         selected = !showInactive,
                         onClick = { showInactive = false },
-                        label = { Text("النشطة", style = Typography.labelSmall) },
+                        label = { Text(stringResource(R.string.active_filter), style = Typography.labelSmall) },
                         colors = FilterChipDefaults.filterChipColors(selectedContainerColor = primaryContainer),
                         modifier = Modifier.height(32.dp)
                     )
@@ -87,7 +94,7 @@ fun SubscriptionsScreen(
                     FilterChip(
                         selected = showInactive,
                         onClick = { showInactive = true },
-                        label = { Text("الكل", style = Typography.labelSmall) },
+                        label = { Text(stringResource(R.string.filter_all), style = Typography.labelSmall) },
                         colors = FilterChipDefaults.filterChipColors(selectedContainerColor = surfaceContainerHigh),
                         modifier = Modifier.height(32.dp)
                     )
@@ -105,12 +112,12 @@ fun SubscriptionsScreen(
             ) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("إجمالي الاشتراكات الشهرية", style = Typography.titleMedium, color = Color.White.copy(alpha = 0.8f))
+                        Text(stringResource(R.string.total_monthly_subscriptions), style = Typography.titleMedium, color = Color.White.copy(alpha = 0.8f))
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(com.example.data.CurrencyFormatter.format(context, totalMonthly), style = Typography.displaySmall, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                     }
                     Column(horizontalAlignment = Alignment.End) {
-                        Text("اشتراكات نشطة", style = Typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
+                        Text(stringResource(R.string.active_subs_count_label), style = Typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
                         Text("${activeSubs.size}", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
@@ -146,7 +153,7 @@ fun SubscriptionsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("زاد يبحث عن اشتراكاتك من المعاملات المالية...", style = Typography.bodySmall, color = primary)
+                        Text(stringResource(R.string.ai_detecting_subscriptions), style = Typography.bodySmall, color = primary)
                     }
                 }
             }
@@ -162,7 +169,7 @@ fun SubscriptionsScreen(
                         Column(modifier = Modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Default.Subscriptions, contentDescription = null, tint = onSurfaceVariant.copy(alpha = 0.4f), modifier = Modifier.size(64.dp))
                             Spacer(modifier = Modifier.height(12.dp))
-                            Text(if (selectedTab == 0) "لا توجد اشتراكات" else "لا توجد عناصر في هذا التصنيف", style = Typography.titleMedium, color = onSurfaceVariant)
+                            Text(if (selectedTab == 0) stringResource(R.string.no_subscriptions_any) else stringResource(R.string.no_items_in_category), style = Typography.titleMedium, color = onSurfaceVariant)
                         }
                     }
                 } else {
@@ -185,7 +192,7 @@ fun SubscriptionsScreen(
             contentColor = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 88.dp)
         ) {
-            Icon(Icons.Default.Add, contentDescription = "إضافة")
+            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_action))
         }
 
         if (showAddDialog) {
@@ -248,16 +255,16 @@ private fun SubScreenSubscriptionCardFull(
                     if (!sub.isActive) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Box(modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(outlineVariant).padding(horizontal = 6.dp, vertical = 2.dp)) {
-                            Text("ملغى", style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
+                            Text(stringResource(R.string.cancelled_badge), style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
                         }
                     }
                 }
                 if (daysLeft != null) {
                     Text(
                         when {
-                            daysLeft == 0 -> "يُجدد اليوم"
-                            daysLeft < 0 -> "منتهي منذ ${-daysLeft} يوم"
-                            else -> "يُجدد بعد $daysLeft يوم"
+                            daysLeft == 0 -> stringResource(R.string.renews_today)
+                            daysLeft < 0 -> stringResource(R.string.expired_days_ago, -daysLeft)
+                            else -> stringResource(R.string.renews_in_days, daysLeft)
                         },
                         style = Typography.labelSmall, color = daysColor, fontWeight = FontWeight.SemiBold
                     )
@@ -273,13 +280,13 @@ private fun SubScreenSubscriptionCardFull(
             IconButton(onClick = onToggleActive, modifier = Modifier.size(32.dp)) {
                 Icon(
                     if (sub.isActive) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
-                    contentDescription = if (sub.isActive) "تعطيل" else "تفعيل",
+                    contentDescription = if (sub.isActive) stringResource(R.string.disable) else stringResource(R.string.enable),
                     tint = if (sub.isActive) warningColor else successColor,
                     modifier = Modifier.size(20.dp)
                 )
             }
             IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.Delete, contentDescription = "حذف", tint = dangerColor, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_action), tint = dangerColor, modifier = Modifier.size(18.dp))
             }
         }
     }
@@ -296,13 +303,13 @@ fun AddSubscriptionDialog(onDismiss: () -> Unit, onSave: (String, Double, String
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("إضافة اشتراك جديد", style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(R.string.add_subscription_dialog_title), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("اسم الاشتراك (مثال: Netflix)") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text("المبلغ (${com.example.data.CurrencyFormatter.symbol(context)})") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = provider, onValueChange = { provider = it }, label = { Text("مزود الخدمة") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = renewalDate, onValueChange = { renewalDate = it }, label = { Text("تاريخ التجديد (YYYY-MM-DD)") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text(stringResource(R.string.subscription_name_hint)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text(stringResource(R.string.amount_with_currency_hint, com.example.data.CurrencyFormatter.symbol(context))) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = provider, onValueChange = { provider = it }, label = { Text(stringResource(R.string.service_provider_hint)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = renewalDate, onValueChange = { renewalDate = it }, label = { Text(stringResource(R.string.renewal_date_hint)) }, modifier = Modifier.fillMaxWidth())
             }
         },
         confirmButton = {
@@ -313,8 +320,8 @@ fun AddSubscriptionDialog(onDismiss: () -> Unit, onSave: (String, Double, String
                         if (renewalDate.isNotBlank()) renewalDate else LocalDate.now().plusMonths(1).toString(),
                         provider)
                 }
-            }) { Text("حفظ") }
+            }) { Text(stringResource(R.string.save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )
 }

@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import coil.compose.AsyncImage
 import com.example.data.AffiliateProduct
+import com.example.data.CurrencyFormatter
 import com.example.ui.theme.*
 
 @Composable
@@ -80,10 +81,11 @@ fun AffiliateProductCard(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 if (product.averagePriceSar > 0) {
+                    val context = LocalContext.current
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         Icon(Icons.Default.MonetizationOn, contentDescription = null, modifier = Modifier.size(16.dp), tint = primary)
                         Text(
-                            "${String.format("%.0f", product.averagePriceSar)} ر.س",
+                            CurrencyFormatter.format(context, product.averagePriceSar),
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Bold,
                             color = primary

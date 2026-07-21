@@ -358,4 +358,52 @@
     <string name="payment_methods_soon">Ödeme yöntemleri (yakında)</string>
     <string name="promote_to_admin">Yöneticiliğe yükselt (Admin)</string>
     <string name="save_changes">Değişiklikleri kaydet</string>
+
+    <!-- SubscriptionsScreen -->
+    <string name="nav_menu">Menü</string>
+    <string name="bills_category">Faturalar</string>
+    <string name="installments_category">Taksitler</string>
+    <string name="active_subs_count_label">Aktif abonelik</string>
+    <string name="ai_detecting_subscriptions">Zad, işlemlerinden aboneliklerini arıyor...</string>
+    <string name="no_items_in_category">Bu kategoride öğe yok</string>
+    <string name="renews_today">Bugün yenileniyor</string>
+    <string name="expired_days_ago">%1$d gün önce sona erdi</string>
+    <string name="renews_in_days">%1$d gün sonra yenilenecek</string>
+    <string name="disable">Devre dışı bırak</string>
+    <string name="delete_action">Sil</string>
+    <string name="add_subscription_dialog_title">Yeni abonelik ekle</string>
+    <string name="subscription_name_hint">Abonelik adı (örnek: Netflix)</string>
+    <string name="amount_with_currency_hint">Tutar (%1$s)</string>
+    <string name="service_provider_hint">Hizmet sağlayıcı</string>
+    <string name="renewal_date_hint">Yenileme tarihi (YYYY-AA-GG)</string>
+
+    <!-- TasbihaScreen -->
+    <string name="tasbiha_splash_subtitle">Zikirle ağacını büyüt</string>
+    <string name="enter_garden_action">Bahçeye gir</string>
+    <string name="tasbiha_tab_my_garden">Bahçem</string>
+    <string name="tasbiha_tab_family_garden">Aile ağaçları</string>
+    <string name="tasbiha_tab_challenges">Meydan okumalar</string>
+    <string name="tasbiha_trees_and_score">%1$d ağaç | %2$d zikir</string>
+    <string name="my_trees_count">Ağaçlarım (%1$d)</string>
+    <string name="new_tree_action">Yeni ağaç</string>
+    <string name="streak_days_count">%1$d gün</string>
+    <string name="progress_to_next_stage">Sonraki aşamaya %1$d / %2$d</string>
+    <string name="tree_completed_label">Tamamlandı!</string>
+    <string name="tree_level_up_celebration">Tebrikler! Ağacın büyüdü!</string>
+    <string name="stat_level_label">Seviye</string>
+    <string name="stat_points_label">Puan</string>
+    <string name="stat_total_label">Toplam</string>
+    <string name="stat_streak_label">Seri</string>
+    <string name="leaderboard_title">Lider tablosu</string>
+    <string name="member_trees_and_mature">%1$d ağaç | %2$d olgun</string>
+    <string name="family_challenges_title">Aile meydan okumaları</string>
+    <string name="challenge_family_subtitle">Aile üyelerine zikirde meydan oku!</string>
+    <string name="no_challenges_yet">Şu anda meydan okuma yok</string>
+    <string name="ask_admin_new_challenge">Yöneticiden yeni bir meydan okuma oluşturmasını iste!</string>
+    <string name="challenge_target_label">Hedef: %1$d zikir</string>
+    <string name="challenge_ongoing_label">Devam ediyor</string>
+    <string name="rename_tree_title">Ağacı adlandır</string>
+    <string name="tree_name_hint">Ağaç adı</string>
+    <string name="add_tree_to_garden_desc">Bahçene yeni bir ağaç ekle!</string>
+    <string name="tree_name_placeholder_example">Örnek: Elma ağacı</string>
 </resources>

@@ -358,4 +358,52 @@
     <string name="payment_methods_soon">طرق الدفع (قريباً)</string>
     <string name="promote_to_admin">ترقية لمدير (Admin)</string>
     <string name="save_changes">حفظ التغييرات</string>
+
+    <!-- SubscriptionsScreen -->
+    <string name="nav_menu">القائمة</string>
+    <string name="bills_category">فواتير</string>
+    <string name="installments_category">أقساط</string>
+    <string name="active_subs_count_label">اشتراكات نشطة</string>
+    <string name="ai_detecting_subscriptions">زاد يبحث عن اشتراكاتك من المعاملات المالية...</string>
+    <string name="no_items_in_category">ما فيه عناصر في هذا التصنيف</string>
+    <string name="renews_today">يتجدد اليوم</string>
+    <string name="expired_days_ago">منتهي من %1$d يوم</string>
+    <string name="renews_in_days">يتجدد بعد %1$d يوم</string>
+    <string name="disable">تعطيل</string>
+    <string name="delete_action">حذف</string>
+    <string name="add_subscription_dialog_title">إضافة اشتراك جديد</string>
+    <string name="subscription_name_hint">اسم الاشتراك (مثال: Netflix)</string>
+    <string name="amount_with_currency_hint">المبلغ (%1$s)</string>
+    <string name="service_provider_hint">مزود الخدمة</string>
+    <string name="renewal_date_hint">تاريخ التجديد (YYYY-MM-DD)</string>
+
+    <!-- TasbihaScreen -->
+    <string name="tasbiha_splash_subtitle">نمِّ شجرتك بالتسبيح</string>
+    <string name="enter_garden_action">ادخل البستان</string>
+    <string name="tasbiha_tab_my_garden">بستاني</string>
+    <string name="tasbiha_tab_family_garden">أشجار العائلة</string>
+    <string name="tasbiha_tab_challenges">التحديات</string>
+    <string name="tasbiha_trees_and_score">%1$d أشجار | %2$d تسبيح</string>
+    <string name="my_trees_count">أشجاري (%1$d)</string>
+    <string name="new_tree_action">شجرة جديدة</string>
+    <string name="streak_days_count">%1$d أيام</string>
+    <string name="progress_to_next_stage">%1$d / %2$d للمرحلة التالية</string>
+    <string name="tree_completed_label">اكتملت!</string>
+    <string name="tree_level_up_celebration">مبروك! شجرتك كبرت!</string>
+    <string name="stat_level_label">المستوى</string>
+    <string name="stat_points_label">النقاط</string>
+    <string name="stat_total_label">إجمالي</string>
+    <string name="stat_streak_label">السلسلة</string>
+    <string name="leaderboard_title">لوحة المتصدرين</string>
+    <string name="member_trees_and_mature">%1$d أشجار | %2$d مثمرة</string>
+    <string name="family_challenges_title">التحديات العائلية</string>
+    <string name="challenge_family_subtitle">تحدَّ أفراد عائلتك بالتسبيح!</string>
+    <string name="no_challenges_yet">ما فيه تحديات حالياً</string>
+    <string name="ask_admin_new_challenge">اطلب من المدير إنشاء تحدي جديد!</string>
+    <string name="challenge_target_label">الهدف: %1$d تسبيح</string>
+    <string name="challenge_ongoing_label">مستمر</string>
+    <string name="rename_tree_title">تسمية الشجرة</string>
+    <string name="tree_name_hint">اسم الشجرة</string>
+    <string name="add_tree_to_garden_desc">ضيف شجرة جديدة لبستانك!</string>
+    <string name="tree_name_placeholder_example">مثال: شجرة التفاح</string>
 </resources>
