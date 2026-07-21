@@ -42,6 +42,7 @@ object ZadCentralBrain {
     )
 
     suspend fun fullAnalysis(
+        context: Context,
         inventory: List<ZadInventory>,
         transactions: List<ZadTransaction>,
         subscriptions: List<ZadSubscription>,
@@ -58,7 +59,7 @@ object ZadCentralBrain {
         val today = LocalDate.now()
 
         // ====== 1. BEHAVIOR LEARNING ENGINE ======
-        val behaviorInsights = learnBehavior(transactions, behaviorPatterns)
+        val behaviorInsights = learnBehavior(context, transactions, behaviorPatterns)
         predictions.addAll(behaviorInsights.predictions)
         if (behaviorInsights.anomalyAlert != null) {
             alerts.add(behaviorInsights.anomalyAlert)
@@ -73,12 +74,12 @@ object ZadCentralBrain {
         // ====== 2. PREDICTIVE ANALYTICS ======
         val nextWeekExpense = predictWeeklySpending(transactions)
         if (nextWeekExpense > 0) {
-            predictions.add("توقع إنفاق الأسبوع القادم: $nextWeekExpense ر.س")
+            predictions.add("توقع إنفاق الأسبوع القادم: ${CurrencyFormatter.format(context, nextWeekExpense)}")
             if (budget > 0 && nextWeekExpense > budget * 0.3) {
                 smartNotifications.add(SmartNotification(
                     type = "PREDICTIVE",
                     title = "📊 توقع إنفاق مرتفع",
-                    body = "نتوقع إنفاق $nextWeekExpense ر.س الأسبوع القادم (أكثر من 30% من ميزانيتك)",
+                    body = "نتوقع إنفاق ${CurrencyFormatter.format(context, nextWeekExpense)} الأسبوع القادم (أكثر من 30% من ميزانيتك)",
                     priority = "HIGH"
                 ))
             }
@@ -130,11 +131,11 @@ object ZadCentralBrain {
                     val daysLeft = ChronoUnit.DAYS.between(today, renewDate)
                     when {
                         daysLeft == 0L -> {
-                            alerts.add("🔔 ${sub.title} يُجدد اليوم! (${sub.amount.toInt()} ر.س)")
-                            smartNotifications.add(SmartNotification("PREDICTIVE", "🔔 تجديد اليوم", "${sub.title} يُجدد اليوم بمبلغ ${sub.amount.toInt()} ر.س", "HIGH"))
+                            alerts.add("🔔 ${sub.title} يُجدد اليوم! (${CurrencyFormatter.format(context, sub.amount)})")
+                            smartNotifications.add(SmartNotification("PREDICTIVE", "🔔 تجديد اليوم", "${sub.title} يُجدد اليوم بمبلغ ${CurrencyFormatter.format(context, sub.amount)}", "HIGH"))
                         }
-                        daysLeft in 1..3 -> alerts.add("🔔 ${sub.title} يتجدد بعد $daysLeft أيام (${sub.amount.toInt()} ر.س)")
-                        daysLeft in 4..7 -> suggestions.add("تذكير: ${sub.title} سيتجدد بعد أسبوع (وفّر ${sub.amount.toInt()} ر.س)")
+                        daysLeft in 1..3 -> alerts.add("🔔 ${sub.title} يتجدد بعد $daysLeft أيام (${CurrencyFormatter.format(context, sub.amount)})")
+                        daysLeft in 4..7 -> suggestions.add("تذكير: ${sub.title} سيتجدد بعد أسبوع (وفّر ${CurrencyFormatter.format(context, sub.amount)})")
                     }
                 } catch (e: Exception) { }
             }
@@ -150,7 +151,7 @@ object ZadCentralBrain {
 
             if (recentWeekExpense > weeklyMean + 2 * stdDev) {
                 val pctOver = ((recentWeekExpense - weeklyMean) / weeklyMean * 100).toInt()
-                val msg = "💰 إنفاق غير مألوف: $pctOver% زيادة هذا الأسبوع (${recentWeekExpense.toInt()} ر.س)"
+                val msg = "💰 إنفاق غير مألوف: $pctOver% زيادة هذا الأسبوع (${CurrencyFormatter.format(context, recentWeekExpense)})"
                 alerts.add(msg)
                 smartNotifications.add(SmartNotification("BEHAVIOR_ALERT", "💰 نشاط إنفاق غير معتاد", msg, "HIGH"))
             }
@@ -162,12 +163,12 @@ object ZadCentralBrain {
             val pct = (totalSpent / budget * 100).toInt()
             val remaining = budget - totalSpent
             when {
-                pct >= 100 -> alerts.add("🚨 تجاوزت الميزانية! أنفقت ${totalSpent.toInt()} ر.س من $budget ر.س")
+                pct >= 100 -> alerts.add("🚨 تجاوزت الميزانية! أنفقت ${CurrencyFormatter.format(context, totalSpent)} من ${CurrencyFormatter.format(context, budget)}")
                 pct >= 85 -> {
                     alerts.add("⚠️ الميزانية على وشك النفاد: $pct% مستخدم")
-                    smartNotifications.add(SmartNotification("PREDICTIVE", "⚠️ الميزانية تنفد", "استخدمت $pct% من ميزانيتك (متبقي $remaining ر.س)", "HIGH"))
+                    smartNotifications.add(SmartNotification("PREDICTIVE", "⚠️ الميزانية تنفد", "استخدمت $pct% من ميزانيتك (متبقي ${CurrencyFormatter.format(context, remaining)})", "HIGH"))
                 }
-                pct >= 70 -> suggestions.add("أنفقت $pct% من الميزانية (متبقي $remaining ر.س)")
+                pct >= 70 -> suggestions.add("أنفقت $pct% من الميزانية (متبقي ${CurrencyFormatter.format(context, remaining)})")
             }
             predictions.add("بناءً على إنفاقك الحالي، الميزانية تكفي لـ ${(budget / (totalSpent / 30.0)).toInt()} يوم إضافي")
         }
@@ -178,7 +179,7 @@ object ZadCentralBrain {
             val totalSavings = savingsTransactions.sumOf { it.amount }
             if (totalSavings > 5000) {
                 smartNotifications.add(SmartNotification("MILESTONE", "🏆 إنجاز توفير كبير",
-                    "وفرت $totalSavings ر.س حتى الآن! استمر 👏", "HIGH"))
+                    "وفرت ${CurrencyFormatter.format(context, totalSavings)} حتى الآن! استمر 👏", "HIGH"))
             }
         }
 
@@ -223,6 +224,7 @@ object ZadCentralBrain {
     )
 
     private fun learnBehavior(
+        context: Context,
         transactions: List<ZadTransaction>,
         existingPatterns: List<ZadBehaviorPattern>
     ): BehaviorInsights {
@@ -245,7 +247,7 @@ object ZadCentralBrain {
                 // Detect spending anomaly
                 if (recent > avg + 2 * stdDev && stdDev > 0) {
                     val pctUp = ((recent - avg) / avg * 100).toInt()
-                    anomalyAlert = "📈 إنفاق غير معتاد في $category: $pctUp% زيادة عن المعدل (المعدل: $avg ر.س، الآن: $recent ر.س)"
+                    anomalyAlert = "📈 إنفاق غير معتاد في $category: $pctUp% زيادة عن المعدل (المعدل: ${CurrencyFormatter.format(context, avg)}، الآن: ${CurrencyFormatter.format(context, recent)})"
                 }
 
                 // Predict next spending
@@ -490,19 +492,19 @@ object ZadCentralBrain {
         // 7) ملاحظات جاهزة
         val insights = mutableListOf<String>()
         categoryBreakdown.firstOrNull()?.let {
-            insights.add("أعلى إنفاقك هذا الشهر: ${it.category} (${it.spent.toInt()} ر.س)")
+            insights.add("أعلى إنفاقك هذا الشهر: ${it.category} (${CurrencyFormatter.format(context, it.spent)})")
         }
         categoryBreakdown.filter { it.isOverBudget }.forEach {
-            insights.add("⛔ تجاوزت ميزانية ${it.category} بـ${(it.spent - it.budget).toInt()} ر.س")
+            insights.add("⛔ تجاوزت ميزانية ${it.category} بـ${CurrencyFormatter.format(context, it.spent - it.budget)}")
         }
         if (subsMonthlyCost > 0) {
-            insights.add("اشتراكاتك النشطة تكلفك ${subsMonthlyCost.toInt()} ر.س شهرياً (${(subsMonthlyCost * 12).toInt()} ر.س سنوياً)")
+            insights.add("اشتراكاتك النشطة تكلفك ${CurrencyFormatter.format(context, subsMonthlyCost)} شهرياً (${CurrencyFormatter.format(context, subsMonthlyCost * 12)} سنوياً)")
 
             // اقتراح إلغاء: نسبة الاشتراكات من الميزانية مرتفعة
             if (budget > 0 && subsMonthlyCost > budget * 0.2) {
                 val mostExpensive = subscriptions.filter { it.isActive }.maxByOrNull { it.amount }
                 if (mostExpensive != null) {
-                    insights.add("💡 اشتراكاتك ${(subsMonthlyCost / budget * 100).toInt()}% من ميزانيتك — راجع ${mostExpensive.title} (${mostExpensive.amount.toInt()} ر.س) لو مش مستخدمه")
+                    insights.add("💡 اشتراكاتك ${(subsMonthlyCost / budget * 100).toInt()}% من ميزانيتك — راجع ${mostExpensive.title} (${CurrencyFormatter.format(context, mostExpensive.amount)}) لو مش مستخدمه")
                 }
             }
 
@@ -513,7 +515,7 @@ object ZadCentralBrain {
             }
             if (streamingSubs.size >= 2) {
                 val cheapest = streamingSubs.minByOrNull { it.amount }
-                insights.add("📺 عندك ${streamingSubs.size} خدمات بث — إلغاء واحدة يوفر لك ${cheapest?.amount?.toInt() ?: 0} ر.س شهرياً")
+                insights.add("📺 عندك ${streamingSubs.size} خدمات بث — إلغاء واحدة يوفر لك ${CurrencyFormatter.format(context, cheapest?.amount ?: 0.0)} شهرياً")
             }
         }
         depletionForecasts.firstOrNull { it.predictedDaysLeft <= 2 }?.let {
@@ -521,7 +523,7 @@ object ZadCentralBrain {
         }
         val avgDaily = dailyTrend.map { it.amount }.filter { it > 0 }.ifEmpty { listOf(0.0) }.average()
         if (avgDaily > 0 && remaining > 0) {
-            insights.add("بمعدل إنفاقك الحالي (${avgDaily.toInt()} ر.س/يوم)، الرصيد يكفي ${(remaining / avgDaily).toInt()} يوم")
+            insights.add("بمعدل إنفاقك الحالي (${CurrencyFormatter.format(context, avgDaily)}/يوم)، الرصيد يكفي ${(remaining / avgDaily).toInt()} يوم")
         }
 
         // 8) قوة الصرف — كم يقدر يصرف يومياً بأمان
@@ -611,10 +613,10 @@ object ZadCentralBrain {
 
         // ملاحظات إضافية من المحركات الجديدة
         if (dailySafeSpend > 0 && currentDailyAvg > dailySafeSpend) {
-            insights.add(0, "⚡ معدل صرفك اليومي (${currentDailyAvg.toInt()} ر.س) أعلى من الآمن (${dailySafeSpend.toInt()} ر.س) — خفف شوية")
+            insights.add(0, "⚡ معدل صرفك اليومي (${CurrencyFormatter.format(context, currentDailyAvg)}) أعلى من الآمن (${CurrencyFormatter.format(context, dailySafeSpend)}) — خفف شوية")
         }
         monthComparison?.let { mc ->
-            if (mc.deltaPct <= -10) insights.add(0, "🎉 صرفت ${-mc.deltaPct}% أقل من نفس الفترة الشهر الماضي — وفرت ${(mc.lastMonthSpent - mc.thisMonthSpent).toInt()} ر.س!")
+            if (mc.deltaPct <= -10) insights.add(0, "🎉 صرفت ${-mc.deltaPct}% أقل من نفس الفترة الشهر الماضي — وفرت ${CurrencyFormatter.format(context, mc.lastMonthSpent - mc.thisMonthSpent)}!")
             else if (mc.deltaPct >= 15) insights.add(0, "📈 صرفك زاد ${mc.deltaPct}% عن نفس الفترة الشهر الماضي")
         }
         behaviorProfile?.let { bp ->
@@ -645,45 +647,45 @@ object ZadCentralBrain {
     }
 
     /** تقرير نصي كامل جاهز للمشاركة/التصدير (واتساب، إيميل، ملف) */
-    fun buildExportText(report: BrainReport): String = buildString {
+    fun buildExportText(context: Context, report: BrainReport): String = buildString {
         val today = LocalDate.now()
         appendLine("📊 تقرير زاد المالي — ${today.month.value}/${today.year}")
         appendLine("═══════════════════════════")
         appendLine("الصحة المالية: ${report.healthScore}/100 (${report.healthLabel})")
-        appendLine("قوة الصرف: ${report.spendingPower.status} — الآمن يومياً: ${report.spendingPower.dailySafeSpend.toInt()} ر.س")
+        appendLine("قوة الصرف: ${report.spendingPower.status} — الآمن يومياً: ${CurrencyFormatter.format(context, report.spendingPower.dailySafeSpend)}")
         appendLine()
         appendLine("💰 الأرقام:")
-        appendLine("• الميزانية: ${report.budget.toInt()} ر.س")
-        appendLine("• المصروف: ${report.totalSpent.toInt()} ر.س")
-        appendLine("• الدخل: ${report.totalIncome.toInt()} ر.س")
-        appendLine("• المتبقي: ${report.remaining.toInt()} ر.س")
+        appendLine("• الميزانية: ${CurrencyFormatter.format(context, report.budget)}")
+        appendLine("• المصروف: ${CurrencyFormatter.format(context, report.totalSpent)}")
+        appendLine("• الدخل: ${CurrencyFormatter.format(context, report.totalIncome)}")
+        appendLine("• المتبقي: ${CurrencyFormatter.format(context, report.remaining)}")
         if (report.subscriptionsMonthlyCost > 0)
-            appendLine("• الاشتراكات: ${report.subscriptionsMonthlyCost.toInt()} ر.س/شهر")
+            appendLine("• الاشتراكات: ${CurrencyFormatter.format(context, report.subscriptionsMonthlyCost)}/شهر")
         report.monthComparison?.let { mc ->
             appendLine()
             appendLine("📅 مقارنة بالشهر الماضي (نفس الفترة):")
-            appendLine("• هذا الشهر: ${mc.thisMonthSpent.toInt()} ر.س | الماضي: ${mc.lastMonthSpent.toInt()} ر.س (${if (mc.deltaPct >= 0) "+" else ""}${mc.deltaPct}%)")
+            appendLine("• هذا الشهر: ${CurrencyFormatter.format(context, mc.thisMonthSpent)} | الماضي: ${CurrencyFormatter.format(context, mc.lastMonthSpent)} (${if (mc.deltaPct >= 0) "+" else ""}${mc.deltaPct}%)")
         }
         if (report.categoryBreakdown.isNotEmpty()) {
             appendLine()
             appendLine("🗂️ حسب الفئة:")
             report.categoryBreakdown.forEach { c ->
-                append("• ${c.category}: ${c.spent.toInt()} ر.س")
-                if (c.budget > 0) append(" من ${c.budget.toInt()} (${c.pctUsed}%)")
+                append("• ${c.category}: ${CurrencyFormatter.format(context, c.spent)}")
+                if (c.budget > 0) append(" من ${CurrencyFormatter.formatNumber(context, c.budget)} (${c.pctUsed}%)")
                 appendLine()
             }
         }
         if (report.topMerchants.isNotEmpty()) {
             appendLine()
             appendLine("🏪 أعلى الجهات:")
-            report.topMerchants.forEach { (name, amt) -> appendLine("• $name: ${amt.toInt()} ر.س") }
+            report.topMerchants.forEach { (name, amt) -> appendLine("• $name: ${CurrencyFormatter.format(context, amt)}") }
         }
         report.behaviorProfile?.let { bp ->
             appendLine()
             appendLine("🧠 سلوكك المالي:")
             appendLine("• أكثر يوم صرف: ${bp.topSpendingDay}")
             appendLine("• صرف الويكند: ${bp.weekendSharePct}% من الإجمالي")
-            appendLine("• متوسط المعاملة: ${bp.avgTransaction.toInt()} ر.س")
+            appendLine("• متوسط المعاملة: ${CurrencyFormatter.format(context, bp.avgTransaction)}")
             if (bp.impulsePurchases > 0) appendLine("• مشتريات اندفاعية (30 يوم): ${bp.impulsePurchases}")
         }
         if (report.insights.isNotEmpty()) {

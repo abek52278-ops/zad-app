@@ -1335,7 +1335,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             val patterns = _behaviorPatterns.value
             val budget = _budget.value
 
-            val brainOutput = ZadCentralBrain.fullAnalysis(inventory, transactions, subscriptions, shoppingList, patterns, budget)
+            val brainOutput = ZadCentralBrain.fullAnalysis(getApplication(), inventory, transactions, subscriptions, shoppingList, patterns, budget)
 
             Log.d(TAG, "triggerBrain() -> ${brainOutput.alerts.size} alerts, ${brainOutput.suggestions.size} suggestions, ${brainOutput.autoActions.size} auto-actions")
 

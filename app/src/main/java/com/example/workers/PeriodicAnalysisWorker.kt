@@ -37,6 +37,7 @@ class PeriodicAnalysisWorker(
             val budget = prefs.getFloat("cached_budget", 3500f).toDouble()
 
             val brainResult = ZadCentralBrain.fullAnalysis(
+                context = applicationContext,
                 inventory = inventory,
                 transactions = transactions,
                 subscriptions = subscriptions,

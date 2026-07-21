@@ -1225,7 +1225,7 @@ private fun ExportReportButton(report: com.example.data.ZadCentralBrain.BrainRep
         color = primaryContainer,
         modifier = Modifier.fillMaxWidth(),
         onClick = {
-            val text = com.example.data.ZadCentralBrain.buildExportText(report)
+            val text = com.example.data.ZadCentralBrain.buildExportText(context, report)
             val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                 type = "text/plain"
                 putExtra(android.content.Intent.EXTRA_SUBJECT, "تقرير زاد المالي")
