@@ -513,6 +513,14 @@ private fun AnimatedTreeDisplay(
         finishedListener = { tapRotation = 0f }
     )
 
+    // نمو مستمر — الشجرة تكبر شوية بشوية مع كل تسبيحة جوه نفس المرحلة، مش قفزة مفاجئة بس عند تغيير level
+    val growthProgress = tree.progressToNext()
+    val animatedGrowth by animateFloatAsState(
+        targetValue = 0.82f + (growthProgress * 0.35f),
+        animationSpec = tween(700, easing = FastOutSlowInEasing),
+        label = "growth"
+    )
+
     // Pulse glow intensity on tap
     var glowPulse by remember { mutableFloatStateOf(0.3f) }
     val animatedGlow by animateFloatAsState(
@@ -550,6 +558,14 @@ private fun AnimatedTreeDisplay(
         initialValue = 0f, targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(2000, easing = LinearEasing), RepeatMode.Restart),
         label = "particle"
+    )
+
+    // أوراق متساقطة زخرفية — بتزيد مع نمو الشجرة، إحساس بستان حي مش أيقونة ثابتة
+    val ambientLeafCount = (tree.level - 1).coerceIn(0, 4)
+    val leafCycle by infiniteTransition.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(4200, easing = LinearEasing), RepeatMode.Restart),
+        label = "leafCycle"
     )
 
     // Floating emojis — fixed overflow bug
@@ -652,6 +668,25 @@ private fun AnimatedTreeDisplay(
                         )
                 )
 
+                // أوراق متساقطة زخرفية — عدد ثابت حسب مستوى الشجرة، كل ورقة بمرحلة زمنية مختلفة
+                if (ambientLeafCount > 0) {
+                    repeat(ambientLeafCount) { i ->
+                        val phase = (leafCycle + i.toFloat() / ambientLeafCount) % 1f
+                        val xOffset = (-50 + i * 34).dp
+                        val yOffset = (-100 + phase * 190).dp
+                        Text(
+                            "🍃",
+                            fontSize = 14.sp,
+                            modifier = Modifier
+                                .offset(x = xOffset, y = yOffset)
+                                .graphicsLayer {
+                                    alpha = (1f - phase) * 0.7f
+                                    rotationZ = phase * 180f
+                                }
+                        )
+                    }
+                }
+
                 // Level up burst
                 if (showLevelUpAnim.value) {
                     for (i in 0..7) {
@@ -705,12 +740,11 @@ private fun AnimatedTreeDisplay(
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            Icons.Default.Park,
-                            contentDescription = null,
+                        Text(
+                            tree.stageEmoji(),
+                            fontSize = if (showLevelUpAnim.value) 56.sp else 40.sp,
                             modifier = Modifier
-                                .size(if (showLevelUpAnim.value) 80.dp else 56.dp)
-                                .scale(if (showLevelUpAnim.value) 1.4f else animatedScale)
+                                .scale((if (showLevelUpAnim.value) 1.4f else animatedScale) * animatedGrowth)
                                 .graphicsLayer {
                                     rotationZ = idleSway + animatedRotation
                                 }
@@ -806,7 +840,7 @@ private fun TreeMiniCard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(Icons.Default.Park, contentDescription = null, modifier = Modifier.size(24.dp), tint = Color(0xFF2E7D32))
+            Text(tree.stageEmoji(), fontSize = 22.sp)
             Spacer(Modifier.height(4.dp))
             Text(
                 tree.treeName.take(8),
@@ -924,7 +958,7 @@ private fun MiniTreeCard(tree: TasbihaTree) {
             modifier = Modifier.padding(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(Icons.Default.Park, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color(0xFF2E7D32))
+            Text(tree.stageEmoji(), fontSize = 18.sp)
             Spacer(Modifier.height(2.dp))
             Text(
                 tree.treeName.take(6),

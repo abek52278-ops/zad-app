@@ -471,6 +471,8 @@
     <string name="low_inventory_alerts_desc">يرسل إشعاراً عند اقتراب نفاذ منتج أساسي</string>
     <string name="meal_suggestions_alert">اقتراحات الوجبات</string>
     <string name="meal_suggestions_alert_desc">اقتراح وجبات يومية بناءً على المخزون الحالي</string>
+    <string name="tasbih_reminder_alert">تذكير التسبيح</string>
+    <string name="tasbih_reminder_alert_desc">تذكير لطيف الساعة 5 عصراً لو لسه ما سبّحتش النهاردة</string>
     <string name="name_alias_label">الاسم / اللقب</string>
     <string name="not_in_family_yet">أنت لست منضماً لأي عائلة حالياً.</string>
     <string name="payment_and_budget_title">طرق الدفع والميزانية</string>

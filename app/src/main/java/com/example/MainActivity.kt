@@ -106,6 +106,19 @@ class MainActivity : ComponentActivity() {
             morningWorkRequest
         )
 
+        // تذكير التسبيح — كل يوم الساعة 5 عصراً، بس لو المستخدم لسه ما سبّحش النهاردة
+        var next5pm = now.withHour(17).withMinute(0).withSecond(0).withNano(0)
+        if (now.isAfter(next5pm)) next5pm = next5pm.plusDays(1)
+        val tasbihaInitialDelayMinutes = java.time.Duration.between(now, next5pm).toMinutes()
+        val tasbihaReminderRequest = PeriodicWorkRequestBuilder<com.example.workers.TasbihaReminderWorker>(24, TimeUnit.HOURS)
+            .setInitialDelay(tasbihaInitialDelayMinutes, TimeUnit.MINUTES)
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "ZadTasbihaReminderWorker",
+            ExistingPeriodicWorkPolicy.KEEP,
+            tasbihaReminderRequest
+        )
+
         // Start real-time chat notification service
         try {
             startService(Intent(this, com.example.services.ChatNotificationService::class.java))

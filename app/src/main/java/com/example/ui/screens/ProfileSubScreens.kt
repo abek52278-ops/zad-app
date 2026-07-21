@@ -358,6 +358,7 @@ object AlertPrefs {
     const val KEY_LOW_INVENTORY = "alert_low_inventory"
     const val KEY_BUDGET_OVERRUN = "alert_budget_overrun"
     const val KEY_MEAL_SUGGESTIONS = "alert_meal_suggestions"
+    const val KEY_TASBIH_REMINDER = "alert_tasbih_reminder"
 
     fun isEnabled(context: android.content.Context, key: String): Boolean =
         context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
@@ -374,6 +375,7 @@ fun AssistantAlertsScreen(onBack: () -> Unit) {
     var lowInventoryAlerts by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_LOW_INVENTORY)) }
     var budgetOverrunAlerts by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_BUDGET_OVERRUN)) }
     var mealSuggestions by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_MEAL_SUGGESTIONS)) }
+    var tasbihReminder by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_TASBIH_REMINDER)) }
 
     Column(modifier = Modifier.fillMaxSize().background(background)) {
         SubScreenTopBar(stringResource(R.string.assistant_alerts_title), onBack)
@@ -390,6 +392,10 @@ fun AssistantAlertsScreen(onBack: () -> Unit) {
             AlertSwitchItem(stringResource(R.string.meal_suggestions_alert), stringResource(R.string.meal_suggestions_alert_desc), mealSuggestions) {
                 mealSuggestions = it
                 AlertPrefs.setEnabled(context, AlertPrefs.KEY_MEAL_SUGGESTIONS, it)
+            }
+            AlertSwitchItem(stringResource(R.string.tasbih_reminder_alert), stringResource(R.string.tasbih_reminder_alert_desc), tasbihReminder) {
+                tasbihReminder = it
+                AlertPrefs.setEnabled(context, AlertPrefs.KEY_TASBIH_REMINDER, it)
             }
         }
     }
