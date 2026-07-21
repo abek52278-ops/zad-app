@@ -1,0 +1,132 @@
+<resources>
+    <string name="app_name">Zad</string>
+    <string name="slogan">Ailenizin akıllı pusulası</string>
+    <string name="welcome">Zad\'a hoş geldiniz</string>
+    <string name="login">Giriş yap</string>
+    <string name="signup">Hesap oluştur</string>
+    <string name="email">E-posta</string>
+    <string name="password">Şifre</string>
+    <string name="get_started">Başla</string>
+    <string name="language_toggle">Türkçe</string>
+
+    <!-- Drawer Items -->
+    <string name="nav_home">Ana sayfa</string>
+    <string name="nav_mother_tools">Anne araçları</string>
+    <string name="nav_inventory">Envanter</string>
+    <string name="nav_shopping">Alışveriş listesi</string>
+    <string name="nav_budget">Bütçe</string>
+    <string name="nav_wishlist">İstek listesi</string>
+    <string name="nav_assistant">Zad Zeka</string>
+    <string name="nav_family">Aile</string>
+    <string name="nav_reports">Raporlar</string>
+    <string name="nav_store">Zad Mağazası</string>
+    <string name="nav_help">Destek</string>
+    <string name="nav_profile">Profil</string>
+
+    <!-- HomeScreen and common -->
+    <string name="allocated_salary">Ayrılan bütçe</string>
+    <string name="currency">₺</string>
+    <string name="deposit">Yatır</string>
+    <string name="expense">Gider</string>
+    <string name="remaining">Kalan</string>
+    <string name="budget_percent">Bütçe</string>
+    <string name="expense_analysis">Harcama analizi</string>
+    <string name="grocery">Market</string>
+    <string name="subscriptions">Abonelikler</string>
+    <string name="restaurants">Restoranlar</string>
+    <string name="inventory_items">Envanter öğeleri</string>
+    <string name="active_subscriptions">Aktif abonelikler</string>
+    <string name="ai_meal_suggestions">Akıllı yemek önerileri</string>
+    <string name="view_all">Tümünü gör</string>
+    <string name="recent_transactions">Son işlemler</string>
+    <string name="no_transactions">Henüz işlem yok.</string>
+    <string name="view_full_history">Tüm geçmişi gör</string>
+    <string name="enable_bank_notifications">Banka bildirimlerini etkinleştir</string>
+    <string name="enable_bank_notifications_desc">SMS ve banka bildirimlerini dinle</string>
+    <string name="enable">Etkinleştir</string>
+    <string name="close">Kapat</string>
+    <string name="family_hub">Akıllı aile</string>
+    <string name="manage_family">Aileyi yönet</string>
+    <string name="family_desc">Çocukların görev ve harcamalarını yönet</string>
+    <string name="quick_shortcuts">Hızlı kısayollar</string>
+    <string name="zad_ai">Zad Zeka</string>
+
+    <!-- Transactions Screen -->
+    <string name="transactions_title">İşlemler</string>
+    <string name="transactions_subtitle">Zad Bankası</string>
+    <string name="search_transactions">İşlem ara...</string>
+    <string name="filter_all">Tümü</string>
+    <string name="filter_purchases">Alışverişler</string>
+    <string name="filter_subscriptions">Abonelikler</string>
+    <string name="filter_transfers">Transferler</string>
+    <string name="filter_salary">Maaşlar</string>
+    <string name="filter_food">Restoranlar</string>
+    <string name="current_balance">Güncel bakiye</string>
+    <string name="positive">Pozitif</string>
+    <string name="negative">Negatif</string>
+    <string name="income_label">Gelir</string>
+    <string name="expense_label">Giderler</string>
+    <string name="budget_label">Bütçe</string>
+    <string name="no_transactions_filtered">Eşleşen işlem yok</string>
+    <string name="no_transactions_hint">Filtreyi veya aramayı değiştirmeyi dene</string>
+    <string name="no_transactions_yet">Banka işlemlerin burada görünecek</string>
+    <string name="delete_transaction_title">İşlemi sil</string>
+    <string name="delete_transaction_confirm">"%s" işlemini silmek istediğine emin misin?</string>
+    <string name="transaction_count">%d işlem</string>
+    <string name="transactions_list">İşlemler</string>
+    <string name="sar">₺</string>
+    <string name="budget_usage">Bütçenin %%%d\'si</string>
+
+    <!-- Widget -->
+    <string name="widget_description">Zad\'dan bakiyeni ve son işlemlerini gösterir</string>
+
+    <!-- HomeScreen: dialogs and common actions -->
+    <string name="save">Kaydet</string>
+    <string name="cancel">Vazgeç</string>
+    <string name="amount">Tutar</string>
+    <string name="income_deposit">Gelir (maaş)</string>
+    <string name="expense_deduction">Gider (harcama)</string>
+    <string name="description_hint">Açıklama (örn: maaş, kira)</string>
+    <string name="category_hint">Kategori (market, faturalar...)</string>
+    <string name="edit_monthly_budget">Aylık bütçeyi düzenle</string>
+    <string name="budget_with_currency">Bütçe (%1$s)</string>
+    <string name="budget_save_note">Bütçen Supabase → zad_users tablosuna kaydedilecek</string>
+
+    <!-- HomeScreen: greeting and hero -->
+    <string name="greeting_hi_name">Merhaba %1$s! 👋</string>
+    <string name="greeting_subtitle">Güzel bir gün, daha güzel bir bütçe ✨</string>
+    <string name="available_spending">Harcanabilir bakiyen</string>
+
+    <!-- HomeScreen: sections -->
+    <string name="recent_transactions_full_log">Tüm işlem geçmişi</string>
+    <string name="no_transactions_recorded">Kayıtlı işlem yok</string>
+    <string name="no_transactions_for_analysis">Analiz için gösterilecek işlem yok.</string>
+    <string name="zad_prediction_next_month">Zad\'ın gelecek ay tahmini</string>
+    <string name="prediction_confidence">Tahmin (güven %%%1$d)</string>
+    <string name="zad_chef_suggestions">Zad Şef (akıllı öneriler)</string>
+    <string name="suggested_recipes_before_expiry">Son kullanma tarihinden önce önerilen tarifler</string>
+    <string name="shopping_suggestions">Alışveriş önerileri</string>
+    <string name="shop_from_amazon">Amazon\'dan alışveriş yap</string>
+    <string name="view_all_count">Tümünü gör (%1$d)</string>
+
+    <!-- HomeScreen: AI agent card -->
+    <string name="zad_agent">Zad Asistanı</string>
+    <string name="zad_analyzing_now">Zad verilerini analiz ediyor...</string>
+    <string name="open_chat">Sohbeti aç</string>
+    <string name="tap_for_more_in_chat">Zad sohbetinde devamını gör ←</string>
+    <string name="need_extra_expense">Ekstra harcama mı gerekiyor?</string>
+
+    <!-- HomeScreen: family mini hub -->
+    <string name="last_family_messages">Son aile mesajları</string>
+    <string name="no_messages_yet">Henüz mesaj yok</string>
+    <string name="loading_family_data">Aile verileri yükleniyor...</string>
+
+    <!-- HomeScreen: notifications sheet / kids -->
+    <string name="no_notifications_yet">Şu an bildirim yok.</string>
+    <string name="main_menu">Ana menü</string>
+    <string name="profile_title">Profil</string>
+    <string name="tasbiha_garden">Zikir bahçesi</string>
+    <string name="my_tasks">Görevlerim</string>
+    <string name="no_tasks_now">Şu an görev yok — gününün tadını çıkar!</string>
+    <string name="close_action">Kapat</string>
+</resources>

@@ -1,0 +1,132 @@
+<resources>
+    <string name="app_name">زاد</string>
+    <string name="slogan">بوصلة عيلتك الذكية</string>
+    <string name="welcome">أهلاً بيك في زاد</string>
+    <string name="login">تسجيل الدخول</string>
+    <string name="signup">اعمل حساب</string>
+    <string name="email">البريد الإلكتروني</string>
+    <string name="password">كلمة السر</string>
+    <string name="get_started">يلا نبدأ</string>
+    <string name="language_toggle">العربية</string>
+
+    <!-- Drawer Items -->
+    <string name="nav_home">الرئيسية</string>
+    <string name="nav_mother_tools">أدوات الأم</string>
+    <string name="nav_inventory">المخزون</string>
+    <string name="nav_shopping">قايمة التسوق</string>
+    <string name="nav_budget">الميزانية</string>
+    <string name="nav_wishlist">قايمة الأمنيات</string>
+    <string name="nav_assistant">ذكاء زاد</string>
+    <string name="nav_family">العيلة</string>
+    <string name="nav_reports">التقارير</string>
+    <string name="nav_store">متجر زاد</string>
+    <string name="nav_help">الدعم الفني</string>
+    <string name="nav_profile">البروفايل</string>
+
+    <!-- HomeScreen and common -->
+    <string name="allocated_salary">الميزانية المخصصة</string>
+    <string name="currency">ج.م</string>
+    <string name="deposit">إيداع</string>
+    <string name="expense">مصروف</string>
+    <string name="remaining">الباقي</string>
+    <string name="budget_percent">الميزانية</string>
+    <string name="expense_analysis">تحليل المصروفات</string>
+    <string name="grocery">مقاضي</string>
+    <string name="subscriptions">اشتراكات</string>
+    <string name="restaurants">مطاعم</string>
+    <string name="inventory_items">عناصر المخزون</string>
+    <string name="active_subscriptions">الاشتراكات الشغالة</string>
+    <string name="ai_meal_suggestions">اقتراحات أكل ذكية</string>
+    <string name="view_all">اعرض الكل</string>
+    <string name="recent_transactions">آخر العمليات</string>
+    <string name="no_transactions">لسه مفيش عمليات.</string>
+    <string name="view_full_history">اعرض السجل كامل</string>
+    <string name="enable_bank_notifications">فعّل تنبيهات البنك</string>
+    <string name="enable_bank_notifications_desc">يسمع الرسايل والتنبيهات بتاعة البنك</string>
+    <string name="enable">تفعيل</string>
+    <string name="close">قفل</string>
+    <string name="family_hub">العيلة الذكية</string>
+    <string name="manage_family">إدارة العيلة</string>
+    <string name="family_desc">إدارة مهام ومصاريف الأولاد</string>
+    <string name="quick_shortcuts">اختصارات سريعة</string>
+    <string name="zad_ai">ذكاء زاد</string>
+
+    <!-- Transactions Screen -->
+    <string name="transactions_title">العمليات</string>
+    <string name="transactions_subtitle">بنك زاد</string>
+    <string name="search_transactions">دوّر على عملية...</string>
+    <string name="filter_all">الكل</string>
+    <string name="filter_purchases">مشتريات</string>
+    <string name="filter_subscriptions">اشتراكات</string>
+    <string name="filter_transfers">تحويلات</string>
+    <string name="filter_salary">مرتبات</string>
+    <string name="filter_food">مطاعم</string>
+    <string name="current_balance">الرصيد الحالي</string>
+    <string name="positive">تمام</string>
+    <string name="negative">مش تمام</string>
+    <string name="income_label">الدخل</string>
+    <string name="expense_label">المصروفات</string>
+    <string name="budget_label">الميزانية</string>
+    <string name="no_transactions_filtered">مفيش عمليات مطابقة</string>
+    <string name="no_transactions_hint">جرب تغيّر الفلتر أو البحث</string>
+    <string name="no_transactions_yet">هتلاقي هنا عمليات البنك</string>
+    <string name="delete_transaction_title">حذف العملية</string>
+    <string name="delete_transaction_confirm">متأكد عايز تمسح عملية "%s"؟</string>
+    <string name="transaction_count">%d عملية</string>
+    <string name="transactions_list">العمليات</string>
+    <string name="sar">ج.م</string>
+    <string name="budget_usage">%d%% من الميزانية</string>
+
+    <!-- Widget -->
+    <string name="widget_description">يعرض رصيدك وآخر عملياتك من زاد</string>
+
+    <!-- HomeScreen: dialogs and common actions -->
+    <string name="save">حفظ</string>
+    <string name="cancel">إلغاء</string>
+    <string name="amount">المبلغ</string>
+    <string name="income_deposit">إيداع (مرتب)</string>
+    <string name="expense_deduction">خصم (مصروف)</string>
+    <string name="description_hint">الوصف (مثلاً: مرتب، إيجار)</string>
+    <string name="category_hint">التصنيف (سوبر ماركت، فواتير...)</string>
+    <string name="edit_monthly_budget">تعديل الميزانية الشهرية</string>
+    <string name="budget_with_currency">الميزانية (%1$s)</string>
+    <string name="budget_save_note">هتتحفظ ميزانيتك في Supabase → جدول zad_users</string>
+
+    <!-- HomeScreen: greeting and hero -->
+    <string name="greeting_hi_name">إزيك يا %1$s! 👋</string>
+    <string name="greeting_subtitle">يوم حلو وميزانية أحلى ✨</string>
+    <string name="available_spending">مصروفك المتاح</string>
+
+    <!-- HomeScreen: sections -->
+    <string name="recent_transactions_full_log">السجل الكامل للعمليات</string>
+    <string name="no_transactions_recorded">مفيش عمليات متسجلة</string>
+    <string name="no_transactions_for_analysis">مفيش عمليات نعرض تحليلها.</string>
+    <string name="zad_prediction_next_month">توقع زاد للشهر الجاي</string>
+    <string name="prediction_confidence">متوقع (ثقة %1$d%%)</string>
+    <string name="zad_chef_suggestions">شيف زاد (اقتراحات ذكية)</string>
+    <string name="suggested_recipes_before_expiry">وصفات مقترحة بيه قبل ما يخلص</string>
+    <string name="shopping_suggestions">اقتراحات التسوق</string>
+    <string name="shop_from_amazon">تسوق من أمازون</string>
+    <string name="view_all_count">اعرض الكل (%1$d)</string>
+
+    <!-- HomeScreen: AI agent card -->
+    <string name="zad_agent">وكيل زاد</string>
+    <string name="zad_analyzing_now">زاد بيحلل بياناتك دلوقتي...</string>
+    <string name="open_chat">افتح الشات</string>
+    <string name="tap_for_more_in_chat">دوس هنا عشان تشوف أكتر في شات زاد ←</string>
+    <string name="need_extra_expense">محتاج مصروف زيادة؟</string>
+
+    <!-- HomeScreen: family mini hub -->
+    <string name="last_family_messages">آخر رسايل العيلة</string>
+    <string name="no_messages_yet">لسه مفيش رسايل</string>
+    <string name="loading_family_data">بيحمّل بيانات العيلة...</string>
+
+    <!-- HomeScreen: notifications sheet / kids -->
+    <string name="no_notifications_yet">مفيش إشعارات دلوقتي.</string>
+    <string name="main_menu">القايمة الرئيسية</string>
+    <string name="profile_title">البروفايل</string>
+    <string name="tasbiha_garden">بستان التسبيح</string>
+    <string name="my_tasks">مهامي</string>
+    <string name="no_tasks_now">مفيش مهام دلوقتي — استمتع بيومك!</string>
+    <string name="close_action">قفل</string>
+</resources>

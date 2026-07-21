@@ -64,10 +64,25 @@ object MarketPrefs {
             .putString(KEY_MARKET, market.name)
             .apply()
         currentMarket = market
+        applyLocale(market)
     }
 
     /** أول مرة يفتح فيها التطبيق — لسه محددش بلد */
     fun hasSelectedMarket(context: Context): Boolean {
         return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).contains(KEY_MARKET)
+    }
+
+    /**
+     * لازم تتنادى مرة عند بدء التطبيق (بعد getMarket) — من غيرها اختيار البلد
+     * بيتخزن بس، ومجلد strings.xml اللي بيتحمل فعلياً بيفضل تابع للغة نظام الجهاز
+     * مش لاختيار المستخدم جوه التطبيق.
+     */
+    fun applyStoredLocale(context: Context) {
+        applyLocale(getMarket(context))
+    }
+
+    private fun applyLocale(market: Market) {
+        val locales = androidx.core.os.LocaleListCompat.forLanguageTags(market.localeTag)
+        androidx.appcompat.app.AppCompatDelegate.setApplicationLocales(locales)
     }
 }

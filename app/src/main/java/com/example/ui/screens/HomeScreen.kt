@@ -323,7 +323,7 @@ fun HomeScreen(
                 // 8. Amazon Affiliate Suggestions
                 val activeAffiliateProducts = affiliateProducts.filter { it.isActive }
                 if (activeAffiliateProducts.isNotEmpty()) {
-                    Text("تسوق من أمازون", style = Typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.shop_from_amazon), style = Typography.titleLarge, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(12.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         items(activeAffiliateProducts.take(5)) { product ->
@@ -385,7 +385,7 @@ fun HomeScreen(
     if (showAllTransactionsDialog) {
         AlertDialog(
             onDismissRequest = { showAllTransactionsDialog = false },
-            title = { Text("السجل الكامل للمعاملات") },
+            title = { Text(stringResource(R.string.recent_transactions_full_log)) },
             text = {
                 androidx.compose.foundation.lazy.LazyColumn {
                     items(transactions.reversed()) { tx ->
@@ -410,7 +410,7 @@ fun HomeScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showAllTransactionsDialog = false }) { Text("إغلاق") }
+                TextButton(onClick = { showAllTransactionsDialog = false }) { Text(stringResource(R.string.close_action)) }
             }
         )
     }
@@ -470,11 +470,11 @@ fun TopAppBarSection(onOpenDrawer: () -> Unit, userName: String, globalAvatarUri
                 }
                 DropdownMenu(expanded = profileExpanded, onDismissRequest = { profileExpanded = false }) {
                     DropdownMenuItem(
-                        text = { Text("الملف الشخصي") },
+                        text = { Text(stringResource(R.string.profile_title)) },
                         onClick = { profileExpanded = false; onNavigateToProfile() }
                     )
                     DropdownMenuItem(
-                        text = { Text("القائمة الرئيسية") },
+                        text = { Text(stringResource(R.string.main_menu)) },
                         onClick = { profileExpanded = false; onOpenDrawer() }
                     )
                 }
@@ -696,14 +696,14 @@ fun BudgetEditDialog(currentBudget: Double, onDismiss: () -> Unit, onSave: (Doub
     val context = LocalContext.current
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("تعديل الميزانية الشهرية") },
+        title = { Text(stringResource(R.string.edit_monthly_budget)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("سيتم حفظ الميزانية في Supabase → جدول zad_users", style = Typography.labelSmall, color = onSurfaceVariant)
+                Text(stringResource(R.string.budget_save_note), style = Typography.labelSmall, color = onSurfaceVariant)
                 OutlinedTextField(
                     value = budgetStr,
                     onValueChange = { budgetStr = it },
-                    label = { Text("الميزانية (${com.example.data.CurrencyFormatter.symbol(context)})") },
+                    label = { Text(stringResource(R.string.budget_with_currency, com.example.data.CurrencyFormatter.symbol(context))) },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -713,10 +713,10 @@ fun BudgetEditDialog(currentBudget: Double, onDismiss: () -> Unit, onSave: (Doub
                 val parsed = budgetStr.toDoubleOrNull() ?: currentBudget
                 Log.d(TAG_HOME, "BudgetEditDialog confirm → parsed=$parsed")
                 onSave(parsed)
-            }) { Text("حفظ") }
+            }) { Text(stringResource(R.string.save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("إلغاء") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }
@@ -771,7 +771,7 @@ fun ExpenseAnalysisSection(transactions: List<ZadTransaction> = emptyList()) {
         Spacer(modifier = Modifier.height(24.dp))
 
         if (transactions.isEmpty()) {
-            Text("لا توجد معاملات لعرض التحليل.", style = Typography.bodyMedium, color = onSurfaceVariant, modifier = Modifier.padding(vertical = 20.dp))
+            Text(stringResource(R.string.no_transactions_for_analysis), style = Typography.bodyMedium, color = onSurfaceVariant, modifier = Modifier.padding(vertical = 20.dp))
         } else {
             Row(
                 modifier = Modifier
@@ -962,7 +962,7 @@ fun UrgentRecipeCard(
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF9A3412)
                     )
-                    Text("وصفات مقترحة بيه قبل ما يضيع", style = Typography.labelSmall, color = Color(0xFFC2410C))
+                    Text(stringResource(R.string.suggested_recipes_before_expiry), style = Typography.labelSmall, color = Color(0xFFC2410C))
                 }
             }
             Spacer(modifier = Modifier.height(10.dp))
@@ -974,7 +974,7 @@ fun UrgentRecipeCard(
                 maxLines = 5
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Text("اضغط للمزيد في شات زاد ←", style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFFC2410C))
+            Text(stringResource(R.string.tap_for_more_in_chat), style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFFC2410C))
         }
     }
 }
@@ -999,7 +999,7 @@ fun SmartChefSection(
                     contentAlignment = Alignment.Center
                 ) { Icon(Icons.Default.SmartToy, contentDescription = null, tint = catFoodIcon, modifier = Modifier.size(18.dp)) }
                 Spacer(modifier = Modifier.width(10.dp))
-                Text("شيف زاد (اقتراحات ذكية)", style = Typography.titleMedium, color = onSurface)
+                Text(stringResource(R.string.zad_chef_suggestions), style = Typography.titleMedium, color = onSurface)
             }
             TextButton(onClick = onViewAll) { Text(stringResource(R.string.view_all), style = Typography.labelMedium, color = primary) }
         }
@@ -1274,7 +1274,7 @@ fun AgentSummaryCard(
                         contentAlignment = Alignment.Center
                     ) { Icon(Icons.Default.SmartToy, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp)) }
                     Spacer(Modifier.width(10.dp))
-                    Text("وكيل زاد", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(stringResource(R.string.zad_agent), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
                 IconButton(onClick = onRefresh, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Default.Refresh, contentDescription = "تحديث", tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
@@ -1343,7 +1343,7 @@ fun AgentSummaryCard(
                     }
                 }
             } else {
-                Text("زاد يحلل بياناتك الآن...", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
+                Text(stringResource(R.string.zad_analyzing_now), color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
             }
         }
     }
@@ -1374,13 +1374,13 @@ fun PredictionCard(prediction: com.example.data.AiExpensePrediction, budget: Dou
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.TrendingUp, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("توقع زاد للشهر القادم", style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.zad_prediction_next_month), style = Typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.Bottom) {
                 Text("%.0f ريال".format(prediction.predictedTotal), color = color, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp)
                 Spacer(Modifier.width(8.dp))
-                Text("متوقع (ثقة ${(prediction.confidence * 100).toInt()}%)", color = onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp))
+                Text(stringResource(R.string.prediction_confidence, (prediction.confidence * 100).toInt()), color = onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp))
             }
             if (prediction.warnings.isNotEmpty()) {
                 Spacer(Modifier.height(6.dp))
@@ -1504,7 +1504,7 @@ fun AddTransactionDialog(
                     FilterChip(
                         selected = !isExpense,
                         onClick = { isExpense = false },
-                        label = { Text("إيداع (راتب)") },
+                        label = { Text(stringResource(R.string.income_deposit)) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = primary,
                             selectedLabelColor = MaterialTheme.colorScheme.onSurface
@@ -1514,7 +1514,7 @@ fun AddTransactionDialog(
                     FilterChip(
                         selected = isExpense,
                         onClick = { isExpense = true },
-                        label = { Text("خصم (مصروف)") },
+                        label = { Text(stringResource(R.string.expense_deduction)) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = dangerColor,
                             selectedLabelColor = MaterialTheme.colorScheme.onSurface
@@ -1526,21 +1526,21 @@ fun AddTransactionDialog(
                 OutlinedTextField(
                     value = amount,
                     onValueChange = { amount = it },
-                    label = { Text("المبلغ") },
+                    label = { Text(stringResource(R.string.amount)) },
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("الوصف (مثال: راتب، إيجار)") },
+                    label = { Text(stringResource(R.string.description_hint)) },
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (isExpense) {
                     OutlinedTextField(
                         value = category,
                         onValueChange = { category = it },
-                        label = { Text("التصنيف (سوبرماركت، فواتير...)") },
+                        label = { Text(stringResource(R.string.category_hint)) },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -1563,7 +1563,7 @@ fun AddTransactionDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("إلغاء", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     )
@@ -1647,7 +1647,7 @@ fun MiniTransactionsWidget(
                         Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
                     }
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text("أحدث المعاملات", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                    Text(stringResource(R.string.recent_transactions), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
                 }
                 TextButton(onClick = onNavigateToTransactions, contentPadding = PaddingValues(0.dp)) {
                     Text(stringResource(R.string.view_all), style = Typography.labelMedium, color = primary)
@@ -1655,7 +1655,7 @@ fun MiniTransactionsWidget(
             }
             Spacer(modifier = Modifier.height(16.dp))
             if (recentTransactions.isEmpty()) {
-                Text("لا توجد معاملات مسجلة", style = Typography.bodyMedium, color = onSurfaceVariant, modifier = Modifier.padding(vertical = 8.dp))
+                Text(stringResource(R.string.no_transactions_recorded), style = Typography.bodyMedium, color = onSurfaceVariant, modifier = Modifier.padding(vertical = 8.dp))
             } else {
                 recentTransactions.forEach { tx ->
                     Row(
@@ -1729,7 +1729,7 @@ fun MiniTableCard(
                     Text(text = title, style = Typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
                 TextButton(onClick = onSeeAll, contentPadding = PaddingValues(0.dp)) {
-                    Text("عرض الكل ($itemsCount)", style = Typography.labelSmall, color = primary)
+                    Text(stringResource(R.string.view_all_count, itemsCount), style = Typography.labelSmall, color = primary)
                 }
             }
             
@@ -1933,7 +1933,7 @@ fun KidsModeContent(
 ) {
     if (familyState == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("جار تحميل بيانات العائلة...", color = Color.Gray)
+            Text(stringResource(R.string.loading_family_data), color = Color.Gray)
         }
         return
     }
@@ -1953,8 +1953,8 @@ fun KidsModeContent(
             KidAvatar(seed = familyState.myMemberInfo.id.ifBlank { myAlias }, size = 52.dp)
             Spacer(modifier = Modifier.width(12.dp))
             Column {
-                Text("أهلاً يا $myAlias! 👋", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
-                Text("يوم حلو وميزانية أحلى ✨", style = Typography.labelMedium, color = onSurfaceVariant)
+                Text(stringResource(R.string.greeting_hi_name, myAlias), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
+                Text(stringResource(R.string.greeting_subtitle), style = Typography.labelMedium, color = onSurfaceVariant)
             }
         }
         Spacer(modifier = Modifier.height(18.dp))
@@ -1971,7 +1971,7 @@ fun KidsModeContent(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("🪙", fontSize = 20.sp)
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("مصروفك المتاح", color = Color.White.copy(alpha = 0.9f), style = Typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.available_spending), color = Color.White.copy(alpha = 0.9f), style = Typography.labelLarge, fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
@@ -2011,7 +2011,7 @@ fun KidsModeContent(
                 ) {
                     Text("✋", fontSize = 14.sp)
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("محتاج مصروف زيادة؟", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.need_extra_expense), fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -2021,7 +2021,7 @@ fun KidsModeContent(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("⭐", fontSize = 18.sp)
             Spacer(modifier = Modifier.width(6.dp))
-            Text("مهامي", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
+            Text(stringResource(R.string.my_tasks), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
         }
         Spacer(modifier = Modifier.height(10.dp))
         if (myChores.isEmpty()) {
@@ -2029,7 +2029,7 @@ fun KidsModeContent(
                 Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("🎉", fontSize = 22.sp)
                     Spacer(modifier = Modifier.width(10.dp))
-                    Text("مفيش مهام دلوقتي — استمتع بيومك!", color = Color(0xFF15803D), style = Typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.no_tasks_now), color = Color(0xFF15803D), style = Typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 }
             }
         } else {
@@ -2065,16 +2065,16 @@ fun KidsModeContent(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("💬", fontSize = 18.sp)
             Spacer(Modifier.width(6.dp))
-            Text("آخر رسائل العائلة", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+            Text(stringResource(R.string.last_family_messages), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
             Spacer(Modifier.weight(1f))
             TextButton(onClick = onNavigateToFamily) {
-                Text("فتح الشات", fontSize = 12.sp)
+                Text(stringResource(R.string.open_chat), fontSize = 12.sp)
                 Icon(Icons.Default.ChevronLeft, contentDescription = null, modifier = Modifier.size(16.dp))
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
         if (recentMessages.isEmpty()) {
-            Text("لا توجد رسائل بعد", color = Color.Gray, style = Typography.bodyMedium)
+            Text(stringResource(R.string.no_messages_yet), color = Color.Gray, style = Typography.bodyMedium)
         } else {
             recentMessages.forEach { msg ->
                 val senderAlias = familyState.members.find { it.userId == msg.senderId }?.alias?.ifBlank { "؟" } ?: "؟"
@@ -2103,7 +2103,7 @@ fun KidsModeContent(
                 Text("🌳", fontSize = 30.sp)
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("بستان التسبيحة", fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
+                    Text(stringResource(R.string.tasbiha_garden), fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
                     Text(if (myTasbiha != null) "شجرتك: ${myTasbiha.score} تسبيحة" else "ازرع شجرتك!", fontSize = 12.sp, color = Color(0xFF558B2F))
                 }
                 Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = Color(0xFF2E7D32))
@@ -2117,7 +2117,7 @@ fun KidsModeContent(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("🛍️", fontSize = 18.sp)
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("اقتراحات التسوق", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                Text(stringResource(R.string.shopping_suggestions), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
             }
             Spacer(modifier = Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -2270,7 +2270,7 @@ fun NotificationsBottomSheet(
                     modifier = Modifier.fillMaxWidth().height(200.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("لا توجد إشعارات حالياً.", style = Typography.bodyMedium, color = Color.Gray)
+                    Text(stringResource(R.string.no_notifications_yet), style = Typography.bodyMedium, color = Color.Gray)
                 }
             } else if (notifications.isNotEmpty()) {
                 Text(

@@ -1,14 +1,14 @@
 <resources>
     <string name="app_name">زاد</string>
     <string name="slogan">بوصلة عائلتك الذكية</string>
-    <string name="welcome">مرحباً بك في زاد</string>
+    <string name="welcome">حياك الله في زاد</string>
     <string name="login">تسجيل الدخول</string>
     <string name="signup">إنشاء حساب</string>
     <string name="email">البريد الإلكتروني</string>
     <string name="password">كلمة المرور</string>
     <string name="get_started">ابدأ الآن</string>
     <string name="language_toggle">العربية</string>
-    
+
     <!-- Drawer Items -->
     <string name="nav_home">لوحة التحكم</string>
     <string name="nav_mother_tools">أدوات الأم</string>
@@ -22,7 +22,7 @@
     <string name="nav_store">متجر زاد</string>
     <string name="nav_help">الدعم الفني</string>
     <string name="nav_profile">الملف الشخصي</string>
-    
+
     <!-- HomeScreen and common -->
     <string name="allocated_salary">الميزانية المخصصة</string>
     <string name="currency">ر.س</string>
@@ -50,7 +50,7 @@
     <string name="family_desc">إدارة مهام ومصروفات الأبناء</string>
     <string name="quick_shortcuts">الاختصارات السريعة</string>
     <string name="zad_ai">ذكاء زاد</string>
-    
+
     <!-- Transactions Screen -->
     <string name="transactions_title">المعاملات</string>
     <string name="transactions_subtitle">بنك زاد</string>
@@ -68,15 +68,15 @@
     <string name="expense_label">المصروفات</string>
     <string name="budget_label">الميزانية</string>
     <string name="no_transactions_filtered">لا توجد معاملات مطابقة</string>
-    <string name="no_transactions_hint">حاول تغيير الفلتر أو البحث</string>
-    <string name="no_transactions_yet">سيتم عرض المعاملات البنكية هنا</string>
+    <string name="no_transactions_hint">جرّب تغيّر الفلتر أو البحث</string>
+    <string name="no_transactions_yet">بتظهر هنا معاملاتك البنكية</string>
     <string name="delete_transaction_title">حذف المعاملة</string>
-    <string name="delete_transaction_confirm">هل أنت متأكد من حذف معاملة "%s"؟</string>
+    <string name="delete_transaction_confirm">متأكد تبي تحذف معاملة "%s"؟</string>
     <string name="transaction_count">%d معاملة</string>
     <string name="transactions_list">المعاملات</string>
     <string name="sar">ر.س</string>
     <string name="budget_usage">%d%% من الميزانية</string>
-    
+
     <!-- Widget -->
     <string name="widget_description">يعرض رصيدك وآخر المعاملات من زاد</string>
 
@@ -87,14 +87,14 @@
     <string name="income_deposit">إيداع (راتب)</string>
     <string name="expense_deduction">خصم (مصروف)</string>
     <string name="description_hint">الوصف (مثال: راتب، إيجار)</string>
-    <string name="category_hint">التصنيف (سوبرماركت، فواتير...)</string>
+    <string name="category_hint">التصنيف (بقالة، فواتير...)</string>
     <string name="edit_monthly_budget">تعديل الميزانية الشهرية</string>
     <string name="budget_with_currency">الميزانية (%1$s)</string>
-    <string name="budget_save_note">سيتم حفظ الميزانية في Supabase → جدول zad_users</string>
+    <string name="budget_save_note">بتنحفظ ميزانيتك في Supabase → جدول zad_users</string>
 
     <!-- HomeScreen: greeting and hero -->
-    <string name="greeting_hi_name">أهلاً يا %1$s! 👋</string>
-    <string name="greeting_subtitle">يوم حلو وميزانية أحلى ✨</string>
+    <string name="greeting_hi_name">هلا يا %1$s! 👋</string>
+    <string name="greeting_subtitle">يوم زين وميزانية أزين ✨</string>
     <string name="available_spending">مصروفك المتاح</string>
 
     <!-- HomeScreen: sections -->
@@ -104,22 +104,22 @@
     <string name="zad_prediction_next_month">توقع زاد للشهر القادم</string>
     <string name="prediction_confidence">متوقع (ثقة %1$d%%)</string>
     <string name="zad_chef_suggestions">شيف زاد (اقتراحات ذكية)</string>
-    <string name="suggested_recipes_before_expiry">وصفات مقترحة بيه قبل ما يضيع</string>
+    <string name="suggested_recipes_before_expiry">وصفات مقترحة قبل لا يخلص</string>
     <string name="shopping_suggestions">اقتراحات التسوق</string>
     <string name="shop_from_amazon">تسوق من أمازون</string>
     <string name="view_all_count">عرض الكل (%1$d)</string>
 
     <!-- HomeScreen: AI agent card -->
     <string name="zad_agent">وكيل زاد</string>
-    <string name="zad_analyzing_now">زاد يحلل بياناتك الآن...</string>
+    <string name="zad_analyzing_now">زاد يحلل بياناتك الحين...</string>
     <string name="open_chat">فتح الشات</string>
     <string name="tap_for_more_in_chat">اضغط للمزيد في شات زاد ←</string>
-    <string name="need_extra_expense">محتاج مصروف زيادة؟</string>
+    <string name="need_extra_expense">تبي مصروف زيادة؟</string>
 
     <!-- HomeScreen: family mini hub -->
     <string name="last_family_messages">آخر رسائل العائلة</string>
     <string name="no_messages_yet">لا توجد رسائل بعد</string>
-    <string name="loading_family_data">جار تحميل بيانات العائلة...</string>
+    <string name="loading_family_data">جاري تحميل بيانات العائلة...</string>
 
     <!-- HomeScreen: notifications sheet / kids -->
     <string name="no_notifications_yet">لا توجد إشعارات حالياً.</string>
@@ -127,6 +127,6 @@
     <string name="profile_title">الملف الشخصي</string>
     <string name="tasbiha_garden">بستان التسبيحة</string>
     <string name="my_tasks">مهامي</string>
-    <string name="no_tasks_now">مفيش مهام دلوقتي — استمتع بيومك!</string>
+    <string name="no_tasks_now">ما فيه مهام الحين — استمتع بيومك!</string>
     <string name="close_action">إغلاق</string>
 </resources>

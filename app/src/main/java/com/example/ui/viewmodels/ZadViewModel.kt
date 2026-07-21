@@ -112,7 +112,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     val isAiTyping: StateFlow<Boolean> = _isAiTyping.asStateFlow()
 
     init {
-        com.example.data.MarketPrefs.getMarket(getApplication())
+        com.example.data.MarketPrefs.applyStoredLocale(getApplication())
         Log.d(TAG, "ZadViewModel init — collecting from Room DB")
         // Collect from Room DB (Single Source of Truth)
         viewModelScope.launch {
