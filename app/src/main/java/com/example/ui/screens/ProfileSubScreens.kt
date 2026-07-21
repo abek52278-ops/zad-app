@@ -285,6 +285,39 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
                 }
             }
             Spacer(modifier = Modifier.height(24.dp))
+            Text("البلد والعملة", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text("بيحدد اللغة/اللهجة والعملة المستخدمة في كل التطبيق", style = Typography.bodySmall, color = onSurfaceVariant)
+            Spacer(modifier = Modifier.height(12.dp))
+            val marketContext = LocalContext.current
+            var selectedMarket by remember { mutableStateOf(com.example.data.MarketPrefs.getMarket(marketContext)) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                com.example.data.Market.entries.forEach { market ->
+                    val isSelected = market == selectedMarket
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable {
+                                selectedMarket = market
+                                com.example.data.MarketPrefs.setMarket(marketContext, market)
+                            },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) primary.copy(alpha = 0.15f) else surfaceContainer,
+                        border = if (isSelected) androidx.compose.foundation.BorderStroke(1.5.dp, primary) else null
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(vertical = 12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(market.displayNameAr, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (isSelected) primary else onSurface)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(market.currencySymbol, fontSize = 12.sp, color = onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
             Text("الربط التلقائي للبنوك", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
             Spacer(modifier = Modifier.height(12.dp))
             val context = LocalContext.current

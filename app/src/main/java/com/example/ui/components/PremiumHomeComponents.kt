@@ -125,7 +125,8 @@ fun PremiumHeroCard(
     onDepositClick: () -> Unit
 ) {
     val progress = if (budget > 0) (spent / budget).toFloat().coerceIn(0f, 1f) else 0f
-    
+    val currencyContext = LocalContext.current
+
     // Animations
     var isVisible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -156,8 +157,8 @@ fun PremiumHeroCard(
                 Column {
                     Text("💰 الميزانية الشهرية", fontSize = 11.sp, color = textSecondary)
                     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(String.format("%,.0f", budget), fontSize = 34.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
-                        Text("ريال", fontSize = 13.sp, color = textSecondary, modifier = Modifier.padding(bottom = 6.dp))
+                        Text(com.example.data.CurrencyFormatter.formatNumber(currencyContext, budget), fontSize = 34.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
+                        Text(com.example.data.CurrencyFormatter.symbol(currencyContext), fontSize = 13.sp, color = textSecondary, modifier = Modifier.padding(bottom = 6.dp))
                     }
                 }
                 Surface(
@@ -179,8 +180,8 @@ fun PremiumHeroCard(
             Spacer(modifier = Modifier.height(18.dp))
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                HeroStatItem("المصروف", String.format("%,.0f", spent), Color.White, Modifier.weight(1f))
-                HeroStatItem("المتبقي", String.format("%,.0f", remaining), primaryLight, Modifier.weight(1f))
+                HeroStatItem("المصروف", com.example.data.CurrencyFormatter.format(currencyContext, spent), Color.White, Modifier.weight(1f))
+                HeroStatItem("المتبقي", com.example.data.CurrencyFormatter.format(currencyContext, remaining), primaryLight, Modifier.weight(1f))
                 HeroStatItem("الأيام", "$daysLeft", Color.White, Modifier.weight(1f))
             }
             
@@ -364,6 +365,7 @@ fun PremiumMealsRow(meals: List<String>, onMealClick: (String) -> Unit) {
 
 @Composable
 fun PremiumTransactionsRow(transactions: List<com.example.data.ZadTransaction>, onSeeAllClick: () -> Unit) {
+    val txCurrencyContext = LocalContext.current
     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -415,7 +417,7 @@ fun PremiumTransactionsRow(transactions: List<com.example.data.ZadTransaction>, 
                             Text(tx.createdAt ?: "اليوم", fontSize = 10.sp, color = textTertiary)
                         }
                     }
-                    Text("${if (tx.isExpense) "-" else "+"} ${tx.amount} ر.س", fontSize = 13.sp, fontWeight = FontWeight.Black, color = if (tx.isExpense) textPrimary else successColor)
+                    Text("${if (tx.isExpense) "-" else "+"} ${com.example.data.CurrencyFormatter.format(txCurrencyContext, tx.amount)}", fontSize = 13.sp, fontWeight = FontWeight.Black, color = if (tx.isExpense) textPrimary else successColor)
                 }
             }
         }
