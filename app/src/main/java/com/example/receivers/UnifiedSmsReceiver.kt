@@ -75,8 +75,10 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
 
             val parsed = SaBankParser.detectAndParse(sender, "", text)
             if (parsed != null) {
-                // منع الخصم المزدوج (نفس العملية توصل SMS + إشعار تطبيق البنك)
-                if (!TxDeduplicator.isNewTransaction(context.applicationContext, parsed.amount, parsed.isExpense)) {
+                // منع الخصم المزدوج (نفس العملية توصل SMS + إشعار تطبيق البنك)، مع اسم التاجر
+                // كمُميّز عشان عمليتين مختلفتين بنفس المبلغ والاتجاه في نفس النافذة الزمنية
+                // (زي شرائين بنفس القيمة من محلين مختلفين) متتحسبش مكررة غلط
+                if (!TxDeduplicator.isNewTransaction(context.applicationContext, parsed.amount, parsed.isExpense, parsed.merchantName ?: parsed.bankName)) {
                     Log.d("UnifiedSmsReceiver", "Duplicate blocked: ${parsed.amount}")
                     return
                 }
@@ -89,7 +91,9 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
                 )
                 val db = ZadDatabase.getDatabase(context.applicationContext)
                 db.zadDao().insertTransaction(transaction)
-                try { SupabaseRepo.addTransaction(transaction) } catch (e: Exception) {}
+                try { SupabaseRepo.addTransaction(transaction) } catch (e: Exception) {
+                    Log.e("UnifiedSmsReceiver", "Supabase sync failed (offline?): ${e.message}")
+                }
 
                 // الحقن الدقيق حسب نوع العملية
                 when (parsed.txType) {
@@ -121,7 +125,9 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
                 
                 Log.d("UnifiedSmsReceiver", "Parsed SMS: ${parsed.bankName} - ${parsed.title} (${parsed.amount} SAR)")
             } else {
-                // Fallback آمن: لازم مبلغ صحيح + نوع عملية صريح — غير كده نتجاهل
+                // نفس مسار الـ AI fallback المستخدم في UnifiedBankListener — قبل كده مسار الـ SMS
+                // كان بيستخدم regex-retry بس بينما مسار الإشعارات بيستخدم AI، فنفس الرسالة كانت
+                // ممكن تتسجل من قناة وتتفقد من التانية حسب أي fallback مسكها
                 val amount = SaBankParser.extractAmount(text)
                 val txType = SaBankParser.detectTxType(text)
 
@@ -137,13 +143,31 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
                     )
                     val db = ZadDatabase.getDatabase(context.applicationContext)
                     db.zadDao().insertTransaction(transaction)
-                    try { SupabaseRepo.addTransaction(transaction) } catch (e: Exception) {}
+                    try { SupabaseRepo.addTransaction(transaction) } catch (e: Exception) {
+                        Log.e("UnifiedSmsReceiver", "Supabase sync failed (offline?): ${e.message}")
+                    }
                     if (txType.isExpense) {
                         BudgetTracker.deductExpense(context.applicationContext, amount, transaction.title, category)
                     } else {
                         BudgetTracker.addIncome(context.applicationContext, amount, transaction.title)
                     }
                     Log.d("UnifiedSmsReceiver", "Fallback transaction added: ${transaction.title} - $amount")
+                } else {
+                    val aiParsed = com.example.data.ZadAiRepository.analyzeBankNotification(sender, text)
+                    if (aiParsed != null) {
+                        if (!TxDeduplicator.isNewTransaction(context.applicationContext, aiParsed.amount, aiParsed.isExpense)) return
+                        val db = ZadDatabase.getDatabase(context.applicationContext)
+                        db.zadDao().insertTransaction(aiParsed)
+                        try { SupabaseRepo.addTransaction(aiParsed) } catch (e: Exception) {
+                            Log.e("UnifiedSmsReceiver", "Supabase sync failed (offline?): ${e.message}")
+                        }
+                        if (aiParsed.isExpense) {
+                            BudgetTracker.deductExpense(context.applicationContext, aiParsed.amount, aiParsed.title, aiParsed.category ?: "أخرى")
+                        } else {
+                            BudgetTracker.addIncome(context.applicationContext, aiParsed.amount, aiParsed.title)
+                        }
+                        Log.d("UnifiedSmsReceiver", "AI-fallback transaction saved: ${aiParsed.title}")
+                    }
                 }
             }
         } catch (e: Exception) {
