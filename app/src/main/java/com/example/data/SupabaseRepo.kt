@@ -41,8 +41,7 @@ object SupabaseRepo {
             Log.d(TAG, "signUp() SUCCESS")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "signUp() FAILED: ${e.message}")
-            e.printStackTrace()
+            Log.e(TAG, "signUp() FAILED for email=$email, supabaseUrl=${BuildConfig.SUPABASE_URL}: $e", e)
             false
         }
     }
@@ -57,8 +56,7 @@ object SupabaseRepo {
             Log.d(TAG, "signIn() SUCCESS → userId=${client.auth.currentUserOrNull()?.id}")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "signIn() FAILED: ${e.message}")
-            e.printStackTrace()
+            Log.e(TAG, "signIn() FAILED for email=$email, supabaseUrl=${BuildConfig.SUPABASE_URL}: $e", e)
             false
         }
     }
@@ -69,8 +67,7 @@ object SupabaseRepo {
             client.auth.signOut()
             Log.d(TAG, "signOut() SUCCESS")
         } catch (e: Exception) {
-            Log.e(TAG, "signOut() FAILED: ${e.message}")
-            e.printStackTrace()
+            Log.e(TAG, "signOut() FAILED: $e", e)
         }
     }
 
@@ -81,8 +78,7 @@ object SupabaseRepo {
             Log.d(TAG, "resetPassword() SUCCESS")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "resetPassword() FAILED: ${e.message}")
-            e.printStackTrace()
+            Log.e(TAG, "resetPassword() FAILED for email=$email: $e", e)
             false
         }
     }
