@@ -503,6 +503,22 @@
     <string name="financial_challenge_reward_hint">قيمة المكافأة</string>
     <string name="financial_challenge_duration_hint">المدة بالأيام</string>
 
+    <string name="events_radar_title">رادار المناسبات</string>
+    <string name="events_radar_days_until">باقي %1$d يوم</string>
+    <string name="event_ramadan">رمضان</string>
+    <string name="event_eid_al_fitr">عيد الفطر</string>
+    <string name="event_eid_al_adha">عيد الأضحى</string>
+    <string name="event_back_to_school">العودة للمدارس</string>
+
+    <string name="sinking_funds_title">صناديق التجميع</string>
+    <string name="sinking_fund_create_action">صندوق جديد</string>
+    <string name="sinking_fund_empty_state">لا توجد صناديق تجميع حالياً</string>
+    <string name="sinking_fund_contribute_action">إضافة مبلغ</string>
+    <string name="sinking_fund_name_hint">اسم الصندوق</string>
+    <string name="sinking_fund_target_hint">المبلغ المستهدف</string>
+    <string name="sinking_fund_link_event_hint">ربط بمناسبة (اختياري)</string>
+    <string name="sinking_fund_amount_hint">المبلغ</string>
+
     <!-- Deal Matcher / Price Shock Predictor: live web search, zero mock data -->
     <string name="live_search_refresh_action">تحديث من النت 🔄</string>
     <string name="live_search_loading">يبحث في الإنترنت...</string>

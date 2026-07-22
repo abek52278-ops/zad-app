@@ -119,6 +119,19 @@ class MainActivity : ComponentActivity() {
             tasbihaReminderRequest
         )
 
+        // تذكير المناسبات الموسمية — كل يوم الساعة 9 صباحاً (30 يوم قبل المناسبة)
+        var next9am = now.withHour(9).withMinute(0).withSecond(0).withNano(0)
+        if (now.isAfter(next9am)) next9am = next9am.plusDays(1)
+        val seasonalInitialDelayMinutes = java.time.Duration.between(now, next9am).toMinutes()
+        val seasonalReminderRequest = PeriodicWorkRequestBuilder<com.example.workers.SeasonalEventReminderWorker>(24, TimeUnit.HOURS)
+            .setInitialDelay(seasonalInitialDelayMinutes, TimeUnit.MINUTES)
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "ZadSeasonalEventReminderWorker",
+            ExistingPeriodicWorkPolicy.KEEP,
+            seasonalReminderRequest
+        )
+
         // Start real-time chat notification service
         try {
             startService(Intent(this, com.example.services.ChatNotificationService::class.java))

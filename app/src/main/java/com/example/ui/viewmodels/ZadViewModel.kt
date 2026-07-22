@@ -1782,6 +1782,22 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private val _seasonalForecasts = MutableStateFlow<List<com.example.data.AiSeasonalForecast>>(emptyList())
+    val seasonalForecasts: StateFlow<List<com.example.data.AiSeasonalForecast>> = _seasonalForecasts.asStateFlow()
+
+    fun loadSeasonalForecast(events: List<Pair<com.example.data.SeasonalEvent, com.example.data.SeasonalEventWindow?>>) {
+        if (events.isEmpty()) { _seasonalForecasts.value = emptyList(); return }
+        viewModelScope.launch {
+            try {
+                val forecasts = com.example.data.ZadAiRepository.getSeasonalForecast(events)
+                _seasonalForecasts.value = forecasts
+                Log.d(TAG, "loadSeasonalForecast() → ${forecasts.size} forecast(s)")
+            } catch (e: Exception) {
+                Log.e(TAG, "loadSeasonalForecast() FAILED: ${e.message}")
+            }
+        }
+    }
+
     fun refreshAgentSummary() {
         viewModelScope.launch {
             _isAgentLoading.value = true

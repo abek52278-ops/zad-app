@@ -97,6 +97,8 @@ fun HomeScreen(
     val globalAvatarUri by viewModel.avatarUri.collectAsState()
     val affiliateProducts by viewModel.affiliateProducts.collectAsState()
     val urgentRecipes by viewModel.urgentRecipes.collectAsState()
+    val upcomingSeasonalEvents by familyViewModel.upcomingSeasonalEvents.collectAsState()
+    val seasonalForecasts by viewModel.seasonalForecasts.collectAsState()
 
     val totalIncome = transactions.filter { !it.isExpense }.sumOf { it.amount }
     val totalSpent = transactions.filter { it.isExpense }.sumOf { it.amount }
@@ -144,7 +146,12 @@ fun HomeScreen(
         if (userNameState.isNullOrBlank()) viewModel.loadUserProfile()
         viewModel.refreshAgentSummary()
         viewModel.predictNextMonthExpenses()
+        familyViewModel.loadUpcomingSeasonalEvents()
         Log.d(TAG_HOME, "HomeScreen loaded — userName=$userNameState, budget=$budget, transactions=${transactions.size}, isChild=$isChild")
+    }
+
+    LaunchedEffect(upcomingSeasonalEvents) {
+        if (upcomingSeasonalEvents.isNotEmpty()) viewModel.loadSeasonalForecast(upcomingSeasonalEvents)
     }
 
     val userName = userNameState ?: "..."
@@ -306,6 +313,12 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(24.dp))
                 } else {
                     ZadProactiveSummaryCard(insights = insights)
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+
+                // 4b. Events Radar — رادار المناسبات (family-only: needs cross-member transaction history)
+                if (familyState is FamilyState.Active && seasonalForecasts.isNotEmpty()) {
+                    EventsRadarCard(forecasts = seasonalForecasts)
                     Spacer(modifier = Modifier.height(24.dp))
                 }
 
@@ -1443,6 +1456,56 @@ fun PredictionCard(prediction: com.example.data.AiExpensePrediction, budget: Dou
                         Spacer(Modifier.width(4.dp))
                         Text(tip, color = onSurfaceVariant, fontSize = 11.sp)
                     }
+                }
+            }
+        }
+    }
+}
+
+private fun seasonalEventDisplayName(slug: String?): Int? = when (slug) {
+    "ramadan" -> R.string.event_ramadan
+    "eid_al_fitr" -> R.string.event_eid_al_fitr
+    "eid_al_adha" -> R.string.event_eid_al_adha
+    "back_to_school" -> R.string.event_back_to_school
+    else -> null
+}
+
+@Composable
+fun EventsRadarCard(forecasts: List<com.example.data.AiSeasonalForecast>) {
+    val next = forecasts.minByOrNull { it.daysUntil } ?: return
+    val context = LocalContext.current
+    val nameResId = seasonalEventDisplayName(next.slug)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = surface),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Event, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.events_radar_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = if (nameResId != null) stringResource(nameResId) else next.slug ?: "",
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp
+            )
+            Text(stringResource(R.string.events_radar_days_until, next.daysUntil), color = onSurfaceVariant, fontSize = 12.sp)
+            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(com.example.data.CurrencyFormatter.format(context, next.predictedTotal), color = dangerColor, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.prediction_confidence, (next.confidence * 100).toInt()), color = onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp))
+            }
+            if (next.tip.isNotBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Color(0xFFF9A825), modifier = Modifier.size(12.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(next.tip, color = onSurfaceVariant, fontSize = 11.sp)
                 }
             }
         }

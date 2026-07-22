@@ -295,6 +295,44 @@ object ZadAiRepository {
         )
     }
 
+    suspend fun getSeasonalForecast(
+        events: List<Pair<SeasonalEvent, SeasonalEventWindow?>>
+    ): List<AiSeasonalForecast> {
+        val eventsPayload = events.map { (e, w) ->
+            mapOf(
+                "id" to e.id,
+                "slug" to e.slug,
+                "name" to e.name,
+                "category_tags" to e.categoryTags,
+                "event_start" to (w?.startDate ?: e.startDate ?: ""),
+                "event_end" to (w?.endDate ?: e.endDate ?: "")
+            )
+        }
+        val response = callAction("seasonal_forecast", mapOf("events" to eventsPayload))
+        val forecastsRaw = response["forecasts"] as? List<*> ?: return emptyList()
+        return forecastsRaw.mapNotNull { f ->
+            val fm = f as? Map<*, *> ?: return@mapNotNull null
+            AiSeasonalForecast(
+                eventId = fm["event_id"] as? String ?: "",
+                slug = fm["slug"] as? String,
+                daysUntil = (fm["days_until"] as? Number)?.toInt() ?: 0,
+                predictedTotal = (fm["predicted_total"] as? Number)?.toDouble() ?: 0.0,
+                confidence = (fm["confidence"] as? Number)?.toDouble() ?: 0.0,
+                breakdown = ((fm["breakdown"] as? List<*>) ?: emptyList<Any>()).mapNotNull { b ->
+                    val bm = b as? Map<*, *> ?: return@mapNotNull null
+                    AiSeasonalForecastBreakdown(
+                        category = bm["category"] as? String ?: "",
+                        predicted = (bm["predicted"] as? Number)?.toDouble() ?: 0.0,
+                        baselineMonthlyAvg = (bm["baseline_monthly_avg"] as? Number)?.toDouble() ?: 0.0,
+                        multiplierUsed = (bm["multiplier_used"] as? Number)?.toDouble() ?: 0.0,
+                        source = bm["source"] as? String ?: "fallback"
+                    )
+                },
+                tip = fm["tip"] as? String ?: ""
+            )
+        }
+    }
+
     suspend fun classifyBill(title: String, amount: Double): AiBillClassification? {
         val response = callAction("bill_classification", mapOf("title" to title, "amount" to amount))
         return AiBillClassification(

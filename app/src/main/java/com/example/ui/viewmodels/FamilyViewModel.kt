@@ -494,6 +494,49 @@ class FamilyViewModel : ViewModel() {
         }
     }
 
+    // --- المناسبات الموسمية وصناديق التجميع (Seasonal & Event Budget Forecasting) ---
+    private val _upcomingSeasonalEvents = MutableStateFlow<List<Pair<SeasonalEvent, SeasonalEventWindow?>>>(emptyList())
+    val upcomingSeasonalEvents: StateFlow<List<Pair<SeasonalEvent, SeasonalEventWindow?>>> = _upcomingSeasonalEvents.asStateFlow()
+
+    private val _sinkingFunds = MutableStateFlow<List<SinkingFund>>(emptyList())
+    val sinkingFunds: StateFlow<List<SinkingFund>> = _sinkingFunds.asStateFlow()
+
+    fun loadUpcomingSeasonalEvents() {
+        viewModelScope.launch {
+            _upcomingSeasonalEvents.value = SupabaseRepo.getUpcomingSeasonalEvents()
+        }
+    }
+
+    fun loadSinkingFunds() {
+        viewModelScope.launch {
+            _sinkingFunds.value = SupabaseRepo.getSinkingFunds()
+        }
+    }
+
+    fun createSinkingFund(name: String, targetAmount: Double, targetDate: String?, eventId: String?) {
+        viewModelScope.launch {
+            val curr = _state.value
+            if (curr is FamilyState.Active) {
+                val newFund = SinkingFund(
+                    familyId = curr.familyGroup.id,
+                    eventId = eventId,
+                    name = name,
+                    targetAmount = targetAmount,
+                    targetDate = targetDate
+                )
+                SupabaseRepo.createSinkingFund(newFund)
+                loadSinkingFunds()
+            }
+        }
+    }
+
+    fun contributeToSinkingFund(fundId: String, amount: Double) {
+        viewModelScope.launch {
+            SupabaseRepo.contributeSinkingFund(fundId, amount)
+            loadSinkingFunds()
+        }
+    }
+
     fun updateSavingsGoal(memberId: String, newGoal: Double) {
         viewModelScope.launch {
             val curr = _state.value

@@ -765,6 +765,134 @@ Deno.serve(async (req: Request) => {
       }
 
       // ──────────────────────────────────────────────
+      // SEASONAL_FORECAST — Predict upcoming seasonal/event spending from
+      // the family's own transaction history (statistical, not LLM-guessed
+      // numbers). zad_transactions has no family-scoped RLS read policy
+      // (only auth.uid() = user_id), so the cross-member aggregation runs
+      // here via SECURITY DEFINER RPCs on the service-role client, not in
+      // the Kotlin client. The LLM is used only to phrase a tip on top of
+      // the already-computed numbers, same pattern as expense_prediction.
+      // ──────────────────────────────────────────────
+      case "seasonal_forecast": {
+        const { events } = payload || {};
+        const { data: fm } = await supabase
+          .from("family_members")
+          .select("family_id")
+          .eq("user_id", user_id)
+          .maybeSingle();
+
+        if (!fm?.family_id || !Array.isArray(events) || events.length === 0) {
+          return jsonResponse({ forecasts: [] });
+        }
+        const familyId = fm.family_id;
+
+        const { data: statsRows } = await supabase.rpc("get_family_category_monthly_stats", { p_family_id: familyId });
+        const baseline: Record<string, { avgMonthly: number; monthCount: number }> = {};
+        for (const row of statsRows || []) {
+          baseline[row.category] = { avgMonthly: Number(row.avg_monthly) || 0, monthCount: Number(row.month_count) || 0 };
+        }
+
+        // slug -> category -> multiplier, used only when there's not enough
+        // of the family's own history for that category to trust a ratio.
+        const FALLBACK_MULTIPLIERS: Record<string, Record<string, number>> = {
+          ramadan: { "طعام": 1.35, "مطاعم": 1.3 },
+          eid_al_fitr: { "تسوق": 1.6, "مطاعم": 1.3 },
+          eid_al_adha: { "طعام": 1.4, "تسوق": 1.2 },
+          back_to_school: { "تسوق": 1.8 },
+        };
+        const DEFAULT_MULTIPLIER = 1.15;
+
+        const now = Date.now();
+        const forecasts = [];
+        for (const ev of events) {
+          const categoryTags: string[] = Array.isArray(ev?.category_tags) ? ev.category_tags : [];
+          const eventStart = new Date(ev?.event_start);
+          const eventEnd = new Date(ev?.event_end);
+          if (isNaN(eventStart.getTime()) || isNaN(eventEnd.getTime())) continue;
+          const windowDays = Math.max(1, Math.round((eventEnd.getTime() - eventStart.getTime()) / 86400000));
+          const daysUntil = Math.ceil((eventStart.getTime() - now) / 86400000);
+
+          // Find last year's occurrence of this event to compare actual
+          // window spend against the family's monthly baseline.
+          let historyWindowSpend: Record<string, number> | null = null;
+          if (ev?.id) {
+            const { data: pastWindows } = await supabase
+              .from("seasonal_event_windows")
+              .select("start_date, end_date")
+              .eq("event_id", ev.id)
+              .lt("start_date", new Date(now).toISOString())
+              .order("start_date", { ascending: false })
+              .limit(1);
+            const pastWindow = pastWindows?.[0];
+            if (pastWindow) {
+              const { data: spendRows } = await supabase.rpc("get_family_event_window_spend", {
+                p_family_id: familyId,
+                p_start: pastWindow.start_date,
+                p_end: pastWindow.end_date,
+              });
+              historyWindowSpend = {};
+              for (const row of spendRows || []) historyWindowSpend[row.category] = Number(row.total_amount) || 0;
+            }
+          }
+
+          let predictedTotal = 0;
+          let confidenceSum = 0;
+          const breakdown = [];
+          for (const category of categoryTags) {
+            const base = baseline[category];
+            const baseAvgMonthly = base?.avgMonthly || 0;
+            const dailyBaseline = baseAvgMonthly / 30;
+            let multiplier = FALLBACK_MULTIPLIERS[ev.slug]?.[category] || DEFAULT_MULTIPLIER;
+            let source = "fallback";
+            let confidence = 0.4;
+
+            const historySpend = historyWindowSpend?.[category] || 0;
+            if (historySpend > 0 && base && base.monthCount >= 2 && dailyBaseline > 0) {
+              const historyMultiplier = historySpend / windowDays / dailyBaseline;
+              multiplier = Math.min(3.0, Math.max(1.0, historyMultiplier));
+              source = "history";
+              confidence = 0.75;
+            }
+
+            const predicted = dailyBaseline * windowDays * multiplier;
+            predictedTotal += predicted;
+            confidenceSum += confidence;
+            breakdown.push({
+              category,
+              predicted: Math.round(predicted * 100) / 100,
+              baseline_monthly_avg: baseAvgMonthly,
+              multiplier_used: Math.round(multiplier * 100) / 100,
+              source,
+            });
+          }
+          if (breakdown.length === 0) continue;
+
+          forecasts.push({
+            event_id: ev.id || "",
+            slug: ev.slug || null,
+            days_until: daysUntil,
+            predicted_total: Math.round(predictedTotal * 100) / 100,
+            confidence: Math.round((confidenceSum / breakdown.length) * 100) / 100,
+            breakdown,
+            tip: "",
+          });
+        }
+
+        if (forecasts.length > 0) {
+          const systemPrompt = dialectPrefix + "أنت مستشار مالي عائلي. لديك تنبؤات مصاريف محسوبة إحصائياً لمناسبات قادمة. اكتب نصيحة عملية قصيرة (جملة واحدة) لكل مناسبة تساعد العائلة تستعد مالياً. أجب بصيغة JSON فقط: {\"tips\":[{\"event_id\":\"\",\"tip\":\"\"}]}";
+          const userPrompt = "المناسبات: " + JSON.stringify(forecasts.map((f) => ({ event_id: f.event_id, slug: f.slug, days_until: f.days_until, predicted_total: f.predicted_total, breakdown: f.breakdown })));
+          const narrated = await callJsonModel(systemPrompt, userPrompt, 1200);
+          const tipsByEvent: Record<string, string> = {};
+          for (const t of narrated?.tips || []) {
+            if (t?.event_id) tipsByEvent[t.event_id] = t.tip || "";
+          }
+          for (const f of forecasts) f.tip = tipsByEvent[f.event_id] || "";
+        }
+
+        return jsonResponse({ forecasts });
+      }
+
+      // ──────────────────────────────────────────────
       // DEFAULT
       // ──────────────────────────────────────────────
       default:
