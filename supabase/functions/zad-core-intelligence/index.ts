@@ -19,7 +19,10 @@ const VISION_MODEL = "nvidia/nemotron-nano-12b-v2-vl:free";
 // the 2026-07-22 OpenRouter free-models-per-day outage this was added for).
 // It is not wired into any text/JSON action — those stay OpenRouter-only.
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-const GEMINI_VISION_MODEL = "gemini-2.5-flash";
+// gemini-2.5-flash returns 404 "no longer available to new users" on this key —
+// verified directly against the API. gemini-flash-latest is Google's floating
+// alias to the current flash model, avoiding this class of deprecation break.
+const GEMINI_VISION_MODEL = "gemini-flash-latest";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
