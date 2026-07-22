@@ -43,6 +43,7 @@ import com.example.data.ZadTransaction
 import com.example.data.ZadInventory
 import com.example.data.ZadSubscription
 import com.example.data.AiInsight
+import com.example.data.ZadAiRepository
 import kotlinx.coroutines.launch
 
 // ════════════════════════════════════════════════════════════════
@@ -1770,7 +1771,7 @@ fun DebtPayoffPlannerCard(debts: List<com.example.data.ZadDebt>, viewModel: ZadV
                     Text(stringResource(R.string.debt_empty_state_hint), style = Typography.bodySmall, color = onSurfaceVariant, textAlign = TextAlign.Center)
                 }
             } else {
-                Row(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     FilterChip(
                         selected = strategy == DebtStrategy.SNOWBALL,
                         onClick = { strategy = DebtStrategy.SNOWBALL },
