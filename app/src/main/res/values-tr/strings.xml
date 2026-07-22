@@ -410,7 +410,6 @@
     <string name="ask_zad_hint_short">Zad\'a istediğini sor</string>
     <string name="send_action">Gönder</string>
     <string name="safe_per_day_suffix">%1$s / gün güvenli</string>
-    <string name="this_month_label">Bu ay</string>
     <string name="last_month_same_period_label">Geçen ay (aynı dönem)</string>
     <string name="zad_export_report_subject">Zad mali raporu</string>
     <string name="share_zad_report_title">Zad raporunu paylaş</string>
@@ -662,9 +661,7 @@
     <string name="active_subs_count_label">Aktif abonelik</string>
     <string name="ai_detecting_subscriptions">Zad, işlemlerinden aboneliklerini arıyor...</string>
     <string name="no_items_in_category">Bu kategoride öğe yok</string>
-    <string name="renews_today">Bugün yenileniyor</string>
     <string name="expired_days_ago">%1$d gün önce sona erdi</string>
-    <string name="renews_in_days">%1$d gün sonra yenilenecek</string>
     <string name="disable">Devre dışı bırak</string>
     <string name="delete_action">Sil</string>
     <string name="add_subscription_dialog_title">Yeni abonelik ekle</string>

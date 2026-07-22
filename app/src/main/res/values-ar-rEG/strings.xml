@@ -410,7 +410,6 @@
     <string name="ask_zad_hint_short">اسأل زاد عن أي حاجة</string>
     <string name="send_action">إرسال</string>
     <string name="safe_per_day_suffix">%1$s / يوم بأمان</string>
-    <string name="this_month_label">الشهر ده</string>
     <string name="last_month_same_period_label">الشهر اللي فات (نفس الفترة)</string>
     <string name="zad_export_report_subject">تقرير زاد المالي</string>
     <string name="share_zad_report_title">شارك تقرير زاد</string>
@@ -662,9 +661,7 @@
     <string name="active_subs_count_label">اشتراكات شغالة</string>
     <string name="ai_detecting_subscriptions">زاد بيدوّر على اشتراكاتك من المعاملات المالية...</string>
     <string name="no_items_in_category">مفيش عناصر في التصنيف ده</string>
-    <string name="renews_today">بيتجدد النهاردة</string>
     <string name="expired_days_ago">خلص من %1$d يوم</string>
-    <string name="renews_in_days">هيتجدد بعد %1$d يوم</string>
     <string name="disable">توقيف</string>
     <string name="delete_action">حذف</string>
     <string name="add_subscription_dialog_title">ضيف اشتراك جديد</string>
