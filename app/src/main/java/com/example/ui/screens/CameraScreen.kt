@@ -170,7 +170,7 @@ fun CameraScreen(
                     }
                 } catch (e: Exception) {
                     Log.e("CameraScreen", "AI analysis crashed: ${e.message}", e)
-                    analysisStatus = "حدث خطأ أثناء التحليل: ${e.message ?: "خطأ غير معروف"}. جرب مرة أخرى"
+                    analysisStatus = "حدث خطأ أثناء التحليل. جرب مرة أخرى"
                 }
                 isAnalyzing = false
             }

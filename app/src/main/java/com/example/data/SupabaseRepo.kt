@@ -1130,23 +1130,46 @@ object SupabaseRepo {
 
     // ─── Affiliate Shopping ─────────────────────────────────────────────────
     suspend fun getAffiliateProducts(): List<AffiliateProduct> {
-        return client.postgrest["affiliate_products"].select().decodeList<AffiliateProduct>()
+        return try {
+            client.postgrest["affiliate_products"].select().decodeList<AffiliateProduct>()
+        } catch (e: Exception) {
+            Log.e(TAG, "getAffiliateProducts() FAILED: ${e.message}")
+            emptyList()
+        }
     }
 
     suspend fun recordAffiliateClick(click: AffiliateClick) {
-        client.postgrest["affiliate_clicks"].insert(click)
+        try {
+            client.postgrest["affiliate_clicks"].insert(click)
+        } catch (e: Exception) {
+            Log.e(TAG, "recordAffiliateClick() FAILED: ${e.message}")
+        }
     }
 
     suspend fun getAffiliateClicks(userId: String): List<AffiliateClick> {
-        return client.postgrest["affiliate_clicks"].select { filter { eq("user_id", userId) } }.decodeList<AffiliateClick>()
+        return try {
+            client.postgrest["affiliate_clicks"].select { filter { eq("user_id", userId) } }.decodeList<AffiliateClick>()
+        } catch (e: Exception) {
+            Log.e(TAG, "getAffiliateClicks() FAILED: ${e.message}")
+            emptyList()
+        }
     }
 
     suspend fun getAffiliateClickStats(): List<AffiliateClick> {
-        return client.postgrest["affiliate_clicks"].select().decodeList<AffiliateClick>()
+        return try {
+            client.postgrest["affiliate_clicks"].select().decodeList<AffiliateClick>()
+        } catch (e: Exception) {
+            Log.e(TAG, "getAffiliateClickStats() FAILED: ${e.message}")
+            emptyList()
+        }
     }
 
     suspend fun recordCatalogRequest(request: AffiliateCatalogRequest) {
-        client.postgrest["affiliate_catalog_requests"].insert(request)
+        try {
+            client.postgrest["affiliate_catalog_requests"].insert(request)
+        } catch (e: Exception) {
+            Log.e(TAG, "recordCatalogRequest() FAILED: ${e.message}")
+        }
     }
 
     // Recursive JSON serializer that correctly handles nested Maps, Lists, and primitives.

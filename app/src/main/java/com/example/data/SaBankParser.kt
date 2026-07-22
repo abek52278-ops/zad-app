@@ -151,7 +151,7 @@ object SaBankParser {
         "الراتب" to listOf("راتب", "مرتب", "salary"),
         "البقالة" to listOf("بقالة", "تموين", "سوبر", "خضار", "لحوم", "هايبر", "بنده", "العثيم", "الدانوب", "لولو", "كارفور", "تميمي", "grocery", "supermarket", "panda", "danube", "carrefour", "lulu"),
         "المطاعم" to listOf("مطعم", "كافيه", "وجبات", "hungerstation", "mrsool", "jahez", "توصيل طعام", "طلبات", "مأكولات", "ستاربكس", "ماكدونالدز", "البيك", "كودو", "هرفي", "دومينوز", "starbucks", "mcdonald", "albaik", "kudu", "herfy", "restaurant", "cafe"),
-        "الفواتير" to listOf("كهرب", "فواتير", "المياه", "اتصالات", "stc", "mobily", "zain", "موبايلي", "زين", "الكهرباء", "المياه الوطنية", "electricity", "water bill"),
+        "الفواتير" to listOf("كهرب", "فواتير", "المياه", "اتصالات", "mobily", "zain", "موبايلي", "زين", "الكهرباء", "المياه الوطنية", "electricity", "water bill"),
         "الرعاية الصحية" to listOf("علاج", "صيدلية", "مستشفى", "عيادة", "دواء", "النهدي", "الدواء", "nahdi", "pharmacy", "hospital", "clinic"),
         "المواصلات" to listOf("مواصلات", "أوبر", "كريم", "uber", "careem", "taxi", "نقل", "طيران", "باص", "قطار", "flight", "المطار"),
         "التعليم" to listOf("تعليم", "مدرسة", "جامعة", "دورة", "تدريب", "منصة تعليم", "school", "university", "course", "udemy"),
