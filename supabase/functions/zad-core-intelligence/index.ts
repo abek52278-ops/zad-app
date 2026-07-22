@@ -12,6 +12,15 @@ const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const TEXT_MODEL = "openai/gpt-oss-20b:free";
 const VISION_MODEL = "nvidia/nemotron-nano-12b-v2-vl:free";
+
+// GEMINI_API_KEY is a vision-only fallback for the two image actions below
+// (analyze_inventory_image, analyze_receipt) — used ONLY when OpenRouter's
+// free-tier vision model returns no content (e.g. daily rate limit hit, like
+// the 2026-07-22 OpenRouter free-models-per-day outage this was added for).
+// It is not wired into any text/JSON action — those stay OpenRouter-only.
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+const GEMINI_VISION_MODEL = "gemini-2.5-flash";
+
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -162,6 +171,41 @@ async function callVisionModel(systemPrompt: string, userPrompt: string, imageBa
   } catch (e) {
     console.error("[CoreIntel] callVisionModel failed/timed out:", e.message);
     return { content: null, raw: { error: e.message }, ok: false, status: 0 };
+  }
+}
+
+// Fallback vision path — only reached when callVisionModel (OpenRouter) returns
+// no content, e.g. the free-tier daily rate limit. Same 25s upstream timeout
+// budget as callVisionModel so a caller waiting on both in sequence still
+// finishes under the Android client's 30s HttpURLConnection timeout.
+async function callGeminiVision(systemPrompt: string, userPrompt: string, imageBase64: string, mimeType: string) {
+  if (!GEMINI_API_KEY) return { content: null, ok: false };
+  try {
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_VISION_MODEL + ":generateContent?key=" + GEMINI_API_KEY;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: systemPrompt + "\n\n" + userPrompt },
+            { inlineData: { mimeType: mimeType, data: imageBase64 } },
+          ],
+        }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 2000 },
+      }),
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      console.error("[CoreIntel] Gemini vision HTTP error:", resp.status, JSON.stringify(data));
+      return { content: null, ok: false };
+    }
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+    return { content: text, ok: !!text };
+  } catch (e) {
+    console.error("[CoreIntel] callGeminiVision failed/timed out:", e.message);
+    return { content: null, ok: false };
   }
 }
 
@@ -468,9 +512,13 @@ Deno.serve(async (req: Request) => {
         if (!image_base64) return jsonResponse({ items: [] });
         const systemPrompt = "You are a vision AI. Analyze the image of refrigerator/pantry contents. Identify every food item visible. Return ONLY JSON: {\"items\":[{\"name\":\"\",\"quantity\":1.0,\"unit\":\"قطعة\",\"category\":\"عام\"}]}";
         const userPrompt = "List all food items visible in this image with estimated quantity, unit, and category.";
-        const visionResult = (await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
+        let visionResult = (await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
         if (!visionResult) {
-          console.error("[CoreIntel] analyze_inventory_image: callVisionModel returned null content");
+          console.error("[CoreIntel] analyze_inventory_image: OpenRouter vision returned null, trying Gemini fallback");
+          visionResult = (await callGeminiVision(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
+        }
+        if (!visionResult) {
+          console.error("[CoreIntel] analyze_inventory_image: both OpenRouter and Gemini vision returned null content");
           return jsonResponse({ items: [] });
         }
         const objectMatch = visionResult.match(/\{[\s\S]*\}/);
@@ -505,7 +553,11 @@ Deno.serve(async (req: Request) => {
         if (!image_base64) return jsonResponse({ total: 0, category: "", storeName: "", items: [] });
         const systemPrompt = "You are a receipt scanning AI. Extract all information from this receipt image. Return ONLY JSON: {\"total\":0.0,\"category\":\"\",\"storeName\":\"\",\"items\":[{\"name\":\"\",\"price\":0.0,\"quantity\":1.0,\"unit\":\"قطعة\",\"category\":\"عام\"}]}";
         const userPrompt = "Extract the total amount, store name, category, and all line items from this receipt.";
-        const visionResult = (await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
+        let visionResult = (await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
+        if (!visionResult) {
+          console.error("[CoreIntel] analyze_receipt: OpenRouter vision returned null, trying Gemini fallback");
+          visionResult = (await callGeminiVision(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
+        }
         if (visionResult) {
           const jsonMatch = visionResult.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
