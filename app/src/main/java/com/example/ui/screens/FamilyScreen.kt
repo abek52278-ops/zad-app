@@ -51,7 +51,9 @@ fun FamilyScreen(
     viewModel: FamilyViewModel = viewModel(),
     onOpenDrawer: () -> Unit = {},
     unreadNotificationCount: Int = 0,
-    onNotificationsClick: () -> Unit = {}
+    onNotificationsClick: () -> Unit = {},
+    /** false في وضع الأطفال — يخفي الأرصدة/أهداف الادخار/حدود الصرف/مكافآت المهام */
+    showFinancials: Boolean = true
 ) {
     val state by viewModel.state.collectAsState()
 
@@ -81,7 +83,8 @@ fun FamilyScreen(
                         onToggleGrocery = { id, isPurchased -> viewModel.toggleGroceryItem(id, isPurchased) },
                         onToggleChore = { id, isCompleted -> viewModel.toggleChore(id, isCompleted) },
                         onAddChore = { assignedTo, title, dueDate, rewardAmount -> viewModel.addChore(assignedTo, title, dueDate, rewardAmount) },
-                        onUpdateRequestStatus = { messageId, newStatus, replyMsg -> viewModel.updateRequestStatus(messageId, newStatus, replyMsg) }
+                        onUpdateRequestStatus = { messageId, newStatus, replyMsg -> viewModel.updateRequestStatus(messageId, newStatus, replyMsg) },
+                        showFinancials = showFinancials
                     )
                 }
             }
@@ -166,7 +169,8 @@ fun ActiveFamilyScreen(
     onToggleGrocery: (String, Boolean) -> Unit,
     onToggleChore: (String, Boolean) -> Unit,
     onAddChore: (String, String, String?, Double) -> Unit,
-    onUpdateRequestStatus: (String, String, String) -> Unit
+    onUpdateRequestStatus: (String, String, String) -> Unit,
+    showFinancials: Boolean = true
 ) {
     var selectedTab by remember { mutableStateOf(0) }
     val context = LocalContext.current
@@ -183,7 +187,7 @@ fun ActiveFamilyScreen(
         TabData(Icons.Default.Assignment, stringResource(R.string.tasks_tab)),
         TabData(Icons.Default.People, stringResource(R.string.members_tab)),
         TabData(Icons.Default.ShoppingCart, stringResource(R.string.groceries_tab))
-    ) + if (isParent) listOf(TabData(Icons.Default.AccountBalanceWallet, stringResource(R.string.children_tab))) else emptyList()
+    ) + if (isParent && showFinancials) listOf(TabData(Icons.Default.AccountBalanceWallet, stringResource(R.string.children_tab))) else emptyList()
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Header with family info
@@ -265,11 +269,11 @@ fun ActiveFamilyScreen(
         // Content
         Box(modifier = Modifier.weight(1f)) {
             when (selectedTab) {
-                0 -> ChatTab(state.messages, state.members, state.myMemberInfo, onSendMessage, onUpdateRequestStatus, viewModel = viewModel)
-                1 -> TasksTab(state.chores, state.members, state.myMemberInfo.role == "admin", onToggleChore, onAddChore)
-                2 -> MembersTab(state = state, viewModel = viewModel)
+                0 -> ChatTab(state.messages, state.members, state.myMemberInfo, onSendMessage, onUpdateRequestStatus, viewModel = viewModel, showFinancials = showFinancials)
+                1 -> TasksTab(state.chores, state.members, state.myMemberInfo.role == "admin", onToggleChore, onAddChore, showFinancials = showFinancials)
+                2 -> MembersTab(state = state, viewModel = viewModel, showFinancials = showFinancials)
                 3 -> GroceriesTab(state.groceries, onToggleGrocery)
-                4 -> KidsSpendingTab(state = state, onUpdateRequestStatus = onUpdateRequestStatus)
+                4 -> if (isParent && showFinancials) KidsSpendingTab(state = state, onUpdateRequestStatus = onUpdateRequestStatus)
             }
         }
     }
@@ -441,7 +445,7 @@ private fun KidsSpendingTab(
 
 // ── MEMBERS TAB ──
 @Composable
-private fun MembersTab(state: FamilyState.Active, viewModel: FamilyViewModel) {
+private fun MembersTab(state: FamilyState.Active, viewModel: FamilyViewModel, showFinancials: Boolean = true) {
     var selectedMember by remember { mutableStateOf<com.example.data.FamilyMember?>(null) }
 
     LazyColumn(
@@ -469,7 +473,8 @@ private fun MembersTab(state: FamilyState.Active, viewModel: FamilyViewModel) {
                 member = member,
                 viewModel = viewModel,
                 state = state,
-                onClick = { selectedMember = member }
+                onClick = { selectedMember = member },
+                showFinancials = showFinancials
             )
         }
 
@@ -481,7 +486,8 @@ private fun MembersTab(state: FamilyState.Active, viewModel: FamilyViewModel) {
             member = selectedMember!!,
             viewModel = viewModel,
             state = state,
-            onDismiss = { selectedMember = null }
+            onDismiss = { selectedMember = null },
+            showFinancials = showFinancials
         )
     }
 }
@@ -491,7 +497,8 @@ private fun MemberDetailCard(
     member: com.example.data.FamilyMember,
     viewModel: FamilyViewModel,
     state: FamilyState.Active,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    showFinancials: Boolean = true
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val memberTrees = viewModel.getMemberTrees(member.id)
@@ -543,7 +550,7 @@ private fun MemberDetailCard(
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        StatPill(Icons.Default.MonetizationOn, com.example.data.CurrencyFormatter.format(context, member.balance))
+                        if (showFinancials) StatPill(Icons.Default.MonetizationOn, com.example.data.CurrencyFormatter.format(context, member.balance))
                         StatPill(Icons.Default.CheckCircle, stringResource(R.string.chores_count_pill, completedChores))
                         StatPill(Icons.Default.Park, stringResource(R.string.tasbiha_count_pill, memberTrees.sumOf { it.score }))
                     }
@@ -552,7 +559,7 @@ private fun MemberDetailCard(
             }
 
             // Progress bar for savings goal
-            if (member.savingsGoal > 0) {
+            if (showFinancials && member.savingsGoal > 0) {
                 Spacer(modifier = Modifier.height(12.dp))
                 val goalProgress = (member.balance / member.savingsGoal).toFloat().coerceIn(0f, 1f)
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -592,7 +599,8 @@ private fun MemberDetailSheet(
     member: com.example.data.FamilyMember,
     viewModel: FamilyViewModel,
     state: FamilyState.Active,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    showFinancials: Boolean = true
 ) {
     val memberTrees = viewModel.getMemberTrees(member.id)
     val memberChores = state.chores.filter { it.assignedTo == member.id }
@@ -647,8 +655,10 @@ private fun MemberDetailSheet(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                StatItem(stringResource(R.string.balance_label), com.example.data.CurrencyFormatter.format(currencyContext, member.balance))
-                StatItem(stringResource(R.string.goal_label), if (member.savingsGoal > 0) com.example.data.CurrencyFormatter.format(currencyContext, member.savingsGoal) else "---")
+                if (showFinancials) {
+                    StatItem(stringResource(R.string.balance_label), com.example.data.CurrencyFormatter.format(currencyContext, member.balance))
+                    StatItem(stringResource(R.string.goal_label), if (member.savingsGoal > 0) com.example.data.CurrencyFormatter.format(currencyContext, member.savingsGoal) else "---")
+                }
                 StatItem(stringResource(R.string.trees_label), "${memberTrees.size}")
             }
 
@@ -677,7 +687,7 @@ private fun MemberDetailSheet(
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(chore.title, fontWeight = FontWeight.Bold, color = onSurface, fontSize = 14.sp)
-                                if (chore.rewardAmount > 0) {
+                                if (showFinancials && chore.rewardAmount > 0) {
                                     Text(stringResource(R.string.reward_colon, com.example.data.CurrencyFormatter.format(currencyContext, chore.rewardAmount)), color = primary, fontSize = 12.sp)
                                 }
                             }
@@ -711,7 +721,7 @@ private fun MemberDetailSheet(
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(chore.title, fontWeight = FontWeight.Bold, color = onSurface, fontSize = 14.sp)
-                                if (chore.rewardAmount > 0) {
+                                if (showFinancials && chore.rewardAmount > 0) {
                                     Text(stringResource(R.string.reward_colon, com.example.data.CurrencyFormatter.format(currencyContext, chore.rewardAmount)), color = secondary, fontSize = 12.sp)
                                 }
                             }
@@ -749,7 +759,7 @@ private fun MemberDetailSheet(
             }
 
             // Spend limits (parent-managed, child only)
-            if (member.role == "child" && state.myMemberInfo.role == "admin") {
+            if (showFinancials && member.role == "child" && state.myMemberInfo.role == "admin") {
                 Spacer(Modifier.height(16.dp))
                 SpendLimitSection(member = member, messages = state.messages, onEdit = { showLimitDialog = true })
             }
@@ -874,7 +884,8 @@ private fun TasksTab(
     members: List<com.example.data.FamilyMember>,
     isAdmin: Boolean,
     onToggle: (String, Boolean) -> Unit,
-    onAddChore: (String, String, String?, Double) -> Unit
+    onAddChore: (String, String, String?, Double) -> Unit,
+    showFinancials: Boolean = true
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf("الكل") }
@@ -900,7 +911,7 @@ private fun TasksTab(
                     Icon(Icons.Default.Assignment, contentDescription = null, modifier = Modifier.size(22.dp), tint = primary)
                     Text(stringResource(R.string.family_tasks), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
                 }
-                if (isAdmin) {
+                if (isAdmin && showFinancials) {
                     FilledTonalButton(onClick = { showAddDialog = true }) {
                         Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
@@ -993,7 +1004,7 @@ private fun TasksTab(
                                     textDecoration = if (chore.isCompleted) androidx.compose.ui.text.style.TextDecoration.LineThrough else null
                                 )
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    if (chore.rewardAmount > 0) {
+                                    if (showFinancials && chore.rewardAmount > 0) {
                                         Surface(
                                             shape = RoundedCornerShape(6.dp),
                                             color = (if (chore.isCompleted) primary else secondary).copy(alpha = 0.12f)
@@ -1373,7 +1384,10 @@ fun ChatTab(
     myMemberInfo: com.example.data.FamilyMember,
     onSendMessage: (String, String, String?) -> Unit,
     onUpdateRequestStatus: (String, String, String) -> Unit,
-    viewModel: FamilyViewModel? = null
+    viewModel: FamilyViewModel? = null,
+    // مفيش أرقام مالية عائلية في تاب الشات نفسه — بس محتفظ بيه هنا عشان يفضل نفس الشكل
+    // مع باقي التابات، ولو حبينا نستخدمه مستقبلاً (زي إخفاء اقتراح "طلب شراء" في وضع الأطفال)
+    showFinancials: Boolean = true
 ) {
     var text by remember { mutableStateOf("") }
     var showPurchaseDialog by remember { mutableStateOf(false) }

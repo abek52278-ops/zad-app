@@ -235,8 +235,8 @@ object ZadAiRepository {
         }
     }
 
-    suspend fun askFamilyAssistant(message: String): String {
-        val response = callAction("family_assistant", mapOf("message" to message))
+    suspend fun askFamilyAssistant(message: String, senderRole: String = "member"): String {
+        val response = callAction("family_assistant", mapOf("message" to message, "role" to senderRole))
         return response["text"] as? String ?: "عفواً، تعذر الاتصال."
     }
 

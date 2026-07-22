@@ -29,6 +29,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -44,8 +45,11 @@ import com.example.ui.theme.*
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.TasbihaScreen
 import com.example.ui.screens.*
+import com.example.ui.viewmodels.FamilyState
 import com.example.ui.viewmodels.FamilyViewModel
 import com.example.ui.viewmodels.ZadViewModel
+import com.example.data.KidsModePin
+import com.example.ui.components.PinPromptDialog
 import kotlinx.coroutines.launch
 
 sealed class Screen(val route: String, val titleRes: Int, val icon: ImageVector) {
@@ -93,15 +97,54 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
         viewModel.updateFamilyContext(familyStateForChat)
     }
 
-    val drawerScreens = listOf(
-        Screen.Home,
-        Screen.Inventory,
-        Screen.Assistant,
-        Screen.Shopping,
-        Screen.Family,
-        Screen.Budget,
-        Screen.Profile
-    )
+    // ─── وضع الأطفال: قفل تنقّل على مستوى الشاشة كلها، مش بس محتوى الرئيسية ───
+    val context = LocalContext.current
+    // role حقيقي من الداتابيز (حساب طفل مستقل) — مش قابل للتبديل من المستخدم نفسه
+    val isChildRole = (familyStateForChat as? FamilyState.Active)?.myMemberInfo?.role == "child"
+    var manualKidsModeActive by remember { mutableStateOf(KidsModePin.isManualModeActive(context)) }
+    // فتح مؤقت لحساب طفل حقيقي بعد إدخال PIN صح — بيتصفّر لما التطبيق يتقفل (قصداً)
+    var pinUnlockedOverride by remember { mutableStateOf(false) }
+    val kidsModeEffective = (isChildRole && !pinUnlockedOverride) || manualKidsModeActive
+    var showPinPrompt by remember { mutableStateOf(false) }
+
+    fun setManualKidsMode(active: Boolean) {
+        manualKidsModeActive = active
+        KidsModePin.setManualModeActive(context, active)
+    }
+
+    // مايعرضش أي واجهة (مش حتى الأدمن) لحد ما الـ role يتحمل فعلياً — كان فيه ثانية
+    // ظهور الواجهة الكاملة لحساب طفل قبل ما FamilyViewModel يخلص تحميل غير متزامن
+    if (familyStateForChat is FamilyState.Loading) {
+        Box(modifier = Modifier.fillMaxSize().background(background), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = primary)
+        }
+        return
+    }
+
+    if (showPinPrompt) {
+        PinPromptDialog(
+            onDismiss = { showPinPrompt = false },
+            onUnlocked = {
+                showPinPrompt = false
+                if (isChildRole) pinUnlockedOverride = true
+                if (manualKidsModeActive) setManualKidsMode(false)
+            }
+        )
+    }
+
+    val drawerScreens = if (kidsModeEffective) {
+        listOf(Screen.Home, Screen.Family)
+    } else {
+        listOf(
+            Screen.Home,
+            Screen.Inventory,
+            Screen.Assistant,
+            Screen.Shopping,
+            Screen.Family,
+            Screen.Budget,
+            Screen.Profile
+        )
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -185,6 +228,35 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                         shape = RoundedCornerShape(14.dp)
                     )
                 }
+                if (kidsModeEffective) {
+                    NavigationDrawerItem(
+                        label = {
+                            Text(
+                                "الوضع الكامل 🔒",
+                                style = Typography.titleMedium.copy(fontSize = 15.sp),
+                                fontWeight = FontWeight.Normal
+                            )
+                        },
+                        selected = false,
+                        onClick = {
+                            scope.launch { drawerState.close() }
+                            showPinPrompt = true
+                        },
+                        icon = {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(surfaceContainerLow),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Filled.Lock, contentDescription = null, tint = onSurfaceVariant, modifier = Modifier.size(18.dp))
+                            }
+                        },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                }
                 Spacer(modifier = Modifier.weight(1f)) // Push profile to the bottom
                 HorizontalDivider(color = outlineVariant, modifier = Modifier.padding(horizontal = 20.dp))
                 
@@ -196,7 +268,9 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                         .fillMaxWidth()
                         .clickable {
                             scope.launch { drawerState.close() }
-                            navController.navigate(Screen.Profile.route) { launchSingleTop = true }
+                            // البروفايل فيه إعدادات حساب/مالية — يتفتح مباشرة بس برا وضع الأطفال
+                            if (kidsModeEffective) showPinPrompt = true
+                            else navController.navigate(Screen.Profile.route) { launchSingleTop = true }
                         }
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -254,7 +328,7 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
     ) {
         Scaffold(
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
-            bottomBar = { BottomBar(navController = navController) { scope.launch { drawerState.open() } } }
+            bottomBar = { BottomBar(navController = navController, kidsModeEffective = kidsModeEffective) { scope.launch { drawerState.open() } } }
         ) { innerPadding ->
             // Floating Chat Bubble — Box and NavHost now share innerPadding as one coordinate
             // frame, so the family FAB below can be positioned relative to the same inset
@@ -275,6 +349,7 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                         HomeScreen(
                             viewModel = viewModel,
                             familyViewModel = familyViewModel,
+                            kidsModeOverride = manualKidsModeActive,
                             onNavigateToAssistant = {
                                 navController.navigate(Screen.Assistant.route) {
                                     popUpTo(navController.graph.findStartDestination().id)
@@ -366,7 +441,11 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                             viewModel = familyViewModel,
                             onOpenDrawer = { scope.launch { drawerState.open() } },
                             unreadNotificationCount = unreadCount,
-                            onNotificationsClick = { navController.navigate(Screen.Profile.route) }
+                            onNotificationsClick = {
+                                if (kidsModeEffective) showPinPrompt = true
+                                else navController.navigate(Screen.Profile.route)
+                            },
+                            showFinancials = !kidsModeEffective
                         )
                     }
                     composable(Screen.Camera.route) { CameraScreen(viewModel = viewModel, onBack = { navController.popBackStack() }) }
@@ -376,8 +455,9 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                             familyViewModel = familyViewModel,
                             onOpenDrawer = { scope.launch { drawerState.open() } },
                             onLogout = onLogout,
-                            navController = navController
-                        ) 
+                            navController = navController,
+                            onSwitchToKidsMode = { setManualKidsMode(true) }
+                        )
                     }
 
                     composable(Screen.Budget.route) {
@@ -481,7 +561,7 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
 }
 
 @Composable
-fun BottomBar(navController: NavHostController, onOpenDrawer: () -> Unit) {
+fun BottomBar(navController: NavHostController, kidsModeEffective: Boolean = false, onOpenDrawer: () -> Unit) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
@@ -503,9 +583,11 @@ fun BottomBar(navController: NavHostController, onOpenDrawer: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val screens = listOf(Screen.Home, Screen.Inventory, Screen.Assistant, Screen.Subscriptions)
+            // وضع الأطفال: بس الرئيسية والعائلة، بلا كاميرا (فاتورة/مخزون) ولا شاشات مالية
+            val screens = if (kidsModeEffective) listOf(Screen.Home, Screen.Family)
+                else listOf(Screen.Home, Screen.Inventory, Screen.Assistant, Screen.Subscriptions)
             screens.forEachIndexed { index, screen ->
-                if (index == 2) {
+                if (index == 2 && !kidsModeEffective) {
                     // Inject Camera button in the middle
                     Box(
                         modifier = Modifier

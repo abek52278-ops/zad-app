@@ -81,7 +81,9 @@ fun HomeScreen(
     onNavigateToBudget: () -> Unit = {},
     onNavigateToTasbiha: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
-    onOpenDrawer: () -> Unit = {}
+    onOpenDrawer: () -> Unit = {},
+    /** تفعيل يدوي من الأب/الأم (Switch to Kids Mode) — بيفرض واجهة الأطفال حتى لو role الحساب "admin" */
+    kidsModeOverride: Boolean = false
 ) {
     val inventory by viewModel.inventory.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
@@ -131,8 +133,8 @@ fun HomeScreen(
     val familyState by familyViewModel.state.collectAsState()
     val userNameState by viewModel.userName.collectAsState()
     
-    val isChild = remember(familyState) {
-        if (familyState is FamilyState.Active) {
+    val isChild = remember(familyState, kidsModeOverride) {
+        kidsModeOverride || if (familyState is FamilyState.Active) {
             val activeState = familyState as FamilyState.Active
             activeState.myMemberInfo.role == "child"
         } else false
@@ -193,11 +195,12 @@ fun HomeScreen(
         )
         if (isChild) {
             // KIDS MODE UI
-            val newRequestMessage = stringResource(R.string.kids_new_purchase_request_message)
+            val needAmountPattern = stringResource(R.string.need_amount_purchase)
             KidsModeContent(
                 familyState = familyState as? FamilyState.Active,
-                onAddRequest = {
-                    familyViewModel.sendMessage(newRequestMessage, "PURCHASE_REQUEST", """{"amount":0,"status":"PENDING"}""")
+                onAddRequest = { title, amount ->
+                    val meta = """{"amount":$amount,"status":"PENDING"}"""
+                    familyViewModel.sendMessage(String.format(needAmountPattern, amount, title), "PURCHASE_REQUEST", meta)
                 },
                 onNavigateToFamily = onNavigateToFamily,
                 onNavigateToTasbiha = onNavigateToTasbiha,
@@ -1969,7 +1972,7 @@ fun GlanceWidgetCard(
 @Composable
 fun KidsModeContent(
     familyState: com.example.ui.viewmodels.FamilyState.Active?,
-    onAddRequest: () -> Unit,
+    onAddRequest: (title: String, amount: Double) -> Unit,
     onNavigateToFamily: () -> Unit = {},
     onNavigateToTasbiha: () -> Unit = {},
     myTasbiha: TasbihaTree? = null,
@@ -1991,6 +1994,7 @@ fun KidsModeContent(
     val recentMessages = familyState.messages.takeLast(3)
     val context = LocalContext.current
     val unknownAliasFallback = stringResource(R.string.unknown_alias_fallback)
+    var showWishDialog by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp).verticalScroll(rememberScrollState())) {
         Spacer(modifier = Modifier.height(20.dp))
@@ -2068,7 +2072,7 @@ fun KidsModeContent(
                 }
                 Spacer(modifier = Modifier.height(18.dp))
                 Button(
-                    onClick = onAddRequest,
+                    onClick = { showWishDialog = true },
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = kidsPrimaryDark),
                     shape = RoundedCornerShape(16.dp)
                 ) {
@@ -2197,6 +2201,34 @@ fun KidsModeContent(
             Spacer(modifier = Modifier.height(24.dp))
         }
         Spacer(modifier = Modifier.height(16.dp))
+    }
+
+    // ── قائمة أمنيات: طلب صنف/مبلغ يروح لموافقة الأب/الأم (نفس آلية PURCHASE_REQUEST
+    // الموجودة أصلاً) — قبل كده الزرار ده كان بيبعت amount:0 دايماً بدل مبلغ حقيقي ──
+    if (showWishDialog) {
+        var wishTitle by remember { mutableStateOf("") }
+        var wishAmount by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showWishDialog = false },
+            title = { Text(stringResource(R.string.expense_purchase_request)) },
+            text = {
+                Column {
+                    OutlinedTextField(value = wishTitle, onValueChange = { wishTitle = it }, label = { Text(stringResource(R.string.what_to_buy)) }, modifier = Modifier.fillMaxWidth())
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(value = wishAmount, onValueChange = { wishAmount = it }, label = { Text(stringResource(R.string.requested_amount_with_currency, com.example.data.CurrencyFormatter.symbol(context))) }, modifier = Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val amount = wishAmount.toDoubleOrNull() ?: 0.0
+                    if (wishTitle.isNotBlank() && amount > 0) {
+                        onAddRequest(wishTitle, amount)
+                        showWishDialog = false
+                    }
+                }) { Text(stringResource(R.string.send_request)) }
+            },
+            dismissButton = { TextButton(onClick = { showWishDialog = false }) { Text(stringResource(R.string.cancel)) } }
+        )
     }
 }
 

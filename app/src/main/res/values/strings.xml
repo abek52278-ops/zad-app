@@ -337,6 +337,8 @@
     <string name="eg_invite_code">مثال: ZAD-1234</string>
     <string name="eg_tidy_room">مثال: ترتيب الغرفة</string>
     <string name="expense_purchase_request">طلب مصروف أو مشتريات</string>
+    <string name="switch_to_kids_mode">تبديل لوضع الأطفال</string>
+    <string name="switch_to_kids_mode_subtitle">لما تدي الجهاز لطفلك مؤقتاً — الخروج محتاج PIN</string>
     <string name="family_admin_role">مدير العائلة</string>
     <string name="family_intro_hint">يمكنك إنشاء عائلة جديدة لتكون أنت المدير، أو الانضمام لعائلة موجودة عبر كود الدعوة.</string>
     <string name="family_members">أفراد العائلة</string>

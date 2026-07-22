@@ -183,7 +183,7 @@ class FamilyViewModel : ViewModel() {
                 // If the message mentions the AI
                 if (finalType == "TEXT" && (message.contains("@Zad", ignoreCase = true) || message.contains("@زاد"))) {
                     val cleanMessage = message.replace(Regex("@(Zad|زاد)\\s*"), "").trim()
-                    val aiResponse = com.example.data.ZadAiRepository.askFamilyAssistant(cleanMessage)
+                    val aiResponse = com.example.data.ZadAiRepository.askFamilyAssistant(cleanMessage, curr.myMemberInfo.role)
                     SupabaseRepo.sendMessage(curr.familyGroup.id, "zad_ai", aiResponse, "TEXT", null)
                 } else if (finalType == "TEXT" && (message.contains("أضف") || message.contains("نقص") || message.contains("شراء"))) {
                     val cleanMsg = message.replace(Regex("(أضف|نقص|احتاج|شراء|إلى القائمة|للقائمة)"), "").trim()
