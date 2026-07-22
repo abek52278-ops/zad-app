@@ -327,6 +327,7 @@
     <string name="children_balance_stats">إحصائيات أرصدة الأبناء</string>
     <string name="children_overview_subtitle">نظرة عامة على أرصدة وطلبات الأبناء</string>
     <string name="children_tab">الأبناء</string>
+    <string name="budget_goals_tab">الأهداف</string>
     <string name="childrens_expenses">مصاريف الأبناء</string>
     <string name="code_method">كود</string>
     <string name="completed_tasks_count">المهام المنجزة (%1$d)</string>

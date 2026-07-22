@@ -187,7 +187,10 @@ fun ActiveFamilyScreen(
         TabData(Icons.Default.Assignment, stringResource(R.string.tasks_tab)),
         TabData(Icons.Default.People, stringResource(R.string.members_tab)),
         TabData(Icons.Default.ShoppingCart, stringResource(R.string.groceries_tab))
-    ) + if (isParent && showFinancials) listOf(TabData(Icons.Default.AccountBalanceWallet, stringResource(R.string.children_tab))) else emptyList()
+    ) + if (isParent && showFinancials) listOf(
+        TabData(Icons.Default.AccountBalanceWallet, stringResource(R.string.children_tab)),
+        TabData(Icons.Default.Savings, stringResource(R.string.budget_goals_tab))
+    ) else emptyList()
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Header with family info
@@ -238,31 +241,50 @@ fun ActiveFamilyScreen(
             }
         }
 
-        // Tabs
-        ScrollableTabRow(
-            selectedTabIndex = selectedTab,
-            containerColor = surface,
-            contentColor = primary,
-            edgePadding = 16.dp
+        // Tabs — wrapped in a rounded surface so it reads as one segment
+        // attached to the gradient header above, not a flat M3 default edge.
+        Surface(
+            shape = RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp),
+            color = surfaceContainerLow
         ) {
-            tabs.forEachIndexed { index, tab ->
-                Tab(
-                    selected = selectedTab == index,
-                    onClick = { selectedTab = index },
-                    text = {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(tab.icon, contentDescription = null, modifier = Modifier.size(18.dp), tint = if (selectedTab == index) primary else onSurfaceVariant)
-                            Text(
-                                tab.title,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
-                            )
-                        }
+            ScrollableTabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = Color.Transparent,
+                contentColor = primary,
+                edgePadding = 16.dp,
+                indicator = { tabPositions ->
+                    if (selectedTab < tabPositions.size) {
+                        val position = tabPositions[selectedTab]
+                        Box(
+                            modifier = Modifier
+                                .tabIndicatorOffset(position)
+                                .padding(horizontal = 20.dp)
+                                .height(3.dp)
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(primary)
+                        )
                     }
-                )
+                }
+            ) {
+                tabs.forEachIndexed { index, tab ->
+                    Tab(
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        text = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(tab.icon, contentDescription = null, modifier = Modifier.size(18.dp), tint = if (selectedTab == index) primary else onSurfaceVariant)
+                                Text(
+                                    tab.title,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                    )
+                }
             }
         }
 
@@ -274,6 +296,7 @@ fun ActiveFamilyScreen(
                 2 -> MembersTab(state = state, viewModel = viewModel, showFinancials = showFinancials)
                 3 -> GroceriesTab(state.groceries, onToggleGrocery)
                 4 -> if (isParent && showFinancials) KidsSpendingTab(state = state, onUpdateRequestStatus = onUpdateRequestStatus)
+                5 -> if (isParent && showFinancials) BudgetGoalsTab(state.goals, state.members, state.chores)
             }
         }
     }

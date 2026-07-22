@@ -50,6 +50,7 @@ import com.example.ui.viewmodels.FamilyViewModel
 import com.example.ui.viewmodels.ZadViewModel
 import com.example.data.KidsModePin
 import com.example.ui.components.PinPromptDialog
+import com.example.ui.components.pressableScale
 import kotlinx.coroutines.launch
 
 sealed class Screen(val route: String, val titleRes: Int, val icon: ImageVector) {
@@ -549,11 +550,19 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(end = 16.dp, bottom = familyFabBottomPadding)
-                        .size(56.dp),
-                    containerColor = secondary,
+                        .size(56.dp)
+                        .pressableScale(pressedScale = 0.92f),
+                    containerColor = Color.Transparent,
                     shape = CircleShape
                 ) {
-                    Icon(Icons.Filled.FamilyRestroom, contentDescription = "شات العائلة", tint = Color.White)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Brush.linearGradient(listOf(secondary, secondaryLight)), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Filled.FamilyRestroom, contentDescription = "شات العائلة", tint = Color.White)
+                    }
                 }
             }
         }

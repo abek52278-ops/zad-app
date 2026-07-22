@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.ui.components.pressableScale
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 import com.example.ui.viewmodels.AiChatMessage
@@ -1751,60 +1752,64 @@ fun SinkingFundsCard(familyViewModel: com.example.ui.viewmodels.FamilyViewModel)
 
     val active = familyState
     val context = LocalContext.current
-    Card(
-        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = surface)
+    com.example.ui.components.GlassCard(
+        modifier = Modifier.pressableScale(pressedScale = 0.98f, withHaptic = false),
+        containerColor = surface.copy(alpha = 0.9f),
+        borderColor = onSurface.copy(alpha = 0.08f),
+        contentPadding = 20.dp
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Savings, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(R.string.sinking_funds_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                Spacer(modifier = Modifier.weight(1f))
-                if (active is com.example.ui.viewmodels.FamilyState.Active) {
-                    TextButton(onClick = { showCreateDialog = true }) { Text(stringResource(R.string.sinking_fund_create_action), style = Typography.labelSmall) }
-                }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier.size(32.dp).clip(CircleShape).background(catSavingsBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Savings, contentDescription = null, modifier = Modifier.size(18.dp), tint = catSavingsIcon)
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(stringResource(R.string.sinking_funds_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+            Spacer(modifier = Modifier.weight(1f))
+            if (active is com.example.ui.viewmodels.FamilyState.Active) {
+                TextButton(onClick = { showCreateDialog = true }) { Text(stringResource(R.string.sinking_fund_create_action), style = Typography.labelSmall) }
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
 
-            if (active !is com.example.ui.viewmodels.FamilyState.Active) {
-                Text(stringResource(R.string.financial_challenge_join_family_hint), style = Typography.bodySmall, color = onSurfaceVariant)
-            } else if (funds.isEmpty()) {
-                Text(stringResource(R.string.sinking_fund_empty_state), style = Typography.bodySmall, color = onSurfaceVariant)
-            } else {
-                funds.forEach { fund ->
-                    val fraction = (fund.currentAmount / fund.targetAmount.coerceAtLeast(1.0)).toFloat().coerceIn(0f, 1f)
-                    val isCompleted = fraction >= 1f
+        if (active !is com.example.ui.viewmodels.FamilyState.Active) {
+            Text(stringResource(R.string.financial_challenge_join_family_hint), style = Typography.bodySmall, color = onSurfaceVariant)
+        } else if (funds.isEmpty()) {
+            Text(stringResource(R.string.sinking_fund_empty_state), style = Typography.bodySmall, color = onSurfaceVariant)
+        } else {
+            funds.forEach { fund ->
+                val fraction = (fund.currentAmount / fund.targetAmount.coerceAtLeast(1.0)).toFloat().coerceIn(0f, 1f)
+                val isCompleted = fraction >= 1f
 
-                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(fund.name, style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = onSurface, modifier = Modifier.weight(1f))
-                            if (isCompleted) {
-                                Text(stringResource(R.string.financial_challenge_completed_label), style = Typography.labelSmall, color = successColor)
-                            } else {
-                                TextButton(onClick = { contributeTarget = fund }) {
-                                    Text(stringResource(R.string.sinking_fund_contribute_action), style = Typography.labelSmall)
-                                }
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(fund.name, style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = onSurface, modifier = Modifier.weight(1f))
+                        if (isCompleted) {
+                            Text(stringResource(R.string.financial_challenge_completed_label), style = Typography.labelSmall, color = successColor)
+                        } else {
+                            TextButton(onClick = { contributeTarget = fund }) {
+                                Text(stringResource(R.string.sinking_fund_contribute_action), style = Typography.labelSmall)
                             }
                         }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        LinearProgressIndicator(
-                            progress = { fraction },
-                            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
-                            color = if (isCompleted) successColor else primary,
-                            trackColor = primary.copy(alpha = 0.12f)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            stringResource(
-                                R.string.financial_challenge_progress_label,
-                                com.example.data.CurrencyFormatter.format(context, fund.currentAmount),
-                                com.example.data.CurrencyFormatter.format(context, fund.targetAmount)
-                            ),
-                            style = Typography.labelSmall, color = onSurfaceVariant
-                        )
                     }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    LinearProgressIndicator(
+                        progress = { fraction },
+                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                        color = if (isCompleted) successColor else primary,
+                        trackColor = primary.copy(alpha = 0.12f)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        stringResource(
+                            R.string.financial_challenge_progress_label,
+                            com.example.data.CurrencyFormatter.format(context, fund.currentAmount),
+                            com.example.data.CurrencyFormatter.format(context, fund.targetAmount)
+                        ),
+                        style = Typography.labelSmall, color = onSurfaceVariant
+                    )
                 }
             }
         }

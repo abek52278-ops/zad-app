@@ -99,6 +99,7 @@ fun HomeScreen(
     val urgentRecipes by viewModel.urgentRecipes.collectAsState()
     val upcomingSeasonalEvents by familyViewModel.upcomingSeasonalEvents.collectAsState()
     val seasonalForecasts by viewModel.seasonalForecasts.collectAsState()
+    val expensePrediction by viewModel.expensePrediction.collectAsState()
 
     val totalIncome = transactions.filter { !it.isExpense }.sumOf { it.amount }
     val totalSpent = transactions.filter { it.isExpense }.sumOf { it.amount }
@@ -319,6 +320,12 @@ fun HomeScreen(
                 // 4b. Events Radar — رادار المناسبات (family-only: needs cross-member transaction history)
                 if (familyState is FamilyState.Active && seasonalForecasts.isNotEmpty()) {
                     EventsRadarCard(forecasts = seasonalForecasts)
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+
+                // 4c. Expense prediction — يقف جوار رادار المناسبات كـ"مستشار زاد" الثاني
+                expensePrediction?.let { prediction ->
+                    PredictionCard(prediction, currentBudget)
                     Spacer(modifier = Modifier.height(24.dp))
                 }
 
@@ -589,141 +596,148 @@ fun BudgetCardSection(
             .fillMaxWidth()
             .shadow(
                 elevation = 16.dp,
-                shape = RoundedCornerShape(28.dp),
+                shape = RoundedCornerShape(24.dp),
                 spotColor = primary.copy(alpha = 0.4f)
             )
-            .clip(RoundedCornerShape(28.dp))
-            .background(Brush.linearGradient(
-                colors = if (isDanger) listOf(Color(0xFFE53935), Color(0xFFC62828)) 
-                         else listOf(primary, secondary)
-            ))
             .clickable { onBudgetLongClick() }
-            .padding(24.dp)
     ) {
-        // Decorative circles
-        Box(modifier = Modifier.offset(x = (-40).dp, y = (-40).dp).size(150.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.05f)))
-        Box(modifier = Modifier.align(Alignment.BottomEnd).offset(x = 50.dp, y = 50.dp).size(200.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.05f)))
+        com.example.ui.components.HeroGradientCard(
+            colors = if (isDanger) listOf(Color(0xFFE53935), Color(0xFFC62828)) else listOf(primary, secondary),
+            shape = RoundedCornerShape(24.dp)
+        ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                // Decorative circles
+                Box(modifier = Modifier.offset(x = (-40).dp, y = (-40).dp).size(150.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.05f)))
+                Box(modifier = Modifier.align(Alignment.BottomEnd).offset(x = 50.dp, y = 50.dp).size(200.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.05f)))
 
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Column {
-                    Text(
-                        text = stringResource(R.string.allocated_salary),
-                        style = Typography.labelMedium,
-                        color = Color.White.copy(alpha = 0.8f)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        Text(
-                            text = totalBudget.toInt().toString(),
-                            style = Typography.displayLarge,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = stringResource(R.string.currency),
-                            style = Typography.bodyMedium,
-                            color = Color.White.copy(alpha = 0.8f),
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        )
-                    }
-                }
-
-                Button(
-                    onClick = onAddClick,
-                    modifier = Modifier.height(44.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.White,
-                        contentColor = primary
-                    ),
-                    shape = RoundedCornerShape(999.dp),
-                    elevation = ButtonDefaults.buttonElevation(4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Add",
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(stringResource(R.string.deposit), style = Typography.labelMedium.copy(fontWeight = FontWeight.Bold))
-                }
-            }
-
-            Spacer(modifier = Modifier.height(28.dp))
-
-            // Glassmorphism sub-card
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color.White.copy(alpha = 0.15f))
-                    .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
-                    .padding(20.dp)
-            ) {
-                Column {
+                Column(modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
                     ) {
                         Column {
                             Text(
-                                text = stringResource(R.string.expense),
+                                text = stringResource(R.string.allocated_salary),
                                 style = Typography.labelMedium,
                                 color = Color.White.copy(alpha = 0.8f)
                             )
-                            Text(
-                                text = String.format("%.2f", totalSpent) + " " + stringResource(R.string.currency),
-                                style = Typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = Color.White
-                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                Text(
+                                    text = totalBudget.toInt().toString(),
+                                    style = Typography.displayLarge,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = stringResource(R.string.currency),
+                                    style = Typography.bodyMedium,
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    modifier = Modifier.padding(bottom = 6.dp)
+                                )
+                            }
                         }
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                text = stringResource(R.string.remaining),
-                                style = Typography.labelMedium,
-                                color = Color.White.copy(alpha = 0.8f)
+
+                        Button(
+                            onClick = onAddClick,
+                            modifier = Modifier.height(44.dp).pressableScale(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.White,
+                                contentColor = primary
+                            ),
+                            shape = RoundedCornerShape(999.dp),
+                            elevation = ButtonDefaults.buttonElevation(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "Add",
+                                modifier = Modifier.size(16.dp)
                             )
-                            Text(
-                                text = String.format("%.2f", currentBudget) + " " + stringResource(R.string.currency),
-                                style = Typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = Color.White
-                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(stringResource(R.string.deposit), style = Typography.labelMedium.copy(fontWeight = FontWeight.Bold))
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(28.dp))
 
-                    // Progress bar
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(10.dp)
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(Color.Black.copy(alpha = 0.2f))
+                    com.example.ui.components.GlassCard(
+                        shape = RoundedCornerShape(24.dp),
+                        containerColor = Color.White.copy(alpha = 0.15f),
+                        borderColor = Color.White.copy(alpha = 0.2f),
+                        contentPadding = 20.dp
                     ) {
-                        val animatedProgress by androidx.compose.animation.core.animateFloatAsState(
-                            targetValue = percentage / 100f,
-                            animationSpec = androidx.compose.animation.core.tween(1500, easing = androidx.compose.animation.core.FastOutSlowInEasing)
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    text = stringResource(R.string.expense),
+                                    style = Typography.labelMedium,
+                                    color = Color.White.copy(alpha = 0.8f)
+                                )
+                                Text(
+                                    text = String.format("%.2f", totalSpent) + " " + stringResource(R.string.currency),
+                                    style = Typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = Color.White
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = stringResource(R.string.remaining),
+                                    style = Typography.labelMedium,
+                                    color = Color.White.copy(alpha = 0.8f)
+                                )
+                                Text(
+                                    text = String.format("%.2f", currentBudget) + " " + stringResource(R.string.currency),
+                                    style = Typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = Color.White
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Progress bar — spring physics (ZadSprings.Screen) instead of a linear tween
                         Box(
                             modifier = Modifier
-                                .fillMaxHeight()
-                                .fillMaxWidth(animatedProgress)
+                                .fillMaxWidth()
+                                .height(10.dp)
                                 .clip(RoundedCornerShape(999.dp))
-                                .background(Color.White)
-                        )
+                                .background(Color.Black.copy(alpha = 0.2f))
+                        ) {
+                            val animatedProgress by androidx.compose.animation.core.animateFloatAsState(
+                                targetValue = percentage / 100f,
+                                animationSpec = com.example.ui.components.ZadSprings.Screen
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .fillMaxWidth(animatedProgress)
+                                    .clip(RoundedCornerShape(999.dp))
+                                    .background(Color.White)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        com.example.ui.components.AppearOnEntry(delayMs = 300) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = if (isDanger) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.9f),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = stringResource(R.string.budget_percent, percentage),
+                                    style = Typography.labelSmall,
+                                    color = Color.White.copy(alpha = 0.9f)
+                                )
+                            }
+                        }
                     }
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = stringResource(R.string.budget_percent, percentage),
-                        style = Typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.9f)
-                    )
                 }
             }
         }
@@ -1420,42 +1434,39 @@ fun PredictionCard(prediction: com.example.data.AiExpensePrediction, budget: Dou
         prediction.predictedTotal > budget * 0.8 -> Color(0xFFF9A825)
         else -> successColor
     }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(2.dp)
+    GlassCard(
+        modifier = Modifier.pressableScale(pressedScale = 0.98f, withHaptic = false),
+        containerColor = surface.copy(alpha = 0.9f),
+        borderColor = onSurface.copy(alpha = 0.08f)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.TrendingUp, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.zad_prediction_next_month), style = Typography.titleMedium, fontWeight = FontWeight.Bold)
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(com.example.data.CurrencyFormatter.format(context, prediction.predictedTotal), color = color, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp)
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.prediction_confidence, (prediction.confidence * 100).toInt()), color = onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp))
-            }
-            if (prediction.warnings.isNotEmpty()) {
-                Spacer(Modifier.height(6.dp))
-                prediction.warnings.take(2).forEach { w ->
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 1.dp)) {
-                        Icon(Icons.Default.Warning, contentDescription = null, tint = dangerColor, modifier = Modifier.size(12.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text(w, color = onSurfaceVariant, fontSize = 11.sp)
-                    }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.TrendingUp, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.zad_prediction_next_month), style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(com.example.data.CurrencyFormatter.format(context, prediction.predictedTotal), color = color, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp)
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.prediction_confidence, (prediction.confidence * 100).toInt()), color = onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp))
+        }
+        if (prediction.warnings.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            prediction.warnings.take(2).forEach { w ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 1.dp)) {
+                    Icon(Icons.Default.Warning, contentDescription = null, tint = dangerColor, modifier = Modifier.size(12.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(w, color = onSurfaceVariant, fontSize = 11.sp)
                 }
             }
-            if (prediction.tips.isNotEmpty()) {
-                Spacer(Modifier.height(6.dp))
-                prediction.tips.take(2).forEach { tip ->
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 1.dp)) {
-                        Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Color(0xFFF9A825), modifier = Modifier.size(12.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text(tip, color = onSurfaceVariant, fontSize = 11.sp)
-                    }
+        }
+        if (prediction.tips.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            prediction.tips.take(2).forEach { tip ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 1.dp)) {
+                    Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Color(0xFFF9A825), modifier = Modifier.size(12.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(tip, color = onSurfaceVariant, fontSize = 11.sp)
                 }
             }
         }
@@ -1475,38 +1486,40 @@ fun EventsRadarCard(forecasts: List<com.example.data.AiSeasonalForecast>) {
     val next = forecasts.minByOrNull { it.daysUntil } ?: return
     val context = LocalContext.current
     val nameResId = seasonalEventDisplayName(next.slug)
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(2.dp)
+    GlassCard(
+        modifier = Modifier.pressableScale(pressedScale = 0.98f, withHaptic = false),
+        containerColor = surface.copy(alpha = 0.9f),
+        borderColor = onSurface.copy(alpha = 0.08f)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier.size(32.dp).clip(CircleShape).background(catEntertainBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Event, contentDescription = null, tint = catEntertainIcon, modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.events_radar_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = if (nameResId != null) stringResource(nameResId) else next.slug ?: "",
+            fontWeight = FontWeight.Bold,
+            fontSize = 16.sp
+        )
+        Text(stringResource(R.string.events_radar_days_until, next.daysUntil), color = onSurfaceVariant, fontSize = 12.sp)
+        Spacer(Modifier.height(4.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(com.example.data.CurrencyFormatter.format(context, next.predictedTotal), color = dangerColor, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp)
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.prediction_confidence, (next.confidence * 100).toInt()), color = onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp))
+        }
+        if (next.tip.isNotBlank()) {
+            Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Event, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.events_radar_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold)
-            }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = if (nameResId != null) stringResource(nameResId) else next.slug ?: "",
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
-            )
-            Text(stringResource(R.string.events_radar_days_until, next.daysUntil), color = onSurfaceVariant, fontSize = 12.sp)
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(com.example.data.CurrencyFormatter.format(context, next.predictedTotal), color = dangerColor, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp)
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.prediction_confidence, (next.confidence * 100).toInt()), color = onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp))
-            }
-            if (next.tip.isNotBlank()) {
-                Spacer(Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Color(0xFFF9A825), modifier = Modifier.size(12.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(next.tip, color = onSurfaceVariant, fontSize = 11.sp)
-                }
+                Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Color(0xFFF9A825), modifier = Modifier.size(12.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(next.tip, color = onSurfaceVariant, fontSize = 11.sp)
             }
         }
     }
@@ -2041,7 +2054,8 @@ fun KidsModeContent(
     myTasbiha: TasbihaTree? = null,
     affiliateProducts: List<com.example.data.AffiliateProduct> = emptyList(),
     viewModel: ZadViewModel? = null,
-    familyViewModel: FamilyViewModel? = null
+    familyViewModel: FamilyViewModel? = null,
+    showBalanceNumber: Boolean = true
 ) {
     if (familyState == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -2088,14 +2102,16 @@ fun KidsModeContent(
                     Text(stringResource(R.string.available_spending), color = Color.White.copy(alpha = 0.9f), style = Typography.labelLarge, fontWeight = FontWeight.SemiBold)
                 }
                 Spacer(modifier = Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.Bottom) {
-                    AnimatedContent(
-                        targetState = myAllowance,
-                        label = "BalanceAnimation"
-                    ) { targetAllowance ->
-                        Text(com.example.data.CurrencyFormatter.formatNumber(context, targetAllowance), color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.Black)
+                if (showBalanceNumber) {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        AnimatedContent(
+                            targetState = myAllowance,
+                            label = "BalanceAnimation"
+                        ) { targetAllowance ->
+                            Text(com.example.data.CurrencyFormatter.formatNumber(context, targetAllowance), color = Color.White, style = Typography.displayLarge, fontWeight = FontWeight.Black)
+                        }
+                        Text(" " + com.example.data.CurrencyFormatter.symbol(context), color = Color.White.copy(alpha = 0.85f), modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
                     }
-                    Text(" " + com.example.data.CurrencyFormatter.symbol(context), color = Color.White.copy(alpha = 0.85f), modifier = Modifier.padding(bottom = 8.dp, start = 4.dp))
                 }
                 if (mySavingsGoal > 0) {
                     Spacer(modifier = Modifier.height(18.dp))
@@ -2189,6 +2205,18 @@ fun KidsModeContent(
                 }
             }
         }
+        Spacer(modifier = Modifier.height(22.dp))
+
+        // ── Gamification Badges ──
+        val completedChores = myChores.count { it.isCompleted }
+        val savingsProgress = if (mySavingsGoal > 0) (myAllowance / mySavingsGoal).toFloat().coerceIn(0f, 1f) else 0f
+        KidBadgeRow(
+            badges = buildKidBadges(
+                completedChores = completedChores,
+                tasbihaStreakDays = myTasbiha?.streakDays ?: 0,
+                savingsProgress = savingsProgress
+            )
+        )
         Spacer(modifier = Modifier.height(22.dp))
 
         // ── Mini Family Chat ──
