@@ -724,7 +724,7 @@ fun BudgetCardSection(
                         com.example.ui.components.AppearOnEntry(delayMs = 300) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    imageVector = if (isDanger) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                                    imageVector = if (isDanger) Icons.Filled.TrendingUp else Icons.Filled.TrendingDown,
                                     contentDescription = null,
                                     tint = Color.White.copy(alpha = 0.9f),
                                     modifier = Modifier.size(14.dp)
