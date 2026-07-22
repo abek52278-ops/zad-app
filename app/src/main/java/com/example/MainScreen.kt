@@ -44,10 +44,6 @@ import com.example.ui.theme.*
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.TasbihaScreen
 import com.example.ui.screens.*
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.unit.IntOffset
-import kotlin.math.roundToInt
 import com.example.ui.viewmodels.FamilyViewModel
 import com.example.ui.viewmodels.ZadViewModel
 import kotlinx.coroutines.launch
@@ -260,12 +256,16 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             bottomBar = { BottomBar(navController = navController) { scope.launch { drawerState.open() } } }
         ) { innerPadding ->
-            // Floating Chat Bubble
-            Box(modifier = Modifier.fillMaxSize()) {
+            // Floating Chat Bubble — Box and NavHost now share innerPadding as one coordinate
+            // frame, so the family FAB below can be positioned relative to the same inset
+            // origin as screen content (previously the FAB used a hardcoded 100.dp guess at
+            // the bottom bar's height while NavHost used the real innerPadding, so the two
+            // drifted apart on different screen densities/font scales).
+            Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
                 NavHost(
                     navController = navController,
                     startDestination = Screen.Home.route,
-                    modifier = Modifier.padding(innerPadding).fillMaxSize(),
+                    modifier = Modifier.fillMaxSize(),
                     enterTransition = { com.example.ui.components.ZadTransitions.enter },
                     exitTransition = { com.example.ui.components.ZadTransitions.exit },
                     popEnterTransition = { com.example.ui.components.ZadTransitions.popEnter },
@@ -452,9 +452,12 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                     }
                 }
                 
-                // Draggable Floating Chat Bubble for Family Chat
-                var offsetX by remember { mutableStateOf(0f) }
-                var offsetY by remember { mutableStateOf(0f) }
+                // Floating Chat Bubble for Family Chat — fixed position (no longer freely
+                // draggable: unclamped drag let it be parked on top of the budget card or
+                // profile avatar). HomeScreen also shows ZadVoiceFab in the same bottom-end
+                // corner, so this bubble sits higher on Home to avoid stacking on top of it.
+                val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+                val familyFabBottomPadding = if (currentRoute == Screen.Home.route) 106.dp else 16.dp
 
                 FloatingActionButton(
                     onClick = {
@@ -465,15 +468,7 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                     },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(end = 16.dp, bottom = 100.dp) // Above bottom bar
-                        .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
-                        .pointerInput(Unit) {
-                            detectDragGestures { change, dragAmount ->
-                                change.consume()
-                                offsetX += dragAmount.x
-                                offsetY += dragAmount.y
-                            }
-                        }
+                        .padding(end = 16.dp, bottom = familyFabBottomPadding)
                         .size(56.dp),
                     containerColor = secondary,
                     shape = CircleShape

@@ -360,7 +360,10 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(24.dp))
                 }
 
-                Spacer(modifier = Modifier.height(80.dp))
+                // clears both the voice FAB (bottom 24.dp + 70.dp tall) and the family chat
+                // FAB stacked above it on this screen (bottom 106.dp + 56.dp tall), so the
+                // last list item isn't left partially hidden behind either
+                Spacer(modifier = Modifier.height(170.dp))
             } // closes inner Column
         } // closes else block (line 125)
     } // closes outer Column (line 103)
