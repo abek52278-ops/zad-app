@@ -81,7 +81,9 @@ fun HomeScreen(
     onNavigateToBudget: () -> Unit = {},
     onNavigateToTasbiha: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
-    onOpenDrawer: () -> Unit = {}
+    onOpenDrawer: () -> Unit = {},
+    /** تفعيل يدوي من الأب/الأم (Switch to Kids Mode) — بيفرض واجهة الأطفال حتى لو role الحساب "admin" */
+    kidsModeOverride: Boolean = false
 ) {
     val inventory by viewModel.inventory.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
@@ -95,6 +97,8 @@ fun HomeScreen(
     val globalAvatarUri by viewModel.avatarUri.collectAsState()
     val affiliateProducts by viewModel.affiliateProducts.collectAsState()
     val urgentRecipes by viewModel.urgentRecipes.collectAsState()
+    val upcomingSeasonalEvents by familyViewModel.upcomingSeasonalEvents.collectAsState()
+    val seasonalForecasts by viewModel.seasonalForecasts.collectAsState()
 
     val totalIncome = transactions.filter { !it.isExpense }.sumOf { it.amount }
     val totalSpent = transactions.filter { it.isExpense }.sumOf { it.amount }
@@ -131,8 +135,8 @@ fun HomeScreen(
     val familyState by familyViewModel.state.collectAsState()
     val userNameState by viewModel.userName.collectAsState()
     
-    val isChild = remember(familyState) {
-        if (familyState is FamilyState.Active) {
+    val isChild = remember(familyState, kidsModeOverride) {
+        kidsModeOverride || if (familyState is FamilyState.Active) {
             val activeState = familyState as FamilyState.Active
             activeState.myMemberInfo.role == "child"
         } else false
@@ -142,7 +146,12 @@ fun HomeScreen(
         if (userNameState.isNullOrBlank()) viewModel.loadUserProfile()
         viewModel.refreshAgentSummary()
         viewModel.predictNextMonthExpenses()
+        familyViewModel.loadUpcomingSeasonalEvents()
         Log.d(TAG_HOME, "HomeScreen loaded — userName=$userNameState, budget=$budget, transactions=${transactions.size}, isChild=$isChild")
+    }
+
+    LaunchedEffect(upcomingSeasonalEvents) {
+        if (upcomingSeasonalEvents.isNotEmpty()) viewModel.loadSeasonalForecast(upcomingSeasonalEvents)
     }
 
     val userName = userNameState ?: "..."
@@ -193,11 +202,12 @@ fun HomeScreen(
         )
         if (isChild) {
             // KIDS MODE UI
-            val newRequestMessage = stringResource(R.string.kids_new_purchase_request_message)
+            val needAmountPattern = stringResource(R.string.need_amount_purchase)
             KidsModeContent(
                 familyState = familyState as? FamilyState.Active,
-                onAddRequest = {
-                    familyViewModel.sendMessage(newRequestMessage, "PURCHASE_REQUEST", """{"amount":0,"status":"PENDING"}""")
+                onAddRequest = { title, amount ->
+                    val meta = """{"amount":$amount,"status":"PENDING"}"""
+                    familyViewModel.sendMessage(String.format(needAmountPattern, amount, title), "PURCHASE_REQUEST", meta)
                 },
                 onNavigateToFamily = onNavigateToFamily,
                 onNavigateToTasbiha = onNavigateToTasbiha,
@@ -306,6 +316,12 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(24.dp))
                 }
 
+                // 4b. Events Radar — رادار المناسبات (family-only: needs cross-member transaction history)
+                if (familyState is FamilyState.Active && seasonalForecasts.isNotEmpty()) {
+                    EventsRadarCard(forecasts = seasonalForecasts)
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+
                 // 5. Mini Inventory Edge
                 MiniInventoryWidget(inventory = inventory, onNavigateToInventory = onNavigateToInventory)
                 Spacer(modifier = Modifier.height(24.dp))
@@ -360,7 +376,10 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(24.dp))
                 }
 
-                Spacer(modifier = Modifier.height(80.dp))
+                // clears both the voice FAB (bottom 24.dp + 70.dp tall) and the family chat
+                // FAB stacked above it on this screen (bottom 106.dp + 56.dp tall), so the
+                // last list item isn't left partially hidden behind either
+                Spacer(modifier = Modifier.height(170.dp))
             } // closes inner Column
         } // closes else block (line 125)
     } // closes outer Column (line 103)
@@ -1443,6 +1462,56 @@ fun PredictionCard(prediction: com.example.data.AiExpensePrediction, budget: Dou
     }
 }
 
+private fun seasonalEventDisplayName(slug: String?): Int? = when (slug) {
+    "ramadan" -> R.string.event_ramadan
+    "eid_al_fitr" -> R.string.event_eid_al_fitr
+    "eid_al_adha" -> R.string.event_eid_al_adha
+    "back_to_school" -> R.string.event_back_to_school
+    else -> null
+}
+
+@Composable
+fun EventsRadarCard(forecasts: List<com.example.data.AiSeasonalForecast>) {
+    val next = forecasts.minByOrNull { it.daysUntil } ?: return
+    val context = LocalContext.current
+    val nameResId = seasonalEventDisplayName(next.slug)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = surface),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Event, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.events_radar_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = if (nameResId != null) stringResource(nameResId) else next.slug ?: "",
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp
+            )
+            Text(stringResource(R.string.events_radar_days_until, next.daysUntil), color = onSurfaceVariant, fontSize = 12.sp)
+            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(com.example.data.CurrencyFormatter.format(context, next.predictedTotal), color = dangerColor, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.prediction_confidence, (next.confidence * 100).toInt()), color = onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp))
+            }
+            if (next.tip.isNotBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Color(0xFFF9A825), modifier = Modifier.size(12.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(next.tip, color = onSurfaceVariant, fontSize = 11.sp)
+                }
+            }
+        }
+    }
+}
+
 @Preview(showBackground = true, locale = "ar")
 @Composable
 fun HomeScreenPreview() {}
@@ -1966,7 +2035,7 @@ fun GlanceWidgetCard(
 @Composable
 fun KidsModeContent(
     familyState: com.example.ui.viewmodels.FamilyState.Active?,
-    onAddRequest: () -> Unit,
+    onAddRequest: (title: String, amount: Double) -> Unit,
     onNavigateToFamily: () -> Unit = {},
     onNavigateToTasbiha: () -> Unit = {},
     myTasbiha: TasbihaTree? = null,
@@ -1988,6 +2057,7 @@ fun KidsModeContent(
     val recentMessages = familyState.messages.takeLast(3)
     val context = LocalContext.current
     val unknownAliasFallback = stringResource(R.string.unknown_alias_fallback)
+    var showWishDialog by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp).verticalScroll(rememberScrollState())) {
         Spacer(modifier = Modifier.height(20.dp))
@@ -2065,7 +2135,7 @@ fun KidsModeContent(
                 }
                 Spacer(modifier = Modifier.height(18.dp))
                 Button(
-                    onClick = onAddRequest,
+                    onClick = { showWishDialog = true },
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = kidsPrimaryDark),
                     shape = RoundedCornerShape(16.dp)
                 ) {
@@ -2194,6 +2264,34 @@ fun KidsModeContent(
             Spacer(modifier = Modifier.height(24.dp))
         }
         Spacer(modifier = Modifier.height(16.dp))
+    }
+
+    // ── قائمة أمنيات: طلب صنف/مبلغ يروح لموافقة الأب/الأم (نفس آلية PURCHASE_REQUEST
+    // الموجودة أصلاً) — قبل كده الزرار ده كان بيبعت amount:0 دايماً بدل مبلغ حقيقي ──
+    if (showWishDialog) {
+        var wishTitle by remember { mutableStateOf("") }
+        var wishAmount by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showWishDialog = false },
+            title = { Text(stringResource(R.string.expense_purchase_request)) },
+            text = {
+                Column {
+                    OutlinedTextField(value = wishTitle, onValueChange = { wishTitle = it }, label = { Text(stringResource(R.string.what_to_buy)) }, modifier = Modifier.fillMaxWidth())
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(value = wishAmount, onValueChange = { wishAmount = it }, label = { Text(stringResource(R.string.requested_amount_with_currency, com.example.data.CurrencyFormatter.symbol(context))) }, modifier = Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val amount = wishAmount.toDoubleOrNull() ?: 0.0
+                    if (wishTitle.isNotBlank() && amount > 0) {
+                        onAddRequest(wishTitle, amount)
+                        showWishDialog = false
+                    }
+                }) { Text(stringResource(R.string.send_request)) }
+            },
+            dismissButton = { TextButton(onClick = { showWishDialog = false }) { Text(stringResource(R.string.cancel)) } }
+        )
     }
 }
 

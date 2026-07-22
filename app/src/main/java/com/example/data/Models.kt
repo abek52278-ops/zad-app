@@ -34,6 +34,26 @@ data class AiPredictionBreakdown(
 )
 
 @Serializable
+data class AiSeasonalForecast(
+    @SerialName("event_id") val eventId: String = "",
+    val slug: String? = null,
+    @SerialName("days_until") val daysUntil: Int = 0,
+    @SerialName("predicted_total") val predictedTotal: Double = 0.0,
+    val confidence: Double = 0.0,
+    val breakdown: List<AiSeasonalForecastBreakdown> = emptyList(),
+    val tip: String = ""
+)
+
+@Serializable
+data class AiSeasonalForecastBreakdown(
+    val category: String = "",
+    val predicted: Double = 0.0,
+    @SerialName("baseline_monthly_avg") val baselineMonthlyAvg: Double = 0.0,
+    @SerialName("multiplier_used") val multiplierUsed: Double = 0.0,
+    val source: String = "fallback"
+)
+
+@Serializable
 data class AiBillClassification(
     val type: String = "other",
     val provider: String? = null,

@@ -212,6 +212,42 @@ data class FinancialChallengeProgress(
 )
 
 @Serializable
+data class SeasonalEvent(
+    val id: String = "",
+    @SerialName("family_id") val familyId: String? = null,
+    val slug: String? = null,
+    val name: String = "",
+    @SerialName("category_tags") val categoryTags: List<String> = emptyList(),
+    @SerialName("is_recurring") val isRecurring: Boolean = false,
+    @SerialName("start_date") val startDate: String? = null,
+    @SerialName("end_date") val endDate: String? = null,
+    val notes: String? = null,
+    @SerialName("created_at") val createdAt: String? = null
+)
+
+@Serializable
+data class SeasonalEventWindow(
+    val id: String = "",
+    @SerialName("event_id") val eventId: String = "",
+    val year: Int = 0,
+    @SerialName("start_date") val startDate: String = "",
+    @SerialName("end_date") val endDate: String = ""
+)
+
+@Serializable
+data class SinkingFund(
+    val id: String = "",
+    @SerialName("family_id") val familyId: String = "",
+    @SerialName("event_id") val eventId: String? = null,
+    val name: String = "",
+    @SerialName("target_amount") val targetAmount: Double = 0.0,
+    @SerialName("current_amount") val currentAmount: Double = 0.0,
+    @SerialName("target_date") val targetDate: String? = null,
+    @SerialName("is_active") val isActive: Boolean = true,
+    @SerialName("created_at") val createdAt: String? = null
+)
+
+@Serializable
 data class FamilyMemberWithTasbiha(
     val member: FamilyMember,
     val trees: List<TasbihaTree>,

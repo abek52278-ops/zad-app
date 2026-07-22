@@ -5,13 +5,15 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.util.Log
+import com.example.BuildConfig
 
 /**
  * مساعد أفلييت أمازون السعودية — يضمن وصول العميل لصفحة المنتج
  * مع تسجيل العمولة (tag) بشكل صحيح.
  *
  * المشاكل اللي بيحلها:
- * 1. ASIN فاضي → بدل لينك مكسور، يفتح صفحة بحث بالاسم (بالتاج برضه)
+ * 1. ASIN فاضي/غير مضمون → بدل لينك 404، يفتح رابط بحث بالاسم (amazon.sa/s?k=...)
+ *    بنفس التاج، مضمون 100% إنه يفتح صفحة حقيقية بدل صفحة مش موجودة
  * 2. تطبيق أمازون بيخطف اللينك ويفتح الرئيسية → نفتح في المتصفح
  *    تحديداً عشان كوكي العمولة تتسجل على صفحة المنتج
  * 3. مفيش متصفح؟ fallback عادي بدل ما التطبيق يقع
@@ -19,7 +21,8 @@ import android.util.Log
 object AffiliateHelper {
 
     private const val TAG = "AffiliateHelper"
-    const val AFFILIATE_TAG = "zad0b-21"
+    /** من AMAZON_ASSOCIATE_TAG في .env (Secrets Gradle Plugin → BuildConfig) */
+    val AFFILIATE_TAG: String get() = BuildConfig.AMAZON_ASSOCIATE_TAG
     private const val BASE = "https://www.amazon.sa"
 
     /** لينك المنتج المباشر — أو بحث بالاسم لو الـ ASIN مش صالح */

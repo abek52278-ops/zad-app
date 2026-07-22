@@ -164,7 +164,11 @@ object ZadAiRepository {
         val itemsList = if (inventory.isEmpty()) "لا يوجد مخزون حاليا"
         else inventory.joinToString(", ") { "${it.itemName} (${it.quantity})" }
         val response = callAction("recipe_details", mapOf("recipe_name" to recipeName, "inventory" to itemsList))
-        return response["text"] as? String ?: "لم أتمكن من إيجاد تفاصيل الوصفة حالياً."
+        // a failed/timed-out upstream call used to fall back to a placeholder string that was
+        // then rendered as if it were a real recipe — throw instead so the caller can show a
+        // retry state (see RecipeDetailScreen's isLoading/errorMessage handling)
+        return response["text"] as? String
+            ?: throw IllegalStateException("recipe_details: upstream call failed for \"$recipeName\"")
     }
 
     suspend fun suggestGroceries(inventory: List<ZadInventory>, familySize: Int = 4): List<GrocerySuggestion> {
@@ -231,8 +235,8 @@ object ZadAiRepository {
         }
     }
 
-    suspend fun askFamilyAssistant(message: String): String {
-        val response = callAction("family_assistant", mapOf("message" to message))
+    suspend fun askFamilyAssistant(message: String, senderRole: String = "member"): String {
+        val response = callAction("family_assistant", mapOf("message" to message, "role" to senderRole))
         return response["text"] as? String ?: "عفواً، تعذر الاتصال."
     }
 
@@ -289,6 +293,44 @@ object ZadAiRepository {
             warnings = warningsRaw.map { it.toString() },
             tips = tipsRaw.map { it.toString() }
         )
+    }
+
+    suspend fun getSeasonalForecast(
+        events: List<Pair<SeasonalEvent, SeasonalEventWindow?>>
+    ): List<AiSeasonalForecast> {
+        val eventsPayload = events.map { (e, w) ->
+            mapOf(
+                "id" to e.id,
+                "slug" to e.slug,
+                "name" to e.name,
+                "category_tags" to e.categoryTags,
+                "event_start" to (w?.startDate ?: e.startDate ?: ""),
+                "event_end" to (w?.endDate ?: e.endDate ?: "")
+            )
+        }
+        val response = callAction("seasonal_forecast", mapOf("events" to eventsPayload))
+        val forecastsRaw = response["forecasts"] as? List<*> ?: return emptyList()
+        return forecastsRaw.mapNotNull { f ->
+            val fm = f as? Map<*, *> ?: return@mapNotNull null
+            AiSeasonalForecast(
+                eventId = fm["event_id"] as? String ?: "",
+                slug = fm["slug"] as? String,
+                daysUntil = (fm["days_until"] as? Number)?.toInt() ?: 0,
+                predictedTotal = (fm["predicted_total"] as? Number)?.toDouble() ?: 0.0,
+                confidence = (fm["confidence"] as? Number)?.toDouble() ?: 0.0,
+                breakdown = ((fm["breakdown"] as? List<*>) ?: emptyList<Any>()).mapNotNull { b ->
+                    val bm = b as? Map<*, *> ?: return@mapNotNull null
+                    AiSeasonalForecastBreakdown(
+                        category = bm["category"] as? String ?: "",
+                        predicted = (bm["predicted"] as? Number)?.toDouble() ?: 0.0,
+                        baselineMonthlyAvg = (bm["baseline_monthly_avg"] as? Number)?.toDouble() ?: 0.0,
+                        multiplierUsed = (bm["multiplier_used"] as? Number)?.toDouble() ?: 0.0,
+                        source = bm["source"] as? String ?: "fallback"
+                    )
+                },
+                tip = fm["tip"] as? String ?: ""
+            )
+        }
     }
 
     suspend fun classifyBill(title: String, amount: Double): AiBillClassification? {
@@ -473,6 +515,9 @@ object ZadAiRepository {
     ): List<LiveDeal> {
         if (shortageItems.isEmpty()) return emptyList()
         val response = callAction("fetch_live_deals", mapOf("items" to shortageItems, "location" to location))
+        // ok:false = real search failure (timeout/HTTP error/unparsable reply), not "genuinely no deals" —
+        // throw so the ViewModel's existing catch surfaces LiveFetchState.Error instead of a silent empty list
+        if (response["ok"] == false) throw IllegalStateException("fetch_live_deals: upstream search failed")
         val dealsRaw = response["deals"] as? List<*> ?: return emptyList()
         return dealsRaw.mapNotNull { entry ->
             val map = entry as? Map<*, *> ?: return@mapNotNull null
@@ -492,6 +537,7 @@ object ZadAiRepository {
     ): List<PriceShockWarning> {
         if (categories.isEmpty()) return emptyList()
         val response = callAction("fetch_price_shock_warnings", mapOf("categories" to categories, "location" to location))
+        if (response["ok"] == false) throw IllegalStateException("fetch_price_shock_warnings: upstream search failed")
         val warningsRaw = response["warnings"] as? List<*> ?: return emptyList()
         return warningsRaw.mapNotNull { entry ->
             val map = entry as? Map<*, *> ?: return@mapNotNull null

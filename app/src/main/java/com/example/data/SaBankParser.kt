@@ -281,7 +281,7 @@ object SaBankParser {
 
 /**
  * مانع الخصم المزدوج — نفس العملية بتوصل SMS + إشعار تطبيق البنك
- * البصمة: المبلغ + الاتجاه + نافذة زمنية 10 دقائق
+ * البصمة: المبلغ + الاتجاه + (اسم التاجر/العنوان لو متوفر) + نافذة زمنية 10 دقائق
  */
 object TxDeduplicator {
 
@@ -289,33 +289,39 @@ object TxDeduplicator {
     private const val KEY = "recent_fingerprints"
     private const val WINDOW_MS = 10 * 60 * 1000L // 10 دقائق
 
-    /** يرجع true لو العملية جديدة (ويسجلها)، false لو مكررة */
+    /**
+     * يرجع true لو العملية جديدة (ويسجلها)، false لو مكررة.
+     * [disambiguator] (اسم التاجر أو عنوان العملية) بيميّز عمليتين مختلفتين بنفس المبلغ
+     * والاتجاه في نفس النافذة الزمنية (زي شرائين بنفس القيمة من محلين مختلفين) —
+     * قبل كده كان بيتحسبوا مكررين غلط لأن البصمة كانت مبلغ+اتجاه بس.
+     */
     @Synchronized
-    fun isNewTransaction(context: Context, amount: Double, isExpense: Boolean): Boolean {
+    fun isNewTransaction(context: Context, amount: Double, isExpense: Boolean, disambiguator: String? = null): Boolean {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
 
-        // البصمات المحفوظة: "amount|isExpense|timestamp"
+        // البصمات المحفوظة: "amount|isExpense|timestamp|disambiguatorHash"
         val stored = prefs.getStringSet(KEY, emptySet()) ?: emptySet()
         val valid = stored.mapNotNull { entry ->
             val parts = entry.split("|")
-            if (parts.size == 3) {
+            if (parts.size == 4) {
                 val ts = parts[2].toLongOrNull() ?: return@mapNotNull null
-                if (now - ts < WINDOW_MS) Triple(parts[0], parts[1], ts) else null
+                if (now - ts < WINDOW_MS) arrayOf(parts[0], parts[1], ts.toString(), parts[3]) else null
             } else null
         }
 
         val amountKey = String.format(java.util.Locale.US, "%.2f", amount)
         val expenseKey = isExpense.toString()
-        val isDuplicate = valid.any { it.first == amountKey && it.second == expenseKey }
+        val disambigKey = (disambiguator?.trim()?.lowercase() ?: "").hashCode().toString()
+        val isDuplicate = valid.any { it[0] == amountKey && it[1] == expenseKey && it[3] == disambigKey }
 
         if (isDuplicate) {
             Log.d(TAG_BANK, "Duplicate transaction blocked: $amountKey SAR (expense=$expenseKey)")
             return false
         }
 
-        val updated = valid.map { "${it.first}|${it.second}|${it.third}" }.toMutableSet()
-        updated.add("$amountKey|$expenseKey|$now")
+        val updated = valid.map { "${it[0]}|${it[1]}|${it[2]}|${it[3]}" }.toMutableSet()
+        updated.add("$amountKey|$expenseKey|$now|$disambigKey")
         prefs.edit().putStringSet(KEY, updated).apply()
         return true
     }

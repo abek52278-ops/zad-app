@@ -51,7 +51,9 @@ object ZadAiGeminiClient {
                     { "name": "product name in Arabic or English", "quantity": 1.0, "unit": "قطعة", "category": "estimated category" }
                   ]
                 }
-                If you see ANY product at all, include it. Do not return empty items array if there are visible products.
+                Only list items that are actually grocery/household products visible in the image. If the image shows
+                no such products (e.g. it's a document, a person, text, or unrelated scene), return an empty items array —
+                never invent or guess a product to avoid an empty list.
             """.trimIndent()
             
             val payload = buildJsonObject {

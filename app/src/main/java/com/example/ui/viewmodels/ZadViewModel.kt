@@ -134,7 +134,19 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         viewModelScope.launch {
-            dao.getAllInventory().collectLatest { inv ->
+            dao.getAllInventory().collectLatest { rawInv ->
+                // فلتر دفاعي: يشيل صفوف قديمة اسمها لقب/وظيفة مش منتج فعلي (خلفوها bugs سابقة قبل تفعيل تأكيد الشات)
+                val bogus = rawInv.filter { com.example.data.InventoryFlowEngine.looksLikeNonProductName(it.itemName) }
+                if (bogus.isNotEmpty()) {
+                    Log.w(TAG, "Sanitize: removing ${bogus.size} non-product inventory row(s): ${bogus.map { it.itemName }}")
+                    bogus.forEach { item ->
+                        viewModelScope.launch {
+                            try { dao.deleteInventory(item.id) } catch (e: Exception) { Log.e(TAG, "sanitize delete failed: ${e.message}") }
+                            try { SupabaseRepo.deleteInventory(item.id) } catch (_: Exception) {}
+                        }
+                    }
+                }
+                val inv = rawInv - bogus.toSet()
                 Log.d(TAG, "Room inventory updated → count=${inv.size}")
                 _inventory.value = inv
                 updateFilteredInventory(inv, _inventorySearchQuery.value)
@@ -397,9 +409,17 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
     private val chatActionRegex = Regex("""\[\[ACTION:(\{.*?\})\]\]""", RegexOption.DOT_MATCHES_ALL)
 
+    // صنف مقترح من الشات ينتظر تأكيد المستخدم قبل الحقن الفعلي (زي مراجعة الكاميرا بالظبط)
+    private var pendingChatAddItem: ZadInventory? = null
+    private val affirmativeReplyRegex = Regex("""^\s*(أيوه|ايوه|ايه|أه|اه|نعم|تمام|ماشي|أكد|اكد|yes|ok|confirm)\b""", RegexOption.IGNORE_CASE)
+    private val negativeReplyRegex = Regex("""^\s*(لا|مش|إلغاء|الغاء|no|cancel)\b""", RegexOption.IGNORE_CASE)
+
     /**
-     * يقرأ [[ACTION:{...}]] لو زاد كتبه في رده، ينفذه فعلياً على المخزون، وبيرجع الرد نظيف
-     * (من غير الوسم الخام) مع سطر تأكيد. أي فشل في القراءة أو الصنف مش موجود → يتجاهل بأمان.
+     * يقرأ [[ACTION:{...}]] لو زاد كتبه في رده وينفذه على المخزون.
+     * "consume" بينفذ فوراً (بيعدّل صنف موجود فعلاً، مفيش خطر بيانات وهمية).
+     * "add" بيولّد اقتراح فقط وينتظر تأكيد المستخدم في رده الجاي (زي شاشة تأكيد الكاميرا)
+     * بدل الحقن المباشر من نص LLM غير موثوق — ده اللي كان بيسمح بدخول أسماء وهمية للمخزون.
+     * أي فشل في القراءة أو الصنف مش موجود → يتجاهل بأمان.
      */
     private fun applyChatAction(rawResponse: String): String {
         val match = chatActionRegex.find(rawResponse) ?: return rawResponse
@@ -424,15 +444,14 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     val existing = _inventory.value.firstOrNull {
                         com.example.data.InventoryFlowEngine.namesMatch(it.itemName, itemName)
                     }
-                    val newItem = com.example.data.ZadInventory(
+                    pendingChatAddItem = com.example.data.ZadInventory(
                         itemName = itemName,
                         quantity = amount,
                         unit = json.optString("unit").ifBlank { "حبة" },
                         category = json.optString("category").ifBlank { null }
                     )
-                    injectScannedItems(listOf(newItem))
-                    if (existing != null) "\n\n✅ ضفنا $amount لـ ${existing.itemName} (هيبقى ${existing.quantity + amount})"
-                    else "\n\n✅ ضفنا $itemName ($amount) للمخزون"
+                    val target = if (existing != null) "لـ ${existing.itemName} (هيبقى ${existing.quantity + amount})" else "$itemName ($amount)"
+                    "\n\n🤔 تحب أضيف $target للمخزون؟ اكتب \"أيوه\" للتأكيد."
                 }
                 else -> ""
             }
@@ -448,6 +467,26 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         val userMsg = AiChatMessage(text = userText, isUser = true)
         _aiChatMessages.value = _aiChatMessages.value + userMsg
         persistChatMessage(userMsg)
+
+        // فيه اقتراح إضافة مخزون معلّق من رد سابق؟ الرد ده تأكيد أو رفض ليه، مش سؤال جديد
+        val pending = pendingChatAddItem
+        if (pending != null) {
+            pendingChatAddItem = null
+            if (affirmativeReplyRegex.containsMatchIn(userText)) {
+                injectScannedItems(listOf(pending))
+                val confirmMsg = AiChatMessage(text = "✅ تم، ضفنا ${pending.itemName} (${pending.quantity}) للمخزون.", isUser = false)
+                _aiChatMessages.value = _aiChatMessages.value + confirmMsg
+                persistChatMessage(confirmMsg)
+                return
+            } else if (negativeReplyRegex.containsMatchIn(userText)) {
+                val cancelMsg = AiChatMessage(text = "تمام، ملغيتهاش.", isUser = false)
+                _aiChatMessages.value = _aiChatMessages.value + cancelMsg
+                persistChatMessage(cancelMsg)
+                return
+            }
+            // مش تأكيد ولا رفض واضح → اعتبرها اتلغت ضمنياً وكمّل معالجة السؤال الجديد عادي
+        }
+
         _isAiTyping.value = true
 
         viewModelScope.launch {
@@ -1739,6 +1778,22 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "predictNextMonthExpenses() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    private val _seasonalForecasts = MutableStateFlow<List<com.example.data.AiSeasonalForecast>>(emptyList())
+    val seasonalForecasts: StateFlow<List<com.example.data.AiSeasonalForecast>> = _seasonalForecasts.asStateFlow()
+
+    fun loadSeasonalForecast(events: List<Pair<com.example.data.SeasonalEvent, com.example.data.SeasonalEventWindow?>>) {
+        if (events.isEmpty()) { _seasonalForecasts.value = emptyList(); return }
+        viewModelScope.launch {
+            try {
+                val forecasts = com.example.data.ZadAiRepository.getSeasonalForecast(events)
+                _seasonalForecasts.value = forecasts
+                Log.d(TAG, "loadSeasonalForecast() → ${forecasts.size} forecast(s)")
+            } catch (e: Exception) {
+                Log.e(TAG, "loadSeasonalForecast() FAILED: ${e.message}")
             }
         }
     }

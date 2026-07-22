@@ -1076,6 +1076,91 @@ object SupabaseRepo {
         }
     }
 
+    // ── Seasonal Events & Sinking Funds ──
+
+    suspend fun getUpcomingSeasonalEvents(withinDays: Int = 90): List<Pair<SeasonalEvent, SeasonalEventWindow?>> {
+        try {
+            val myMember = getMyFamilyMember() ?: return emptyList()
+            val events = client.postgrest["seasonal_events"].select().decodeList<SeasonalEvent>().filter {
+                it.familyId == null || it.familyId == myMember.familyId
+            }
+            val now = java.time.Instant.now()
+            val horizon = now.plus(java.time.Duration.ofDays(withinDays.toLong()))
+            val windows = client.postgrest["seasonal_event_windows"].select().decodeList<SeasonalEventWindow>()
+            val result = mutableListOf<Pair<SeasonalEvent, SeasonalEventWindow?>>()
+            for (event in events) {
+                if (event.isRecurring) {
+                    val upcoming = windows.filter { it.eventId == event.id }
+                        .mapNotNull { w ->
+                            try {
+                                val start = java.time.Instant.parse(w.startDate)
+                                if (!start.isBefore(now) && start.isBefore(horizon)) start to w else null
+                            } catch (e: Exception) { null }
+                        }
+                        .minByOrNull { it.first }?.second
+                    if (upcoming != null) result.add(event to upcoming)
+                } else {
+                    val start = event.startDate?.let { try { java.time.Instant.parse(it) } catch (e: Exception) { null } }
+                    if (start != null && !start.isBefore(now) && start.isBefore(horizon)) result.add(event to null)
+                }
+            }
+            return result.sortedBy { (event, window) ->
+                try { java.time.Instant.parse(window?.startDate ?: event.startDate ?: "") } catch (e: Exception) { java.time.Instant.MAX }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getUpcomingSeasonalEvents() FAILED: ${e.message}")
+            return emptyList()
+        }
+    }
+
+    suspend fun createCustomSeasonalEvent(event: SeasonalEvent): SeasonalEvent? {
+        try {
+            val inserted = client.postgrest["seasonal_events"].insert(event).decodeSingle<SeasonalEvent>()
+            Log.d(TAG, "createCustomSeasonalEvent() SUCCESS")
+            return inserted
+        } catch (e: Exception) {
+            Log.e(TAG, "createCustomSeasonalEvent() FAILED: ${e.message}")
+            return null
+        }
+    }
+
+    suspend fun getSinkingFunds(): List<SinkingFund> {
+        try {
+            val myMember = getMyFamilyMember() ?: return emptyList()
+            return client.postgrest["sinking_funds"].select().decodeList<SinkingFund>().filter {
+                it.familyId == myMember.familyId && it.isActive
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getSinkingFunds() FAILED: ${e.message}")
+            return emptyList()
+        }
+    }
+
+    suspend fun createSinkingFund(fund: SinkingFund): SinkingFund? {
+        try {
+            val inserted = client.postgrest["sinking_funds"].insert(fund).decodeSingle<SinkingFund>()
+            Log.d(TAG, "createSinkingFund() SUCCESS")
+            return inserted
+        } catch (e: Exception) {
+            Log.e(TAG, "createSinkingFund() FAILED: ${e.message}")
+            return null
+        }
+    }
+
+    suspend fun contributeSinkingFund(fundId: String, addedAmount: Double) {
+        try {
+            val existing = client.postgrest["sinking_funds"].select().decodeList<SinkingFund>().find { it.id == fundId }
+            if (existing != null) {
+                client.postgrest["sinking_funds"].update(
+                    mapOf("current_amount" to (existing.currentAmount + addedAmount))
+                ) { filter { eq("id", fundId) } }
+                Log.d(TAG, "contributeSinkingFund() SUCCESS")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "contributeSinkingFund() FAILED: ${e.message}")
+        }
+    }
+
     // ── Member Presence ──
 
     suspend fun updateLastSeen() {

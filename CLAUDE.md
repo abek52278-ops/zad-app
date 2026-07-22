@@ -4,9 +4,9 @@ Project-specific rules for any Claude session working in this repo. Read alongsi
 
 ## Facts to not get wrong
 
-- **AI provider is Groq only.** The `zad-ai-proxy` Supabase Edge Function runs every AI feature — chat, insights, predictions, and photo/receipt scanning via the vision model `meta-llama/llama-4-scout-17b-16e-instruct` — off a single `GROQ_API_KEY` set in Supabase project secrets. There is no server-side Gemini dependency.
-- `ZadAiGeminiClient.kt` / `GEMINI_API_KEY` is a dormant optional client-side path (only activates if a user pastes a personal Gemini key into the camera screen). Never describe it as required, and never assume a feature is broken just because no Gemini key is configured — check whether it falls back to `callVisionEdge`/`zad-ai-proxy` first.
-- Required secrets for a working build: `SUPABASE_URL`, `SUPABASE_ANON_KEY` (`.env`, read via the Secrets Gradle Plugin into `BuildConfig`). `GEMINI_API_KEY` can stay a placeholder.
+- **AI provider is OpenRouter + Groq split, not Groq-only.** The app's real AI function is `zad-core-intelligence` (not `zad-ai-proxy` — that one is dead code; the client never calls it outside a mocked androidTest). `zad-core-intelligence` runs nearly every AI feature — chat, insights, predictions, recipes, vision/OCR scanning — off `OPENROUTER_API_KEY` (models `openai/gpt-oss-20b:free` for text/JSON, `nvidia/nemotron-nano-12b-v2-vl:free` for vision). `GROQ_API_KEY` is only used for Whisper audio transcription and the two `groq/compound` web-search actions (`fetch_live_deals`, `fetch_price_shock_warnings` — Deal Matcher / Price Radar). This corrects an earlier version of this file that said "Groq only"; see git history (`d478a97`, `8a9e950`) for the migration.
+- `ZadAiGeminiClient.kt` / `GEMINI_API_KEY` is a dormant optional client-side path (only activates if a user pastes a personal Gemini key into the camera screen) — despite the file's name, it actually calls Groq's vision endpoint directly, not Gemini. Never describe it as required, and never assume a feature is broken just because no Gemini key is configured — check whether it falls back to `zad-core-intelligence` first.
+- Required secrets for a working build: `SUPABASE_URL`, `SUPABASE_ANON_KEY` (`.env`, read via the Secrets Gradle Plugin into `BuildConfig`). `GEMINI_API_KEY` can stay a placeholder. Server-side, `OPENROUTER_API_KEY` and `GROQ_API_KEY` are Supabase project secrets, not app secrets.
 
 ## Response style
 

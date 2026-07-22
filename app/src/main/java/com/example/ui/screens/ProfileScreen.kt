@@ -52,7 +52,9 @@ fun ProfileScreen(
     familyViewModel: FamilyViewModel = viewModel(),
     onOpenDrawer: () -> Unit = {},
     onLogout: () -> Unit = {},
-    navController: NavController? = null
+    navController: NavController? = null,
+    /** يفعّل وضع الأطفال يدوياً (بلا PIN — الخروج منه بس هو اللي محتاج PIN، في MainScreen) */
+    onSwitchToKidsMode: () -> Unit = {}
 ) {
     val loadingText = stringResource(R.string.loading_ellipsis)
     val newUserText = stringResource(R.string.new_user_default)
@@ -358,6 +360,17 @@ fun ProfileScreen(
                     onClick = { navController?.navigate(Screen.FamilyManagement.route) }
                 )
                 Spacer(Modifier.height(10.dp))
+
+                if ((familyState as? FamilyState.Active)?.myMemberInfo?.role == "admin") {
+                    ProfileMenuItem(
+                        icon = Icons.Default.ChildCare,
+                        title = stringResource(R.string.switch_to_kids_mode),
+                        subtitle = stringResource(R.string.switch_to_kids_mode_subtitle),
+                        gradient = listOf(Color(0xFF7C3AED), Color(0xFFEC4899)),
+                        onClick = onSwitchToKidsMode
+                    )
+                    Spacer(Modifier.height(10.dp))
+                }
 
                 ProfileMenuItem(
                     icon = Icons.Default.AccountBalanceWallet,

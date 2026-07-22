@@ -333,6 +333,9 @@ fun AnalyticsTab(
         // تحديات العائلة المالية (Feature 5)
         item { FinancialChallengesCard(familyViewModel) }
 
+        // صناديق التجميع للمناسبات الموسمية (Seasonal & Event Budget Forecasting)
+        item { SinkingFundsCard(familyViewModel) }
+
         // محاكي القرارات المالية (What-If)
         item {
             WhatIfSimulatorCard(viewModel = viewModel, predictedMonthlySpend = predictedNextMonth)
@@ -1732,6 +1735,145 @@ fun FinancialChallengesCard(familyViewModel: com.example.ui.viewmodels.FamilyVie
     }
 }
 
+// ── Seasonal & Event Budget Forecasting: sinking funds card ────────────────
+@Composable
+fun SinkingFundsCard(familyViewModel: com.example.ui.viewmodels.FamilyViewModel) {
+    val familyState by familyViewModel.state.collectAsState()
+    val funds by familyViewModel.sinkingFunds.collectAsState()
+    val upcomingEvents by familyViewModel.upcomingSeasonalEvents.collectAsState()
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var contributeTarget by remember { mutableStateOf<com.example.data.SinkingFund?>(null) }
+
+    LaunchedEffect(Unit) {
+        familyViewModel.loadSinkingFunds()
+        familyViewModel.loadUpcomingSeasonalEvents()
+    }
+
+    val active = familyState
+    val context = LocalContext.current
+    Card(
+        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = surface)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Savings, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.sinking_funds_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                Spacer(modifier = Modifier.weight(1f))
+                if (active is com.example.ui.viewmodels.FamilyState.Active) {
+                    TextButton(onClick = { showCreateDialog = true }) { Text(stringResource(R.string.sinking_fund_create_action), style = Typography.labelSmall) }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (active !is com.example.ui.viewmodels.FamilyState.Active) {
+                Text(stringResource(R.string.financial_challenge_join_family_hint), style = Typography.bodySmall, color = onSurfaceVariant)
+            } else if (funds.isEmpty()) {
+                Text(stringResource(R.string.sinking_fund_empty_state), style = Typography.bodySmall, color = onSurfaceVariant)
+            } else {
+                funds.forEach { fund ->
+                    val fraction = (fund.currentAmount / fund.targetAmount.coerceAtLeast(1.0)).toFloat().coerceIn(0f, 1f)
+                    val isCompleted = fraction >= 1f
+
+                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(fund.name, style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = onSurface, modifier = Modifier.weight(1f))
+                            if (isCompleted) {
+                                Text(stringResource(R.string.financial_challenge_completed_label), style = Typography.labelSmall, color = successColor)
+                            } else {
+                                TextButton(onClick = { contributeTarget = fund }) {
+                                    Text(stringResource(R.string.sinking_fund_contribute_action), style = Typography.labelSmall)
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        LinearProgressIndicator(
+                            progress = { fraction },
+                            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                            color = if (isCompleted) successColor else primary,
+                            trackColor = primary.copy(alpha = 0.12f)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            stringResource(
+                                R.string.financial_challenge_progress_label,
+                                com.example.data.CurrencyFormatter.format(context, fund.currentAmount),
+                                com.example.data.CurrencyFormatter.format(context, fund.targetAmount)
+                            ),
+                            style = Typography.labelSmall, color = onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (showCreateDialog && active is com.example.ui.viewmodels.FamilyState.Active) {
+        var name by remember { mutableStateOf("") }
+        var targetStr by remember { mutableStateOf("") }
+        var selectedEventId by remember { mutableStateOf<String?>(null) }
+        AlertDialog(
+            onDismissRequest = { showCreateDialog = false },
+            title = { Text(stringResource(R.string.sinking_fund_create_action), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.sinking_fund_name_hint)) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = targetStr, onValueChange = { targetStr = it }, label = { Text(stringResource(R.string.sinking_fund_target_hint)) }, modifier = Modifier.fillMaxWidth())
+                    if (upcomingEvents.isNotEmpty()) {
+                        Text(stringResource(R.string.sinking_fund_link_event_hint), style = Typography.labelSmall, color = onSurfaceVariant)
+                        upcomingEvents.forEach { (event, window) ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(selected = selectedEventId == event.id, onClick = { selectedEventId = event.id })
+                                Text(seasonalEventDisplayNameOrRaw(event), style = Typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val target = targetStr.toDoubleOrNull() ?: return@Button
+                    if (name.isNotBlank()) {
+                        val linkedWindow = upcomingEvents.find { it.first.id == selectedEventId }?.second
+                        familyViewModel.createSinkingFund(name, target, linkedWindow?.startDate, selectedEventId)
+                        showCreateDialog = false
+                    }
+                }) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = { TextButton(onClick = { showCreateDialog = false }) { Text(stringResource(R.string.cancel)) } }
+        )
+    }
+
+    contributeTarget?.let { fund ->
+        var amountStr by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { contributeTarget = null },
+            title = { Text(stringResource(R.string.sinking_fund_contribute_action), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
+            text = {
+                OutlinedTextField(value = amountStr, onValueChange = { amountStr = it }, label = { Text(stringResource(R.string.sinking_fund_amount_hint)) }, modifier = Modifier.fillMaxWidth())
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val amount = amountStr.toDoubleOrNull() ?: return@Button
+                    familyViewModel.contributeToSinkingFund(fund.id, amount)
+                    contributeTarget = null
+                }) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = { TextButton(onClick = { contributeTarget = null }) { Text(stringResource(R.string.cancel)) } }
+        )
+    }
+}
+
+private fun seasonalEventDisplayNameOrRaw(event: com.example.data.SeasonalEvent): String = when (event.slug) {
+    "ramadan" -> "رمضان"
+    "eid_al_fitr" -> "عيد الفطر"
+    "eid_al_adha" -> "عيد الأضحى"
+    "back_to_school" -> "العودة للمدارس"
+    else -> event.name
+}
+
 // ── Feature 2 card (Subscriptions tab) ────────────────────────────────────────
 @Composable
 fun DebtPayoffPlannerCard(debts: List<com.example.data.ZadDebt>, viewModel: ZadViewModel) {
@@ -1926,7 +2068,9 @@ fun LiveDealsCard(shortageItems: List<String>, viewModel: ZadViewModel) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.live_search_loading), style = Typography.labelSmall, color = onSurfaceVariant)
                 }
-                ZadViewModel.LiveFetchState.Fetched, ZadViewModel.LiveFetchState.Error -> {
+                ZadViewModel.LiveFetchState.Error ->
+                    Text(stringResource(R.string.live_search_error_state), style = Typography.bodySmall, color = error)
+                ZadViewModel.LiveFetchState.Fetched -> {
                     if (deals.isEmpty()) {
                         Text(stringResource(R.string.live_search_empty_state), style = Typography.bodySmall, color = onSurfaceVariant)
                     } else {
@@ -2001,7 +2145,9 @@ fun PriceShockRadarCard(categories: List<String>, viewModel: ZadViewModel) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.live_search_loading), style = Typography.labelSmall, color = onSurfaceVariant)
                 }
-                ZadViewModel.LiveFetchState.Fetched, ZadViewModel.LiveFetchState.Error -> {
+                ZadViewModel.LiveFetchState.Error ->
+                    Text(stringResource(R.string.live_search_error_state), style = Typography.bodySmall, color = error)
+                ZadViewModel.LiveFetchState.Fetched -> {
                     if (warnings.isEmpty()) {
                         Text(stringResource(R.string.live_search_empty_state), style = Typography.bodySmall, color = onSurfaceVariant)
                     } else {
