@@ -399,7 +399,11 @@ Deno.serve(async (req: Request) => {
         const systemPrompt = dialectPrefix + "أنت مساعد طبخ ذكي. بناءً على المخزون المتوفر، اقترح وجبات يمكن تحضيرها. أجب بصيغة JSON: {\"text\": \"...\"}";
         const userPrompt = "المخزون: " + (items || "لا يوجد مخزون");
         const result = await callJsonModel(systemPrompt, userPrompt);
-        return jsonResponse({ text: result?.text || "لم أتمكن من إيجاد اقتراحات حالياً." });
+        // same honest-failure contract as recipe_details: null/ok:false on a genuine upstream
+        // failure instead of baking in Arabic text that looks like a real AI reply. The Kotlin
+        // client (ZadAiRepository.suggestMeals) already falls back to its own "لم أتمكن..."
+        // string when text is null, so no client change needed.
+        return jsonResponse({ text: result?.text || null, ok: !!result?.text });
       }
 
       // ──────────────────────────────────────────────
