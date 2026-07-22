@@ -164,7 +164,11 @@ object ZadAiRepository {
         val itemsList = if (inventory.isEmpty()) "لا يوجد مخزون حاليا"
         else inventory.joinToString(", ") { "${it.itemName} (${it.quantity})" }
         val response = callAction("recipe_details", mapOf("recipe_name" to recipeName, "inventory" to itemsList))
-        return response["text"] as? String ?: "لم أتمكن من إيجاد تفاصيل الوصفة حالياً."
+        // a failed/timed-out upstream call used to fall back to a placeholder string that was
+        // then rendered as if it were a real recipe — throw instead so the caller can show a
+        // retry state (see RecipeDetailScreen's isLoading/errorMessage handling)
+        return response["text"] as? String
+            ?: throw IllegalStateException("recipe_details: upstream call failed for \"$recipeName\"")
     }
 
     suspend fun suggestGroceries(inventory: List<ZadInventory>, familySize: Int = 4): List<GrocerySuggestion> {
@@ -473,6 +477,9 @@ object ZadAiRepository {
     ): List<LiveDeal> {
         if (shortageItems.isEmpty()) return emptyList()
         val response = callAction("fetch_live_deals", mapOf("items" to shortageItems, "location" to location))
+        // ok:false = real search failure (timeout/HTTP error/unparsable reply), not "genuinely no deals" —
+        // throw so the ViewModel's existing catch surfaces LiveFetchState.Error instead of a silent empty list
+        if (response["ok"] == false) throw IllegalStateException("fetch_live_deals: upstream search failed")
         val dealsRaw = response["deals"] as? List<*> ?: return emptyList()
         return dealsRaw.mapNotNull { entry ->
             val map = entry as? Map<*, *> ?: return@mapNotNull null
@@ -492,6 +499,7 @@ object ZadAiRepository {
     ): List<PriceShockWarning> {
         if (categories.isEmpty()) return emptyList()
         val response = callAction("fetch_price_shock_warnings", mapOf("categories" to categories, "location" to location))
+        if (response["ok"] == false) throw IllegalStateException("fetch_price_shock_warnings: upstream search failed")
         val warningsRaw = response["warnings"] as? List<*> ?: return emptyList()
         return warningsRaw.mapNotNull { entry ->
             val map = entry as? Map<*, *> ?: return@mapNotNull null

@@ -84,66 +84,85 @@ function classifyTransaction(title: string, amount: number, category?: string): 
 // final answer, it burns the whole max_tokens budget "thinking" and returns
 // content:null (finish_reason:"length"). Verified directly: 50 tokens ->
 // null content; 500 tokens + effort:"low" -> correct content every time.
+// 25s upstream timeout, kept under the Android client's 30s HttpURLConnection
+// timeout (SupabaseRepo.kt callEdgeFunction) — without this, a stalled
+// OpenRouter free-tier response left the request hanging up to the Deno
+// platform's own execution limit, which read to users as "stuck forever"
+// (e.g. the Chef Zad recipe screen).
+const UPSTREAM_TIMEOUT_MS = 25000;
+
 async function callTextModel(systemPrompt: string, userPrompt: string, maxTokens = 1000, temperature = 0.7) {
   if (!OPENROUTER_API_KEY) return null;
-  const resp = await fetch(OPENROUTER_URL, {
-    method: "POST",
-    headers: {
-      "Authorization": "Bearer " + OPENROUTER_API_KEY,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "https://zad-app.com",
-      "X-Title": "Zad",
-    },
-    body: JSON.stringify({
-      model: TEXT_MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      temperature,
-      max_tokens: Math.max(maxTokens, 300),
-      reasoning: { effort: "low" },
-    }),
-  });
-  const data = await resp.json();
-  if (!resp.ok) {
-    console.error("[CoreIntel] OpenRouter text HTTP error:", resp.status, JSON.stringify(data));
+  try {
+    const resp = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + OPENROUTER_API_KEY,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://zad-app.com",
+        "X-Title": "Zad",
+      },
+      body: JSON.stringify({
+        model: TEXT_MODEL,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        temperature,
+        max_tokens: Math.max(maxTokens, 300),
+        reasoning: { effort: "low" },
+      }),
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      console.error("[CoreIntel] OpenRouter text HTTP error:", resp.status, JSON.stringify(data));
+    }
+    return data.choices?.[0]?.message?.content || null;
+  } catch (e) {
+    console.error("[CoreIntel] callTextModel failed/timed out:", e.message);
+    return null;
   }
-  return data.choices?.[0]?.message?.content || null;
 }
 
 async function callVisionModel(systemPrompt: string, userPrompt: string, imageBase64: string, mimeType: string) {
   if (!OPENROUTER_API_KEY) return { content: null, raw: { error: "OPENROUTER_API_KEY not set" }, ok: false, status: 0 };
-  const resp = await fetch(OPENROUTER_URL, {
-    method: "POST",
-    headers: {
-      "Authorization": "Bearer " + OPENROUTER_API_KEY,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "https://zad-app.com",
-      "X-Title": "Zad",
-    },
-    body: JSON.stringify({
-      model: VISION_MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: userPrompt },
-            { type: "image_url", image_url: { url: "data:" + mimeType + ";base64," + imageBase64 } },
-          ],
-        },
-      ],
-      temperature: 0.2,
-      max_tokens: 2000,
-    }),
-  });
-  const data = await resp.json();
-  console.log("[CoreIntel] OpenRouter vision raw response:", JSON.stringify(data));
-  if (!resp.ok) {
-    console.error("[CoreIntel] OpenRouter vision HTTP error:", resp.status, JSON.stringify(data));
+  try {
+    const resp = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + OPENROUTER_API_KEY,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://zad-app.com",
+        "X-Title": "Zad",
+      },
+      body: JSON.stringify({
+        model: VISION_MODEL,
+        messages: [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: userPrompt },
+              { type: "image_url", image_url: { url: "data:" + mimeType + ";base64," + imageBase64 } },
+            ],
+          },
+        ],
+        temperature: 0.2,
+        max_tokens: 2000,
+      }),
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    });
+    const data = await resp.json();
+    console.log("[CoreIntel] OpenRouter vision raw response:", JSON.stringify(data));
+    if (!resp.ok) {
+      console.error("[CoreIntel] OpenRouter vision HTTP error:", resp.status, JSON.stringify(data));
+    }
+    return { content: data.choices?.[0]?.message?.content || null, raw: data, ok: resp.ok, status: resp.status };
+  } catch (e) {
+    console.error("[CoreIntel] callVisionModel failed/timed out:", e.message);
+    return { content: null, raw: { error: e.message }, ok: false, status: 0 };
   }
-  return { content: data.choices?.[0]?.message?.content || null, raw: data, ok: resp.ok, status: resp.status };
 }
 
 async function transcribeAudio(audioBase64: string, mimeType: string) {
@@ -177,33 +196,39 @@ async function transcribeAudio(audioBase64: string, mimeType: string) {
 
 async function callJsonModel(systemPrompt: string, userPrompt: string, maxTokens = 1500) {
   if (!OPENROUTER_API_KEY) return null;
-  const resp = await fetch(OPENROUTER_URL, {
-    method: "POST",
-    headers: {
-      "Authorization": "Bearer " + OPENROUTER_API_KEY,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "https://zad-app.com",
-      "X-Title": "Zad",
-    },
-    body: JSON.stringify({
-      model: TEXT_MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.2,
-      max_tokens: Math.max(maxTokens, 300),
-      reasoning: { effort: "low" },
-    }),
-  });
-  const data = await resp.json();
-  if (!resp.ok) {
-    console.error("[CoreIntel] OpenRouter json HTTP error:", resp.status, JSON.stringify(data));
-  }
-  const text = data.choices?.[0]?.message?.content || "{}";
-  try { return JSON.parse(text); } catch (e) {
-    console.error("[CoreIntel] callJsonModel: JSON.parse failed:", e.message, "raw:", text);
+  try {
+    const resp = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + OPENROUTER_API_KEY,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://zad-app.com",
+        "X-Title": "Zad",
+      },
+      body: JSON.stringify({
+        model: TEXT_MODEL,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.2,
+        max_tokens: Math.max(maxTokens, 300),
+        reasoning: { effort: "low" },
+      }),
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      console.error("[CoreIntel] OpenRouter json HTTP error:", resp.status, JSON.stringify(data));
+    }
+    const text = data.choices?.[0]?.message?.content || "{}";
+    try { return JSON.parse(text); } catch (e) {
+      console.error("[CoreIntel] callJsonModel: JSON.parse failed:", e.message, "raw:", text);
+      return null;
+    }
+  } catch (e) {
+    console.error("[CoreIntel] callJsonModel failed/timed out:", e.message);
     return null;
   }
 }
@@ -214,42 +239,55 @@ async function callJsonModel(systemPrompt: string, userPrompt: string, maxTokens
 // (already provisioned for Whisper), no new secret needed. Compound
 // sometimes wraps its JSON answer in prose/markdown fences despite
 // instructions, so we extract leniently like callJsonModel() does.
+// `ok` distinguishes a hard failure (missing key, HTTP error, timeout, unparsable
+// response) from a genuinely successful search that just found nothing — callers
+// used to collapse both into the same empty array, so real outages looked
+// identical to "no deals right now" in the UI.
 async function callCompoundSearch(systemPrompt: string, userPrompt: string, maxTokens = 1500) {
-  if (!GROQ_API_KEY) return null;
-  const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": "Bearer " + GROQ_API_KEY,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "groq/compound",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.2,
-      max_tokens: Math.max(maxTokens, 300),
-    }),
-  });
-  const data = await resp.json();
-  if (!resp.ok) {
-    console.error("[CoreIntel] Groq compound HTTP error:", resp.status, JSON.stringify(data));
-    return null;
-  }
-  const text = data.choices?.[0]?.message?.content || "";
-  const executedTools = data.choices?.[0]?.message?.executed_tools || [];
-  console.log("[CoreIntel] Groq compound executed_tools:", JSON.stringify(executedTools));
-  const arrayMatch = text.match(/\[[\s\S]*\]/);
-  const objectMatch = text.match(/\{[\s\S]*\}/);
-  let parsed: unknown = null;
+  if (!GROQ_API_KEY) return { parsed: null, executedTools: [], ok: false };
   try {
-    if (arrayMatch) parsed = JSON.parse(arrayMatch[0]);
-    else if (objectMatch) parsed = JSON.parse(objectMatch[0]);
+    const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + GROQ_API_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "groq/compound",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        temperature: 0.2,
+        max_tokens: Math.max(maxTokens, 300),
+      }),
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      console.error("[CoreIntel] Groq compound HTTP error:", resp.status, JSON.stringify(data));
+      return { parsed: null, executedTools: [], ok: false };
+    }
+    const text = data.choices?.[0]?.message?.content || "";
+    const executedTools = data.choices?.[0]?.message?.executed_tools || [];
+    console.log("[CoreIntel] Groq compound executed_tools:", JSON.stringify(executedTools));
+    const arrayMatch = text.match(/\[[\s\S]*\]/);
+    const objectMatch = text.match(/\{[\s\S]*\}/);
+    let parsed: unknown = null;
+    let parseFailed = false;
+    try {
+      if (arrayMatch) parsed = JSON.parse(arrayMatch[0]);
+      else if (objectMatch) parsed = JSON.parse(objectMatch[0]);
+    } catch (e) {
+      parseFailed = true;
+      console.error("[CoreIntel] callCompoundSearch: JSON.parse failed:", e.message, "raw:", text);
+    }
+    // no JSON found/parseable in the model's reply is a real failure, not "no results"
+    return { parsed, executedTools, ok: !parseFailed };
   } catch (e) {
-    console.error("[CoreIntel] callCompoundSearch: JSON.parse failed:", e.message, "raw:", text);
+    console.error("[CoreIntel] callCompoundSearch failed/timed out:", e.message);
+    return { parsed: null, executedTools: [], ok: false };
   }
-  return { parsed, executedTools };
 }
 
 Deno.serve(async (req: Request) => {
@@ -530,7 +568,10 @@ Deno.serve(async (req: Request) => {
         const systemPrompt = dialectPrefix + "أنت شيف عربي محترف. قدم وصفة مفصلة تشمل المكونات والخطوات. أجب بصيغة JSON: {\"text\":\"...\"}";
         const userPrompt = "الوصفة: " + (recipe_name || "") + " | المخزون المتوفر: " + (inventory || "لا يوجد");
         const result = await callJsonModel(systemPrompt, userPrompt);
-        return jsonResponse({ text: result?.text || "لم أتمكن من إيجاد تفاصيل الوصفة حالياً." });
+        // no baked-in Arabic fallback here anymore — a null/missing text means the upstream
+        // call genuinely failed (timeout/HTTP error/bad JSON), and the client needs to know
+        // that so it can show a retry affordance instead of rendering this as a real recipe.
+        return jsonResponse({ text: result?.text || null, ok: !!result?.text });
       }
 
       // ──────────────────────────────────────────────
@@ -646,7 +687,7 @@ Deno.serve(async (req: Request) => {
         const userPrompt = "المنطقة: " + (location || "السعودية") + " | الأصناف المطلوب البحث عن عروض لها: " + (Array.isArray(items) ? items.join("، ") : items);
         const result = await callCompoundSearch(systemPrompt, userPrompt);
         const deals = Array.isArray(result?.parsed) ? result.parsed : [];
-        return jsonResponse({ deals, sources: result?.executedTools || [] });
+        return jsonResponse({ deals, sources: result?.executedTools || [], ok: result?.ok !== false });
       }
 
       // ──────────────────────────────────────────────
@@ -660,7 +701,7 @@ Deno.serve(async (req: Request) => {
         const userPrompt = "المنطقة: " + (location || "السعودية") + " | الفئات المطلوب تحليل اتجاه أسعارها: " + (Array.isArray(categories) ? categories.join("، ") : categories);
         const result = await callCompoundSearch(systemPrompt, userPrompt);
         const warnings = Array.isArray(result?.parsed) ? result.parsed : [];
-        return jsonResponse({ warnings, sources: result?.executedTools || [] });
+        return jsonResponse({ warnings, sources: result?.executedTools || [], ok: result?.ok !== false });
       }
 
       // ──────────────────────────────────────────────

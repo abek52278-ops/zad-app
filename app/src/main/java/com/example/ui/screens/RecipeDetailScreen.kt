@@ -12,6 +12,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -340,11 +341,12 @@ fun RecipeDetailDialog(
     var isLoading by remember { mutableStateOf(true) }
     var recipeText by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var retryKey by remember { mutableStateOf(0) }
     val parsed = remember(recipeText) { if (recipeText.isNotBlank()) parseRecipeContent(recipeText) else ParsedRecipe(emptyList(), emptyList()) }
     val checkedIngredients = remember { mutableStateMapOf<Int, Boolean>() }
     val completedSteps = remember { mutableStateMapOf<Int, Boolean>() }
 
-    LaunchedEffect(recipeTitle) {
+    LaunchedEffect(recipeTitle, retryKey) {
         isLoading = true
         errorMessage = null
         try {
@@ -470,6 +472,12 @@ fun RecipeDetailDialog(
                             color = dangerColor,
                             textAlign = TextAlign.Center
                         )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        OutlinedButton(onClick = { retryKey++ }) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("إعادة المحاولة")
+                        }
                     }
                 } else {
                     Column(

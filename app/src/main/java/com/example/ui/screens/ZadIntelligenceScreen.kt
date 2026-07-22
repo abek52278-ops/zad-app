@@ -1926,7 +1926,9 @@ fun LiveDealsCard(shortageItems: List<String>, viewModel: ZadViewModel) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.live_search_loading), style = Typography.labelSmall, color = onSurfaceVariant)
                 }
-                ZadViewModel.LiveFetchState.Fetched, ZadViewModel.LiveFetchState.Error -> {
+                ZadViewModel.LiveFetchState.Error ->
+                    Text(stringResource(R.string.live_search_error_state), style = Typography.bodySmall, color = error)
+                ZadViewModel.LiveFetchState.Fetched -> {
                     if (deals.isEmpty()) {
                         Text(stringResource(R.string.live_search_empty_state), style = Typography.bodySmall, color = onSurfaceVariant)
                     } else {
@@ -2001,7 +2003,9 @@ fun PriceShockRadarCard(categories: List<String>, viewModel: ZadViewModel) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.live_search_loading), style = Typography.labelSmall, color = onSurfaceVariant)
                 }
-                ZadViewModel.LiveFetchState.Fetched, ZadViewModel.LiveFetchState.Error -> {
+                ZadViewModel.LiveFetchState.Error ->
+                    Text(stringResource(R.string.live_search_error_state), style = Typography.bodySmall, color = error)
+                ZadViewModel.LiveFetchState.Fetched -> {
                     if (warnings.isEmpty()) {
                         Text(stringResource(R.string.live_search_empty_state), style = Typography.bodySmall, color = onSurfaceVariant)
                     } else {

@@ -506,6 +506,7 @@
     <string name="live_search_loading">يبحث في الإنترنت...</string>
     <string name="live_search_source_badge">نتيجة بحث حي</string>
     <string name="live_search_empty_state">لا توجد نتائج بحث محددة متوفرة حالياً</string>
+    <string name="live_search_error_state">تعذّر البحث الآن — جرّب تحدّث تاني بعد شوية</string>
     <string name="live_search_not_fetched_hint">اضغط لتحديث النتائج من الإنترنت</string>
 
     <string name="live_deals_title">العروض المتاحة لنواقصك 🏷️</string>
