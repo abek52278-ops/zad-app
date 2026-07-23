@@ -2120,7 +2120,7 @@ fun KidsModeContent(
 ) {
     if (familyState == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(R.string.loading_family_data), color = Color.Gray)
+            Text(stringResource(R.string.loading_family_data), color = onSurfaceVariant)
         }
         return
     }
@@ -2152,6 +2152,7 @@ fun KidsModeContent(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .shadow(elevation = 14.dp, shape = RoundedCornerShape(28.dp), spotColor = kidsPrimary.copy(alpha = 0.35f))
                 .clip(RoundedCornerShape(28.dp))
                 .background(Brush.linearGradient(listOf(kidsPrimary, Color(0xFFEC4899), Color(0xFFF59E0B))))
                 .padding(24.dp)
@@ -2214,7 +2215,8 @@ fun KidsModeContent(
                 Button(
                     onClick = { showWishDialog = true },
                     colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = kidsPrimaryDark),
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(50),
+                    modifier = Modifier.pressableScale()
                 ) {
                     Text("✋", fontSize = 14.sp)
                     Spacer(modifier = Modifier.width(6.dp))
@@ -2240,10 +2242,15 @@ fun KidsModeContent(
                 }
             }
         } else {
-            myChores.forEach { chore ->
+            myChores.forEachIndexed { index, chore ->
+                AppearOnEntry(delayMs = (index * 60).coerceAtMost(400)) {
+                val choreRowShape = RoundedCornerShape(18.dp)
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(18.dp))
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        .shadow(elevation = 4.dp, shape = choreRowShape, spotColor = kidsPrimary.copy(alpha = 0.12f))
+                        .clip(choreRowShape)
                         .background(if (chore.isCompleted) Color(0xFFECFDF5) else surface)
+                        .pressableScale()
                         .padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -2263,6 +2270,7 @@ fun KidsModeContent(
                             }
                         }
                     }
+                }
                 }
             }
         }
@@ -2316,7 +2324,10 @@ fun KidsModeContent(
             onClick = onNavigateToTasbiha,
             shape = RoundedCornerShape(18.dp),
             color = Color(0xFFF1F8E9),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(elevation = 4.dp, shape = RoundedCornerShape(18.dp), spotColor = Color(0xFF2E7D32).copy(alpha = 0.15f))
+                .pressableScale()
         ) {
             Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("🌳", fontSize = 30.sp)
@@ -2371,13 +2382,17 @@ fun KidsModeContent(
                 }
             },
             confirmButton = {
-                Button(onClick = {
-                    val amount = wishAmount.toDoubleOrNull() ?: 0.0
-                    if (wishTitle.isNotBlank() && amount > 0) {
-                        onAddRequest(wishTitle, amount)
-                        showWishDialog = false
-                    }
-                }) { Text(stringResource(R.string.send_request)) }
+                Button(
+                    onClick = {
+                        val amount = wishAmount.toDoubleOrNull() ?: 0.0
+                        if (wishTitle.isNotBlank() && amount > 0) {
+                            onAddRequest(wishTitle, amount)
+                            showWishDialog = false
+                        }
+                    },
+                    modifier = Modifier.pressableScale(),
+                    shape = RoundedCornerShape(50)
+                ) { Text(stringResource(R.string.send_request)) }
             },
             dismissButton = { TextButton(onClick = { showWishDialog = false }) { Text(stringResource(R.string.cancel)) } }
         )

@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -33,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.util.Log
 import com.example.data.ZadTransaction
+import com.example.ui.components.pressableScale
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 import java.time.Instant
@@ -111,7 +113,7 @@ fun BudgetScreen(
                         .fillMaxWidth()
                         .background(
                             brush = Brush.verticalGradient(
-                                colors = listOf(primary, Color(0xFF094730))
+                                colors = listOf(primary, primaryDark)
                             )
                         )
                 ) {
@@ -189,7 +191,7 @@ fun BudgetScreen(
                                 label = stringResource(R.string.income_label),
                                 amount = totalIncome,
                                 icon = Icons.Default.TrendingUp,
-                                color = Color(0xFF34C77B)
+                                color = successColor
                             )
                             Box(
                                 modifier = Modifier
@@ -201,7 +203,7 @@ fun BudgetScreen(
                                 label = stringResource(R.string.expense_label),
                                 amount = totalSpent,
                                 icon = Icons.Default.TrendingDown,
-                                color = Color(0xFFFF6B6B)
+                                color = dangerColor
                             )
                             Box(
                                 modifier = Modifier
@@ -213,7 +215,7 @@ fun BudgetScreen(
                                 label = stringResource(R.string.budget_label),
                                 amount = budget,
                                 icon = Icons.Default.AccountBalanceWallet,
-                                color = Color(0xFFE8BC6A)
+                                color = secondaryLight
                             )
                         }
 
@@ -232,21 +234,21 @@ fun BudgetScreen(
                     else -> Icons.Default.CheckCircle to stringResource(R.string.budget_insight_good, spentPct)
                 }
                 val stripColor = when {
-                    spentPct >= 100 -> Color(0xFFFF4444)
-                    spentPct >= 85 -> Color(0xFFF59E0B)
+                    spentPct >= 100 -> dangerColor
+                    spentPct >= 85 -> secondary
                     else -> primary
                 }
-
-                val pressed = remember { MutableInteractionSource() }
-                val isPressed by pressed.collectIsPressedAsState()
-                val scale by animateFloatAsState(if (isPressed) 0.97f else 1f)
 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .scale(scale)
                         .background(stripColor.copy(alpha = 0.08f))
-                        .clickable(interactionSource = pressed, indication = null, onClick = onNavigateToAssistant)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onNavigateToAssistant
+                        )
+                        .pressableScale()
                         .padding(horizontal = 20.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -303,14 +305,16 @@ fun BudgetScreen(
                         modifier = Modifier.padding(horizontal = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        categoryCards.forEach { (cat, catBudget, spent) ->
-                            CategoryBudgetCard(
-                                category = cat,
-                                budget = catBudget,
-                                spent = spent,
-                                onClick = { editingCategory = cat },
-                                onInsightClick = { insightCategory = cat }
-                            )
+                        categoryCards.forEachIndexed { index, (cat, catBudget, spent) ->
+                            com.example.ui.components.AppearOnEntry(delayMs = (index * 40).coerceAtMost(400)) {
+                                CategoryBudgetCard(
+                                    category = cat,
+                                    budget = catBudget,
+                                    spent = spent,
+                                    onClick = { editingCategory = cat },
+                                    onInsightClick = { insightCategory = cat }
+                                )
+                            }
                         }
                     }
                 }
@@ -576,19 +580,23 @@ private fun CategoryInsightDialog(
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(result.insight, style = Typography.bodyMedium)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            val trendLabel = when (result.trend) {
-                                "increasing" -> "📈 في ازدياد"
-                                "decreasing" -> "📉 في انخفاض"
-                                else -> "➡️ مستقر"
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            val (trendIcon, trendLabel) = when (result.trend) {
+                                "increasing" -> Icons.Default.TrendingUp to "في ازدياد"
+                                "decreasing" -> Icons.Default.TrendingDown to "في انخفاض"
+                                else -> Icons.AutoMirrored.Filled.TrendingFlat to "مستقر"
                             }
+                            Icon(trendIcon, contentDescription = null, tint = primary, modifier = Modifier.size(16.dp))
                             Text(trendLabel, style = Typography.labelMedium, color = primary)
                         }
                         if (result.predictedNext > 0) {
                             Text("المتوقع الشهر القادم: ${result.predictedNext.toInt()} ريال", style = Typography.bodySmall, color = onSurfaceVariant)
                         }
                         if (result.tip.isNotBlank()) {
-                            Text("💡 ${result.tip}", style = Typography.bodySmall, color = onSurfaceVariant)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Icon(Icons.Default.Lightbulb, contentDescription = null, tint = warningColor, modifier = Modifier.size(14.dp))
+                                Text(result.tip, style = Typography.bodySmall, color = onSurfaceVariant)
+                            }
                         }
                     }
                 }
@@ -613,16 +621,18 @@ private fun CategoryBudgetCard(category: String, budget: Double, spent: Double, 
     }
     val animatedFraction by animateFloatAsState(
         targetValue = if (budget > 0) (spent / budget).toFloat().coerceIn(0f, 1f) else 0f,
-        animationSpec = tween(700), label = "catBudgetBar"
+        animationSpec = com.example.ui.components.ZadSprings.Screen, label = "catBudgetBar"
     )
+    val catCardShape = RoundedCornerShape(18.dp)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(1.dp, RoundedCornerShape(14.dp))
-            .clip(RoundedCornerShape(14.dp))
+            .shadow(elevation = 6.dp, shape = catCardShape, spotColor = barColor.copy(alpha = 0.16f))
+            .clip(catCardShape)
             .background(surface)
             .clickable(onClick = onClick)
+            .pressableScale()
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -651,7 +661,7 @@ private fun CategoryBudgetCard(category: String, budget: Double, spent: Double, 
             }
         }
         Spacer(modifier = Modifier.width(10.dp))
-        IconButton(onClick = onInsightClick, modifier = Modifier.size(28.dp)) {
+        IconButton(onClick = onInsightClick, modifier = Modifier.size(28.dp).pressableScale()) {
             Icon(Icons.Default.AutoAwesome, contentDescription = "تحليل ذكي", tint = primary, modifier = Modifier.size(16.dp))
         }
         Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit_cd), tint = onSurfaceVariant, modifier = Modifier.size(16.dp))
@@ -829,15 +839,17 @@ private fun TxRowItem(tx: ZadTransaction, onDelete: () -> Unit) {
     } catch (e: Exception) { "" }
 
     var showDelete by remember { mutableStateOf(false) }
+    val txRowShape = RoundedCornerShape(18.dp)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 3.dp)
-            .shadow(2.dp, RoundedCornerShape(16.dp), spotColor = Color.Black.copy(alpha = 0.03f))
-            .clip(RoundedCornerShape(16.dp))
+            .shadow(elevation = 4.dp, shape = txRowShape, spotColor = categoryiconColor.copy(alpha = 0.14f))
+            .clip(txRowShape)
             .background(surface)
             .clickable { showDelete = !showDelete }
+            .pressableScale()
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp)

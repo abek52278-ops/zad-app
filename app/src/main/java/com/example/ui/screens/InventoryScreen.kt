@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -22,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -34,6 +36,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.R
 import com.example.data.ZadInventory
+import com.example.ui.components.pressableScale
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 import java.time.LocalDate
@@ -260,13 +263,15 @@ fun InventoryScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
-                        items(filteredItems, key = { it.id }) { item ->
-                            InventoryItemCard(
-                                item = item,
-                                onDelete = { viewModel.deleteInventory(item.id) },
-                                onConsume = { viewModel.consumeInventoryItem(item) },
-                                onRestock = { viewModel.injectScannedItems(listOf(item.copy(quantity = 1))) }
-                            )
+                        itemsIndexed(filteredItems, key = { _, item -> item.id }) { index, item ->
+                            com.example.ui.components.AppearOnEntry(delayMs = (index * 40).coerceAtMost(400)) {
+                                InventoryItemCard(
+                                    item = item,
+                                    onDelete = { viewModel.deleteInventory(item.id) },
+                                    onConsume = { viewModel.consumeInventoryItem(item) },
+                                    onRestock = { viewModel.injectScannedItems(listOf(item.copy(quantity = 1))) }
+                                )
+                            }
                         }
                     }
                 }
@@ -696,17 +701,21 @@ private fun InventoryItemCard(
     val days = daysUntilExpiry(item.expiryDate)
     val catDef = categoryDefFor(item.category)
     val isLowStock = item.quantity <= (item.lowStockThreshold ?: 2)
+    val cardShape = RoundedCornerShape(20.dp)
 
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        modifier = Modifier.fillMaxWidth()
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(elevation = 10.dp, shape = cardShape, spotColor = catDef.fg.copy(alpha = 0.18f))
+            .clip(cardShape)
+            .background(
+                Brush.verticalGradient(listOf(catDef.bg.copy(alpha = 0.35f), surface))
+            )
+            .border(1.dp, catDef.bg.copy(alpha = 0.7f), cardShape)
+            .pressableScale()
     ) {
         Column(
-            modifier = Modifier
-                .background(catDef.bg.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
-                .padding(12.dp)
+            modifier = Modifier.padding(12.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -750,11 +759,17 @@ private fun InventoryItemCard(
             Spacer(modifier = Modifier.height(4.dp))
 
             // تحكم بالكمية: − استهلاك (يغذي التعلم والنواقص) / + إعادة تعبئة
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(surfaceContainerLow)
+                    .padding(horizontal = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 IconButton(
                     onClick = onConsume,
                     enabled = item.quantity > 0,
-                    modifier = Modifier.size(26.dp)
+                    modifier = Modifier.size(26.dp).pressableScale()
                 ) {
                     Icon(
                         Icons.Default.RemoveCircleOutline,
@@ -772,7 +787,7 @@ private fun InventoryItemCard(
                 )
                 IconButton(
                     onClick = onRestock,
-                    modifier = Modifier.size(26.dp)
+                    modifier = Modifier.size(26.dp).pressableScale()
                 ) {
                     Icon(
                         Icons.Default.AddCircleOutline,
@@ -784,8 +799,13 @@ private fun InventoryItemCard(
             }
 
             Spacer(modifier = Modifier.height(6.dp))
+            val animatedStock by androidx.compose.animation.core.animateFloatAsState(
+                targetValue = stockRatio(item),
+                animationSpec = com.example.ui.components.ZadSprings.Screen,
+                label = "stockRatio"
+            )
             LinearProgressIndicator(
-                progress = { stockRatio(item) },
+                progress = { animatedStock },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(4.dp)
@@ -813,7 +833,7 @@ private fun InventoryItemCard(
             ) {
                 if (isLowStock) {
                     Surface(
-                        shape = RoundedCornerShape(6.dp),
+                        shape = RoundedCornerShape(50),
                         color = dangerColor.copy(alpha = 0.1f)
                     ) {
                         Text(
@@ -830,7 +850,7 @@ private fun InventoryItemCard(
 
                 IconButton(
                     onClick = onDelete,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(28.dp).pressableScale()
                 ) {
                     Icon(
                         Icons.Default.DeleteOutline,

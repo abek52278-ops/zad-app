@@ -122,12 +122,18 @@ fun OnboardingScreen(
                 )
                 Spacer(Modifier.width(14.dp))
                 Text(
-                    "زاد",
+                    stringResource(R.string.app_name),
                     style = Typography.displayLarge.copy(fontSize = 40.sp),
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF0D5C3F)
+                    color = primaryDark
                 )
             }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                stringResource(R.string.slogan),
+                style = Typography.labelLarge,
+                color = onSurfaceVariant
+            )
 
             Spacer(Modifier.height(40.dp))
 

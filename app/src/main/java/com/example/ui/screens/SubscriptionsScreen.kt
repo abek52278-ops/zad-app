@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.ZadSubscription
+import com.example.ui.components.pressableScale
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 import java.time.LocalDate
@@ -102,9 +104,10 @@ fun SubscriptionsScreen(
             }
 
             // Summary Banner
+            com.example.ui.components.AppearOnEntry {
             Box(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)
-                    .shadow(4.dp, RoundedCornerShape(20.dp))
+                    .shadow(elevation = 10.dp, shape = RoundedCornerShape(20.dp), spotColor = primary.copy(alpha = 0.20f))
                     .clip(RoundedCornerShape(20.dp))
                     .background(
                         Brush.horizontalGradient(listOf(primary, primaryLight))
@@ -128,6 +131,7 @@ fun SubscriptionsScreen(
                         Text("${activeSubs.size}", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
+            }
             }
 
             // Tabs
@@ -180,12 +184,14 @@ fun SubscriptionsScreen(
                         )
                     }
                 } else {
-                    items(filtered, key = { it.id }) { sub ->
-                        SubScreenSubscriptionCardFull(
-                            sub = sub,
-                            onToggleActive = { viewModel.updateSubscriptionActive(sub.id, !sub.isActive) },
-                            onDelete = { viewModel.deleteSubscription(sub.id) }
-                        )
+                    itemsIndexed(filtered, key = { _, sub -> sub.id }) { index, sub ->
+                        com.example.ui.components.AppearOnEntry(delayMs = (index * 40).coerceAtMost(400)) {
+                            SubScreenSubscriptionCardFull(
+                                sub = sub,
+                                onToggleActive = { viewModel.updateSubscriptionActive(sub.id, !sub.isActive) },
+                                onDelete = { viewModel.deleteSubscription(sub.id) }
+                            )
+                        }
                     }
                 }
                 item { Spacer(modifier = Modifier.height(72.dp)) }
@@ -197,7 +203,7 @@ fun SubscriptionsScreen(
             onClick = { showAddDialog = true },
             containerColor = primary,
             contentColor = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 88.dp)
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 88.dp).pressableScale()
         ) {
             Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_action))
         }
@@ -243,9 +249,13 @@ private fun SubScreenSubscriptionCardFull(
         else -> successColor
     }
 
+    val subCardShape = RoundedCornerShape(18.dp)
     Card(
-        modifier = Modifier.fillMaxWidth().shadow(2.dp, RoundedCornerShape(16.dp)),
-        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(elevation = 6.dp, shape = subCardShape, spotColor = daysColor.copy(alpha = 0.16f))
+            .pressableScale(),
+        shape = subCardShape,
         colors = CardDefaults.cardColors(containerColor = if (sub.isActive) surface else surfaceContainerLow)
     ) {
         Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
@@ -293,7 +303,7 @@ private fun SubScreenSubscriptionCardFull(
                 style = Typography.titleMedium, fontWeight = FontWeight.Bold,
                 color = if (sub.isActive) onSurface else onSurfaceVariant)
             Spacer(modifier = Modifier.width(4.dp))
-            IconButton(onClick = onToggleActive, modifier = Modifier.size(32.dp)) {
+            IconButton(onClick = onToggleActive, modifier = Modifier.size(32.dp).pressableScale()) {
                 Icon(
                     if (sub.isActive) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
                     contentDescription = if (sub.isActive) stringResource(R.string.disable) else stringResource(R.string.enable),
@@ -301,7 +311,7 @@ private fun SubScreenSubscriptionCardFull(
                     modifier = Modifier.size(20.dp)
                 )
             }
-            IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+            IconButton(onClick = onDelete, modifier = Modifier.size(32.dp).pressableScale()) {
                 Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_action), tint = dangerColor, modifier = Modifier.size(18.dp))
             }
             }
@@ -349,14 +359,18 @@ fun AddSubscriptionDialog(onDismiss: () -> Unit, onSave: (String, Double, String
             }
         },
         confirmButton = {
-            Button(onClick = {
-                val parsedAmount = amount.toDoubleOrNull() ?: return@Button
-                if (title.isNotBlank()) {
-                    onSave(title, parsedAmount,
-                        if (renewalDate.isNotBlank()) renewalDate else LocalDate.now().plusMonths(1).toString(),
-                        provider, category)
-                }
-            }) { Text(stringResource(R.string.save)) }
+            Button(
+                onClick = {
+                    val parsedAmount = amount.toDoubleOrNull() ?: return@Button
+                    if (title.isNotBlank()) {
+                        onSave(title, parsedAmount,
+                            if (renewalDate.isNotBlank()) renewalDate else LocalDate.now().plusMonths(1).toString(),
+                            provider, category)
+                    }
+                },
+                modifier = Modifier.pressableScale(),
+                shape = RoundedCornerShape(50)
+            ) { Text(stringResource(R.string.save)) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )

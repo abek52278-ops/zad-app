@@ -16,11 +16,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.ui.components.pressableScale
 import com.example.ui.theme.Typography
+import com.example.ui.theme.onSurfaceVariant
 import com.example.ui.theme.primary
 import com.example.ui.viewmodels.AuthState
 import com.example.ui.viewmodels.AuthViewModel
@@ -61,13 +64,15 @@ fun SignUpScreen(
     ) {
         Spacer(modifier = Modifier.height(48.dp))
         
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Image(
-                painter = painterResource(id = R.drawable.ic_carrot_logo),
-                contentDescription = "Carrot Logo",
-                modifier = Modifier.size(60.dp),
-                contentScale = ContentScale.Fit
-            )
+        com.example.ui.components.AppearOnEntry {
+            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_carrot_logo),
+                    contentDescription = stringResource(R.string.app_name),
+                    modifier = Modifier.size(60.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
         }
         
         Spacer(modifier = Modifier.height(48.dp))
@@ -82,7 +87,7 @@ fun SignUpScreen(
         Text(
             text = "أدخل بياناتك للمتابعة",
             style = Typography.bodyMedium,
-            color = Color.Gray
+            color = onSurfaceVariant
         )
         
         Spacer(modifier = Modifier.height(32.dp))
@@ -115,7 +120,7 @@ fun SignUpScreen(
                     Icon(
                         imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
                         contentDescription = "Toggle password visibility",
-                        tint = Color.Gray
+                        tint = onSurfaceVariant
                     )
                 }
             }
@@ -133,7 +138,7 @@ fun SignUpScreen(
                 onCheckedChange = { termsAgreed = it },
                 colors = CheckboxDefaults.colors(checkedColor = primary)
             )
-            Text(text = "I agree to the ", color = Color.Gray, fontSize = 13.sp)
+            Text(text = "I agree to the ", color = onSurfaceVariant, fontSize = 13.sp)
             TextButton(onClick = { showTermsDialog = true }, contentPadding = PaddingValues(0.dp)) {
                 Text(text = "Terms & Privacy Policy", color = primary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             }
@@ -164,9 +169,10 @@ fun SignUpScreen(
             onClick = { viewModel.signUp(email, password) },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(60.dp),
+                .height(60.dp)
+                .pressableScale(),
             colors = ButtonDefaults.buttonColors(containerColor = primary),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(50),
             enabled = authState !is AuthState.Loading && email.isNotBlank() && password.isNotBlank() && termsAgreed
         ) {
             if (authState is AuthState.Loading) {
@@ -207,7 +213,7 @@ fun SignUpScreen(
                     Text(
                         "Version ${TermsContent.VERSION} — ${TermsContent.LAST_UPDATED}",
                         style = Typography.bodySmall,
-                        color = Color.Gray
+                        color = onSurfaceVariant
                     )
                 }
             },
@@ -242,7 +248,7 @@ fun SignUpScreen(
                     termsAgreed = false
                     showTermsDialog = false
                 }) {
-                    Text("Decline", color = Color.Gray)
+                    Text("Decline", color = onSurfaceVariant)
                 }
             }
         )

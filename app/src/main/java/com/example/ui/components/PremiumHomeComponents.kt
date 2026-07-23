@@ -75,15 +75,14 @@ fun PremiumTopBar(
                 Box(modifier = Modifier
                     .size(10.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF22C55E))
+                    .background(background)
                     .padding(2.dp)
                 ) {
-                    Box(modifier = Modifier.fillMaxSize().clip(CircleShape).background(background))
-                    Box(modifier = Modifier.fillMaxSize().clip(CircleShape).background(Color(0xFF22C55E)))
+                    Box(modifier = Modifier.fillMaxSize().clip(CircleShape).background(successColor))
                 }
             }
             Column {
-                Text("مرحباً بعودتك 👋", fontSize = 11.sp, color = textTertiary)
+                Text("مرحباً بعودتك", fontSize = 11.sp, color = textTertiary)
                 Text(userName, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = textPrimary)
             }
         }
@@ -144,10 +143,10 @@ fun PremiumHeroCard(
         label = "progress"
     )
 
-    val (statusEmoji, statusLabel, statusColor) = when {
-        progress >= 0.85f -> Triple("🔴", stringResource(R.string.budget_status_watch), dangerColor)
-        progress >= 0.6f -> Triple("🟡", stringResource(R.string.budget_status_caution), warningColor)
-        else -> Triple("🟢", stringResource(R.string.budget_status_excellent), successColor)
+    val (statusLabel, statusColor) = when {
+        progress >= 0.85f -> stringResource(R.string.budget_status_watch) to dangerColor
+        progress >= 0.6f -> stringResource(R.string.budget_status_caution) to warningColor
+        else -> stringResource(R.string.budget_status_excellent) to successColor
     }
 
     Box(
@@ -165,7 +164,10 @@ fun PremiumHeroCard(
         Column {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                 Column {
-                    Text("💰 " + stringResource(R.string.monthly_budget_hero_label), style = Typography.labelSmall, color = textSecondary)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = textSecondary, modifier = Modifier.size(12.dp))
+                        Text(stringResource(R.string.monthly_budget_hero_label), style = Typography.labelSmall, color = textSecondary)
+                    }
                     Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
                             com.example.data.CurrencyFormatter.formatNumber(currencyContext, budget),
@@ -182,7 +184,7 @@ fun PremiumHeroCard(
                     }
                 }
                 Surface(
-                    color = surfaceVariant,
+                    color = primaryLight,
                     shape = RoundedCornerShape(50),
                     onClick = onDepositClick
                 ) {
@@ -192,7 +194,7 @@ fun PremiumHeroCard(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Icon(Icons.Default.Add, contentDescription = stringResource(R.string.deposit), tint = Color.White, modifier = Modifier.size(16.dp))
-                        Text(stringResource(R.string.deposit), style = Typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text(stringResource(R.string.deposit), style = Typography.labelMedium, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
             }
@@ -209,7 +211,10 @@ fun PremiumHeroCard(
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(stringResource(R.string.budget_percent_used, progressPercent), style = Typography.labelSmall, color = textSecondary)
-                Text("$statusEmoji $statusLabel", style = Typography.labelSmall, color = textSecondary)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(statusColor))
+                    Text(statusLabel, style = Typography.labelSmall, color = textSecondary)
+                }
             }
             Spacer(modifier = Modifier.height(6.dp))
             LinearProgressIndicator(
@@ -230,7 +235,7 @@ private fun HeroStatItem(label: String, value: String, valueColor: Color, modifi
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(15.dp))
-            .background(Color(0x33000000))
+            .background(Color.Black.copy(alpha = 0.2f))
             .padding(12.dp)
     ) {
         Text(label, style = Typography.labelSmall, color = textSecondary)
@@ -304,16 +309,16 @@ fun PremiumInsightBanner(title: String, subtitle: String, onClick: () -> Unit) {
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
             .clip(RoundedCornerShape(19.dp))
-            .background(Brush.linearGradient(listOf(Color(0x22F59E0B), Color(0x1A10B981))))
+            .background(Brush.linearGradient(listOf(secondary.copy(alpha = 0.13f), primary.copy(alpha = 0.10f))))
             .clickable { onClick() }
             .padding(15.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            modifier = Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(Brush.linearGradient(listOf(Color(0x44F59E0B), Color(0x3310B981)))),
+            modifier = Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(Brush.linearGradient(listOf(secondary.copy(alpha = 0.27f), primary.copy(alpha = 0.20f)))),
             contentAlignment = Alignment.Center
         ) {
-            Text("🤖", fontSize = 21.sp)
+            Icon(Icons.Default.SmartToy, contentDescription = null, tint = primaryDark, modifier = Modifier.size(21.dp))
         }
         Spacer(modifier = Modifier.width(13.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -376,7 +381,10 @@ fun PremiumMealsRow(meals: List<String>, onMealClick: (String) -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("وجبات من ثلاجتك 🍳", fontSize = 15.sp, fontWeight = FontWeight.Black, color = textPrimary)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Default.Restaurant, contentDescription = null, tint = textPrimary, modifier = Modifier.size(16.dp))
+                Text("وجبات من ثلاجتك", fontSize = 15.sp, fontWeight = FontWeight.Black, color = textPrimary)
+            }
             Text("المزيد", fontSize = 11.sp, color = primaryLight)
         }
         Spacer(modifier = Modifier.height(11.dp))
@@ -415,7 +423,12 @@ fun PremiumMealsRow(meals: List<String>, onMealClick: (String) -> Unit) {
                             modifier = Modifier.size(31.dp).clip(CircleShape).background(primaryContainer),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(if (meal.contains("كبسة")) "🍛" else if (meal.contains("سلطة")) "🥗" else "🍝", fontSize = 16.sp)
+                            val mealIcon = when {
+                                meal.contains("كبسة") -> Icons.Default.RiceBowl
+                                meal.contains("سلطة") -> Icons.Default.Grass
+                                else -> Icons.Default.RamenDining
+                            }
+                            Icon(mealIcon, contentDescription = null, tint = catFoodIcon, modifier = Modifier.size(16.dp))
                         }
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(meal, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textPrimary)
@@ -437,7 +450,10 @@ fun PremiumTransactionsRow(transactions: List<com.example.data.ZadTransaction>, 
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("أحدث العمليات 💳", fontSize = 15.sp, fontWeight = FontWeight.Black, color = textPrimary)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = textPrimary, modifier = Modifier.size(16.dp))
+                Text("أحدث العمليات", fontSize = 15.sp, fontWeight = FontWeight.Black, color = textPrimary)
+            }
             Text("سجل كامل", fontSize = 11.sp, color = primaryLight, modifier = Modifier.clickable { onSeeAllClick() })
         }
         Spacer(modifier = Modifier.height(11.dp))
@@ -507,7 +523,7 @@ fun PremiumKidsSnippet(onKidsClick: () -> Unit) {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("🎮", fontSize = 16.sp)
+                    Icon(Icons.Default.SportsEsports, contentDescription = null, tint = kidsPrimaryLight, modifier = Modifier.size(16.dp))
                     Text("وضع الأطفال", fontSize = 13.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
                 }
                 Spacer(modifier = Modifier.height(4.dp))

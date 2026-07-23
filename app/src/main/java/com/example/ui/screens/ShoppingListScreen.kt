@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -35,6 +36,7 @@ import com.example.data.AiPriceEstimate
 import com.example.data.AffiliateProduct
 import com.example.data.GrocerySuggestion
 import com.example.ui.components.GlassCard
+import com.example.ui.components.pressableScale
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 import com.example.ui.widgets.AffiliateProductCard
@@ -117,8 +119,8 @@ fun ShoppingListScreen(
                                     viewModel.refreshSmartShopping()
                                 }
                             },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f).pressableScale(),
+                            shape = RoundedCornerShape(50),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = primary)
                         ) {
                             Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -128,8 +130,8 @@ fun ShoppingListScreen(
 
                         Button(
                             onClick = { shareOnWhatsApp(context, shoppingList) },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f).pressableScale(),
+                            shape = RoundedCornerShape(50),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366), contentColor = MaterialTheme.colorScheme.onSurface)
                         ) {
                             Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -177,17 +179,19 @@ fun ShoppingListScreen(
                             )
                         }
                     } else {
-                        items(filtered, key = { it.id }) { item ->
-                            EnhancedShoppingItemCard(
-                                item = item,
-                                priceEstimate = priceEstimates[item.itemName],
-                                onCheck = {
-                                    recentlyPurchasedItemName = item.itemName
-                                    viewModel.matchProduct(item.itemName)
-                                    viewModel.toggleShoppingItemPurchased(item.id)
-                                },
-                                onDelete = { viewModel.deleteShoppingItem(item.id) }
-                            )
+                        itemsIndexed(filtered, key = { _, item -> item.id }) { index, item ->
+                            com.example.ui.components.AppearOnEntry(delayMs = (index * 40).coerceAtMost(400)) {
+                                EnhancedShoppingItemCard(
+                                    item = item,
+                                    priceEstimate = priceEstimates[item.itemName],
+                                    onCheck = {
+                                        recentlyPurchasedItemName = item.itemName
+                                        viewModel.matchProduct(item.itemName)
+                                        viewModel.toggleShoppingItemPurchased(item.id)
+                                    },
+                                    onDelete = { viewModel.deleteShoppingItem(item.id) }
+                                )
+                            }
                         }
                     }
 
@@ -279,7 +283,7 @@ private fun ShoppingBudgetHeader(totalPrice: Double, budgetRemaining: Double, bu
                 .fillMaxWidth()
                 .background(Brush.horizontalGradient(
                     if (isOverBudget) listOf(Color(0xFFC62828), Color(0xFFE53935))
-                    else listOf(Color(0xFF1B5E20), Color(0xFF43A047))
+                    else listOf(primaryDark, primary)
                 ))
                 .padding(20.dp)
         ) {
@@ -379,7 +383,7 @@ private fun GrocerySuggestionsCard(suggestions: List<GrocerySuggestion>, onAdd: 
                             Text(suggestion.reason, style = Typography.bodySmall, color = onSurfaceVariant)
                         }
                     }
-                    IconButton(onClick = { onAdd(suggestion) }, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = { onAdd(suggestion) }, modifier = Modifier.size(36.dp).pressableScale()) {
                         Icon(Icons.Default.AddCircle, contentDescription = "إضافة للقائمة", tint = primary, modifier = Modifier.size(22.dp))
                     }
                 }
@@ -397,19 +401,23 @@ private fun EnhancedShoppingItemCard(
 ) {
     val priorityColor = when (item.priority) {
         "high" -> dangerColor
-        "medium" -> Color(0xFFF9A825)
+        "medium" -> warningColor
         else -> successColor
     }
+    val shoppingCardShape = RoundedCornerShape(18.dp)
     Card(
-        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(16.dp), spotColor = Color.Black.copy(alpha = 0.04f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(elevation = 6.dp, shape = shoppingCardShape, spotColor = priorityColor.copy(alpha = 0.16f))
+            .pressableScale(),
         colors = CardDefaults.cardColors(containerColor = surface),
-        shape = RoundedCornerShape(16.dp)
+        shape = shoppingCardShape
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onCheck, modifier = Modifier.size(42.dp)) {
+            IconButton(onClick = onCheck, modifier = Modifier.size(42.dp).pressableScale()) {
                 Box(
                     modifier = Modifier.size(36.dp).clip(CircleShape).background(outlineVariant.copy(alpha = 0.2f)),
                     contentAlignment = Alignment.Center
@@ -455,7 +463,7 @@ private fun EnhancedShoppingItemCard(
                     }
                 }
             }
-            IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+            IconButton(onClick = onDelete, modifier = Modifier.size(36.dp).pressableScale()) {
                 Icon(Icons.Default.Delete, contentDescription = "حذف", tint = onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(18.dp))
             }
         }
@@ -470,10 +478,10 @@ private fun SmartEmptyState() {
     ) {
         Box(
             modifier = Modifier.size(100.dp).clip(CircleShape).background(
-                Brush.radialGradient(listOf(Color(0xFF43A047).copy(alpha = 0.15f), Color.Transparent))
+                Brush.radialGradient(listOf(primary.copy(alpha = 0.15f), Color.Transparent))
             ),
             contentAlignment = Alignment.Center
-        ) { Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(52.dp), tint = Color(0xFF43A047).copy(alpha = 0.7f)) }
+        ) { Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(52.dp), tint = primary.copy(alpha = 0.7f)) }
         Spacer(Modifier.height(20.dp))
         Text("قائمة التسوق فارغة", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = onSurface)
         Spacer(Modifier.height(8.dp))
@@ -507,7 +515,8 @@ private fun AddShoppingItemDialog(onDismiss: () -> Unit, onConfirm: (name: Strin
                     val price = priceStr.trim().toDoubleOrNull() ?: 0.0
                     if (name.isNotBlank()) onConfirm(name.trim(), qty, price, store.trim())
                 },
-                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.pressableScale(),
+                shape = RoundedCornerShape(50),
                 colors = ButtonDefaults.buttonColors(containerColor = primary)
             ) { Text("إضافة", color = onPrimary) }
         },

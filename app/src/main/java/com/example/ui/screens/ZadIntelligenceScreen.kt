@@ -258,16 +258,16 @@ fun AnalyticsTab(
                     label = stringResource(R.string.expense_label),
                     value = com.example.data.CurrencyFormatter.format(context, totalExpense),
                     icon = Icons.Default.TrendingDown,
-                    iconColor = Color(0xFFEF4444),
-                    bgColor = Color(0xFFFFF5F5)
+                    iconColor = dangerColor,
+                    bgColor = dangerColor.copy(alpha = 0.08f)
                 )
                 MiniStatCard(
                     modifier = Modifier.weight(1f),
                     label = stringResource(R.string.income_label),
                     value = com.example.data.CurrencyFormatter.format(context, totalIncome),
                     icon = Icons.Default.TrendingUp,
-                    iconColor = Color(0xFF22C55E),
-                    bgColor = Color(0xFFF0FDF4)
+                    iconColor = successColor,
+                    bgColor = successColor.copy(alpha = 0.08f)
                 )
             }
         }
@@ -279,16 +279,16 @@ fun AnalyticsTab(
                     label = stringResource(R.string.nav_inventory),
                     value = stringResource(R.string.inventory_items_count_pill, inventory.size),
                     icon = Icons.Default.Inventory2,
-                    iconColor = Color(0xFF8B5CF6),
-                    bgColor = Color(0xFFF5F3FF)
+                    iconColor = catTransportIcon,
+                    bgColor = catTransportBg
                 )
                 MiniStatCard(
                     modifier = Modifier.weight(1f),
                     label = stringResource(R.string.active_subscriptions_label),
                     value = "${subscriptions.count { it.isActive }}",
                     icon = Icons.Default.Subscriptions,
-                    iconColor = Color(0xFF0891B2),
-                    bgColor = Color(0xFFECFEFF)
+                    iconColor = catBillsIcon,
+                    bgColor = catBillsBg
                 )
             }
         }
@@ -400,16 +400,16 @@ fun AnalyticsTab(
 fun IntelligenceInsightCard(insight: AiInsight, viewModel: ZadViewModel) {
     val context = LocalContext.current
     val (bgColor, iconColor, icon) = when (insight.type) {
-        "Alert" -> Triple(Color(0xFFFFF5F5), Color(0xFFEF4444), Icons.Default.Warning)
-        "Tip" -> Triple(Color(0xFFF0FDF4), Color(0xFF16A34A), Icons.Default.Lightbulb)
-        "Warning" -> Triple(Color(0xFFFFFBEB), Color(0xFFF59E0B), Icons.Default.WarningAmber)
+        "Alert" -> Triple(dangerColor.copy(alpha = 0.08f), dangerColor, Icons.Default.Warning)
+        "Tip" -> Triple(successColor.copy(alpha = 0.08f), successColor, Icons.Default.Lightbulb)
+        "Warning" -> Triple(secondary.copy(alpha = 0.08f), secondary, Icons.Default.WarningAmber)
         else -> Triple(primaryContainer, primary, Icons.Default.Info)
     }
     var actionDone by remember(insight.actionRefId, insight.actionType) { mutableStateOf(false) }
     var showCancelConfirm by remember(insight.actionRefId, insight.actionType) { mutableStateOf(false) }
 
     Column(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(bgColor).padding(16.dp)
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(bgColor).padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.Top) {
             Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(20.dp))
@@ -435,8 +435,9 @@ fun IntelligenceInsightCard(insight: AiInsight, viewModel: ZadViewModel) {
                         Button(
                             onClick = { showCancelConfirm = true },
                             colors = ButtonDefaults.buttonColors(containerColor = iconColor),
+                            shape = RoundedCornerShape(50),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                            modifier = Modifier.height(34.dp)
+                            modifier = Modifier.height(34.dp).pressableScale()
                         ) {
                             Text(
                                 stringResource(R.string.cancel_subscription_action, com.example.data.CurrencyFormatter.format(context, insight.actionAmount ?: 0.0)),
@@ -469,8 +470,9 @@ fun IntelligenceInsightCard(insight: AiInsight, viewModel: ZadViewModel) {
                                 actionDone = true
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = iconColor),
+                            shape = RoundedCornerShape(50),
                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                            modifier = Modifier.height(34.dp)
+                            modifier = Modifier.height(34.dp).pressableScale()
                         ) {
                             Text(
                                 stringResource(R.string.increase_budget_action, com.example.data.CurrencyFormatter.format(context, insight.actionAmount ?: 0.0)),
@@ -756,8 +758,8 @@ fun ZadIntSubscriptionCardFull(
 fun ExpenseDonutCard(categoryMap: List<Pair<String, Double>>, total: Double) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val colors = listOf(
-        Color(0xFF16A34A), Color(0xFFF59E0B), Color(0xFF3B82F6),
-        Color(0xFFEF4444), Color(0xFF8B5CF6), Color(0xFF06B6D4)
+        Color(0xFF16A34A), secondary, Color(0xFF3B82F6),
+        dangerColor, Color(0xFF8B5CF6), Color(0xFF06B6D4)
     )
     // اختيار فئة (بالضغط على القوس نفسه أو على سطرها في القايمة) يبدّل مركز
     // الدونات من "الإجمالي" لتفاصيل الفئة دي — عرض أمرن بدل رقم إجمالي ثابت.
@@ -884,7 +886,7 @@ fun ZadDonutChart(
             val (start, end) = boundaries[i]
             val sweep = (end - start) * animatedProgress
             drawArc(
-                color = colors.getOrElse(i) { Color.Gray }.copy(alpha = if (isDimmed) 0.3f else 1f),
+                color = colors.getOrElse(i) { onSurfaceVariant }.copy(alpha = if (isDimmed) 0.3f else 1f),
                 startAngle = start,
                 sweepAngle = sweep - 2f,
                 useCenter = false,
@@ -941,12 +943,12 @@ fun MonthlyBarChartCard(monthlyData: List<Pair<String, Double>>, predictedNextMo
                             modifier = Modifier.fillMaxWidth().fillMaxHeight(heightFraction)
                                 .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
                                 .background(
-                                    if (isPredict) Brush.verticalGradient(listOf(Color(0xFFFACC15), Color(0xFFF59E0B)))
+                                    if (isPredict) Brush.verticalGradient(listOf(secondaryLight, secondary))
                                     else Brush.verticalGradient(listOf(primary, primaryContainer))
                                 )
                         )
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(month.take(3), style = Typography.labelSmall.copy(fontSize = 9.sp), color = if (isPredict) Color(0xFFF59E0B) else onSurfaceVariant)
+                        Text(month.take(3), style = Typography.labelSmall.copy(fontSize = 9.sp), color = if (isPredict) secondary else onSurfaceVariant)
                     }
                 }
             }
@@ -957,7 +959,7 @@ fun MonthlyBarChartCard(monthlyData: List<Pair<String, Double>>, predictedNextMo
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(stringResource(R.string.actual_label), style = Typography.labelSmall, color = onSurfaceVariant)
                 Spacer(modifier = Modifier.width(16.dp))
-                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(Color(0xFFFACC15)))
+                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(secondaryLight))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(stringResource(R.string.zad_forecast_label), style = Typography.labelSmall, color = onSurfaceVariant)
             }
@@ -972,13 +974,15 @@ fun PredictionCard(predictedAmount: Double, currentMonthAmount: Double, lowStock
     val diff = predictedAmount - currentMonthAmount
     val isUp = diff > 0
     Box(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))
-            .background(Brush.linearGradient(listOf(Color(0xFF166534), Color(0xFF15803D))))
+        modifier = Modifier.fillMaxWidth()
+            .shadow(elevation = 10.dp, shape = RoundedCornerShape(24.dp), spotColor = primary.copy(alpha = 0.20f))
+            .clip(RoundedCornerShape(24.dp))
+            .background(Brush.linearGradient(listOf(primaryDark, primary)))
             .padding(20.dp)
     ) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color(0xFFFACC15), modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = secondaryLight, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(stringResource(R.string.zad_ai_predictions), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
             }
@@ -991,7 +995,7 @@ fun PredictionCard(predictedAmount: Double, currentMonthAmount: Double, lowStock
                         if (isUp) stringResource(R.string.increase_amount_label, com.example.data.CurrencyFormatter.format(context, diff))
                         else stringResource(R.string.saving_amount_label, com.example.data.CurrencyFormatter.format(context, -diff)),
                         style = Typography.labelSmall,
-                        color = if (isUp) Color(0xFFFCA5A5) else Color(0xFF86EFAC)
+                        color = if (isUp) dangerColor else successColor
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
@@ -1535,10 +1539,10 @@ fun BehavioralNudgeCard(profile: com.example.data.UserBehaviorProfile?) {
     var aiNarrative by remember(spike) { mutableStateOf<String?>(null) }
     var isLoadingNarrative by remember { mutableStateOf(false) }
 
-    Surface(shape = RoundedCornerShape(20.dp), color = Color(0xFFFFF7ED), modifier = Modifier.fillMaxWidth()) {
+    Surface(shape = RoundedCornerShape(20.dp), color = secondary.copy(alpha = 0.08f), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = secondary, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(stringResource(R.string.nudge_card_title), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface)
             }
@@ -2212,9 +2216,12 @@ fun MiniStatCard(
     iconColor: Color,
     bgColor: Color
 ) {
+    val miniStatShape = RoundedCornerShape(18.dp)
     Card(
-        modifier = modifier.shadow(2.dp, RoundedCornerShape(16.dp)),
-        shape = RoundedCornerShape(16.dp),
+        modifier = modifier
+            .shadow(elevation = 6.dp, shape = miniStatShape, spotColor = iconColor.copy(alpha = 0.16f))
+            .pressableScale(),
+        shape = miniStatShape,
         colors = CardDefaults.cardColors(containerColor = surface)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -2452,10 +2459,10 @@ fun predictNextMonth(monthlyData: List<Pair<String, Double>>): Double {
 private fun SpendingPowerGaugeCard(power: com.example.data.ZadCentralBrain.SpendingPower) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val gaugeColor = when {
-        power.powerPct >= 60 -> Color(0xFF22C55E)
+        power.powerPct >= 60 -> successColor
         power.powerPct >= 35 -> Color(0xFF84CC16)
-        power.powerPct >= 15 -> Color(0xFFF59E0B)
-        else -> Color(0xFFEF4444)
+        power.powerPct >= 15 -> secondary
+        else -> dangerColor
     }
     val animatedPct by animateFloatAsState(
         targetValue = power.powerPct / 100f,
@@ -2501,10 +2508,10 @@ private fun SpendingPowerGaugeCard(power: com.example.data.ZadCentralBrain.Spend
 
                     // خلفية مقسمة مناطق: أحمر → برتقالي → أخضر فاتح → أخضر
                     val zones = listOf(
-                        Triple(180f, 27f, Color(0xFFEF4444).copy(alpha = 0.25f)),
-                        Triple(207f, 36f, Color(0xFFF59E0B).copy(alpha = 0.25f)),
+                        Triple(180f, 27f, dangerColor.copy(alpha = 0.25f)),
+                        Triple(207f, 36f, secondary.copy(alpha = 0.25f)),
                         Triple(243f, 45f, Color(0xFF84CC16).copy(alpha = 0.25f)),
-                        Triple(288f, 72f, Color(0xFF22C55E).copy(alpha = 0.25f))
+                        Triple(288f, 72f, successColor.copy(alpha = 0.25f))
                     )
                     zones.forEach { (start, sweep, color) ->
                         drawArc(
@@ -2554,7 +2561,7 @@ private fun SpendingPowerGaugeCard(power: com.example.data.ZadCentralBrain.Spend
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(com.example.data.CurrencyFormatter.format(context, power.currentDailyAvg), style = Typography.titleMedium, fontWeight = FontWeight.Bold,
-                        color = if (power.currentDailyAvg > power.dailySafeSpend && power.dailySafeSpend > 0) Color(0xFFEF4444) else onSurface)
+                        color = if (power.currentDailyAvg > power.dailySafeSpend && power.dailySafeSpend > 0) dangerColor else onSurface)
                     Text(stringResource(R.string.actual_daily_rate), style = Typography.labelSmall, color = onSurfaceVariant)
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -2570,7 +2577,7 @@ private fun SpendingPowerGaugeCard(power: com.example.data.ZadCentralBrain.Spend
 private fun MonthComparisonCard(mc: com.example.data.ZadCentralBrain.MonthComparison) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val improved = mc.deltaPct <= 0
-    val deltaColor = if (improved) Color(0xFF22C55E) else Color(0xFFEF4444)
+    val deltaColor = if (improved) successColor else dangerColor
     val maxSpend = maxOf(mc.thisMonthSpent, mc.lastMonthSpent, 1.0)
     val animatedProgress by animateFloatAsState(targetValue = 1f, animationSpec = tween(900), label = "mc")
 
@@ -2633,7 +2640,7 @@ private fun MonthComparisonCard(mc: com.example.data.ZadCentralBrain.MonthCompar
                         Icon(
                             if (up) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
                             contentDescription = null,
-                            tint = if (up) Color(0xFFEF4444) else Color(0xFF22C55E),
+                            tint = if (up) dangerColor else successColor,
                             modifier = Modifier.size(14.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
@@ -2641,7 +2648,7 @@ private fun MonthComparisonCard(mc: com.example.data.ZadCentralBrain.MonthCompar
                         Text(
                             "${if (up) "+" else ""}${com.example.data.CurrencyFormatter.format(context, diff)}",
                             style = Typography.labelSmall, fontWeight = FontWeight.Bold,
-                            color = if (up) Color(0xFFEF4444) else Color(0xFF22C55E)
+                            color = if (up) dangerColor else successColor
                         )
                     }
                 }
@@ -2655,14 +2662,14 @@ private fun BehaviorAnalysisCard(bp: com.example.data.ZadCentralBrain.BehaviorPr
     val context = androidx.compose.ui.platform.LocalContext.current
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = Color(0xFFECFDF5),
+        color = successColor.copy(alpha = 0.08f),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Insights, contentDescription = null, tint = Color(0xFF059669), modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.Insights, contentDescription = null, tint = successColor, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(R.string.zad_knows_you), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = Color(0xFF065F46))
+                Text(stringResource(R.string.zad_knows_you), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = primaryDark)
             }
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -2671,7 +2678,7 @@ private fun BehaviorAnalysisCard(bp: com.example.data.ZadCentralBrain.BehaviorPr
                 Row(modifier = Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.Top) {
                     Text(emoji, style = Typography.bodyMedium)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text, style = Typography.bodySmall, color = Color(0xFF064E3B), lineHeight = 18.sp)
+                    Text(text, style = Typography.bodySmall, color = onSurface, lineHeight = 18.sp)
                 }
             }
 
@@ -2730,10 +2737,10 @@ private fun ExportReportButton(report: com.example.data.ZadCentralBrain.BrainRep
 private fun HealthScoreCard(report: com.example.data.ZadCentralBrain.BrainReport) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scoreColor = when {
-        report.healthScore >= 85 -> Color(0xFF22C55E)
+        report.healthScore >= 85 -> successColor
         report.healthScore >= 65 -> Color(0xFF84CC16)
-        report.healthScore >= 40 -> Color(0xFFF59E0B)
-        else -> Color(0xFFEF4444)
+        report.healthScore >= 40 -> secondary
+        else -> dangerColor
     }
     val animatedScore by animateFloatAsState(
         targetValue = report.healthScore / 100f,
@@ -2882,7 +2889,7 @@ private fun DepletionForecastCard(forecasts: List<com.example.data.ZadCentralBra
                     )
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = if (urgent) Color(0xFFFFF5F5) else Color(0xFFF0FDF4)
+                        color = if (urgent) dangerColor.copy(alpha = 0.08f) else successColor.copy(alpha = 0.08f)
                     ) {
                         Text(
                             when {
@@ -2892,7 +2899,7 @@ private fun DepletionForecastCard(forecasts: List<com.example.data.ZadCentralBra
                             },
                             style = Typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = if (urgent) Color(0xFFEF4444) else Color(0xFF22C55E),
+                            color = if (urgent) dangerColor else successColor,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                         )
                     }
