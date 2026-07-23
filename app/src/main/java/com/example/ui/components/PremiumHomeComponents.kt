@@ -1,7 +1,9 @@
 package com.example.ui.components
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -17,7 +19,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -118,129 +124,147 @@ fun PremiumTopBar(
     }
 }
 
+/**
+ * Signature hero: a circular budget gauge instead of another rounded
+ * rectangle — the ring depletes as the month's spending eats into the
+ * budget, remaining balance sits big and centered inside it. Replaces
+ * the old rectangular PremiumHeroCard.
+ */
 @Composable
-fun PremiumHeroCard(
+fun ZadBudgetGauge(
     budget: Double,
     spent: Double,
     remaining: Double,
     daysLeft: Int,
     onDepositClick: () -> Unit
 ) {
-    val progress = if (budget > 0) (spent / budget).toFloat().coerceIn(0f, 1f) else 0f
-    val progressPercent = (progress * 100).toInt()
+    val progressRemaining = if (budget > 0) (remaining / budget).toFloat().coerceIn(0f, 1f) else 0f
+    val spentPct = if (budget > 0) (spent / budget * 100).toInt() else 0
     val currencyContext = LocalContext.current
 
-    // Animations
     var isVisible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        delay(300)
+        delay(200)
         isVisible = true
     }
 
     val animatedProgress by animateFloatAsState(
-        targetValue = if (isVisible) progress else 0f,
-        animationSpec = tween(1500, easing = FastOutSlowInEasing),
-        label = "progress"
+        targetValue = if (isVisible) progressRemaining else 0f,
+        animationSpec = ZadSprings.Screen,
+        label = "gaugeProgress"
     )
 
-    val (statusLabel, statusColor) = when {
-        progress >= 0.85f -> stringResource(R.string.budget_status_watch) to dangerColor
-        progress >= 0.6f -> stringResource(R.string.budget_status_caution) to warningColor
-        else -> stringResource(R.string.budget_status_excellent) to successColor
+    val statusColor = when {
+        spentPct >= 100 -> dangerColor
+        spentPct >= 85 -> warningColor
+        else -> successColor
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .clip(RoundedCornerShape(26.dp))
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(primaryDark, primaryContainer, primaryDark)
-                )
-            )
-            .padding(24.dp)
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = textSecondary, modifier = Modifier.size(12.dp))
-                        Text(stringResource(R.string.monthly_budget_hero_label), style = Typography.labelSmall, color = textSecondary)
-                    }
-                    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            com.example.data.CurrencyFormatter.formatNumber(currencyContext, budget),
-                            style = Typography.displayLarge.copy(fontSize = 34.sp),
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            com.example.data.CurrencyFormatter.symbol(currencyContext),
-                            style = Typography.labelMedium,
-                            color = textSecondary,
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        )
-                    }
-                }
-                Surface(
-                    color = primaryLight,
-                    shape = RoundedCornerShape(50),
-                    onClick = onDepositClick
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.deposit), tint = Color.White, modifier = Modifier.size(16.dp))
-                        Text(stringResource(R.string.deposit), style = Typography.labelMedium, fontWeight = FontWeight.Bold, color = Color.White)
-                    }
-                }
+        Box(modifier = Modifier.size(216.dp), contentAlignment = Alignment.Center) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val strokeWidth = 16.dp.toPx()
+                val diameter = size.minDimension - strokeWidth
+                val topLeft = androidx.compose.ui.geometry.Offset(
+                    (size.width - diameter) / 2f,
+                    (size.height - diameter) / 2f
+                )
+                val arcSize = Size(diameter, diameter)
+                drawArc(
+                    color = outlineVariant,
+                    startAngle = -90f,
+                    sweepAngle = 360f,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                )
+                drawArc(
+                    color = statusColor,
+                    startAngle = -90f,
+                    sweepAngle = 360f * animatedProgress,
+                    useCenter = false,
+                    topLeft = topLeft,
+                    size = arcSize,
+                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                )
             }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                HeroStatItem(stringResource(R.string.spent_label), com.example.data.CurrencyFormatter.format(currencyContext, spent), Color.White, Modifier.weight(1f))
-                HeroStatItem(stringResource(R.string.remaining), com.example.data.CurrencyFormatter.format(currencyContext, remaining), primaryLight, Modifier.weight(1f))
-                HeroStatItem(stringResource(R.string.days_label), "$daysLeft", Color.White, Modifier.weight(1f))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    stringResource(R.string.remaining),
+                    style = Typography.labelMedium,
+                    color = onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    com.example.data.CurrencyFormatter.formatNumber(currencyContext, remaining),
+                    style = Typography.displayLarge.copy(fontSize = 32.sp),
+                    color = onSurface
+                )
+                Text(
+                    com.example.data.CurrencyFormatter.symbol(currencyContext),
+                    style = Typography.labelSmall,
+                    color = onSurfaceVariant
+                )
             }
+        }
 
-            Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(stringResource(R.string.budget_percent_used, progressPercent), style = Typography.labelSmall, color = textSecondary)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(statusColor))
-                    Text(statusLabel, style = Typography.labelSmall, color = textSecondary)
-                }
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            LinearProgressIndicator(
-                progress = { animatedProgress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(5.dp)
-                    .clip(RoundedCornerShape(50)),
-                color = statusColor,
-                trackColor = surfaceVariant,
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            GaugeStatChip(
+                icon = Icons.Default.TrendingDown,
+                label = stringResource(R.string.spent_label),
+                value = com.example.data.CurrencyFormatter.format(currencyContext, spent),
+                tint = dangerColor
             )
+            GaugeStatChip(
+                icon = Icons.Default.CalendarMonth,
+                label = stringResource(R.string.days_label),
+                value = "$daysLeft",
+                tint = primary
+            )
+            GaugeStatChip(
+                icon = Icons.Default.AccountBalanceWallet,
+                label = stringResource(R.string.budget_label),
+                value = com.example.data.CurrencyFormatter.format(currencyContext, budget),
+                tint = secondaryDark
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Button(
+            onClick = onDepositClick,
+            colors = ButtonDefaults.buttonColors(containerColor = primary),
+            shape = RoundedCornerShape(50),
+            modifier = Modifier.pressableScale()
+        ) {
+            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(stringResource(R.string.deposit), style = Typography.labelLarge, fontWeight = FontWeight.Bold, color = Color.White)
         }
     }
 }
 
 @Composable
-private fun HeroStatItem(label: String, value: String, valueColor: Color, modifier: Modifier = Modifier) {
+private fun GaugeStatChip(icon: ImageVector, label: String, value: String, tint: Color) {
     Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(15.dp))
-            .background(Color.Black.copy(alpha = 0.2f))
-            .padding(12.dp)
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clip(RoundedCornerShape(18.dp))
+            .zadGlassBlur()
+            .background(surface.copy(alpha = 0.65f))
+            .border(1.dp, Color.White.copy(alpha = 0.4f), RoundedCornerShape(18.dp))
+            .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
-        Text(label, style = Typography.labelSmall, color = textSecondary)
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(value, style = Typography.bodyMedium, fontWeight = FontWeight.ExtraBold, color = valueColor)
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(value, style = Typography.labelLarge, fontWeight = FontWeight.Bold, color = onSurface)
+        Text(label, style = Typography.labelSmall, color = onSurfaceVariant)
     }
 }
 
@@ -257,12 +281,15 @@ fun PremiumQuickStatsRow(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        QuickStatCard(stringResource(R.string.nav_inventory), "$inventoryCount", stringResource(R.string.quick_stat_inventory_unit), Icons.Default.Inventory2, primaryLight, primaryLight.copy(alpha=0.15f), onInventoryClick, Modifier.weight(1f))
-        QuickStatCard(stringResource(R.string.quick_stat_subscriptions_title), "$activeSubsCount", stringResource(R.string.quick_stat_subscriptions_unit), Icons.Default.Subscriptions, warningColor, warningColor.copy(alpha=0.15f), onSubsClick, Modifier.weight(1f))
-        QuickStatCard(stringResource(R.string.nav_family), "$familyCount", stringResource(R.string.quick_stat_family_unit), Icons.Default.FamilyRestroom, error, error.copy(alpha=0.15f), onFamilyClick, Modifier.weight(1f))
+        QuickStatCard(stringResource(R.string.nav_inventory), "$inventoryCount", stringResource(R.string.quick_stat_inventory_unit), Icons.Default.Inventory2, primary, onInventoryClick, Modifier.weight(1f))
+        QuickStatCard(stringResource(R.string.quick_stat_subscriptions_title), "$activeSubsCount", stringResource(R.string.quick_stat_subscriptions_unit), Icons.Default.Subscriptions, secondaryDark, onSubsClick, Modifier.weight(1f))
+        QuickStatCard(stringResource(R.string.nav_family), "$familyCount", stringResource(R.string.quick_stat_family_unit), Icons.Default.FamilyRestroom, catDailyIcon, onFamilyClick, Modifier.weight(1f))
     }
 }
 
+/** Bold, distinctly-colored tile per stat — each stat is its own saturated
+ * "gadget" instead of 3 uniform white cards, closer to the colorful
+ * multi-shape dashboard reference than a faint icon-chip tint. */
 @Composable
 private fun QuickStatCard(
     title: String,
@@ -270,35 +297,33 @@ private fun QuickStatCard(
     subtitle: String,
     icon: ImageVector,
     color: Color,
-    bgColor: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var pressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (pressed) 0.95f else 1f)
-
+    val cardShape = RoundedCornerShape(20.dp)
     Column(
         modifier = modifier
-            .scale(scale)
-            .clip(RoundedCornerShape(20.dp))
-            .background(surface)
+            .shadow(elevation = 8.dp, shape = cardShape, spotColor = color.copy(alpha = 0.35f))
+            .clip(cardShape)
+            .background(Brush.verticalGradient(listOf(color, color.copy(alpha = 0.75f))))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
             )
+            .pressableScale()
             .padding(15.dp)
     ) {
         Box(
-            modifier = Modifier.size(36.dp).clip(RoundedCornerShape(11.dp)).background(bgColor),
+            modifier = Modifier.size(36.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.28f)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
+            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Text(title, style = Typography.labelSmall, color = textTertiary)
-        Text(value, style = Typography.titleMedium, fontWeight = FontWeight.Black, color = textPrimary)
-        Text(subtitle, style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = color)
+        Text(title, style = Typography.labelSmall, color = Color.White.copy(alpha = 0.85f))
+        Text(value, style = Typography.titleMedium, fontWeight = FontWeight.Black, color = Color.White)
+        Text(subtitle, style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.85f))
     }
 }
 

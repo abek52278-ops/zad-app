@@ -189,10 +189,10 @@ fun HomeScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        com.example.ui.components.ZadCanvasBackground(modifier = Modifier.fillMaxSize())
         Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(background)
             .verticalScroll(rememberScrollState())
     ) {
         val appNotificationsState by viewModel.appNotifications.collectAsState()
@@ -236,19 +236,21 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // 1. Premium Hero Card
+                // 1. Signature circular budget gauge (orchestrated entrance: gauge, then stats, then banner)
                 val calendar = Calendar.getInstance()
                 val lastDay = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
                 val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
                 val daysLeft = lastDay - currentDay
 
-                PremiumHeroCard(
-                    budget = budget,
-                    spent = totalSpent,
-                    remaining = currentBudget,
-                    daysLeft = daysLeft,
-                    onDepositClick = { showAddTransactionDialog = true }
-                )
+                com.example.ui.components.AppearOnEntry {
+                    com.example.ui.components.ZadBudgetGauge(
+                        budget = budget,
+                        spent = totalSpent,
+                        remaining = currentBudget,
+                        daysLeft = daysLeft,
+                        onDepositClick = { showAddTransactionDialog = true }
+                    )
+                }
 
                 if (shortageCount > 0) {
                     Spacer(modifier = Modifier.height(14.dp))
@@ -265,23 +267,27 @@ fun HomeScreen(
                 // 2. Premium Quick Stats
                 val activeSubsCount = subscriptions.count { it.isActive }
                 val familyCount = if (familyState is FamilyState.Active) (familyState as FamilyState.Active).members.size else 1
-                PremiumQuickStatsRow(
-                    inventoryCount = inventory.size,
-                    activeSubsCount = activeSubsCount,
-                    familyCount = familyCount,
-                    onInventoryClick = onNavigateToInventory,
-                    onSubsClick = onNavigateToSubscriptions,
-                    onFamilyClick = onNavigateToFamily
-                )
+                com.example.ui.components.AppearOnEntry(delayMs = 150) {
+                    PremiumQuickStatsRow(
+                        inventoryCount = inventory.size,
+                        activeSubsCount = activeSubsCount,
+                        familyCount = familyCount,
+                        onInventoryClick = onNavigateToInventory,
+                        onSubsClick = onNavigateToSubscriptions,
+                        onFamilyClick = onNavigateToFamily
+                    )
+                }
                 Spacer(modifier = Modifier.height(18.dp))
-                
+
                 // 3. AI Insight Banner
                 val topInsight = insights.firstOrNull()?.description ?: stringResource(R.string.no_urgent_alerts_hint)
-                PremiumInsightBanner(
-                    title = stringResource(R.string.zad_smart_insight_title),
-                    subtitle = topInsight,
-                    onClick = onNavigateToAssistant
-                )
+                com.example.ui.components.AppearOnEntry(delayMs = 300) {
+                    PremiumInsightBanner(
+                        title = stringResource(R.string.zad_smart_insight_title),
+                        subtitle = topInsight,
+                        onClick = onNavigateToAssistant
+                    )
+                }
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // 4. Premium Meals Row
