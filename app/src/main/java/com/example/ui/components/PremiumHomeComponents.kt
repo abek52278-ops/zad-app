@@ -9,6 +9,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -135,141 +136,189 @@ fun PremiumTopBar(
  * budget, remaining balance sits big and centered inside it. Replaces
  * the old rectangular PremiumHeroCard.
  */
+/**
+ * Signature hero, v2: a physical-card silhouette (chip + wordmark + big
+ * balance + usage bar like a card's magnetic stripe) instead of the
+ * circular gauge — replaces ZadBudgetGauge.
+ */
 @Composable
-fun ZadBudgetGauge(
+fun ZadCardHero(
     budget: Double,
     spent: Double,
     remaining: Double,
     daysLeft: Int,
     onDepositClick: () -> Unit
 ) {
-    val progressRemaining = if (budget > 0) (remaining / budget).toFloat().coerceIn(0f, 1f) else 0f
-    val spentPct = if (budget > 0) (spent / budget * 100).toInt() else 0
     val currencyContext = LocalContext.current
+    val spentPct = if (budget > 0) (spent / budget * 100).toInt() else 0
+    val progress = if (budget > 0) (spent / budget).toFloat().coerceIn(0f, 1f) else 0f
 
     var isVisible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         delay(200)
         isVisible = true
     }
-
     val animatedProgress by animateFloatAsState(
-        targetValue = if (isVisible) progressRemaining else 0f,
+        targetValue = if (isVisible) progress else 0f,
         animationSpec = ZadSprings.Screen,
-        label = "gaugeProgress"
+        label = "cardHeroProgress"
     )
 
-    val statusColor = when {
-        spentPct >= 100 -> dangerColor
-        spentPct >= 85 -> warningColor
-        else -> successColor
-    }
+    val cardShape = RoundedCornerShape(24.dp)
 
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1.62f)
+            .shadow(elevation = 22.dp, shape = cardShape, spotColor = primary.copy(alpha = 0.4f))
+            .clip(cardShape)
+            .background(Brush.linearGradient(listOf(primaryDark, primary, primaryDark)))
+            .padding(22.dp)
     ) {
-        Box(modifier = Modifier.size(216.dp), contentAlignment = Alignment.Center) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val strokeWidth = 16.dp.toPx()
-                val diameter = size.minDimension - strokeWidth
-                val topLeft = androidx.compose.ui.geometry.Offset(
-                    (size.width - diameter) / 2f,
-                    (size.height - diameter) / 2f
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 40.dp, y = (-40).dp)
+                .size(140.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.05f))
+        )
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // EMV-chip silhouette
+                Box(
+                    modifier = Modifier
+                        .size(width = 36.dp, height = 26.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Brush.linearGradient(listOf(secondaryLight, secondary)))
                 )
-                val arcSize = Size(diameter, diameter)
-                drawArc(
-                    color = outlineVariant,
-                    startAngle = -90f,
-                    sweepAngle = 360f,
-                    useCenter = false,
-                    topLeft = topLeft,
-                    size = arcSize,
-                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
-                )
-                drawArc(
-                    color = statusColor,
-                    startAngle = -90f,
-                    sweepAngle = 360f * animatedProgress,
-                    useCenter = false,
-                    topLeft = topLeft,
-                    size = arcSize,
-                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                Text("زاد", color = Color.White, fontWeight = FontWeight.Black, fontSize = 18.sp)
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Text(
+                stringResource(R.string.monthly_budget_hero_label),
+                style = Typography.labelSmall,
+                color = Color.White.copy(alpha = 0.7f)
+            )
+            Text(
+                com.example.data.CurrencyFormatter.formatNumber(currencyContext, remaining),
+                style = Typography.displayLarge.copy(fontSize = 36.sp, letterSpacing = 1.5.sp),
+                color = Color.White
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.White.copy(alpha = 0.25f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(animatedProgress)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(50))
+                        .background(if (spentPct >= 100) dangerColor else Color.White)
                 )
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    stringResource(R.string.remaining),
-                    style = Typography.labelMedium,
-                    color = onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    com.example.data.CurrencyFormatter.formatNumber(currencyContext, remaining),
-                    style = Typography.displayLarge.copy(fontSize = 32.sp),
-                    color = onSurface
-                )
-                Text(
-                    com.example.data.CurrencyFormatter.symbol(currencyContext),
-                    style = Typography.labelSmall,
-                    color = onSurfaceVariant
-                )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(stringResource(R.string.days_label), style = Typography.labelSmall, color = Color.White.copy(alpha = 0.6f))
+                    Text("$daysLeft", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+                Column {
+                    Text(stringResource(R.string.spent_label), style = Typography.labelSmall, color = Color.White.copy(alpha = 0.6f))
+                    Text(
+                        com.example.data.CurrencyFormatter.format(currencyContext, spent),
+                        style = Typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                Surface(
+                    color = Color.White,
+                    shape = RoundedCornerShape(50),
+                    onClick = onDepositClick,
+                    modifier = Modifier.pressableScale()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.deposit), tint = primaryDark, modifier = Modifier.size(16.dp))
+                        Text(stringResource(R.string.deposit), style = Typography.labelMedium, fontWeight = FontWeight.Bold, color = primaryDark)
+                    }
+                }
             }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            GaugeStatChip(
-                icon = Icons.Default.TrendingDown,
-                label = stringResource(R.string.spent_label),
-                value = com.example.data.CurrencyFormatter.format(currencyContext, spent),
-                tint = dangerColor
-            )
-            GaugeStatChip(
-                icon = Icons.Default.CalendarMonth,
-                label = stringResource(R.string.days_label),
-                value = "$daysLeft",
-                tint = primary
-            )
-            GaugeStatChip(
-                icon = Icons.Default.AccountBalanceWallet,
-                label = stringResource(R.string.budget_label),
-                value = com.example.data.CurrencyFormatter.format(currencyContext, budget),
-                tint = secondaryDark
-            )
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Button(
-            onClick = onDepositClick,
-            colors = ButtonDefaults.buttonColors(containerColor = primary),
-            shape = RoundedCornerShape(50),
-            modifier = Modifier.pressableScale()
-        ) {
-            Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(stringResource(R.string.deposit), style = Typography.labelLarge, fontWeight = FontWeight.Bold, color = Color.White)
         }
     }
 }
 
+data class ZadShortcutItem(
+    val icon: ImageVector,
+    val label: String,
+    val color: Color,
+    val onClick: () -> Unit
+)
+
+/** Circular quick-access row — one tappable circle per major screen, so the
+ * customer reaches any page from Home in one tap instead of the drawer. */
 @Composable
-private fun GaugeStatChip(icon: ImageVector, label: String, value: String, tint: Color) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clip(RoundedCornerShape(18.dp))
-            .zadGlassBlur()
-            .background(surface.copy(alpha = 0.65f))
-            .border(1.dp, Color.White.copy(alpha = 0.4f), RoundedCornerShape(18.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp)
+fun ZadPageShortcutsRow(items: List<ZadShortcutItem>) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
+        contentPadding = PaddingValues(horizontal = 4.dp)
     ) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp).floatingIdle(amplitude = 3f))
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(value, style = Typography.labelLarge, fontWeight = FontWeight.Bold, color = onSurface)
-        Text(label, style = Typography.labelSmall, color = onSurfaceVariant)
+        itemsIndexed(items) { index, item ->
+            AppearOnEntry(delayMs = (index * 50).coerceAtMost(400)) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.width(68.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .shadow(elevation = 8.dp, shape = CircleShape, spotColor = item.color.copy(alpha = 0.35f))
+                            .clip(CircleShape)
+                            .background(Brush.linearGradient(listOf(item.color, item.color.copy(alpha = 0.8f))))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = item.onClick
+                            )
+                            .pressableScale(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(item.icon, contentDescription = item.label, tint = Color.White, modifier = Modifier.size(24.dp))
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        item.label,
+                        style = Typography.labelSmall,
+                        color = onSurfaceVariant,
+                        maxLines = 1,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            }
+        }
     }
 }
 

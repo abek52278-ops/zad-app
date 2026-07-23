@@ -236,19 +236,37 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // 1. Signature circular budget gauge (orchestrated entrance: gauge, then stats, then banner)
+                // 1. Signature Visa-card style budget hero (orchestrated entrance: card, then circles, then stats, then banner)
                 val calendar = Calendar.getInstance()
                 val lastDay = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
                 val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
                 val daysLeft = lastDay - currentDay
 
                 com.example.ui.components.AppearOnEntry {
-                    com.example.ui.components.ZadBudgetGauge(
+                    com.example.ui.components.ZadCardHero(
                         budget = budget,
                         spent = totalSpent,
                         remaining = currentBudget,
                         daysLeft = daysLeft,
                         onDepositClick = { showAddTransactionDialog = true }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // 1b. Circular one-tap shortcuts to every screen
+                com.example.ui.components.AppearOnEntry(delayMs = 80) {
+                    com.example.ui.components.ZadPageShortcutsRow(
+                        items = listOf(
+                            com.example.ui.components.ZadShortcutItem(Icons.Default.Inventory2, stringResource(R.string.nav_inventory), primary, onNavigateToInventory),
+                            com.example.ui.components.ZadShortcutItem(Icons.Default.ShoppingCart, stringResource(R.string.nav_shopping), catDailyIcon, onNavigateToShopping),
+                            com.example.ui.components.ZadShortcutItem(Icons.Default.FamilyRestroom, stringResource(R.string.nav_family), coral, onNavigateToFamily),
+                            com.example.ui.components.ZadShortcutItem(Icons.Default.Subscriptions, stringResource(R.string.quick_stat_subscriptions_title), secondaryDark, onNavigateToSubscriptions),
+                            com.example.ui.components.ZadShortcutItem(Icons.Default.AccountBalanceWallet, stringResource(R.string.nav_budget), primaryDark, onNavigateToBudget),
+                            com.example.ui.components.ZadShortcutItem(Icons.Default.AutoAwesome, stringResource(R.string.nav_assistant), lilac, onNavigateToAssistant),
+                            com.example.ui.components.ZadShortcutItem(Icons.Default.Park, stringResource(R.string.tasbiha_short_label), catHealthIcon, onNavigateToTasbiha),
+                            com.example.ui.components.ZadShortcutItem(Icons.Default.Person, stringResource(R.string.profile_title), tertiary, onNavigateToProfile)
+                        )
                     )
                 }
 
