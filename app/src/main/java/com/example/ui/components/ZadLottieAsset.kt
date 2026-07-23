@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription as contentDescriptionSemantics
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
@@ -34,10 +36,14 @@ fun ZadLottieAsset(
         isPlaying = autoPlay,
         speed = speed
     )
+    val finalModifier = if (contentDescription != null) {
+        modifier.semantics { this.contentDescriptionSemantics = contentDescription }
+    } else {
+        modifier
+    }
     LottieAnimation(
         composition = composition,
         progress = { progress },
-        modifier = modifier,
-        contentDescription = contentDescription
+        modifier = finalModifier
     )
 }
