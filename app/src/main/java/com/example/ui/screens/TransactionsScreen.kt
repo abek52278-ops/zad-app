@@ -9,7 +9,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -29,7 +29,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airbnb.lottie.compose.LottieConstants
+import com.example.R
 import com.example.data.ZadTransaction
+import com.example.ui.components.ZadLottieAsset
+import com.example.ui.components.ZadTransitions
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 
@@ -143,12 +147,14 @@ fun TransactionsScreen(
                     item {
                         DateHeader(group.date)
                     }
-                    items(group.transactions, key = { it.id }) { tx ->
-                        TransactionCard(
-                            transaction = tx,
-                            onClick = { showDeleteConfirm = tx },
-                            onDelete = { showDeleteConfirm = tx }
-                        )
+                    itemsIndexed(group.transactions, key = { _, tx -> tx.id }) { index, tx ->
+                        AnimatedVisibility(visible = true, enter = ZadTransitions.listItemEnter(index)) {
+                            TransactionCard(
+                                transaction = tx,
+                                onClick = { showDeleteConfirm = tx },
+                                onDelete = { showDeleteConfirm = tx }
+                            )
+                        }
                     }
                 }
             }
@@ -586,11 +592,11 @@ private fun EmptyTransactionsPlaceholder(isFiltered: Boolean) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                Icons.Outlined.AccountBalanceWallet,
-                contentDescription = null,
-                tint = onSurfaceVariant.copy(alpha = 0.4f),
-                modifier = Modifier.size(64.dp)
+            ZadLottieAsset(
+                resId = R.raw.lottie_empty_box,
+                modifier = Modifier.size(140.dp),
+                iterations = LottieConstants.IterateForever,
+                contentDescription = null
             )
             Spacer(Modifier.height(16.dp))
             Text(

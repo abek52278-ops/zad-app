@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -38,6 +39,8 @@ import com.example.ui.screens.auth.AuthTextField
 import com.example.ui.theme.*
 import com.example.ui.components.QrCode
 import com.example.ui.components.pressableScale
+import com.example.ui.components.ZadLottieAsset
+import com.airbnb.lottie.compose.LottieConstants
 import com.example.ui.viewmodels.FamilyViewModel
 import com.example.ui.viewmodels.FamilyState
 import android.util.Log
@@ -45,6 +48,7 @@ import kotlinx.serialization.encodeToString
 import androidx.compose.ui.platform.LocalContext
 import android.content.Intent
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 private const val TAG_FAM = "FamilyScreen"
 
@@ -110,11 +114,11 @@ fun NoFamilyScreen(
         verticalArrangement = Arrangement.Center
     ) {
         com.example.ui.components.AppearOnEntry {
-            Icon(
-                imageVector = Icons.Default.FamilyRestroom,
-                contentDescription = null,
-                modifier = Modifier.size(80.dp),
-                tint = primary
+            ZadLottieAsset(
+                resId = R.raw.lottie_empty_box,
+                iterations = LottieConstants.IterateForever,
+                modifier = Modifier.size(140.dp),
+                contentDescription = stringResource(R.string.welcome_to_zad_family)
             )
         }
         Spacer(modifier = Modifier.height(24.dp))
@@ -1184,6 +1188,7 @@ private fun InviteMemberDialog(
     onDismiss: () -> Unit
 ) {
     var selectedMethod by remember { mutableStateOf(0) }
+    var showSentConfirmation by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val joinFamilyText = stringResource(R.string.join_family_message)
     val shareText = "$joinFamilyText\n${stringResource(R.string.invite_code_colon)} $inviteCode\n${stringResource(R.string.or_open_link)} zad://invite?code=$inviteCode"
@@ -1191,6 +1196,14 @@ private fun InviteMemberDialog(
     val joinScanText = stringResource(R.string.join_family_scan_message, inviteCode)
     val joinLinkText = stringResource(R.string.join_family_link_message, inviteCode)
     val joinCodeText = stringResource(R.string.join_family_code_message, inviteCode)
+
+    // تأكيد بصري عابر بعد إرسال الدعوة — بيقفل نفسه لوحده زي toast
+    LaunchedEffect(showSentConfirmation) {
+        if (showSentConfirmation) {
+            delay(1200)
+            showSentConfirmation = false
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1252,6 +1265,7 @@ private fun InviteMemberDialog(
                                 IconButton(onClick = {
                                     val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                                     clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Invite", "zad://invite?code=$inviteCode"))
+                                    showSentConfirmation = true
                                 }) {
                                     Icon(Icons.Default.ContentCopy, null, tint = primary, modifier = Modifier.size(18.dp))
                                 }
@@ -1285,6 +1299,7 @@ private fun InviteMemberDialog(
                                         }
                                         context.startActivity(Intent.createChooser(fallback, shareInviteTitle))
                                     }
+                                    showSentConfirmation = true
                                 },
                                 modifier = Modifier.weight(1f),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366))
@@ -1301,6 +1316,7 @@ private fun InviteMemberDialog(
                                         putExtra(Intent.EXTRA_TEXT, shareText)
                                     }
                                     context.startActivity(Intent.createChooser(general, shareInviteTitle))
+                                    showSentConfirmation = true
                                 },
                                 modifier = Modifier.weight(1f)
                             ) {
@@ -1327,12 +1343,36 @@ private fun InviteMemberDialog(
                             putExtra(Intent.EXTRA_TEXT, shareText)
                         }
                         context.startActivity(Intent.createChooser(shareIntent, shareInviteTitle))
+                        showSentConfirmation = true
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(Icons.Default.Share, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.share_action))
+                }
+
+                AnimatedVisibility(
+                    visible = showSentConfirmation,
+                    enter = fadeIn() + scaleIn(initialScale = 0.85f),
+                    exit = fadeOut()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        ZadLottieAsset(
+                            resId = R.raw.lottie_success_check,
+                            iterations = 1,
+                            modifier = Modifier.size(28.dp),
+                            contentDescription = stringResource(R.string.done_action)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.done_action), color = primary, fontWeight = FontWeight.Bold, style = Typography.labelMedium)
+                    }
                 }
             }
         },

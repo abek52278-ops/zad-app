@@ -34,7 +34,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.util.Log
 import com.example.data.ZadTransaction
+import com.example.ui.components.ZadLottieAsset
 import com.example.ui.components.pressableScale
+import com.airbnb.lottie.compose.LottieConstants
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 import java.time.Instant
@@ -401,11 +403,11 @@ fun BudgetScreen(
                                 .padding(48.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(
-                                Icons.Default.ReceiptLong,
-                                contentDescription = null,
-                                tint = onSurfaceVariant.copy(alpha = 0.4f),
-                                modifier = Modifier.size(72.dp)
+                            ZadLottieAsset(
+                                resId = R.raw.lottie_empty_box,
+                                iterations = LottieConstants.IterateForever,
+                                modifier = Modifier.size(140.dp),
+                                contentDescription = stringResource(R.string.no_transactions)
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(

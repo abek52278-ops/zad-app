@@ -1,8 +1,7 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import com.example.ui.components.ZadSprings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -295,7 +294,7 @@ private fun HealthScoreGauge(score: Int) {
     }
     val animatedScore by animateFloatAsState(
         targetValue = score / 100f,
-        animationSpec = tween(900, easing = FastOutSlowInEasing),
+        animationSpec = ZadSprings.Screen,
         label = "familyHealthScore"
     )
     Spacer(Modifier.height(4.dp))

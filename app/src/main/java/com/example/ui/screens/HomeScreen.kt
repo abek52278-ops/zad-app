@@ -598,6 +598,15 @@ fun TopAppBarSection(onOpenDrawer: () -> Unit, userName: String, globalAvatarUri
                 .clip(CircleShape)
                 .background(surface)) {
                 Box(contentAlignment = Alignment.Center) {
+                    if (unreadNotificationsCount > 0) {
+                        ZadLottieAsset(
+                            resId = R.raw.lottie_bell_notification,
+                            iterations = 1,
+                            autoPlay = unreadNotificationsCount > 0,
+                            modifier = Modifier.size(36.dp),
+                            contentDescription = null
+                        )
+                    }
                     Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = onSurfaceVariant, modifier = Modifier.size(24.dp))
                     if (unreadNotificationsCount > 0) {
                         Box(
@@ -2157,6 +2166,8 @@ fun KidsModeContent(
     val context = LocalContext.current
     val unknownAliasFallback = stringResource(R.string.unknown_alias_fallback)
     var showWishDialog by remember { mutableStateOf(false) }
+    // هدف الادخار اتحقق (الرصيد وصل أو عدى الهدف) — نشغّل confetti مرة واحدة لحظة الوصول
+    val savingsGoalReached = mySavingsGoal > 0 && myAllowance >= mySavingsGoal
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp).verticalScroll(rememberScrollState())) {
         Spacer(modifier = Modifier.height(20.dp))
@@ -2246,6 +2257,20 @@ fun KidsModeContent(
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(stringResource(R.string.need_extra_expense), fontWeight = FontWeight.Bold)
                 }
+            }
+            // هدف الادخار اتحقق — نفجّر confetti فوق الكارت مرة واحدة (iterations = 1)
+            AnimatedVisibility(
+                visible = savingsGoalReached,
+                modifier = Modifier.matchParentSize(),
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                ZadLottieAsset(
+                    resId = R.raw.lottie_confetti_burst,
+                    iterations = 1,
+                    modifier = Modifier.fillMaxSize(),
+                    contentDescription = stringResource(R.string.savings_goal_colon, com.example.data.CurrencyFormatter.format(context, mySavingsGoal))
+                )
             }
         }
         Spacer(modifier = Modifier.height(22.dp))

@@ -33,6 +33,13 @@ import com.example.ui.viewmodels.ZadViewModel
 import com.example.data.SupabaseRepo
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.launch
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import com.example.ui.components.AppearOnEntry
+import com.example.ui.components.ZadLottieAsset
+import com.example.ui.components.pressableScale
 
 private const val TAG_SUB_PROF = "ProfileSubScreens"
 
@@ -66,6 +73,7 @@ fun SubScreenTopBar(title: String, onBack: () -> Unit) {
 fun EditProfileScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
     var email by remember { mutableStateOf("...") }
     var alias by remember { mutableStateOf("") }
+    var showSaveSuccess by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val accountName by viewModel.userName.collectAsState()
@@ -83,9 +91,21 @@ fun EditProfileScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
         Log.d(TAG_SUB_PROF, "EditProfileScreen loaded — userEmail=$email, alias=$alias")
     }
 
+    // نفس نمط التأكيد اللحظي المستخدم في ProfileScreen.showSaveSuccess —
+    // يظهر لفترة قصيرة ثم يرجع تلقائياً للشاشة السابقة
+    LaunchedEffect(showSaveSuccess) {
+        if (showSaveSuccess) {
+            kotlinx.coroutines.delay(1200)
+            showSaveSuccess = false
+            onBack()
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
     Column(modifier = Modifier.fillMaxSize().background(background)) {
         SubScreenTopBar(stringResource(R.string.edit_profile_title), onBack)
-        
+
+        AppearOnEntry {
         Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
             // Avatar circle
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -93,7 +113,7 @@ fun EditProfileScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
                     modifier = Modifier.size(96.dp).clip(CircleShape).background(primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(alias.ifEmpty { email.take(1).uppercase() }.take(1).uppercase(), 
+                    Text(alias.ifEmpty { email.take(1).uppercase() }.take(1).uppercase(),
                         style = MaterialTheme.typography.headlineLarge, color = primary, fontWeight = FontWeight.Bold)
                 }
             }
@@ -128,18 +148,44 @@ fun EditProfileScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
                             // مزامنة أفضل جهد للقب العائلة كمان لو المستخدم عضو في عائلة بالفعل
                             scope.launch { SupabaseRepo.updateFamilyMemberAlias(alias) }
                             Toast.makeText(context, savedChangesText, Toast.LENGTH_SHORT).show()
-                            onBack()
+                            showSaveSuccess = true
                         } else {
                             Toast.makeText(context, saveFailedText, Toast.LENGTH_LONG).show()
                         }
                     }
                 },
-                modifier = Modifier.fillMaxWidth().height(54.dp),
+                modifier = Modifier.fillMaxWidth().height(54.dp).pressableScale(),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(stringResource(R.string.save_changes), fontWeight = FontWeight.Bold)
             }
         }
+        }
+    }
+
+    AnimatedVisibility(
+        visible = showSaveSuccess,
+        modifier = Modifier.align(Alignment.Center),
+        enter = fadeIn() + scaleIn(initialScale = 0.85f),
+        exit = fadeOut()
+    ) {
+        Column(
+            modifier = Modifier
+                .shadow(12.dp, RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(20.dp))
+                .background(surface)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            ZadLottieAsset(
+                resId = R.raw.lottie_success_check,
+                modifier = Modifier.size(72.dp),
+                iterations = 1
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(savedChangesText, style = Typography.bodyMedium, color = onSurface, fontWeight = FontWeight.Bold)
+        }
+    }
     }
 }
 
@@ -161,7 +207,8 @@ fun FamilyManagementScreen(familyViewModel: FamilyViewModel, onBack: () -> Unit)
 
     Column(modifier = Modifier.fillMaxSize().background(background)) {
         SubScreenTopBar(stringResource(R.string.manage_family), onBack)
-        
+
+        AppearOnEntry {
         Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
             if (state is FamilyState.Active) {
                 val activeState = state as FamilyState.Active
@@ -252,6 +299,7 @@ fun FamilyManagementScreen(familyViewModel: FamilyViewModel, onBack: () -> Unit)
                 Text(stringResource(R.string.not_in_family_yet), color = onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(40.dp))
             }
         }
+        }
     }
 }
 
@@ -270,7 +318,8 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
 
     Column(modifier = Modifier.fillMaxSize().background(background)) {
         SubScreenTopBar(stringResource(R.string.payment_and_budget_title), onBack)
-        
+
+        AppearOnEntry {
         Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
             Card(
                 modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(16.dp)),
@@ -287,12 +336,15 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         Row {
-                            Button(onClick = {
-                                val parsed = newBudgetStr.toDoubleOrNull() ?: budget
-                                Log.d(TAG_SUB_PROF, "Save budget clicked → parsed=$parsed → calling viewModel.updateBudget()")
-                                viewModel.updateBudget(parsed)
-                                editMode = false
-                            }) { Text(stringResource(R.string.save)) }
+                            Button(
+                                onClick = {
+                                    val parsed = newBudgetStr.toDoubleOrNull() ?: budget
+                                    Log.d(TAG_SUB_PROF, "Save budget clicked → parsed=$parsed → calling viewModel.updateBudget()")
+                                    viewModel.updateBudget(parsed)
+                                    editMode = false
+                                },
+                                modifier = Modifier.pressableScale()
+                            ) { Text(stringResource(R.string.save)) }
                             Spacer(modifier = Modifier.width(8.dp))
                             TextButton(onClick = { editMode = false }) { Text(stringResource(R.string.cancel)) }
                         }
@@ -365,6 +417,7 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
             Spacer(modifier = Modifier.height(12.dp))
             Text(stringResource(R.string.card_linking_soon), color = onSurfaceVariant)
         }
+        }
     }
 }
 
@@ -396,6 +449,7 @@ fun AssistantAlertsScreen(onBack: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().background(background)) {
         SubScreenTopBar(stringResource(R.string.assistant_alerts_title), onBack)
 
+        AppearOnEntry {
         Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
             AlertSwitchItem(stringResource(R.string.low_inventory_alerts), stringResource(R.string.low_inventory_alerts_desc), lowInventoryAlerts) {
                 lowInventoryAlerts = it
@@ -413,6 +467,7 @@ fun AssistantAlertsScreen(onBack: () -> Unit) {
                 tasbihReminder = it
                 AlertPrefs.setEnabled(context, AlertPrefs.KEY_TASBIH_REMINDER, it)
             }
+        }
         }
     }
 }
@@ -441,14 +496,15 @@ fun HelpAndSupportScreen(onBack: () -> Unit) {
 
     Column(modifier = Modifier.fillMaxSize().background(background)) {
         SubScreenTopBar(stringResource(R.string.help_and_support_title), onBack)
-        
+
+        AppearOnEntry {
         Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
             Text(stringResource(R.string.faq_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
             Spacer(modifier = Modifier.height(16.dp))
             FaqItem(stringResource(R.string.faq_add_subscription_q), stringResource(R.string.faq_add_subscription_a))
             FaqItem(stringResource(R.string.faq_share_budget_q), stringResource(R.string.faq_share_budget_a))
             Spacer(modifier = Modifier.height(32.dp))
-            
+
             val supportContext = LocalContext.current
             Button(
                 onClick = {
@@ -462,11 +518,12 @@ fun HelpAndSupportScreen(onBack: () -> Unit) {
                         Log.e(TAG_SUB_PROF, "No email app found: ${e.message}")
                     }
                 },
-                modifier = Modifier.fillMaxWidth().height(54.dp),
+                modifier = Modifier.fillMaxWidth().height(54.dp).pressableScale(),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Text(stringResource(R.string.contact_support_team), fontWeight = FontWeight.Bold)
             }
+        }
         }
     }
 }

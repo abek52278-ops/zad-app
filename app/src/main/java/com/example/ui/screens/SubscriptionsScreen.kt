@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.ZadSubscription
 import com.example.ui.components.pressableScale
+import com.example.ui.components.ZadLottieAsset
+import com.example.ui.components.ZadTransitions
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 import java.time.LocalDate
@@ -177,15 +179,33 @@ fun SubscriptionsScreen(
             ) {
                 if (filtered.isEmpty()) {
                     item {
-                        com.example.ui.components.ZadEmptyState(
-                            icon = Icons.Default.Subscriptions,
-                            title = if (selectedTab == 0) stringResource(R.string.no_subscriptions_any) else stringResource(R.string.no_items_in_category),
+                        // بديل الأيقونة الثابتة بـ Lottie متحركة — نفس تسلسل ZadEmptyState (عنوان بولد وسط الشاشة)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
-                        )
+                        ) {
+                            ZadLottieAsset(
+                                resId = R.raw.lottie_empty_box,
+                                modifier = Modifier.size(140.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = if (selectedTab == 0) stringResource(R.string.no_subscriptions_any) else stringResource(R.string.no_items_in_category),
+                                style = Typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = onSurface,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 } else {
                     itemsIndexed(filtered, key = { _, sub -> sub.id }) { index, sub ->
-                        com.example.ui.components.AppearOnEntry(delayMs = (index * 40).coerceAtMost(400)) {
+                        var itemVisible by remember(sub.id) { mutableStateOf(false) }
+                        LaunchedEffect(sub.id) { itemVisible = true }
+                        AnimatedVisibility(
+                            visible = itemVisible,
+                            enter = ZadTransitions.listItemEnter(index)
+                        ) {
                             SubScreenSubscriptionCardFull(
                                 sub = sub,
                                 onToggleActive = { viewModel.updateSubscriptionActive(sub.id, !sub.isActive) },

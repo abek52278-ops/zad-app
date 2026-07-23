@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.ui.components.pressableScale
+import com.example.ui.components.ZadLottieAsset
+import com.airbnb.lottie.compose.LottieConstants
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 import com.example.ui.viewmodels.AiChatMessage
@@ -2016,7 +2018,12 @@ fun DebtPayoffPlannerCard(debts: List<com.example.data.ZadDebt>, viewModel: ZadV
 private fun AiNarrativeSection(narrative: String?, isLoading: Boolean, onExplain: (() -> Unit)?) {
     when {
         isLoading -> Row(verticalAlignment = Alignment.CenterVertically) {
-            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = primary)
+            ZadLottieAsset(
+                resId = R.raw.lottie_ai_thinking,
+                modifier = Modifier.size(20.dp),
+                iterations = LottieConstants.IterateForever,
+                contentDescription = null
+            )
             Spacer(modifier = Modifier.width(8.dp))
             Text(stringResource(R.string.ai_narrative_loading), style = Typography.labelSmall, color = onSurfaceVariant)
         }
@@ -2371,15 +2378,15 @@ private fun ZadIntTypingIndicator() {
         horizontalArrangement = Arrangement.Start
     ) {
         Box(
-            modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(surfaceContainerHigh).padding(horizontal = 16.dp, vertical = 10.dp)
+            modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(surfaceContainerHigh).padding(horizontal = 12.dp, vertical = 6.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                repeat(3) {
-                    Box(
-                        modifier = Modifier.size(6.dp).clip(CircleShape).background(onSurfaceVariant.copy(alpha = 0.5f))
-                    )
-                }
-            }
+            ZadLottieAsset(
+                resId = R.raw.lottie_ai_thinking,
+                modifier = Modifier.size(36.dp),
+                iterations = LottieConstants.IterateForever,
+                contentDescription = stringResource(R.string.ai_narrative_loading)
+            )
         }
     }
 }

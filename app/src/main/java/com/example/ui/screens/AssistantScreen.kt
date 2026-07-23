@@ -24,9 +24,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airbnb.lottie.compose.LottieConstants
+import com.example.R
+import com.example.ui.components.ZadLottieAsset
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 import com.example.ui.viewmodels.AiChatMessage
@@ -104,6 +109,11 @@ fun AssistantScreen(viewModel: ZadViewModel, onOpenDrawer: () -> Unit = {}) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            if (messages.isEmpty() && !isTyping) {
+                item {
+                    AssistantEmptyChatState()
+                }
+            }
             items(messages, key = { it.id ?: messages.indexOf(it) }) { msg ->
                 AnimatedVisibility(
                     visible = true,
@@ -220,9 +230,6 @@ fun ChatBubble(msg: AiChatMessage) {
 
 @Composable
 fun TypingIndicator() {
-    val dotCount = 3
-    val infiniteTransition = rememberInfiniteTransition(label = "typing")
-
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.End,
@@ -239,28 +246,46 @@ fun TypingIndicator() {
             modifier = Modifier
                 .clip(RoundedCornerShape(16.dp, 16.dp, 0.dp, 16.dp))
                 .background(surfaceContainerHigh)
-                .padding(horizontal = 18.dp, vertical = 14.dp)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                repeat(dotCount) { index ->
-                    val alpha by infiniteTransition.animateFloat(
-                        initialValue = 0.3f,
-                        targetValue = 1f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(400, delayMillis = index * 150),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "dot$index"
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(primary.copy(alpha = alpha))
-                    )
-                }
-            }
+            ZadLottieAsset(
+                resId = R.raw.lottie_ai_thinking,
+                modifier = Modifier.size(32.dp),
+                iterations = LottieConstants.IterateForever,
+                contentDescription = "زاد بيفكر"
+            )
         }
+    }
+}
+
+@Composable
+fun AssistantEmptyChatState() {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        ZadLottieAsset(
+            resId = R.raw.lottie_empty_chat,
+            modifier = Modifier.size(140.dp),
+            iterations = LottieConstants.IterateForever,
+            contentDescription = null
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            stringResource(R.string.no_messages_yet),
+            style = Typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = onSurface,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            stringResource(R.string.ask_zad_hint_short),
+            style = Typography.bodyMedium,
+            color = onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
     }
 }
 

@@ -29,6 +29,7 @@ import com.example.ui.theme.onSurface
 import com.example.ui.theme.onSurfaceVariant
 import com.example.ui.theme.outline
 import com.example.ui.theme.primary
+import com.example.ui.components.AppearOnEntry
 import com.example.ui.components.pressableScale
 import com.example.ui.viewmodels.AuthState
 import com.example.ui.viewmodels.AuthViewModel
@@ -77,81 +78,89 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "تسجيل الدخول",
-                style = androidx.compose.material3.MaterialTheme.typography.displaySmall,
-                color = MaterialTheme.colorScheme.onBackground,
-                fontWeight = FontWeight.Bold
-            )
-            // Language Toggle
-            var isArabic by remember { mutableStateOf(true) }
-            TextButton(onClick = { isArabic = !isArabic }) {
-                Text(if (isArabic) "AR" else "EN", color = primary, fontWeight = FontWeight.Bold)
+        AppearOnEntry(delayMs = 80) {
+            Column {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "تسجيل الدخول",
+                        style = androidx.compose.material3.MaterialTheme.typography.displaySmall,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        fontWeight = FontWeight.Bold
+                    )
+                    // Language Toggle
+                    var isArabic by remember { mutableStateOf(true) }
+                    TextButton(onClick = { isArabic = !isArabic }) {
+                        Text(if (isArabic) "AR" else "EN", color = primary, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "أدخل بريدك الإلكتروني وكلمة المرور",
+                    style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                    color = onSurfaceVariant
+                )
             }
         }
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "أدخل بريدك الإلكتروني وكلمة المرور",
-            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-            color = onSurfaceVariant
-        )
 
         Spacer(modifier = Modifier.height(40.dp))
 
-        Text("البريد الإلكتروني", color = onSurfaceVariant, fontSize = 14.sp)
-        Spacer(modifier = Modifier.height(6.dp))
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                focusedBorderColor = primary,
-                unfocusedBorderColor = outline
-            ),
-            singleLine = true
-        )
+        AppearOnEntry(delayMs = 160) {
+            Column {
+                Text("البريد الإلكتروني", color = onSurfaceVariant, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedBorderColor = primary,
+                        unfocusedBorderColor = outline
+                    ),
+                    singleLine = true
+                )
 
-        Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
-        Text("كلمة المرور", color = onSurfaceVariant, fontSize = 14.sp)
-        Spacer(modifier = Modifier.height(6.dp))
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            visualTransformation = if (passwordVisible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                focusedBorderColor = primary,
-                unfocusedBorderColor = outline
-            ),
-            singleLine = true,
-            trailingIcon = {
-                IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                    Icon(
-                        imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-                        contentDescription = "Toggle password visibility",
-                        tint = onSurfaceVariant
-                    )
+                Text("كلمة المرور", color = onSurfaceVariant, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    visualTransformation = if (passwordVisible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedBorderColor = primary,
+                        unfocusedBorderColor = outline
+                    ),
+                    singleLine = true,
+                    trailingIcon = {
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Icon(
+                                imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                contentDescription = "Toggle password visibility",
+                                tint = onSurfaceVariant
+                            )
+                        }
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = { showForgotPasswordDialog = true }) {
+                        Text(text = "نسيت كلمة المرور؟", color = MaterialTheme.colorScheme.onBackground, fontSize = 14.sp)
+                    }
                 }
             }
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            TextButton(onClick = { showForgotPasswordDialog = true }) {
-                Text(text = "نسيت كلمة المرور؟", color = MaterialTheme.colorScheme.onBackground, fontSize = 14.sp)
-            }
         }
-        
+
         Spacer(modifier = Modifier.height(24.dp))
         
         if (authState is AuthState.Error) {

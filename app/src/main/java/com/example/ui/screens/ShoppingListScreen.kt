@@ -31,11 +31,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airbnb.lottie.compose.LottieConstants
+import com.example.R
 import com.example.data.ZadShoppingItem
 import com.example.data.AiPriceEstimate
 import com.example.data.AffiliateProduct
 import com.example.data.GrocerySuggestion
 import com.example.ui.components.GlassCard
+import com.example.ui.components.ZadLottieAsset
+import com.example.ui.components.ZadTransitions
 import com.example.ui.components.pressableScale
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
@@ -44,6 +48,7 @@ import com.example.ui.widgets.AffiliateConsentBanner
 
 import com.example.ui.widgets.AffiliateEmptyState
 import com.example.ui.widgets.AffiliateLoadingSkeleton
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private const val TAG = "ShoppingListScreen"
@@ -71,6 +76,7 @@ fun ShoppingListScreen(
     val isMatchingProduct by viewModel.isMatchingProduct.collectAsState()
     val affiliateConsentGiven by viewModel.affiliateConsentGiven.collectAsState()
     var recentlyPurchasedItemName by remember { mutableStateOf("") }
+    var justCheckedItemName by remember { mutableStateOf<String?>(null) }
 
     val matchedProduct = remember(matchedProductId, affiliateProducts) {
         matchedProductId?.let { id -> affiliateProducts.find { it.id == id } }
@@ -85,6 +91,13 @@ fun ShoppingListScreen(
 
     LaunchedEffect(Unit) {
         viewModel.fetchGrocerySuggestions()
+    }
+
+    LaunchedEffect(justCheckedItemName) {
+        if (justCheckedItemName != null) {
+            delay(1200)
+            justCheckedItemName = null
+        }
     }
 
     LaunchedEffect(shoppingList) {
@@ -180,12 +193,13 @@ fun ShoppingListScreen(
                         }
                     } else {
                         itemsIndexed(filtered, key = { _, item -> item.id }) { index, item ->
-                            com.example.ui.components.AppearOnEntry(delayMs = (index * 40).coerceAtMost(400)) {
+                            AnimatedVisibility(visible = true, enter = ZadTransitions.listItemEnter(index)) {
                                 EnhancedShoppingItemCard(
                                     item = item,
                                     priceEstimate = priceEstimates[item.itemName],
                                     onCheck = {
                                         recentlyPurchasedItemName = item.itemName
+                                        justCheckedItemName = item.itemName
                                         viewModel.matchProduct(item.itemName)
                                         viewModel.toggleShoppingItemPurchased(item.id)
                                     },
@@ -243,6 +257,38 @@ fun ShoppingListScreen(
             contentColor = onPrimary,
             shape = RoundedCornerShape(16.dp)
         ) { Icon(Icons.Default.Add, contentDescription = "إضافة") }
+
+        AnimatedVisibility(
+            visible = justCheckedItemName != null,
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 72.dp),
+            enter = fadeIn() + slideInVertically { -it / 2 },
+            exit = fadeOut() + slideOutVertically { -it / 2 }
+        ) {
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = surface,
+                shadowElevation = 6.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(start = 8.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ZadLottieAsset(
+                        resId = R.raw.lottie_success_check,
+                        modifier = Modifier.size(28.dp),
+                        iterations = 1,
+                        contentDescription = null
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "تم شراء ${justCheckedItemName.orEmpty()}",
+                        style = Typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = onSurface
+                    )
+                }
+            }
+        }
     }
     if (showAddDialog) {
         AddShoppingItemDialog(
@@ -473,16 +519,16 @@ private fun EnhancedShoppingItemCard(
 @Composable
 private fun SmartEmptyState() {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(top = 60.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(
-            modifier = Modifier.size(100.dp).clip(CircleShape).background(
-                Brush.radialGradient(listOf(primary.copy(alpha = 0.15f), Color.Transparent))
-            ),
-            contentAlignment = Alignment.Center
-        ) { Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(52.dp), tint = primary.copy(alpha = 0.7f)) }
-        Spacer(Modifier.height(20.dp))
+        ZadLottieAsset(
+            resId = R.raw.lottie_empty_box,
+            modifier = Modifier.size(140.dp),
+            iterations = LottieConstants.IterateForever,
+            contentDescription = "قائمة التسوق فارغة"
+        )
+        Spacer(Modifier.height(12.dp))
         Text("قائمة التسوق فارغة", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = onSurface)
         Spacer(Modifier.height(8.dp))
         Text("زاد سيضيف النواقص تلقائياً!", fontSize = 14.sp, color = onSurfaceVariant)
