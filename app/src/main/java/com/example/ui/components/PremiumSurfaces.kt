@@ -24,8 +24,9 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.ui.theme.background
+import com.example.ui.theme.coral
+import com.example.ui.theme.lilac
 import com.example.ui.theme.primary
-import com.example.ui.theme.sand
 import com.example.ui.theme.secondary
 import com.example.ui.theme.surfaceContainerLow
 
@@ -36,11 +37,12 @@ internal fun Modifier.zadGlassBlur(radius: Dp = 20.dp): Modifier =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) this.blur(radius) else this
 
 /**
- * Soft gradient-mesh canvas — large blurred color blobs behind scrollable
- * content, so GlassCard's translucency has something colorful to actually
- * blur instead of sitting on a flat background (which just reads as flat,
- * not "glass"). Below API 31 (see zadGlassBlur) the blobs render as soft
- * flat tints instead of blurred ones — same known, acceptable degradation
+ * Soft gradient-mesh canvas — pure white base with four large blurred
+ * pastel-accent blobs (Emerald/Gold/Coral/Lilac) behind scrollable content,
+ * so GlassCard's translucency has something colorful to actually blur
+ * instead of sitting on a flat background (which just reads as flat, not
+ * "glass"). Below API 31 (see zadGlassBlur) the blobs render as soft flat
+ * tints instead of blurred ones — same known, acceptable degradation
  * GlassCard itself already has.
  */
 @Composable
@@ -50,28 +52,37 @@ fun ZadCanvasBackground(modifier: Modifier = Modifier) {
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .offset(x = (-70).dp, y = (-50).dp)
-                .size(240.dp)
+                .size(220.dp)
                 .clip(CircleShape)
                 .zadGlassBlur(70.dp)
-                .background(primary.copy(alpha = 0.16f))
+                .background(primary.copy(alpha = 0.14f))
         )
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .offset(x = 60.dp, y = 120.dp)
+                .offset(x = 50.dp, y = 40.dp)
+                .size(180.dp)
+                .clip(CircleShape)
+                .zadGlassBlur(65.dp)
+                .background(secondary.copy(alpha = 0.13f))
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .offset(x = 60.dp, y = 200.dp)
                 .size(200.dp)
                 .clip(CircleShape)
                 .zadGlassBlur(70.dp)
-                .background(secondary.copy(alpha = 0.14f))
+                .background(coral.copy(alpha = 0.10f))
         )
         Box(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .offset(x = (-40).dp, y = 60.dp)
-                .size(280.dp)
+                .offset(x = (-50).dp, y = 60.dp)
+                .size(240.dp)
                 .clip(CircleShape)
-                .zadGlassBlur(80.dp)
-                .background(sand.copy(alpha = 0.55f))
+                .zadGlassBlur(75.dp)
+                .background(lilac.copy(alpha = 0.14f))
         )
     }
 }

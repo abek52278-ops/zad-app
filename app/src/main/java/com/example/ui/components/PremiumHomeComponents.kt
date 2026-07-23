@@ -108,7 +108,12 @@ fun PremiumTopBar(
                     .clickable { onNotificationsClick() },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = textSecondary, modifier = Modifier.size(20.dp))
+                Icon(
+                    Icons.Default.Notifications,
+                    contentDescription = "Notifications",
+                    tint = textSecondary,
+                    modifier = Modifier.size(20.dp).bellShake(enabled = hasUnreadNotifications)
+                )
                 if (hasUnreadNotifications) {
                     Box(
                         modifier = Modifier
@@ -261,7 +266,7 @@ private fun GaugeStatChip(icon: ImageVector, label: String, value: String, tint:
             .border(1.dp, Color.White.copy(alpha = 0.4f), RoundedCornerShape(18.dp))
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp).floatingIdle(amplitude = 3f))
         Spacer(modifier = Modifier.height(4.dp))
         Text(value, style = Typography.labelLarge, fontWeight = FontWeight.Bold, color = onSurface)
         Text(label, style = Typography.labelSmall, color = onSurfaceVariant)

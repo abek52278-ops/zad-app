@@ -20,17 +20,22 @@ val secondaryDark = Color(0xFFD97706)      // Dark Gold
 val secondaryLight = Color(0xFFFCD34D)     // Light Gold
 val onSecondary = Color(0xFFFFFFFF)
 
-// --- Sand — warm neutral canvas (Zad "Modern Majlis" identity) ---
-// Gold stays the punchy CTA color; Sand is what the app's background/surfaces
-// sit on instead of cool gray — this is what makes glass cards over it actually
-// read as warm/premium rather than flat gray-on-gray.
+// --- Sand — warm accent family, kept for card variants (no longer the canvas) ---
 val sand = Color(0xFFF3E5D8)
 val sandLight = Color(0xFFF8EFE6)
 val sandDark = Color(0xFFE4D2BC)
 val onSand = Color(0xFF3D2B1F)
 
+// --- Coral & Lilac — pastel accent blur family (iOS-style ambient blobs) ---
+val coral = Color(0xFFFF6F61)
+val coralLight = Color(0xFFFFA69E)
+val lilac = Color(0xFFC4B5FD)
+val lilacLight = Color(0xFFE0D7FF)
+
 // --- Backgrounds & Surfaces (Light Mode) ---
-val background = Color(0xFFFBF6F0)         // Warm ivory (was cool gray F9FAFB)
+// Pure white canvas — Emerald/Gold/Coral/Lilac supply color only as soft,
+// low-alpha blur blobs (see ZadCanvasBackground), never as a flat tinted fill.
+val background = Color(0xFFFFFFFF)
 val onBackground = Color(0xFF111827)       // Dark text
 val surface = Color(0xFFFFFFFF)            // Opaque white for cards
 val onSurface = Color(0xFF111827)          // Dark text on surface
@@ -41,8 +46,8 @@ val outlineVariant = Color(0xFFF3F4F6)     // Lighter border
 
 // Material 3 Surface Containers
 val surfaceContainerLowest = Color(0xFFFFFFFF)
-val surfaceContainerLow = Color(0xFFF8F1E9)   // warm half-step, was F9FAFB
-val surfaceContainer = Color(0xFFF3E9DE)      // warm half-step, was F3F4F6
+val surfaceContainerLow = Color(0xFFFAFAFA)
+val surfaceContainer = Color(0xFFF5F5F5)
 val surfaceContainerHigh = Color(0xFFE5E7EB)
 val surfaceContainerHighest = Color(0xFFD1D5DB)
 
