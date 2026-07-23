@@ -100,6 +100,9 @@ fun HomeScreen(
     val upcomingSeasonalEvents by familyViewModel.upcomingSeasonalEvents.collectAsState()
     val seasonalForecasts by viewModel.seasonalForecasts.collectAsState()
     val expensePrediction by viewModel.expensePrediction.collectAsState()
+    val agentSummary by viewModel.agentSummary.collectAsState()
+    val isAgentLoading by viewModel.isAgentLoading.collectAsState()
+    val autoSuggestions by viewModel.autoSuggestions.collectAsState()
 
     val totalIncome = transactions.filter { !it.isExpense }.sumOf { it.amount }
     val totalSpent = transactions.filter { it.isExpense }.sumOf { it.amount }
@@ -146,6 +149,7 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         if (userNameState.isNullOrBlank()) viewModel.loadUserProfile()
         viewModel.refreshAgentSummary()
+        viewModel.refreshAutoSuggestions()
         viewModel.predictNextMonthExpenses()
         familyViewModel.loadUpcomingSeasonalEvents()
         Log.d(TAG_HOME, "HomeScreen loaded — userName=$userNameState, budget=$budget, transactions=${transactions.size}, isChild=$isChild")
@@ -314,6 +318,25 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(24.dp))
                 } else {
                     ZadProactiveSummaryCard(insights = insights)
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+
+                // 4a2. Agent Summary — ملخص الوكيل الذكي (كان محسوب ومهدور بدون عرض)
+                agentSummary?.let { summary ->
+                    AgentSummaryCard(
+                        agentSummary = summary,
+                        isLoading = isAgentLoading,
+                        onRefresh = { viewModel.refreshAgentSummary() },
+                        onNavigateToAssistant = onNavigateToAssistant,
+                        onNavigateToShopping = onNavigateToShopping,
+                        onNavigateToInventory = onNavigateToInventory
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+
+                // 4a3. Auto Suggestions — اقتراحات ذكية سريعة (nudges عامة، منفصلة عن ملخص الوكيل)
+                if (autoSuggestions.isNotEmpty()) {
+                    AutoSuggestionsCard(suggestions = autoSuggestions)
                     Spacer(modifier = Modifier.height(24.dp))
                 }
 
@@ -1415,6 +1438,42 @@ fun AgentSummaryCard(
                 }
             } else {
                 Text(stringResource(R.string.zad_analyzing_now), color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
+            }
+        }
+    }
+}
+
+@Composable
+fun AutoSuggestionsCard(suggestions: List<com.example.data.ZadAiRepository.AutoSuggestion>) {
+    val priorityOrder = mapOf("high" to 0, "medium" to 1, "low" to 2)
+    val sorted = suggestions.sortedBy { priorityOrder[it.priority] ?: 1 }.take(4)
+    GlassCard(
+        containerColor = surface.copy(alpha = 0.9f),
+        borderColor = onSurface.copy(alpha = 0.08f)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier.size(32.dp).clip(CircleShape).background(catEntertainBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Lightbulb, contentDescription = null, tint = catEntertainIcon, modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.width(8.dp))
+            Text("اقتراحات سريعة", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+        }
+        Spacer(Modifier.height(12.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            sorted.forEach { suggestion ->
+                Row(verticalAlignment = Alignment.Top) {
+                    Text(suggestion.emoji, fontSize = 18.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text(suggestion.title, style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                        if (suggestion.description.isNotBlank()) {
+                            Text(suggestion.description, style = Typography.bodySmall, color = onSurfaceVariant)
+                        }
+                    }
+                }
             }
         }
     }

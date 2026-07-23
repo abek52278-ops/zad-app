@@ -50,6 +50,7 @@ fun BudgetScreen(
     onNavigateToCamera: () -> Unit = {}
 ) {
     val transactions by viewModel.transactions.collectAsState()
+    val behaviorPatterns by viewModel.behaviorPatterns.collectAsState()
     val budget by viewModel.budget.collectAsState()
     val remainingBalance by viewModel.remainingBalance.collectAsState()
     val showBudgetDialog by viewModel.showBudgetDialog.collectAsState()
@@ -58,6 +59,7 @@ fun BudgetScreen(
     val context = LocalContext.current
     var categoryCardsRefresh by remember { mutableIntStateOf(0) }
     var editingCategory by remember { mutableStateOf<String?>(null) }
+    var insightCategory by remember { mutableStateOf<String?>(null) }
     // المصروف الفعلي بيتحسب من المعاملات مباشرة (يشمل اليدوية + البنكية) — الميزانية من BudgetTracker
     val categoryCards = remember(transactions, categoryCardsRefresh) {
         val now = java.time.LocalDate.now()
@@ -306,7 +308,8 @@ fun BudgetScreen(
                                 category = cat,
                                 budget = catBudget,
                                 spent = spent,
-                                onClick = { editingCategory = cat }
+                                onClick = { editingCategory = cat },
+                                onInsightClick = { insightCategory = cat }
                             )
                         }
                     }
@@ -531,10 +534,74 @@ fun BudgetScreen(
             }
         )
     }
+
+    insightCategory?.let { cat ->
+        CategoryInsightDialog(
+            category = cat,
+            transactions = transactions,
+            patterns = behaviorPatterns,
+            onDismiss = { insightCategory = null }
+        )
+    }
 }
 
 @Composable
-private fun CategoryBudgetCard(category: String, budget: Double, spent: Double, onClick: () -> Unit) {
+private fun CategoryInsightDialog(
+    category: String,
+    transactions: List<com.example.data.ZadTransaction>,
+    patterns: List<com.example.data.ZadBehaviorPattern>,
+    onDismiss: () -> Unit
+) {
+    var analysis by remember { mutableStateOf<com.example.data.ZadAiRepository.BehaviorAnalysis?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(category) {
+        analysis = com.example.data.ZadAiRepository.analyzeBehavior(category, transactions, patterns)
+        isLoading = false
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("تحليل ذكي: $category", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+        text = {
+            if (isLoading) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    Text("جاري التحليل...", style = Typography.bodyMedium, color = onSurfaceVariant)
+                }
+            } else {
+                val result = analysis
+                if (result == null || result.insight.isBlank()) {
+                    Text("مفيش بيانات كافية لتحليل الفئة دي حالياً.", style = Typography.bodyMedium, color = onSurfaceVariant)
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(result.insight, style = Typography.bodyMedium)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            val trendLabel = when (result.trend) {
+                                "increasing" -> "📈 في ازدياد"
+                                "decreasing" -> "📉 في انخفاض"
+                                else -> "➡️ مستقر"
+                            }
+                            Text(trendLabel, style = Typography.labelMedium, color = primary)
+                        }
+                        if (result.predictedNext > 0) {
+                            Text("المتوقع الشهر القادم: ${result.predictedNext.toInt()} ريال", style = Typography.bodySmall, color = onSurfaceVariant)
+                        }
+                        if (result.tip.isNotBlank()) {
+                            Text("💡 ${result.tip}", style = Typography.bodySmall, color = onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
+        }
+    )
+}
+
+@Composable
+private fun CategoryBudgetCard(category: String, budget: Double, spent: Double, onClick: () -> Unit, onInsightClick: () -> Unit) {
     val context = LocalContext.current
     val pct = if (budget > 0) (spent / budget * 100).toInt() else 0
     val overBudget = budget > 0 && spent > budget
@@ -584,6 +651,9 @@ private fun CategoryBudgetCard(category: String, budget: Double, spent: Double, 
             }
         }
         Spacer(modifier = Modifier.width(10.dp))
+        IconButton(onClick = onInsightClick, modifier = Modifier.size(28.dp)) {
+            Icon(Icons.Default.AutoAwesome, contentDescription = "تحليل ذكي", tint = primary, modifier = Modifier.size(16.dp))
+        }
         Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit_cd), tint = onSurfaceVariant, modifier = Modifier.size(16.dp))
     }
 }

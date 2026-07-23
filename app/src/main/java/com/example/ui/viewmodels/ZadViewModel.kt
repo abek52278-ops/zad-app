@@ -68,6 +68,9 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val _isAgentLoading = MutableStateFlow(false)
     val isAgentLoading: StateFlow<Boolean> = _isAgentLoading.asStateFlow()
 
+    private val _autoSuggestions = MutableStateFlow<List<com.example.data.ZadAiRepository.AutoSuggestion>>(emptyList())
+    val autoSuggestions: StateFlow<List<com.example.data.ZadAiRepository.AutoSuggestion>> = _autoSuggestions.asStateFlow()
+
     // Budget: fetched from Supabase zad_users table
     private val _budget = MutableStateFlow<Double>(3500.0)
     val budget: StateFlow<Double> = _budget.asStateFlow()
@@ -1817,6 +1820,21 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.e(TAG, "refreshAgentSummary() FAILED: ${e.message}")
             } finally {
                 _isAgentLoading.value = false
+            }
+        }
+    }
+
+    fun refreshAutoSuggestions() {
+        viewModelScope.launch {
+            try {
+                _autoSuggestions.value = com.example.data.ZadAiRepository.getAutoSuggestions(
+                    context = "الشاشة الرئيسية",
+                    inventory = _inventory.value,
+                    transactions = _transactions.value,
+                    patterns = _behaviorPatterns.value
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "refreshAutoSuggestions() FAILED: ${e.message}")
             }
         }
     }

@@ -537,6 +537,56 @@ class FamilyViewModel : ViewModel() {
         }
     }
 
+    // --- اقتراح هدف ادخار عائلي بالذكاء الاصطناعي ---
+    private val _suggestedGoal = MutableStateFlow<com.example.data.ZadAiRepository.FamilyGoalSuggestion?>(null)
+    val suggestedGoal: StateFlow<com.example.data.ZadAiRepository.FamilyGoalSuggestion?> = _suggestedGoal.asStateFlow()
+
+    private val _isSuggestingGoal = MutableStateFlow(false)
+    val isSuggestingGoal: StateFlow<Boolean> = _isSuggestingGoal.asStateFlow()
+
+    fun suggestFamilyGoal() {
+        viewModelScope.launch {
+            val curr = _state.value
+            if (curr !is FamilyState.Active) return@launch
+            _isSuggestingGoal.value = true
+            try {
+                val totalBalance = curr.members.filter { it.role != "admin" }.sumOf { it.balance }
+                val completedTasks = curr.chores.count { it.isCompleted }
+                val tasbihaScore = _familyTasbiha.sumOf { it.score }
+                _suggestedGoal.value = com.example.data.ZadAiRepository.suggestFamilyGoal(
+                    curr.members, totalBalance, completedTasks, tasbihaScore
+                )
+            } catch (e: Exception) {
+                android.util.Log.e("FamilyVM", "suggestFamilyGoal() FAILED: ${e.message}")
+            } finally {
+                _isSuggestingGoal.value = false
+            }
+        }
+    }
+
+    fun clearSuggestedGoal() {
+        _suggestedGoal.value = null
+    }
+
+    fun createSuggestedGoal() {
+        viewModelScope.launch {
+            val curr = _state.value
+            val suggestion = _suggestedGoal.value
+            if (curr !is FamilyState.Active || suggestion == null) return@launch
+            SupabaseRepo.createFamilyGoal(
+                com.example.data.FamilyGoal(
+                    familyId = curr.familyGroup.id,
+                    targetAmount = suggestion.targetAmount,
+                    currentAmount = 0.0,
+                    monthYear = java.time.YearMonth.now().toString(),
+                    rewardSuggestion = suggestion.rewardSuggestion
+                )
+            )
+            _suggestedGoal.value = null
+            loadFamilyData()
+        }
+    }
+
     fun updateSavingsGoal(memberId: String, newGoal: Double) {
         viewModelScope.launch {
             val curr = _state.value

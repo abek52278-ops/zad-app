@@ -91,13 +91,31 @@ object ZadBrainEngine {
                 }
             }
             "SUGGEST_MEAL" -> {
-                Log.d(TAG, "SUGGEST_MEAL -> ${action.payload}")
+                val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
+                if (userId != null) {
+                    SupabaseRepo.sendAppNotification(userId, "🍽️ اقتراح وجبة", action.payload)
+                    Log.d(TAG, "SUGGEST_MEAL -> notified ${action.payload}")
+                } else {
+                    Log.w(TAG, "SUGGEST_MEAL skipped: no signed-in user")
+                }
             }
             "ALERT_BUDGET" -> {
-                Log.d(TAG, "ALERT_BUDGET -> ${action.payload}")
+                val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
+                if (userId != null) {
+                    SupabaseRepo.sendAppNotification(userId, "⚠️ تنبيه ميزانية", action.payload)
+                    Log.d(TAG, "ALERT_BUDGET -> notified ${action.payload}")
+                } else {
+                    Log.w(TAG, "ALERT_BUDGET skipped: no signed-in user")
+                }
             }
             "NOTIFY_FAMILY" -> {
-                Log.d(TAG, "NOTIFY_FAMILY -> ${action.payload}")
+                val familyId = SupabaseRepo.getMyFamilyMember()?.familyId
+                if (familyId != null) {
+                    SupabaseRepo.sendMessage(familyId, "zad_ai", action.payload)
+                    Log.d(TAG, "NOTIFY_FAMILY -> sent to family $familyId")
+                } else {
+                    Log.w(TAG, "NOTIFY_FAMILY skipped: user has no family")
+                }
             }
             else -> Log.w(TAG, "Unknown action: ${action.type}")
         }

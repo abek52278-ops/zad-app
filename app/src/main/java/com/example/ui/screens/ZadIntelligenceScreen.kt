@@ -660,13 +660,14 @@ fun SubscriptionsTab(
     if (showAddDialog) {
         AddSubscriptionDialog(
             onDismiss = { showAddDialog = false },
-            onSave = { title, amount, renewalDate, provider ->
+            onSave = { title, amount, renewalDate, provider, category ->
                 viewModel.addSubscription(
                     com.example.data.ZadSubscription(
                         title = title,
                         amount = amount,
                         renewalDate = renewalDate,
-                        provider = provider
+                        provider = provider,
+                        category = category
                     )
                 )
                 showAddDialog = false

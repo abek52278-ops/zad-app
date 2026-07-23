@@ -1150,6 +1150,17 @@ object SupabaseRepo {
         }
     }
 
+    suspend fun createFamilyGoal(goal: FamilyGoal): FamilyGoal? {
+        try {
+            val inserted = client.postgrest["family_goals"].insert(goal).decodeSingle<FamilyGoal>()
+            Log.d(TAG, "createFamilyGoal() SUCCESS")
+            return inserted
+        } catch (e: Exception) {
+            Log.e(TAG, "createFamilyGoal() FAILED: ${e.message}")
+            return null
+        }
+    }
+
     suspend fun contributeSinkingFund(fundId: String, addedAmount: Double) {
         try {
             val existing = client.postgrest["sinking_funds"].select().decodeList<SinkingFund>().find { it.id == fundId }

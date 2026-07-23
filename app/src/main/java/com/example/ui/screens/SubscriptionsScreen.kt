@@ -205,13 +205,14 @@ fun SubscriptionsScreen(
         if (showAddDialog) {
             AddSubscriptionDialog(
                 onDismiss = { showAddDialog = false },
-                onSave = { title, amount, renewalDate, provider ->
+                onSave = { title, amount, renewalDate, provider, category ->
                     viewModel.addSubscription(
                         ZadSubscription(
                             title = title,
                             amount = amount,
                             renewalDate = renewalDate,
                             provider = provider,
+                            category = category,
                             isActive = true
                         )
                     )
@@ -309,13 +310,29 @@ private fun SubScreenSubscriptionCardFull(
 }
 
 @Composable
-fun AddSubscriptionDialog(onDismiss: () -> Unit, onSave: (String, Double, String, String) -> Unit) {
+fun AddSubscriptionDialog(onDismiss: () -> Unit, onSave: (String, Double, String, String, String) -> Unit) {
     var title by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
     var provider by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("اشتراك") }
     var renewalDate by remember { mutableStateOf("") }
     val context = androidx.compose.ui.platform.LocalContext.current
+
+    // بيصنّف الفاتورة تلقائياً (نوع/مزوّد/فئة) بعد ما المستخدم يكتب اسم ومبلغ حقيقيين —
+    // debounce بسيط عن طريق delay قبل النداء عشان ميبعتش طلب AI مع كل حرف يتكتب.
+    LaunchedEffect(title, amount) {
+        val parsedAmount = amount.toDoubleOrNull()
+        if (title.length >= 3 && parsedAmount != null && parsedAmount > 0) {
+            kotlinx.coroutines.delay(600)
+            val classification = com.example.data.ZadAiRepository.classifyBill(title, parsedAmount)
+            if (classification != null) {
+                category = classification.category
+                if (provider.isBlank() && !classification.provider.isNullOrBlank()) {
+                    provider = classification.provider
+                }
+            }
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -326,6 +343,9 @@ fun AddSubscriptionDialog(onDismiss: () -> Unit, onSave: (String, Double, String
                 OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text(stringResource(R.string.amount_with_currency_hint, com.example.data.CurrencyFormatter.symbol(context))) }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = provider, onValueChange = { provider = it }, label = { Text(stringResource(R.string.service_provider_hint)) }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = renewalDate, onValueChange = { renewalDate = it }, label = { Text(stringResource(R.string.renewal_date_hint)) }, modifier = Modifier.fillMaxWidth())
+                if (title.length >= 3) {
+                    Text("الفئة المقترحة: $category", style = Typography.labelSmall, color = onSurfaceVariant)
+                }
             }
         },
         confirmButton = {
@@ -334,7 +354,7 @@ fun AddSubscriptionDialog(onDismiss: () -> Unit, onSave: (String, Double, String
                 if (title.isNotBlank()) {
                     onSave(title, parsedAmount,
                         if (renewalDate.isNotBlank()) renewalDate else LocalDate.now().plusMonths(1).toString(),
-                        provider)
+                        provider, category)
                 }
             }) { Text(stringResource(R.string.save)) }
         },

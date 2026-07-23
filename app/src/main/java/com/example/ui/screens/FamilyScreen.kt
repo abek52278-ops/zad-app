@@ -297,7 +297,7 @@ fun ActiveFamilyScreen(
                 2 -> MembersTab(state = state, viewModel = viewModel, showFinancials = showFinancials)
                 3 -> GroceriesTab(state.groceries, onToggleGrocery)
                 4 -> if (isParent && showFinancials) KidsSpendingTab(state = state, onUpdateRequestStatus = onUpdateRequestStatus)
-                5 -> if (isParent && showFinancials) BudgetGoalsTab(state.goals, state.members, state.chores)
+                5 -> if (isParent && showFinancials) BudgetGoalsTab(state.goals, state.members, state.chores, viewModel)
             }
         }
     }
@@ -1312,10 +1312,12 @@ private fun InviteMemberDialog(
 
 
 @Composable
-fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.FamilyMember>, chores: List<Chore>) {
+fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.FamilyMember>, chores: List<Chore>, viewModel: com.example.ui.viewmodels.FamilyViewModel) {
     val kids = members.filter { it.role != "admin" }
     val totalBalance = kids.sumOf { it.balance }
     val totalPaidRewards = chores.filter { it.isCompleted }.sumOf { it.rewardAmount }
+    val suggestedGoal by viewModel.suggestedGoal.collectAsState()
+    val isSuggestingGoal by viewModel.isSuggestingGoal.collectAsState()
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(20.dp)) {
         item {
@@ -1324,6 +1326,53 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
                 Text(stringResource(R.string.budget_and_rewards), style = Typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        item {
+            val currentGoal = goals.maxByOrNull { it.monthYear }
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Icon(Icons.Default.Savings, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
+                        Text("هدف الادخار العائلي", style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    if (currentGoal != null) {
+                        val fraction = if (currentGoal.targetAmount > 0) (currentGoal.currentAmount / currentGoal.targetAmount).toFloat().coerceIn(0f, 1f) else 0f
+                        Text("${currentGoal.currentAmount.toInt()} / ${currentGoal.targetAmount.toInt()} ريال", style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = primary)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Box(
+                            modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)).background(Color.LightGray.copy(alpha = 0.3f))
+                        ) {
+                            Box(modifier = Modifier.fillMaxWidth(fraction).height(10.dp).clip(RoundedCornerShape(5.dp)).background(primary))
+                        }
+                        if (!currentGoal.rewardSuggestion.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("🎁 ${currentGoal.rewardSuggestion}", style = Typography.bodySmall, color = onSurfaceVariant)
+                        }
+                    } else {
+                        Text("لسه مفيش هدف ادخار للشهر ده", style = Typography.bodySmall, color = onSurfaceVariant)
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Button(
+                            onClick = { viewModel.suggestFamilyGoal() },
+                            enabled = !isSuggestingGoal,
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            if (isSuggestingGoal) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = onPrimary)
+                            } else {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("اقترح هدف بالذكاء الاصطناعي")
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         if (kids.isEmpty()) {
@@ -1397,6 +1446,27 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
                 }
             }
         }
+    }
+
+    suggestedGoal?.let { suggestion ->
+        AlertDialog(
+            onDismissRequest = { viewModel.clearSuggestedGoal() },
+            title = { Text("${suggestion.emoji} ${suggestion.goalTitle}", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("الهدف: ${suggestion.targetAmount.toInt()} ريال خلال ${suggestion.durationDays} يوم", style = Typography.bodyMedium)
+                    if (suggestion.rewardSuggestion.isNotBlank()) {
+                        Text("🎁 ${suggestion.rewardSuggestion}", style = Typography.bodySmall, color = onSurfaceVariant)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { viewModel.createSuggestedGoal() }) { Text("اعتماد الهدف") }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.clearSuggestedGoal() }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
     }
 }
 
