@@ -33,6 +33,8 @@ import androidx.compose.ui.unit.sp
 import com.example.data.ZadShoppingItem
 import com.example.data.AiPriceEstimate
 import com.example.data.AffiliateProduct
+import com.example.data.GrocerySuggestion
+import com.example.ui.components.GlassCard
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 import com.example.ui.widgets.AffiliateProductCard
@@ -61,6 +63,7 @@ fun ShoppingListScreen(
     val budgetRemaining = budget - transactions.filter { it.isExpense }.sumOf { it.amount }
     val budgetPct = if (budget > 0) (totalPrice / budget * 100).toInt().coerceIn(0, 100) else 0
 
+    val grocerySuggestions by viewModel.grocerySuggestions.collectAsState()
     val affiliateProducts by viewModel.affiliateProducts.collectAsState()
     val matchedProductId by viewModel.matchedProductId.collectAsState()
     val isMatchingProduct by viewModel.isMatchingProduct.collectAsState()
@@ -77,6 +80,10 @@ fun ShoppingListScreen(
     var isLoadingPrices by remember { mutableStateOf(false) }
     var showPrediction by remember { mutableStateOf(false) }
     var predictionText by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        viewModel.fetchGrocerySuggestions()
+    }
 
     LaunchedEffect(shoppingList) {
         val itemsNeedingPrice = shoppingList.filter { it.estimatedPrice <= 0 && !it.isPurchased }.take(5)
@@ -134,6 +141,20 @@ fun ShoppingListScreen(
 
                 item {
                     PriorityFilterChips(selected = selectedPriority, onSelected = { selectedPriority = it })
+                }
+
+                if (grocerySuggestions.isNotEmpty()) {
+                    item {
+                        GrocerySuggestionsCard(
+                            suggestions = grocerySuggestions,
+                            onAdd = { suggestion ->
+                                val qty = Regex("\\d+").find(suggestion.quantity)?.value?.toIntOrNull() ?: 1
+                                viewModel.addShoppingItem(
+                                    ZadShoppingItem(itemName = suggestion.name, quantity = qty, estimatedPrice = 0.0, store = "")
+                                )
+                            }
+                        )
+                    }
                 }
 
                 if (unpurchased.isEmpty()) {
@@ -318,6 +339,51 @@ private fun PriorityFilterChips(selected: String, onSelected: (String) -> Unit) 
                     selectedLabelColor = MaterialTheme.colorScheme.onSurface
                 )
             )
+        }
+    }
+}
+
+@Composable
+private fun GrocerySuggestionsCard(suggestions: List<GrocerySuggestion>, onAdd: (GrocerySuggestion) -> Unit) {
+    GlassCard(
+        containerColor = surface.copy(alpha = 0.9f),
+        borderColor = onSurface.copy(alpha = 0.08f)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier.size(32.dp).clip(CircleShape).background(catEntertainBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = catEntertainIcon, modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.width(8.dp))
+            Text("قد تحتاج أيضاً", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+        }
+        Spacer(Modifier.height(12.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            suggestions.forEach { suggestion ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(suggestion.name, style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                            Spacer(Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(secondaryContainer).padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) { Text(suggestion.quantity, style = Typography.bodySmall, color = onSecondaryContainer) }
+                        }
+                        if (suggestion.reason.isNotBlank()) {
+                            Spacer(Modifier.height(2.dp))
+                            Text(suggestion.reason, style = Typography.bodySmall, color = onSurfaceVariant)
+                        }
+                    }
+                    IconButton(onClick = { onAdd(suggestion) }, modifier = Modifier.size(36.dp)) {
+                        Icon(Icons.Default.AddCircle, contentDescription = "إضافة للقائمة", tint = primary, modifier = Modifier.size(22.dp))
+                    }
+                }
+            }
         }
     }
 }
