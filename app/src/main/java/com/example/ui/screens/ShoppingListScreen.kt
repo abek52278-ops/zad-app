@@ -193,7 +193,7 @@ fun ShoppingListScreen(
                         }
                     } else {
                         itemsIndexed(filtered, key = { _, item -> item.id }) { index, item ->
-                            AnimatedVisibility(visible = true, enter = ZadTransitions.listItemEnter(index)) {
+                            androidx.compose.animation.AnimatedVisibility(visible = true, enter = ZadTransitions.listItemEnter(index)) {
                                 EnhancedShoppingItemCard(
                                     item = item,
                                     priceEstimate = priceEstimates[item.itemName],
@@ -258,7 +258,7 @@ fun ShoppingListScreen(
             shape = RoundedCornerShape(16.dp)
         ) { Icon(Icons.Default.Add, contentDescription = "إضافة") }
 
-        AnimatedVisibility(
+        androidx.compose.animation.AnimatedVisibility(
             visible = justCheckedItemName != null,
             modifier = Modifier.align(Alignment.TopCenter).padding(top = 72.dp),
             enter = fadeIn() + slideInVertically { -it / 2 },

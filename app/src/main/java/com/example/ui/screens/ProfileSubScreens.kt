@@ -163,7 +163,7 @@ fun EditProfileScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
         }
     }
 
-    AnimatedVisibility(
+    androidx.compose.animation.AnimatedVisibility(
         visible = showSaveSuccess,
         modifier = Modifier.align(Alignment.Center),
         enter = fadeIn() + scaleIn(initialScale = 0.85f),

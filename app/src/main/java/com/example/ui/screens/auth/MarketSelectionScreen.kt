@@ -65,7 +65,7 @@ fun MarketSelectionScreen(onContinue: () -> Unit) {
 
             marketOptions.forEachIndexed { index, option ->
                 val isSelected = selected == option.market
-                AnimatedVisibility(
+                androidx.compose.animation.AnimatedVisibility(
                     visibleState = listVisible,
                     enter = ZadTransitions.listItemEnter(index)
                 ) {

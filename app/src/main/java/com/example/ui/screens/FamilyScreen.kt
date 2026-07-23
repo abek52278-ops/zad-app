@@ -1352,7 +1352,7 @@ private fun InviteMemberDialog(
                     Text(stringResource(R.string.share_action))
                 }
 
-                AnimatedVisibility(
+                androidx.compose.animation.AnimatedVisibility(
                     visible = showSentConfirmation,
                     enter = fadeIn() + scaleIn(initialScale = 0.85f),
                     exit = fadeOut()

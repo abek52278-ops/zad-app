@@ -10,6 +10,7 @@ import com.example.data.ZadTransaction
 import com.example.data.ZadBehaviorPattern
 import com.example.data.ZadShoppingItem
 import com.example.data.AffiliateProduct
+import com.example.data.ZadPharmacyItem
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -49,6 +50,19 @@ interface ZadDao {
 
     @Query("DELETE FROM zad_inventory WHERE id = :id")
     suspend fun deleteInventory(id: String)
+
+    // Pharmacy
+    @Query("SELECT * FROM zad_pharmacy_items ORDER BY createdAt DESC")
+    fun getAllPharmacyItems(): Flow<List<ZadPharmacyItem>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPharmacyItems(items: List<ZadPharmacyItem>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPharmacyItem(item: ZadPharmacyItem)
+
+    @Query("DELETE FROM zad_pharmacy_items WHERE id = :id")
+    suspend fun deletePharmacyItem(id: String)
 
     // Shopping List
     @Query("SELECT * FROM zad_shopping_list ORDER BY createdAt DESC")

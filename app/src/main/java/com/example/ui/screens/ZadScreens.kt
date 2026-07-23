@@ -262,7 +262,7 @@ fun ChatScreen(
             } else {
                 LazyColumn(modifier = Modifier.weight(1f)) {
                     itemsIndexed(messages) { index, msg ->
-                        AnimatedVisibility(visible = true, enter = ZadTransitions.listItemEnter(index)) {
+                        androidx.compose.animation.AnimatedVisibility(visible = true, enter = ZadTransitions.listItemEnter(index)) {
                             Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                                 Column(modifier = Modifier.padding(8.dp)) {
                                     Text(msg.senderId ?: "Unknown", fontWeight = FontWeight.Bold)

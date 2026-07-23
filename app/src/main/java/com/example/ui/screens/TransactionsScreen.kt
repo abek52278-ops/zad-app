@@ -148,7 +148,7 @@ fun TransactionsScreen(
                         DateHeader(group.date)
                     }
                     itemsIndexed(group.transactions, key = { _, tx -> tx.id }) { index, tx ->
-                        AnimatedVisibility(visible = true, enter = ZadTransitions.listItemEnter(index)) {
+                        androidx.compose.animation.AnimatedVisibility(visible = true, enter = ZadTransitions.listItemEnter(index)) {
                             TransactionCard(
                                 transaction = tx,
                                 onClick = { showDeleteConfirm = tx },

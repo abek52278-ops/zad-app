@@ -168,6 +168,29 @@ data class ZadSubscription(
     @SerialName("auto_deduct") val autoDeduct: Boolean = false
 )
 
+@Entity(tableName = "zad_pharmacy_items")
+@Serializable
+data class ZadPharmacyItem(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    @SerialName("user_id") val userId: String? = null,
+    val name: String,
+    @SerialName("active_ingredient") val activeIngredient: String? = null,
+    val category: String = "عام", // مسكن / مضاد حيوي / فيتامين / مزمن / عام
+    val dosage: String? = null, // "500mg"، "قرص كل 8 ساعات"...
+    @SerialName("remaining_quantity") val remainingQuantity: Int = 1,
+    val unit: String = "قرص",
+    @SerialName("daily_dose_count") val dailyDoseCount: Int = 1,
+    @SerialName("expiry_date") val expiryDate: String? = null,
+    val price: Double = 0.0,
+    @SerialName("is_recurring") val isRecurring: Boolean = false, // دواء مزمن/روشتة متجددة — يدخل في حساب التكلفة الشهرية
+    @SerialName("family_member_id") val familyMemberId: String? = null,
+    @SerialName("created_at") val createdAt: String? = null
+) {
+    /** كام يوم يكفي المخزون الحالي بمعدل الاستهلاك اليومي — null لو مفيش معدل استهلاك محدد */
+    fun daysOfSupplyLeft(): Int? =
+        if (dailyDoseCount > 0) remainingQuantity / dailyDoseCount else null
+}
+
 @Serializable
 data class LiveDeal(
     val item: String = "",

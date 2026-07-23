@@ -202,7 +202,7 @@ fun SubscriptionsScreen(
                     itemsIndexed(filtered, key = { _, sub -> sub.id }) { index, sub ->
                         var itemVisible by remember(sub.id) { mutableStateOf(false) }
                         LaunchedEffect(sub.id) { itemVisible = true }
-                        AnimatedVisibility(
+                        androidx.compose.animation.AnimatedVisibility(
                             visible = itemVisible,
                             enter = ZadTransitions.listItemEnter(index)
                         ) {

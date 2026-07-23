@@ -2259,7 +2259,7 @@ fun KidsModeContent(
                 }
             }
             // هدف الادخار اتحقق — نفجّر confetti فوق الكارت مرة واحدة (iterations = 1)
-            AnimatedVisibility(
+            androidx.compose.animation.AnimatedVisibility(
                 visible = savingsGoalReached,
                 modifier = Modifier.matchParentSize(),
                 enter = fadeIn(),

@@ -317,6 +317,67 @@ object SupabaseRepo {
         }
     }
 
+    // ─── Pharmacy ──────────────────────────────────────────────────────────────
+    suspend fun getPharmacyItems(): List<ZadPharmacyItem> {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id
+            Log.d(TAG, "getPharmacyItems() → userId=$userId, table=zad_pharmacy_items")
+            val result = if (userId != null) {
+                client.postgrest["zad_pharmacy_items"].select {
+                    filter { eq("user_id", userId) }
+                }.decodeList<ZadPharmacyItem>()
+            } else {
+                client.postgrest["zad_pharmacy_items"].select().decodeList<ZadPharmacyItem>()
+            }
+            Log.d(TAG, "getPharmacyItems() → returned ${result.size} items")
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "getPharmacyItems() FAILED: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun addPharmacyItem(item: ZadPharmacyItem) {
+        try {
+            val userId = client.auth.currentUserOrNull()?.id
+            val itemWithUser = item.copy(userId = userId)
+            Log.d(TAG, "addPharmacyItem() → table=zad_pharmacy_items, name=${itemWithUser.name}, userId=$userId")
+            client.postgrest["zad_pharmacy_items"].insert(itemWithUser)
+            Log.d(TAG, "addPharmacyItem() SUCCESS — id=${itemWithUser.id}")
+        } catch (e: Exception) {
+            Log.e(TAG, "addPharmacyItem() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun deletePharmacyItem(id: String) {
+        try {
+            Log.d(TAG, "deletePharmacyItem() → table=zad_pharmacy_items, id=$id")
+            client.postgrest["zad_pharmacy_items"].delete {
+                filter { eq("id", id) }
+            }
+            Log.d(TAG, "deletePharmacyItem() SUCCESS")
+        } catch (e: Exception) {
+            Log.e(TAG, "deletePharmacyItem() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun updatePharmacyQuantity(id: String, remainingQuantity: Int) {
+        try {
+            Log.d(TAG, "updatePharmacyQuantity() → table=zad_pharmacy_items, id=$id, remainingQuantity=$remainingQuantity")
+            client.postgrest["zad_pharmacy_items"].update(
+                mapOf("remaining_quantity" to remainingQuantity)
+            ) {
+                filter { eq("id", id) }
+            }
+            Log.d(TAG, "updatePharmacyQuantity() SUCCESS")
+        } catch (e: Exception) {
+            Log.e(TAG, "updatePharmacyQuantity() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
     // ─── Debts ─────────────────────────────────────────────────────────────────
     suspend fun getDebts(): List<ZadDebt> {
         return try {

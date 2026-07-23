@@ -443,7 +443,7 @@ fun CameraScreen(
     }
 
         // Capture flash overlay: فلاش أبيض + علامة صح لحظة رجوع الكاميرا بالصورة
-        AnimatedVisibility(
+        androidx.compose.animation.AnimatedVisibility(
             visible = showCaptureFlash,
             enter = fadeIn(),
             exit = fadeOut(),
