@@ -1,6 +1,7 @@
 package com.example.data
 
 import android.util.Log
+import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -24,7 +25,8 @@ object ZadBrainEngine {
     suspend fun evaluateStateAndAct(
         inventory: List<ZadInventory>,
         transactions: List<ZadTransaction>,
-        chores: List<Chore>? = null
+        chores: List<Chore>? = null,
+        context: android.content.Context
     ) {
         withContext(Dispatchers.IO) {
             Log.d(TAG, "evaluateStateAndAct() started")
@@ -70,7 +72,7 @@ object ZadBrainEngine {
             try {
                 val actionList = Json { ignoreUnknownKeys = true }.decodeFromString<AiActionList>(cleanJson)
                 actionList.actions.forEach { action ->
-                    executeAction(action)
+                    executeAction(action, context)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to parse AI actions: ${e.message}")
@@ -78,7 +80,7 @@ object ZadBrainEngine {
         }
     }
 
-    private suspend fun executeAction(action: AiAction) {
+    private suspend fun executeAction(action: AiAction, context: android.content.Context) {
         Log.d(TAG, "Executing: ${action.type} - ${action.payload}")
         when (action.type) {
             "ADD_TO_SHOPPING" -> {
@@ -91,22 +93,18 @@ object ZadBrainEngine {
                 }
             }
             "SUGGEST_MEAL" -> {
+                // real system notification (works even if the app is closed) plus the in-app
+                // app_notifications feed, so both surfaces this session established get it.
+                ZadNotifier.send(context, "🍽️ اقتراح وجبة", action.payload)
                 val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
-                if (userId != null) {
-                    SupabaseRepo.sendAppNotification(userId, "🍽️ اقتراح وجبة", action.payload)
-                    Log.d(TAG, "SUGGEST_MEAL -> notified ${action.payload}")
-                } else {
-                    Log.w(TAG, "SUGGEST_MEAL skipped: no signed-in user")
-                }
+                if (userId != null) SupabaseRepo.sendAppNotification(userId, "🍽️ اقتراح وجبة", action.payload)
+                Log.d(TAG, "SUGGEST_MEAL -> notified ${action.payload}")
             }
             "ALERT_BUDGET" -> {
+                ZadNotifier.send(context, "⚠️ تنبيه ميزانية", action.payload, androidx.core.app.NotificationCompat.PRIORITY_HIGH)
                 val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
-                if (userId != null) {
-                    SupabaseRepo.sendAppNotification(userId, "⚠️ تنبيه ميزانية", action.payload)
-                    Log.d(TAG, "ALERT_BUDGET -> notified ${action.payload}")
-                } else {
-                    Log.w(TAG, "ALERT_BUDGET skipped: no signed-in user")
-                }
+                if (userId != null) SupabaseRepo.sendAppNotification(userId, "⚠️ تنبيه ميزانية", action.payload)
+                Log.d(TAG, "ALERT_BUDGET -> notified ${action.payload}")
             }
             "NOTIFY_FAMILY" -> {
                 val familyId = SupabaseRepo.getMyFamilyMember()?.familyId

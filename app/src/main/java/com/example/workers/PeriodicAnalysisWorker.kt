@@ -1,21 +1,15 @@
 package com.example.workers
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
-import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import com.example.R
 import com.example.data.ZadAiRepository
 import com.example.data.ZadCentralBrain
+import com.example.data.ZadNotifier
 import com.example.data.local.ZadDatabase
 import kotlinx.coroutines.flow.first
-import java.util.concurrent.atomic.AtomicInteger
 
 class PeriodicAnalysisWorker(
     appContext: Context,
@@ -75,7 +69,7 @@ class PeriodicAnalysisWorker(
 
             // Run legacy brain engine for compatibility
             try {
-                com.example.data.ZadBrainEngine.evaluateStateAndAct(inventory, transactions)
+                com.example.data.ZadBrainEngine.evaluateStateAndAct(inventory, transactions, context = applicationContext)
             } catch (e: Exception) {
                 Log.e("ZadWorker", "Legacy brain engine failed: ${e.message}")
             }
@@ -93,29 +87,7 @@ class PeriodicAnalysisWorker(
     }
 
     private fun showNotification(title: String, message: String, priority: Int = NotificationCompat.PRIORITY_DEFAULT) {
-        val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val channelId = "zad_analysis_channel"
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(channelId, "زاد — الإشعارات الذكية", NotificationManager.IMPORTANCE_DEFAULT)
-            manager.createNotificationChannel(channel)
-        }
-
-        val intent = applicationContext.packageManager.getLaunchIntentForPackage(applicationContext.packageName)
-        val pendingIntent = PendingIntent.getActivity(applicationContext, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-
-        val notification = NotificationCompat.Builder(applicationContext, channelId)
-            .setContentTitle(title)
-            .setContentText(message)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setPriority(priority)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-            .build()
-
-        // Use title+message hash to avoid Int overflow from currentTimeMillis().toInt()
-        val notifId = (title + message).hashCode().let { if (it == Int.MIN_VALUE) 0 else Math.abs(it) }
-        manager.notify(notifId, notification)
+        ZadNotifier.send(applicationContext, title, message, priority)
         Log.d("ZadWorker", "Notification sent: $title — $message")
     }
 }
