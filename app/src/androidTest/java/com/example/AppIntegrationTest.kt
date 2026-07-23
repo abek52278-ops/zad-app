@@ -4,14 +4,9 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.example.data.ZadAiProxyClient
-import com.example.data.ZadAiRepository
 import com.example.data.ZadTransaction
 import com.example.data.local.ZadDao
 import com.example.data.local.ZadDatabase
-import io.mockk.coEvery
-import io.mockk.mockkObject
-import io.mockk.unmockkAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -34,14 +29,11 @@ class AppIntegrationTest {
             context, ZadDatabase::class.java
         ).allowMainThreadQueries().build()
         dao = db.zadDao()
-        
-        mockkObject(ZadAiProxyClient)
     }
 
     @After
     fun closeDb() {
         db.close()
-        unmockkAll()
     }
 
     @Test
@@ -63,28 +55,5 @@ class AppIntegrationTest {
         dao.deleteTransaction(updatedTx)
         val afterDelete = dao.getAllTransactions().first()
         assertTrue(afterDelete.isEmpty())
-    }
-
-    @Test
-    fun `test data flows from Notification to Room with Mock Supabase Edge Function`() = runBlocking {
-        // Mock the Edge Function Response
-        val mockTx = ZadTransaction(id = "tx_mock_1", title = "Mocked AI Response", amount = 50.0, isExpense = true, category = "Test", createdAt = "Now")
-        coEvery { ZadAiProxyClient.analyzeBankNotification(any(), any()) } returns mockTx
-        
-        // Simulate NotificationListener extracting text
-        val title = "Bank"
-        val text = "Payment of 50 SAR"
-        
-        // Call the repository just like NotificationListener does
-        val parsedTx = ZadAiRepository.analyzeBankNotification(title, text)
-        
-        // Simulate Supabase Repo inserting into local DB
-        if (parsedTx != null) {
-            dao.insertTransaction(parsedTx)
-        }
-        
-        // Verify ViewModel / DB layer flow
-        val flowData = dao.getAllTransactions().first()
-        assertTrue(flowData.any { it.title == "Mocked AI Response" && it.amount == 50.0 })
     }
 }

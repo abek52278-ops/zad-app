@@ -12,8 +12,6 @@ import java.io.ByteArrayOutputStream
 private const val TAG_REPO = "ZadAiRepo"
 private const val CENTRAL_FUNCTION = "zad-core-intelligence"
 
-private val json = Json { ignoreUnknownKeys = true }
-
 @kotlinx.serialization.Serializable
 data class AiParsedTransaction(
     val amount: Double,
@@ -753,37 +751,11 @@ object ZadAiRepository {
         }
     }
 
+    // geminiApiKey is a vision-only fallback (see analyzeReceipt/analyzeInventoryImage above) —
+    // this generic text-action dispatcher always goes straight to zad-core-intelligence so every
+    // action gets its proper per-action system prompt and the injected-data delimiting that
+    // prompt lives behind, instead of the flat, undelimited prompt a client-side path would need.
     private suspend fun callAction(action: String, payload: Map<String, Any?>): Map<String, Any?> {
-        // Try Groq direct if key is set
-        geminiApiKey?.takeIf { it.isNotEmpty() }?.let { apiKey ->
-            try {
-                val prompt = """
-                    You are ZAD AI, a family budget app assistant.
-                    Perform the following action: "$action"
-                    Input data: $payload
-                    Output ONLY valid JSON that matches the required schema for this action. No markdown.
-                """.trimIndent()
-                val responseText = ZadAiGeminiClient.generateText(apiKey, prompt, jsonFormat = true)
-                if (responseText != null) {
-                    fun parseElement(element: JsonElement): Any? = when (element) {
-                        is JsonPrimitive -> {
-                            if (element.isString) element.content
-                            else element.intOrNull ?: element.doubleOrNull ?: element.booleanOrNull ?: element.content
-                        }
-                        is JsonArray -> element.map { parseElement(it) }
-                        is JsonObject -> element.mapValues { parseElement(it.value) }
-                        is JsonNull -> null
-                    }
-                    val decoded = json.decodeFromString<JsonObject>(responseText)
-                    val parsed = parseElement(decoded) as? Map<String, Any?>
-                    if (!parsed.isNullOrEmpty()) return parsed
-                }
-            } catch (e: Exception) {
-                Log.w(TAG_REPO, "callAction($action) Groq failed, falling back to edge: ${e.message}")
-            }
-        }
-
-        // Fallback to Edge function
         return try {
             val userId = getUserId()
             SupabaseRepo.callEdgeFunction(CENTRAL_FUNCTION, mapOf(
