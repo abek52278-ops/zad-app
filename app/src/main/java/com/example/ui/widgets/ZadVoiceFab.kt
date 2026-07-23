@@ -159,9 +159,17 @@ private suspend fun processAudioFile(
                     // Gamification feature
                 }
             }
+        } else {
+            // processVoiceCommand returns null on an upstream/network failure (as opposed to a
+            // real "couldn't understand" reply, which comes back as a normal non-null response
+            // with its own spoken message) — without this, a failed request just resets the mic
+            // icon with zero feedback.
+            Log.e("VoiceFab", "processVoiceCommand returned null — upstream call failed")
+            tts?.speak("تعذر الاتصال، حاول مرة أخرى.", TextToSpeech.QUEUE_FLUSH, null, null)
         }
     } catch (e: Exception) {
         Log.e("VoiceFab", "Error processing audio: ${e.message}")
+        tts?.speak("حدث خطأ، حاول مرة أخرى.", TextToSpeech.QUEUE_FLUSH, null, null)
     } finally {
         file.delete()
     }

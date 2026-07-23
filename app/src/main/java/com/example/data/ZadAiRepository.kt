@@ -184,9 +184,9 @@ object ZadAiRepository {
         }
     }
 
-    suspend fun generateBehavioralInsights(transactions: List<ZadTransaction>, inventory: List<ZadInventory>): List<AiInsight> {
+    suspend fun generateBehavioralInsights(transactions: List<ZadTransaction>, inventory: List<ZadInventory>, budget: Double): List<AiInsight> {
         val txStr = transactions.joinToString(", ") { "${it.title}: ${it.amount} (${if (it.isExpense) "خصم" else "إيداع"})" }
-        val response = callAction("spending_insights", mapOf("transactions" to txStr, "budget" to 3500))
+        val response = callAction("spending_insights", mapOf("transactions" to txStr, "budget" to budget))
         val insightsRaw = response["insights"] as? List<*> ?: return emptyList()
         return insightsRaw.mapNotNull { item ->
             val map = item as? Map<*, *> ?: return@mapNotNull null

@@ -61,7 +61,7 @@ class PeriodicAnalysisWorker(
 
             // Fallback: send AI insights if no smart notifications
             if (brainResult.smartNotifications.isEmpty()) {
-                val insights = ZadAiRepository.generateBehavioralInsights(transactions, inventory)
+                val insights = ZadAiRepository.generateBehavioralInsights(transactions, inventory, budget)
                 val criticalInsights = insights.filter { it.type == "Warning" || it.type == "Alert" }
 
                 if (criticalInsights.isNotEmpty()) {

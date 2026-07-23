@@ -103,8 +103,9 @@ object SupabaseRepo {
     suspend fun updateUserBudget(newBudget: Double): Boolean {
         return try {
             val userId = client.auth.currentUserOrNull()?.id ?: return false
+            val current = getUserProfile() ?: ZadUser(id = userId)
             Log.d(TAG, "updateUserBudget() → userId=$userId, newBudget=$newBudget, table=zad_users")
-            client.postgrest["zad_users"].upsert(ZadUser(id = userId, budget = newBudget))
+            client.postgrest["zad_users"].upsert(current.copy(budget = newBudget))
             Log.d(TAG, "updateUserBudget() SUCCESS")
             true
         } catch (e: Exception) {
@@ -734,9 +735,10 @@ object SupabaseRepo {
     suspend fun updateUserProfile(name: String, avatarUri: String?): Boolean {
         return try {
             val userId = client.auth.currentUserOrNull()?.id ?: return false
+            val current = getUserProfile() ?: ZadUser(id = userId)
             Log.d(TAG, "updateUserProfile() → userId=$userId, name=$name, avatarUri=$avatarUri")
             client.postgrest["zad_users"].upsert(
-                ZadUser(id = userId, name = name, avatarUri = avatarUri)
+                current.copy(name = name, avatarUri = avatarUri ?: current.avatarUri)
             )
             Log.d(TAG, "updateUserProfile() SUCCESS")
             true
@@ -748,7 +750,8 @@ object SupabaseRepo {
     }
 
     // read-modify-write off the cached profile — a bare upsert(ZadUser(id=..., emergencyFundBalance=...))
-    // would clobber name/avatarUri to null like updateUserProfile()'s existing upsert does.
+    // would clobber every other column to its default, same reason updateUserProfile/updateUserBudget
+    // above do the same read-modify-write instead of a bare upsert.
     suspend fun updateEmergencyFund(newValue: Double): Boolean {
         return try {
             val userId = client.auth.currentUserOrNull()?.id ?: return false

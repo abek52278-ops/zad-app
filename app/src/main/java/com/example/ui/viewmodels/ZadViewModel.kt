@@ -124,7 +124,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 val baseInsights = if (txs.isEmpty() && _inventory.value.isEmpty()) {
                     listOf(com.example.data.AiInsight("أهلاً بك في زاد", "أضف معاملات أو عناصر للمخزون لنتمكن من تحليل بياناتك وتقديم توصيات ذكية.", "Tip"))
                 } else {
-                    ZadAiRepository.generateBehavioralInsights(txs, _inventory.value).ifEmpty {
+                    ZadAiRepository.generateBehavioralInsights(txs, _inventory.value, _budget.value).ifEmpty {
                         listOf(com.example.data.AiInsight("تحليل زاد", "لا توجد بيانات كافية لاستخراج رؤى جديدة حالياً.", "Tip"))
                     }
                 }
@@ -155,14 +155,16 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 // Only call AI when inventory size changes to avoid excessive API calls
                 if (inv.size != lastMealSuggestInventorySize) {
                     lastMealSuggestInventorySize = inv.size
-                    _mealSuggestions.value = ZadAiRepository.suggestMeals(inv)
+                    if (com.example.ui.screens.AlertPrefs.isEnabled(getApplication(), com.example.ui.screens.AlertPrefs.KEY_MEAL_SUGGESTIONS)) {
+                        _mealSuggestions.value = ZadAiRepository.suggestMeals(inv)
+                    }
                 }
                 // العقل → الوصفات: يفحص كل تحديث مخزون على أصناف هتخلص/تنتهي (بدون استدعاء AI مكرر بفضل lastUrgentRecipeKey)
                 generateUrgentRecipes()
                 val baseInsights = if (_transactions.value.isEmpty() && inv.isEmpty()) {
                     listOf(com.example.data.AiInsight("أهلاً بك في زاد", "أضف معاملات أو عناصر للمخزون لنتمكن من تحليل بياناتك وتقديم توصيات ذكية.", "Tip"))
                 } else {
-                    ZadAiRepository.generateBehavioralInsights(_transactions.value, inv).ifEmpty {
+                    ZadAiRepository.generateBehavioralInsights(_transactions.value, inv, _budget.value).ifEmpty {
                         listOf(com.example.data.AiInsight("تحليل زاد", "لا توجد بيانات كافية لاستخراج رؤى جديدة حالياً.", "Tip"))
                     }
                 }
@@ -2008,11 +2010,16 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ─── ZAD Core Intelligence ──────────────────────────────────────────
-    private val _behaviorConsentGiven = MutableStateFlow(false)
+    private val _behaviorConsentGiven = MutableStateFlow(
+        getApplication<Application>().getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+            .getBoolean("behavior_consent_given", false)
+    )
     val behaviorConsentGiven: StateFlow<Boolean> = _behaviorConsentGiven.asStateFlow()
 
     fun setBehaviorConsent(given: Boolean) {
         _behaviorConsentGiven.value = given
+        getApplication<Application>().getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+            .edit().putBoolean("behavior_consent_given", given).apply()
     }
 
     fun classifyTransactionItem(title: String, amount: Double, category: String? = null) {

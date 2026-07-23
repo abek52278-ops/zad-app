@@ -107,7 +107,16 @@ object ZadCentralBrain {
         }
 
         if (lowStockItems.isNotEmpty()) {
-            alerts.add("مخزون منخفض: ${lowStockItems.joinToString(", ") { it.itemName }}")
+            val names = lowStockItems.joinToString(", ") { it.itemName }
+            alerts.add("مخزون منخفض: $names")
+            if (com.example.ui.screens.AlertPrefs.isEnabled(context, com.example.ui.screens.AlertPrefs.KEY_LOW_INVENTORY)) {
+                smartNotifications.add(SmartNotification(
+                    type = "LOW_STOCK",
+                    title = "📉 مخزون منخفض",
+                    body = "أصناف أساسية أوشكت على النفاد: $names",
+                    priority = "HIGH"
+                ))
+            }
         }
 
         if (expiringSoon.isNotEmpty()) {
@@ -166,7 +175,9 @@ object ZadCentralBrain {
                 pct >= 100 -> alerts.add("🚨 تجاوزت الميزانية! أنفقت ${CurrencyFormatter.format(context, totalSpent)} من ${CurrencyFormatter.format(context, budget)}")
                 pct >= 85 -> {
                     alerts.add("⚠️ الميزانية على وشك النفاد: $pct% مستخدم")
-                    smartNotifications.add(SmartNotification("PREDICTIVE", "⚠️ الميزانية تنفد", "استخدمت $pct% من ميزانيتك (متبقي ${CurrencyFormatter.format(context, remaining)})", "HIGH"))
+                    if (com.example.ui.screens.AlertPrefs.isEnabled(context, com.example.ui.screens.AlertPrefs.KEY_BUDGET_OVERRUN)) {
+                        smartNotifications.add(SmartNotification("BUDGET_OVERRUN", "⚠️ الميزانية تنفد", "استخدمت $pct% من ميزانيتك (متبقي ${CurrencyFormatter.format(context, remaining)})", "HIGH"))
+                    }
                 }
                 pct >= 70 -> suggestions.add("أنفقت $pct% من الميزانية (متبقي ${CurrencyFormatter.format(context, remaining)})")
             }

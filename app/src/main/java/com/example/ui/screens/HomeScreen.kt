@@ -781,7 +781,9 @@ fun ExpenseAnalysisSection(transactions: List<ZadTransaction> = emptyList()) {
     val dayLabels = androidx.compose.ui.res.stringArrayResource(R.array.week_day_labels).toList()
     val dayTotals = FloatArray(7) { 0f }
     transactions.filter { it.isExpense }.forEach { tx ->
-        val dayIndex = (tx.id.hashCode().and(0x7FFFFFFF)) % 7
+        val instant = tx.createdAt?.let { runCatching { java.time.Instant.parse(it) }.getOrNull() } ?: return@forEach
+        // week_day_labels starts Sunday; DayOfWeek.value is MONDAY=1..SUNDAY=7, so %7 maps SUNDAY->0.
+        val dayIndex = instant.atZone(java.time.ZoneId.systemDefault()).dayOfWeek.value % 7
         dayTotals[dayIndex] += tx.amount.toFloat()
     }
     val maxVal = dayTotals.maxOrNull()?.takeIf { it > 0f } ?: 1f
