@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +38,9 @@ import com.example.data.*
 import com.example.ui.screens.auth.AuthTextField
 import com.example.ui.theme.*
 import com.example.ui.components.QrCode
+import com.example.ui.components.pressableScale
+import com.example.ui.components.ZadLottieAsset
+import com.airbnb.lottie.compose.LottieConstants
 import com.example.ui.viewmodels.FamilyViewModel
 import com.example.ui.viewmodels.FamilyState
 import android.util.Log
@@ -42,6 +48,7 @@ import kotlinx.serialization.encodeToString
 import androidx.compose.ui.platform.LocalContext
 import android.content.Intent
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 private const val TAG_FAM = "FamilyScreen"
 
@@ -106,12 +113,14 @@ fun NoFamilyScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            imageVector = Icons.Default.FamilyRestroom,
-            contentDescription = null,
-            modifier = Modifier.size(80.dp),
-            tint = primary
-        )
+        com.example.ui.components.AppearOnEntry {
+            ZadLottieAsset(
+                resId = R.raw.lottie_empty_box,
+                iterations = LottieConstants.IterateForever,
+                modifier = Modifier.size(140.dp),
+                contentDescription = stringResource(R.string.welcome_to_zad_family)
+            )
+        }
         Spacer(modifier = Modifier.height(24.dp))
         Text(
             text = stringResource(R.string.welcome_to_zad_family),
@@ -123,16 +132,16 @@ fun NoFamilyScreen(
         Text(
             text = stringResource(R.string.family_intro_hint),
             style = Typography.bodyMedium,
-            color = Color.Gray,
+            color = onSurfaceVariant,
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(48.dp))
 
         Button(
             onClick = onCreateFamily,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
+            modifier = Modifier.fillMaxWidth().height(56.dp).pressableScale(),
             colors = ButtonDefaults.buttonColors(containerColor = primary),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(50)
         ) {
             Icon(Icons.Default.Add, null)
             Spacer(modifier = Modifier.width(8.dp))
@@ -140,7 +149,7 @@ fun NoFamilyScreen(
         }
 
         Spacer(modifier = Modifier.height(32.dp))
-        Text(stringResource(R.string.or_word), color = Color.Gray)
+        Text(stringResource(R.string.or_word), color = onSurfaceVariant)
         Spacer(modifier = Modifier.height(32.dp))
 
         AuthTextField(label = stringResource(R.string.your_alias_label), value = alias, onValueChange = { alias = it }, placeholder = stringResource(R.string.eg_child_alias))
@@ -150,8 +159,8 @@ fun NoFamilyScreen(
 
         OutlinedButton(
             onClick = { onJoinFamily(inviteCode, alias) },
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth().height(56.dp).pressableScale(),
+            shape = RoundedCornerShape(50),
             enabled = inviteCode.isNotBlank() && alias.isNotBlank()
         ) {
             Icon(Icons.Default.ArrowForward, null)
@@ -187,7 +196,10 @@ fun ActiveFamilyScreen(
         TabData(Icons.Default.Assignment, stringResource(R.string.tasks_tab)),
         TabData(Icons.Default.People, stringResource(R.string.members_tab)),
         TabData(Icons.Default.ShoppingCart, stringResource(R.string.groceries_tab))
-    ) + if (isParent && showFinancials) listOf(TabData(Icons.Default.AccountBalanceWallet, stringResource(R.string.children_tab))) else emptyList()
+    ) + if (isParent && showFinancials) listOf(
+        TabData(Icons.Default.AccountBalanceWallet, stringResource(R.string.children_tab)),
+        TabData(Icons.Default.Savings, stringResource(R.string.budget_goals_tab))
+    ) else emptyList()
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Header with family info
@@ -238,31 +250,50 @@ fun ActiveFamilyScreen(
             }
         }
 
-        // Tabs
-        ScrollableTabRow(
-            selectedTabIndex = selectedTab,
-            containerColor = surface,
-            contentColor = primary,
-            edgePadding = 16.dp
+        // Tabs — wrapped in a rounded surface so it reads as one segment
+        // attached to the gradient header above, not a flat M3 default edge.
+        Surface(
+            shape = RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp),
+            color = surfaceContainerLow
         ) {
-            tabs.forEachIndexed { index, tab ->
-                Tab(
-                    selected = selectedTab == index,
-                    onClick = { selectedTab = index },
-                    text = {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(tab.icon, contentDescription = null, modifier = Modifier.size(18.dp), tint = if (selectedTab == index) primary else onSurfaceVariant)
-                            Text(
-                                tab.title,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
-                            )
-                        }
+            ScrollableTabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = Color.Transparent,
+                contentColor = primary,
+                edgePadding = 16.dp,
+                indicator = { tabPositions ->
+                    if (selectedTab < tabPositions.size) {
+                        val position = tabPositions[selectedTab]
+                        Box(
+                            modifier = Modifier
+                                .tabIndicatorOffset(position)
+                                .padding(horizontal = 20.dp)
+                                .height(3.dp)
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(primary)
+                        )
                     }
-                )
+                }
+            ) {
+                tabs.forEachIndexed { index, tab ->
+                    Tab(
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        text = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(tab.icon, contentDescription = null, modifier = Modifier.size(18.dp), tint = if (selectedTab == index) primary else onSurfaceVariant)
+                                Text(
+                                    tab.title,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                    )
+                }
             }
         }
 
@@ -274,6 +305,7 @@ fun ActiveFamilyScreen(
                 2 -> MembersTab(state = state, viewModel = viewModel, showFinancials = showFinancials)
                 3 -> GroceriesTab(state.groceries, onToggleGrocery)
                 4 -> if (isParent && showFinancials) KidsSpendingTab(state = state, onUpdateRequestStatus = onUpdateRequestStatus)
+                5 -> if (isParent && showFinancials) BudgetGoalsTab(state.goals, state.members, state.chores, viewModel)
             }
         }
     }
@@ -321,28 +353,33 @@ private fun GroceriesTab(
             }
         }
 
-        items(groceries) { item ->
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = surfaceContainer)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+        itemsIndexed(groceries) { index, item ->
+            com.example.ui.components.AppearOnEntry(delayMs = (index * 40).coerceAtMost(400)) {
+                val groceryShape = RoundedCornerShape(18.dp)
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(elevation = 6.dp, shape = groceryShape, spotColor = primary.copy(alpha = 0.10f)),
+                    shape = groceryShape,
+                    colors = CardDefaults.cardColors(containerColor = surfaceContainer)
                 ) {
-                    Checkbox(
-                        checked = item.isPurchased,
-                        onCheckedChange = { onToggleGrocery(item.id, it) },
-                        colors = CheckboxDefaults.colors(checkedColor = primary)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = item.itemName,
-                            fontWeight = FontWeight.Bold,
-                            color = if (item.isPurchased) Color.Gray else onSurface
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = item.isPurchased,
+                            onCheckedChange = { onToggleGrocery(item.id, it) },
+                            colors = CheckboxDefaults.colors(checkedColor = primary)
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = item.itemName,
+                                fontWeight = FontWeight.Bold,
+                                color = if (item.isPurchased) onSurfaceVariant else onSurface
+                            )
+                        }
                     }
                 }
             }
@@ -416,7 +453,7 @@ private fun KidsSpendingTab(
                                 Text(stringResource(R.string.pending_requests_count, childRequests.size), style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = onSurfaceVariant)
                                 childRequests.filter { it.metadata?.contains("\"status\":\"PENDING\"") == true }.take(3).forEach { req ->
                                     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFFFF9800))
+                                        Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, modifier = Modifier.size(14.dp), tint = warningColor)
                                         Spacer(Modifier.width(6.dp))
                                         Text(req.message, style = Typography.labelSmall, color = onSurface, modifier = Modifier.weight(1f), maxLines = 1)
                                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -468,14 +505,16 @@ private fun MembersTab(state: FamilyState.Active, viewModel: FamilyViewModel, sh
             Spacer(Modifier.height(12.dp))
         }
 
-        items(state.members) { member ->
-            MemberDetailCard(
-                member = member,
-                viewModel = viewModel,
-                state = state,
-                onClick = { selectedMember = member },
-                showFinancials = showFinancials
-            )
+        itemsIndexed(state.members) { index, member ->
+            com.example.ui.components.AppearOnEntry(delayMs = (index * 40).coerceAtMost(400)) {
+                MemberDetailCard(
+                    member = member,
+                    viewModel = viewModel,
+                    state = state,
+                    onClick = { selectedMember = member },
+                    showFinancials = showFinancials
+                )
+            }
         }
 
         item { Spacer(Modifier.height(16.dp)) }
@@ -506,9 +545,15 @@ private fun MemberDetailCard(
     val completedChores = memberChores.count { it.isCompleted }
     val memberTransactions = mutableStateOf<List<ZadTransaction>>(emptyList())
 
+    val memberAccent = if (member.role == "admin") primary else secondary
+    val memberCardShape = RoundedCornerShape(20.dp)
     Card(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
-        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(elevation = 8.dp, shape = memberCardShape, spotColor = memberAccent.copy(alpha = 0.14f))
+            .clickable { onClick() }
+            .pressableScale(),
+        shape = memberCardShape,
         colors = CardDefaults.cardColors(containerColor = surfaceContainer)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -532,17 +577,25 @@ private fun MemberDetailCard(
                         Text(member.alias, fontWeight = FontWeight.Bold, color = onSurface, style = Typography.titleMedium)
                         if (member.role == "admin") {
                             Spacer(Modifier.width(8.dp))
-                            Surface(shape = RoundedCornerShape(8.dp), color = primary.copy(alpha = 0.15f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Surface(shape = RoundedCornerShape(50), color = primary.copy(alpha = 0.15f)) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
                                     Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(14.dp), tint = primary)
                                     Text(stringResource(R.string.admin_badge), style = Typography.labelSmall, color = primary, fontWeight = FontWeight.Bold)
                                 }
                             }
                         } else if (member.role == "child") {
                             Spacer(Modifier.width(8.dp))
-                            Surface(shape = RoundedCornerShape(8.dp), color = secondary.copy(alpha = 0.15f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text("🧒", style = Typography.labelSmall)
+                            Surface(shape = RoundedCornerShape(50), color = secondary.copy(alpha = 0.15f)) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(Icons.Default.ChildCare, contentDescription = null, modifier = Modifier.size(14.dp), tint = secondary)
                                     Text(stringResource(R.string.child_role), style = Typography.labelSmall, color = secondary, fontWeight = FontWeight.Bold)
                                 }
                             }
@@ -562,11 +615,16 @@ private fun MemberDetailCard(
             if (showFinancials && member.savingsGoal > 0) {
                 Spacer(modifier = Modifier.height(12.dp))
                 val goalProgress = (member.balance / member.savingsGoal).toFloat().coerceIn(0f, 1f)
+                val animatedGoalProgress by androidx.compose.animation.core.animateFloatAsState(
+                    targetValue = goalProgress,
+                    animationSpec = com.example.ui.components.ZadSprings.Screen,
+                    label = "goalProgress"
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.savings_goal_label), style = Typography.labelSmall, color = onSurfaceVariant)
                     Spacer(Modifier.width(8.dp))
                     LinearProgressIndicator(
-                        progress = { goalProgress },
+                        progress = { animatedGoalProgress },
                         modifier = Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)),
                         color = primary,
                         trackColor = onSurface.copy(alpha = 0.1f)
@@ -735,7 +793,7 @@ private fun MemberDetailSheet(
             // Tasbiha trees
             if (memberTrees.isNotEmpty()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Default.Park, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color(0xFF2E7D32))
+                    Icon(Icons.Default.Park, contentDescription = null, modifier = Modifier.size(18.dp), tint = successColor)
                     Text(stringResource(R.string.tasbiha_trees_count, memberTrees.size), fontWeight = FontWeight.Bold, color = onSurface)
                 }
                 Spacer(Modifier.height(8.dp))
@@ -973,13 +1031,17 @@ private fun TasksTab(
                     }
                 }
 
-                items(filteredChores) { chore ->
+                itemsIndexed(filteredChores) { index, chore ->
+                    com.example.ui.components.AppearOnEntry(delayMs = (index * 40).coerceAtMost(400)) {
+                    val choreShape = RoundedCornerShape(16.dp)
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp)
-                            .clickable { onToggle(chore.id, !chore.isCompleted) },
-                        shape = RoundedCornerShape(12.dp),
+                            .shadow(elevation = 4.dp, shape = choreShape, spotColor = primary.copy(alpha = 0.08f))
+                            .clickable { onToggle(chore.id, !chore.isCompleted) }
+                            .pressableScale(),
+                        shape = choreShape,
                         colors = CardDefaults.cardColors(
                             containerColor = if (chore.isCompleted) primary.copy(alpha = 0.08f) else surfaceContainer
                         )
@@ -991,7 +1053,7 @@ private fun TasksTab(
                             Icon(
                                 imageVector = if (chore.isCompleted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                                 contentDescription = null,
-                                tint = if (chore.isCompleted) primary else Color.LightGray,
+                                tint = if (chore.isCompleted) primary else outline,
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(14.dp))
@@ -1000,7 +1062,7 @@ private fun TasksTab(
                                     chore.title,
                                     fontWeight = FontWeight.Bold,
                                     style = Typography.bodyLarge,
-                                    color = if (chore.isCompleted) Color.Gray else onSurface,
+                                    color = if (chore.isCompleted) onSurfaceVariant else onSurface,
                                     textDecoration = if (chore.isCompleted) androidx.compose.ui.text.style.TextDecoration.LineThrough else null
                                 )
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1028,6 +1090,7 @@ private fun TasksTab(
                                 }
                             }
                         }
+                    }
                     }
                 }
 
@@ -1125,6 +1188,7 @@ private fun InviteMemberDialog(
     onDismiss: () -> Unit
 ) {
     var selectedMethod by remember { mutableStateOf(0) }
+    var showSentConfirmation by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val joinFamilyText = stringResource(R.string.join_family_message)
     val shareText = "$joinFamilyText\n${stringResource(R.string.invite_code_colon)} $inviteCode\n${stringResource(R.string.or_open_link)} zad://invite?code=$inviteCode"
@@ -1132,6 +1196,14 @@ private fun InviteMemberDialog(
     val joinScanText = stringResource(R.string.join_family_scan_message, inviteCode)
     val joinLinkText = stringResource(R.string.join_family_link_message, inviteCode)
     val joinCodeText = stringResource(R.string.join_family_code_message, inviteCode)
+
+    // تأكيد بصري عابر بعد إرسال الدعوة — بيقفل نفسه لوحده زي toast
+    LaunchedEffect(showSentConfirmation) {
+        if (showSentConfirmation) {
+            delay(1200)
+            showSentConfirmation = false
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1193,6 +1265,7 @@ private fun InviteMemberDialog(
                                 IconButton(onClick = {
                                     val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                                     clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Invite", "zad://invite?code=$inviteCode"))
+                                    showSentConfirmation = true
                                 }) {
                                     Icon(Icons.Default.ContentCopy, null, tint = primary, modifier = Modifier.size(18.dp))
                                 }
@@ -1226,6 +1299,7 @@ private fun InviteMemberDialog(
                                         }
                                         context.startActivity(Intent.createChooser(fallback, shareInviteTitle))
                                     }
+                                    showSentConfirmation = true
                                 },
                                 modifier = Modifier.weight(1f),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366))
@@ -1242,6 +1316,7 @@ private fun InviteMemberDialog(
                                         putExtra(Intent.EXTRA_TEXT, shareText)
                                     }
                                     context.startActivity(Intent.createChooser(general, shareInviteTitle))
+                                    showSentConfirmation = true
                                 },
                                 modifier = Modifier.weight(1f)
                             ) {
@@ -1268,12 +1343,36 @@ private fun InviteMemberDialog(
                             putExtra(Intent.EXTRA_TEXT, shareText)
                         }
                         context.startActivity(Intent.createChooser(shareIntent, shareInviteTitle))
+                        showSentConfirmation = true
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(Icons.Default.Share, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.share_action))
+                }
+
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = showSentConfirmation,
+                    enter = fadeIn() + scaleIn(initialScale = 0.85f),
+                    exit = fadeOut()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        ZadLottieAsset(
+                            resId = R.raw.lottie_success_check,
+                            iterations = 1,
+                            modifier = Modifier.size(28.dp),
+                            contentDescription = stringResource(R.string.done_action)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.done_action), color = primary, fontWeight = FontWeight.Bold, style = Typography.labelMedium)
+                    }
                 }
             }
         },
@@ -1288,10 +1387,12 @@ private fun InviteMemberDialog(
 
 
 @Composable
-fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.FamilyMember>, chores: List<Chore>) {
+fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.FamilyMember>, chores: List<Chore>, viewModel: com.example.ui.viewmodels.FamilyViewModel) {
     val kids = members.filter { it.role != "admin" }
     val totalBalance = kids.sumOf { it.balance }
     val totalPaidRewards = chores.filter { it.isCompleted }.sumOf { it.rewardAmount }
+    val suggestedGoal by viewModel.suggestedGoal.collectAsState()
+    val isSuggestingGoal by viewModel.isSuggestingGoal.collectAsState()
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(20.dp)) {
         item {
@@ -1300,6 +1401,61 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
                 Text(stringResource(R.string.budget_and_rewards), style = Typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        item {
+            val currentGoal = goals.maxByOrNull { it.monthYear }
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Icon(Icons.Default.Savings, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
+                        Text("هدف الادخار العائلي", style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    if (currentGoal != null) {
+                        val fraction = if (currentGoal.targetAmount > 0) (currentGoal.currentAmount / currentGoal.targetAmount).toFloat().coerceIn(0f, 1f) else 0f
+                        Text("${currentGoal.currentAmount.toInt()} / ${currentGoal.targetAmount.toInt()} ريال", style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = primary)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        val animatedFamilyGoal by androidx.compose.animation.core.animateFloatAsState(
+                            targetValue = fraction,
+                            animationSpec = com.example.ui.components.ZadSprings.Screen,
+                            label = "familyGoalProgress"
+                        )
+                        Box(
+                            modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)).background(onSurface.copy(alpha = 0.1f))
+                        ) {
+                            Box(modifier = Modifier.fillMaxWidth(animatedFamilyGoal).height(10.dp).clip(RoundedCornerShape(5.dp)).background(primary))
+                        }
+                        if (!currentGoal.rewardSuggestion.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Icon(Icons.Default.CardGiftcard, contentDescription = null, tint = onSurfaceVariant, modifier = Modifier.size(14.dp))
+                                Text(currentGoal.rewardSuggestion, style = Typography.bodySmall, color = onSurfaceVariant)
+                            }
+                        }
+                    } else {
+                        Text("لسه مفيش هدف ادخار للشهر ده", style = Typography.bodySmall, color = onSurfaceVariant)
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Button(
+                            onClick = { viewModel.suggestFamilyGoal() },
+                            enabled = !isSuggestingGoal,
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            if (isSuggestingGoal) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = onPrimary)
+                            } else {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("اقترح هدف بالذكاء الاصطناعي")
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         if (kids.isEmpty()) {
@@ -1320,15 +1476,11 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
                     kids.forEach { kid ->
                         val maxBalance = maxOf(kids.maxOfOrNull { it.balance } ?: 1.0, 1.0)
                         val fraction = (kid.balance / maxBalance).toFloat()
-                        var animatedFraction by remember { mutableStateOf(0f) }
-
-                        LaunchedEffect(fraction) {
-                            animate(
-                                initialValue = 0f,
-                                targetValue = fraction,
-                                animationSpec = tween(1000, easing = FastOutSlowInEasing)
-                            ) { value, _ -> animatedFraction = value }
-                        }
+                        val animatedFraction by androidx.compose.animation.core.animateFloatAsState(
+                            targetValue = fraction,
+                            animationSpec = com.example.ui.components.ZadSprings.Screen,
+                            label = "kidBalanceFraction"
+                        )
 
                         Column(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -1341,7 +1493,7 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
                                     .fillMaxWidth()
                                     .height(12.dp)
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(Color.LightGray.copy(alpha = 0.3f))
+                                    .background(onSurface.copy(alpha = 0.1f))
                             ) {
                                 Box(
                                     modifier = Modifier
@@ -1373,6 +1525,30 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
                 }
             }
         }
+    }
+
+    suggestedGoal?.let { suggestion ->
+        AlertDialog(
+            onDismissRequest = { viewModel.clearSuggestedGoal() },
+            title = { Text("${suggestion.emoji} ${suggestion.goalTitle}", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("الهدف: ${suggestion.targetAmount.toInt()} ريال خلال ${suggestion.durationDays} يوم", style = Typography.bodyMedium)
+                    if (suggestion.rewardSuggestion.isNotBlank()) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(Icons.Default.CardGiftcard, contentDescription = null, tint = onSurfaceVariant, modifier = Modifier.size(14.dp))
+                            Text(suggestion.rewardSuggestion, style = Typography.bodySmall, color = onSurfaceVariant)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { viewModel.createSuggestedGoal() }) { Text("اعتماد الهدف") }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.clearSuggestedGoal() }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
     }
 }
 
@@ -1419,7 +1595,7 @@ fun ChatTab(
                 ) {
                     items(onlineMembers) { member ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF4CAF50)))
+                            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(successColor))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(member.alias, fontSize = 12.sp, color = onSurfaceVariant)
                         }
@@ -1770,14 +1946,14 @@ private fun TextBubble(msg: ChatMessage, isMe: Boolean, isAi: Boolean, senderAli
             Column {
                 if (!isMe) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(senderAlias, fontSize = 10.sp, color = if (isAi) primary else Color.Gray, fontWeight = FontWeight.Bold)
+                        Text(senderAlias, fontSize = 10.sp, color = if (isAi) primary else onSurfaceVariant, fontWeight = FontWeight.Bold)
                         if (msg.isPinned) {
                             Spacer(modifier = Modifier.width(4.dp))
-                            Icon(Icons.Default.PushPin, contentDescription = "Pinned", tint = if (isAi) primary else Color.Gray, modifier = Modifier.size(12.dp))
+                            Icon(Icons.Default.PushPin, contentDescription = "Pinned", tint = if (isAi) primary else onSurfaceVariant, modifier = Modifier.size(12.dp))
                         }
                         if (msg.voiceUrl != null) {
                             Spacer(modifier = Modifier.width(4.dp))
-                            Icon(Icons.Default.Mic, contentDescription = "Voice", tint = if (isAi) primary else Color.Gray, modifier = Modifier.size(12.dp))
+                            Icon(Icons.Default.Mic, contentDescription = "Voice", tint = if (isAi) primary else onSurfaceVariant, modifier = Modifier.size(12.dp))
                         }
                     }
                     Spacer(modifier = Modifier.height(2.dp))

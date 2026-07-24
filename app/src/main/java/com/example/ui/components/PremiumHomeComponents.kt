@@ -1,12 +1,15 @@
 package com.example.ui.components
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -17,7 +20,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -75,15 +82,14 @@ fun PremiumTopBar(
                 Box(modifier = Modifier
                     .size(10.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF22C55E))
+                    .background(background)
                     .padding(2.dp)
                 ) {
-                    Box(modifier = Modifier.fillMaxSize().clip(CircleShape).background(background))
-                    Box(modifier = Modifier.fillMaxSize().clip(CircleShape).background(Color(0xFF22C55E)))
+                    Box(modifier = Modifier.fillMaxSize().clip(CircleShape).background(successColor))
                 }
             }
             Column {
-                Text("مرحباً بعودتك 👋", fontSize = 11.sp, color = textTertiary)
+                Text("مرحباً بعودتك", fontSize = 11.sp, color = textTertiary)
                 Text(userName, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = textPrimary)
             }
         }
@@ -103,7 +109,12 @@ fun PremiumTopBar(
                     .clickable { onNotificationsClick() },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = textSecondary, modifier = Modifier.size(20.dp))
+                Icon(
+                    Icons.Default.Notifications,
+                    contentDescription = "Notifications",
+                    tint = textSecondary,
+                    modifier = Modifier.size(20.dp).bellShake(enabled = hasUnreadNotifications)
+                )
                 if (hasUnreadNotifications) {
                     Box(
                         modifier = Modifier
@@ -119,123 +130,195 @@ fun PremiumTopBar(
     }
 }
 
+/**
+ * Signature hero: a circular budget gauge instead of another rounded
+ * rectangle — the ring depletes as the month's spending eats into the
+ * budget, remaining balance sits big and centered inside it. Replaces
+ * the old rectangular PremiumHeroCard.
+ */
+/**
+ * Signature hero, v2: a physical-card silhouette (chip + wordmark + big
+ * balance + usage bar like a card's magnetic stripe) instead of the
+ * circular gauge — replaces ZadBudgetGauge.
+ */
 @Composable
-fun PremiumHeroCard(
+fun ZadCardHero(
     budget: Double,
     spent: Double,
     remaining: Double,
     daysLeft: Int,
     onDepositClick: () -> Unit
 ) {
-    val progress = if (budget > 0) (spent / budget).toFloat().coerceIn(0f, 1f) else 0f
-    val progressPercent = (progress * 100).toInt()
     val currencyContext = LocalContext.current
+    val spentPct = if (budget > 0) (spent / budget * 100).toInt() else 0
+    val progress = if (budget > 0) (spent / budget).toFloat().coerceIn(0f, 1f) else 0f
 
-    // Animations
     var isVisible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        delay(300)
+        delay(200)
         isVisible = true
     }
-
     val animatedProgress by animateFloatAsState(
         targetValue = if (isVisible) progress else 0f,
-        animationSpec = tween(1500, easing = FastOutSlowInEasing),
-        label = "progress"
+        animationSpec = ZadSprings.Screen,
+        label = "cardHeroProgress"
     )
 
-    val (statusEmoji, statusLabel, statusColor) = when {
-        progress >= 0.85f -> Triple("🔴", stringResource(R.string.budget_status_watch), dangerColor)
-        progress >= 0.6f -> Triple("🟡", stringResource(R.string.budget_status_caution), warningColor)
-        else -> Triple("🟢", stringResource(R.string.budget_status_excellent), successColor)
-    }
+    val cardShape = RoundedCornerShape(24.dp)
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .clip(RoundedCornerShape(26.dp))
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(primaryDark, primaryContainer, primaryDark)
-                )
-            )
-            .padding(24.dp)
+            .aspectRatio(1.62f)
+            .shadow(elevation = 22.dp, shape = cardShape, spotColor = primary.copy(alpha = 0.4f))
+            .clip(cardShape)
+            .background(Brush.linearGradient(listOf(primaryDark, primary, primaryDark)))
+            .padding(22.dp)
     ) {
-        Column {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 40.dp, y = (-40).dp)
+                .size(140.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.05f))
+        )
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // EMV-chip silhouette
+                Box(
+                    modifier = Modifier
+                        .size(width = 36.dp, height = 26.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Brush.linearGradient(listOf(secondaryLight, secondary)))
+                )
+                Text("زاد", color = Color.White, fontWeight = FontWeight.Black, fontSize = 18.sp)
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Text(
+                stringResource(R.string.monthly_budget_hero_label),
+                style = Typography.labelSmall,
+                color = Color.White.copy(alpha = 0.7f)
+            )
+            Text(
+                com.example.data.CurrencyFormatter.formatNumber(currencyContext, remaining),
+                style = Typography.displayLarge.copy(fontSize = 36.sp, letterSpacing = 1.5.sp),
+                color = Color.White
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.White.copy(alpha = 0.25f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(animatedProgress)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(50))
+                        .background(if (spentPct >= 100) dangerColor else Color.White)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Column {
-                    Text("💰 " + stringResource(R.string.monthly_budget_hero_label), style = Typography.labelSmall, color = textSecondary)
-                    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            com.example.data.CurrencyFormatter.formatNumber(currencyContext, budget),
-                            style = Typography.displayLarge.copy(fontSize = 34.sp),
-                            fontWeight = FontWeight.Black,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            com.example.data.CurrencyFormatter.symbol(currencyContext),
-                            style = Typography.labelMedium,
-                            color = textSecondary,
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        )
-                    }
+                    Text(stringResource(R.string.days_label), style = Typography.labelSmall, color = Color.White.copy(alpha = 0.6f))
+                    Text("$daysLeft", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+                Column {
+                    Text(stringResource(R.string.spent_label), style = Typography.labelSmall, color = Color.White.copy(alpha = 0.6f))
+                    Text(
+                        com.example.data.CurrencyFormatter.format(currencyContext, spent),
+                        style = Typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                 }
                 Surface(
-                    color = surfaceVariant,
+                    color = Color.White,
                     shape = RoundedCornerShape(50),
-                    onClick = onDepositClick
+                    onClick = onDepositClick,
+                    modifier = Modifier.pressableScale()
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.deposit), tint = Color.White, modifier = Modifier.size(16.dp))
-                        Text(stringResource(R.string.deposit), style = Typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.deposit), tint = primaryDark, modifier = Modifier.size(16.dp))
+                        Text(stringResource(R.string.deposit), style = Typography.labelMedium, fontWeight = FontWeight.Bold, color = primaryDark)
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                HeroStatItem(stringResource(R.string.spent_label), com.example.data.CurrencyFormatter.format(currencyContext, spent), Color.White, Modifier.weight(1f))
-                HeroStatItem(stringResource(R.string.remaining), com.example.data.CurrencyFormatter.format(currencyContext, remaining), primaryLight, Modifier.weight(1f))
-                HeroStatItem(stringResource(R.string.days_label), "$daysLeft", Color.White, Modifier.weight(1f))
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(stringResource(R.string.budget_percent_used, progressPercent), style = Typography.labelSmall, color = textSecondary)
-                Text("$statusEmoji $statusLabel", style = Typography.labelSmall, color = textSecondary)
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            LinearProgressIndicator(
-                progress = { animatedProgress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(5.dp)
-                    .clip(RoundedCornerShape(50)),
-                color = statusColor,
-                trackColor = surfaceVariant,
-            )
         }
     }
 }
 
+data class ZadShortcutItem(
+    val icon: ImageVector,
+    val label: String,
+    val color: Color,
+    val onClick: () -> Unit
+)
+
+/** Circular quick-access row — one tappable circle per major screen, so the
+ * customer reaches any page from Home in one tap instead of the drawer. */
 @Composable
-private fun HeroStatItem(label: String, value: String, valueColor: Color, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(15.dp))
-            .background(Color(0x33000000))
-            .padding(12.dp)
+fun ZadPageShortcutsRow(items: List<ZadShortcutItem>) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
+        contentPadding = PaddingValues(horizontal = 4.dp)
     ) {
-        Text(label, style = Typography.labelSmall, color = textSecondary)
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(value, style = Typography.bodyMedium, fontWeight = FontWeight.ExtraBold, color = valueColor)
+        itemsIndexed(items) { index, item ->
+            AppearOnEntry(delayMs = (index * 50).coerceAtMost(400)) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.width(68.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .shadow(elevation = 8.dp, shape = CircleShape, spotColor = item.color.copy(alpha = 0.35f))
+                            .clip(CircleShape)
+                            .background(Brush.linearGradient(listOf(item.color, item.color.copy(alpha = 0.8f))))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = item.onClick
+                            )
+                            .pressableScale(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(item.icon, contentDescription = item.label, tint = Color.White, modifier = Modifier.size(24.dp))
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        item.label,
+                        style = Typography.labelSmall,
+                        color = onSurfaceVariant,
+                        maxLines = 1,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -252,12 +335,15 @@ fun PremiumQuickStatsRow(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        QuickStatCard(stringResource(R.string.nav_inventory), "$inventoryCount", stringResource(R.string.quick_stat_inventory_unit), Icons.Default.Inventory2, primaryLight, primaryLight.copy(alpha=0.15f), onInventoryClick, Modifier.weight(1f))
-        QuickStatCard(stringResource(R.string.quick_stat_subscriptions_title), "$activeSubsCount", stringResource(R.string.quick_stat_subscriptions_unit), Icons.Default.Subscriptions, warningColor, warningColor.copy(alpha=0.15f), onSubsClick, Modifier.weight(1f))
-        QuickStatCard(stringResource(R.string.nav_family), "$familyCount", stringResource(R.string.quick_stat_family_unit), Icons.Default.FamilyRestroom, error, error.copy(alpha=0.15f), onFamilyClick, Modifier.weight(1f))
+        QuickStatCard(stringResource(R.string.nav_inventory), "$inventoryCount", stringResource(R.string.quick_stat_inventory_unit), Icons.Default.Inventory2, primary, onInventoryClick, Modifier.weight(1f))
+        QuickStatCard(stringResource(R.string.quick_stat_subscriptions_title), "$activeSubsCount", stringResource(R.string.quick_stat_subscriptions_unit), Icons.Default.Subscriptions, secondaryDark, onSubsClick, Modifier.weight(1f))
+        QuickStatCard(stringResource(R.string.nav_family), "$familyCount", stringResource(R.string.quick_stat_family_unit), Icons.Default.FamilyRestroom, catDailyIcon, onFamilyClick, Modifier.weight(1f))
     }
 }
 
+/** Bold, distinctly-colored tile per stat — each stat is its own saturated
+ * "gadget" instead of 3 uniform white cards, closer to the colorful
+ * multi-shape dashboard reference than a faint icon-chip tint. */
 @Composable
 private fun QuickStatCard(
     title: String,
@@ -265,35 +351,33 @@ private fun QuickStatCard(
     subtitle: String,
     icon: ImageVector,
     color: Color,
-    bgColor: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var pressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (pressed) 0.95f else 1f)
-
+    val cardShape = RoundedCornerShape(20.dp)
     Column(
         modifier = modifier
-            .scale(scale)
-            .clip(RoundedCornerShape(20.dp))
-            .background(surface)
+            .shadow(elevation = 8.dp, shape = cardShape, spotColor = color.copy(alpha = 0.35f))
+            .clip(cardShape)
+            .background(Brush.verticalGradient(listOf(color, color.copy(alpha = 0.75f))))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
             )
+            .pressableScale()
             .padding(15.dp)
     ) {
         Box(
-            modifier = Modifier.size(36.dp).clip(RoundedCornerShape(11.dp)).background(bgColor),
+            modifier = Modifier.size(36.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.28f)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
+            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Text(title, style = Typography.labelSmall, color = textTertiary)
-        Text(value, style = Typography.titleMedium, fontWeight = FontWeight.Black, color = textPrimary)
-        Text(subtitle, style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = color)
+        Text(title, style = Typography.labelSmall, color = Color.White.copy(alpha = 0.85f))
+        Text(value, style = Typography.titleMedium, fontWeight = FontWeight.Black, color = Color.White)
+        Text(subtitle, style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.85f))
     }
 }
 
@@ -304,16 +388,16 @@ fun PremiumInsightBanner(title: String, subtitle: String, onClick: () -> Unit) {
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
             .clip(RoundedCornerShape(19.dp))
-            .background(Brush.linearGradient(listOf(Color(0x22F59E0B), Color(0x1A10B981))))
+            .background(Brush.linearGradient(listOf(secondary.copy(alpha = 0.13f), primary.copy(alpha = 0.10f))))
             .clickable { onClick() }
             .padding(15.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            modifier = Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(Brush.linearGradient(listOf(Color(0x44F59E0B), Color(0x3310B981)))),
+            modifier = Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(Brush.linearGradient(listOf(secondary.copy(alpha = 0.27f), primary.copy(alpha = 0.20f)))),
             contentAlignment = Alignment.Center
         ) {
-            Text("🤖", fontSize = 21.sp)
+            Icon(Icons.Default.SmartToy, contentDescription = null, tint = primaryDark, modifier = Modifier.size(21.dp))
         }
         Spacer(modifier = Modifier.width(13.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -376,7 +460,10 @@ fun PremiumMealsRow(meals: List<String>, onMealClick: (String) -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("وجبات من ثلاجتك 🍳", fontSize = 15.sp, fontWeight = FontWeight.Black, color = textPrimary)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Default.Restaurant, contentDescription = null, tint = textPrimary, modifier = Modifier.size(16.dp))
+                Text("وجبات من ثلاجتك", fontSize = 15.sp, fontWeight = FontWeight.Black, color = textPrimary)
+            }
             Text("المزيد", fontSize = 11.sp, color = primaryLight)
         }
         Spacer(modifier = Modifier.height(11.dp))
@@ -415,7 +502,12 @@ fun PremiumMealsRow(meals: List<String>, onMealClick: (String) -> Unit) {
                             modifier = Modifier.size(31.dp).clip(CircleShape).background(primaryContainer),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(if (meal.contains("كبسة")) "🍛" else if (meal.contains("سلطة")) "🥗" else "🍝", fontSize = 16.sp)
+                            val mealIcon = when {
+                                meal.contains("كبسة") -> Icons.Default.RiceBowl
+                                meal.contains("سلطة") -> Icons.Default.Grass
+                                else -> Icons.Default.RamenDining
+                            }
+                            Icon(mealIcon, contentDescription = null, tint = catFoodIcon, modifier = Modifier.size(16.dp))
                         }
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(meal, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textPrimary)
@@ -437,7 +529,10 @@ fun PremiumTransactionsRow(transactions: List<com.example.data.ZadTransaction>, 
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("أحدث العمليات 💳", fontSize = 15.sp, fontWeight = FontWeight.Black, color = textPrimary)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = textPrimary, modifier = Modifier.size(16.dp))
+                Text("أحدث العمليات", fontSize = 15.sp, fontWeight = FontWeight.Black, color = textPrimary)
+            }
             Text("سجل كامل", fontSize = 11.sp, color = primaryLight, modifier = Modifier.clickable { onSeeAllClick() })
         }
         Spacer(modifier = Modifier.height(11.dp))
@@ -507,7 +602,7 @@ fun PremiumKidsSnippet(onKidsClick: () -> Unit) {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("🎮", fontSize = 16.sp)
+                    Icon(Icons.Default.SportsEsports, contentDescription = null, tint = kidsPrimaryLight, modifier = Modifier.size(16.dp))
                     Text("وضع الأطفال", fontSize = 13.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
                 }
                 Spacer(modifier = Modifier.height(4.dp))

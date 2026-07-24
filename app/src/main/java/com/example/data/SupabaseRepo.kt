@@ -103,8 +103,9 @@ object SupabaseRepo {
     suspend fun updateUserBudget(newBudget: Double): Boolean {
         return try {
             val userId = client.auth.currentUserOrNull()?.id ?: return false
+            val current = getUserProfile() ?: ZadUser(id = userId)
             Log.d(TAG, "updateUserBudget() → userId=$userId, newBudget=$newBudget, table=zad_users")
-            client.postgrest["zad_users"].upsert(ZadUser(id = userId, budget = newBudget))
+            client.postgrest["zad_users"].upsert(current.copy(budget = newBudget))
             Log.d(TAG, "updateUserBudget() SUCCESS")
             true
         } catch (e: Exception) {
@@ -242,6 +243,21 @@ object SupabaseRepo {
         }
     }
 
+    suspend fun updateTransactionCategory(id: String, category: String) {
+        try {
+            Log.d(TAG, "updateTransactionCategory() → table=zad_transactions, id=$id, category=$category")
+            client.postgrest["zad_transactions"].update(
+                mapOf("category" to category)
+            ) {
+                filter { eq("id", id) }
+            }
+            Log.d(TAG, "updateTransactionCategory() SUCCESS")
+        } catch (e: Exception) {
+            Log.e(TAG, "updateTransactionCategory() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
     suspend fun deleteTransaction(id: String) {
         try {
             Log.d(TAG, "deleteTransaction() → table=zad_transactions, id=$id")
@@ -312,6 +328,221 @@ object SupabaseRepo {
             Log.d(TAG, "updateSubscriptionActive() SUCCESS")
         } catch (e: Exception) {
             Log.e(TAG, "updateSubscriptionActive() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun updateSubscriptionAutoDeduct(id: String, autoDeduct: Boolean) {
+        try {
+            Log.d(TAG, "updateSubscriptionAutoDeduct() → table=zad_subscriptions, id=$id, autoDeduct=$autoDeduct")
+            client.postgrest["zad_subscriptions"].update(
+                mapOf("auto_deduct" to autoDeduct)
+            ) {
+                filter { eq("id", id) }
+            }
+            Log.d(TAG, "updateSubscriptionAutoDeduct() SUCCESS")
+        } catch (e: Exception) {
+            Log.e(TAG, "updateSubscriptionAutoDeduct() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun updateSubscriptionRenewalDate(id: String, renewalDate: String) {
+        try {
+            Log.d(TAG, "updateSubscriptionRenewalDate() → table=zad_subscriptions, id=$id, renewalDate=$renewalDate")
+            client.postgrest["zad_subscriptions"].update(
+                mapOf("renewal_date" to renewalDate)
+            ) {
+                filter { eq("id", id) }
+            }
+            Log.d(TAG, "updateSubscriptionRenewalDate() SUCCESS")
+        } catch (e: Exception) {
+            Log.e(TAG, "updateSubscriptionRenewalDate() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    // ─── Pharmacy ──────────────────────────────────────────────────────────────
+    suspend fun getPharmacyItems(): List<ZadPharmacyItem> {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id
+            Log.d(TAG, "getPharmacyItems() → userId=$userId, table=zad_pharmacy_items")
+            val result = if (userId != null) {
+                client.postgrest["zad_pharmacy_items"].select {
+                    filter { eq("user_id", userId) }
+                }.decodeList<ZadPharmacyItem>()
+            } else {
+                client.postgrest["zad_pharmacy_items"].select().decodeList<ZadPharmacyItem>()
+            }
+            Log.d(TAG, "getPharmacyItems() → returned ${result.size} items")
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "getPharmacyItems() FAILED: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun addPharmacyItem(item: ZadPharmacyItem) {
+        try {
+            val userId = client.auth.currentUserOrNull()?.id
+            val itemWithUser = item.copy(userId = userId)
+            Log.d(TAG, "addPharmacyItem() → table=zad_pharmacy_items, name=${itemWithUser.name}, userId=$userId")
+            client.postgrest["zad_pharmacy_items"].insert(itemWithUser)
+            Log.d(TAG, "addPharmacyItem() SUCCESS — id=${itemWithUser.id}")
+        } catch (e: Exception) {
+            Log.e(TAG, "addPharmacyItem() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun deletePharmacyItem(id: String) {
+        try {
+            Log.d(TAG, "deletePharmacyItem() → table=zad_pharmacy_items, id=$id")
+            client.postgrest["zad_pharmacy_items"].delete {
+                filter { eq("id", id) }
+            }
+            Log.d(TAG, "deletePharmacyItem() SUCCESS")
+        } catch (e: Exception) {
+            Log.e(TAG, "deletePharmacyItem() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun updatePharmacyRefill(id: String, remainingQuantity: Int, price: Double, expiryDate: String?) {
+        try {
+            Log.d(TAG, "updatePharmacyRefill() → table=zad_pharmacy_items, id=$id, remainingQuantity=$remainingQuantity")
+            client.postgrest["zad_pharmacy_items"].update(
+                buildMap {
+                    put("remaining_quantity", remainingQuantity)
+                    put("price", price)
+                    if (expiryDate != null) put("expiry_date", expiryDate)
+                }
+            ) {
+                filter { eq("id", id) }
+            }
+            Log.d(TAG, "updatePharmacyRefill() SUCCESS")
+        } catch (e: Exception) {
+            Log.e(TAG, "updatePharmacyRefill() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun updatePharmacyQuantity(id: String, remainingQuantity: Int) {
+        try {
+            Log.d(TAG, "updatePharmacyQuantity() → table=zad_pharmacy_items, id=$id, remainingQuantity=$remainingQuantity")
+            client.postgrest["zad_pharmacy_items"].update(
+                mapOf("remaining_quantity" to remainingQuantity)
+            ) {
+                filter { eq("id", id) }
+            }
+            Log.d(TAG, "updatePharmacyQuantity() SUCCESS")
+        } catch (e: Exception) {
+            Log.e(TAG, "updatePharmacyQuantity() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    // ─── Dose Log (pharmacy adherence) ────────────────────────────────────────
+    suspend fun getDoseLogs(): List<ZadDoseLog> {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id
+            val result = if (userId != null) {
+                client.postgrest["zad_dose_log"].select {
+                    filter { eq("user_id", userId) }
+                }.decodeList<ZadDoseLog>()
+            } else {
+                client.postgrest["zad_dose_log"].select().decodeList<ZadDoseLog>()
+            }
+            Log.d(TAG, "getDoseLogs() → returned ${result.size} logs")
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "getDoseLogs() FAILED: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun addDoseLog(log: ZadDoseLog) {
+        try {
+            val userId = client.auth.currentUserOrNull()?.id
+            client.postgrest["zad_dose_log"].insert(log.copy(userId = userId))
+            Log.d(TAG, "addDoseLog() SUCCESS — id=${log.id}")
+        } catch (e: Exception) {
+            Log.e(TAG, "addDoseLog() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun markDoseLogTaken(id: String, takenAt: String) {
+        try {
+            client.postgrest["zad_dose_log"].update(
+                mapOf("taken_at" to takenAt)
+            ) {
+                filter { eq("id", id) }
+            }
+            Log.d(TAG, "markDoseLogTaken() SUCCESS — id=$id")
+        } catch (e: Exception) {
+            Log.e(TAG, "markDoseLogTaken() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    // ─── Home Maintenance ──────────────────────────────────────────────────────
+    suspend fun getMaintenanceItems(): List<ZadMaintenanceItem> {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id
+            Log.d(TAG, "getMaintenanceItems() → userId=$userId, table=zad_maintenance_items")
+            val result = if (userId != null) {
+                client.postgrest["zad_maintenance_items"].select {
+                    filter { eq("user_id", userId) }
+                }.decodeList<ZadMaintenanceItem>()
+            } else {
+                client.postgrest["zad_maintenance_items"].select().decodeList<ZadMaintenanceItem>()
+            }
+            Log.d(TAG, "getMaintenanceItems() → returned ${result.size} items")
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "getMaintenanceItems() FAILED: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun addMaintenanceItem(item: ZadMaintenanceItem) {
+        try {
+            val userId = client.auth.currentUserOrNull()?.id
+            val itemWithUser = item.copy(userId = userId)
+            Log.d(TAG, "addMaintenanceItem() → table=zad_maintenance_items, name=${itemWithUser.name}, userId=$userId")
+            client.postgrest["zad_maintenance_items"].insert(itemWithUser)
+            Log.d(TAG, "addMaintenanceItem() SUCCESS — id=${itemWithUser.id}")
+        } catch (e: Exception) {
+            Log.e(TAG, "addMaintenanceItem() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun deleteMaintenanceItem(id: String) {
+        try {
+            Log.d(TAG, "deleteMaintenanceItem() → table=zad_maintenance_items, id=$id")
+            client.postgrest["zad_maintenance_items"].delete {
+                filter { eq("id", id) }
+            }
+            Log.d(TAG, "deleteMaintenanceItem() SUCCESS")
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteMaintenanceItem() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun updateMaintenanceLastServiceDate(id: String, lastServiceDate: String) {
+        try {
+            Log.d(TAG, "updateMaintenanceLastServiceDate() → table=zad_maintenance_items, id=$id, lastServiceDate=$lastServiceDate")
+            client.postgrest["zad_maintenance_items"].update(
+                mapOf("last_service_date" to lastServiceDate)
+            ) {
+                filter { eq("id", id) }
+            }
+            Log.d(TAG, "updateMaintenanceLastServiceDate() SUCCESS")
+        } catch (e: Exception) {
+            Log.e(TAG, "updateMaintenanceLastServiceDate() FAILED: ${e.message}")
             e.printStackTrace()
         }
     }
@@ -734,9 +965,10 @@ object SupabaseRepo {
     suspend fun updateUserProfile(name: String, avatarUri: String?): Boolean {
         return try {
             val userId = client.auth.currentUserOrNull()?.id ?: return false
+            val current = getUserProfile() ?: ZadUser(id = userId)
             Log.d(TAG, "updateUserProfile() → userId=$userId, name=$name, avatarUri=$avatarUri")
             client.postgrest["zad_users"].upsert(
-                ZadUser(id = userId, name = name, avatarUri = avatarUri)
+                current.copy(name = name, avatarUri = avatarUri ?: current.avatarUri)
             )
             Log.d(TAG, "updateUserProfile() SUCCESS")
             true
@@ -748,7 +980,8 @@ object SupabaseRepo {
     }
 
     // read-modify-write off the cached profile — a bare upsert(ZadUser(id=..., emergencyFundBalance=...))
-    // would clobber name/avatarUri to null like updateUserProfile()'s existing upsert does.
+    // would clobber every other column to its default, same reason updateUserProfile/updateUserBudget
+    // above do the same read-modify-write instead of a bare upsert.
     suspend fun updateEmergencyFund(newValue: Double): Boolean {
         return try {
             val userId = client.auth.currentUserOrNull()?.id ?: return false
@@ -1143,6 +1376,17 @@ object SupabaseRepo {
             return inserted
         } catch (e: Exception) {
             Log.e(TAG, "createSinkingFund() FAILED: ${e.message}")
+            return null
+        }
+    }
+
+    suspend fun createFamilyGoal(goal: FamilyGoal): FamilyGoal? {
+        try {
+            val inserted = client.postgrest["family_goals"].insert(goal).decodeSingle<FamilyGoal>()
+            Log.d(TAG, "createFamilyGoal() SUCCESS")
+            return inserted
+        } catch (e: Exception) {
+            Log.e(TAG, "createFamilyGoal() FAILED: ${e.message}")
             return null
         }
     }

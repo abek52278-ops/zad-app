@@ -17,7 +17,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -27,10 +26,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
 import coil.compose.AsyncImage
 import com.example.data.AffiliateProduct
 import com.example.data.CurrencyFormatter
+import com.example.ui.components.pressableScale
 import com.example.ui.theme.*
 
 @Composable
@@ -43,8 +42,9 @@ fun AffiliateProductCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
+            .pressableScale(pressedScale = 0.97f, withHaptic = false)
             .clickable { onBuyClick() },
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -57,10 +57,9 @@ fun AffiliateProductCard(
         ) {
             Box(
                 modifier = Modifier
-                    .size(72.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(surfaceContainerLow),
-                contentAlignment = Alignment.Center
+                    .size(88.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(surfaceContainerLow)
             ) {
                 AsyncImage(
                     model = product.imageUrl,
@@ -68,6 +67,19 @@ fun AffiliateProductCard(
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
+                Surface(
+                    shape = RoundedCornerShape(bottomEnd = 10.dp),
+                    color = Color(0xFFFF9900),
+                    modifier = Modifier.align(Alignment.TopStart)
+                ) {
+                    Text(
+                        "أمازون",
+                        color = Color.White,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
             }
 
             Column(modifier = Modifier.weight(1f)) {
@@ -101,17 +113,11 @@ fun AffiliateProductCard(
 
 @Composable
 fun BuyButton(onClick: () -> Unit) {
-    var pressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (pressed) 0.93f else 1f)
-
     Button(
-        onClick = {
-            pressed = true
-            onClick()
-        },
+        onClick = onClick,
         modifier = Modifier
-            .scale(scale)
-            .height(40.dp),
+            .height(40.dp)
+            .pressableScale(pressedScale = 0.93f, withHaptic = false),
         shape = RoundedCornerShape(10.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = Color(0xFFFF9900) // Amazon orange
@@ -121,13 +127,6 @@ fun BuyButton(onClick: () -> Unit) {
         Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(16.dp))
         Spacer(modifier = Modifier.width(6.dp))
         Text("اشترِ من أمازون", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-    }
-
-    LaunchedEffect(pressed) {
-        if (pressed) {
-            delay(200)
-            pressed = false
-        }
     }
 }
 

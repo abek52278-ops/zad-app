@@ -40,9 +40,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import com.airbnb.lottie.compose.LottieConstants
+import com.example.R
 import com.example.data.AiParsedInventoryItem
 import com.example.data.ZadAiRepository
 import com.example.data.ZadInventory
+import com.example.ui.components.ZadLottieAsset
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 import kotlinx.coroutines.delay
@@ -64,6 +67,7 @@ fun CameraScreen(
     var showManualEntry by remember { mutableStateOf(false) }
     var scanMode by remember { mutableStateOf("INVENTORY") }
     var pulseScale by remember { mutableStateOf(1f) }
+    var showCaptureFlash by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -90,11 +94,20 @@ fun CameraScreen(
         pulseScale = 1f
     }
 
+    // Flash overlay: يبان لحظة رجوع الكاميرا بنجاح ثم يقفل نفسه لوحده
+    LaunchedEffect(showCaptureFlash) {
+        if (showCaptureFlash) {
+            delay(700)
+            showCaptureFlash = false
+        }
+    }
+
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success: Boolean ->
         Log.d("CameraScreen", " Camera returned success: $success")
         if (success && imageUri != null) {
+            showCaptureFlash = true
             val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 val source = ImageDecoder.createSource(context.contentResolver, imageUri!!)
                 ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
@@ -240,6 +253,7 @@ fun CameraScreen(
         )
     }
 
+    Box(modifier = Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -329,9 +343,11 @@ fun CameraScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator(
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(48.dp)
+                            ZadLottieAsset(
+                                resId = R.raw.lottie_scan_receipt,
+                                iterations = LottieConstants.IterateForever,
+                                modifier = Modifier.size(96.dp),
+                                contentDescription = "جاري التحليل..."
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text("جاري التحليل...", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -422,6 +438,24 @@ fun CameraScreen(
                         modifier = Modifier.padding(16.dp)
                     )
                 }
+            }
+        }
+    }
+
+        // Capture flash overlay: فلاش أبيض + علامة صح لحظة رجوع الكاميرا بالصورة
+        androidx.compose.animation.AnimatedVisibility(
+            visible = showCaptureFlash,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                ZadLottieAsset(
+                    resId = R.raw.lottie_camera_capture,
+                    iterations = 1,
+                    modifier = Modifier.fillMaxSize(),
+                    contentDescription = null
+                )
             }
         }
     }

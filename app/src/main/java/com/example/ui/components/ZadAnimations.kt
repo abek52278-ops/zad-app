@@ -148,6 +148,34 @@ fun Modifier.floatingIdle(amplitude: Float = 6f): Modifier = composed {
 }
 
 /**
+ * اهتزاز جرس التنبيهات: نبضة خفيفة كل ~2.2 ثانية بدل اهتزاز مستمر —
+ * يلفت الانتباه من غير ما يبقى مزعج لعين المستخدم طول الوقت.
+ */
+fun Modifier.bellShake(enabled: Boolean = true): Modifier = composed {
+    if (!enabled) return@composed this
+    val transition = rememberInfiniteTransition(label = "bellShake")
+    val rotation by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                durationMillis = 2200
+                0f at 0
+                0f at 1600
+                -10f at 1700
+                10f at 1800
+                -6f at 1900
+                6f at 2000
+                0f at 2100
+                0f at 2200
+            }
+        ),
+        label = "bellRotation"
+    )
+    graphicsLayer { rotationZ = rotation }
+}
+
+/**
  * نبض توهج — للتنبيهات والإنجازات
  */
 fun Modifier.pulseGlow(minScale: Float = 1f, maxScale: Float = 1.06f): Modifier = composed {

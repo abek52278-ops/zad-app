@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -28,6 +29,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.ZadSubscription
+import com.example.ui.components.pressableScale
+import com.example.ui.components.ZadLottieAsset
+import com.example.ui.components.ZadTransitions
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 import java.time.LocalDate
@@ -102,9 +106,10 @@ fun SubscriptionsScreen(
             }
 
             // Summary Banner
+            com.example.ui.components.AppearOnEntry {
             Box(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)
-                    .shadow(4.dp, RoundedCornerShape(20.dp))
+                    .shadow(elevation = 10.dp, shape = RoundedCornerShape(20.dp), spotColor = primary.copy(alpha = 0.20f))
                     .clip(RoundedCornerShape(20.dp))
                     .background(
                         Brush.horizontalGradient(listOf(primary, primaryLight))
@@ -128,6 +133,7 @@ fun SubscriptionsScreen(
                         Text("${activeSubs.size}", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
+            }
             }
 
             // Tabs
@@ -173,19 +179,40 @@ fun SubscriptionsScreen(
             ) {
                 if (filtered.isEmpty()) {
                     item {
-                        com.example.ui.components.ZadEmptyState(
-                            icon = Icons.Default.Subscriptions,
-                            title = if (selectedTab == 0) stringResource(R.string.no_subscriptions_any) else stringResource(R.string.no_items_in_category),
+                        // بديل الأيقونة الثابتة بـ Lottie متحركة — نفس تسلسل ZadEmptyState (عنوان بولد وسط الشاشة)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
-                        )
+                        ) {
+                            ZadLottieAsset(
+                                resId = R.raw.lottie_empty_box,
+                                modifier = Modifier.size(140.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = if (selectedTab == 0) stringResource(R.string.no_subscriptions_any) else stringResource(R.string.no_items_in_category),
+                                style = Typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = onSurface,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 } else {
-                    items(filtered, key = { it.id }) { sub ->
-                        SubScreenSubscriptionCardFull(
-                            sub = sub,
-                            onToggleActive = { viewModel.updateSubscriptionActive(sub.id, !sub.isActive) },
-                            onDelete = { viewModel.deleteSubscription(sub.id) }
-                        )
+                    itemsIndexed(filtered, key = { _, sub -> sub.id }) { index, sub ->
+                        var itemVisible by remember(sub.id) { mutableStateOf(false) }
+                        LaunchedEffect(sub.id) { itemVisible = true }
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = itemVisible,
+                            enter = ZadTransitions.listItemEnter(index)
+                        ) {
+                            SubScreenSubscriptionCardFull(
+                                sub = sub,
+                                onToggleActive = { viewModel.updateSubscriptionActive(sub.id, !sub.isActive) },
+                                onToggleAutoDeduct = { viewModel.updateSubscriptionAutoDeduct(sub.id, !sub.autoDeduct) },
+                                onDelete = { viewModel.deleteSubscription(sub.id) }
+                            )
+                        }
                     }
                 }
                 item { Spacer(modifier = Modifier.height(72.dp)) }
@@ -197,7 +224,7 @@ fun SubscriptionsScreen(
             onClick = { showAddDialog = true },
             containerColor = primary,
             contentColor = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 88.dp)
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 88.dp).pressableScale()
         ) {
             Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_action))
         }
@@ -205,13 +232,14 @@ fun SubscriptionsScreen(
         if (showAddDialog) {
             AddSubscriptionDialog(
                 onDismiss = { showAddDialog = false },
-                onSave = { title, amount, renewalDate, provider ->
+                onSave = { title, amount, renewalDate, provider, category ->
                     viewModel.addSubscription(
                         ZadSubscription(
                             title = title,
                             amount = amount,
                             renewalDate = renewalDate,
                             provider = provider,
+                            category = category,
                             isActive = true
                         )
                     )
@@ -226,6 +254,7 @@ fun SubscriptionsScreen(
 private fun SubScreenSubscriptionCardFull(
     sub: ZadSubscription,
     onToggleActive: () -> Unit,
+    onToggleAutoDeduct: () -> Unit,
     onDelete: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -242,9 +271,13 @@ private fun SubScreenSubscriptionCardFull(
         else -> successColor
     }
 
+    val subCardShape = RoundedCornerShape(18.dp)
     Card(
-        modifier = Modifier.fillMaxWidth().shadow(2.dp, RoundedCornerShape(16.dp)),
-        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(elevation = 6.dp, shape = subCardShape, spotColor = daysColor.copy(alpha = 0.16f))
+            .pressableScale(),
+        shape = subCardShape,
         colors = CardDefaults.cardColors(containerColor = if (sub.isActive) surface else surfaceContainerLow)
     ) {
         Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
@@ -287,12 +320,28 @@ private fun SubScreenSubscriptionCardFull(
                 if (sub.provider != null) {
                     Text(sub.provider, style = Typography.labelSmall, color = onSurfaceVariant)
                 }
+                if (sub.autoDeduct) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Bolt, contentDescription = null, tint = primary, modifier = Modifier.size(12.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(stringResource(R.string.auto_deduct_badge), style = Typography.labelSmall, color = primary, fontSize = 10.sp)
+                    }
+                }
             }
             Text(com.example.data.CurrencyFormatter.format(context, sub.amount),
                 style = Typography.titleMedium, fontWeight = FontWeight.Bold,
                 color = if (sub.isActive) onSurface else onSurfaceVariant)
             Spacer(modifier = Modifier.width(4.dp))
-            IconButton(onClick = onToggleActive, modifier = Modifier.size(32.dp)) {
+            IconButton(onClick = onToggleAutoDeduct, modifier = Modifier.size(32.dp).pressableScale()) {
+                Icon(
+                    Icons.Default.Bolt,
+                    contentDescription = stringResource(R.string.auto_deduct_toggle_action),
+                    tint = if (sub.autoDeduct) primary else outline,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            IconButton(onClick = onToggleActive, modifier = Modifier.size(32.dp).pressableScale()) {
                 Icon(
                     if (sub.isActive) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
                     contentDescription = if (sub.isActive) stringResource(R.string.disable) else stringResource(R.string.enable),
@@ -300,7 +349,7 @@ private fun SubScreenSubscriptionCardFull(
                     modifier = Modifier.size(20.dp)
                 )
             }
-            IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+            IconButton(onClick = onDelete, modifier = Modifier.size(32.dp).pressableScale()) {
                 Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_action), tint = dangerColor, modifier = Modifier.size(18.dp))
             }
             }
@@ -309,13 +358,29 @@ private fun SubScreenSubscriptionCardFull(
 }
 
 @Composable
-fun AddSubscriptionDialog(onDismiss: () -> Unit, onSave: (String, Double, String, String) -> Unit) {
+fun AddSubscriptionDialog(onDismiss: () -> Unit, onSave: (String, Double, String, String, String) -> Unit) {
     var title by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
     var provider by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("اشتراك") }
     var renewalDate by remember { mutableStateOf("") }
     val context = androidx.compose.ui.platform.LocalContext.current
+
+    // بيصنّف الفاتورة تلقائياً (نوع/مزوّد/فئة) بعد ما المستخدم يكتب اسم ومبلغ حقيقيين —
+    // debounce بسيط عن طريق delay قبل النداء عشان ميبعتش طلب AI مع كل حرف يتكتب.
+    LaunchedEffect(title, amount) {
+        val parsedAmount = amount.toDoubleOrNull()
+        if (title.length >= 3 && parsedAmount != null && parsedAmount > 0) {
+            kotlinx.coroutines.delay(600)
+            val classification = com.example.data.ZadAiRepository.classifyBill(title, parsedAmount)
+            if (classification != null) {
+                category = classification.category
+                if (provider.isBlank() && !classification.provider.isNullOrBlank()) {
+                    provider = classification.provider
+                }
+            }
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -326,17 +391,24 @@ fun AddSubscriptionDialog(onDismiss: () -> Unit, onSave: (String, Double, String
                 OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text(stringResource(R.string.amount_with_currency_hint, com.example.data.CurrencyFormatter.symbol(context))) }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = provider, onValueChange = { provider = it }, label = { Text(stringResource(R.string.service_provider_hint)) }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = renewalDate, onValueChange = { renewalDate = it }, label = { Text(stringResource(R.string.renewal_date_hint)) }, modifier = Modifier.fillMaxWidth())
+                if (title.length >= 3) {
+                    Text("الفئة المقترحة: $category", style = Typography.labelSmall, color = onSurfaceVariant)
+                }
             }
         },
         confirmButton = {
-            Button(onClick = {
-                val parsedAmount = amount.toDoubleOrNull() ?: return@Button
-                if (title.isNotBlank()) {
-                    onSave(title, parsedAmount,
-                        if (renewalDate.isNotBlank()) renewalDate else LocalDate.now().plusMonths(1).toString(),
-                        provider)
-                }
-            }) { Text(stringResource(R.string.save)) }
+            Button(
+                onClick = {
+                    val parsedAmount = amount.toDoubleOrNull() ?: return@Button
+                    if (title.isNotBlank()) {
+                        onSave(title, parsedAmount,
+                            if (renewalDate.isNotBlank()) renewalDate else LocalDate.now().plusMonths(1).toString(),
+                            provider, category)
+                    }
+                },
+                modifier = Modifier.pressableScale(),
+                shape = RoundedCornerShape(50)
+            ) { Text(stringResource(R.string.save)) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )

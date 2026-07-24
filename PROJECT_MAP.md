@@ -138,7 +138,6 @@ MainActivity
 - **Sound effects** — ToneGenerator click on each tap (TONE_PROP_BEEP2), level-up sound (TONE_PROP_ACK), haptic feedback (VibrationEffect)
 
 ## ORPHANS & PENDING
-- **Action required:** run `supabase/migrations/20260720000000_create_affiliate_tables.sql` in the Supabase SQL Editor (project `auuftqncrjsnyylolhbu`) — the `affiliate_products`/`affiliate_clicks`/`affiliate_catalog_requests` tables the app already queries were never migrated.
-- No core library desugaring configured (`app/build.gradle.kts`) despite `java.time.*` used throughout (`ZadCentralBrain`, `ZadViewModel`, `BudgetScreen`, workers) with `minSdk = 24` — risks crashing on Android 7/7.1 devices (API 24-25). Pre-existing, not introduced this sprint.
+- (2026-07-23: both prior entries here — the affiliate-tables migration and missing core library desugaring — were verified fixed and removed. `affiliate_products`/`affiliate_clicks`/`affiliate_catalog_requests` exist with RLS enabled and real rows; `app/build.gradle.kts` has `isCoreLibraryDesugaringEnabled = true` + `desugar_jdk_libs`. No known orphans as of this date — verify against current state before trusting this line blindly in future sessions.)
 
 <!-- Update this file after every significant change -->

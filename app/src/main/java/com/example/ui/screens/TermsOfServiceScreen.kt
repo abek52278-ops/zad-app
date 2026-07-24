@@ -15,14 +15,16 @@ import com.example.ui.theme.onSurface
 import com.example.ui.theme.onSurfaceVariant
 import com.example.ui.theme.primary
 import com.example.ui.theme.Typography
+import com.example.ui.components.AppearOnEntry
 
 @Composable
 fun TermsOfServiceScreen(onBack: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().background(background)) {
         SubScreenTopBar("Terms of Service", onBack)
-        
+
+        AppearOnEntry {
         Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
-            
+
             Text(
                 "Terms of Service & User Agreement",
                 style = Typography.headlineMedium,
@@ -80,6 +82,7 @@ fun TermsOfServiceScreen(onBack: () -> Unit) {
             )
 
             Spacer(modifier = Modifier.height(32.dp))
+        }
         }
     }
 }

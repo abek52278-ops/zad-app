@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import android.util.Log
 import coil.compose.AsyncImage
 import com.example.R
+import com.example.ui.components.ZadLottieAsset
 import com.example.ui.theme.Typography
 import com.example.ui.theme.primary
 import com.example.ui.theme.*
@@ -122,12 +123,18 @@ fun OnboardingScreen(
                 )
                 Spacer(Modifier.width(14.dp))
                 Text(
-                    "زاد",
+                    stringResource(R.string.app_name),
                     style = Typography.displayLarge.copy(fontSize = 40.sp),
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF0D5C3F)
+                    color = primaryDark
                 )
             }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                stringResource(R.string.slogan),
+                style = Typography.labelLarge,
+                color = onSurfaceVariant
+            )
 
             Spacer(Modifier.height(40.dp))
 
@@ -144,7 +151,7 @@ fun OnboardingScreen(
                 pageSpacing = 16.dp
             ) { page ->
                 val feature = features[page]
-                FeatureCard(feature = feature, isSelected = page == currentPage)
+                FeatureCard(feature = feature, isSelected = page == currentPage, page = page)
             }
 
             Spacer(Modifier.height(24.dp))
@@ -219,7 +226,7 @@ fun OnboardingScreen(
 }
 
 @Composable
-fun FeatureCard(feature: OnboardingFeature, isSelected: Boolean) {
+fun FeatureCard(feature: OnboardingFeature, isSelected: Boolean, page: Int = -1) {
     val scale by animateFloatAsState(
         targetValue = if (isSelected) 1f else 0.95f,
         animationSpec = tween(300), label = "card_scale"
@@ -238,14 +245,30 @@ fun FeatureCard(feature: OnboardingFeature, isSelected: Boolean) {
             modifier = Modifier.padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(Brush.linearGradient(colors = listOf(feature.color, feature.color.copy(alpha = 0.7f)))),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(feature.icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(40.dp))
+            when (page) {
+                // خطوة الترحيب الأولى — illustration بدل الأيقونة الثابتة
+                0 -> ZadLottieAsset(
+                    resId = R.raw.lottie_onboarding_welcome,
+                    iterations = 1,
+                    modifier = Modifier.size(200.dp),
+                    contentDescription = feature.title
+                )
+                // خطوة التعريف بالمساعد الذكي
+                2 -> ZadLottieAsset(
+                    resId = R.raw.lottie_onboarding_ai,
+                    iterations = 1,
+                    modifier = Modifier.size(200.dp),
+                    contentDescription = feature.title
+                )
+                else -> Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(Brush.linearGradient(colors = listOf(feature.color, feature.color.copy(alpha = 0.7f)))),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(feature.icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(40.dp))
+                }
             }
             Spacer(Modifier.height(24.dp))
             Text(

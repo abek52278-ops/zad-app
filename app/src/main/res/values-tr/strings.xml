@@ -708,4 +708,127 @@
     <string name="subscription_load_label">Aylık abonelik yükü</string>
     <string name="top_categories_label">En çok harcanan kategoriler</string>
     <string name="last_updated_label">Son güncelleme: %1$s</string>
+
+    <!-- Sinking funds / events radar -->
+    <string name="budget_goals_tab">Hedefler</string>
+    <string name="event_back_to_school">Okula dönüş</string>
+    <string name="event_eid_al_adha">Kurban Bayramı</string>
+    <string name="event_eid_al_fitr">Ramazan Bayramı</string>
+    <string name="event_ramadan">Ramazan</string>
+    <string name="events_radar_days_until">%1$d gün kaldı</string>
+    <string name="events_radar_title">Etkinlik radarı</string>
+    <string name="live_search_error_state">Şu anda arama yapılamıyor — birazdan tekrar deneyin</string>
+    <string name="sinking_fund_amount_hint">Tutar</string>
+    <string name="sinking_fund_contribute_action">Tutar ekle</string>
+    <string name="sinking_fund_create_action">Yeni fon</string>
+    <string name="sinking_fund_empty_state">Henüz birikim fonu yok</string>
+    <string name="sinking_fund_link_event_hint">Bir etkinliğe bağla (isteğe bağlı)</string>
+    <string name="sinking_fund_name_hint">Fon adı</string>
+    <string name="sinking_fund_target_hint">Hedef tutar</string>
+    <string name="sinking_funds_title">Birikim fonları</string>
+    <string name="switch_to_kids_mode">Çocuk moduna geç</string>
+    <string name="switch_to_kids_mode_subtitle">Cihazı geçici olarak çocuğunuza verirken — çıkmak için PIN gerekir</string>
+
+    <!-- Pharmacy -->
+    <string name="nav_pharmacy">Aile eczanesi</string>
+    <string name="pharmacy_title">Aile eczanesi</string>
+    <string name="scan_medicine_action">Kamerayla ilaç tara</string>
+    <string name="total_medicines_label">Toplam ilaç</string>
+    <string name="expiring_soon_label">Süresi yaklaşan</string>
+    <string name="low_stock_label">Stok azaldı</string>
+    <string name="monthly_pharma_cost_label">Aylık ilaç maliyeti: %1$s</string>
+    <string name="expired_medicine_warning">%1$d ilacın süresi dolmuş — güvenle imha edin</string>
+    <string name="no_medicines_hint">Henüz kayıtlı ilaç yok</string>
+    <string name="expires_in_days">%1$d gün içinde sona eriyor</string>
+    <string name="remaining_quantity_label">%1$d %2$s kaldı</string>
+    <string name="days_supply_left">%1$d gün yeter</string>
+    <string name="consume_dose_action">Doz al</string>
+    <string name="add_medicine_dialog_title">İlaç ekle</string>
+    <string name="medicine_name_hint">İlaç adı</string>
+    <string name="active_ingredient_hint">Etken madde</string>
+    <string name="dosage_hint">Doz (örnek: 8 saatte bir tablet)</string>
+    <string name="remaining_quantity_hint">Kalan miktar</string>
+    <string name="unit_hint">Birim</string>
+    <string name="daily_dose_hint">Günlük doz sayısı</string>
+    <string name="dose_times_hint">Doz saatleri (isteğe bağlı, örnek: 08:00, 20:00)</string>
+    <string name="expiry_date_hint">Son kullanma tarihi (YYYY-AA-GG)</string>
+    <string name="is_recurring_label">Kronik ilaç / aylık yenilenen reçete</string>
+    <string name="toggle_view_action">Görünümü değiştir</string>
+    <string name="smart_expiry_tracker_title">Süresi yaklaşanlar — güvenle imha edin</string>
+    <string name="renew_order_action">Siparişi yenile</string>
+    <string name="renew_order_dialog_title">%1$s siparişini yenile</string>
+    <string name="added_quantity_hint">Eklenen miktar (%1$s)</string>
+    <string name="assigned_family_member_label">Ailede kime ait</string>
+    <string name="exact_alarm_permission_hint">İlaç saatlerinin tam zamanında çalışması için Ayarlar\'dan \"Kesin alarmlar\"ı etkinleştirin</string>
+    <string name="pharmacy_reminder_title">İlaç zamanı</string>
+    <string name="pharmacy_reminder_body">%1$s dozu zamanı geldi</string>
+    <string name="pharmacy_reminder_voice_text">%1$s dozu zamanı geldi</string>
+    <string name="mark_taken_action">Alındı</string>
+    <string name="snooze_10_min_action">10 dakika ertele</string>
+    <string name="weekly_adherence_label">Bu hafta dozlarınızın %%%1$d\'ini aldınız</string>
+
+    <!-- Home Maintenance -->
+    <string name="nav_maintenance">Ev bakımı</string>
+    <string name="maintenance_title">Ev bakımı</string>
+    <string name="total_appliances_label">Cihazlar</string>
+    <string name="due_soon_label">Yakında bakım</string>
+    <string name="warranty_expiring_label">Garanti yaklaşıyor</string>
+    <string name="overdue_maintenance_warning">%1$d cihazın bakım zamanı geçti</string>
+    <string name="no_maintenance_items_hint">Henüz kayıtlı cihaz yok</string>
+    <string name="service_overdue_days">%1$d gün gecikti</string>
+    <string name="service_due_in_days">%1$d gün içinde bakım</string>
+    <string name="warranty_expires_in_days">Garanti %1$d gün içinde sona eriyor</string>
+    <string name="mark_serviced_action">Bugün bakım yapıldı</string>
+    <string name="add_maintenance_dialog_title">Cihaz ekle</string>
+    <string name="appliance_name_hint">Cihaz adı</string>
+    <string name="purchase_date_hint">Satın alma tarihi (YYYY-AA-GG)</string>
+    <string name="warranty_expiry_hint">Garanti bitiş tarihi (YYYY-AA-GG)</string>
+    <string name="service_interval_hint">Bakım aralığı (kaç günde bir)</string>
+
+    <!-- Subscription auto-deduct -->
+    <string name="auto_deduct_badge">Otomatik kesinti</string>
+    <string name="auto_deduct_toggle_action">Otomatik kesintiyi aç/kapat</string>
+
+    <!-- Nearby Deals (foreground-only geofencing) -->
+    <string name="nearby_deals_title">Zad Yakınımda</string>
+    <string name="location_permission_rationale">Zad, yakınınızdaki marketleri gösterebilmek için konum iznine ihtiyaç duyar — yalnızca bu ekran açıkken kullanılır, arka planda izleme yapılmaz.</string>
+    <string name="allow_location_action">Konuma izin ver</string>
+    <string name="nearby_deals_disclaimer">Veriler topluluk kaynaklı OpenStreetMap haritalarından alınır — eksik olabilir. Burada gerçek fiyat veya kampanya yoktur, sadece yakınlık ile eksik stoğunuz karşılaştırılır.</string>
+    <string name="location_unavailable_hint">Konumunuz belirlenemedi — GPS\'in açık olduğundan emin olup tekrar deneyin.</string>
+    <string name="no_nearby_stores_hint">Yakında market bulunamadı</string>
+    <string name="low_stock_reminder_hint">Eksikleriniz: %1$s</string>
+    <string name="nearby_pharmacies_section_title">Yakındaki eczaneler</string>
+    <string name="nearby_supermarkets_section_title">Yakındaki marketler</string>
+    <string name="refill_needed_reminder_hint">Bitmek üzere: %1$s</string>
+
+    <!-- Budget suggestion (advisory, needs user approval) -->
+    <string name="budget_suggestion_text">Zad, son iki ayın ortalamasına göre bütçenizi %1$s olarak güncellemenizi öneriyor</string>
+    <string name="apply_suggestion_action">Uygula</string>
+    <string name="dismiss_action">Yoksay</string>
+    <string name="rescan_sms_title">Banka SMS\'lerini yeniden tara</string>
+    <string name="rescan_sms_subtitle">Son 60 günün SMS\'lerini manuel olarak yeniden tara</string>
+    <string name="rescanning_sms_toast">Taranıyor…</string>
+    <string name="rescan_done_toast">%d yeni işlem içe aktarıldı</string>
+    <string name="read_sms_permission_missing_toast">SMS okuma izni verilmedi — önce sistem ayarlarından etkinleştirin</string>
+    <string name="edit_category_dialog_title">Kategoriyi düzenle</string>
+    <string name="category_will_be_remembered_hint">\"%1$s\" için sonraki işlemlerde bu kategori hatırlanacak</string>
+
+    <!-- Statement CSV import -->
+    <string name="statement_import_title">Hesap ekstresi içe aktar</string>
+    <string name="import_bank_statement_subtitle">Bankadan CSV hesap ekstresi içe aktar</string>
+    <string name="statement_import_intro">Hesap ekstrenizin CSV dosyasını seçin — içe aktarmadan önce tarih ve tutar sütununu siz belirleyeceksiniz, gözden geçirmeden hiçbir şey kaydedilmez.</string>
+    <string name="statement_read_failed">Dosya okunamadı — geçerli bir CSV dosyası olduğundan emin olun</string>
+    <string name="pick_csv_file_action">CSV dosyası seç</string>
+    <string name="map_columns_hint">Dosyadaki her sütunun neyi temsil ettiğini belirtin — her bankada format farklıdır</string>
+    <string name="date_column_label">Tarih sütunu</string>
+    <string name="title_column_label">Açıklama/başlık sütunu</string>
+    <string name="amount_column_label">Tutar sütunu</string>
+    <string name="category_column_optional_label">Kategori sütunu (isteğe bağlı)</string>
+    <string name="none_option">Yok</string>
+    <string name="invert_amount_sign_label">Tutar işaretini ters çevir (negatif değer burada gelir anlamına geliyorsa)</string>
+    <string name="continue_to_preview_action">Önizlemeye devam et</string>
+    <string name="preview_rows_count_hint">%1$d satır — %2$d içe aktarım için seçildi</string>
+    <string name="row_parse_error_hint">Bu satırda tarih veya tutar okunamadı</string>
+    <string name="import_selected_rows_action">%1$d işlemi içe aktar</string>
+    <string name="statement_import_done_toast">%1$d işlem içe aktarıldı, %2$d tekrar eden yoksayıldı</string>
 </resources>

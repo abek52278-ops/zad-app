@@ -12,6 +12,18 @@ const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const TEXT_MODEL = "openai/gpt-oss-20b:free";
 const VISION_MODEL = "nvidia/nemotron-nano-12b-v2-vl:free";
+
+// GEMINI_API_KEY is a vision-only fallback for the two image actions below
+// (analyze_inventory_image, analyze_receipt) — used ONLY when OpenRouter's
+// free-tier vision model returns no content (e.g. daily rate limit hit, like
+// the 2026-07-22 OpenRouter free-models-per-day outage this was added for).
+// It is not wired into any text/JSON action — those stay OpenRouter-only.
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+// gemini-2.5-flash returns 404 "no longer available to new users" on this key —
+// verified directly against the API. gemini-flash-latest is Google's floating
+// alias to the current flash model, avoiding this class of deprecation break.
+const GEMINI_VISION_MODEL = "gemini-flash-latest";
+
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -28,56 +40,6 @@ function corsHeaders() {
 function jsonResponse(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: corsHeaders() });
 }
-
-function classifyTransaction(title: string, amount: number, category?: string): string {
-  const t = title?.toLowerCase() || "";
-  const knownPatterns: Record<string, string[]> = {
-    food: [
-      "restaurant", "grocery", "supermarket", "panda", "carrefour",
-      "مطعم", "مطاعم", "بقالة", "هايبر", "اسواق", "سوبرماركت", "طعام", "أكل",
-      "كافيه", "كافيتيريا", "وجبة", "ساندويتش", "بيتزا", "برجر", "دجاج"
-    ],
-    transport: [
-      "uber", "taxi", "fuel", "gas", "careem",
-      "وقود", "بنزين", "سيارة", "نقل", "توصيل", "موصل", "باص", "حافلة",
-      "تاكسي", "رحلة", "أوبر", "كريم"
-    ],
-    telecom: [
-      "stc", "mobily", "zain", "mobile", "phone",
-      "اتصالات", "موبايلي", "زين", "اتصال", "انترنت", "شبكة", "هاتف"
-    ],
-    subscription: [
-      "monthly", "subscription", "netflix", "spotify", "shahid",
-      "اشتراك", "شهري", "سنوي", "نتفليكس", "شاهد", "يوتيوب", "ابل", "قوقل"
-    ],
-    rent: [
-      "rent", "apartment", "housing",
-      "إيجار", "سكن", "شقة", "فيلا", "استئجار"
-    ],
-    health: [
-      "hospital", "doctor", "clinic", "pharmacy", "medicine",
-      "مستشفى", "دكتور", "طبيب", "صيدلية", "دواء", "علاج", "عيادة", "صحة"
-    ],
-  };
-
-  const categoryMap: Record<string, string> = {
-    food: "طعام",
-    transport: "مواصلات",
-    telecom: "اتصالات",
-    subscription: "اشتراكات",
-    rent: "إيجار",
-    health: "صحة",
-  };
-
-  if (category && Object.keys(categoryMap).some(k => categoryMap[k] === category)) return category;
-  for (const [key, keywords] of Object.entries(knownPatterns)) {
-    for (const kw of keywords) {
-      if (t.includes(kw.toLowerCase())) return categoryMap[key];
-    }
-  }
-  return "";
-}
-
 
 // openai/gpt-oss-20b:free is a reasoning model — without reasoning:{effort:"low"}
 // and a token budget that covers both the hidden reasoning trace and the
@@ -165,6 +127,41 @@ async function callVisionModel(systemPrompt: string, userPrompt: string, imageBa
   }
 }
 
+// Fallback vision path — only reached when callVisionModel (OpenRouter) returns
+// no content, e.g. the free-tier daily rate limit. Same 25s upstream timeout
+// budget as callVisionModel so a caller waiting on both in sequence still
+// finishes under the Android client's 30s HttpURLConnection timeout.
+async function callGeminiVision(systemPrompt: string, userPrompt: string, imageBase64: string, mimeType: string) {
+  if (!GEMINI_API_KEY) return { content: null, ok: false };
+  try {
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_VISION_MODEL + ":generateContent?key=" + GEMINI_API_KEY;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: systemPrompt + "\n\n" + userPrompt },
+            { inlineData: { mimeType: mimeType, data: imageBase64 } },
+          ],
+        }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 2000 },
+      }),
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      console.error("[CoreIntel] Gemini vision HTTP error:", resp.status, JSON.stringify(data));
+      return { content: null, ok: false };
+    }
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+    return { content: text, ok: !!text };
+  } catch (e) {
+    console.error("[CoreIntel] callGeminiVision failed/timed out:", e.message);
+    return { content: null, ok: false };
+  }
+}
+
 async function transcribeAudio(audioBase64: string, mimeType: string) {
   if (!GROQ_API_KEY) return { text: null, raw: { error: "GROQ_API_KEY not set" }, ok: false, status: 0 };
   try {
@@ -233,61 +230,78 @@ async function callJsonModel(systemPrompt: string, userPrompt: string, maxTokens
   }
 }
 
-// groq/compound is Groq's agentic system with a built-in, Tavily-backed
-// web_search tool — used ONLY for the two live-search actions below so
-// results are grounded in real pages, never invented. Reuses GROQ_API_KEY
-// (already provisioned for Whisper), no new secret needed. Compound
-// sometimes wraps its JSON answer in prose/markdown fences despite
-// instructions, so we extract leniently like callJsonModel() does.
+// groq/compound-mini is Groq's lighter agentic system with a built-in,
+// Tavily-backed web_search tool — used ONLY for the two live-search actions
+// below so results are grounded in real pages, never invented. Reuses
+// GROQ_API_KEY (already provisioned for Whisper), no new secret needed.
+// The full groq/compound model (not -mini) consistently hit Groq's free-tier
+// 6000 TPM cap in a single call — verified live: 413 request_too_large on
+// every call regardless of our small max_tokens, because compound's internal
+// multi-hop tool orchestration burns tokens we don't control. compound-mini's
+// lighter footprint fits under that cap; verified live with real store/price
+// results. Compound sometimes wraps its JSON answer in prose/markdown fences
+// despite instructions, so we extract leniently like callJsonModel() does.
 // `ok` distinguishes a hard failure (missing key, HTTP error, timeout, unparsable
 // response) from a genuinely successful search that just found nothing — callers
 // used to collapse both into the same empty array, so real outages looked
 // identical to "no deals right now" in the UI.
 async function callCompoundSearch(systemPrompt: string, userPrompt: string, maxTokens = 1500) {
   if (!GROQ_API_KEY) return { parsed: null, executedTools: [], ok: false };
-  try {
-    const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": "Bearer " + GROQ_API_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "groq/compound",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: 0.2,
-        max_tokens: Math.max(maxTokens, 300),
-      }),
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-    });
-    const data = await resp.json();
-    if (!resp.ok) {
-      console.error("[CoreIntel] Groq compound HTTP error:", resp.status, JSON.stringify(data));
+  // groq/compound-mini runs on a shared org-level TPM budget (8000/min on this
+  // account's tier) that a single agentic call can consume most of — a second
+  // call landing in the same window gets a 429 with a sub-second suggested
+  // retry ("Please try again in 37.5ms"), verified live. One short-delay retry
+  // absorbs that without surfacing a false failure to the user.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const resp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + GROQ_API_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "groq/compound-mini",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          temperature: 0.2,
+          max_tokens: Math.max(maxTokens, 300),
+        }),
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        console.error("[CoreIntel] Groq compound HTTP error:", resp.status, JSON.stringify(data));
+        if (resp.status === 429 && attempt === 0) {
+          await new Promise((r) => setTimeout(r, 800));
+          continue;
+        }
+        return { parsed: null, executedTools: [], ok: false };
+      }
+      const text = data.choices?.[0]?.message?.content || "";
+      const executedTools = data.choices?.[0]?.message?.executed_tools || [];
+      console.log("[CoreIntel] Groq compound executed_tools:", JSON.stringify(executedTools));
+      const arrayMatch = text.match(/\[[\s\S]*\]/);
+      const objectMatch = text.match(/\{[\s\S]*\}/);
+      let parsed: unknown = null;
+      let parseFailed = false;
+      try {
+        if (arrayMatch) parsed = JSON.parse(arrayMatch[0]);
+        else if (objectMatch) parsed = JSON.parse(objectMatch[0]);
+      } catch (e) {
+        parseFailed = true;
+        console.error("[CoreIntel] callCompoundSearch: JSON.parse failed:", e.message, "raw:", text);
+      }
+      // no JSON found/parseable in the model's reply is a real failure, not "no results"
+      return { parsed, executedTools, ok: !parseFailed };
+    } catch (e) {
+      console.error("[CoreIntel] callCompoundSearch failed/timed out:", e.message);
       return { parsed: null, executedTools: [], ok: false };
     }
-    const text = data.choices?.[0]?.message?.content || "";
-    const executedTools = data.choices?.[0]?.message?.executed_tools || [];
-    console.log("[CoreIntel] Groq compound executed_tools:", JSON.stringify(executedTools));
-    const arrayMatch = text.match(/\[[\s\S]*\]/);
-    const objectMatch = text.match(/\{[\s\S]*\}/);
-    let parsed: unknown = null;
-    let parseFailed = false;
-    try {
-      if (arrayMatch) parsed = JSON.parse(arrayMatch[0]);
-      else if (objectMatch) parsed = JSON.parse(objectMatch[0]);
-    } catch (e) {
-      parseFailed = true;
-      console.error("[CoreIntel] callCompoundSearch: JSON.parse failed:", e.message, "raw:", text);
-    }
-    // no JSON found/parseable in the model's reply is a real failure, not "no results"
-    return { parsed, executedTools, ok: !parseFailed };
-  } catch (e) {
-    console.error("[CoreIntel] callCompoundSearch failed/timed out:", e.message);
-    return { parsed: null, executedTools: [], ok: false };
   }
+  return { parsed: null, executedTools: [], ok: false };
 }
 
 Deno.serve(async (req: Request) => {
@@ -310,83 +324,6 @@ Deno.serve(async (req: Request) => {
 
     switch (action) {
 
-      // ──────────────────────────────────────────────
-      // CHAT — General AI chat
-      // ──────────────────────────────────────────────
-      case "chat": {
-        const { message, history } = payload || {};
-        if (!message) return jsonResponse({ error: "Message required" });
-        const systemPrompt = dialectPrefix + "You are ZAD, smart assistant for home and budget management." + (profile
-          ? " User profile: weekly avg " + profile.avg_weekly_spending + " SAR, top categories " + JSON.stringify(profile.top_spending_categories) + ", subscriptions " + profile.subscription_load_monthly + " SAR"
-          : " New user - no behavior data yet."
-        ) + " Be helpful and accurate. Give financial advice.";
-        if (!OPENROUTER_API_KEY) return jsonResponse({ reply: "AI not available." });
-        const chatResp = await fetch(OPENROUTER_URL, {
-          method: "POST",
-          headers: {
-            "Authorization": "Bearer " + OPENROUTER_API_KEY,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://zad-app.com",
-            "X-Title": "Zad",
-          },
-          body: JSON.stringify({
-            model: TEXT_MODEL,
-            messages: [
-              { role: "system", content: systemPrompt },
-              ...(history || []).slice(-10),
-              { role: "user", content: message },
-            ],
-            temperature: 0.7,
-            max_tokens: 1000,
-            reasoning: { effort: "low" },
-          }),
-        });
-        const chatData = await chatResp.json();
-        if (!chatResp.ok) console.error("[CoreIntel] chat OpenRouter error:", chatResp.status, JSON.stringify(chatData));
-        return jsonResponse({ reply: chatData.choices?.[0]?.message?.content || "Sorry, could not respond." });
-      }
-
-      // ──────────────────────────────────────────────
-      // CLASSIFY — Bill classification (rule-based + AI)
-      // ──────────────────────────────────────────────
-      case "classify": {
-        const { title, amount, category } = payload || {};
-        const ruleResult = classifyTransaction(title, amount, category);
-        if (ruleResult) return jsonResponse({ category: ruleResult, method: "rules" });
-        const result = await callJsonModel(
-          "Classify transaction into one of: food, transport, telecom, subscription, rent, health, entertainment, education, clothing, other. Respond JSON with key category.",
-          "Title: " + title + " Amount: " + amount + " SAR",
-          200
-        );
-        return jsonResponse({ category: result?.category || "other", method: result ? "ai" : "fallback" });
-      }
-
-      // ──────────────────────────────────────────────
-      // INSIGHT — Behavior profile insight
-      // ──────────────────────────────────────────────
-      case "insight": {
-        if (!profile) return jsonResponse({ insight: "Use the app for a few days to generate insights." });
-        const insightText = "Financial Summary: Weekly avg " + profile.avg_weekly_spending + " SAR. Top category: " + (profile.top_spending_categories?.[0]?.category || "-") + ". Monthly subscriptions: " + profile.subscription_load_monthly + " SAR. Advice: " + (profile.subscription_load_monthly > profile.avg_weekly_spending * 0.5 ? "Subscriptions are high. Review and save." : "Good job! Keep tracking.");
-        return jsonResponse({ insight: insightText });
-      }
-
-      // ──────────────────────────────────────────────
-      // PREDICTION — Expense prediction based on profile
-      // ──────────────────────────────────────────────
-      case "prediction": {
-        if (!profile) return jsonResponse({ prediction: null });
-        const weeklyAvg = profile.avg_weekly_spending || 0;
-        const subLoad = profile.subscription_load_monthly || 0;
-        const predictedWeekly = Math.round((weeklyAvg + subLoad / 4) * 100) / 100;
-        return jsonResponse({
-          prediction: {
-            next_week: predictedWeekly,
-            next_month: Math.round(predictedWeekly * 4 * 100) / 100,
-            based_on: "Based on weekly avg " + weeklyAvg + " SAR and monthly subscriptions " + subLoad + " SAR.",
-          },
-        });
-      }
-
       // ══════════════════════════════════════════════
       // NEW ACTIONS
       // ══════════════════════════════════════════════
@@ -399,7 +336,11 @@ Deno.serve(async (req: Request) => {
         const systemPrompt = dialectPrefix + "أنت مساعد طبخ ذكي. بناءً على المخزون المتوفر، اقترح وجبات يمكن تحضيرها. أجب بصيغة JSON: {\"text\": \"...\"}";
         const userPrompt = "المخزون: " + (items || "لا يوجد مخزون");
         const result = await callJsonModel(systemPrompt, userPrompt);
-        return jsonResponse({ text: result?.text || "لم أتمكن من إيجاد اقتراحات حالياً." });
+        // same honest-failure contract as recipe_details: null/ok:false on a genuine upstream
+        // failure instead of baking in Arabic text that looks like a real AI reply. The Kotlin
+        // client (ZadAiRepository.suggestMeals) already falls back to its own "لم أتمكن..."
+        // string when text is null, so no client change needed.
+        return jsonResponse({ text: result?.text || null, ok: !!result?.text });
       }
 
       // ──────────────────────────────────────────────
@@ -464,9 +405,13 @@ Deno.serve(async (req: Request) => {
         if (!image_base64) return jsonResponse({ items: [] });
         const systemPrompt = "You are a vision AI. Analyze the image of refrigerator/pantry contents. Identify every food item visible. Return ONLY JSON: {\"items\":[{\"name\":\"\",\"quantity\":1.0,\"unit\":\"قطعة\",\"category\":\"عام\"}]}";
         const userPrompt = "List all food items visible in this image with estimated quantity, unit, and category.";
-        const visionResult = (await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
+        let visionResult = (await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
         if (!visionResult) {
-          console.error("[CoreIntel] analyze_inventory_image: callVisionModel returned null content");
+          console.error("[CoreIntel] analyze_inventory_image: OpenRouter vision returned null, trying Gemini fallback");
+          visionResult = (await callGeminiVision(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
+        }
+        if (!visionResult) {
+          console.error("[CoreIntel] analyze_inventory_image: both OpenRouter and Gemini vision returned null content");
           return jsonResponse({ items: [] });
         }
         const objectMatch = visionResult.match(/\{[\s\S]*\}/);
@@ -501,7 +446,11 @@ Deno.serve(async (req: Request) => {
         if (!image_base64) return jsonResponse({ total: 0, category: "", storeName: "", items: [] });
         const systemPrompt = "You are a receipt scanning AI. Extract all information from this receipt image. Return ONLY JSON: {\"total\":0.0,\"category\":\"\",\"storeName\":\"\",\"items\":[{\"name\":\"\",\"price\":0.0,\"quantity\":1.0,\"unit\":\"قطعة\",\"category\":\"عام\"}]}";
         const userPrompt = "Extract the total amount, store name, category, and all line items from this receipt.";
-        const visionResult = (await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
+        let visionResult = (await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
+        if (!visionResult) {
+          console.error("[CoreIntel] analyze_receipt: OpenRouter vision returned null, trying Gemini fallback");
+          visionResult = (await callGeminiVision(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
+        }
         if (visionResult) {
           const jsonMatch = visionResult.match(/\{[\s\S]*\}/);
           if (jsonMatch) {

@@ -31,6 +31,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import coil.compose.AsyncImage
+import com.example.ui.components.AppearOnEntry
+import com.example.ui.components.ZadLottieAsset
 import com.example.ui.theme.*
 import androidx.compose.runtime.*
 import com.example.data.SupabaseRepo
@@ -104,6 +106,14 @@ fun ProfileScreen(
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
     var showHelpSupport by remember { mutableStateOf(false) }
     var showBehaviorConsentDialog by remember { mutableStateOf(false) }
+    var showSaveSuccess by remember { mutableStateOf(false) }
+
+    LaunchedEffect(showSaveSuccess) {
+        if (showSaveSuccess) {
+            kotlinx.coroutines.delay(1200)
+            showSaveSuccess = false
+        }
+    }
 
     if (showAvatarDialog) {
         AvatarSelectionDialog(
@@ -111,6 +121,7 @@ fun ProfileScreen(
             onAvatarSelected = { avatarUri ->
                 viewModel.updateUserProfile(displayUserName, avatarUri)
                 showAvatarDialog = false
+                showSaveSuccess = true
             }
         )
     }
@@ -122,6 +133,7 @@ fun ProfileScreen(
             onSave = { newName ->
                 viewModel.updateUserProfile(newName, globalAvatarUri)
                 showEditNameDialog = false
+                showSaveSuccess = true
             }
         )
     }
@@ -184,6 +196,7 @@ fun ProfileScreen(
         )
     }
 
+    Box(modifier = Modifier.fillMaxSize()) {
     Column(modifier = Modifier.fillMaxSize().background(background)) {
         Column(
             modifier = Modifier
@@ -343,72 +356,125 @@ fun ProfileScreen(
                 SectionTitle(stringResource(R.string.settings_title))
                 Spacer(Modifier.height(12.dp))
 
-                ProfileMenuItem(
-                    icon = Icons.Default.Edit,
-                    title = stringResource(R.string.edit_profile_title),
-                    subtitle = stringResource(R.string.edit_profile_subtitle),
-                    gradient = listOf(Color(0xFF0D5C3F), Color(0xFF1A7A55)),
-                    onClick = { navController?.navigate(Screen.EditProfile.route) }
-                )
+                AppearOnEntry(delayMs = 0) {
+                    ProfileMenuItem(
+                        icon = Icons.Default.Edit,
+                        title = stringResource(R.string.edit_profile_title),
+                        subtitle = stringResource(R.string.edit_profile_subtitle),
+                        gradient = listOf(Color(0xFF0D5C3F), Color(0xFF1A7A55)),
+                        onClick = { navController?.navigate(Screen.EditProfile.route) }
+                    )
+                }
                 Spacer(Modifier.height(10.dp))
 
-                ProfileMenuItem(
-                    icon = Icons.Default.FamilyRestroom,
-                    title = stringResource(R.string.manage_family),
-                    subtitle = stringResource(R.string.members_and_permissions),
-                    gradient = listOf(Color(0xFFC8963E), Color(0xFFE8BC6A)),
-                    onClick = { navController?.navigate(Screen.FamilyManagement.route) }
-                )
+                AppearOnEntry(delayMs = 40) {
+                    ProfileMenuItem(
+                        icon = Icons.Default.FamilyRestroom,
+                        title = stringResource(R.string.manage_family),
+                        subtitle = stringResource(R.string.members_and_permissions),
+                        gradient = listOf(Color(0xFFC8963E), Color(0xFFE8BC6A)),
+                        onClick = { navController?.navigate(Screen.FamilyManagement.route) }
+                    )
+                }
                 Spacer(Modifier.height(10.dp))
 
                 if ((familyState as? FamilyState.Active)?.myMemberInfo?.role == "admin") {
-                    ProfileMenuItem(
-                        icon = Icons.Default.ChildCare,
-                        title = stringResource(R.string.switch_to_kids_mode),
-                        subtitle = stringResource(R.string.switch_to_kids_mode_subtitle),
-                        gradient = listOf(Color(0xFF7C3AED), Color(0xFFEC4899)),
-                        onClick = onSwitchToKidsMode
-                    )
+                    AppearOnEntry(delayMs = 80) {
+                        ProfileMenuItem(
+                            icon = Icons.Default.ChildCare,
+                            title = stringResource(R.string.switch_to_kids_mode),
+                            subtitle = stringResource(R.string.switch_to_kids_mode_subtitle),
+                            gradient = listOf(Color(0xFF7C3AED), Color(0xFFEC4899)),
+                            onClick = onSwitchToKidsMode
+                        )
+                    }
                     Spacer(Modifier.height(10.dp))
                 }
 
-                ProfileMenuItem(
-                    icon = Icons.Default.AccountBalanceWallet,
-                    title = stringResource(R.string.budget_and_payment_methods),
-                    subtitle = stringResource(R.string.monthly_budget_and_bank_link),
-                    gradient = listOf(Color(0xFF1C6EA4), Color(0xFF60A5FA)),
-                    onClick = { navController?.navigate(Screen.PaymentBudget.route) }
-                )
+                AppearOnEntry(delayMs = 120) {
+                    ProfileMenuItem(
+                        icon = Icons.Default.AccountBalanceWallet,
+                        title = stringResource(R.string.budget_and_payment_methods),
+                        subtitle = stringResource(R.string.monthly_budget_and_bank_link),
+                        gradient = listOf(Color(0xFF1C6EA4), Color(0xFF60A5FA)),
+                        onClick = { navController?.navigate(Screen.PaymentBudget.route) }
+                    )
+                }
                 Spacer(Modifier.height(10.dp))
 
-                ProfileMenuItem(
-                    icon = Icons.Default.SmartToy,
-                    title = stringResource(R.string.assistant_alerts_title),
-                    subtitle = stringResource(R.string.control_smart_alerts),
-                    gradient = listOf(Color(0xFF7C3AED), Color(0xFFA78BFA)),
-                    onClick = { navController?.navigate(Screen.AssistantAlerts.route) }
-                )
+                AppearOnEntry(delayMs = 160) {
+                    ProfileMenuItem(
+                        icon = Icons.Default.SmartToy,
+                        title = stringResource(R.string.assistant_alerts_title),
+                        subtitle = stringResource(R.string.control_smart_alerts),
+                        gradient = listOf(Color(0xFF7C3AED), Color(0xFFA78BFA)),
+                        onClick = { navController?.navigate(Screen.AssistantAlerts.route) }
+                    )
+                }
                 Spacer(Modifier.height(10.dp))
 
-                ProfileMenuItem(
-                    icon = Icons.Default.SupportAgent,
-                    title = stringResource(R.string.nav_help),
-                    subtitle = stringResource(R.string.contact_us),
-                    gradient = listOf(Color(0xFF0D5C3F), Color(0xFF34C77B)),
-                    onClick = { showHelpSupport = true }
-                )
+                AppearOnEntry(delayMs = 180) {
+                    var isRescanning by remember { mutableStateOf(false) }
+                    val rescanningText = stringResource(R.string.rescanning_sms_toast)
+                    val rescanDoneTextTemplate = stringResource(R.string.rescan_done_toast)
+                    val permissionMissingText = stringResource(R.string.read_sms_permission_missing_toast)
+                    ProfileMenuItem(
+                        icon = Icons.Default.Sms,
+                        title = stringResource(R.string.rescan_sms_title),
+                        subtitle = stringResource(R.string.rescan_sms_subtitle),
+                        gradient = listOf(Color(0xFF0EA5E9), Color(0xFF7DD3FC)),
+                        onClick = {
+                            if (isRescanning) return@ProfileMenuItem
+                            if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_SMS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                android.widget.Toast.makeText(context, permissionMissingText, android.widget.Toast.LENGTH_LONG).show()
+                            } else {
+                                isRescanning = true
+                                android.widget.Toast.makeText(context, rescanningText, android.widget.Toast.LENGTH_SHORT).show()
+                                scope.launch {
+                                    val count = com.example.data.SmsBackfillScanner.rescan(context, com.example.data.SmsBackfillScanner.DEFAULT_SINCE_DAYS)
+                                    isRescanning = false
+                                    android.widget.Toast.makeText(context, rescanDoneTextTemplate.format(count), android.widget.Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+
+                AppearOnEntry(delayMs = 190) {
+                    ProfileMenuItem(
+                        icon = Icons.Default.UploadFile,
+                        title = stringResource(R.string.statement_import_title),
+                        subtitle = stringResource(R.string.import_bank_statement_subtitle),
+                        gradient = listOf(Color(0xFF059669), Color(0xFF6EE7B7)),
+                        onClick = { navController?.navigate(Screen.StatementImport.route) }
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+
+                AppearOnEntry(delayMs = 200) {
+                    ProfileMenuItem(
+                        icon = Icons.Default.SupportAgent,
+                        title = stringResource(R.string.nav_help),
+                        subtitle = stringResource(R.string.contact_us),
+                        gradient = listOf(Color(0xFF0D5C3F), Color(0xFF34C77B)),
+                        onClick = { showHelpSupport = true }
+                    )
+                }
 
                 Spacer(Modifier.height(24.dp))
                 SectionTitle(stringResource(R.string.account_title))
                 Spacer(Modifier.height(12.dp))
 
-                ProfileMenuItem(
-                    icon = Icons.Default.DeleteForever,
-                    title = stringResource(R.string.delete_account),
-                    subtitle = stringResource(R.string.delete_account_permanently),
-                    gradient = listOf(dangerColor, Color(0xFFE57373)),
-                    onClick = { showDeleteAccountDialog = true }
-                )
+                AppearOnEntry(delayMs = 240) {
+                    ProfileMenuItem(
+                        icon = Icons.Default.DeleteForever,
+                        title = stringResource(R.string.delete_account),
+                        subtitle = stringResource(R.string.delete_account_permanently),
+                        gradient = listOf(dangerColor, Color(0xFFE57373)),
+                        onClick = { showDeleteAccountDialog = true }
+                    )
+                }
 
                 Spacer(Modifier.height(8.dp))
 
@@ -450,6 +516,31 @@ fun ProfileScreen(
                 Spacer(Modifier.height(100.dp))
             }
         }
+    }
+
+    androidx.compose.animation.AnimatedVisibility(
+        visible = showSaveSuccess,
+        modifier = Modifier.align(Alignment.Center),
+        enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.85f),
+        exit = androidx.compose.animation.fadeOut()
+    ) {
+        Column(
+            modifier = Modifier
+                .shadow(12.dp, RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(20.dp))
+                .background(surface)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            ZadLottieAsset(
+                resId = R.raw.lottie_success_check,
+                modifier = Modifier.size(72.dp),
+                iterations = 1
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(stringResource(R.string.changes_saved), style = Typography.bodyMedium, color = onSurface, fontWeight = FontWeight.Bold)
+        }
+    }
     }
 }
 

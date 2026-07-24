@@ -19,6 +19,11 @@ import androidx.compose.ui.unit.sp
 import com.example.data.Market
 import com.example.data.MarketPrefs
 import com.example.ui.theme.*
+import com.example.ui.components.AppearOnEntry
+import com.example.ui.components.ZadTransitions
+import com.example.ui.components.pressableScale
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
 
 private data class MarketOption(val market: Market, val flag: String, val subtitle: String)
 
@@ -32,8 +37,11 @@ private val marketOptions = listOf(
 fun MarketSelectionScreen(onContinue: () -> Unit) {
     val context = LocalContext.current
     var selected by remember { mutableStateOf<Market?>(null) }
+    val listVisible = remember { MutableTransitionState(false) }
+    LaunchedEffect(Unit) { listVisible.targetState = true }
 
     Box(modifier = Modifier.fillMaxSize().background(background)) {
+        AppearOnEntry {
         Column(
             modifier = Modifier.fillMaxSize().padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -55,12 +63,17 @@ fun MarketSelectionScreen(onContinue: () -> Unit) {
             )
             Spacer(Modifier.height(40.dp))
 
-            marketOptions.forEach { option ->
+            marketOptions.forEachIndexed { index, option ->
                 val isSelected = selected == option.market
+                androidx.compose.animation.AnimatedVisibility(
+                    visibleState = listVisible,
+                    enter = ZadTransitions.listItemEnter(index)
+                ) {
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 6.dp)
+                        .pressableScale()
                         .clickable { selected = option.market },
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(
@@ -92,6 +105,7 @@ fun MarketSelectionScreen(onContinue: () -> Unit) {
                         }
                     }
                 }
+                }
             }
 
             Spacer(Modifier.weight(1f))
@@ -104,13 +118,14 @@ fun MarketSelectionScreen(onContinue: () -> Unit) {
                     }
                 },
                 enabled = selected != null,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
+                modifier = Modifier.fillMaxWidth().height(56.dp).pressableScale(),
                 colors = ButtonDefaults.buttonColors(containerColor = primary),
                 shape = RoundedCornerShape(18.dp)
             ) {
                 Text("متابعة", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             }
             Spacer(Modifier.height(12.dp))
+        }
         }
     }
 }

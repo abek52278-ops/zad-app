@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -33,12 +34,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.util.Log
 import com.example.data.ZadTransaction
+import com.example.ui.components.ZadLottieAsset
+import com.example.ui.components.pressableScale
+import com.airbnb.lottie.compose.LottieConstants
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 // ─── Transactions Screen (STC Pay style) ──────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,14 +53,17 @@ fun BudgetScreen(
     onNavigateToCamera: () -> Unit = {}
 ) {
     val transactions by viewModel.transactions.collectAsState()
+    val behaviorPatterns by viewModel.behaviorPatterns.collectAsState()
     val budget by viewModel.budget.collectAsState()
     val remainingBalance by viewModel.remainingBalance.collectAsState()
     val showBudgetDialog by viewModel.showBudgetDialog.collectAsState()
+    val suggestedBudget by viewModel.suggestedBudget.collectAsState()
     var showAddTransactionDialog by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf("الكل") }
     val context = LocalContext.current
     var categoryCardsRefresh by remember { mutableIntStateOf(0) }
     var editingCategory by remember { mutableStateOf<String?>(null) }
+    var insightCategory by remember { mutableStateOf<String?>(null) }
     // المصروف الفعلي بيتحسب من المعاملات مباشرة (يشمل اليدوية + البنكية) — الميزانية من BudgetTracker
     val categoryCards = remember(transactions, categoryCardsRefresh) {
         val now = java.time.LocalDate.now()
@@ -109,7 +115,7 @@ fun BudgetScreen(
                         .fillMaxWidth()
                         .background(
                             brush = Brush.verticalGradient(
-                                colors = listOf(primary, Color(0xFF094730))
+                                colors = listOf(primary, primaryDark)
                             )
                         )
                 ) {
@@ -187,7 +193,7 @@ fun BudgetScreen(
                                 label = stringResource(R.string.income_label),
                                 amount = totalIncome,
                                 icon = Icons.Default.TrendingUp,
-                                color = Color(0xFF34C77B)
+                                color = successColor
                             )
                             Box(
                                 modifier = Modifier
@@ -199,7 +205,7 @@ fun BudgetScreen(
                                 label = stringResource(R.string.expense_label),
                                 amount = totalSpent,
                                 icon = Icons.Default.TrendingDown,
-                                color = Color(0xFFFF6B6B)
+                                color = dangerColor
                             )
                             Box(
                                 modifier = Modifier
@@ -211,7 +217,7 @@ fun BudgetScreen(
                                 label = stringResource(R.string.budget_label),
                                 amount = budget,
                                 icon = Icons.Default.AccountBalanceWallet,
-                                color = Color(0xFFE8BC6A)
+                                color = secondaryLight
                             )
                         }
 
@@ -230,21 +236,21 @@ fun BudgetScreen(
                     else -> Icons.Default.CheckCircle to stringResource(R.string.budget_insight_good, spentPct)
                 }
                 val stripColor = when {
-                    spentPct >= 100 -> Color(0xFFFF4444)
-                    spentPct >= 85 -> Color(0xFFF59E0B)
+                    spentPct >= 100 -> dangerColor
+                    spentPct >= 85 -> secondary
                     else -> primary
                 }
-
-                val pressed = remember { MutableInteractionSource() }
-                val isPressed by pressed.collectIsPressedAsState()
-                val scale by animateFloatAsState(if (isPressed) 0.97f else 1f)
 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .scale(scale)
                         .background(stripColor.copy(alpha = 0.08f))
-                        .clickable(interactionSource = pressed, indication = null, onClick = onNavigateToAssistant)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onNavigateToAssistant
+                        )
+                        .pressableScale()
                         .padding(horizontal = 20.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -268,6 +274,46 @@ fun BudgetScreen(
                         tint = stripColor,
                         modifier = Modifier.size(20.dp)
                     )
+                }
+            }
+
+            // ── Budget suggestion card (advisory — needs explicit user approval) ──
+            suggestedBudget?.let { suggestion ->
+                item {
+                    com.example.ui.components.AppearOnEntry {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
+                                .clip(RoundedCornerShape(14.dp)).background(infoColor.copy(alpha = 0.10f))
+                                .padding(16.dp)
+                        ) {
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Insights, contentDescription = null, tint = infoColor, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        stringResource(R.string.budget_suggestion_text, com.example.data.CurrencyFormatter.format(context, suggestion)),
+                                        style = Typography.bodyMedium, color = onSurface, fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Button(
+                                        onClick = { viewModel.applySuggestedBudget() },
+                                        modifier = Modifier.height(34.dp).pressableScale(),
+                                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                                        shape = RoundedCornerShape(50)
+                                    ) { Text(stringResource(R.string.apply_suggestion_action), style = Typography.labelSmall) }
+                                    OutlinedButton(
+                                        onClick = { viewModel.dismissBudgetSuggestion() },
+                                        modifier = Modifier.height(34.dp).pressableScale(),
+                                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                                        shape = RoundedCornerShape(50)
+                                    ) { Text(stringResource(R.string.dismiss_action), style = Typography.labelSmall) }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -301,13 +347,16 @@ fun BudgetScreen(
                         modifier = Modifier.padding(horizontal = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        categoryCards.forEach { (cat, catBudget, spent) ->
-                            CategoryBudgetCard(
-                                category = cat,
-                                budget = catBudget,
-                                spent = spent,
-                                onClick = { editingCategory = cat }
-                            )
+                        categoryCards.forEachIndexed { index, (cat, catBudget, spent) ->
+                            com.example.ui.components.AppearOnEntry(delayMs = (index * 40).coerceAtMost(400)) {
+                                CategoryBudgetCard(
+                                    category = cat,
+                                    budget = catBudget,
+                                    spent = spent,
+                                    onClick = { editingCategory = cat },
+                                    onInsightClick = { insightCategory = cat }
+                                )
+                            }
                         }
                     }
                 }
@@ -394,11 +443,11 @@ fun BudgetScreen(
                                 .padding(48.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(
-                                Icons.Default.ReceiptLong,
-                                contentDescription = null,
-                                tint = onSurfaceVariant.copy(alpha = 0.4f),
-                                modifier = Modifier.size(72.dp)
+                            ZadLottieAsset(
+                                resId = R.raw.lottie_empty_box,
+                                iterations = LottieConstants.IterateForever,
+                                modifier = Modifier.size(140.dp),
+                                contentDescription = stringResource(R.string.no_transactions)
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
@@ -531,10 +580,78 @@ fun BudgetScreen(
             }
         )
     }
+
+    insightCategory?.let { cat ->
+        CategoryInsightDialog(
+            category = cat,
+            transactions = transactions,
+            patterns = behaviorPatterns,
+            onDismiss = { insightCategory = null }
+        )
+    }
 }
 
 @Composable
-private fun CategoryBudgetCard(category: String, budget: Double, spent: Double, onClick: () -> Unit) {
+private fun CategoryInsightDialog(
+    category: String,
+    transactions: List<com.example.data.ZadTransaction>,
+    patterns: List<com.example.data.ZadBehaviorPattern>,
+    onDismiss: () -> Unit
+) {
+    var analysis by remember { mutableStateOf<com.example.data.ZadAiRepository.BehaviorAnalysis?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(category) {
+        analysis = com.example.data.ZadAiRepository.analyzeBehavior(category, transactions, patterns)
+        isLoading = false
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("تحليل ذكي: $category", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+        text = {
+            if (isLoading) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    Text("جاري التحليل...", style = Typography.bodyMedium, color = onSurfaceVariant)
+                }
+            } else {
+                val result = analysis
+                if (result == null || result.insight.isBlank()) {
+                    Text("مفيش بيانات كافية لتحليل الفئة دي حالياً.", style = Typography.bodyMedium, color = onSurfaceVariant)
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(result.insight, style = Typography.bodyMedium)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            val (trendIcon, trendLabel) = when (result.trend) {
+                                "increasing" -> Icons.Default.TrendingUp to "في ازدياد"
+                                "decreasing" -> Icons.Default.TrendingDown to "في انخفاض"
+                                else -> Icons.AutoMirrored.Filled.TrendingFlat to "مستقر"
+                            }
+                            Icon(trendIcon, contentDescription = null, tint = primary, modifier = Modifier.size(16.dp))
+                            Text(trendLabel, style = Typography.labelMedium, color = primary)
+                        }
+                        if (result.predictedNext > 0) {
+                            Text("المتوقع الشهر القادم: ${result.predictedNext.toInt()} ريال", style = Typography.bodySmall, color = onSurfaceVariant)
+                        }
+                        if (result.tip.isNotBlank()) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Icon(Icons.Default.Lightbulb, contentDescription = null, tint = warningColor, modifier = Modifier.size(14.dp))
+                                Text(result.tip, style = Typography.bodySmall, color = onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
+        }
+    )
+}
+
+@Composable
+private fun CategoryBudgetCard(category: String, budget: Double, spent: Double, onClick: () -> Unit, onInsightClick: () -> Unit) {
     val context = LocalContext.current
     val pct = if (budget > 0) (spent / budget * 100).toInt() else 0
     val overBudget = budget > 0 && spent > budget
@@ -546,16 +663,18 @@ private fun CategoryBudgetCard(category: String, budget: Double, spent: Double, 
     }
     val animatedFraction by animateFloatAsState(
         targetValue = if (budget > 0) (spent / budget).toFloat().coerceIn(0f, 1f) else 0f,
-        animationSpec = tween(700), label = "catBudgetBar"
+        animationSpec = com.example.ui.components.ZadSprings.Screen, label = "catBudgetBar"
     )
+    val catCardShape = RoundedCornerShape(18.dp)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(1.dp, RoundedCornerShape(14.dp))
-            .clip(RoundedCornerShape(14.dp))
+            .shadow(elevation = 6.dp, shape = catCardShape, spotColor = barColor.copy(alpha = 0.16f))
+            .clip(catCardShape)
             .background(surface)
             .clickable(onClick = onClick)
+            .pressableScale()
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -584,6 +703,9 @@ private fun CategoryBudgetCard(category: String, budget: Double, spent: Double, 
             }
         }
         Spacer(modifier = Modifier.width(10.dp))
+        IconButton(onClick = onInsightClick, modifier = Modifier.size(28.dp).pressableScale()) {
+            Icon(Icons.Default.AutoAwesome, contentDescription = "تحليل ذكي", tint = primary, modifier = Modifier.size(16.dp))
+        }
         Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit_cd), tint = onSurfaceVariant, modifier = Modifier.size(16.dp))
     }
 }
@@ -687,7 +809,7 @@ private fun TxDateHeader(dateStr: String, txList: List<ZadTransaction>) {
         when {
             date == today -> todayLabel
             date == today.minusDays(1) -> yesterdayLabel
-            else -> date.format(DateTimeFormatter.ofPattern("d MMMM", Locale("ar")))
+            else -> date.format(DateTimeFormatter.ofPattern("d MMMM", com.example.data.MarketPrefs.currentMarket.toLocale()))
         }
     } catch (e: Exception) { dateStr }
 
@@ -759,15 +881,17 @@ private fun TxRowItem(tx: ZadTransaction, onDelete: () -> Unit) {
     } catch (e: Exception) { "" }
 
     var showDelete by remember { mutableStateOf(false) }
+    val txRowShape = RoundedCornerShape(18.dp)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 3.dp)
-            .shadow(2.dp, RoundedCornerShape(16.dp), spotColor = Color.Black.copy(alpha = 0.03f))
-            .clip(RoundedCornerShape(16.dp))
+            .shadow(elevation = 4.dp, shape = txRowShape, spotColor = categoryiconColor.copy(alpha = 0.14f))
+            .clip(txRowShape)
             .background(surface)
             .clickable { showDelete = !showDelete }
+            .pressableScale()
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp)

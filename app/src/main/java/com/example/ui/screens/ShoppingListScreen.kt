@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,9 +31,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.airbnb.lottie.compose.LottieConstants
+import com.example.R
 import com.example.data.ZadShoppingItem
 import com.example.data.AiPriceEstimate
 import com.example.data.AffiliateProduct
+import com.example.data.GrocerySuggestion
+import com.example.ui.components.GlassCard
+import com.example.ui.components.ZadLottieAsset
+import com.example.ui.components.ZadTransitions
+import com.example.ui.components.pressableScale
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 import com.example.ui.widgets.AffiliateProductCard
@@ -40,6 +48,7 @@ import com.example.ui.widgets.AffiliateConsentBanner
 
 import com.example.ui.widgets.AffiliateEmptyState
 import com.example.ui.widgets.AffiliateLoadingSkeleton
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private const val TAG = "ShoppingListScreen"
@@ -61,11 +70,13 @@ fun ShoppingListScreen(
     val budgetRemaining = budget - transactions.filter { it.isExpense }.sumOf { it.amount }
     val budgetPct = if (budget > 0) (totalPrice / budget * 100).toInt().coerceIn(0, 100) else 0
 
+    val grocerySuggestions by viewModel.grocerySuggestions.collectAsState()
     val affiliateProducts by viewModel.affiliateProducts.collectAsState()
     val matchedProductId by viewModel.matchedProductId.collectAsState()
     val isMatchingProduct by viewModel.isMatchingProduct.collectAsState()
     val affiliateConsentGiven by viewModel.affiliateConsentGiven.collectAsState()
     var recentlyPurchasedItemName by remember { mutableStateOf("") }
+    var justCheckedItemName by remember { mutableStateOf<String?>(null) }
 
     val matchedProduct = remember(matchedProductId, affiliateProducts) {
         matchedProductId?.let { id -> affiliateProducts.find { it.id == id } }
@@ -77,6 +88,17 @@ fun ShoppingListScreen(
     var isLoadingPrices by remember { mutableStateOf(false) }
     var showPrediction by remember { mutableStateOf(false) }
     var predictionText by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        viewModel.fetchGrocerySuggestions()
+    }
+
+    LaunchedEffect(justCheckedItemName) {
+        if (justCheckedItemName != null) {
+            delay(1200)
+            justCheckedItemName = null
+        }
+    }
 
     LaunchedEffect(shoppingList) {
         val itemsNeedingPrice = shoppingList.filter { it.estimatedPrice <= 0 && !it.isPurchased }.take(5)
@@ -110,8 +132,8 @@ fun ShoppingListScreen(
                                     viewModel.refreshSmartShopping()
                                 }
                             },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f).pressableScale(),
+                            shape = RoundedCornerShape(50),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = primary)
                         ) {
                             Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -121,8 +143,8 @@ fun ShoppingListScreen(
 
                         Button(
                             onClick = { shareOnWhatsApp(context, shoppingList) },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f).pressableScale(),
+                            shape = RoundedCornerShape(50),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366), contentColor = MaterialTheme.colorScheme.onSurface)
                         ) {
                             Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -134,6 +156,20 @@ fun ShoppingListScreen(
 
                 item {
                     PriorityFilterChips(selected = selectedPriority, onSelected = { selectedPriority = it })
+                }
+
+                if (grocerySuggestions.isNotEmpty()) {
+                    item {
+                        GrocerySuggestionsCard(
+                            suggestions = grocerySuggestions,
+                            onAdd = { suggestion ->
+                                val qty = Regex("\\d+").find(suggestion.quantity)?.value?.toIntOrNull() ?: 1
+                                viewModel.addShoppingItem(
+                                    ZadShoppingItem(itemName = suggestion.name, quantity = qty, estimatedPrice = 0.0, store = "")
+                                )
+                            }
+                        )
+                    }
                 }
 
                 if (unpurchased.isEmpty()) {
@@ -156,17 +192,20 @@ fun ShoppingListScreen(
                             )
                         }
                     } else {
-                        items(filtered, key = { it.id }) { item ->
-                            EnhancedShoppingItemCard(
-                                item = item,
-                                priceEstimate = priceEstimates[item.itemName],
-                                onCheck = {
-                                    recentlyPurchasedItemName = item.itemName
-                                    viewModel.matchProduct(item.itemName)
-                                    viewModel.toggleShoppingItemPurchased(item.id)
-                                },
-                                onDelete = { viewModel.deleteShoppingItem(item.id) }
-                            )
+                        itemsIndexed(filtered, key = { _, item -> item.id }) { index, item ->
+                            androidx.compose.animation.AnimatedVisibility(visible = true, enter = ZadTransitions.listItemEnter(index)) {
+                                EnhancedShoppingItemCard(
+                                    item = item,
+                                    priceEstimate = priceEstimates[item.itemName],
+                                    onCheck = {
+                                        recentlyPurchasedItemName = item.itemName
+                                        justCheckedItemName = item.itemName
+                                        viewModel.matchProduct(item.itemName)
+                                        viewModel.toggleShoppingItemPurchased(item.id)
+                                    },
+                                    onDelete = { viewModel.deleteShoppingItem(item.id) }
+                                )
+                            }
                         }
                     }
 
@@ -218,6 +257,38 @@ fun ShoppingListScreen(
             contentColor = onPrimary,
             shape = RoundedCornerShape(16.dp)
         ) { Icon(Icons.Default.Add, contentDescription = "إضافة") }
+
+        androidx.compose.animation.AnimatedVisibility(
+            visible = justCheckedItemName != null,
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 72.dp),
+            enter = fadeIn() + slideInVertically { -it / 2 },
+            exit = fadeOut() + slideOutVertically { -it / 2 }
+        ) {
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = surface,
+                shadowElevation = 6.dp
+            ) {
+                Row(
+                    modifier = Modifier.padding(start = 8.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ZadLottieAsset(
+                        resId = R.raw.lottie_success_check,
+                        modifier = Modifier.size(28.dp),
+                        iterations = 1,
+                        contentDescription = null
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "تم شراء ${justCheckedItemName.orEmpty()}",
+                        style = Typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = onSurface
+                    )
+                }
+            }
+        }
     }
     if (showAddDialog) {
         AddShoppingItemDialog(
@@ -258,7 +329,7 @@ private fun ShoppingBudgetHeader(totalPrice: Double, budgetRemaining: Double, bu
                 .fillMaxWidth()
                 .background(Brush.horizontalGradient(
                     if (isOverBudget) listOf(Color(0xFFC62828), Color(0xFFE53935))
-                    else listOf(Color(0xFF1B5E20), Color(0xFF43A047))
+                    else listOf(primaryDark, primary)
                 ))
                 .padding(20.dp)
         ) {
@@ -323,6 +394,51 @@ private fun PriorityFilterChips(selected: String, onSelected: (String) -> Unit) 
 }
 
 @Composable
+private fun GrocerySuggestionsCard(suggestions: List<GrocerySuggestion>, onAdd: (GrocerySuggestion) -> Unit) {
+    GlassCard(
+        containerColor = surface.copy(alpha = 0.9f),
+        borderColor = onSurface.copy(alpha = 0.08f)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier.size(32.dp).clip(CircleShape).background(catEntertainBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = catEntertainIcon, modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.width(8.dp))
+            Text("قد تحتاج أيضاً", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+        }
+        Spacer(Modifier.height(12.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            suggestions.forEach { suggestion ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(suggestion.name, style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                            Spacer(Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(secondaryContainer).padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) { Text(suggestion.quantity, style = Typography.bodySmall, color = onSecondaryContainer) }
+                        }
+                        if (suggestion.reason.isNotBlank()) {
+                            Spacer(Modifier.height(2.dp))
+                            Text(suggestion.reason, style = Typography.bodySmall, color = onSurfaceVariant)
+                        }
+                    }
+                    IconButton(onClick = { onAdd(suggestion) }, modifier = Modifier.size(36.dp).pressableScale()) {
+                        Icon(Icons.Default.AddCircle, contentDescription = "إضافة للقائمة", tint = primary, modifier = Modifier.size(22.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun EnhancedShoppingItemCard(
     item: ZadShoppingItem,
     priceEstimate: AiPriceEstimate?,
@@ -331,19 +447,23 @@ private fun EnhancedShoppingItemCard(
 ) {
     val priorityColor = when (item.priority) {
         "high" -> dangerColor
-        "medium" -> Color(0xFFF9A825)
+        "medium" -> warningColor
         else -> successColor
     }
+    val shoppingCardShape = RoundedCornerShape(18.dp)
     Card(
-        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(16.dp), spotColor = Color.Black.copy(alpha = 0.04f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(elevation = 6.dp, shape = shoppingCardShape, spotColor = priorityColor.copy(alpha = 0.16f))
+            .pressableScale(),
         colors = CardDefaults.cardColors(containerColor = surface),
-        shape = RoundedCornerShape(16.dp)
+        shape = shoppingCardShape
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onCheck, modifier = Modifier.size(42.dp)) {
+            IconButton(onClick = onCheck, modifier = Modifier.size(42.dp).pressableScale()) {
                 Box(
                     modifier = Modifier.size(36.dp).clip(CircleShape).background(outlineVariant.copy(alpha = 0.2f)),
                     contentAlignment = Alignment.Center
@@ -389,7 +509,7 @@ private fun EnhancedShoppingItemCard(
                     }
                 }
             }
-            IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+            IconButton(onClick = onDelete, modifier = Modifier.size(36.dp).pressableScale()) {
                 Icon(Icons.Default.Delete, contentDescription = "حذف", tint = onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(18.dp))
             }
         }
@@ -399,16 +519,16 @@ private fun EnhancedShoppingItemCard(
 @Composable
 private fun SmartEmptyState() {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(top = 60.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(
-            modifier = Modifier.size(100.dp).clip(CircleShape).background(
-                Brush.radialGradient(listOf(Color(0xFF43A047).copy(alpha = 0.15f), Color.Transparent))
-            ),
-            contentAlignment = Alignment.Center
-        ) { Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(52.dp), tint = Color(0xFF43A047).copy(alpha = 0.7f)) }
-        Spacer(Modifier.height(20.dp))
+        ZadLottieAsset(
+            resId = R.raw.lottie_empty_box,
+            modifier = Modifier.size(140.dp),
+            iterations = LottieConstants.IterateForever,
+            contentDescription = "قائمة التسوق فارغة"
+        )
+        Spacer(Modifier.height(12.dp))
         Text("قائمة التسوق فارغة", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = onSurface)
         Spacer(Modifier.height(8.dp))
         Text("زاد سيضيف النواقص تلقائياً!", fontSize = 14.sp, color = onSurfaceVariant)
@@ -441,7 +561,8 @@ private fun AddShoppingItemDialog(onDismiss: () -> Unit, onConfirm: (name: Strin
                     val price = priceStr.trim().toDoubleOrNull() ?: 0.0
                     if (name.isNotBlank()) onConfirm(name.trim(), qty, price, store.trim())
                 },
-                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.pressableScale(),
+                shape = RoundedCornerShape(50),
                 colors = ButtonDefaults.buttonColors(containerColor = primary)
             ) { Text("إضافة", color = onPrimary) }
         },

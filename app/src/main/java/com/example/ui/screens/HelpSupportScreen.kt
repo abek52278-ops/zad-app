@@ -24,6 +24,8 @@ import kotlinx.coroutines.launch
 import com.example.data.ZadAiRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.example.ui.components.AppearOnEntry
+import com.example.ui.components.pressableScale
 
 data class SupportMessage(
     val text: String,
@@ -40,6 +42,7 @@ fun HelpSupportScreen(onBack: () -> Unit) {
     var isTyping by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    AppearOnEntry {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -191,9 +194,11 @@ fun HelpSupportScreen(onBack: () -> Unit) {
                     .size(48.dp)
                     .clip(CircleShape)
                     .background(primary)
+                    .pressableScale()
             ) {
                 Icon(Icons.Default.Send, contentDescription = "Send", tint = Color.White)
             }
         }
+    }
     }
 }

@@ -26,7 +26,11 @@ import com.example.R
 import com.example.ui.theme.Typography
 import com.example.ui.theme.background
 import com.example.ui.theme.onSurface
+import com.example.ui.theme.onSurfaceVariant
+import com.example.ui.theme.outline
 import com.example.ui.theme.primary
+import com.example.ui.components.AppearOnEntry
+import com.example.ui.components.pressableScale
 import com.example.ui.viewmodels.AuthState
 import com.example.ui.viewmodels.AuthViewModel
 
@@ -60,90 +64,103 @@ fun LoginScreen(
             .verticalScroll(rememberScrollState())
     ) {
         Spacer(modifier = Modifier.height(64.dp))
-        
-        // Nectar Carrot Logo
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Image(
-                painter = painterResource(id = R.drawable.ic_carrot_logo),
-                contentDescription = "Carrot Logo",
-                modifier = Modifier.size(60.dp),
-                contentScale = ContentScale.Fit
-            )
-        }
-        
-        Spacer(modifier = Modifier.height(48.dp))
-        
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "تسجيل الدخول",
-                style = androidx.compose.material3.MaterialTheme.typography.displaySmall,
-                color = MaterialTheme.colorScheme.onBackground,
-                fontWeight = FontWeight.Bold
-            )
-            // Language Toggle
-            var isArabic by remember { mutableStateOf(true) }
-            TextButton(onClick = { isArabic = !isArabic }) {
-                Text(if (isArabic) "AR" else "EN", color = primary, fontWeight = FontWeight.Bold)
+
+        com.example.ui.components.AppearOnEntry {
+            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_carrot_logo),
+                    contentDescription = stringResource(R.string.app_name),
+                    modifier = Modifier.size(60.dp),
+                    contentScale = ContentScale.Fit
+                )
             }
         }
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "أدخل بريدك الإلكتروني وكلمة المرور",
-            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-            color = Color.Gray
-        )
-        
-        Spacer(modifier = Modifier.height(40.dp))
-        
-        Text("البريد الإلكتروني", color = Color.Gray, fontSize = 14.sp)
-        TextField(
-            value = email,
-            onValueChange = { email = it },
-            modifier = Modifier.fillMaxWidth(),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                focusedIndicatorColor = primary,
-                unfocusedIndicatorColor = Color.LightGray
-            ),
-            singleLine = true
-        )
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        Text("كلمة المرور", color = Color.Gray, fontSize = 14.sp)
-        TextField(
-            value = password,
-            onValueChange = { password = it },
-            modifier = Modifier.fillMaxWidth(),
-            visualTransformation = if (passwordVisible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                focusedIndicatorColor = primary,
-                unfocusedIndicatorColor = Color.LightGray
-            ),
-            singleLine = true,
-            trailingIcon = {
-                IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                    Icon(
-                        imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-                        contentDescription = "Toggle password visibility",
-                        tint = Color.Gray
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        AppearOnEntry(delayMs = 80) {
+            Column {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "تسجيل الدخول",
+                        style = androidx.compose.material3.MaterialTheme.typography.displaySmall,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        fontWeight = FontWeight.Bold
                     )
+                    // Language Toggle
+                    var isArabic by remember { mutableStateOf(true) }
+                    TextButton(onClick = { isArabic = !isArabic }) {
+                        Text(if (isArabic) "AR" else "EN", color = primary, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "أدخل بريدك الإلكتروني وكلمة المرور",
+                    style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                    color = onSurfaceVariant
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(40.dp))
+
+        AppearOnEntry(delayMs = 160) {
+            Column {
+                Text("البريد الإلكتروني", color = onSurfaceVariant, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedBorderColor = primary,
+                        unfocusedBorderColor = outline
+                    ),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Text("كلمة المرور", color = onSurfaceVariant, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    visualTransformation = if (passwordVisible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedBorderColor = primary,
+                        unfocusedBorderColor = outline
+                    ),
+                    singleLine = true,
+                    trailingIcon = {
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Icon(
+                                imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                contentDescription = "Toggle password visibility",
+                                tint = onSurfaceVariant
+                            )
+                        }
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = { showForgotPasswordDialog = true }) {
+                        Text(text = "نسيت كلمة المرور؟", color = MaterialTheme.colorScheme.onBackground, fontSize = 14.sp)
+                    }
                 }
             }
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            TextButton(onClick = { showForgotPasswordDialog = true }) {
-                Text(text = "نسيت كلمة المرور؟", color = MaterialTheme.colorScheme.onBackground, fontSize = 14.sp)
-            }
         }
-        
+
         Spacer(modifier = Modifier.height(24.dp))
         
         if (authState is AuthState.Error) {
@@ -159,9 +176,10 @@ fun LoginScreen(
             onClick = { viewModel.signIn(email, password) },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(60.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = primary), // using primary which should be Nectar Green #53B175
-            shape = RoundedCornerShape(16.dp),
+                .height(60.dp)
+                .pressableScale(),
+            colors = ButtonDefaults.buttonColors(containerColor = primary),
+            shape = RoundedCornerShape(50),
             enabled = authState !is AuthState.Loading && email.isNotBlank() && password.isNotBlank()
         ) {
             if (authState is AuthState.Loading) {

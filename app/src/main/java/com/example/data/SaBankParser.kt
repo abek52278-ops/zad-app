@@ -47,18 +47,21 @@ object SaBankParser {
     private val otpKeywords = listOf(
         "رمز التحقق", "رمز تحقق", "كود التحقق", "الرمز السري", "رمز الدخول",
         "رمز التفعيل", "لا تشارك", "لا تشاركه", "otp", "verification code",
-        "one-time", "one time password", "do not share", "الرقم السري المؤقت"
+        "one-time", "one time password", "do not share", "الرقم السري المؤقت",
+        "doğrulama kodu", "tek kullanımlık şifre", "kimseyle paylaşmayın"
     )
 
     private val declinedKeywords = listOf(
         "فشل", "فشلت", "رفض", "مرفوضة", "مرفوض", "لم تتم", "لم تنجح",
         "غير ناجحة", "تعذر", "رصيد غير كاف", "insufficient", "declined",
-        "failed", "unsuccessful", "rejected", "تم الإلغاء", "ملغاة"
+        "failed", "unsuccessful", "rejected", "تم الإلغاء", "ملغاة",
+        "başarısız", "reddedildi", "yetersiz bakiye", "işlem gerçekleşmedi"
     )
 
     private val promoKeywords = listOf(
         "عرض خاص", "عروض", "خصم يصل", "استمتع", "اشترك الآن", "حمل التطبيق",
-        "سارع", "لفترة محدودة", "كاش باك يصل", "% off", "promo", "offer ends"
+        "سارع", "لفترة محدودة", "كاش باك يصل", "% off", "promo", "offer ends",
+        "özel teklif", "kampanya", "şimdi abone ol", "uygulamayı indir"
     )
 
     /** هل الرسالة ضجيج (OTP / مرفوضة / إعلان)؟ — تُستخدم أيضاً من الـ Receivers */
@@ -79,8 +82,11 @@ object SaBankParser {
     private fun normalizeDigits(text: String): String =
         text.map { arabicIndicDigits[it] ?: it }.joinToString("")
 
-    private const val NUM = """(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)"""
-    private const val CUR = """(?:ر\.س|رس|ريال|SAR|SR)"""
+    // البديل الأول (فاصلة آلاف/نقطة عشري) بيغطي السعودية/مصر زي ما هو — البديل التاني
+    // (نقطة آلاف/فاصلة عشري) مضاف لتركيا (١.٢٣٤,٥٦) من غير ما يأثر على ترتيب المطابقة القديم
+    private const val NUM = """(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?|\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)"""
+    // TL/₺/TRY مضافة لدعم تركيا — لسه محتاج اختبار على SMS تركي حقيقي
+    private const val CUR = """(?:ر\.س|رس|ريال|SAR|SR|TL|₺|TRY)"""
 
     // مبلغ مُسمّى صراحة — أعلى أولوية
     private val labeledAmount = Regex("""(?:بمبلغ|مبلغ|بقيمة|قيمة|القيمة|amount)\s*:?\s*$CUR?\s*$NUM\s*$CUR?""", RegexOption.IGNORE_CASE)
@@ -91,8 +97,28 @@ object SaBankParser {
     private val balanceContext = Regex("""(?:الرصيد|رصيدك|رصيد|المتاح|المتبقي|balance|available)\s*(?:المتاح|الحالي|:)?\s*$CUR?\s*$NUM""", RegexOption.IGNORE_CASE)
 
     private fun firstNumberIn(match: MatchResult): Double? =
-        match.groupValues.drop(1).firstOrNull { it.isNotBlank() }
-            ?.replace(",", "")?.toDoubleOrNull()
+        match.groupValues.drop(1).firstOrNull { it.isNotBlank() }?.let { normalizeNumber(it) }
+
+    /**
+     * بيحل غموض الفاصلة/النقطة بين التنسيق الغربي (1,234.56 — فاصلة آلاف) والتركي/الأوروبي
+     * (1.234,56 — فاصلة عشرية). لو الاتنين موجودين، آخر واحد على اليمين هو العلامة العشرية.
+     * لو فاصلة واحدة بس وبعدها رقمين بالظبط، الأرجح إنها عشرية (تركي) لا آلاف.
+     */
+    private fun normalizeNumber(raw: String): Double? {
+        val hasComma = raw.contains(',')
+        val hasDot = raw.contains('.')
+        val normalized = when {
+            hasComma && hasDot -> {
+                if (raw.lastIndexOf(',') > raw.lastIndexOf('.')) raw.replace(".", "").replace(",", ".")
+                else raw.replace(",", "")
+            }
+            hasComma -> {
+                if (raw.substringAfterLast(',').length == 2) raw.replace(",", ".") else raw.replace(",", "")
+            }
+            else -> raw
+        }
+        return normalized.toDoubleOrNull()
+    }
 
     /**
      * استخراج مبلغ العملية (وليس الرصيد):
@@ -124,16 +150,16 @@ object SaBankParser {
 
     // الترتيب مهم: الأكثر تحديداً أولاً
     private val typeRules = listOf(
-        TypeRule(TxType.REFUND, listOf("استرداد", "مسترد", "عكس عملية", "إرجاع مبلغ", "refund", "reversed", "reversal")),
-        TypeRule(TxType.SALARY, listOf("راتب", "مرتب", "salary", "payroll")),
-        TypeRule(TxType.TRANSFER_IN, listOf("حوالة واردة", "تحويل وارد", "وصلتك حوالة", "استلمت حوالة", "received transfer", "incoming transfer")),
-        TypeRule(TxType.DEPOSIT, listOf("إيداع", "ايداع", "أودع", "مودع", "قيد دائن", "دائن", "credited", "deposit", "وارد")),
-        TypeRule(TxType.TRANSFER_OUT, listOf("حوالة صادرة", "تحويل صادر", "تحويل الى", "تحويل إلى", "حوالة الى", "حوالة إلى", "transfer to", "sent to", "تحويل مبلغ")),
-        TypeRule(TxType.WITHDRAWAL, listOf("سحب نقدي", "سحب من الصراف", "صراف آلي", "atm", "سحب مبلغ", "withdrawal", "cash withdrawal")),
-        TypeRule(TxType.BILL_PAYMENT, listOf("سداد", "فاتورة", "sadad", "bill payment", "دفع فاتورة")),
-        TypeRule(TxType.INSTALLMENT, listOf("قسط", "أقساط", "دفعة من", "installment", "تابي", "تمارة", "tabby", "tamara")),
-        TypeRule(TxType.FEE, listOf("رسوم", "عمولة", "fee", "charges", "vat")),
-        TypeRule(TxType.PURCHASE, listOf("شراء", "مشتريات", "عملية شراء", "نقاط البيع", "خصم", "دفع", "تم الدفع", "مدين", "قيد مدين", "purchase", "pos", "debited", "payment", "paid", "spent", "مدفوعات", "أبل باي", "apple pay", "mada", "مدى"))
+        TypeRule(TxType.REFUND, listOf("استرداد", "مسترد", "عكس عملية", "إرجاع مبلغ", "refund", "reversed", "reversal", "iade", "geri ödeme")),
+        TypeRule(TxType.SALARY, listOf("راتب", "مرتب", "salary", "payroll", "maaş")),
+        TypeRule(TxType.TRANSFER_IN, listOf("حوالة واردة", "تحويل وارد", "وصلتك حوالة", "استلمت حوالة", "received transfer", "incoming transfer", "gelen havale", "havale aldınız")),
+        TypeRule(TxType.DEPOSIT, listOf("إيداع", "ايداع", "أودع", "مودع", "قيد دائن", "دائن", "credited", "deposit", "وارد", "hesabınıza yatırıldı")),
+        TypeRule(TxType.TRANSFER_OUT, listOf("حوالة صادرة", "تحويل صادر", "تحويل الى", "تحويل إلى", "حوالة الى", "حوالة إلى", "transfer to", "sent to", "تحويل مبلغ", "gönderilen havale", "havale gönderildi")),
+        TypeRule(TxType.WITHDRAWAL, listOf("سحب نقدي", "سحب من الصراف", "صراف آلي", "atm", "سحب مبلغ", "withdrawal", "cash withdrawal", "nakit çekme", "para çekme")),
+        TypeRule(TxType.BILL_PAYMENT, listOf("سداد", "فاتورة", "sadad", "bill payment", "دفع فاتورة", "fatura ödemesi", "fatura")),
+        TypeRule(TxType.INSTALLMENT, listOf("قسط", "أقساط", "دفعة من", "installment", "تابي", "تمارة", "tabby", "tamara", "taksit")),
+        TypeRule(TxType.FEE, listOf("رسوم", "عمولة", "fee", "charges", "vat", "ücret", "komisyon")),
+        TypeRule(TxType.PURCHASE, listOf("شراء", "مشتريات", "عملية شراء", "نقاط البيع", "خصم", "دفع", "تم الدفع", "مدين", "قيد مدين", "purchase", "pos", "debited", "payment", "paid", "spent", "مدفوعات", "أبل باي", "apple pay", "mada", "مدى", "satın alma", "harcama", "ödeme", "kartınızdan"))
     )
 
     /** يحدد نوع العملية — يرجع null لو مفيش كلمة صريحة (يروح AI fallback) */
@@ -215,7 +241,21 @@ object SaBankParser {
         BankDef("تابي", listOf("tabby", "تابي")),
         BankDef("تمارة", listOf("tamara", "تمارة")),
         BankDef("urpay", listOf("urpay")),
-        BankDef("D360", listOf("d360"))
+        BankDef("D360", listOf("d360")),
+        // بنوك تركيا — أسماء عامة معروفة، بس idKeywords دي تخمين بأفضل معرفة مش تجربة فعلية
+        // على SMS حقيقية من البنوك دي. لو عندك رسالة حقيقية من بنك تركي، ابعتها عشان نظبط
+        // الكلمات الصح (sender ID الفعلي ممكن يكون مختلف تماماً عن اسم البنك).
+        BankDef("İş Bankası", listOf("isbank", "iş bankası", "işbank")),
+        BankDef("Garanti BBVA", listOf("garanti", "garantibbva")),
+        BankDef("Akbank", listOf("akbank")),
+        BankDef("Yapı Kredi", listOf("yapikredi", "yapı kredi", "ykb")),
+        BankDef("Ziraat Bankası", listOf("ziraat", "ziraatbank")),
+        BankDef("Halkbank", listOf("halkbank", "halk bankası")),
+        BankDef("VakıfBank", listOf("vakifbank", "vakıfbank")),
+        BankDef("QNB Finansbank", listOf("qnb", "finansbank")),
+        BankDef("DenizBank", listOf("denizbank", "deniz bank")),
+        BankDef("TEB", listOf("teb")),
+        BankDef("Papara", listOf("papara"))
     )
 
     private fun identifyBank(source: String): BankDef? {

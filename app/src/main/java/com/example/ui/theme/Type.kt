@@ -2,44 +2,64 @@ package com.example.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.DeviceFontFamilyName
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 // ZAD Typography System
-// Uses system default font (Arabic-compatible). Swap FontFamily.Default 
-// with a custom Noto Sans Arabic font family when assets are added.
+//
+// IBM Plex Sans Arabic (the Zad DESIGN.md's actual typeface) needs real
+// bundled .ttf files or a verified Google-Fonts-provider certificate — neither
+// is safely producible in this environment (no network, no binary asset
+// generation), so this uses Android's built-in system font families instead.
+// NOTE: Arabic script glyph *shapes* always render through Android's system
+// Arabic-fallback font regardless of the requested Latin family name — this
+// swap changes weight/silhouette (and any Latin/numeric text) but will not
+// change Arabic letterforms the way a real IBM Plex Sans Arabic asset would.
+// Swap `displayFont`/`headlineFont` for a real FontFamily once .ttf files are
+// added to res/font/.
+private val displayFont = FontFamily(
+    Font(familyName = DeviceFontFamilyName("sans-serif-black"), weight = FontWeight.Black),
+    Font(familyName = DeviceFontFamilyName("sans-serif-black"), weight = FontWeight.Bold),
+)
+private val headlineFont = FontFamily(
+    Font(familyName = DeviceFontFamilyName("sans-serif-medium"), weight = FontWeight.SemiBold),
+    Font(familyName = DeviceFontFamilyName("sans-serif-medium"), weight = FontWeight.Bold),
+)
+
 val Typography = Typography(
     displayLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Bold,
-        fontSize = 32.sp,
+        fontFamily = displayFont,
+        fontWeight = FontWeight.Black,
+        fontSize = 34.sp,
         lineHeight = 40.sp,
-        letterSpacing = (-0.5).sp
+        letterSpacing = (-0.8).sp
     ),
     displayMedium = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Bold,
+        fontFamily = displayFont,
+        fontWeight = FontWeight.Black,
         fontSize = 28.sp,
         lineHeight = 36.sp,
-        letterSpacing = (-0.3).sp
+        letterSpacing = (-0.6).sp
     ),
     headlineMedium = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = headlineFont,
         fontWeight = FontWeight.Bold,
         fontSize = 24.sp,
         lineHeight = 32.sp,
-        letterSpacing = (-0.2).sp
+        letterSpacing = (-0.3).sp
     ),
     titleLarge = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = headlineFont,
         fontWeight = FontWeight.SemiBold,
         fontSize = 20.sp,
         lineHeight = 28.sp,
         letterSpacing = 0.sp
     ),
     titleMedium = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = headlineFont,
         fontWeight = FontWeight.SemiBold,
         fontSize = 16.sp,
         lineHeight = 24.sp,

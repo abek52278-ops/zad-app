@@ -10,6 +10,9 @@ import com.example.data.ZadTransaction
 import com.example.data.ZadBehaviorPattern
 import com.example.data.ZadShoppingItem
 import com.example.data.AffiliateProduct
+import com.example.data.ZadPharmacyItem
+import com.example.data.ZadMaintenanceItem
+import com.example.data.ZadDoseLog
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -49,6 +52,48 @@ interface ZadDao {
 
     @Query("DELETE FROM zad_inventory WHERE id = :id")
     suspend fun deleteInventory(id: String)
+
+    // Pharmacy
+    @Query("SELECT * FROM zad_pharmacy_items ORDER BY createdAt DESC")
+    fun getAllPharmacyItems(): Flow<List<ZadPharmacyItem>>
+
+    @Query("SELECT * FROM zad_pharmacy_items ORDER BY createdAt DESC")
+    suspend fun getAllPharmacyItemsOnce(): List<ZadPharmacyItem>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPharmacyItems(items: List<ZadPharmacyItem>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPharmacyItem(item: ZadPharmacyItem)
+
+    @Query("DELETE FROM zad_pharmacy_items WHERE id = :id")
+    suspend fun deletePharmacyItem(id: String)
+
+    // Maintenance
+    @Query("SELECT * FROM zad_maintenance_items ORDER BY createdAt DESC")
+    fun getAllMaintenanceItems(): Flow<List<ZadMaintenanceItem>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMaintenanceItems(items: List<ZadMaintenanceItem>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMaintenanceItem(item: ZadMaintenanceItem)
+
+    @Query("DELETE FROM zad_maintenance_items WHERE id = :id")
+    suspend fun deleteMaintenanceItem(id: String)
+
+    // Dose log (pharmacy adherence)
+    @Query("SELECT * FROM zad_dose_log ORDER BY scheduledAt DESC")
+    fun getAllDoseLogs(): Flow<List<ZadDoseLog>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDoseLog(log: ZadDoseLog)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDoseLogs(logs: List<ZadDoseLog>)
+
+    @Query("SELECT * FROM zad_dose_log WHERE id = :id LIMIT 1")
+    suspend fun getDoseLogById(id: String): ZadDoseLog?
 
     // Shopping List
     @Query("SELECT * FROM zad_shopping_list ORDER BY createdAt DESC")

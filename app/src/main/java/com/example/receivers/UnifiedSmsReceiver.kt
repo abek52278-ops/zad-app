@@ -6,6 +6,7 @@ import android.content.Intent
 import android.provider.Telephony
 import android.util.Log
 import com.example.data.BudgetTracker
+import com.example.data.MerchantCategoryOverrides
 import com.example.data.SaBankParser
 import com.example.data.SupabaseRepo
 import com.example.data.TxDeduplicator
@@ -28,7 +29,10 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
     private val bankSmsSenders = listOf(
         "alrajhi", "rajhi", "snb", "alahli", "ncba",
         "riyad", "riyadh", "sabb", "alinma", "enmaa",
-        "stcpay", "tabby", "tamara"
+        "stcpay", "tabby", "tamara",
+        // بنوك تركيا — أفضل معرفة، لسه محتاجة اختبار على SMS حقيقي
+        "isbank", "garanti", "akbank", "yapikredi", "ziraat",
+        "halkbank", "vakifbank", "qnb", "finansbank", "denizbank", "teb", "papara"
     )
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -61,7 +65,8 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
             "ر.س", "رس", "ريال", "SAR",
             "خصم", "شراء", "دفع", "تم الدفع", "رصيد",
             "إيداع", "تحويل", "مبلغ", "بطاقة", "مشتريات",
-            "pay", "purchase", "amount"
+            "pay", "purchase", "amount",
+            "TL", "₺", "TRY", "ödeme", "harcama", "bakiye", "kartınızdan"
         )
         val containsKeyword = keywords.any { text.contains(it, ignoreCase = true) }
         val isLikelyBank = sender.length <= 12 && sender.matches(Regex("^[a-zA-Z]+[0-9]*$"))
@@ -86,7 +91,7 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
                     title = parsed.title,
                     amount = parsed.amount,
                     isExpense = parsed.isExpense,
-                    category = parsed.category,
+                    category = MerchantCategoryOverrides.get(context.applicationContext, parsed.merchantName) ?: parsed.category,
                     createdAt = Instant.now().toString()
                 )
                 val db = ZadDatabase.getDatabase(context.applicationContext)

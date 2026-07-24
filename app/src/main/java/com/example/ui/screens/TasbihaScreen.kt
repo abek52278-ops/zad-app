@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.TasbihaTree
 import com.example.data.FamilyMemberWithTasbiha
+import com.example.ui.components.ZadLottieAsset
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.FamilyViewModel
 import androidx.compose.ui.platform.LocalContext
@@ -702,6 +703,14 @@ private fun AnimatedTreeDisplay(
                                 .background(listOf(Color(0xFFFFD700), Color(0xFF4CAF50), Color(0xFFFF9800))[i % 3])
                         )
                     }
+
+                    // احتفال المستوى (milestone): كونفيتي لحظة ترقية الشجرة لمستوى جديد
+                    ZadLottieAsset(
+                        resId = R.raw.lottie_confetti_burst,
+                        iterations = 1,
+                        modifier = Modifier.size(240.dp),
+                        contentDescription = stringResource(R.string.tree_level_up_celebration)
+                    )
                 }
 
                 // Tap particles
