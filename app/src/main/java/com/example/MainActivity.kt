@@ -267,7 +267,7 @@ fun AppNavigation(pendingInviteCode: String? = null) {
                 InventoryScreen(
                     viewModel = invViewModel,
                     onOpenDrawer = { navController.popBackStack() },
-                    onNavigateToAssistant = { navController.navigate("assistant") },
+                    onNavigateToAssistant = { navController.navigate("main") },
                     onNavigateToCamera = { navController.navigate("camera") }
                 )
             }

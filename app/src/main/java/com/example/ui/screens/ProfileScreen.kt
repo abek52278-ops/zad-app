@@ -298,13 +298,7 @@ fun ProfileScreen(
                     Spacer(Modifier.height(12.dp))
                     Text(displayUserName, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 22.sp)
                     Spacer(Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Verified, contentDescription = null, tint = primaryFixed, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("#ZAD-$userId", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text(displayUserName.ifEmpty { newUserText }.take(1).uppercase(), color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                    Text("#ZAD-$userId", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
                 }
             }
 
@@ -569,12 +563,14 @@ fun AnimatedStatCard(
         label = "stat_scale"
     )
 
+    // لا shadow/pressableScale هنا عمداً — دي بطاقة إحصائية للعرض فقط، مش زرار
+    // (كانت بتبان زي زرار قابل للضغط بس من غير أي onClick حقيقي، مربكة للمستخدم).
     Column(
         modifier = modifier
             .scale(scaleAnim)
-            .shadow(8.dp, RoundedCornerShape(20.dp), spotColor = color.copy(alpha = 0.2f))
             .clip(RoundedCornerShape(20.dp))
-            .background(surface)
+            .background(color.copy(alpha = 0.05f))
+            .border(1.dp, color.copy(alpha = 0.12f), RoundedCornerShape(20.dp))
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -647,9 +643,11 @@ fun AchievementsSection(
 @Composable
 fun AchievementBadge(icon: ImageVector, label: String, unlocked: Boolean, earned: Boolean) {
     val alpha = if (earned) 1f else 0.4f
+    // من غير خلفية بطاقة/كارت هنا عمداً — دي شارة إنجاز للعرض بس، مش زرار قابل
+    // للضغط، فمفيش داعي تتلبس شكل كارت قابل للنقر زي ProfileMenuItem الحقيقية.
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(surface).padding(10.dp)
+        modifier = Modifier.padding(10.dp)
     ) {
         Box(
             modifier = Modifier.size(42.dp).clip(RoundedCornerShape(12.dp))

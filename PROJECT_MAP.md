@@ -3,8 +3,8 @@
 ## TECH_STACK
 - **Frontend:** Android (Kotlin, Compose UI, Material3)
 - **Backend:** Supabase (PostgreSQL, PostgREST, Realtime, Auth, Edge Functions)
-- **AI:** Groq (Llama 3.3 70B via Edge Function `zad-ai-proxy`)
-- **AI Client SDK:** Groq SDK (npm) — NOT directly called; routed through Supabase Edge Functions
+- **AI:** OpenRouter + Groq split, via Edge Function `zad-core-intelligence` (**not** `zad-ai-proxy` — that one is dead code, never called by the client outside a mocked androidTest). `OPENROUTER_API_KEY` runs nearly every AI feature — chat, insights, predictions, recipes, vision/OCR (`openai/gpt-oss-20b:free` text/JSON, `nvidia/nemotron-nano-12b-v2-vl:free` vision). `GROQ_API_KEY` is Whisper audio transcription + `groq/compound-mini` web-search actions only (Deal Matcher, Price Shock Predictor, Zad Live Market Ticker). Corrects an earlier version of this file that said "Groq only" — see git history `d478a97`/`8a9e950` for the migration. (This line was previously stale/wrong here despite CLAUDE.md already flagging the correction — fixed 2026-07-24.)
+- **AI Client SDK:** none — all AI calls go through `ZadAiRepository`/`SupabaseRepo.callEdgeFunction` (raw `HttpURLConnection`) to the Edge Function, never a client-side AI SDK
 - **Local DB:** Room (SQLite, cache layer)
 - **Build:** Gradle (Kotlin DSL, KSP, Secrets Gradle Plugin)
 - **Min SDK:** 24, Target: 35, Compile: 36
@@ -41,9 +41,9 @@ FamilyScreen → FamilyViewModel → SupabaseRepo (PostgREST)
 
 ### AI Proxy Flow
 ```
-App (ZadAiProxyClient) → Edge Function `zad-ai-proxy` → Groq API
-     ↓                                                         ↓
-  {request_type, payload}                               {text, insights, ...}
+App (ZadAiRepository.callAction) → Edge Function `zad-core-intelligence` → OpenRouter (text/vision) or Groq (Whisper + compound-mini search)
+     ↓                                                                            ↓
+  {action, user_id, dialect, payload}                                    {text|insights|prices|..., ok}
 ```
 
 ### Navigation Structure
@@ -86,11 +86,19 @@ MainActivity
 | family_tasbiha_challenges | Tasbiha | ✅ OK |
 | tasbiha_challenge_progress | Tasbiha | ✅ OK |
 | family_typing_status | Family | ✅ OK |
+| affiliate_products / affiliate_clicks / affiliate_catalog_requests | Personal | ✅ OK (RLS: catalog read-only for authenticated, writes service_role) |
+| zad_pharmacy_items | Personal | ✅ OK (RLS: owner-only) — Smart Pharmacy dose scheduling/tracking |
+| zad_maintenance_items | Personal | ✅ OK (RLS: owner-only) — Home Maintenance tracking |
+| zad_dose_log | Personal | ✅ OK (RLS: owner-only) — pharmacy dose-taken history |
+| market_price_cache | Shared/global | ✅ OK (RLS: authenticated read-only, writes via service_role only) — 12h cache for Zad Live Market Ticker, added 2026-07-24 |
 
 ### Edge Functions
 | Function | Endpoints | Status |
 |----------|-----------|--------|
-| zad-ai-proxy | chat, agent_summary, meal_suggestions, recipe_details, grocery_suggestions, spending_insights, receipt_analysis, inventory_scan, bank_sms_parsing, subscription_detection, ai_text, brain_evaluate, voice_agent, expense_prediction, auto_suggest, family_analysis, family_goals_suggest, behavior_learning, smart_search, cash_flow_prediction, anomaly_detection, price_estimate | ✅ 22/22 |
+| zad-core-intelligence | meal_suggestions, grocery_suggestions, spending_insights, agent_summary, analyze_bank_notification, analyze_inventory_image, analyze_receipt, family_assistant, estimate_price, detect_subscriptions, recipe_details, behavior_analysis, expense_prediction, bill_classification, family_analysis, auto_suggest, family_goals_suggest, fetch_live_deals, fetch_price_shock_warnings, fetch_live_market_prices, ai_text, brain_evaluate, voice_agent, seasonal_forecast | ✅ 24/24, v40 as of 2026-07-24 |
+| update-behavior-profile | (pg_cron scheduled) | ✅ OK |
+| amazon-creators-search | (Amazon affiliate catalog search) | ✅ OK |
+| ~~zad-ai-proxy~~ | — | dead code, not deployed/called; do not resurrect without checking CLAUDE.md first |
 
 ### Key Architecture Decisions
 1. **Room as single source of truth** for personal data (sync from Supabase)
@@ -100,6 +108,15 @@ MainActivity
 5. **ZadCentralBrain** unified AI brain with behavior learning + predictions
 
 ## COMPLETED FEATURES
+- **Sprint 9 — Honest AI-failure messaging + Profile/Home dead-code cleanup + product animations + consumption ticker + Zad Live Market Ticker (2026-07-24):**
+  - **Root-caused the "most AI features say فشل الاتصال (connection failed)" complaint:** the failure was never a real network problem — `zad-core-intelligence`'s `family_assistant`/`ai_text`/`brain_evaluate` actions baked "تعذر الاتصال" directly into their JSON response whenever OpenRouter's free-tier model was slow/rate-limited (confirmed via edge-function logs: HTTP 200 on every call, some taking 20–25s, right at the model's own timeout). Fixed to the same honest-failure contract already used by `meal_suggestions`/`recipe_details` (`text: null, ok: false` on genuine failure, no baked-in blame text) — client-side fallback strings (`ZadViewModel.kt`, `ZadAiRepository.kt`) updated to say the AI is busy, not that the connection failed. Deployed live (v36+), no app rebuild needed for this half of the fix.
+  - **`MainActivity.kt`:** the outer (legacy, unreachable) `NavHost`'s `"inventory"` route had `onNavigateToAssistant` pointing at a non-existent `"assistant"` route in that graph — genuinely unreachable in practice (verified nothing ever navigates the outer NavHost there) but fixed to point at `"main"` as cheap insurance.
+  - **`ProfileScreen.kt` / `ProfileSubScreens.kt`:** removed an unconditional "Verified" badge with no backing verification state, a stray duplicate first-letter text under the username, and the entirely unused/duplicate `HelpAndSupportScreen` (dead mailto-based FAQ screen — the real Help button opens the AI-chat-based `HelpSupportScreen` instead). `AnimatedStatCard`/`AchievementBadge` had shadow/card styling that looked tappable with no `onClick` — shadow removed, flat tinted/borderless treatment substituted so they read as informational, not buttons.
+  - **`HomeScreen.kt`:** deleted 10 confirmed-dead composables + 2 dead helpers (`ExpenseAnalysisSection`, `QuickStatsSection`, `RecentTransactionsSection`, `DashboardSummariesSection`, `MiniTransactionsWidget`, `QuickGlanceWidgets`/`GlanceWidgetCard`, `FamilyMiniHub`, `FeaturesRowSection`/`FeatureItem`, `GreetingBanner`, `DashboardGrid`) — zero call sites anywhere, confirmed via grep before removal; pure cleanup, no UI change since none were ever rendered.
+  - **`InventoryScreen.kt`:** replaced the generic Material-icon-per-item system (`getIconForItem`, now deleted) with `getEmojiForItem` — product-specific animated emoji (🥛 milk, 🍞 bread, 🍅 tomato, 🍗 chicken, etc.) using `Modifier.floatingIdle()` for a subtle "alive" bob, on both the main grid card and the shortage-list card.
+  - **`ZadIntelligenceScreen.kt`:** new `ConsumptionTickerCard` — stock-exchange-style line chart (Canvas-drawn, gradient area fill, glowing live end-point) of daily spend over the last 30 real calendar days (`computeDailySpendData`), with a red/green % badge vs. the prior 30-day period. Distinct from the existing monthly bar chart (`MonthlyBarChartCard`) — genuinely date-granular, not month-bucketed.
+  - **Zad Live Market Ticker** — new feature, home screen, adult/admin mode only: `fetch_live_market_prices` action in `zad-core-intelligence` (12h server cache in new `market_price_cache` table, `groq/compound-mini` web search, narrowed to fuel + gold prices — the only commodities with one genuinely searchable canonical daily price in Saudi Arabia, unlike per-store retail produce which `fetch_live_deals` already covers). New `LiveMarketTicker.kt` component (glassmorphism, emerald/gold) with a manual refresh button and a distinct retry row when the live search comes back empty. **Known limitation, not a bug:** `groq/compound-mini` is non-deterministic — confirmed live that its `web_search` tool sometimes finds real data but drops it when formatting the final JSON; one internal server-side retry-on-empty + the strengthened "don't discard found data" prompt instruction improve the odds but can't eliminate the miss rate. The manual retry button is the primary mitigation, by design, not a stopgap.
+- **PR #2 merge — `feat/ui-redesign` → `main` (2026-07-24):** glassmorphism/iOS visual overhaul (new `lottie-compose` dependency) across nearly every screen; two new screens — **Smart Pharmacy** (dose scheduling/reminders that survive reboot via `BootReceiver`, `zad_pharmacy_items`/`zad_dose_log`) and **Home Maintenance** (`zad_maintenance_items`); **Nearby Deals** (`OverpassRepo.kt`, OpenStreetMap/Overpass — zero-cost alternative to Google Places, foreground geofencing, new `ACCESS_FINE/COARSE_LOCATION` permissions); subscription auto-deduct (`due_day`/`auto_deduct` columns + scheduled worker); Gemini vision-only fallback for receipt/inventory scanning when OpenRouter's free vision model hits its daily cap; `groq/compound` → `compound-mini` fix for a hard 6000 TPM rate-limit wall on the two live-search actions. Backend (5 migrations + edge function changes) was already deployed to production before the PR merged — this was Android client code only. Dead `ZadAiProxyClient.kt` (510 lines) deleted in the same branch.
 - **Phase 5 — Chat action-tag protocol (2026-07-21):** `ZadViewModel.sendAiChatMessage()`: chat is no longer read-only for inventory. AI can append a trailing `[[ACTION:{"type":"consume"|"add",...}]]` tag (rule 7 in the system prompt, explicit-intent-only) which `applyChatAction()` parses (org.json), fuzzy-matches against real inventory via `InventoryFlowEngine.namesMatch`, executes through the existing `consumeInventoryItem`/`injectScannedItems` mutation paths (so low-stock auto-replenish, shopping-list loop-closing, and Supabase sync all still apply), strips the raw tag before the message is shown/persisted, and appends a confirmation line. Unmatched items degrade to a safe "not found" message instead of silently failing.
 - **Sprint 7 — Zad Intelligence Premium + Full-Context Chat + Kids UI (2026-07-20):**
   - `ZadCentralBrain.kt`: `BrainReport` extended with `SpendingPower` (safe daily spend gauge, 0-100 power%), `BehaviorProfile` (top spending day, weekend share%, avg transaction, impulse-purchase count, evening share%), `MonthComparison` (this month vs. same-period last month, per-category deltas) — all computed locally from real transactions, no extra AI calls. `buildExportText()` renders the full report as shareable plain text.
@@ -138,6 +155,11 @@ MainActivity
 - **Sound effects** — ToneGenerator click on each tap (TONE_PROP_BEEP2), level-up sound (TONE_PROP_ACK), haptic feedback (VibrationEffect)
 
 ## ORPHANS & PENDING
-- (2026-07-23: both prior entries here — the affiliate-tables migration and missing core library desugaring — were verified fixed and removed. `affiliate_products`/`affiliate_clicks`/`affiliate_catalog_requests` exist with RLS enabled and real rows; `app/build.gradle.kts` has `isCoreLibraryDesugaringEnabled = true` + `desugar_jdk_libs`. No known orphans as of this date — verify against current state before trusting this line blindly in future sessions.)
+- (2026-07-23: prior entries — affiliate-tables migration and missing core library desugaring — verified fixed and removed as of that date.)
+- **2026-07-24, unverified by compile — read before trusting:** this session's Kotlin changes (Sprint 9 above: `MainActivity.kt`, `Models.kt`, `ZadAiRepository.kt`, `HomeScreen.kt`, `InventoryScreen.kt`, `ProfileScreen.kt`, `ProfileSubScreens.kt`, `ZadIntelligenceScreen.kt`, `ZadViewModel.kt`, new `LiveMarketTicker.kt`) were written and manually balance-checked (braces/parens) but **never compiled** — this sandbox has no Android SDK. Build in Android Studio before trusting further.
+- **Zad Live Market Ticker reliability** — by design, not a bug (see Sprint 9 entry above): the ticker may frequently show its "couldn't load, try again" retry row rather than real prices, because `groq/compound-mini`'s web-search extraction is non-deterministic per call. If this remains unacceptably unreliable after real-device testing, the next lever to pull is either (a) narrowing further to gold-only (single most reliably searchable commodity), or (b) swapping the source entirely for a real financial-data API instead of agentic web search — not attempted this session, scope decision left to the user.
+- `Screen.RecipeDetail` (`MainScreen.kt`) — declared route, no `composable()` registration, never navigated to anywhere. Dead, harmless, not cleaned up (out of scope of what was asked this session).
+- `TermsOfService` screen (`MainScreen.kt`) — built and routed, but no button anywhere navigates to it. Orphaned entry point, not the dead-route problem (screen works fine if reached).
+- Kids Mode chat-role gap (from the `feat/ui-redesign` merge, still open): a parent's manual "preview as kid" toggle doesn't propagate into `FamilyViewModel.sendMessage`'s role param, so a parent previewing Kids Mode still gets adult-tier AI replies in family chat. Real child accounts unaffected.
 
 <!-- Update this file after every significant change -->

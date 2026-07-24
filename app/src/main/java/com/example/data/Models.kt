@@ -260,6 +260,16 @@ data class LiveDeal(
 )
 
 @Serializable
+data class MarketPriceItem(
+    val symbol: String = "",
+    val price: Double = 0.0,
+    val unit: String = "",
+    @SerialName("change_percent") val changePercent: Double = 0.0,
+    /** "up" | "down" | "flat" */
+    val trend: String = "flat"
+)
+
+@Serializable
 data class PriceShockWarning(
     val category: String = "",
     @SerialName("expected_change_pct") val expectedChangePct: Double = 0.0,

@@ -166,6 +166,9 @@
     <string name="zad_ai_predictions">توقعات ذكاء زاد</string>
     <string name="next_month_label">الشهر الجاي</string>
     <string name="predicted_label">متوقع: %1$s</string>
+    <string name="consumption_ticker_title">مؤشر الاستهلاك</string>
+    <string name="consumption_ticker_period_30d">آخر 30 يوم</string>
+    <string name="consumption_ticker_vs_prev_period">مقارنة بالفترة اللي فاتت</string>
     <string name="ask_zad_placeholder">اسأل زاد عن التلاجة أو الميزانية بتاعتك...</string>
     <string name="spending_power">قوة الصرف</string>
     <string name="days_left_label">يوم باقي</string>

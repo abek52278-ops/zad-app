@@ -104,6 +104,8 @@ fun HomeScreen(
     val agentSummary by viewModel.agentSummary.collectAsState()
     val isAgentLoading by viewModel.isAgentLoading.collectAsState()
     val autoSuggestions by viewModel.autoSuggestions.collectAsState()
+    val livePrices by viewModel.livePrices.collectAsState()
+    val marketPricesFetchState by viewModel.marketPricesFetchState.collectAsState()
 
     val totalIncome = transactions.filter { !it.isExpense }.sumOf { it.amount }
     val totalSpent = transactions.filter { it.isExpense }.sumOf { it.amount }
@@ -152,6 +154,7 @@ fun HomeScreen(
         viewModel.refreshAgentSummary()
         viewModel.refreshAutoSuggestions()
         viewModel.predictNextMonthExpenses()
+        viewModel.refreshLiveMarketPrices()
         familyViewModel.loadUpcomingSeasonalEvents()
         Log.d(TAG_HOME, "HomeScreen loaded — userName=$userNameState, budget=$budget, transactions=${transactions.size}, isChild=$isChild")
     }
@@ -225,7 +228,15 @@ fun HomeScreen(
         } else {
             // ADULT/ADMIN MODE UI
             Spacer(modifier = Modifier.height(16.dp))
-            
+            com.example.ui.components.LiveMarketTicker(
+                prices = livePrices,
+                fetchState = marketPricesFetchState,
+                onRetry = { viewModel.refreshLiveMarketPrices() }
+            )
+            if (livePrices.isNotEmpty() || marketPricesFetchState != com.example.ui.viewmodels.ZadViewModel.LiveFetchState.NotFetchedYet) {
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
 
             Column(modifier = Modifier.padding(horizontal = 20.dp)) {
@@ -834,91 +845,6 @@ fun BudgetEditDialog(currentBudget: Double, onDismiss: () -> Unit, onSave: (Doub
 }
 
 @Composable
-fun ExpenseAnalysisSection(transactions: List<ZadTransaction> = emptyList()) {
-    // Groups spending by day of week from actual transactions
-    val dayLabels = androidx.compose.ui.res.stringArrayResource(R.array.week_day_labels).toList()
-    val dayTotals = FloatArray(7) { 0f }
-    transactions.filter { it.isExpense }.forEach { tx ->
-        val instant = tx.createdAt?.let { runCatching { java.time.Instant.parse(it) }.getOrNull() } ?: return@forEach
-        // week_day_labels starts Sunday; DayOfWeek.value is MONDAY=1..SUNDAY=7, so %7 maps SUNDAY->0.
-        val dayIndex = instant.atZone(java.time.ZoneId.systemDefault()).dayOfWeek.value % 7
-        dayTotals[dayIndex] += tx.amount.toFloat()
-    }
-    val maxVal = dayTotals.maxOrNull()?.takeIf { it > 0f } ?: 1f
-    val heightRatios = dayTotals.map { (it / maxVal).coerceIn(0.05f, 1.0f) }
-    val maxDayIndex = dayTotals.indices.maxByOrNull { dayTotals[it] } ?: 3
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(elevation = 12.dp, shape = RoundedCornerShape(28.dp), spotColor = Color.Black.copy(alpha = 0.08f))
-            .clip(RoundedCornerShape(28.dp))
-            .background(surface)
-            .padding(24.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = stringResource(R.string.expense_analysis),
-                style = Typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = onSurface
-            )
-            Box(
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(catFoodBg)
-                    .padding(8.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Insights,
-                    contentDescription = "Insights",
-                    tint = catFoodIcon,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        if (transactions.isEmpty()) {
-            com.example.ui.components.ZadEmptyState(
-                title = stringResource(R.string.no_transactions_for_analysis),
-                modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp)
-            )
-        } else {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(140.dp)
-                    .background(surfaceContainerLow, RoundedCornerShape(16.dp))
-                    .padding(horizontal = 12.dp, vertical = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom
-            ) {
-                dayLabels.forEachIndexed { i, label ->
-                    ChartBar(label = label, heightRatio = heightRatios[i], isSelected = i == maxDayIndex)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            CategoryChip(color = secondary, text = stringResource(R.string.grocery), bgColor = secondaryContainer, textColor = onSecondaryContainer)
-            CategoryChip(color = primary, text = stringResource(R.string.subscriptions), bgColor = catBillsBg, textColor = catBillsIcon)
-            CategoryChip(color = tertiary, text = stringResource(R.string.restaurants), bgColor = tertiaryContainer, textColor = onTertiaryContainer)
-        }
-    }
-}
-
-@Composable
 fun ChartBar(label: String, heightRatio: Float, isSelected: Boolean) {
     var animationPlayed by remember { mutableStateOf(false) }
 
@@ -975,32 +901,6 @@ fun CategoryChip(color: Color, text: String, bgColor: Color, textColor: Color) {
         )
         Spacer(modifier = Modifier.width(5.dp))
         Text(text = text, style = Typography.labelSmall, color = textColor)
-    }
-}
-
-@Composable
-fun QuickStatsSection(inventoryCount: Int, subsCount: Int) {
-    // ✅ Counts from Room DB (real data): inventory.size from zad_inventory, subscriptions.size from zad_subscriptions
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        StatCard(
-            modifier = Modifier.weight(1f),
-            icon = Icons.Default.Inventory2,
-            iconColor = catBankingIcon,
-            iconBg = catBankingBg,
-            label = stringResource(R.string.inventory_items),
-            value = inventoryCount.toString() + " " + stringResource(R.string.inventory_items)
-        )
-        StatCard(
-            modifier = Modifier.weight(1f),
-            icon = Icons.Default.Subscriptions,
-            iconColor = catBillsIcon,
-            iconBg = catBillsBg,
-            label = stringResource(R.string.active_subscriptions),
-            value = subsCount.toString() + " " + stringResource(R.string.subscriptions)
-        )
     }
 }
 
@@ -1230,92 +1130,6 @@ fun MealCard(title: String, desc: String, status: String, isAvailable: Boolean, 
                 style = Typography.labelSmall,
                 color = onSurfaceVariant,
                 maxLines = 2
-            )
-        }
-    }
-}
-
-@Composable
-fun RecentTransactionsSection(transactions: List<ZadTransaction>, onViewAll: () -> Unit = {}) {
-    // ✅ transactions from Room DB zad_transactions (real data synced from Supabase)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(elevation = 4.dp, shape = RoundedCornerShape(24.dp), spotColor = Color.Black.copy(alpha = 0.04f))
-            .clip(RoundedCornerShape(24.dp))
-            .background(surface)
-            .padding(20.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = stringResource(R.string.recent_transactions),
-                style = Typography.titleMedium,
-                color = onSurface
-            )
-            // ✅ FIXED: Now a clickable IconButton
-            IconButton(onClick = {
-                Log.d(TAG_HOME, "MoreHoriz (transactions) clicked → onViewAll()")
-                onViewAll()
-            }) {
-                Box(
-                    modifier = Modifier
-                        .size(30.dp)
-                        .clip(CircleShape)
-                        .background(surfaceContainerLow),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.MoreHoriz,
-                        contentDescription = "More",
-                        tint = onSurfaceVariant,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (transactions.isEmpty()) {
-            com.example.ui.components.ZadEmptyState(
-                title = stringResource(R.string.no_transactions),
-                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
-            )
-        } else {
-            transactions.take(5).forEach { tx ->
-                TransactionItem(
-                    title = tx.title,
-                    subtitle = tx.category ?: "عام",
-                    amount = String.format("%.2f", tx.amount) + " " + stringResource(R.string.currency),
-                    isExpense = tx.isExpense
-                )
-                HorizontalDivider(color = outlineVariant.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 12.dp))
-            }
-        }
-
-        // ✅ FIXED: stringResource(R.string.view_full_history) button now has real onClick with Log
-        Button(
-            onClick = {
-                Log.d(TAG_HOME, "عرض السجل الكامل clicked — total=${transactions.size} transactions in Room DB")
-                onViewAll()
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Color.Transparent,
-                contentColor = primary
-            ),
-            shape = RoundedCornerShape(999.dp),
-            border = androidx.compose.foundation.BorderStroke(1.5.dp, primary)
-        ) {
-            Text(
-                text = stringResource(R.string.view_full_history),
-                style = Typography.labelMedium.copy(fontWeight = FontWeight.Bold)
             )
         }
     }
@@ -1786,137 +1600,7 @@ fun AddTransactionDialog(
     )
 }
 
-@Composable
-fun DashboardSummariesSection(
-    inventory: List<com.example.data.ZadInventory>,
-    subscriptions: List<com.example.data.ZadSubscription>,
-    shoppingList: List<com.example.data.ZadShoppingItem>,
-    onNavigateToInventory: () -> Unit,
-    onNavigateToSubscriptions: () -> Unit,
-    onNavigateToShopping: () -> Unit
-) {
-    val context = LocalContext.current
-    val quantityTemplate = stringResource(R.string.quantity_colon_count)
-    val countTemplate = stringResource(R.string.count_colon)
-
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        // 1. Inventory Summary
-        MiniTableCard(
-            title = stringResource(R.string.top_low_stock_title),
-            icon = Icons.Default.Inventory2,
-            itemsCount = inventory.size,
-            items = inventory.filter { it.quantity <= (it.lowStockThreshold ?: 2) }.take(3).map {
-                MiniTableRow(it.itemName, String.format(quantityTemplate, it.quantity), if (it.quantity == 0) dangerColor else primary)
-            },
-            onSeeAll = onNavigateToInventory
-        )
-
-        // 2. Subscriptions Summary
-        MiniTableCard(
-            title = stringResource(R.string.active_subscriptions_title),
-            icon = Icons.Default.CalendarToday,
-            itemsCount = subscriptions.filter { it.isActive }.size,
-            items = subscriptions.filter { it.isActive }.take(3).map {
-                MiniTableRow(it.title, com.example.data.CurrencyFormatter.format(context, it.amount), primary)
-            },
-            onSeeAll = onNavigateToSubscriptions
-        )
-
-        // 3. Shopping List Summary
-        MiniTableCard(
-            title = stringResource(R.string.household_shortages_title),
-            icon = Icons.Default.ShoppingCart,
-            itemsCount = shoppingList.filter { !it.isPurchased }.size,
-            items = shoppingList.filter { !it.isPurchased }.take(3).map {
-                MiniTableRow(it.itemName, String.format(countTemplate, it.quantity), dangerColor)
-            },
-            onSeeAll = onNavigateToShopping
-        )
-    }
-}
-
 data class MiniTableRow(val name: String, val detail: String, val color: Color)
-
-@Composable
-fun MiniTransactionsWidget(
-    transactions: List<ZadTransaction>,
-    onNavigateToTransactions: () -> Unit
-) {
-    val recentTransactions = transactions.sortedByDescending { it.id }.take(3)
-    val context = LocalContext.current
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = surface),
-        shape = RoundedCornerShape(20.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(primary.copy(alpha = 0.1f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(stringResource(R.string.recent_transactions), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                }
-                TextButton(onClick = onNavigateToTransactions, contentPadding = PaddingValues(0.dp)) {
-                    Text(stringResource(R.string.view_all), style = Typography.labelMedium, color = primary)
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            if (recentTransactions.isEmpty()) {
-                com.example.ui.components.ZadEmptyState(
-                    title = stringResource(R.string.no_transactions_recorded),
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
-                )
-            } else {
-                recentTransactions.forEach { tx ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(if (tx.isExpense) dangerColor else successColor)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text(tx.title, style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                                Text(tx.category ?: "عام", style = Typography.labelSmall, color = onSurfaceVariant)
-                            }
-                        }
-                        Text(
-                            text = "${if (tx.isExpense) "-" else "+"}${com.example.data.CurrencyFormatter.format(context, tx.amount)}",
-                            style = Typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (tx.isExpense) dangerColor else successColor
-                        )
-                    }
-                    if (tx != recentTransactions.last()) {
-                        HorizontalDivider(color = outlineVariant, thickness = 0.5.dp)
-                    }
-                }
-            }
-        }
-    }
-}
 
 
 @Composable
@@ -2058,85 +1742,6 @@ fun ZadProactiveSummaryCard(insights: List<com.example.data.AiInsight>) {
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun QuickGlanceWidgets(
-    inventoryCount: Int,
-    criticalInventoryCount: Int,
-    shoppingListCount: Int,
-    shoppingTotal: Double,
-    insightsCount: Int
-) {
-    val context = LocalContext.current
-    androidx.compose.foundation.lazy.LazyRow(
-        contentPadding = PaddingValues(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            GlanceWidgetCard(
-                title = stringResource(R.string.nav_inventory),
-                icon = Icons.Default.Inventory2,
-                color = primary,
-                mainValue = stringResource(R.string.product_count, inventoryCount),
-                subValue = if (criticalInventoryCount > 0) stringResource(R.string.critical_shortage_count, criticalInventoryCount) else stringResource(R.string.all_good),
-                subColor = if (criticalInventoryCount > 0) dangerColor else onSurfaceVariant
-            )
-        }
-        item {
-            GlanceWidgetCard(
-                title = stringResource(R.string.purchases_title),
-                icon = Icons.Default.ShoppingCart,
-                color = Color(0xFFE65100), // Orange
-                mainValue = stringResource(R.string.items_count, shoppingListCount),
-                subValue = stringResource(R.string.total_colon, com.example.data.CurrencyFormatter.format(context, shoppingTotal)),
-                subColor = onSurfaceVariant
-            )
-        }
-        item {
-            GlanceWidgetCard(
-                title = stringResource(R.string.todays_recommendations_title),
-                icon = Icons.Default.Lightbulb,
-                color = Color(0xFFFBC02D), // Yellow
-                mainValue = stringResource(R.string.recommendations_count, insightsCount),
-                subValue = stringResource(R.string.from_ai),
-                subColor = onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
-fun GlanceWidgetCard(
-    title: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    color: Color,
-    mainValue: String,
-    subValue: String,
-    subColor: Color
-) {
-    Card(
-        modifier = Modifier.width(140.dp),
-        colors = CardDefaults.cardColors(containerColor = surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(2.dp)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(color.copy(alpha = 0.1f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(title, style = Typography.labelMedium, color = onSurfaceVariant)
-            Text(mainValue, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-            Text(subValue, style = Typography.labelSmall, color = subColor)
         }
     }
 }
@@ -2654,262 +2259,5 @@ private data class SmartNotification(
     val icon: androidx.compose.ui.graphics.vector.ImageVector,
     val color: Color
 )
-
-@Composable
-fun FamilyMiniHub(familyState: FamilyState, onNavigateToFamily: () -> Unit) {
-    if (familyState is FamilyState.Active) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(stringResource(R.string.family_hub), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
-                Text(stringResource(R.string.manage_family), style = Typography.labelMedium, color = primary, modifier = Modifier.clickable { onNavigateToFamily() })
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(4.dp, RoundedCornerShape(16.dp), spotColor = Color.Black.copy(alpha = 0.05f))
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(surface)
-                    .clickable { onNavigateToFamily() }
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(48.dp).clip(CircleShape).background(catBillsBg),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.FamilyRestroom, contentDescription = "Family", tint = catBillsIcon)
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(stringResource(R.string.family_hub), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                        Text(stringResource(R.string.family_desc), style = Typography.labelSmall, color = onSurfaceVariant)
-                    }
-                }
-                Icon(Icons.Default.ChevronLeft, contentDescription = "Enter", tint = primary)
-            }
-        }
-    }
-}
-
-@Composable
-fun FeaturesRowSection(
-    onNavigateToAssistant: () -> Unit,
-    onNavigateToSubscriptions: () -> Unit,
-    onNavigateToShopping: () -> Unit,
-    onNavigateToInventory: () -> Unit,
-    onNavigateToFamily: () -> Unit
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            stringResource(R.string.quick_shortcuts),
-            style = Typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = onSurface,
-            modifier = Modifier.padding(horizontal = 20.dp)
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(horizontal = 20.dp)
-        ) {
-            item { FeatureItem(stringResource(R.string.zad_ai), Icons.Default.AutoAwesome, catTransportBg, catTransportIcon, onNavigateToAssistant) }
-            item { FeatureItem(stringResource(R.string.family_hub), Icons.Default.FamilyRestroom, catBillsBg, catBillsIcon, onNavigateToFamily) }
-            item { FeatureItem(stringResource(R.string.inventory_items), Icons.Default.Inventory, catFoodBg, catFoodIcon, onNavigateToInventory) }
-            item { FeatureItem(stringResource(R.string.active_subscriptions), Icons.Default.CalendarToday, catBankingBg, catBankingIcon, onNavigateToSubscriptions) }
-            item { FeatureItem(stringResource(R.string.grocery), Icons.Default.ShoppingCart, catDailyBg, catDailyIcon, onNavigateToShopping) }
-        }
-    }
-}
-
-@Composable
-fun FeatureItem(title: String, icon: ImageVector, bgColor: Color, iconColor: Color, onClick: () -> Unit) {
-    var pressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.92f else 1f,
-        animationSpec = tween(100), label = "feature_scale"
-    )
-    val infiniteTransition = rememberInfiniteTransition(label = "feature_glow")
-    val glow by infiniteTransition.animateFloat(
-        initialValue = 0.3f, targetValue = 0.7f,
-        animationSpec = infiniteRepeatable(tween(2000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "glow"
-    )
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.width(84.dp)
-    ) {
-        Card(
-            modifier = Modifier
-                .size(76.dp)
-                .scale(scale)
-                .clickable(
-                    onClick = onClick,
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() }.also { src ->
-                        LaunchedEffect(src) {
-                            src.interactions.collect { interaction ->
-                                when (interaction) {
-                                    is androidx.compose.foundation.interaction.PressInteraction.Press -> pressed = true
-                                    is androidx.compose.foundation.interaction.PressInteraction.Release -> pressed = false
-                                    is androidx.compose.foundation.interaction.PressInteraction.Cancel -> pressed = false
-                                    else -> {}
-                                }
-                            }
-                        }
-                    }
-                ),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
-        ) {
-            Box(
-                modifier = Modifier.fillMaxSize().background(
-                    Brush.radialGradient(
-                        listOf(iconColor.copy(alpha = glow * 0.3f), surface.copy(alpha = 0.0f)),
-                        radius = 200f
-                    )
-                ),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    modifier = Modifier.size(46.dp).clip(CircleShape)
-                        .background(iconColor.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(icon, contentDescription = title, tint = iconColor, modifier = Modifier.size(24.dp))
-                }
-            }
-        }
-        Spacer(modifier = Modifier.height(10.dp))
-        Text(
-            text = title,
-            style = Typography.labelMedium,
-            color = onSurface,
-            fontWeight = FontWeight.Bold,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            maxLines = 2,
-            minLines = 2
-        )
-    }
-}
-@Composable
-fun GreetingBanner(userName: String) {
-    val infiniteTransition = rememberInfiniteTransition(label = "greeting")
-    val waveOffset by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(3000, easing = LinearEasing)),
-        label = "wave"
-    )
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text = stringResource(R.string.welcome_back_name_prefix), style = Typography.headlineMedium, fontWeight = FontWeight.Bold, color = onSurface)
-            Text(
-                text = userName.ifEmpty { stringResource(R.string.guest_name_fallback) },
-                style = Typography.headlineMedium.copy(
-                    brush = Brush.linearGradient(colors = listOf(primary, primaryFixed))
-                ),
-                fontWeight = FontWeight.Bold
-            )
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(text = stringResource(R.string.home_summary_subtitle), style = Typography.bodyMedium, color = onSurfaceVariant)
-    }
-}
-
-@Composable
-fun DashboardGrid(
-    inventoryCount: Int,
-    budgetLeft: Double,
-    unreadFamilyMessages: Int,
-    onNavigateToInventory: () -> Unit,
-    onNavigateToBudget: () -> Unit,
-    onNavigateToFamily: () -> Unit
-) {
-    val context = LocalContext.current
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Inventory Card
-        Card(
-            modifier = Modifier.weight(1f).aspectRatio(1f).clickable { onNavigateToInventory() }.shadow(8.dp, RoundedCornerShape(24.dp)),
-            colors = CardDefaults.cardColors(containerColor = surface),
-            shape = RoundedCornerShape(24.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp).fillMaxSize(),
-                verticalArrangement = Arrangement.SpaceBetween,
-                horizontalAlignment = Alignment.Start
-            ) {
-                Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(primaryContainer), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.Inventory, contentDescription = null, tint = primary)
-                }
-                Column {
-                    Text(text = "$inventoryCount", style = Typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = primary)
-                    Text(text = stringResource(R.string.inventory_items_label), style = Typography.labelMedium, color = outline)
-                }
-            }
-        }
-
-        // Budget Card
-        Card(
-            modifier = Modifier.weight(1f).aspectRatio(1f).clickable { onNavigateToBudget() }.shadow(8.dp, RoundedCornerShape(24.dp)),
-            colors = CardDefaults.cardColors(containerColor = primary),
-            shape = RoundedCornerShape(24.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp).fillMaxSize(),
-                verticalArrangement = Arrangement.SpaceBetween,
-                horizontalAlignment = Alignment.Start
-            ) {
-                Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.2f)), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = Color.White)
-                }
-                Column {
-                    Text(text = com.example.data.CurrencyFormatter.format(context, budgetLeft), style = Typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = Color.White)
-                    Text(text = stringResource(R.string.remaining), style = Typography.labelMedium, color = Color.White.copy(alpha = 0.8f))
-                }
-            }
-        }
-    }
-    Spacer(modifier = Modifier.height(16.dp))
-    // Family Card
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable { onNavigateToFamily() }.shadow(8.dp, RoundedCornerShape(24.dp)),
-        colors = CardDefaults.cardColors(containerColor = surface),
-        shape = RoundedCornerShape(24.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(48.dp).clip(CircleShape).background(secondaryContainer), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.Group, contentDescription = null, tint = secondary)
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(text = stringResource(R.string.nav_family), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                    if (unreadFamilyMessages > 0) {
-                        Text(text = stringResource(R.string.unread_family_messages_count, unreadFamilyMessages), style = Typography.bodySmall, color = secondary)
-                    } else {
-                        Text(text = stringResource(R.string.no_new_messages), style = Typography.bodySmall, color = outline)
-                    }
-                }
-            }
-            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = outline)
-        }
-    }
-}
 
 

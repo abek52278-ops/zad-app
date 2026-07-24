@@ -593,7 +593,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 val aiMsg = if (response != null) {
                     AiChatMessage(text = applyChatAction(response), isUser = false)
                 } else {
-                    AiChatMessage(text = "عذراً، حدث خطأ في الاتصال بالشبكة 🌐", isUser = false)
+                    AiChatMessage(text = "الذكاء الاصطناعي مشغول شوي دلوقتي 🙏 جرب تاني بعد لحظات.", isUser = false)
                 }
                 _aiChatMessages.value = _aiChatMessages.value + aiMsg
                 persistChatMessage(aiMsg)
@@ -1855,6 +1855,29 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 Log.e(TAG, "refreshLiveDeals() FAILED: ${e.message}")
                 _dealsFetchState.value = LiveFetchState.Error
+            }
+        }
+    }
+
+    // --- شريط أسعار زاد الحي (Live Market Ticker) — بحث حي فقط، بكاش 12 ساعة على السيرفر.
+    // تحديث تلقائي عند دخول الرئيسية (زي autoSuggestions)، مش بزر يدوي زي liveDeals ---
+    private val _livePrices = kotlinx.coroutines.flow.MutableStateFlow<List<com.example.data.MarketPriceItem>>(emptyList())
+    val livePrices: kotlinx.coroutines.flow.StateFlow<List<com.example.data.MarketPriceItem>> = _livePrices
+
+    private val _marketPricesFetchState = kotlinx.coroutines.flow.MutableStateFlow(LiveFetchState.NotFetchedYet)
+    val marketPricesFetchState: kotlinx.coroutines.flow.StateFlow<LiveFetchState> = _marketPricesFetchState
+
+    fun refreshLiveMarketPrices() {
+        if (_marketPricesFetchState.value == LiveFetchState.Loading) return
+        viewModelScope.launch {
+            _marketPricesFetchState.value = LiveFetchState.Loading
+            try {
+                _livePrices.value = ZadAiRepository.fetchLiveMarketPrices()
+                _marketPricesFetchState.value = LiveFetchState.Fetched
+                Log.d(TAG, "refreshLiveMarketPrices() → found=${_livePrices.value.size}")
+            } catch (e: Exception) {
+                Log.e(TAG, "refreshLiveMarketPrices() FAILED: ${e.message}")
+                _marketPricesFetchState.value = LiveFetchState.Error
             }
         }
     }

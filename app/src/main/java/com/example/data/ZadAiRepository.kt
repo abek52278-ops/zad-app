@@ -235,7 +235,7 @@ object ZadAiRepository {
 
     suspend fun askFamilyAssistant(message: String, senderRole: String = "member"): String {
         val response = callAction("family_assistant", mapOf("message" to message, "role" to senderRole))
-        return response["text"] as? String ?: "عفواً، تعذر الاتصال."
+        return response["text"] as? String ?: "الذكاء الاصطناعي مشغول شوي دلوقتي 🙏 جرب تاني بعد لحظات."
     }
 
     suspend fun estimatePrice(itemName: String, store: String = ""): AiPriceEstimate? {
@@ -545,6 +545,25 @@ object ZadAiRepository {
                 direction = map["direction"] as? String ?: "up",
                 reasoning = map["reasoning"] as? String ?: "",
                 sourceNote = map["source_note"] as? String
+            )
+        }
+    }
+
+    /** شريط أسعار زاد الحي — أسعار سلع أساسية حقيقية (بنزين، طماطم، ذهب...) عبر بحث حي، بكاش 12 ساعة على السيرفر. */
+    suspend fun fetchLiveMarketPrices(
+        location: String = MarketPrefs.currentMarket.displayNameAr
+    ): List<MarketPriceItem> {
+        val response = callAction("fetch_live_market_prices", mapOf("location" to location))
+        if (response["ok"] == false) throw IllegalStateException("fetch_live_market_prices: upstream search failed")
+        val pricesRaw = response["prices"] as? List<*> ?: return emptyList()
+        return pricesRaw.mapNotNull { entry ->
+            val map = entry as? Map<*, *> ?: return@mapNotNull null
+            MarketPriceItem(
+                symbol = map["symbol"] as? String ?: return@mapNotNull null,
+                price = (map["price"] as? Number)?.toDouble() ?: return@mapNotNull null,
+                unit = map["unit"] as? String ?: "",
+                changePercent = (map["change_percent"] as? Number)?.toDouble() ?: 0.0,
+                trend = map["trend"] as? String ?: "flat"
             )
         }
     }

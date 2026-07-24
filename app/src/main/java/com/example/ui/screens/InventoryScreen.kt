@@ -37,6 +37,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.example.R
 import com.example.data.ZadInventory
 import com.example.ui.components.pressableScale
+import com.example.ui.components.floatingIdle
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 import java.time.LocalDate
@@ -84,29 +85,35 @@ private data class CategoryDef(
     val fg: Color
 )
 
-private fun getIconForItem(itemName: String): ImageVector {
+/** إيموجي مميز لكل منتج (بدل أيقونة Material العامة) — يُستخدم مع floatingIdle() لإحساس "حي" متحرك لكل صنف في المخزون. */
+private fun getEmojiForItem(itemName: String): String {
     val lower = itemName.lowercase()
     return when {
-        "بيض" in lower -> Icons.Default.Restaurant
-        "حليب" in lower || "لبن" in lower -> Icons.Default.LocalGroceryStore
-        "خبز" in lower || "عيش" in lower || "صامولي" in lower -> Icons.Default.BakeryDining
-        "دجاج" in lower || "فراخ" in lower -> Icons.Default.Restaurant
-        "لحم" in lower -> Icons.Default.Restaurant
-        "سمك" in lower -> Icons.Default.Restaurant
-        "طماطم" in lower || "بندورة" in lower -> Icons.Default.Eco
-        "بطاطس" in lower || "بطاطا" in lower -> Icons.Default.Eco
-        "بصل" in lower -> Icons.Default.Eco
-        "تفاح" in lower || "موز" in lower || "برتقال" in lower -> Icons.Default.Fastfood
-        "قهوة" in lower || "بن" in lower -> Icons.Default.Coffee
-        "شاي" in lower -> Icons.Default.LocalCafe
-        "سكر" in lower || "ملح" in lower -> Icons.Default.Science
-        "زيت" in lower -> Icons.Default.LocalBar
-        "ماء" in lower || "مياه" in lower -> Icons.Default.WaterDrop
-        "صابون" in lower -> Icons.Default.CleaningServices
-        "شامبو" in lower -> Icons.Default.LocalHospital
-        "مناديل" in lower || "فاين" in lower -> Icons.Default.Restaurant
-        "جبن" in lower || "جبنة" in lower -> Icons.Default.Restaurant
-        else -> Icons.Default.Inventory2
+        "بيض" in lower -> "🥚"
+        "حليب" in lower || "لبن" in lower -> "🥛"
+        "خبز" in lower || "عيش" in lower || "صامولي" in lower -> "🍞"
+        "دجاج" in lower || "فراخ" in lower -> "🍗"
+        "لحم" in lower -> "🥩"
+        "سمك" in lower -> "🐟"
+        "طماطم" in lower || "بندورة" in lower -> "🍅"
+        "بطاطس" in lower || "بطاطا" in lower -> "🥔"
+        "بصل" in lower -> "🧅"
+        "تفاح" in lower -> "🍎"
+        "موز" in lower -> "🍌"
+        "برتقال" in lower -> "🍊"
+        "قهوة" in lower || "بن" in lower -> "☕"
+        "شاي" in lower -> "🍵"
+        "سكر" in lower -> "🧂"
+        "ملح" in lower -> "🧂"
+        "زيت" in lower -> "🫙"
+        "ماء" in lower || "مياه" in lower -> "💧"
+        "صابون" in lower -> "🧼"
+        "شامبو" in lower -> "🧴"
+        "مناديل" in lower || "فاين" in lower -> "🧻"
+        "جبن" in lower || "جبنة" in lower -> "🧀"
+        "أرز" in lower || "رز" in lower -> "🍚"
+        "معكرونة" in lower || "مكرونة" in lower -> "🍝"
+        else -> "📦"
     }
 }
 
@@ -729,11 +736,10 @@ private fun InventoryItemCard(
                         .background(catDef.bg),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = getIconForItem(item.itemName),
-                        contentDescription = null,
-                        tint = catDef.fg,
-                        modifier = Modifier.size(20.dp)
+                    Text(
+                        text = getEmojiForItem(item.itemName),
+                        fontSize = 20.sp,
+                        modifier = Modifier.floatingIdle(amplitude = 2.5f)
                     )
                 }
                 Box(
@@ -888,11 +894,10 @@ private fun ShortageItemCard(
                         .background(catDef.bg),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = getIconForItem(item.itemName),
-                        contentDescription = null,
-                        tint = catDef.fg,
-                        modifier = Modifier.size(18.dp)
+                    Text(
+                        text = getEmojiForItem(item.itemName),
+                        fontSize = 18.sp,
+                        modifier = Modifier.floatingIdle(amplitude = 2f)
                     )
                 }
                 Spacer(modifier = Modifier.width(10.dp))

@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.filled.TrendingFlat
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -311,6 +312,9 @@ fun AnalyticsTab(
                 predictedNextMonth = predictedNextMonth
             )
         }
+
+        // مؤشر الاستهلاك اليومي — خط زمني بالتواريخ بأسلوب شاشة بورصة
+        item { ConsumptionTickerCard(transactions) }
 
         // بطاقة التنبؤ الذكي
         item {
@@ -964,6 +968,129 @@ fun MonthlyBarChartCard(monthlyData: List<Pair<String, Double>>, predictedNextMo
                 Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(secondaryLight))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(stringResource(R.string.zad_forecast_label), style = Typography.labelSmall, color = onSurfaceVariant)
+            }
+        }
+    }
+}
+
+// ── Consumption Ticker — stock-exchange-style daily spend line chart ──────────
+@Composable
+fun ConsumptionTickerCard(transactions: List<ZadTransaction>) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val dailyData = remember(transactions) { computeDailySpendData(transactions, days = 30) }
+    val previousPeriodTotal = remember(transactions) {
+        computeDailySpendData(transactions, days = 30, endDate = java.time.LocalDate.now().minusDays(30))
+            .sumOf { it.second }
+    }
+    val currentTotal = dailyData.sumOf { it.second }
+    val hasData = currentTotal > 0.0 || previousPeriodTotal > 0.0
+
+    val changePct = if (previousPeriodTotal > 0.0) {
+        ((currentTotal - previousPeriodTotal) / previousPeriodTotal) * 100.0
+    } else if (currentTotal > 0.0) 100.0 else 0.0
+    // spending more than before = red (bad), spending less = green (good) — inverted vs a real stock ticker
+    val trendColor = if (changePct > 0.5) dangerColor else if (changePct < -0.5) successColor else onSurfaceVariant
+    val trendIcon = if (changePct > 0.5) Icons.Default.TrendingUp else if (changePct < -0.5) Icons.Default.TrendingDown else Icons.AutoMirrored.Filled.TrendingFlat
+
+    val drawProgress by animateFloatAsState(targetValue = if (hasData) 1f else 0f, animationSpec = tween(1200, easing = FastOutSlowInEasing), label = "ticker_draw")
+
+    Card(
+        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = surface)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.ShowChart, contentDescription = null, modifier = Modifier.size(20.dp), tint = onSurface)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.consumption_ticker_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(stringResource(R.string.consumption_ticker_period_30d), style = Typography.labelSmall, color = onSurfaceVariant)
+                }
+                if (hasData) {
+                    Row(
+                        modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(trendColor.copy(alpha = 0.12f)).padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(trendIcon, contentDescription = null, tint = trendColor, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            "${if (changePct > 0) "+" else ""}${"%.1f".format(changePct)}%",
+                            style = Typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = trendColor
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                com.example.data.CurrencyFormatter.format(context, currentTotal),
+                style = Typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
+                color = onSurface
+            )
+            Text(stringResource(R.string.consumption_ticker_vs_prev_period), style = Typography.labelSmall, color = onSurfaceVariant)
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (!hasData) {
+                com.example.ui.components.ZadEmptyState(
+                    title = stringResource(R.string.no_transactions_for_analysis),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp)
+                )
+            } else {
+                val maxVal = (dailyData.maxOfOrNull { it.second } ?: 0.0).coerceAtLeast(1.0)
+                val lineColor = trendColor
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                ) {
+                    val w = size.width
+                    val h = size.height
+                    val stepX = if (dailyData.size > 1) w / (dailyData.size - 1) else w
+                    val points = dailyData.mapIndexed { i, (_, value) ->
+                        Offset(i * stepX, h - ((value / maxVal) * h).toFloat().coerceIn(0f, h))
+                    }
+                    val visiblePointCount = (points.size * drawProgress).toInt().coerceIn(1, points.size)
+                    val visiblePoints = points.take(visiblePointCount)
+
+                    if (visiblePoints.size >= 2) {
+                        val linePath = Path().apply {
+                            moveTo(visiblePoints.first().x, visiblePoints.first().y)
+                            for (p in visiblePoints.drop(1)) lineTo(p.x, p.y)
+                        }
+                        val fillPath = Path().apply {
+                            addPath(linePath)
+                            lineTo(visiblePoints.last().x, h)
+                            lineTo(visiblePoints.first().x, h)
+                            close()
+                        }
+                        drawPath(
+                            path = fillPath,
+                            brush = Brush.verticalGradient(listOf(lineColor.copy(alpha = 0.22f), lineColor.copy(alpha = 0f)))
+                        )
+                        drawPath(
+                            path = linePath,
+                            color = lineColor,
+                            style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                        )
+                        // نقطة نهاية متوهجة — إحساس "مباشر" زي شاشة الأسعار الحية
+                        drawCircle(color = lineColor, radius = 4.dp.toPx(), center = visiblePoints.last())
+                        drawCircle(color = lineColor.copy(alpha = 0.25f), radius = 8.dp.toPx(), center = visiblePoints.last())
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    val dateFormatter = java.time.format.DateTimeFormatter.ofPattern("d/M")
+                    Text(dailyData.first().first.format(dateFormatter), style = Typography.labelSmall.copy(fontSize = 9.sp), color = onSurfaceVariant)
+                    Text(dailyData[dailyData.size / 2].first.format(dateFormatter), style = Typography.labelSmall.copy(fontSize = 9.sp), color = onSurfaceVariant)
+                    Text(dailyData.last().first.format(dateFormatter), style = Typography.labelSmall.copy(fontSize = 9.sp), color = onSurfaceVariant)
+                }
             }
         }
     }
@@ -2446,6 +2573,35 @@ fun computeMonthlyData(transactions: List<ZadTransaction>, context: android.cont
             val monthIdx = (key.split("-").getOrNull(1)?.toIntOrNull() ?: 1) - 1
             monthNames.getOrElse(monthIdx) { key } to txs.sumOf { it.amount }
         }
+}
+
+/**
+ * إنفاق يومي آخر [days] يوم منتهية بـ [endDate] (بما فيها الأيام بدون معاملات = صفر) —
+ * لرسم خط زمني متصل بالتواريخ بدل تجميع شهري، أسلوب شاشة بورصة. [endDate] الافتراضي
+ * اليوم؛ نمرر تاريخ أقدم لحساب الفترة السابقة للمقارنة (% تغير).
+ */
+fun computeDailySpendData(
+    transactions: List<ZadTransaction>,
+    days: Int = 30,
+    endDate: java.time.LocalDate = java.time.LocalDate.now()
+): List<Pair<java.time.LocalDate, Double>> {
+    val today = endDate
+    val startDate = today.minusDays((days - 1).toLong())
+
+    val byDay = mutableMapOf<java.time.LocalDate, Double>()
+    transactions.filter { it.isExpense }.forEach { tx ->
+        val date = tx.createdAt?.let {
+            runCatching { java.time.Instant.parse(it).atZone(java.time.ZoneId.systemDefault()).toLocalDate() }.getOrNull()
+        } ?: return@forEach
+        if (!date.isBefore(startDate) && !date.isAfter(today)) {
+            byDay[date] = (byDay[date] ?: 0.0) + tx.amount
+        }
+    }
+
+    return (0 until days).map { offset ->
+        val date = startDate.plusDays(offset.toLong())
+        date to (byDay[date] ?: 0.0)
+    }
 }
 
 fun predictNextMonth(monthlyData: List<Pair<String, Double>>): Double {

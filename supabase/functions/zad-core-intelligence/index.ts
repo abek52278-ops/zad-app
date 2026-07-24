@@ -245,6 +245,17 @@ async function callJsonModel(systemPrompt: string, userPrompt: string, maxTokens
 // response) from a genuinely successful search that just found nothing — callers
 // used to collapse both into the same empty array, so real outages looked
 // identical to "no deals right now" in the UI.
+//
+// Diagnosed live (2026-07-24) via a temporary debug build: compound-mini's
+// web_search tool DOES get invoked and DOES find real pages with real prices
+// (confirmed live: a fetch_live_deals call returned real Saudi supermarket
+// rice prices in executed_tools output) — but the model sometimes drops that
+// found data when formatting its final JSON answer, returning `[]` despite
+// having real numbers in front of it. Non-deterministic per call, not a
+// missing-key/HTTP/parsing bug. fetch_live_market_prices's one internal
+// retry-on-empty (see that case below) is the mitigation for this specific
+// action — a second attempt has real odds of succeeding where the first one
+// found data but failed to extract it.
 async function callCompoundSearch(systemPrompt: string, userPrompt: string, maxTokens = 1500) {
   if (!GROQ_API_KEY) return { parsed: null, executedTools: [], ok: false };
   // groq/compound-mini runs on a shared org-level TPM budget (8000/min on this
@@ -485,7 +496,10 @@ Deno.serve(async (req: Request) => {
             "اعتذر بلطف وحوّل الموضوع لحاجة ممتعة بدل ما تجاوب — دي بيانات خاصة بالأهل بس."
           : dialectPrefix + "أنت مساعد عائلي ذكي. تجيب بود واختصار. تساعد في إدارة شؤون المنزل، الوصفات، الميزانية، والتسوق.";
         const result = await callTextModel(systemPrompt, message);
-        return jsonResponse({ text: result || "عفواً، تعذر الاتصال." });
+        // same honest-failure contract as meal_suggestions/recipe_details: null/ok:false on a
+        // genuine upstream failure (rate limit/timeout) instead of baking in Arabic text that
+        // reads like a real AI reply — the Kotlin client supplies its own accurate message.
+        return jsonResponse({ text: result, ok: result !== null });
       }
 
       // ──────────────────────────────────────────────
@@ -663,6 +677,64 @@ Deno.serve(async (req: Request) => {
       }
 
       // ──────────────────────────────────────────────
+      // FETCH_LIVE_MARKET_PRICES — Zad Live Market Ticker: real daily prices
+      // for essential commodities (fuel, produce, gold...), 12h server cache
+      // keyed by market/region to keep the home-screen ticker fast and avoid
+      // burning the shared groq/compound-mini TPM budget on every app open.
+      // ──────────────────────────────────────────────
+      case "fetch_live_market_prices": {
+        const { location } = payload || {};
+        const marketLoc = location || "السعودية";
+        const CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+
+        const { data: cached } = await supabase
+          .from("market_price_cache")
+          .select("prices, updated_at")
+          .eq("market", marketLoc)
+          .maybeSingle();
+
+        if (cached?.updated_at && Date.now() - new Date(cached.updated_at).getTime() < CACHE_TTL_MS) {
+          return jsonResponse({ prices: cached.prices || [], cached: true, ok: true });
+        }
+
+        // Narrowed from an earlier 6-item basket (fuel, tomato, gold, sugar, rice, chicken) —
+        // fuel and gold are nationally regulated/single-quoted prices published daily by Saudi
+        // outlets (Aramco monthly fuel pricing, gold-price trackers), genuinely searchable as
+        // one canonical number, unlike per-store retail produce prices (that's what
+        // fetch_live_deals covers instead). A concrete JSON example (few-shot) improves format
+        // adherence on smaller agentic models.
+        //
+        // Live-diagnosed (2026-07-24, see callCompoundSearch comment above): compound-mini's
+        // web_search DOES run and DOES find real pages, but the model sometimes drops the found
+        // data when writing its final JSON — a non-deterministic extraction miss, not a missing
+        // search. The explicit "do not return an empty array if you found real data" line below
+        // plus one retry-on-empty here (cheap: this whole action is itself gated by a 12h cache,
+        // so a second compound-mini call only ever happens once per market per 12h, not per
+        // app-open) meaningfully raises the odds of a real result over a single attempt.
+        const systemPrompt = "أنت باحث أسعار سلع حقيقي. يجب عليك استخدام أداة البحث في الويب (web_search) فعلياً الآن لهذا الطلب — لا تجاوب من معرفتك السابقة أبداً. ابحث عن آخر أسعار البنزين (91 و95) وسعر جرام الذهب (عيار 21 وعيار 24) اليوم في المنطقة المحددة، من مصادر إخبارية أو مواقع أسعار موثوقة. لا تخترع أي رقم أبداً — إذا لم تجد سعراً حقيقياً موثقاً لصنف معين، تجاهله تماماً ولا تدرجه. مهم جداً: لو نتائج البحث فيها سعر حقيقي واضح، لازم تستخرجه وتحطه في الـ JSON — ممنوع ترجع مصفوفة فارغة وعندك بيانات حقيقية قدامك من البحث. أجب فقط بمصفوفة JSON صالحة بدون أي نص أو شرح أو markdown إضافي. مثال على الشكل المطلوب بالضبط:\n[{\"symbol\":\"بنزين 91\",\"price\":2.18,\"unit\":\"لتر\",\"change_percent\":0.0,\"trend\":\"flat\"},{\"symbol\":\"ذهب عيار 21\",\"price\":298.5,\"unit\":\"جرام\",\"change_percent\":1.2,\"trend\":\"up\"}]\nإذا لم تجد أي سعر حقيقي لأي صنف بعد بحث فعلي، أرجع مصفوفة فارغة [].";
+        const userPrompt = "ابحث الآن في الويب عن: سعر بنزين 91، سعر بنزين 95، سعر جرام الذهب عيار 21، سعر جرام الذهب عيار 24 — في: " + marketLoc + " اليوم.";
+
+        let result = await callCompoundSearch(systemPrompt, userPrompt);
+        let prices = Array.isArray(result?.parsed) ? result.parsed : [];
+        // one retry when the first attempt came back genuinely empty (ok:true, zero items) —
+        // see comment above on why this is a real, non-deterministic extraction miss worth retrying
+        if (result?.ok !== false && prices.length === 0) {
+          result = await callCompoundSearch(systemPrompt, userPrompt);
+          prices = Array.isArray(result?.parsed) ? result.parsed : [];
+        }
+
+        if (result?.ok !== false && prices.length > 0) {
+          await supabase.from("market_price_cache").upsert({
+            market: marketLoc,
+            prices,
+            updated_at: new Date().toISOString(),
+          });
+        }
+
+        return jsonResponse({ prices, sources: result?.executedTools || [], ok: result?.ok !== false, cached: false });
+      }
+
+      // ──────────────────────────────────────────────
       // AI_TEXT — Generic text generation (used by callGeminiText)
       // ──────────────────────────────────────────────
       case "ai_text": {
@@ -672,7 +744,10 @@ Deno.serve(async (req: Request) => {
           return jsonResponse({ text: JSON.stringify(result) });
         }
         const result = await callTextModel(system_prompt || "", user_prompt || "");
-        return jsonResponse({ text: result || "تعذر الاتصال بالذكاء الاصطناعي." });
+        // same honest-failure contract — null/ok:false on genuine upstream failure, no baked
+        // Arabic fallback text (was previously blaming "الاتصال" for what's actually an
+        // OpenRouter free-tier rate limit/timeout, not a real connectivity failure).
+        return jsonResponse({ text: result, ok: result !== null });
       }
 
       // ──────────────────────────────────────────────
@@ -681,7 +756,7 @@ Deno.serve(async (req: Request) => {
       case "brain_evaluate": {
         const { system_prompt, user_prompt } = payload || {};
         const result = await callTextModel(system_prompt || "", user_prompt || "", 2000, 0.3);
-        return jsonResponse({ text: result || "تعذر التقييم." });
+        return jsonResponse({ text: result, ok: result !== null });
       }
 
       // ──────────────────────────────────────────────
