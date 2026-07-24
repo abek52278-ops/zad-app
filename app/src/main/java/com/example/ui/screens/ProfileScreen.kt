@@ -455,6 +455,17 @@ fun ProfileScreen(
                         onClick = { showHelpSupport = true }
                     )
                 }
+                Spacer(Modifier.height(10.dp))
+
+                AppearOnEntry(delayMs = 220) {
+                    ProfileMenuItem(
+                        icon = Icons.Default.Description,
+                        title = stringResource(R.string.terms_of_service_menu_title),
+                        subtitle = stringResource(R.string.terms_of_service_menu_subtitle),
+                        gradient = listOf(Color(0xFF64748B), Color(0xFF94A3B8)),
+                        onClick = { navController?.navigate(Screen.TermsOfService.route) }
+                    )
+                }
 
                 Spacer(Modifier.height(24.dp))
                 SectionTitle(stringResource(R.string.account_title))

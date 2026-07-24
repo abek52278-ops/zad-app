@@ -46,6 +46,12 @@ class FamilyViewModel : ViewModel() {
     
     private var currentFamilyId: String? = null
 
+    // MainScreen يظبطه من manualKidsModeActive (زر "Switch to Kids Mode" اليدوي للأدمن) —
+    // قبل كده sendMessage كان بيقرأ myMemberInfo.role الحقيقي بس، فالأدمن في وضع المعاينة
+    // كان لسه بياخد ردود @Zad بمستوى بالغ في شات العائلة رغم إنه شايف واجهة أطفال.
+    // الحسابات الحقيقية للأطفال مش متأثرة — role بتاعها أصلاً "child" من الداتابيز.
+    var kidsModePreviewOverride: Boolean by mutableStateOf(false)
+
     init {
         loadFamilyData()
         updatePresence()
@@ -183,7 +189,8 @@ class FamilyViewModel : ViewModel() {
                 // If the message mentions the AI
                 if (finalType == "TEXT" && (message.contains("@Zad", ignoreCase = true) || message.contains("@زاد"))) {
                     val cleanMessage = message.replace(Regex("@(Zad|زاد)\\s*"), "").trim()
-                    val aiResponse = com.example.data.ZadAiRepository.askFamilyAssistant(cleanMessage, curr.myMemberInfo.role)
+                    val effectiveRole = if (kidsModePreviewOverride) "child" else curr.myMemberInfo.role
+                    val aiResponse = com.example.data.ZadAiRepository.askFamilyAssistant(cleanMessage, effectiveRole)
                     SupabaseRepo.sendMessage(curr.familyGroup.id, "zad_ai", aiResponse, "TEXT", null)
                 } else if (finalType == "TEXT" && (message.contains("أضف") || message.contains("نقص") || message.contains("شراء"))) {
                     val cleanMsg = message.replace(Regex("(أضف|نقص|احتاج|شراء|إلى القائمة|للقائمة)"), "").trim()

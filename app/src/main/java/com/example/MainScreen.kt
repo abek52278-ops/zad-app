@@ -84,7 +84,6 @@ sealed class Screen(val route: String, val titleRes: Int, val icon: ImageVector)
     object PaymentBudget : Screen("payment_budget", R.string.nav_budget, Icons.Filled.AccountBalanceWallet)
     object AssistantAlerts : Screen("assistant_alerts", R.string.nav_assistant, Icons.Filled.SmartToy)
     object TermsOfService : Screen("terms_of_service", R.string.nav_profile, Icons.Filled.Description)
-    object RecipeDetail : Screen("recipe_detail", R.string.app_name, Icons.Filled.RestaurantMenu)
     object Tasbiha : Screen("tasbiha", R.string.app_name, Icons.Filled.Spa)
 }
 
@@ -107,6 +106,12 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
     // role حقيقي من الداتابيز (حساب طفل مستقل) — مش قابل للتبديل من المستخدم نفسه
     val isChildRole = (familyStateForChat as? FamilyState.Active)?.myMemberInfo?.role == "child"
     var manualKidsModeActive by remember { mutableStateOf(KidsModePin.isManualModeActive(context)) }
+    // يبلّغ FamilyViewModel بمعاينة الأدمن اليدوية عشان شات @Zad العائلي يرد بمستوى
+    // طفل مش بالغ (كان قبل كده بيقرأ role الحقيقي من الداتابيز بس، فمعاينة الأدمن
+    // كانت بتفتح واجهة أطفال بس ترد عليه ردود بالغين في الشات — فجوة معروفة اتصلحت هنا)
+    LaunchedEffect(manualKidsModeActive) {
+        familyViewModel.kidsModePreviewOverride = manualKidsModeActive
+    }
     // فتح مؤقت لحساب طفل حقيقي بعد إدخال PIN صح — بيتصفّر لما التطبيق يتقفل (قصداً)
     var pinUnlockedOverride by remember { mutableStateOf(false) }
     val kidsModeEffective = (isChildRole && !pinUnlockedOverride) || manualKidsModeActive

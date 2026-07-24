@@ -598,6 +598,8 @@
     <string name="choose_your_avatar">Karakterini seç</string>
     <string name="confirm_delete_account">Evet, hesabı sil</string>
     <string name="contact_us">Bize ulaşın</string>
+    <string name="terms_of_service_menu_title">Şartlar ve Koşullar</string>
+    <string name="terms_of_service_menu_subtitle">Kullanım ve gizlilik politikası</string>
     <string name="control_smart_alerts">Akıllı bildirimleri yönet</string>
     <string name="deactivate">Devre dışı bırak</string>
     <string name="delete_account">Hesabı sil</string>

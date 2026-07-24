@@ -620,6 +620,8 @@
     <string name="choose_your_avatar">اختر شخصيتك</string>
     <string name="confirm_delete_account">نعم، احذف الحساب</string>
     <string name="contact_us">تواصل معنا</string>
+    <string name="terms_of_service_menu_title">الشروط والأحكام</string>
+    <string name="terms_of_service_menu_subtitle">سياسة الاستخدام والخصوصية</string>
     <string name="control_smart_alerts">التحكم في التنبيهات الذكية</string>
     <string name="deactivate">إلغاء التفعيل</string>
     <string name="delete_account">حذف الحساب</string>
