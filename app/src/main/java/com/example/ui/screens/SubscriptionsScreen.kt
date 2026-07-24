@@ -209,6 +209,7 @@ fun SubscriptionsScreen(
                             SubScreenSubscriptionCardFull(
                                 sub = sub,
                                 onToggleActive = { viewModel.updateSubscriptionActive(sub.id, !sub.isActive) },
+                                onToggleAutoDeduct = { viewModel.updateSubscriptionAutoDeduct(sub.id, !sub.autoDeduct) },
                                 onDelete = { viewModel.deleteSubscription(sub.id) }
                             )
                         }
@@ -253,6 +254,7 @@ fun SubscriptionsScreen(
 private fun SubScreenSubscriptionCardFull(
     sub: ZadSubscription,
     onToggleActive: () -> Unit,
+    onToggleAutoDeduct: () -> Unit,
     onDelete: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -318,11 +320,27 @@ private fun SubScreenSubscriptionCardFull(
                 if (sub.provider != null) {
                     Text(sub.provider, style = Typography.labelSmall, color = onSurfaceVariant)
                 }
+                if (sub.autoDeduct) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Bolt, contentDescription = null, tint = primary, modifier = Modifier.size(12.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(stringResource(R.string.auto_deduct_badge), style = Typography.labelSmall, color = primary, fontSize = 10.sp)
+                    }
+                }
             }
             Text(com.example.data.CurrencyFormatter.format(context, sub.amount),
                 style = Typography.titleMedium, fontWeight = FontWeight.Bold,
                 color = if (sub.isActive) onSurface else onSurfaceVariant)
             Spacer(modifier = Modifier.width(4.dp))
+            IconButton(onClick = onToggleAutoDeduct, modifier = Modifier.size(32.dp).pressableScale()) {
+                Icon(
+                    Icons.Default.Bolt,
+                    contentDescription = stringResource(R.string.auto_deduct_toggle_action),
+                    tint = if (sub.autoDeduct) primary else outline,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
             IconButton(onClick = onToggleActive, modifier = Modifier.size(32.dp).pressableScale()) {
                 Icon(
                     if (sub.isActive) Icons.Default.PauseCircle else Icons.Default.PlayCircle,

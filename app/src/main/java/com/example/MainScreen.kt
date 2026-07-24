@@ -64,6 +64,10 @@ sealed class Screen(val route: String, val titleRes: Int, val icon: ImageVector)
     object Assistant : Screen("assistant", R.string.nav_assistant, Icons.Filled.SmartToy)
     object Family : Screen("family", R.string.nav_family, Icons.Filled.FamilyRestroom)
     object Reports : Screen("reports", R.string.nav_reports, Icons.Filled.Assessment)
+    object Pharmacy : Screen("pharmacy", R.string.nav_pharmacy, Icons.Filled.LocalPharmacy)
+    object Maintenance : Screen("maintenance", R.string.nav_maintenance, Icons.Filled.Build)
+    object NearbyDeals : Screen("nearby_deals", R.string.nearby_deals_title, Icons.Filled.LocationOn)
+    object StatementImport : Screen("statement_import", R.string.statement_import_title, Icons.Filled.UploadFile)
     object Store : Screen("store", R.string.nav_store, Icons.Filled.Store)
     object HelpSupport : Screen("help_support", R.string.nav_help, Icons.Filled.Help)
     object Profile : Screen("profile", R.string.nav_profile, Icons.Filled.Person)
@@ -143,6 +147,9 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
             Screen.Shopping,
             Screen.Family,
             Screen.Budget,
+            Screen.Pharmacy,
+            Screen.Maintenance,
+            Screen.NearbyDeals,
             Screen.Profile
         )
     }
@@ -399,6 +406,12 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                                     launchSingleTop = true
                                 }
                             },
+                            onNavigateToPharmacy = {
+                                navController.navigate(Screen.Pharmacy.route) {
+                                    popUpTo(navController.graph.findStartDestination().id)
+                                    launchSingleTop = true
+                                }
+                            },
                             onOpenDrawer = { scope.launch { drawerState.open() } }
                         )
                     }
@@ -421,6 +434,28 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                         )
                     }
                     composable(Screen.Subscriptions.route) { SubscriptionsScreen(viewModel) { scope.launch { drawerState.open() } } }
+                    composable(Screen.Pharmacy.route) {
+                        PharmacyScreen(
+                            viewModel = viewModel,
+                            familyViewModel = familyViewModel,
+                            onOpenDrawer = { scope.launch { drawerState.open() } },
+                            onNavigateToCamera = {
+                                navController.navigate(Screen.Camera.route) {
+                                    popUpTo(navController.graph.findStartDestination().id)
+                                    launchSingleTop = true
+                                }
+                            }
+                        )
+                    }
+                    composable(Screen.Maintenance.route) {
+                        MaintenanceScreen(viewModel = viewModel, onOpenDrawer = { scope.launch { drawerState.open() } })
+                    }
+                    composable(Screen.NearbyDeals.route) {
+                        NearbyDealsScreen(viewModel = viewModel, onOpenDrawer = { scope.launch { drawerState.open() } })
+                    }
+                    composable(Screen.StatementImport.route) {
+                        StatementImportScreen(onOpenDrawer = { navController.popBackStack() })
+                    }
                     composable(Screen.Assistant.route) {
                         ZadIntelligenceScreen(
                             viewModel = viewModel,

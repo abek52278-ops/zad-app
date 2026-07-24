@@ -730,4 +730,107 @@
     <string name="subscription_load_label">عبء الاشتراكات الشهري</string>
     <string name="top_categories_label">أكتر تصنيفات الصرف</string>
     <string name="last_updated_label">آخر تحديث: %1$s</string>
+
+    <!-- Pharmacy -->
+    <string name="nav_pharmacy">صيدلية العائلة</string>
+    <string name="pharmacy_title">صيدلية العائلة</string>
+    <string name="scan_medicine_action">مسح الدواء بالكاميرا</string>
+    <string name="total_medicines_label">إجمالي الأدوية</string>
+    <string name="expiring_soon_label">قرب الانتهاء</string>
+    <string name="low_stock_label">مخزون منخفض</string>
+    <string name="monthly_pharma_cost_label">التكلفة الشهرية للأدوية: %1$s</string>
+    <string name="expired_medicine_warning">%1$d دواء منتهي الصلاحية — تخلص منه بأمان</string>
+    <string name="no_medicines_hint">لا توجد أدوية مسجلة بعد</string>
+    <string name="expires_in_days">تنتهي خلال %1$d يوم</string>
+    <string name="remaining_quantity_label">متبقي %1$d %2$s</string>
+    <string name="days_supply_left">يكفي %1$d يوم</string>
+    <string name="consume_dose_action">تناول جرعة</string>
+    <string name="add_medicine_dialog_title">إضافة دواء</string>
+    <string name="medicine_name_hint">اسم الدواء</string>
+    <string name="active_ingredient_hint">المادة الفعالة</string>
+    <string name="dosage_hint">الجرعة (مثال: قرص كل 8 ساعات)</string>
+    <string name="remaining_quantity_hint">الكمية المتبقية</string>
+    <string name="unit_hint">الوحدة</string>
+    <string name="daily_dose_hint">جرعات اليوم</string>
+    <string name="expiry_date_hint">تاريخ الانتهاء (YYYY-MM-DD)</string>
+    <string name="is_recurring_label">دواء مزمن / روشتة متجددة شهرياً</string>
+    <string name="toggle_view_action">تبديل طريقة العرض</string>
+    <string name="smart_expiry_tracker_title">قرب الانتهاء — تخلص منها بأمان</string>
+    <string name="renew_order_action">تجديد الطلب</string>
+    <string name="renew_order_dialog_title">تجديد طلب %1$s</string>
+    <string name="added_quantity_hint">الكمية المضافة (%1$s)</string>
+    <string name="assigned_family_member_label">لمين في العائلة</string>
+    <string name="dose_times_hint">مواعيد الجرعة (اختياري، مثال: 08:00, 20:00)</string>
+    <string name="exact_alarm_permission_hint">فعّل \"المنبهات الدقيقة\" من الإعدادات عشان تنبيهات مواعيد الدواء تشتغل بدقة</string>
+    <string name="pharmacy_reminder_title">موعد الدواء</string>
+    <string name="pharmacy_reminder_body">حان موعد جرعة %1$s</string>
+    <string name="pharmacy_reminder_voice_text">حان موعد جرعة %1$s</string>
+    <string name="mark_taken_action">تم الأخذ</string>
+    <string name="snooze_10_min_action">أجّل 10 دقايق</string>
+    <string name="weekly_adherence_label">التزمت بـ %1$d%% من جرعاتك الأسبوع ده</string>
+
+    <!-- Home Maintenance -->
+    <string name="nav_maintenance">صيانة المنزل</string>
+    <string name="maintenance_title">صيانة المنزل</string>
+    <string name="total_appliances_label">الأجهزة</string>
+    <string name="due_soon_label">صيانة قريبة</string>
+    <string name="warranty_expiring_label">ضمان قارب</string>
+    <string name="overdue_maintenance_warning">%1$d جهاز متأخر عن موعد الصيانة</string>
+    <string name="no_maintenance_items_hint">لا توجد أجهزة مسجلة بعد</string>
+    <string name="service_overdue_days">متأخر %1$d يوم</string>
+    <string name="service_due_in_days">الصيانة خلال %1$d يوم</string>
+    <string name="warranty_expires_in_days">الضمان ينتهي خلال %1$d يوم</string>
+    <string name="mark_serviced_action">تمت الصيانة اليوم</string>
+    <string name="add_maintenance_dialog_title">إضافة جهاز</string>
+    <string name="appliance_name_hint">اسم الجهاز</string>
+    <string name="purchase_date_hint">تاريخ الشراء (YYYY-MM-DD)</string>
+    <string name="warranty_expiry_hint">تاريخ انتهاء الضمان (YYYY-MM-DD)</string>
+    <string name="service_interval_hint">دورة الصيانة (كل كام يوم)</string>
+
+    <!-- Subscription auto-deduct -->
+    <string name="auto_deduct_badge">خصم تلقائي</string>
+    <string name="auto_deduct_toggle_action">تفعيل/إيقاف الخصم التلقائي</string>
+
+    <!-- Nearby Deals (foreground-only geofencing) -->
+    <string name="nearby_deals_title">زاد القريب</string>
+    <string name="location_permission_rationale">زاد يحتاج إذن الموقع عشان يوريك السوبرماركتس القريبة منك — يُستخدم فقط وقت فتح هذه الشاشة، لا مراقبة في الخلفية.</string>
+    <string name="allow_location_action">السماح بالوصول للموقع</string>
+    <string name="nearby_deals_disclaimer">البيانات من خرائط OpenStreetMap المجتمعية — قد لا تكون كاملة. لا توجد أسعار أو عروض حقيقية هنا، فقط مقارنة بالقرب الجغرافي ونواقص مخزونك.</string>
+    <string name="location_unavailable_hint">تعذّر تحديد موقعك — تأكد إن GPS مفعّل وحاول مرة أخرى.</string>
+    <string name="no_nearby_stores_hint">لم يتم العثور على سوبرماركتس قريبة</string>
+    <string name="low_stock_reminder_hint">ينقصك: %1$s</string>
+    <string name="nearby_pharmacies_section_title">صيدليات قريبة</string>
+    <string name="nearby_supermarkets_section_title">سوبرماركتس قريبة</string>
+    <string name="refill_needed_reminder_hint">دواء قرب يخلص: %1$s</string>
+
+    <!-- Budget suggestion (advisory, needs user approval) -->
+    <string name="budget_suggestion_text">زاد يقترح تعديل ميزانيتك إلى %1$s بناءً على متوسط آخر شهرين</string>
+    <string name="apply_suggestion_action">تطبيق</string>
+    <string name="dismiss_action">تجاهل</string>
+    <string name="rescan_sms_title">إعادة مسح رسائل البنك</string>
+    <string name="rescan_sms_subtitle">مسح رجعي يدوي لآخر 60 يوم من رسائل SMS</string>
+    <string name="rescanning_sms_toast">جاري المسح…</string>
+    <string name="rescan_done_toast">تم استيراد %d معاملة جديدة</string>
+    <string name="read_sms_permission_missing_toast">إذن قراءة الرسائل غير ممنوح — فعّله من إعدادات النظام أولاً</string>
+    <string name="edit_category_dialog_title">تعديل التصنيف</string>
+    <string name="category_will_be_remembered_hint">هيتم تذكر التصنيف ده لكل معاملات \"%1$s\" القادمة</string>
+
+    <!-- Statement CSV import -->
+    <string name="statement_import_title">استيراد كشف حساب</string>
+    <string name="import_bank_statement_subtitle">استورد كشف حساب CSV من البنك</string>
+    <string name="statement_import_intro">اختر ملف CSV من كشف حسابك — هتحدد بنفسك أي عمود هو التاريخ والمبلغ قبل الاستيراد، ومفيش حاجة بتتسجل غير بعد ما تراجعها.</string>
+    <string name="statement_read_failed">تعذّرت قراءة الملف — تأكد إنه ملف CSV صحيح</string>
+    <string name="pick_csv_file_action">اختيار ملف CSV</string>
+    <string name="map_columns_hint">حدد أي عمود من الملف يمثل كل بيانة — الملف مختلف من بنك لبنك</string>
+    <string name="date_column_label">عمود التاريخ</string>
+    <string name="title_column_label">عمود الوصف/العنوان</string>
+    <string name="amount_column_label">عمود المبلغ</string>
+    <string name="category_column_optional_label">عمود التصنيف (اختياري)</string>
+    <string name="none_option">بدون</string>
+    <string name="invert_amount_sign_label">اعكس إشارة المبلغ (لو السالب هنا معناه دخل مش مصروف)</string>
+    <string name="continue_to_preview_action">متابعة للمراجعة</string>
+    <string name="preview_rows_count_hint">%1$d صف — %2$d محدد للاستيراد</string>
+    <string name="row_parse_error_hint">تعذّرت قراءة التاريخ أو المبلغ في هذا الصف</string>
+    <string name="import_selected_rows_action">استيراد %1$d معاملة</string>
+    <string name="statement_import_done_toast">تم استيراد %1$d معاملة، تجاهل %2$d مكررة</string>
 </resources>

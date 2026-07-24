@@ -34,7 +34,6 @@ import com.example.ui.viewmodels.ZadViewModel
 import com.example.utils.AudioRecorderHelper
 import kotlinx.coroutines.launch
 import java.io.File
-import java.util.Locale
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -63,7 +62,7 @@ fun ZadVoiceFab(
     LaunchedEffect(Unit) {
         tts = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale("ar") // Set Arabic
+                tts?.language = com.example.data.MarketPrefs.currentMarket.toLocale()
             }
         }
     }

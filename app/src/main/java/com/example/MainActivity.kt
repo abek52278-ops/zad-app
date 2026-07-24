@@ -36,6 +36,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.example.ui.theme.AppTheme
 import com.example.ui.theme.primary
 import com.example.ui.theme.background
@@ -130,6 +131,27 @@ class MainActivity : ComponentActivity() {
             "ZadSeasonalEventReminderWorker",
             ExistingPeriodicWorkPolicy.KEEP,
             seasonalReminderRequest
+        )
+
+        // خصم الاشتراكات المتجددة تلقائياً — كل يوم الساعة 8 صباحاً
+        var next8am = now.withHour(8).withMinute(0).withSecond(0).withNano(0)
+        if (now.isAfter(next8am)) next8am = next8am.plusDays(1)
+        val autoDeductInitialDelayMinutes = java.time.Duration.between(now, next8am).toMinutes()
+        val autoDeductRequest = PeriodicWorkRequestBuilder<com.example.workers.SubscriptionAutoDeductWorker>(24, TimeUnit.HOURS)
+            .setInitialDelay(autoDeductInitialDelayMinutes, TimeUnit.MINUTES)
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "ZadSubscriptionAutoDeductWorker",
+            ExistingPeriodicWorkPolicy.KEEP,
+            autoDeductRequest
+        )
+
+        // مزامنة المعاملات من Supabase كل 3 ساعات — تناسق بين الأجهزة حتى لو التطبيق مفتوحش
+        val txSyncRequest = PeriodicWorkRequestBuilder<com.example.workers.TransactionSyncWorker>(3, TimeUnit.HOURS).build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "ZadTransactionSyncWorker",
+            ExistingPeriodicWorkPolicy.KEEP,
+            txSyncRequest
         )
 
         // Start real-time chat notification service
@@ -282,11 +304,15 @@ fun SplashScreen(onTimeout: () -> Unit) {
     )
 
     val context = androidx.compose.ui.platform.LocalContext.current
+    val backfillScope = rememberCoroutineScope()
     val permissionsLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         permissions.entries.forEach {
             Log.d("ZAD_PERM", "${it.key} = ${it.value}")
+        }
+        if (permissions[Manifest.permission.READ_SMS] == true) {
+            backfillScope.launch { com.example.data.SmsBackfillScanner.scanIfNeeded(context) }
         }
     }
     LaunchedEffect(key1 = true) {
@@ -320,8 +346,11 @@ fun SplashScreen(onTimeout: () -> Unit) {
         }
         if (permissionsToRequest.isNotEmpty()) {
             permissionsLauncher.launch(permissionsToRequest.toTypedArray())
+        } else if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED) {
+            // إذن READ_SMS ممنوح مسبقاً (تثبيت قديم أو تحديث) — امسح المسح الرجعي لو لسه مانفّذش
+            backfillScope.launch { com.example.data.SmsBackfillScanner.scanIfNeeded(context) }
         }
-        
+
         onTimeout()
     }
 

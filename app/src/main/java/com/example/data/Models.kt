@@ -5,6 +5,8 @@ import kotlinx.serialization.SerialName
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 @Serializable
@@ -165,7 +167,8 @@ data class ZadSubscription(
     val type: String = "subscription",
     val provider: String? = null,
     @SerialName("due_day") val dueDay: Int? = null,
-    @SerialName("auto_deduct") val autoDeduct: Boolean = false
+    @SerialName("auto_deduct") val autoDeduct: Boolean = false,
+    @SerialName("billing_cycle") val billingCycle: String? = "MONTHLY"
 )
 
 @Entity(tableName = "zad_pharmacy_items")
@@ -180,6 +183,7 @@ data class ZadPharmacyItem(
     @SerialName("remaining_quantity") val remainingQuantity: Int = 1,
     val unit: String = "قرص",
     @SerialName("daily_dose_count") val dailyDoseCount: Int = 1,
+    @SerialName("dose_times") val doseTimes: String? = null, // "08:00,20:00" — مواعيد الجرعة بالساعة، اختياري
     @SerialName("expiry_date") val expiryDate: String? = null,
     val price: Double = 0.0,
     @SerialName("is_recurring") val isRecurring: Boolean = false, // دواء مزمن/روشتة متجددة — يدخل في حساب التكلفة الشهرية
@@ -189,7 +193,62 @@ data class ZadPharmacyItem(
     /** كام يوم يكفي المخزون الحالي بمعدل الاستهلاك اليومي — null لو مفيش معدل استهلاك محدد */
     fun daysOfSupplyLeft(): Int? =
         if (dailyDoseCount > 0) remainingQuantity / dailyDoseCount else null
+
+    fun doseTimesList(): List<String> = doseTimes?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
 }
+
+@Entity(tableName = "zad_dose_log")
+@Serializable
+data class ZadDoseLog(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    @SerialName("user_id") val userId: String? = null,
+    @SerialName("pharmacy_item_id") val pharmacyItemId: String,
+    @SerialName("item_name") val itemName: String,
+    @SerialName("scheduled_at") val scheduledAt: String, // الميعاد المفروض تُؤخذ فيه الجرعة
+    @SerialName("taken_at") val takenAt: String? = null, // null = لسه معلّقة/فاتت من غير ما تتاخد
+    @SerialName("created_at") val createdAt: String? = null
+)
+
+@Entity(tableName = "zad_maintenance_items")
+@Serializable
+data class ZadMaintenanceItem(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    @SerialName("user_id") val userId: String? = null,
+    val name: String, // "تكييف الصالة"، "سيارة"...
+    val category: String = "عام", // تكييف / سخان / غسالة / سيارة / فلتر مياه / عام
+    @SerialName("purchase_date") val purchaseDate: String? = null,
+    @SerialName("warranty_expiry_date") val warrantyExpiryDate: String? = null,
+    @SerialName("last_service_date") val lastServiceDate: String? = null,
+    @SerialName("service_interval_days") val serviceIntervalDays: Int? = null,
+    @SerialName("estimated_cost") val estimatedCost: Double = 0.0,
+    val notes: String? = null,
+    @SerialName("created_at") val createdAt: String? = null
+) {
+    /** أول موعد صيانة معروف (شراء أو تركيب) — أساس حساب الموعد الجاي لو لسه ماخدتش صيانة */
+    private fun baselineDate(): String? = lastServiceDate ?: purchaseDate
+
+    fun nextServiceDate(): LocalDate? {
+        val base = baselineDate() ?: return null
+        val interval = serviceIntervalDays ?: return null
+        return try { LocalDate.parse(base.take(10)).plusDays(interval.toLong()) } catch (e: Exception) { null }
+    }
+
+    fun daysUntilService(): Int? = nextServiceDate()?.let {
+        ChronoUnit.DAYS.between(LocalDate.now(), it).toInt()
+    }
+
+    fun daysUntilWarrantyExpiry(): Int? = warrantyExpiryDate?.let {
+        try { ChronoUnit.DAYS.between(LocalDate.now(), LocalDate.parse(it.take(10))).toInt() } catch (e: Exception) { null }
+    }
+}
+
+/** نتيجة سوبرماركت قريب من OpenStreetMap/Overpass — مش من Google Places (مجاني وبدون API key) */
+data class NearbyStore(
+    val name: String,
+    val lat: Double,
+    val lon: Double,
+    val distanceMeters: Int
+)
 
 @Serializable
 data class LiveDeal(

@@ -81,6 +81,7 @@ fun HomeScreen(
     onNavigateToBudget: () -> Unit = {},
     onNavigateToTasbiha: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
+    onNavigateToPharmacy: () -> Unit = {},
     onOpenDrawer: () -> Unit = {},
     /** تفعيل يدوي من الأب/الأم (Switch to Kids Mode) — بيفرض واجهة الأطفال حتى لو role الحساب "admin" */
     kidsModeOverride: Boolean = false
@@ -265,6 +266,7 @@ fun HomeScreen(
                             com.example.ui.components.ZadShortcutItem(Icons.Default.AccountBalanceWallet, stringResource(R.string.nav_budget), primaryDark, onNavigateToBudget),
                             com.example.ui.components.ZadShortcutItem(Icons.Default.AutoAwesome, stringResource(R.string.nav_assistant), lilac, onNavigateToAssistant),
                             com.example.ui.components.ZadShortcutItem(Icons.Default.Park, stringResource(R.string.tasbiha_short_label), catHealthIcon, onNavigateToTasbiha),
+                            com.example.ui.components.ZadShortcutItem(Icons.Default.LocalPharmacy, stringResource(R.string.nav_pharmacy), catHealthIcon, onNavigateToPharmacy),
                             com.example.ui.components.ZadShortcutItem(Icons.Default.Person, stringResource(R.string.profile_title), tertiary, onNavigateToProfile)
                         )
                     )

@@ -42,7 +42,6 @@ import com.example.ui.viewmodels.ZadViewModel
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 // ─── Transactions Screen (STC Pay style) ──────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,6 +57,7 @@ fun BudgetScreen(
     val budget by viewModel.budget.collectAsState()
     val remainingBalance by viewModel.remainingBalance.collectAsState()
     val showBudgetDialog by viewModel.showBudgetDialog.collectAsState()
+    val suggestedBudget by viewModel.suggestedBudget.collectAsState()
     var showAddTransactionDialog by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf("الكل") }
     val context = LocalContext.current
@@ -274,6 +274,46 @@ fun BudgetScreen(
                         tint = stripColor,
                         modifier = Modifier.size(20.dp)
                     )
+                }
+            }
+
+            // ── Budget suggestion card (advisory — needs explicit user approval) ──
+            suggestedBudget?.let { suggestion ->
+                item {
+                    com.example.ui.components.AppearOnEntry {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
+                                .clip(RoundedCornerShape(14.dp)).background(infoColor.copy(alpha = 0.10f))
+                                .padding(16.dp)
+                        ) {
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Insights, contentDescription = null, tint = infoColor, modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        stringResource(R.string.budget_suggestion_text, com.example.data.CurrencyFormatter.format(context, suggestion)),
+                                        style = Typography.bodyMedium, color = onSurface, fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Button(
+                                        onClick = { viewModel.applySuggestedBudget() },
+                                        modifier = Modifier.height(34.dp).pressableScale(),
+                                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                                        shape = RoundedCornerShape(50)
+                                    ) { Text(stringResource(R.string.apply_suggestion_action), style = Typography.labelSmall) }
+                                    OutlinedButton(
+                                        onClick = { viewModel.dismissBudgetSuggestion() },
+                                        modifier = Modifier.height(34.dp).pressableScale(),
+                                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                                        shape = RoundedCornerShape(50)
+                                    ) { Text(stringResource(R.string.dismiss_action), style = Typography.labelSmall) }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -769,7 +809,7 @@ private fun TxDateHeader(dateStr: String, txList: List<ZadTransaction>) {
         when {
             date == today -> todayLabel
             date == today.minusDays(1) -> yesterdayLabel
-            else -> date.format(DateTimeFormatter.ofPattern("d MMMM", Locale("ar")))
+            else -> date.format(DateTimeFormatter.ofPattern("d MMMM", com.example.data.MarketPrefs.currentMarket.toLocale()))
         }
     } catch (e: Exception) { dateStr }
 

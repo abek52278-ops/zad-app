@@ -13,6 +13,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import io.github.jan.supabase.auth.auth
@@ -43,6 +44,20 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _subscriptions = MutableStateFlow<List<ZadSubscription>>(emptyList())
     val subscriptions: StateFlow<List<ZadSubscription>> = _subscriptions.asStateFlow()
+
+    private val _pharmacyItems = MutableStateFlow<List<ZadPharmacyItem>>(emptyList())
+    val pharmacyItems: StateFlow<List<ZadPharmacyItem>> = _pharmacyItems.asStateFlow()
+
+    // التكلفة الشهرية للأدوية المزمنة/الروشتات المتجددة (isRecurring) + مشتريات الشهر الحالي لباقي الأصناف
+    val monthlyPharmaCost: StateFlow<Double> get() = _monthlyPharmaCost
+    private val _monthlyPharmaCost = MutableStateFlow(0.0)
+
+    private val _maintenanceItems = MutableStateFlow<List<ZadMaintenanceItem>>(emptyList())
+    val maintenanceItems: StateFlow<List<ZadMaintenanceItem>> = _maintenanceItems.asStateFlow()
+
+    /** نسبة الالتزام بمواعيد الدواء آخر 7 أيام — null لو مفيش جرعات مجدولة كفاية للحساب */
+    private val _weeklyAdherencePercent = MutableStateFlow<Int?>(null)
+    val weeklyAdherencePercent: StateFlow<Int?> = _weeklyAdherencePercent.asStateFlow()
 
     private val _mealSuggestions = MutableStateFlow<String>("جاري تحليل المخزون...")
     val mealSuggestions: StateFlow<String> = _mealSuggestions.asStateFlow()
@@ -77,6 +92,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _remainingBalance = MutableStateFlow<Double>(3500.0)
     val remainingBalance: StateFlow<Double> = _remainingBalance.asStateFlow()
+
+    /** اقتراح تعديل الميزانية بناء على متوسط آخر شهرين مكتملين فعلياً — اقتراح بس، محتاج موافقة المستخدم، مفيش تطبيق تلقائي */
+    private val _suggestedBudget = MutableStateFlow<Double?>(null)
+    val suggestedBudget: StateFlow<Double?> = _suggestedBudget.asStateFlow()
 
     // Search query for inventory
     private val _inventorySearchQuery = MutableStateFlow("")
@@ -123,6 +142,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.d(TAG, "Room transactions updated → count=${txs.size}")
                 _transactions.value = txs
                 recalculateRemainingBalance(txs, _budget.value)
+                recalculateBudgetSuggestion(txs, _budget.value)
                 updateBehaviorPatterns(txs)
                 val baseInsights = if (txs.isEmpty() && _inventory.value.isEmpty()) {
                     listOf(com.example.data.AiInsight("أهلاً بك في زاد", "أضف معاملات أو عناصر للمخزون لنتمكن من تحليل بياناتك وتقديم توصيات ذكية.", "Tip"))
@@ -186,6 +206,30 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.d(TAG, "Room subscriptions updated → count=${subs.size}")
                 _subscriptions.value = subs
                 analyzeSubscriptionUsage(subs)
+                recalculateBudgetSuggestion(_transactions.value, _budget.value)
+            }
+        }
+        viewModelScope.launch {
+            dao.getAllPharmacyItems().collectLatest { items ->
+                Log.d(TAG, "Room pharmacy items updated → count=${items.size}")
+                _pharmacyItems.value = items
+                recalculateMonthlyPharmaCost(items)
+                try {
+                    com.example.data.PharmacyReminderScheduler.rescheduleAll(getApplication(), items)
+                } catch (e: Exception) {
+                    Log.e(TAG, "PharmacyReminderScheduler.rescheduleAll() FAILED: ${e.message}")
+                }
+            }
+        }
+        viewModelScope.launch {
+            dao.getAllMaintenanceItems().collectLatest { items ->
+                Log.d(TAG, "Room maintenance items updated → count=${items.size}")
+                _maintenanceItems.value = items
+            }
+        }
+        viewModelScope.launch {
+            dao.getAllDoseLogs().collectLatest { logs ->
+                _weeklyAdherencePercent.value = calculateWeeklyAdherence(logs)
             }
         }
 
@@ -263,6 +307,18 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 val remoteSubscriptions = SupabaseRepo.getSubscriptions()
                 Log.d(TAG, "syncData() → remoteSubscriptions count=${remoteSubscriptions.size}")
                 if (remoteSubscriptions.isNotEmpty()) dao.insertSubscriptions(remoteSubscriptions)
+
+                val remotePharmacyItems = SupabaseRepo.getPharmacyItems()
+                Log.d(TAG, "syncData() → remotePharmacyItems count=${remotePharmacyItems.size}")
+                if (remotePharmacyItems.isNotEmpty()) dao.insertPharmacyItems(remotePharmacyItems)
+
+                val remoteMaintenanceItems = SupabaseRepo.getMaintenanceItems()
+                Log.d(TAG, "syncData() → remoteMaintenanceItems count=${remoteMaintenanceItems.size}")
+                if (remoteMaintenanceItems.isNotEmpty()) dao.insertMaintenanceItems(remoteMaintenanceItems)
+
+                val remoteDoseLogs = SupabaseRepo.getDoseLogs()
+                Log.d(TAG, "syncData() → remoteDoseLogs count=${remoteDoseLogs.size}")
+                if (remoteDoseLogs.isNotEmpty()) dao.insertDoseLogs(remoteDoseLogs)
 
                 val remoteShoppingList = SupabaseRepo.getShoppingList()
                 Log.d(TAG, "syncData() → remoteShoppingList count=${remoteShoppingList.size}")
@@ -746,6 +802,29 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * تصحيح تصنيف معاملة يدوياً — بيحفظ تصحيح دائم لنفس التاجر (لو معروف) عشان
+     * المعاملات الجاية بعدين من نفس التاجر تتصنف صح تلقائياً بدل ما تتكرر الغلطة.
+     */
+    fun updateTransactionCategory(id: String, newCategory: String) {
+        viewModelScope.launch {
+            Log.d(TAG, "updateTransactionCategory() → id=$id, newCategory=$newCategory")
+            val target = _transactions.value.find { it.id == id } ?: return@launch
+            val updated = target.copy(category = newCategory)
+            dao.insertTransaction(updated)
+            _transactions.value = _transactions.value.map { if (it.id == id) updated else it }
+
+            if (!target.merchantName.isNullOrBlank()) {
+                MerchantCategoryOverrides.set(getApplication(), target.merchantName, newCategory)
+            }
+            try {
+                SupabaseRepo.updateTransactionCategory(id, newCategory)
+            } catch (e: Exception) {
+                Log.e(TAG, "updateTransactionCategory() Supabase sync FAILED: ${e.message}")
+            }
+        }
+    }
+
     fun deleteTransaction(id: String) {
         viewModelScope.launch {
             Log.d(TAG, "deleteTransaction() → id=$id")
@@ -813,6 +892,82 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         val prefs = getApplication<Application>().getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
         prefs.edit().putFloat("remaining_balance", finalRemaining.toFloat()).apply()
         Log.d(TAG, "recalculateRemainingBalance → Budget: $currentBudget, Spent: $spentThisMonth, Income: $incomeThisMonth, Remaining: $finalRemaining")
+    }
+
+    /** نسبة الجرعات اللي اتاخدت من إجمالي الجرعات المجدولة آخر 7 أيام — null لو مفيش بيانات كفاية */
+    private fun calculateWeeklyAdherence(logs: List<ZadDoseLog>): Int? {
+        val weekAgo = Instant.now().minus(7, ChronoUnit.DAYS)
+        val recentLogs = logs.filter {
+            try { Instant.parse(it.scheduledAt).isAfter(weekAgo) } catch (e: Exception) { false }
+        }
+        if (recentLogs.size < 3) return null // مفيش عينة كفاية تدي رقم له معنى
+        val takenCount = recentLogs.count { it.takenAt != null }
+        return ((takenCount.toDouble() / recentLogs.size) * 100).toInt()
+    }
+
+    /** التكلفة الشهرية المكافئة لاشتراك — بيوحّد دورات الفوترة المختلفة لرقم شهري قابل للمقارنة */
+    private fun monthlyEquivalentCost(sub: ZadSubscription): Double = when (sub.billingCycle?.uppercase()) {
+        "YEARLY", "ANNUAL" -> sub.amount / 12.0
+        "WEEKLY" -> sub.amount * 4.345
+        else -> sub.amount
+    }
+
+    /**
+     * اقتراح ميزانية جديدة بناء على متوسط صرف آخر شهرين "مكتملين" فعلياً (مش الشهر الحالي
+     * الجاري) — اقتراح بس يظهر للمستخدم يوافق عليه أو يتجاهله، مفيش تعديل تلقائي للرقم.
+     * بيتجاهل الاقتراح لو المستخدم رفضه قبل كده لنفس الرقم (محفوظ في SharedPreferences).
+     *
+     * الاشتراكات الثابتة بتتفصل عن الحساب: بنطرح التكلفة الشهرية الحالية للاشتراكات من كل شهر
+     * تاريخي (تقريب — مفيش سجل تاريخي لقيمة الاشتراكات وقتها) عشان نعزل الجزء "المتغير" بس،
+     * ونجمع بعدين التكلفة الثابتة الحالية عليه — يعكس التزامات النهاردة مش تاريخ قديم ممكن اتغير.
+     */
+    private fun recalculateBudgetSuggestion(txs: List<ZadTransaction>, currentBudget: Double) {
+        if (currentBudget <= 0.0) { _suggestedBudget.value = null; return }
+
+        val now = java.time.LocalDate.now()
+        val monthlyExpenses = mutableMapOf<java.time.YearMonth, Double>()
+        for (tx in txs) {
+            if (!tx.isExpense) continue
+            val createdAt = tx.createdAt ?: continue
+            try {
+                val txDate = Instant.parse(createdAt).atZone(ZoneId.systemDefault()).toLocalDate()
+                val ym = java.time.YearMonth.from(txDate)
+                if (ym == java.time.YearMonth.from(now)) continue // الشهر الجاري لسه مش مكتمل
+                monthlyExpenses[ym] = (monthlyExpenses[ym] ?: 0.0) + tx.amount
+            } catch (e: Exception) { /* ignore parse errors */ }
+        }
+
+        val recentCompletedMonths = monthlyExpenses.entries.sortedByDescending { it.key }.take(2)
+        if (recentCompletedMonths.isEmpty()) { _suggestedBudget.value = null; return }
+
+        val currentRecurringCost = _subscriptions.value.filter { it.isActive }.sumOf { monthlyEquivalentCost(it) }
+        val variableAverage = recentCompletedMonths
+            .map { (it.value - currentRecurringCost).coerceAtLeast(0.0) }
+            .average()
+
+        val suggestion = currentRecurringCost + variableAverage
+        val rounded = (Math.round(suggestion / 50.0) * 50.0)
+        val diffRatio = kotlin.math.abs(rounded - currentBudget) / currentBudget
+
+        val prefs = getApplication<Application>().getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+        val dismissedValue = prefs.getFloat("dismissed_budget_suggestion", -1f).toDouble()
+
+        _suggestedBudget.value = if (diffRatio >= 0.10 && rounded != dismissedValue) rounded else null
+    }
+
+    fun applySuggestedBudget() {
+        val suggestion = _suggestedBudget.value ?: return
+        Log.d(TAG, "applySuggestedBudget() → applying $suggestion")
+        updateBudget(suggestion)
+        _suggestedBudget.value = null
+    }
+
+    fun dismissBudgetSuggestion() {
+        val suggestion = _suggestedBudget.value ?: return
+        Log.d(TAG, "dismissBudgetSuggestion() → dismissing $suggestion")
+        val prefs = getApplication<Application>().getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putFloat("dismissed_budget_suggestion", suggestion.toFloat()).apply()
+        _suggestedBudget.value = null
     }
 
     fun addInventory(item: ZadInventory) {
@@ -1014,6 +1169,174 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.d(TAG, "updateSubscriptionActive() → synced to Supabase zad_subscriptions.is_active")
             } catch (e: Exception) {
                 Log.e(TAG, "updateSubscriptionActive() Supabase sync FAILED: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun updateSubscriptionAutoDeduct(id: String, autoDeduct: Boolean) {
+        viewModelScope.launch {
+            Log.d(TAG, "updateSubscriptionAutoDeduct() → id=$id, autoDeduct=$autoDeduct")
+            val updated = _subscriptions.value.map {
+                if (it.id == id) it.copy(autoDeduct = autoDeduct) else it
+            }
+            _subscriptions.value = updated
+            updated.find { it.id == id }?.let { dao.insertSubscription(it) }
+            try {
+                SupabaseRepo.updateSubscriptionAutoDeduct(id, autoDeduct)
+                Log.d(TAG, "updateSubscriptionAutoDeduct() → synced to Supabase")
+            } catch (e: Exception) {
+                Log.e(TAG, "updateSubscriptionAutoDeduct() Supabase sync FAILED: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+    }
+
+    /** فئة الميزانية اللي بتتحقن فيها مصاريف الصيدلية — نفس فئة "الرعاية الصحية" القياسية */
+    private val PHARMACY_BUDGET_CATEGORY = "الرعاية الصحية"
+
+    fun addPharmacyItem(item: ZadPharmacyItem) {
+        viewModelScope.launch {
+            Log.d(TAG, "addPharmacyItem() → name=${item.name}, remainingQuantity=${item.remainingQuantity}")
+            dao.insertPharmacyItem(item)
+            try {
+                SupabaseRepo.addPharmacyItem(item)
+                Log.d(TAG, "addPharmacyItem() → synced to Supabase table=zad_pharmacy_items")
+            } catch (e: Exception) {
+                Log.e(TAG, "addPharmacyItem() Supabase sync FAILED: ${e.message}")
+                e.printStackTrace()
+            }
+            // شراء دواء = مصروف حقيقي — لازم يدخل في نفس مسار المعاملات عشان الميزانية
+            // والرصيد المتبقي يتأثروا فعلياً، مش بس رقم منفصل معروض في شاشة الصيدلية
+            if (item.price > 0) {
+                addTransaction(ZadTransaction(
+                    title = item.name,
+                    amount = item.price,
+                    isExpense = true,
+                    category = PHARMACY_BUDGET_CATEGORY,
+                    createdAt = item.createdAt ?: Instant.now().toString(),
+                    sourceType = "pharmacy"
+                ))
+            }
+        }
+    }
+
+    /** إعادة تعبئة دواء موجود — بتزوّد الكمية وتسجّل مصروف جديد لو فيه سعر */
+    fun refillPharmacyItem(id: String, addedQuantity: Int, newPrice: Double?, newExpiryDate: String?) {
+        viewModelScope.launch {
+            val target = _pharmacyItems.value.find { it.id == id } ?: return@launch
+            val updated = target.copy(
+                remainingQuantity = target.remainingQuantity + addedQuantity,
+                expiryDate = newExpiryDate?.ifBlank { null } ?: target.expiryDate,
+                price = newPrice ?: target.price
+            )
+            Log.d(TAG, "refillPharmacyItem() → id=$id, newQuantity=${updated.remainingQuantity}")
+            dao.insertPharmacyItem(updated)
+            _pharmacyItems.value = _pharmacyItems.value.map { if (it.id == id) updated else it }
+            try {
+                SupabaseRepo.updatePharmacyRefill(id, updated.remainingQuantity, updated.price, newExpiryDate?.ifBlank { null })
+            } catch (e: Exception) {
+                Log.e(TAG, "refillPharmacyItem() Supabase sync FAILED: ${e.message}")
+            }
+            if (newPrice != null && newPrice > 0) {
+                addTransaction(ZadTransaction(
+                    title = "${target.name} (تعبئة)",
+                    amount = newPrice,
+                    isExpense = true,
+                    category = PHARMACY_BUDGET_CATEGORY,
+                    createdAt = Instant.now().toString(),
+                    sourceType = "pharmacy"
+                ))
+            }
+        }
+    }
+
+    fun deletePharmacyItem(id: String) {
+        viewModelScope.launch {
+            Log.d(TAG, "deletePharmacyItem() → id=$id")
+            dao.deletePharmacyItem(id)
+            try {
+                SupabaseRepo.deletePharmacyItem(id)
+                Log.d(TAG, "deletePharmacyItem() → synced to Supabase table=zad_pharmacy_items")
+            } catch (e: Exception) {
+                Log.e(TAG, "deletePharmacyItem() Supabase sync FAILED: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun updatePharmacyQuantity(id: String, remainingQuantity: Int) {
+        viewModelScope.launch {
+            Log.d(TAG, "updatePharmacyQuantity() → id=$id, remainingQuantity=$remainingQuantity")
+            val updated = _pharmacyItems.value.map { if (it.id == id) it.copy(remainingQuantity = remainingQuantity) else it }
+            _pharmacyItems.value = updated
+            updated.find { it.id == id }?.let { dao.insertPharmacyItem(it) }
+            try {
+                SupabaseRepo.updatePharmacyQuantity(id, remainingQuantity)
+                Log.d(TAG, "updatePharmacyQuantity() → synced to Supabase zad_pharmacy_items.remaining_quantity")
+            } catch (e: Exception) {
+                Log.e(TAG, "updatePharmacyQuantity() Supabase sync FAILED: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+    }
+
+    /** التكلفة الشهرية: الأدوية المزمنة/الروشتات المتجددة (isRecurring) باعتبارها تتجدد كل شهر + مشتريات هذا الشهر من باقي الأصناف */
+    private fun recalculateMonthlyPharmaCost(items: List<ZadPharmacyItem>) {
+        val now = java.time.YearMonth.now()
+        val recurringCost = items.filter { it.isRecurring }.sumOf { it.price }
+        val thisMonthOneOff = items.filter { item ->
+            if (item.isRecurring) return@filter false
+            val createdAt = item.createdAt ?: return@filter false
+            try {
+                val itemMonth = java.time.YearMonth.from(Instant.parse(createdAt).atZone(ZoneId.systemDefault()))
+                itemMonth == now
+            } catch (e: Exception) { false }
+        }.sumOf { it.price }
+        _monthlyPharmaCost.value = recurringCost + thisMonthOneOff
+    }
+
+    fun addMaintenanceItem(item: ZadMaintenanceItem) {
+        viewModelScope.launch {
+            Log.d(TAG, "addMaintenanceItem() → name=${item.name}")
+            dao.insertMaintenanceItem(item)
+            try {
+                SupabaseRepo.addMaintenanceItem(item)
+                Log.d(TAG, "addMaintenanceItem() → synced to Supabase table=zad_maintenance_items")
+            } catch (e: Exception) {
+                Log.e(TAG, "addMaintenanceItem() Supabase sync FAILED: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun deleteMaintenanceItem(id: String) {
+        viewModelScope.launch {
+            Log.d(TAG, "deleteMaintenanceItem() → id=$id")
+            dao.deleteMaintenanceItem(id)
+            try {
+                SupabaseRepo.deleteMaintenanceItem(id)
+                Log.d(TAG, "deleteMaintenanceItem() → synced to Supabase table=zad_maintenance_items")
+            } catch (e: Exception) {
+                Log.e(TAG, "deleteMaintenanceItem() Supabase sync FAILED: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+    }
+
+    /** تسجيل صيانة تمت اليوم — بيحرك موعد الصيانة الجاية للأمام بحساب الفاصل الزمني */
+    fun markMaintenanceServicedToday(id: String) {
+        viewModelScope.launch {
+            val today = LocalDate.now().toString()
+            Log.d(TAG, "markMaintenanceServicedToday() → id=$id, date=$today")
+            val updated = _maintenanceItems.value.map { if (it.id == id) it.copy(lastServiceDate = today) else it }
+            _maintenanceItems.value = updated
+            updated.find { it.id == id }?.let { dao.insertMaintenanceItem(it) }
+            try {
+                SupabaseRepo.updateMaintenanceLastServiceDate(id, today)
+                Log.d(TAG, "markMaintenanceServicedToday() → synced to Supabase")
+            } catch (e: Exception) {
+                Log.e(TAG, "markMaintenanceServicedToday() Supabase sync FAILED: ${e.message}")
                 e.printStackTrace()
             }
         }

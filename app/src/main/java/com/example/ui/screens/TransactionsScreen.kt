@@ -7,8 +7,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +26,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,6 +66,7 @@ fun TransactionsScreen(
     var searchQuery by remember { mutableStateOf("") }
     var showAddDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf<ZadTransaction?>(null) }
+    var showEditCategory by remember { mutableStateOf<ZadTransaction?>(null) }
 
     val totalIncome = transactions.filter { !it.isExpense }.sumOf { it.amount }
     val totalSpent = transactions.filter { it.isExpense }.sumOf { it.amount }
@@ -151,7 +155,7 @@ fun TransactionsScreen(
                         androidx.compose.animation.AnimatedVisibility(visible = true, enter = ZadTransitions.listItemEnter(index)) {
                             TransactionCard(
                                 transaction = tx,
-                                onClick = { showDeleteConfirm = tx },
+                                onClick = { showEditCategory = tx },
                                 onDelete = { showDeleteConfirm = tx }
                             )
                         }
@@ -218,6 +222,53 @@ fun TransactionsScreen(
             }
         )
     }
+
+    showEditCategory?.let { tx ->
+        EditCategoryDialog(
+            transaction = tx,
+            onDismiss = { showEditCategory = null },
+            onSave = { newCategory ->
+                viewModel.updateTransactionCategory(tx.id, newCategory)
+                showEditCategory = null
+            }
+        )
+    }
+}
+
+@Composable
+private fun EditCategoryDialog(transaction: ZadTransaction, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    var selectedCategory by remember { mutableStateOf(transaction.category ?: "أخرى") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.edit_category_dialog_title)) },
+        text = {
+            Column {
+                if (!transaction.merchantName.isNullOrBlank()) {
+                    Text(
+                        stringResource(R.string.category_will_be_remembered_hint, transaction.merchantName),
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                        color = onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(10.dp))
+                }
+                androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(com.example.data.BudgetTracker.STANDARD_CATEGORIES) { cat ->
+                        FilterChip(
+                            selected = selectedCategory == cat,
+                            onClick = { selectedCategory = cat },
+                            label = { Text(cat, fontSize = 12.sp) }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(selectedCategory) }) { Text(stringResource(R.string.save)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -437,6 +488,7 @@ private fun DateHeader(date: String) {
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun TransactionCard(
     transaction: ZadTransaction,
@@ -448,7 +500,7 @@ private fun TransactionCard(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
             .animateContentSize()
-            .clickable { onClick() },
+            .combinedClickable(onClick = onClick, onLongClick = onDelete),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)

@@ -413,6 +413,45 @@ fun ProfileScreen(
                 }
                 Spacer(Modifier.height(10.dp))
 
+                AppearOnEntry(delayMs = 180) {
+                    var isRescanning by remember { mutableStateOf(false) }
+                    val rescanningText = stringResource(R.string.rescanning_sms_toast)
+                    val rescanDoneTextTemplate = stringResource(R.string.rescan_done_toast)
+                    val permissionMissingText = stringResource(R.string.read_sms_permission_missing_toast)
+                    ProfileMenuItem(
+                        icon = Icons.Default.Sms,
+                        title = stringResource(R.string.rescan_sms_title),
+                        subtitle = stringResource(R.string.rescan_sms_subtitle),
+                        gradient = listOf(Color(0xFF0EA5E9), Color(0xFF7DD3FC)),
+                        onClick = {
+                            if (isRescanning) return@ProfileMenuItem
+                            if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_SMS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                android.widget.Toast.makeText(context, permissionMissingText, android.widget.Toast.LENGTH_LONG).show()
+                            } else {
+                                isRescanning = true
+                                android.widget.Toast.makeText(context, rescanningText, android.widget.Toast.LENGTH_SHORT).show()
+                                scope.launch {
+                                    val count = com.example.data.SmsBackfillScanner.rescan(context, com.example.data.SmsBackfillScanner.DEFAULT_SINCE_DAYS)
+                                    isRescanning = false
+                                    android.widget.Toast.makeText(context, rescanDoneTextTemplate.format(count), android.widget.Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+
+                AppearOnEntry(delayMs = 190) {
+                    ProfileMenuItem(
+                        icon = Icons.Default.UploadFile,
+                        title = stringResource(R.string.statement_import_title),
+                        subtitle = stringResource(R.string.import_bank_statement_subtitle),
+                        gradient = listOf(Color(0xFF059669), Color(0xFF6EE7B7)),
+                        onClick = { navController?.navigate(Screen.StatementImport.route) }
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+
                 AppearOnEntry(delayMs = 200) {
                     ProfileMenuItem(
                         icon = Icons.Default.SupportAgent,

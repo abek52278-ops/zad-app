@@ -31,12 +31,55 @@ class UnifiedBankListener : NotificationListenerService() {
         "com.stcpay", "com.tabby", "com.tamara",
         "com.fawry", "com.vodafone",
         "alrajhi", "snb", "riyad", "sabb", "alinma",
-        "stcpay", "tabby", "tamara"
+        "stcpay", "tabby", "tamara",
+        // بنوك تركيا — أسماء حزمة تقريبية بأفضل معرفة، لسه محتاجة تأكيد فعلي على أجهزة حقيقية
+        "isbank", "garanti", "akbank", "yapikredi", "ziraat",
+        "halkbank", "vakifbank", "qnbfinansbank", "denizbank", "teb", "papara"
     )
 
     override fun onDestroy() {
         super.onDestroy()
         serviceScope.cancel()
+    }
+
+    /**
+     * لما المستخدم يفعّل صلاحية الوصول للإشعارات لأول مرة، أندرويد بيوصل onListenerConnected()
+     * ومعاه أي إشعار لسه ظاهر في الشريط وقتها (مش تاريخ كامل — أندرويد مالوش history لإشعارات
+     * اتشالت قبل كده). ده بيمسك على الأقل إشعارات بنكية جاية النهاردة قبل ما المستخدم يفعّل الصلاحية.
+     */
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        try {
+            val prefs = applicationContext.getSharedPreferences("zad_prefs", Context.MODE_PRIVATE)
+            val processedKeys = prefs.getStringSet("processed_notification_keys", emptySet())?.toMutableSet() ?: mutableSetOf()
+            val dayMs = 24 * 60 * 60 * 1000L
+
+            activeNotifications?.forEach { sbn ->
+                val packageName = sbn.packageName
+                if (packageName == "android" || packageName.startsWith("com.android") || packageName.startsWith("com.google")) return@forEach
+                // بس الإشعارات اللي جاية آخر 24 ساعة — إشعار بنكي قديم فاضل معلّق (بعض البنوك
+                // مابتشيلوش) متتحسبش كل مرة السيرفس يعيد الاتصال (زي بعد إعادة تشغيل الجهاز)
+                if (System.currentTimeMillis() - sbn.postTime > dayMs) return@forEach
+                // مفتاح ثابت لنفس نسخة الإشعار — يمنع إعادة معالجته لو السيرفس اتقفل وفتح تاني
+                // والإشعار لسه معلّق (خلاف TxDeduplicator اللي بصمته زمنية 10 دقايق بس)
+                if (sbn.key in processedKeys) return@forEach
+
+                val extras = sbn.notification.extras
+                val title = extras.getString("android.title") ?: ""
+                val text = extras.getCharSequence("android.text")?.toString() ?: ""
+                if (isFinancialNotification(packageName, title, text)) {
+                    Log.d("UnifiedBankListener", "Active notification on connect: $packageName - $title")
+                    processedKeys.add(sbn.key)
+                    serviceScope.launch { processAndTrackNotification(packageName, title, text) }
+                }
+            }
+
+            // احتفظ بآخر 300 مفتاح بس عشان الـ SharedPreferences ميكبرش من غير حد
+            val trimmed = if (processedKeys.size > 300) processedKeys.toList().takeLast(300).toMutableSet() else processedKeys
+            prefs.edit().putStringSet("processed_notification_keys", trimmed).apply()
+        } catch (e: Exception) {
+            Log.e("UnifiedBankListener", "onListenerConnected() scan failed: ${e.message}")
+        }
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
@@ -67,7 +110,8 @@ class UnifiedBankListener : NotificationListenerService() {
             "ر.س", "رس", "ريال", "SAR", "خصم", "شراء", "دفع", "تم الدفع",
             "رصيد", "إيداع", "تحويل", "pay", "purchase", "amount",
             "مبلغ", "بطاقة", "مشتريات", "سحب", "راتب", "مرتب",
-            "مدين", "دائن", "قسط", "فاتورة", "اشتراك"
+            "مدين", "دائن", "قسط", "فاتورة", "اشتراك",
+            "TL", "₺", "TRY", "ödeme", "harcama", "bakiye", "kartınızdan", "fatura", "maaş"
         )
         return isBankApp || keywords.any {
             text.contains(it, ignoreCase = true) || title.contains(it, ignoreCase = true)
@@ -94,7 +138,7 @@ class UnifiedBankListener : NotificationListenerService() {
                     title = parsed.title,
                     amount = parsed.amount,
                     isExpense = parsed.isExpense,
-                    category = parsed.category,
+                    category = MerchantCategoryOverrides.get(applicationContext, parsed.merchantName) ?: parsed.category,
                     createdAt = Instant.now().toString()
                 )
 
