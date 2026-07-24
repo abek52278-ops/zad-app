@@ -9,6 +9,8 @@ import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.functions.Functions
+import io.github.jan.supabase.storage.Storage
+import io.github.jan.supabase.storage.storage
 import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.auth
@@ -31,6 +33,7 @@ object SupabaseRepo {
         install(Auth)
         install(Realtime)
         install(Functions)
+        install(Storage)
     }
 
     suspend fun signUp(email: String, password: String): Boolean {
@@ -966,6 +969,27 @@ object SupabaseRepo {
             profile
         } catch (e: Exception) {
             Log.e(TAG, "getUserProfile() FAILED: ${e.message}")
+            null
+        }
+    }
+
+    /** يرفع صورة البروفايل فعليًا لـ Supabase Storage (bucket: avatars) ويرجّع الرابط العام، أو null لو فشل. */
+    suspend fun uploadAvatar(bytes: ByteArray, mimeType: String): String? {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id ?: return null
+            val ext = when (mimeType) {
+                "image/png" -> "png"
+                "image/webp" -> "webp"
+                else -> "jpg"
+            }
+            val path = "$userId/avatar.$ext"
+            Log.d(TAG, "uploadAvatar() → path=$path, bytes=${bytes.size}")
+            client.storage["avatars"].upload(path, bytes) { upsert = true }
+            val publicUrl = client.storage["avatars"].publicUrl(path)
+            Log.d(TAG, "uploadAvatar() SUCCESS → $publicUrl")
+            "$publicUrl?t=${System.currentTimeMillis()}"
+        } catch (e: Exception) {
+            Log.e(TAG, "uploadAvatar() FAILED: ${e.message}", e)
             null
         }
     }

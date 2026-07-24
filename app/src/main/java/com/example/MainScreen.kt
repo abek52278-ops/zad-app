@@ -85,6 +85,7 @@ sealed class Screen(val route: String, val titleRes: Int, val icon: ImageVector)
     object AssistantAlerts : Screen("assistant_alerts", R.string.nav_assistant, Icons.Filled.SmartToy)
     object TermsOfService : Screen("terms_of_service", R.string.nav_profile, Icons.Filled.Description)
     object Tasbiha : Screen("tasbiha", R.string.app_name, Icons.Filled.Spa)
+    object Notifications : Screen("notifications", R.string.notifications_title, Icons.Filled.Notifications)
 }
 
 @Composable
@@ -417,7 +418,18 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                                     launchSingleTop = true
                                 }
                             },
+                            onNavigateToNotifications = {
+                                navController.navigate(Screen.Notifications.route) {
+                                    launchSingleTop = true
+                                }
+                            },
                             onOpenDrawer = { scope.launch { drawerState.open() } }
+                        )
+                    }
+                    composable(Screen.Notifications.route) {
+                        com.example.ui.screens.NotificationCenterScreen(
+                            viewModel = viewModel,
+                            onBack = { navController.popBackStack() }
                         )
                     }
                     composable(Screen.Inventory.route) {

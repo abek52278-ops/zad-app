@@ -2306,6 +2306,25 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun uploadAvatar(bytes: ByteArray, mimeType: String, onResult: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val publicUrl = SupabaseRepo.uploadAvatar(bytes, mimeType)
+                if (publicUrl != null) {
+                    val success = SupabaseRepo.updateUserProfile(_userName.value ?: "", publicUrl)
+                    if (success) _avatarUri.value = publicUrl
+                    Log.d(TAG, "uploadAvatar() → success=$success, url=$publicUrl")
+                    onResult(success)
+                } else {
+                    onResult(false)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "uploadAvatar() FAILED: ${e.message}")
+                onResult(false)
+            }
+        }
+    }
+
     fun deleteAccount() {
         viewModelScope.launch {
             try {

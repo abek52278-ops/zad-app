@@ -82,6 +82,7 @@ fun HomeScreen(
     onNavigateToTasbiha: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onNavigateToPharmacy: () -> Unit = {},
+    onNavigateToNotifications: () -> Unit = {},
     onOpenDrawer: () -> Unit = {},
     /** تفعيل يدوي من الأب/الأم (Switch to Kids Mode) — بيفرض واجهة الأطفال حتى لو role الحساب "admin" */
     kidsModeOverride: Boolean = false
@@ -166,7 +167,6 @@ fun HomeScreen(
     val userName = userNameState ?: "..."
 
     var showAddTransactionDialog by remember { mutableStateOf(false) }
-    var showNotificationsPanel by remember { mutableStateOf(false) }
     var showAllTransactionsDialog by remember { mutableStateOf(false) }
     var selectedRecipeTitle by remember { mutableStateOf<String?>(null) }
     var showRecipeDialog by remember { mutableStateOf(false) }
@@ -205,8 +205,8 @@ fun HomeScreen(
             avatarUrl = globalAvatarUri?.toString(),
             hasUnreadNotifications = appNotificationsState.any { !it.isRead },
             onNotificationsClick = {
-                Log.d(TAG_HOME, "🔔 Notifications icon clicked — showing panel")
-                showNotificationsPanel = true
+                Log.d(TAG_HOME, "🔔 Notifications icon clicked — opening notification center")
+                onNavigateToNotifications()
             }
         )
         if (isChild) {
@@ -479,13 +479,6 @@ fun HomeScreen(
                 viewModel.updateBudget(newBudget)
                 viewModel.hideBudgetDialog()
             }
-        )
-    }
-
-    if (showNotificationsPanel) {
-        NotificationsBottomSheet(
-            viewModel = viewModel,
-            onDismiss = { showNotificationsPanel = false }
         )
     }
 
@@ -2074,190 +2067,4 @@ fun KidAvatar(seed: String, size: androidx.compose.ui.unit.Dp = 40.dp) {
         Text(emoji, fontSize = (size.value * 0.5f).sp)
     }
 }
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun NotificationsBottomSheet(
-    viewModel: ZadViewModel,
-    onDismiss: () -> Unit
-) {
-    val sheetState = rememberModalBottomSheetState()
-    val context = LocalContext.current
-    val notifications by viewModel.appNotifications.collectAsState()
-    val transactions by viewModel.transactions.collectAsState()
-    val budget by viewModel.budget.collectAsState()
-
-    val totalSpent = transactions.filter { it.isExpense }.sumOf { it.amount }
-    val percentage = if (budget > 0) (totalSpent / budget * 100).toInt().coerceIn(0, 100) else 0
-
-    val salaryDetectedTitle = stringResource(R.string.salary_detected_title)
-    val salaryDetectedBody = stringResource(R.string.salary_detected_body)
-    val budgetExceededTitle = stringResource(R.string.budget_exceeded_title)
-    val budgetExceededBodyTemplate = stringResource(R.string.budget_exceeded_body)
-    val budgetNearLimitTitleTemplate = stringResource(R.string.budget_near_limit_title)
-    val budgetNearLimitBodyTemplate = stringResource(R.string.budget_near_limit_body)
-    val subscriptionDetectedTitleTemplate = stringResource(R.string.subscription_detected_title)
-    val subscriptionDetectedBodyTemplate = stringResource(R.string.subscription_detected_body)
-
-    val smartNotifications = remember(transactions, budget, totalSpent) {
-        val smartList = mutableListOf<SmartNotification>()
-
-        // Check for salary today
-        val today = java.time.LocalDate.now().toString()
-        val todaySalary = transactions.any { tx ->
-            !tx.isExpense && tx.category == "الراتب" && tx.createdAt?.startsWith(today) == true
-        }
-        if (todaySalary) {
-            smartList.add(SmartNotification(salaryDetectedTitle, salaryDetectedBody, Icons.Default.AttachMoney, Color(0xFF4CAF50)))
-        }
-
-        // Budget warnings
-        if (percentage >= 100) {
-            smartList.add(SmartNotification(budgetExceededTitle, String.format(budgetExceededBodyTemplate, percentage), Icons.Default.Warning, Color(0xFFE53935)))
-        } else if (percentage >= 85) {
-            smartList.add(SmartNotification(String.format(budgetNearLimitTitleTemplate, percentage), String.format(budgetNearLimitBodyTemplate, percentage), Icons.Default.TrendingUp, Color(0xFFFF9800)))
-        }
-
-        // Check for subscriptions detected recently
-        val recentSubscriptions = transactions.filter { tx ->
-            tx.createdAt?.startsWith(today) == true && tx.category == "الاشتراكات"
-        }
-        recentSubscriptions.forEach { tx ->
-            smartList.add(SmartNotification(String.format(subscriptionDetectedTitleTemplate, tx.title), String.format(subscriptionDetectedBodyTemplate, com.example.data.CurrencyFormatter.format(context, tx.amount)), Icons.Default.Subscriptions, Color(0xFF2196F3)))
-        }
-
-        smartList
-    }
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
-        dragHandle = { BottomSheetDefaults.DragHandle() }
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Text(
-                text = stringResource(R.string.notifications_title),
-                style = Typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Smart Notifications
-            if (smartNotifications.isNotEmpty()) {
-                Text(
-                    text = stringResource(R.string.smart_notifications_title),
-                    style = Typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = primary
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                smartNotifications.forEach { smartNotif ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = smartNotif.color.copy(alpha = 0.08f)
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(smartNotif.color.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(smartNotif.icon, contentDescription = null, tint = smartNotif.color, modifier = Modifier.size(20.dp))
-                            }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(smartNotif.title, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                                Text(smartNotif.message, style = Typography.bodySmall, color = onSurfaceVariant)
-                            }
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                HorizontalDivider(color = outlineVariant)
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-            
-            if (notifications.isEmpty() && smartNotifications.isEmpty()) {
-                com.example.ui.components.ZadEmptyState(
-                    icon = Icons.Default.NotificationsNone,
-                    title = stringResource(R.string.no_notifications_yet),
-                    modifier = Modifier.fillMaxWidth().height(200.dp)
-                )
-            } else if (notifications.isNotEmpty()) {
-                Text(
-                    text = stringResource(R.string.app_notifications_title),
-                    style = Typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = onSurface
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                androidx.compose.foundation.lazy.LazyColumn {
-                    items(notifications.sortedByDescending { it.createdAt }) { notif ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .clickable { viewModel.markNotificationRead(notif.id) },
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (notif.isRead) MaterialTheme.colorScheme.surfaceVariant else primaryLight.copy(alpha = 0.1f)
-                            ),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        text = notif.title,
-                                        style = Typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    if (!notif.isRead) {
-                                        Box(
-                                            modifier = Modifier.size(8.dp).clip(CircleShape).background(primaryLight)
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = notif.message,
-                                    style = Typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(32.dp))
-        }
-    }
-}
-
-private data class SmartNotification(
-    val title: String,
-    val message: String,
-    val icon: androidx.compose.ui.graphics.vector.ImageVector,
-    val color: Color
-)
-
 

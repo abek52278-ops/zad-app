@@ -31,6 +31,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import coil.compose.AsyncImage
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
+import java.io.ByteArrayOutputStream
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.example.ui.components.AppearOnEntry
 import com.example.ui.components.ZadLottieAsset
 import com.example.ui.theme.*
@@ -101,29 +113,46 @@ fun ProfileScreen(
         label = "header_shift"
     )
 
-    var showAvatarDialog by remember { mutableStateOf(false) }
+    var showSaveSuccess by remember { mutableStateOf(false) }
+    var isUploadingAvatar by remember { mutableStateOf(false) }
+    val avatarPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        isUploadingAvatar = true
+        scope.launch {
+            val jpegBytes = withContext(Dispatchers.IO) {
+                val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, _, _ ->
+                        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                    }
+                } else {
+                    @Suppress("DEPRECATION")
+                    MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                }
+                val maxDim = 512
+                val scale = maxDim.toFloat() / maxOf(bitmap.width, bitmap.height)
+                val scaled = if (scale < 1f) {
+                    Bitmap.createScaledBitmap(bitmap, (bitmap.width * scale).toInt(), (bitmap.height * scale).toInt(), true)
+                } else bitmap
+                ByteArrayOutputStream().apply { scaled.compress(Bitmap.CompressFormat.JPEG, 85, this) }.toByteArray()
+            }
+            viewModel.uploadAvatar(jpegBytes, "image/jpeg") { success ->
+                isUploadingAvatar = false
+                showSaveSuccess = success
+            }
+        }
+    }
     var showEditNameDialog by remember { mutableStateOf(false) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
     var showHelpSupport by remember { mutableStateOf(false) }
     var showBehaviorConsentDialog by remember { mutableStateOf(false) }
-    var showSaveSuccess by remember { mutableStateOf(false) }
 
     LaunchedEffect(showSaveSuccess) {
         if (showSaveSuccess) {
             kotlinx.coroutines.delay(1200)
             showSaveSuccess = false
         }
-    }
-
-    if (showAvatarDialog) {
-        AvatarSelectionDialog(
-            onDismiss = { showAvatarDialog = false },
-            onAvatarSelected = { avatarUri ->
-                viewModel.updateUserProfile(displayUserName, avatarUri)
-                showAvatarDialog = false
-                showSaveSuccess = true
-            }
-        )
     }
 
     if (showEditNameDialog) {
@@ -271,11 +300,11 @@ fun ProfileScreen(
                                     contentScale = ContentScale.Crop,
                                     placeholder = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.avatar),
                                     error = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.avatar),
-                                    modifier = Modifier.fillMaxSize().clip(CircleShape).clickable { showAvatarDialog = true }
+                                    modifier = Modifier.fillMaxSize().clip(CircleShape).clickable(enabled = !isUploadingAvatar) { avatarPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
                                 )
                             } else {
                                 Box(
-                                    modifier = Modifier.fillMaxSize().clip(CircleShape).background(Color.White.copy(alpha = 0.2f)).clickable { showAvatarDialog = true },
+                                    modifier = Modifier.fillMaxSize().clip(CircleShape).background(Color.White.copy(alpha = 0.2f)).clickable(enabled = !isUploadingAvatar) { avatarPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(Icons.Default.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(44.dp))
@@ -289,10 +318,18 @@ fun ProfileScreen(
                                 .size(28.dp).clip(CircleShape)
                                 .background(Color.White)
                                 .border(2.dp, Color(0xFF0D5C3F), CircleShape)
-                                .clickable { showAvatarDialog = true },
+                                .clickable(enabled = !isUploadingAvatar) { avatarPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color(0xFF0D5C3F), modifier = Modifier.size(14.dp))
+                        }
+                        if (isUploadingAvatar) {
+                            Box(
+                                modifier = Modifier.fillMaxSize().clip(CircleShape).background(Color.Black.copy(alpha = 0.4f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
+                            }
                         }
                     }
                     Spacer(Modifier.height(12.dp))
@@ -736,44 +773,6 @@ fun ProfileMenuItem(
             }
         }
         Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
-    }
-}
-
-@Composable
-fun AvatarSelectionDialog(onDismiss: () -> Unit, onAvatarSelected: (String) -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.choose_your_avatar), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = primary) },
-        text = {
-            Column {
-                Text(stringResource(R.string.choose_favorite_fruit_avatar), style = Typography.bodyMedium, color = onSurfaceVariant)
-                Spacer(Modifier.height(16.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    AvatarOption("avatar_carrot", onAvatarSelected)
-                    AvatarOption("avatar_apple", onAvatarSelected)
-                    AvatarOption("avatar_banana", onAvatarSelected)
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = primary) } },
-        containerColor = surface
-    )
-}
-
-@Composable
-fun AvatarOption(avatarName: String, onClick: (String) -> Unit) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val resId = context.resources.getIdentifier(avatarName, "drawable", context.packageName)
-    val painter = if (resId != 0) { androidx.compose.ui.res.painterResource(id = resId) } else { null }
-    Box(
-        modifier = Modifier.size(60.dp).clip(CircleShape).border(2.dp, primaryFixed, CircleShape).clickable { onClick("drawable://$avatarName") },
-        contentAlignment = Alignment.Center
-    ) {
-        if (painter != null) {
-            androidx.compose.foundation.Image(painter = painter, contentDescription = "Avatar", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        } else {
-            Icon(Icons.Default.Person, contentDescription = null, tint = primary)
-        }
     }
 }
 

@@ -2864,20 +2864,37 @@ private fun ExportReportButton(report: com.example.data.ZadCentralBrain.BrainRep
     val context = LocalContext.current
     val exportSubject = stringResource(R.string.zad_export_report_subject)
     val shareTitle = stringResource(R.string.share_zad_report_title)
+    var isBuildingPdf by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = primaryContainer,
         modifier = Modifier.fillMaxWidth(),
         onClick = {
-            val text = com.example.data.ZadCentralBrain.buildExportText(context, report)
-            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(android.content.Intent.EXTRA_SUBJECT, exportSubject)
-                putExtra(android.content.Intent.EXTRA_TEXT, text)
+            if (!isBuildingPdf) {
+                isBuildingPdf = true
+                scope.launch {
+                    try {
+                        val file = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            com.example.data.ZadReportPdfBuilder.build(context, report)
+                        }
+                        val uri = androidx.core.content.FileProvider.getUriForFile(
+                            context, "${context.packageName}.fileprovider", file
+                        )
+                        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "application/pdf"
+                            putExtra(android.content.Intent.EXTRA_SUBJECT, exportSubject)
+                            putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(android.content.Intent.createChooser(intent, shareTitle))
+                    } catch (e: Exception) {
+                        android.util.Log.e("ExportReportButton", "PDF export failed: ${e.message}", e)
+                    } finally {
+                        isBuildingPdf = false
+                    }
+                }
             }
-            try {
-                context.startActivity(android.content.Intent.createChooser(intent, shareTitle))
-            } catch (e: Exception) { /* لا يوجد تطبيق مشاركة */ }
         }
     ) {
         Row(
@@ -2885,7 +2902,11 @@ private fun ExportReportButton(report: com.example.data.ZadCentralBrain.BrainRep
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Icon(Icons.Default.IosShare, contentDescription = null, tint = onPrimaryContainer, modifier = Modifier.size(20.dp))
+            if (isBuildingPdf) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = onPrimaryContainer)
+            } else {
+                Icon(Icons.Default.IosShare, contentDescription = null, tint = onPrimaryContainer, modifier = Modifier.size(20.dp))
+            }
             Spacer(modifier = Modifier.width(8.dp))
             Text(stringResource(R.string.export_monthly_report), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onPrimaryContainer)
         }

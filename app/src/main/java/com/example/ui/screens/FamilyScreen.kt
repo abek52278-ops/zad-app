@@ -1388,6 +1388,7 @@ private fun InviteMemberDialog(
 
 @Composable
 fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.FamilyMember>, chores: List<Chore>, viewModel: com.example.ui.viewmodels.FamilyViewModel) {
+    val context = LocalContext.current
     val kids = members.filter { it.role != "admin" }
     val totalBalance = kids.sumOf { it.balance }
     val totalPaidRewards = chores.filter { it.isCompleted }.sumOf { it.rewardAmount }
@@ -1418,7 +1419,7 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
                     Spacer(modifier = Modifier.height(12.dp))
                     if (currentGoal != null) {
                         val fraction = if (currentGoal.targetAmount > 0) (currentGoal.currentAmount / currentGoal.targetAmount).toFloat().coerceIn(0f, 1f) else 0f
-                        Text("${currentGoal.currentAmount.toInt()} / ${currentGoal.targetAmount.toInt()} ريال", style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = primary)
+                        Text("${com.example.data.CurrencyFormatter.format(context, currentGoal.currentAmount)} / ${com.example.data.CurrencyFormatter.format(context, currentGoal.targetAmount)}", style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = primary)
                         Spacer(modifier = Modifier.height(6.dp))
                         val animatedFamilyGoal by androidx.compose.animation.core.animateFloatAsState(
                             targetValue = fraction,
@@ -1485,7 +1486,7 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
                         Column(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text(kid.alias, style = Typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-                                Text("${kid.balance} ريال", style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = primary)
+                                Text(com.example.data.CurrencyFormatter.format(context, kid.balance), style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = primary)
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Box(
@@ -1520,7 +1521,7 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {
                         Text(stringResource(R.string.total_rewards_paid), style = Typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("$totalPaidRewards ريال", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = primary)
+                        Text(com.example.data.CurrencyFormatter.format(context, totalPaidRewards), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = primary)
                     }
                 }
             }
@@ -1533,7 +1534,7 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
             title = { Text("${suggestion.emoji} ${suggestion.goalTitle}", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("الهدف: ${suggestion.targetAmount.toInt()} ريال خلال ${suggestion.durationDays} يوم", style = Typography.bodyMedium)
+                    Text("الهدف: ${com.example.data.CurrencyFormatter.format(context, suggestion.targetAmount)} خلال ${suggestion.durationDays} يوم", style = Typography.bodyMedium)
                     if (suggestion.rewardSuggestion.isNotBlank()) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Icon(Icons.Default.CardGiftcard, contentDescription = null, tint = onSurfaceVariant, modifier = Modifier.size(14.dp))

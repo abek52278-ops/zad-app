@@ -119,6 +119,7 @@ dependencies {
   implementation("io.github.jan-tennert.supabase:auth-kt:$supabaseVersion")
   implementation("io.github.jan-tennert.supabase:realtime-kt:$supabaseVersion")
   implementation("io.github.jan-tennert.supabase:functions-kt:$supabaseVersion")
+  implementation("io.github.jan-tennert.supabase:storage-kt:$supabaseVersion")
   implementation("io.ktor:ktor-client-okhttp:3.0.1")
   implementation("androidx.compose.runtime:runtime-livedata:1.7.5")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")

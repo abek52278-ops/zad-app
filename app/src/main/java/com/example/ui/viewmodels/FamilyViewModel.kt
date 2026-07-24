@@ -271,7 +271,7 @@ class FamilyViewModel : ViewModel() {
                         SupabaseRepo.sendAppNotification(
                             userId = memberToUpdate.userId,
                             title = "موافق! ✅",
-                            message = "تمت الموافقة على طلبك وتم خصم $amount ريال."
+                            message = "تمت الموافقة على طلبك وتم خصم $amount ${com.example.data.MarketPrefs.currentMarket.currencySymbol}."
                         )
                         
                         val updatedMembers = curr.members.map {
@@ -382,7 +382,7 @@ class FamilyViewModel : ViewModel() {
                         SupabaseRepo.sendAppNotification(
                             userId = memberToUpdate.userId,
                             title = "عمل رائع! 🌟",
-                            message = "أنجزت المهمة: ${choreToUpdate.title}. تمت إضافة ${choreToUpdate.rewardAmount} ريال لرصيدك."
+                            message = "أنجزت المهمة: ${choreToUpdate.title}. تمت إضافة ${choreToUpdate.rewardAmount} ${com.example.data.MarketPrefs.currentMarket.currencySymbol} لرصيدك."
                         )
                         updatedMembers = curr.members.map {
                             if (it.id == memberToUpdate.id) it.copy(balance = newBalance) else it
@@ -422,7 +422,7 @@ class FamilyViewModel : ViewModel() {
                     SupabaseRepo.sendAppNotification(
                         userId = targetMember.userId,
                         title = "مهمة جديدة 📋",
-                        message = "تم تكليفك بمهمة جديدة: $title بمكافأة $rewardAmount ريال."
+                        message = "تم تكليفك بمهمة جديدة: $title بمكافأة $rewardAmount ${com.example.data.MarketPrefs.currentMarket.currencySymbol}."
                     )
                 }
                 
@@ -488,7 +488,7 @@ class FamilyViewModel : ViewModel() {
                 SupabaseRepo.sendAppNotification(
                     userId = member.userId,
                     title = "تحدي مكتمل! 🎉",
-                    message = "أنجزت تحدي: ${challenge.title}. تمت إضافة ${challenge.rewardAmount} ريال لرصيدك."
+                    message = "أنجزت تحدي: ${challenge.title}. تمت إضافة ${challenge.rewardAmount} ${com.example.data.MarketPrefs.currentMarket.currencySymbol} لرصيدك."
                 )
                 val updatedMembers = curr.members.map { if (it.id == member.id) it.copy(balance = newBalance) else it }
                 _state.value = curr.copy(

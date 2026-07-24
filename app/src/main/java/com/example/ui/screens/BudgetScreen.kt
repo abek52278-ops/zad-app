@@ -600,6 +600,7 @@ private fun CategoryInsightDialog(
 ) {
     var analysis by remember { mutableStateOf<com.example.data.ZadAiRepository.BehaviorAnalysis?>(null) }
     var isLoading by remember { mutableStateOf(true) }
+    val context = LocalContext.current
 
     LaunchedEffect(category) {
         analysis = com.example.data.ZadAiRepository.analyzeBehavior(category, transactions, patterns)
@@ -632,7 +633,7 @@ private fun CategoryInsightDialog(
                             Text(trendLabel, style = Typography.labelMedium, color = primary)
                         }
                         if (result.predictedNext > 0) {
-                            Text("المتوقع الشهر القادم: ${result.predictedNext.toInt()} ريال", style = Typography.bodySmall, color = onSurfaceVariant)
+                            Text("المتوقع الشهر القادم: ${com.example.data.CurrencyFormatter.format(context, result.predictedNext)}", style = Typography.bodySmall, color = onSurfaceVariant)
                         }
                         if (result.tip.isNotBlank()) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {

@@ -318,6 +318,7 @@ private fun ShoppingTopBar(onOpenDrawer: () -> Unit) {
 
 @Composable
 private fun ShoppingBudgetHeader(totalPrice: Double, budgetRemaining: Double, budgetPct: Int) {
+    val context = LocalContext.current
     val isOverBudget = totalPrice > budgetRemaining && budgetRemaining > 0
     Card(
         modifier = Modifier.fillMaxWidth().shadow(8.dp, RoundedCornerShape(20.dp)),
@@ -343,7 +344,7 @@ private fun ShoppingBudgetHeader(totalPrice: Double, budgetRemaining: Double, bu
                     Column(horizontalAlignment = Alignment.End) {
                         Text("الميزانية المتبقية", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
                         Text(
-                            "%.0f ريال".format(budgetRemaining),
+                            com.example.data.CurrencyFormatter.format(context, budgetRemaining),
                             color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp
@@ -352,7 +353,7 @@ private fun ShoppingBudgetHeader(totalPrice: Double, budgetRemaining: Double, bu
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
-                    Text("%.0f ريال".format(totalPrice), color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.ExtraBold, fontSize = 28.sp)
+                    Text(com.example.data.CurrencyFormatter.format(context, totalPrice), color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.ExtraBold, fontSize = 28.sp)
                     Spacer(Modifier.width(10.dp))
                     if (budgetPct > 0) {
                         Box(
@@ -445,6 +446,7 @@ private fun EnhancedShoppingItemCard(
     onCheck: () -> Unit,
     onDelete: () -> Unit
 ) {
+    val context = LocalContext.current
     val priorityColor = when (item.priority) {
         "high" -> dangerColor
         "medium" -> warningColor
@@ -489,11 +491,11 @@ private fun EnhancedShoppingItemCard(
                     if (priceEstimate != null) {
                         Box(
                             modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(primaryContainer).padding(horizontal = 7.dp, vertical = 3.dp)
-                        ) { Text("%.0f-%.0f ريال".format(priceEstimate.lowPrice, priceEstimate.highPrice), style = Typography.bodySmall, color = onPrimaryContainer, fontWeight = FontWeight.Medium) }
+                        ) { Text("${com.example.data.CurrencyFormatter.formatNumber(context, priceEstimate.lowPrice)}-${com.example.data.CurrencyFormatter.format(context, priceEstimate.highPrice)}", style = Typography.bodySmall, color = onPrimaryContainer, fontWeight = FontWeight.Medium) }
                     } else if (item.estimatedPrice > 0) {
                         Box(
                             modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(primaryContainer).padding(horizontal = 7.dp, vertical = 3.dp)
-                        ) { Text("%.0f ريال".format(item.estimatedPrice), style = Typography.bodySmall, color = onPrimaryContainer, fontWeight = FontWeight.Medium) }
+                        ) { Text(com.example.data.CurrencyFormatter.format(context, item.estimatedPrice), style = Typography.bodySmall, color = onPrimaryContainer, fontWeight = FontWeight.Medium) }
                     }
 
                     if (item.predictedDaysLeft != null && item.predictedDaysLeft <= 3) {
@@ -574,7 +576,7 @@ private fun shareOnWhatsApp(context: Context, shoppingList: List<ZadShoppingItem
     val unpurchased = shoppingList.filter { !it.isPurchased }
     val shareText = unpurchased.joinToString("\n") { "- ${it.itemName} (${it.quantity})" }
     val total = unpurchased.sumOf { it.estimatedPrice * it.quantity }
-    val full = "قائمة تسوق زاد:\n$shareText\n\nالإجمالي: %.0f ريال".format(total)
+    val full = "قائمة تسوق زاد:\n$shareText\n\nالإجمالي: ${com.example.data.CurrencyFormatter.format(context, total)}"
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(Intent.EXTRA_TEXT, full)
