@@ -75,25 +75,10 @@ class PharmacyReminderReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val dao = ZadDatabase.getDatabase(context.applicationContext).zadDao()
-                val item = dao.getAllPharmacyItemsOnce().find { it.id == itemId }
-                if (item != null && item.remainingQuantity > 0) {
-                    val updated = item.copy(remainingQuantity = item.remainingQuantity - 1)
-                    dao.insertPharmacyItem(updated)
-                    try { SupabaseRepo.updatePharmacyQuantity(itemId, updated.remainingQuantity) } catch (e: Exception) {
-                        Log.e(TAG, "handleMarkTaken() Supabase sync failed: ${e.message}")
-                    }
-                }
-                if (doseLogId != null) {
-                    val takenAtIso = java.time.Instant.now().toString()
-                    val log = dao.getDoseLogById(doseLogId)
-                    if (log != null) {
-                        dao.insertDoseLog(log.copy(takenAt = takenAtIso))
-                        try { SupabaseRepo.markDoseLogTaken(doseLogId, takenAtIso) } catch (e: Exception) {
-                            Log.e(TAG, "handleMarkTaken() dose log sync failed: ${e.message}")
-                        }
-                    }
-                }
+                // Shared with the voice-command path (ZadCentralBrain.executeAiAction's
+                // DEDUCT_PHARMACY_STOCK) so "Taken" tap and "خدت الدواء" voice command chain
+                // into the same stock-deduct -> low-stock-check -> shopping-list logic once.
+                com.example.data.ZadCentralBrain.markPharmacyDoseTaken(context.applicationContext, itemId, doseLogId)
             } catch (e: Exception) {
                 Log.e(TAG, "handleMarkTaken() FAILED: ${e.message}")
             } finally {

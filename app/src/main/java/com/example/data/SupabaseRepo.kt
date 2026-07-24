@@ -196,20 +196,26 @@ object SupabaseRepo {
         }
     }
 
-    suspend fun addTransaction(transaction: ZadTransaction) {
+    // Returns whether the push actually succeeded — this function has always caught its own
+    // exceptions internally (never throws), so the many call sites wrapping it in try/catch
+    // were dead code; a caller that needs to react to a failure (e.g. queue it in SyncOutbox)
+    // must check the return value instead.
+    suspend fun addTransaction(transaction: ZadTransaction): Boolean {
         try {
             val userId = client.auth.currentUserOrNull()?.id
             if (userId == null) {
                 Log.w(TAG, "addTransaction() skipped — user not authenticated")
-                return
+                return false
             }
             val txWithUser = transaction.copy(userId = userId)
             Log.d(TAG, "addTransaction() → table=zad_transactions, title=${txWithUser.title}, amount=${txWithUser.amount}, isExpense=${txWithUser.isExpense}, userId=$userId")
             client.postgrest["zad_transactions"].insert(txWithUser)
             Log.d(TAG, "addTransaction() SUCCESS — id=${txWithUser.id}")
+            return true
         } catch (e: Exception) {
             Log.e(TAG, "addTransaction() FAILED: ${e.message}")
             e.printStackTrace()
+            return false
         }
     }
 
@@ -1519,12 +1525,41 @@ object SupabaseRepo {
         }
     }
 
+    // Dedicated SupervisorJob scope (not viewModelScope) so an in-flight request survives
+    // the original caller's coroutine being cancelled (e.g. a recomposition that relaunched
+    // the LaunchedEffect) — the next identical call just awaits the same Deferred instead of
+    // firing a second HTTP request. Keyed on functionName+payload so distinct actions/args
+    // never collide.
+    private val edgeCallScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+    private val edgeCallMutex = kotlinx.coroutines.sync.Mutex()
+    private val inFlightEdgeCalls = mutableMapOf<String, kotlinx.coroutines.Deferred<Map<String, Any?>>>()
+
     suspend fun callEdgeFunction(functionName: String, body: Map<String, Any>): Map<String, Any?> {
-        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        // Use anyToJson instead of org.json.JSONObject to handle nested Maps/Lists correctly
+        val jsonStr = anyToJson(body)
+        val requestKey = "$functionName:$jsonStr"
+
+        val deferred = edgeCallMutex.withLock {
+            inFlightEdgeCalls[requestKey] ?: edgeCallScope.async {
+                try {
+                    executeEdgeFunctionWithBackoff(functionName, jsonStr)
+                } finally {
+                    edgeCallMutex.withLock { inFlightEdgeCalls.remove(requestKey) }
+                }
+            }.also { inFlightEdgeCalls[requestKey] = it }
+        }
+        return deferred.await()
+    }
+
+    // 429 (rate limit) gets a bounded exponential backoff — never an infinite retry loop.
+    // Retry-After (seconds, per RFC 6585) wins when the server sends one; otherwise
+    // 1s/2s/4s + jitter. Any other non-2xx status fails immediately, same as before.
+    private suspend fun executeEdgeFunctionWithBackoff(functionName: String, jsonStr: String): Map<String, Any?> {
+        val maxRetries = 3
+        var attempt = 0
+        while (true) {
             try {
-                // Use anyToJson instead of org.json.JSONObject to handle nested Maps/Lists correctly
-                val jsonStr = anyToJson(body)
-                Log.d(TAG, "callEdgeFunction($functionName) payload: ${jsonStr.take(500)}")
+                Log.d(TAG, "callEdgeFunction($functionName) payload: ${jsonStr.take(500)} (attempt ${attempt + 1})")
                 val urlString = "${BuildConfig.SUPABASE_URL}/functions/v1/$functionName"
                 val token = client.auth.currentSessionOrNull()?.accessToken ?: BuildConfig.SUPABASE_ANON_KEY
 
@@ -1542,6 +1577,17 @@ object SupabaseRepo {
                 }
 
                 val responseCode = connection.responseCode
+
+                if (responseCode == 429 && attempt < maxRetries) {
+                    connection.errorStream?.close()
+                    val retryAfterMs = connection.getHeaderField("Retry-After")?.toLongOrNull()?.times(1000L)
+                        ?: ((1000L shl attempt) + kotlin.random.Random.nextLong(0, 300))
+                    Log.w(TAG, "callEdgeFunction($functionName) 429 rate limited — retry ${attempt + 1}/$maxRetries in ${retryAfterMs}ms")
+                    kotlinx.coroutines.delay(retryAfterMs)
+                    attempt++
+                    continue
+                }
+
                 val raw = if (responseCode in 200..299) {
                     connection.inputStream.bufferedReader().use { it.readText() }
                 } else {
@@ -1553,7 +1599,7 @@ object SupabaseRepo {
                 }
 
                 Log.d(TAG, "callEdgeFunction($functionName) success: ${raw.take(300)}")
-                jsonStringToMap(raw)
+                return jsonStringToMap(raw)
             } catch (e: Exception) {
                 Log.e(TAG, "callEdgeFunction($functionName) FAILED: ${e.message}")
                 throw e

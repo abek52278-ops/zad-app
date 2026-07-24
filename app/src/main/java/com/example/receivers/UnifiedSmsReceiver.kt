@@ -9,6 +9,7 @@ import com.example.data.BudgetTracker
 import com.example.data.MerchantCategoryOverrides
 import com.example.data.SaBankParser
 import com.example.data.SupabaseRepo
+import com.example.data.SyncOutbox
 import com.example.data.TxDeduplicator
 import com.example.data.TxType
 import com.example.data.ZadTransaction
@@ -96,8 +97,9 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
                 )
                 val db = ZadDatabase.getDatabase(context.applicationContext)
                 db.zadDao().insertTransaction(transaction)
-                try { SupabaseRepo.addTransaction(transaction) } catch (e: Exception) {
-                    Log.e("UnifiedSmsReceiver", "Supabase sync failed (offline?): ${e.message}")
+                if (!SupabaseRepo.addTransaction(transaction)) {
+                    Log.w("UnifiedSmsReceiver", "Supabase sync failed (offline?) — queued for retry")
+                    SyncOutbox.enqueueTransaction(context.applicationContext, transaction)
                 }
 
                 // الحقن الدقيق حسب نوع العملية
@@ -148,8 +150,9 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
                     )
                     val db = ZadDatabase.getDatabase(context.applicationContext)
                     db.zadDao().insertTransaction(transaction)
-                    try { SupabaseRepo.addTransaction(transaction) } catch (e: Exception) {
-                        Log.e("UnifiedSmsReceiver", "Supabase sync failed (offline?): ${e.message}")
+                    if (!SupabaseRepo.addTransaction(transaction)) {
+                        Log.w("UnifiedSmsReceiver", "Supabase sync failed (offline?) — queued for retry")
+                        SyncOutbox.enqueueTransaction(context.applicationContext, transaction)
                     }
                     if (txType.isExpense) {
                         BudgetTracker.deductExpense(context.applicationContext, amount, transaction.title, category)
@@ -163,8 +166,9 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
                         if (!TxDeduplicator.isNewTransaction(context.applicationContext, aiParsed.amount, aiParsed.isExpense)) return
                         val db = ZadDatabase.getDatabase(context.applicationContext)
                         db.zadDao().insertTransaction(aiParsed)
-                        try { SupabaseRepo.addTransaction(aiParsed) } catch (e: Exception) {
-                            Log.e("UnifiedSmsReceiver", "Supabase sync failed (offline?): ${e.message}")
+                        if (!SupabaseRepo.addTransaction(aiParsed)) {
+                            Log.w("UnifiedSmsReceiver", "Supabase sync failed (offline?) — queued for retry")
+                            SyncOutbox.enqueueTransaction(context.applicationContext, aiParsed)
                         }
                         if (aiParsed.isExpense) {
                             BudgetTracker.deductExpense(context.applicationContext, aiParsed.amount, aiParsed.title, aiParsed.category ?: "أخرى")

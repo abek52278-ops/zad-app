@@ -141,8 +141,9 @@ object StatementCsvImporter {
                 sourceType = "csv_import"
             )
             dao.insertTransaction(transaction)
-            try { SupabaseRepo.addTransaction(transaction) } catch (e: Exception) {
-                Log.e(TAG, "Supabase sync failed for imported row: ${e.message}")
+            if (!SupabaseRepo.addTransaction(transaction)) {
+                Log.w(TAG, "Supabase sync failed for imported row — queued for retry")
+                SyncOutbox.enqueueTransaction(context.applicationContext, transaction)
             }
             imported++
         }

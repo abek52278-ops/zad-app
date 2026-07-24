@@ -218,7 +218,9 @@ object ConsumptionLearner {
     private const val PREFS = "zad_consumption"
     private const val PURCHASE_PREFIX = "buy_"
     private const val CONSUME_PREFIX = "use_"
+    private const val SMOOTHED_INTERVAL_PREFIX = "smoothed_interval_"
     private const val MAX_EVENTS = 8
+    private const val INTERVAL_ALPHA = 0.3 // weight on the newest interval — higher = more reactive to a recently-changed buying pattern
 
     private fun recordEvent(context: Context, prefix: String, itemName: String) {
         val key = prefix + InventoryFlowEngine.normalizeName(itemName)
@@ -227,25 +229,51 @@ object ConsumptionLearner {
         val events = (prefs.getString(key, "") ?: "")
             .split(",").mapNotNull { it.toLongOrNull() }
             .toMutableList()
-        if (events.lastOrNull() != today) events.add(today)
+        val previousLast = events.lastOrNull()
+        if (previousLast != today) {
+            events.add(today)
+            // Incremental exponential smoothing: fold in only the ONE new interval here, at
+            // record-time — averagePurchaseIntervalDays() then just reads the persisted level
+            // instead of recomputing an average over the stored event list on every call.
+            if (prefix == PURCHASE_PREFIX && previousLast != null) {
+                val newInterval = (today - previousLast).toDouble()
+                if (newInterval > 0) updateSmoothedInterval(context, itemName, newInterval)
+            }
+        }
         while (events.size > MAX_EVENTS) events.removeAt(0)
         prefs.edit().putString(key, events.joinToString(",")).apply()
+    }
+
+    private fun updateSmoothedInterval(context: Context, itemName: String, newInterval: Double) {
+        val key = SMOOTHED_INTERVAL_PREFIX + InventoryFlowEngine.normalizeName(itemName)
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val previous = prefs.getFloat(key, -1f)
+        val updated = if (previous < 0) newInterval else INTERVAL_ALPHA * newInterval + (1 - INTERVAL_ALPHA) * previous
+        prefs.edit().putFloat(key, updated.toFloat()).apply()
     }
 
     fun recordPurchase(context: Context, itemName: String) = recordEvent(context, PURCHASE_PREFIX, itemName)
 
     fun recordConsumption(context: Context, itemName: String) = recordEvent(context, CONSUME_PREFIX, itemName)
 
-    /** متوسط الأيام بين عمليات الشراء — null لو مفيش بيانات كافية */
+    /** متوسط الأيام بين عمليات الشراء (بتنعيم أسي تراكمي) — null لو مفيش بيانات كافية */
     fun averagePurchaseIntervalDays(context: Context, itemName: String): Int? {
-        val key = PURCHASE_PREFIX + InventoryFlowEngine.normalizeName(itemName)
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val events = (prefs.getString(key, "") ?: "")
-            .split(",").mapNotNull { it.toLongOrNull() }
+        val smoothedKey = SMOOTHED_INTERVAL_PREFIX + InventoryFlowEngine.normalizeName(itemName)
+        val smoothed = prefs.getFloat(smoothedKey, -1f)
+        if (smoothed >= 0) return smoothed.toInt().coerceAtLeast(1)
+
+        // No smoothed value yet (item bought only once so far, or data predates this upgrade) —
+        // fall back to a plain average over the stored raw events, same as before, and seed the
+        // smoothed value from it so the next call onward is an O(1) read instead of this scan.
+        val rawKey = PURCHASE_PREFIX + InventoryFlowEngine.normalizeName(itemName)
+        val events = (prefs.getString(rawKey, "") ?: "").split(",").mapNotNull { it.toLongOrNull() }
         if (events.size < 2) return null
         val intervals = events.zipWithNext { a, b -> b - a }.filter { it > 0 }
         if (intervals.isEmpty()) return null
-        return intervals.average().toInt().coerceAtLeast(1)
+        val avg = intervals.average()
+        prefs.edit().putFloat(smoothedKey, avg.toFloat()).apply()
+        return avg.toInt().coerceAtLeast(1)
     }
 
     /**

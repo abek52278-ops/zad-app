@@ -80,6 +80,10 @@ data class GrocerySuggestion(
 )
 
 object ZadAiRepository {
+    // Name is legacy — this key is actually sent to Groq's API by ZadAiGeminiClient, not
+    // Google Gemini (CameraScreen's dialog was corrected to ask for a Groq key). Kept as-is
+    // to avoid a SharedPreferences migration for users who already saved a key under
+    // "gemini_api_key".
     var geminiApiKey: String? = null
 
     suspend fun analyzeReceipt(bitmap: Bitmap): AiParsedReceipt? {
@@ -749,8 +753,11 @@ object ZadAiRepository {
     // ══════════════════════════════════════════════
 
     private fun encodeBitmap(bitmap: Bitmap): String {
-        val maxWidth = 800
-        val maxHeight = 800
+        // 1024px — receipts/medicine-bottle text needs more resolution than 800px gave the
+        // vision model to read reliably; still compressed (JPEG q70 below) to stay well under
+        // request-size limits.
+        val maxWidth = 1024
+        val maxHeight = 1024
         val ratio = Math.min(maxWidth.toFloat() / bitmap.width, maxHeight.toFloat() / bitmap.height)
         val resizedBitmap = if (ratio < 1f) {
             Bitmap.createScaledBitmap(bitmap, (bitmap.width * ratio).toInt(), (bitmap.height * ratio).toInt(), true)

@@ -47,8 +47,9 @@ class SubscriptionAutoDeductWorker(
                     isVerified = true
                 )
                 dao.insertTransaction(transaction)
-                try { SupabaseRepo.addTransaction(transaction) } catch (e: Exception) {
-                    Log.e(TAG, "addTransaction sync failed for ${sub.title}: ${e.message}")
+                if (!SupabaseRepo.addTransaction(transaction)) {
+                    Log.w(TAG, "addTransaction sync failed for ${sub.title} — queued for retry")
+                    com.example.data.SyncOutbox.enqueueTransaction(applicationContext, transaction)
                 }
 
                 val nextRenewal = when (sub.billingCycle?.uppercase()) {

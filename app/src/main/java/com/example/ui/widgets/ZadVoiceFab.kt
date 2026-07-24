@@ -237,6 +237,17 @@ private suspend fun processAudioFile(
                 tts?.speak("باقي من ميزانيتك ${CurrencyFormatter.format(context, remaining)}", TextToSpeech.QUEUE_FLUSH, null, null)
                 null
             }
+            // لا مبلغ مالي متضمن (التكلفة اتسجلت مرة واحدة وقت شراء الدواء، مش لكل جرعة) —
+            // فمفيش داعي لتأكيد المستخدم، بيتنفذ فوراً زي check_budget بالظبط
+            "log_pharmacy_dose" -> {
+                val medName = response.data?.title
+                if (medName.isNullOrBlank() || !viewModel.markPharmacyDoseTakenByName(medName)) {
+                    tts?.speak("مش لاقي دواء بالاسم ده في قائمتك.", TextToSpeech.QUEUE_FLUSH, null, null)
+                } else {
+                    tts?.speak("تمام، سجلت إن حضرتك خدت $medName.", TextToSpeech.QUEUE_FLUSH, null, null)
+                }
+                null
+            }
             else -> {
                 tts?.speak(response.message, TextToSpeech.QUEUE_FLUSH, null, null)
                 null

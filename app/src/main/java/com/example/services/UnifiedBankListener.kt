@@ -146,10 +146,9 @@ class UnifiedBankListener : NotificationListenerService() {
                 val dao = db.zadDao()
                 dao.insertTransaction(transaction)
 
-                try {
-                    SupabaseRepo.addTransaction(transaction)
-                } catch (e: Exception) {
-                    Log.e("UnifiedBankListener", "Supabase sync failed (offline): ${e.message}")
+                if (!SupabaseRepo.addTransaction(transaction)) {
+                    Log.w("UnifiedBankListener", "Supabase sync failed (offline?) — queued for retry")
+                    SyncOutbox.enqueueTransaction(applicationContext, transaction)
                 }
 
                 // الحقن الدقيق حسب نوع العملية
@@ -209,8 +208,9 @@ class UnifiedBankListener : NotificationListenerService() {
                     val db = ZadDatabase.getDatabase(applicationContext)
                     val dao = db.zadDao()
                     dao.insertTransaction(aiParsed)
-                    try { SupabaseRepo.addTransaction(aiParsed) } catch (e: Exception) {
-                        Log.e("UnifiedBankListener", "Supabase sync failed (offline?): ${e.message}")
+                    if (!SupabaseRepo.addTransaction(aiParsed)) {
+                        Log.w("UnifiedBankListener", "Supabase sync failed (offline?) — queued for retry")
+                        SyncOutbox.enqueueTransaction(applicationContext, aiParsed)
                     }
                     if (aiParsed.isExpense) {
                         BudgetTracker.deductExpense(applicationContext, aiParsed.amount, aiParsed.title, aiParsed.category ?: "أخرى")

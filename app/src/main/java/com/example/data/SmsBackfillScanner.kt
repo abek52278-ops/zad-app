@@ -88,8 +88,9 @@ object SmsBackfillScanner {
                         sourceType = "sms_backfill"
                     )
                     dao.insertTransaction(transaction)
-                    try { SupabaseRepo.addTransaction(transaction) } catch (e: Exception) {
-                        Log.e(TAG, "Supabase sync failed for backfilled tx: ${e.message}")
+                    if (!SupabaseRepo.addTransaction(transaction)) {
+                        Log.w(TAG, "Supabase sync failed for backfilled tx — queued for retry")
+                        SyncOutbox.enqueueTransaction(context.applicationContext, transaction)
                     }
                     importedCount++
                 }

@@ -13,6 +13,7 @@ import com.example.data.AffiliateProduct
 import com.example.data.ZadPharmacyItem
 import com.example.data.ZadMaintenanceItem
 import com.example.data.ZadDoseLog
+import com.example.data.PendingSyncOp
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -110,6 +111,16 @@ interface ZadDao {
 
     @Query("DELETE FROM zad_transactions WHERE id = :id")
     suspend fun deleteTransaction(id: String)
+
+    // Offline sync outbox (see PendingSyncOp)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPendingSyncOp(op: PendingSyncOp)
+
+    @Query("SELECT * FROM zad_pending_sync_ops ORDER BY createdAt ASC")
+    suspend fun getAllPendingSyncOps(): List<PendingSyncOp>
+
+    @Query("DELETE FROM zad_pending_sync_ops WHERE id = :id")
+    suspend fun deletePendingSyncOp(id: String)
 
     // Behavior Patterns
     @Query("SELECT * FROM zad_behavior_patterns")

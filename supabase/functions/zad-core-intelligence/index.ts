@@ -1,11 +1,11 @@
 // deno-lint-ignore-file
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.6";
 
-// GROQ_API_KEY is now used ONLY for audio transcription (transcribeAudio) —
-// OpenRouter has no free-tier audio endpoint (confirmed: 404 on
-// /v1/audio/transcriptions, and chat-based audio input models require a
-// paid balance even on ":free"-suffixed models). Every other AI call in
-// this file — text, JSON, vision — runs on the unified OPENROUTER_API_KEY.
+// GROQ_API_KEY is now used ONLY for audio transcription (transcribeAudio) and the two
+// groq/compound-mini web-search actions further down — OpenRouter has no free-tier audio
+// endpoint (confirmed: 404 on /v1/audio/transcriptions, and chat-based audio input models
+// require a paid balance even on ":free"-suffixed models). It is not used for general
+// text/JSON reasoning or vision.
 const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
 
 const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
@@ -13,11 +13,18 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const TEXT_MODEL = "openai/gpt-oss-20b:free";
 const VISION_MODEL = "nvidia/nemotron-nano-12b-v2-vl:free";
 
-// GEMINI_API_KEY is a vision-only fallback for the two image actions below
-// (analyze_inventory_image, analyze_receipt) — used ONLY when OpenRouter's
-// free-tier vision model returns no content (e.g. daily rate limit hit, like
-// the 2026-07-22 OpenRouter free-models-per-day outage this was added for).
-// It is not wired into any text/JSON action — those stay OpenRouter-only.
+// GEMINI_API_KEY has a DIFFERENT tier order depending on task type — this is deliberate,
+// not an inconsistency:
+//  - Text/JSON actions (callTextModel/callJsonModel): OPENROUTER_API_KEY is primary, Gemini
+//    is the fallback used only when OpenRouter returns no content (429 after one backoff
+//    retry, HTTP error, timeout, or unparsable reply).
+//  - Vision actions (analyze_receipt, analyze_inventory_image): Gemini is PRIMARY — its
+//    vision model reads receipt/label text more reliably than the free OpenRouter vision
+//    model — and OpenRouter is the fallback. Groq is never used for vision (no vision support
+//    on Groq's API at all).
+// Both callGeminiText and callGeminiVision below are dead code paths when this key is unset
+// (optional secret, per CLAUDE.md) — the OpenRouter/Groq paths still work without it, just
+// without the fallback (text) or the primary (vision).
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 // gemini-2.5-flash returns 404 "no longer available to new users" on this key —
 // verified directly against the API. gemini-flash-latest is Google's floating
@@ -53,9 +60,13 @@ function jsonResponse(data: unknown, status = 200) {
 // (e.g. the Chef Zad recipe screen).
 const UPSTREAM_TIMEOUT_MS = 25000;
 
-async function callTextModel(systemPrompt: string, userPrompt: string, maxTokens = 1000, temperature = 0.7) {
-  if (!OPENROUTER_API_KEY) return null;
-  try {
+// Bounded exponential backoff for OpenRouter's 429 — never an infinite retry loop.
+// One retry only (mirrors callCompoundSearch's proven pattern for the same shared free-tier
+// 429 behavior further down this file): OpenRouter returns 429 near-instantly, so this adds
+// low hundreds of ms, not a second full UPSTREAM_TIMEOUT_MS window, before the caller falls
+// through to the Gemini failover below. Retry-After (seconds, RFC 6585) wins when present.
+async function fetchOpenRouterWithRetry(bodyObj: Record<string, unknown>): Promise<Response> {
+  for (let attempt = 0; attempt < 2; attempt++) {
     const resp = await fetch(OPENROUTER_URL, {
       method: "POST",
       headers: {
@@ -64,56 +75,66 @@ async function callTextModel(systemPrompt: string, userPrompt: string, maxTokens
         "HTTP-Referer": "https://zad-app.com",
         "X-Title": "Zad",
       },
-      body: JSON.stringify({
-        model: TEXT_MODEL,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        temperature,
-        max_tokens: Math.max(maxTokens, 300),
-        reasoning: { effort: "low" },
-      }),
+      body: JSON.stringify(bodyObj),
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    });
+    if (resp.status === 429 && attempt === 0) {
+      const retryAfter = resp.headers.get("Retry-After");
+      const delayMs = retryAfter ? Number(retryAfter) * 1000 : 800;
+      console.warn("[CoreIntel] OpenRouter 429 rate limited, retrying in " + delayMs + "ms");
+      await new Promise((r) => setTimeout(r, delayMs));
+      continue;
+    }
+    return resp;
+  }
+  // unreachable — loop always returns on attempt 1
+  throw new Error("fetchOpenRouterWithRetry: exhausted retries");
+}
+
+async function callTextModel(systemPrompt: string, userPrompt: string, maxTokens = 1000, temperature = 0.7) {
+  if (!OPENROUTER_API_KEY) return await callGeminiText(systemPrompt, userPrompt, false, maxTokens);
+  try {
+    const resp = await fetchOpenRouterWithRetry({
+      model: TEXT_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature,
+      max_tokens: Math.max(maxTokens, 300),
+      reasoning: { effort: "low" },
     });
     const data = await resp.json();
     if (!resp.ok) {
       console.error("[CoreIntel] OpenRouter text HTTP error:", resp.status, JSON.stringify(data));
+      console.warn("[CoreIntel] callTextModel: failing over to Gemini after OpenRouter error");
+      return await callGeminiText(systemPrompt, userPrompt, false, maxTokens);
     }
-    return data.choices?.[0]?.message?.content || null;
+    const content = data.choices?.[0]?.message?.content || null;
+    return content !== null ? content : await callGeminiText(systemPrompt, userPrompt, false, maxTokens);
   } catch (e) {
     console.error("[CoreIntel] callTextModel failed/timed out:", e.message);
-    return null;
+    return await callGeminiText(systemPrompt, userPrompt, false, maxTokens);
   }
 }
 
 async function callVisionModel(systemPrompt: string, userPrompt: string, imageBase64: string, mimeType: string) {
   if (!OPENROUTER_API_KEY) return { content: null, raw: { error: "OPENROUTER_API_KEY not set" }, ok: false, status: 0 };
   try {
-    const resp = await fetch(OPENROUTER_URL, {
-      method: "POST",
-      headers: {
-        "Authorization": "Bearer " + OPENROUTER_API_KEY,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://zad-app.com",
-        "X-Title": "Zad",
-      },
-      body: JSON.stringify({
-        model: VISION_MODEL,
-        messages: [
-          { role: "system", content: systemPrompt },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: userPrompt },
-              { type: "image_url", image_url: { url: "data:" + mimeType + ";base64," + imageBase64 } },
-            ],
-          },
-        ],
-        temperature: 0.2,
-        max_tokens: 2000,
-      }),
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    const resp = await fetchOpenRouterWithRetry({
+      model: VISION_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: userPrompt },
+            { type: "image_url", image_url: { url: "data:" + mimeType + ";base64," + imageBase64 } },
+          ],
+        },
+      ],
+      temperature: 0.2,
+      max_tokens: 2000,
     });
     const data = await resp.json();
     console.log("[CoreIntel] OpenRouter vision raw response:", JSON.stringify(data));
@@ -127,10 +148,11 @@ async function callVisionModel(systemPrompt: string, userPrompt: string, imageBa
   }
 }
 
-// Fallback vision path — only reached when callVisionModel (OpenRouter) returns
-// no content, e.g. the free-tier daily rate limit. Same 25s upstream timeout
-// budget as callVisionModel so a caller waiting on both in sequence still
-// finishes under the Android client's 30s HttpURLConnection timeout.
+// Primary vision path (see GEMINI_API_KEY comment above for why vision's tier order is
+// flipped vs text/JSON) — callVisionModel (OpenRouter) is the fallback, only reached when this
+// returns no content (key unset, HTTP error, or unparsable reply). Same 25s upstream timeout
+// budget as callVisionModel so a caller waiting on both in sequence still finishes under the
+// Android client's 30s HttpURLConnection timeout.
 async function callGeminiVision(systemPrompt: string, userPrompt: string, imageBase64: string, mimeType: string) {
   if (!GEMINI_API_KEY) return { content: null, ok: false };
   try {
@@ -159,6 +181,38 @@ async function callGeminiVision(systemPrompt: string, userPrompt: string, imageB
   } catch (e) {
     console.error("[CoreIntel] callGeminiVision failed/timed out:", e.message);
     return { content: null, ok: false };
+  }
+}
+
+// Text/JSON failover leg of the key-rotation pool — same GEMINI_API_KEY/model already used
+// as the vision fallback above, reused here for plain text so callTextModel/callJsonModel
+// never dead-end just because OPENROUTER_API_KEY's free tier is rate-limited. jsonMode uses
+// Gemini's native responseMimeType so callJsonModel can JSON.parse the result the same way
+// it parses OpenRouter's response_format:{type:"json_object"} output.
+async function callGeminiText(systemPrompt: string, userPrompt: string, jsonMode: boolean, maxTokens: number) {
+  if (!GEMINI_API_KEY) return null;
+  try {
+    const url = "https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_VISION_MODEL + ":generateContent?key=" + GEMINI_API_KEY;
+    const generationConfig: Record<string, unknown> = { temperature: 0.3, maxOutputTokens: Math.max(maxTokens, 300) };
+    if (jsonMode) generationConfig.responseMimeType = "application/json";
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: systemPrompt + "\n\n" + userPrompt }] }],
+        generationConfig,
+      }),
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      console.error("[CoreIntel] Gemini text HTTP error:", resp.status, JSON.stringify(data));
+      return null;
+    }
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+  } catch (e) {
+    console.error("[CoreIntel] callGeminiText failed/timed out:", e.message);
+    return null;
   }
 }
 
@@ -192,40 +246,41 @@ async function transcribeAudio(audioBase64: string, mimeType: string) {
 }
 
 async function callJsonModel(systemPrompt: string, userPrompt: string, maxTokens = 1500) {
-  if (!OPENROUTER_API_KEY) return null;
+  if (!OPENROUTER_API_KEY) return await parseGeminiJson(systemPrompt, userPrompt, maxTokens);
   try {
-    const resp = await fetch(OPENROUTER_URL, {
-      method: "POST",
-      headers: {
-        "Authorization": "Bearer " + OPENROUTER_API_KEY,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://zad-app.com",
-        "X-Title": "Zad",
-      },
-      body: JSON.stringify({
-        model: TEXT_MODEL,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.2,
-        max_tokens: Math.max(maxTokens, 300),
-        reasoning: { effort: "low" },
-      }),
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    const resp = await fetchOpenRouterWithRetry({
+      model: TEXT_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.2,
+      max_tokens: Math.max(maxTokens, 300),
+      reasoning: { effort: "low" },
     });
     const data = await resp.json();
     if (!resp.ok) {
       console.error("[CoreIntel] OpenRouter json HTTP error:", resp.status, JSON.stringify(data));
+      console.warn("[CoreIntel] callJsonModel: failing over to Gemini after OpenRouter error");
+      return await parseGeminiJson(systemPrompt, userPrompt, maxTokens);
     }
     const text = data.choices?.[0]?.message?.content || "{}";
     try { return JSON.parse(text); } catch (e) {
       console.error("[CoreIntel] callJsonModel: JSON.parse failed:", e.message, "raw:", text);
-      return null;
+      return await parseGeminiJson(systemPrompt, userPrompt, maxTokens);
     }
   } catch (e) {
     console.error("[CoreIntel] callJsonModel failed/timed out:", e.message);
+    return await parseGeminiJson(systemPrompt, userPrompt, maxTokens);
+  }
+}
+
+async function parseGeminiJson(systemPrompt: string, userPrompt: string, maxTokens: number) {
+  const text = await callGeminiText(systemPrompt, userPrompt, true, maxTokens);
+  if (!text) return null;
+  try { return JSON.parse(text); } catch (e) {
+    console.error("[CoreIntel] parseGeminiJson: JSON.parse failed:", e.message, "raw:", text);
     return null;
   }
 }
@@ -315,6 +370,34 @@ async function callCompoundSearch(systemPrompt: string, userPrompt: string, maxT
   return { parsed: null, executedTools: [], ok: false };
 }
 
+// Server-side response cache (table `ai_response_cache`, mirrors market_price_cache's shape/RLS)
+// for actions where the same normalized input genuinely produces the same answer: same
+// inventory snapshot -> same meal/grocery suggestion, same item name -> same price estimate.
+// Global/shared cache, not user-scoped — cache_key already encodes every input that affects
+// the answer (including dialect, for the two dialect-prefixed actions), so a hit is safe to
+// serve to any user with that exact input. Checked before ever calling the LLM.
+const AI_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h — short enough that prices/suggestions don't go stale
+
+async function getCachedAiResponse(cacheKey: string): Promise<Record<string, unknown> | null> {
+  try {
+    const { data } = await supabase.from("ai_response_cache").select("response, created_at").eq("cache_key", cacheKey).maybeSingle();
+    if (data?.created_at && Date.now() - new Date(data.created_at).getTime() < AI_CACHE_TTL_MS) {
+      return data.response as Record<string, unknown>;
+    }
+  } catch (e) {
+    console.error("[CoreIntel] getCachedAiResponse failed:", e.message);
+  }
+  return null;
+}
+
+async function setCachedAiResponse(cacheKey: string, action: string, response: Record<string, unknown>) {
+  try {
+    await supabase.from("ai_response_cache").upsert({ cache_key: cacheKey, action, response, created_at: new Date().toISOString() });
+  } catch (e) {
+    console.error("[CoreIntel] setCachedAiResponse failed:", e.message);
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders() });
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
@@ -344,6 +427,10 @@ Deno.serve(async (req: Request) => {
       // ──────────────────────────────────────────────
       case "meal_suggestions": {
         const { items } = payload || {};
+        const cacheKey = "meal_suggestions:" + dialectPrefix + ":" + (items || "");
+        const cached = await getCachedAiResponse(cacheKey);
+        if (cached) return jsonResponse(cached);
+
         const systemPrompt = dialectPrefix + "أنت مساعد طبخ ذكي. بناءً على المخزون المتوفر، اقترح وجبات يمكن تحضيرها. أجب بصيغة JSON: {\"text\": \"...\"}";
         const userPrompt = "المخزون: " + (items || "لا يوجد مخزون");
         const result = await callJsonModel(systemPrompt, userPrompt);
@@ -351,7 +438,9 @@ Deno.serve(async (req: Request) => {
         // failure instead of baking in Arabic text that looks like a real AI reply. The Kotlin
         // client (ZadAiRepository.suggestMeals) already falls back to its own "لم أتمكن..."
         // string when text is null, so no client change needed.
-        return jsonResponse({ text: result?.text || null, ok: !!result?.text });
+        const response = { text: result?.text || null, ok: !!result?.text };
+        if (response.ok) await setCachedAiResponse(cacheKey, "meal_suggestions", response);
+        return jsonResponse(response);
       }
 
       // ──────────────────────────────────────────────
@@ -359,10 +448,16 @@ Deno.serve(async (req: Request) => {
       // ──────────────────────────────────────────────
       case "grocery_suggestions": {
         const { inventory, family_size } = payload || {};
+        const cacheKey = "grocery_suggestions:" + dialectPrefix + ":" + (inventory || "") + ":" + (family_size || 4);
+        const cached = await getCachedAiResponse(cacheKey);
+        if (cached) return jsonResponse(cached);
+
         const systemPrompt = dialectPrefix + "أنت مساعد تسوق ذكي. بناءً على المخزون الحالي وحجم العائلة، اقترح مشتريات يحتاجها المنزل. أجب بصيغة JSON: {\"suggestions\":[{\"name\":\"\",\"quantity\":\"\",\"reason\":\"\"}]}";
         const userPrompt = "المخزون: " + (inventory || "لا يوجد") + ", حجم العائلة: " + (family_size || 4);
         const result = await callJsonModel(systemPrompt, userPrompt, 2000);
-        return jsonResponse({ suggestions: result?.suggestions || [] });
+        const response = { suggestions: result?.suggestions || [] };
+        if (response.suggestions.length > 0) await setCachedAiResponse(cacheKey, "grocery_suggestions", response);
+        return jsonResponse(response);
       }
 
       // ──────────────────────────────────────────────
@@ -416,13 +511,16 @@ Deno.serve(async (req: Request) => {
         if (!image_base64) return jsonResponse({ items: [] });
         const systemPrompt = "You are a vision AI. Analyze the image of refrigerator/pantry contents. Identify every food item visible. Return ONLY JSON: {\"items\":[{\"name\":\"\",\"quantity\":1.0,\"unit\":\"قطعة\",\"category\":\"عام\"}]}";
         const userPrompt = "List all food items visible in this image with estimated quantity, unit, and category.";
-        let visionResult = (await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
+        // Gemini is tier-1 for vision/OCR specifically (stronger at reading receipt/label text
+        // than the free OpenRouter vision model) — OpenRouter is the fallback here, opposite of
+        // the text/JSON actions above where OpenRouter is primary and Gemini is the fallback.
+        let visionResult = (await callGeminiVision(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
         if (!visionResult) {
-          console.error("[CoreIntel] analyze_inventory_image: OpenRouter vision returned null, trying Gemini fallback");
-          visionResult = (await callGeminiVision(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
+          console.error("[CoreIntel] analyze_inventory_image: Gemini vision unavailable/failed, trying OpenRouter fallback");
+          visionResult = (await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
         }
         if (!visionResult) {
-          console.error("[CoreIntel] analyze_inventory_image: both OpenRouter and Gemini vision returned null content");
+          console.error("[CoreIntel] analyze_inventory_image: both Gemini and OpenRouter vision returned null content");
           return jsonResponse({ items: [] });
         }
         const objectMatch = visionResult.match(/\{[\s\S]*\}/);
@@ -457,10 +555,12 @@ Deno.serve(async (req: Request) => {
         if (!image_base64) return jsonResponse({ total: 0, category: "", storeName: "", items: [] });
         const systemPrompt = "You are a receipt scanning AI. Extract all information from this receipt image. Return ONLY JSON: {\"total\":0.0,\"category\":\"\",\"storeName\":\"\",\"items\":[{\"name\":\"\",\"price\":0.0,\"quantity\":1.0,\"unit\":\"قطعة\",\"category\":\"عام\"}]}";
         const userPrompt = "Extract the total amount, store name, category, and all line items from this receipt.";
-        let visionResult = (await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
+        // Same tier order as analyze_inventory_image above: Gemini primary for vision/OCR quality,
+        // OpenRouter's free vision model as fallback.
+        let visionResult = (await callGeminiVision(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
         if (!visionResult) {
-          console.error("[CoreIntel] analyze_receipt: OpenRouter vision returned null, trying Gemini fallback");
-          visionResult = (await callGeminiVision(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
+          console.error("[CoreIntel] analyze_receipt: Gemini vision unavailable/failed, trying OpenRouter fallback");
+          visionResult = (await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
         }
         if (visionResult) {
           const jsonMatch = visionResult.match(/\{[\s\S]*\}/);
@@ -507,17 +607,23 @@ Deno.serve(async (req: Request) => {
       // ──────────────────────────────────────────────
       case "estimate_price": {
         const { item_name, store } = payload || {};
+        const cacheKey = "estimate_price:" + (item_name || "") + ":" + (store || "");
+        const cached = await getCachedAiResponse(cacheKey);
+        if (cached) return jsonResponse(cached);
+
         const systemPrompt = "أنت خبير أسعار في السعودية. قدّر سعر المنتج بناءً على اسمه والمتجر (إن وجد). أجب بصيغة JSON: {\"item_name\":\"\",\"low_price\":0.0,\"avg_price\":0.0,\"high_price\":0.0,\"store\":\"\",\"currency\":\"SAR\"}";
         const userPrompt = "المنتج: " + (item_name || "") + ", المتجر: " + (store || "غير محدد");
         const result = await callJsonModel(systemPrompt, userPrompt);
-        return jsonResponse({
+        const response = {
           item_name: result?.item_name || item_name || "",
           low_price: result?.low_price || 0,
           avg_price: result?.avg_price || 0,
           high_price: result?.high_price || 0,
           store: result?.store || store || null,
           currency: "SAR",
-        });
+        };
+        if (result != null) await setCachedAiResponse(cacheKey, "estimate_price", response);
+        return jsonResponse(response);
       }
 
       // ──────────────────────────────────────────────
@@ -777,8 +883,9 @@ Deno.serve(async (req: Request) => {
         const systemPrompt = dialectPrefix + "You are a voice command processor for a family finance app (ZAD). " +
           "The user spoke a command, possibly with local dialect and colloquial number words. " +
           "Determine the intent and extract structured data. Parse spoken amounts (e.g. \"خمسين ريال\" = 50, \"مية وعشرين\" = 120) into a numeric value. " +
-          "Return ONLY JSON: {\"action\":\"chat|add_expense|add_income|check_budget|add_inventory\",\"message\":\"short confirmation reply matching the requested dialect/language\",\"data\":{\"amount\":0,\"title\":\"\",\"category\":\"\"}}. " +
-          "Use action=\"add_expense\" when the user says they spent/paid money, \"add_income\" when they received money, \"check_budget\" when they ask about their budget/balance, \"add_inventory\" when they mention buying/adding a physical item to track, otherwise \"chat\".";
+          "Return ONLY JSON: {\"action\":\"chat|add_expense|add_income|check_budget|add_inventory|log_pharmacy_dose\",\"message\":\"short confirmation reply matching the requested dialect/language\",\"data\":{\"amount\":0,\"title\":\"\",\"category\":\"\"}}. " +
+          "Use action=\"add_expense\" when the user says they spent/paid money, \"add_income\" when they received money, \"check_budget\" when they ask about their budget/balance, \"add_inventory\" when they mention buying/adding a physical item to track, " +
+          "\"log_pharmacy_dose\" when the user says they took/used a medication or pill (put the medication name in data.title, leave data.amount as 0), otherwise \"chat\".";
         const result = await callJsonModel(systemPrompt, transcript);
         return jsonResponse({
           action: result?.action || "chat",

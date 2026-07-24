@@ -13,6 +13,12 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.TimeUnit
 
+// Despite the file/object name, every request here goes to api.groq.com, not Gemini —
+// the name predates a provider swap and was never updated. This is the BYO-personal-key
+// vision fallback for CameraScreen (user pastes their own key when the free-tier edge
+// function is rate-limited); the key the user is asked for is a Groq key (CameraScreen.kt's
+// dialog text was fixed to say so), not a Google Gemini key. See ZadAiRepository.geminiApiKey
+// for where this gets tried before falling back to the zad-core-intelligence edge function.
 object ZadAiGeminiClient {
     private const val TAG = "ZadAiGemini"
     private val client = OkHttpClient.Builder()
@@ -23,8 +29,10 @@ object ZadAiGeminiClient {
     private val json = Json { ignoreUnknownKeys = true }
 
     private fun encodeBitmap(bitmap: Bitmap): String {
-        val maxWidth = 800
-        val maxHeight = 800
+        // Kept in sync with ZadAiRepository.encodeBitmap's 1024px spec (same reasoning: receipt/
+        // medicine-bottle OCR needs more resolution than 800px was giving the vision model).
+        val maxWidth = 1024
+        val maxHeight = 1024
         val ratio = Math.min(maxWidth.toFloat() / bitmap.width, maxHeight.toFloat() / bitmap.height)
         val resizedBitmap = if (ratio < 1f) {
             Bitmap.createScaledBitmap(bitmap, (bitmap.width * ratio).toInt(), (bitmap.height * ratio).toInt(), true)

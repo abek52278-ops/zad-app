@@ -8,12 +8,12 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.example.R
 
-// Real, system-level push notification — shared by PeriodicAnalysisWorker (proactive analysis)
-// and ZadBrainEngine (reactive AI decisions) so both paths surface to the user even when the
-// app is closed, instead of only writing to the in-app app_notifications feed (SupabaseRepo
-// .sendAppNotification, which is a separate, DB-only mechanism that needs HomeScreen open to
-// be seen). Extracted from PeriodicAnalysisWorker's private showNotification() so both callers
-// share one channel/pending-intent implementation instead of duplicating it.
+// Real, system-level push notification — used by both ZadCentralBrain's deterministic rules
+// and its merged AI tool-loop (formerly the separate ZadBrainEngine) so proactive notifications
+// surface even when the app is closed, instead of only writing to the in-app app_notifications
+// feed (SupabaseRepo.sendAppNotification, which is a separate, DB-only mechanism that needs
+// HomeScreen open to be seen). Extracted from PeriodicAnalysisWorker's private showNotification()
+// so all callers share one channel/pending-intent implementation instead of duplicating it.
 object ZadNotifier {
     private const val CHANNEL_ID = "zad_analysis_channel"
 

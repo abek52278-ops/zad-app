@@ -389,3 +389,18 @@ data class ZadChatMessage(
     @ColumnInfo(name = "is_user") val isUser: Boolean,
     val timestamp: Long = System.currentTimeMillis()
 )
+
+/**
+ * Outbox for a Supabase write that failed while offline — local-first paths (SaBankParser's
+ * offline transaction parse, shopping-list inserts, ...) already write to Room immediately and
+ * only best-effort push to Supabase; before this entity, a failed push was just logged and
+ * dropped (see SyncOutbox.kt). Room-only, never itself synced to Supabase — it IS the retry queue.
+ */
+@Entity(tableName = "zad_pending_sync_ops")
+data class PendingSyncOp(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val opType: String, // "add_transaction" — only type today, extend as new offline-write paths need it
+    val payloadJson: String,
+    val createdAt: String,
+    val attempts: Int = 0
+)

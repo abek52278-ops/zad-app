@@ -227,10 +227,10 @@ fun CameraScreen(
     if (showApiKeyDialog) {
         AlertDialog(
             onDismissRequest = { showApiKeyDialog = false },
-            title = { Text("إعداد الذكاء الاصطناعي (Gemini API)") },
+            title = { Text("إعداد الذكاء الاصطناعي (Groq API)") },
             text = {
                 Column {
-                    Text("أدخل مفتاح Google Gemini الخاص بك لتفعيل تحليل الصور:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("أدخل مفتاح Groq الخاص بك لتفعيل تحليل الصور:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = apiKeyInput,

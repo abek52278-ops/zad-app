@@ -2,8 +2,11 @@ package com.example.data
 
 import android.content.Context
 import android.util.Log
+import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -17,6 +20,13 @@ import java.time.temporal.ChronoUnit
  */
 object ZadCentralBrain {
     private const val TAG = "ZadCentralBrain"
+
+    // Persisted state for predictWeeklySpendingSmoothed()'s incremental exponential smoothing —
+    // see that function for why this lives in SharedPreferences instead of being recomputed.
+    private const val FORECAST_PREFS = "zad_spend_forecast"
+    private const val FORECAST_LEVEL_KEY = "weekly_ewma_level"
+    private const val FORECAST_LAST_WEEK_KEY = "weekly_ewma_last_week_start_epoch"
+    private const val FORECAST_ALPHA = 0.3 // weight on the newest completed week — higher = more reactive to recent spend
 
     data class BrainOutput(
         val summary: String = "",
@@ -33,6 +43,21 @@ object ZadCentralBrain {
         val reason: String
     )
 
+    // Merged in from the old ZadBrainEngine (deleted — this was its only caller). This is the
+    // LLM-decides -> tool-executes loop: unlike AutoAction above (deterministic rules, executed
+    // immediately via executeAutoAction), these come from an actual model judgment call and are
+    // reserved for things a fixed rule can't phrase well (family-facing notifications, nuanced
+    // budget commentary) — see runAiProactiveActions().
+    @Serializable
+    data class AiAction(
+        val type: String, // ADD_TO_SHOPPING | SUGGEST_MEAL | ALERT_BUDGET | NOTIFY_FAMILY | DEDUCT_PHARMACY_STOCK | TRIGGER_PHARMACY_ALARM
+        val payload: String,
+        val reason: String
+    )
+
+    @Serializable
+    data class AiActionList(val actions: List<AiAction>)
+
     data class SmartNotification(
         val type: String, // PREDICTIVE | BEHAVIOR_ALERT | TIP | MILESTONE | FAMILY
         val title: String,
@@ -48,7 +73,10 @@ object ZadCentralBrain {
         subscriptions: List<ZadSubscription>,
         shoppingList: List<ZadShoppingItem>,
         behaviorPatterns: List<ZadBehaviorPattern>,
-        budget: Double
+        budget: Double,
+        // Optional so existing callers aren't forced to thread pharmacy data through immediately —
+        // pharmacy state was previously never included in fullAnalysis at all (see FamilyState.kt).
+        pharmacyItems: List<ZadPharmacyItem> = emptyList()
     ): BrainOutput = withContext(Dispatchers.IO) {
         Log.d(TAG, "fullAnalysis() started — learning user behavior...")
         val alerts = mutableListOf<String>()
@@ -72,7 +100,7 @@ object ZadCentralBrain {
         }
 
         // ====== 2. PREDICTIVE ANALYTICS ======
-        val nextWeekExpense = predictWeeklySpending(transactions)
+        val nextWeekExpense = predictWeeklySpendingSmoothed(context, transactions)
         if (nextWeekExpense > 0) {
             predictions.add("توقع إنفاق الأسبوع القادم: ${CurrencyFormatter.format(context, nextWeekExpense)}")
             if (budget > 0 && nextWeekExpense > budget * 0.3) {
@@ -97,7 +125,13 @@ object ZadCentralBrain {
         lowStockItems.forEach { item ->
             val alreadyInShopping = shoppingList.any { it.itemName == item.itemName && !it.isPurchased }
             if (!alreadyInShopping) {
-                autoActions.add(AutoAction("ADD_TO_SHOPPING", item.itemName, "مخزون منخفض: ${item.itemName} (${item.quantity} متبقي)"))
+                val action = AutoAction("ADD_TO_SHOPPING", item.itemName, "مخزون منخفض: ${item.itemName} (${item.quantity} متبقي)")
+                autoActions.add(action)
+                // Deterministic decision (low stock -> add to shopping) executed immediately here
+                // instead of only being returned for a caller to maybe-act on later — the old
+                // split (this rule vs. the LLM tool-loop below deciding the same thing) meant the
+                // background worker's autoActions were logged but never actually inserted anywhere.
+                executeAutoAction(action, context)
             }
             // Predictive: Suggest restock based on usage pattern
             val pattern = behaviorPatterns.find { it.category.contains(item.itemName, ignoreCase = true) }
@@ -122,7 +156,9 @@ object ZadCentralBrain {
         if (expiringSoon.isNotEmpty()) {
             val names = expiringSoon.joinToString(", ") { it.itemName }
             suggestions.add("اقترح وصفات تستخدم: $names قبل انتهاء الصلاحية")
-            autoActions.add(AutoAction("SUGGEST_RECIPE", names, "أصناف على وشك الانتهاء"))
+            val recipeAction = AutoAction("SUGGEST_RECIPE", names, "أصناف على وشك الانتهاء")
+            autoActions.add(recipeAction)
+            executeAutoAction(recipeAction, context)
             smartNotifications.add(SmartNotification(
                 type = "PREDICTIVE",
                 title = "⏳ منتجات على وشك الانتهاء",
@@ -215,6 +251,15 @@ object ZadCentralBrain {
             Log.e(TAG, "AI summary failed: ${e.message}")
         }
 
+        // ====== 9. AI PROACTIVE TOOL-LOOP (merged from the old ZadBrainEngine) ======
+        // Only for judgment calls a fixed rule can't make — low-stock/expiry are already
+        // handled deterministically above, so the prompt doesn't ask the model to re-decide them.
+        try {
+            runAiProactiveActions(context, inventory, transactions, lowStockItems, expiringSoon, pharmacyItems)
+        } catch (e: Exception) {
+            Log.e(TAG, "runAiProactiveActions failed: ${e.message}")
+        }
+
         Log.d(TAG, "fullAnalysis() done → ${alerts.size} alerts, ${suggestions.size} suggestions, ${predictions.size} predictions, ${smartNotifications.size} smart notifs")
         BrainOutput(
             summary = summary,
@@ -299,12 +344,44 @@ object ZadCentralBrain {
         return BehaviorInsights(predictions = predictions, anomalyAlert = anomalyAlert)
     }
 
-    private fun predictWeeklySpending(transactions: List<ZadTransaction>): Double {
-        if (transactions.size < 7) return 0.0
-        val weeklyExpenses = transactions.filter { it.isExpense }.takeLast(14)
-        if (weeklyExpenses.isEmpty()) return 0.0
-        val weeklyAvg = weeklyExpenses.sumOf { it.amount } / 2.0
-        return kotlin.math.round(weeklyAvg * 100) / 100
+    // Simple exponential smoothing over completed-week expense totals, replacing the old flat
+    // 14-day-average×0.5 rule. State (smoothed level + last-processed week) is persisted so each
+    // call only folds in whatever completed week(s) are new since the last run — never rescans
+    // full transaction history to recompute the average from scratch.
+    private fun predictWeeklySpendingSmoothed(context: Context, transactions: List<ZadTransaction>): Double {
+        if (transactions.isEmpty()) return 0.0
+        val prefs = context.getSharedPreferences(FORECAST_PREFS, Context.MODE_PRIVATE)
+        val currentWeekStart = LocalDate.now().with(DayOfWeek.MONDAY)
+
+        fun txDate(tx: ZadTransaction): LocalDate? = tx.createdAt?.let {
+            try { Instant.parse(it).atZone(ZoneId.systemDefault()).toLocalDate() } catch (e: Exception) { null }
+        }
+        fun weekSpend(weekStart: LocalDate): Double = transactions
+            .filter { it.isExpense && (txDate(it)?.let { d -> d >= weekStart && d < weekStart.plusWeeks(1) } ?: false) }
+            .sumOf { it.amount }
+
+        val lastWeekEpoch = prefs.getLong(FORECAST_LAST_WEEK_KEY, -1L)
+        var level = prefs.getFloat(FORECAST_LEVEL_KEY, -1f).toDouble()
+
+        if (lastWeekEpoch == -1L) {
+            // First run ever for this device — seed from the most recent completed week
+            // (one bounded read, not a full-history average) instead of starting from zero.
+            val lastCompletedWeek = currentWeekStart.minusWeeks(1)
+            level = weekSpend(lastCompletedWeek)
+            prefs.edit().putFloat(FORECAST_LEVEL_KEY, level.toFloat()).putLong(FORECAST_LAST_WEEK_KEY, lastCompletedWeek.toEpochDay()).apply()
+            return kotlin.math.round(level * 100) / 100
+        }
+
+        var cursor = LocalDate.ofEpochDay(lastWeekEpoch).plusWeeks(1)
+        // Catch-up loop for a device that hasn't run analysis in a while — still one smoothing
+        // update per completed week, bounded by actual elapsed weeks, not the whole tx history.
+        while (cursor < currentWeekStart) {
+            val spend = weekSpend(cursor)
+            level = if (level < 0) spend else FORECAST_ALPHA * spend + (1 - FORECAST_ALPHA) * level
+            cursor = cursor.plusWeeks(1)
+        }
+        prefs.edit().putFloat(FORECAST_LEVEL_KEY, level.toFloat()).putLong(FORECAST_LAST_WEEK_KEY, currentWeekStart.minusWeeks(1).toEpochDay()).apply()
+        return kotlin.math.round(level.coerceAtLeast(0.0) * 100) / 100
     }
 
     private fun generateLocalSummary(
@@ -317,6 +394,183 @@ object ZadCentralBrain {
         val txCount = transactions.filter { it.isExpense }.size
         val budgetPct = if (budget > 0) (totalSpent / budget * 100).toInt() else 0
         return "📊 عندك $invCount صنف في المخزون، $txCount معاملة مصروفات، $budgetPct% من الميزانية مستخدمة."
+    }
+
+    /**
+     * Single source of truth for "a dose was taken" — deducts stock, marks/creates the dose
+     * log, and chains into ADD_TO_SHOPPING if that leaves the medication low (< one day's worth
+     * left; ZadPharmacyItem has no explicit low-stock threshold field like ZadInventory does).
+     * Deliberately does NOT log an expense here — the medication's cost is already recorded once
+     * at purchase/refill time (see ZadViewModel.addPharmacyItem/refillPharmacyItem); logging it
+     * again per dose would double-count against the budget. Used by both
+     * PharmacyReminderReceiver (notification "Taken" button) and the voice-command path
+     * (executeAiAction's DEDUCT_PHARMACY_STOCK) so there's one implementation, not two.
+     */
+    suspend fun markPharmacyDoseTaken(context: Context, itemId: String, doseLogId: String? = null): Boolean = withContext(Dispatchers.IO) {
+        val dao = com.example.data.local.ZadDatabase.getDatabase(context).zadDao()
+        val item = dao.getAllPharmacyItemsOnce().find { it.id == itemId } ?: return@withContext false
+
+        if (item.remainingQuantity > 0) {
+            val updated = item.copy(remainingQuantity = item.remainingQuantity - 1)
+            dao.insertPharmacyItem(updated)
+            try { SupabaseRepo.updatePharmacyQuantity(itemId, updated.remainingQuantity) } catch (e: Exception) {
+                Log.e(TAG, "markPharmacyDoseTaken() Supabase sync failed: ${e.message}")
+            }
+
+            val lowStock = updated.remainingQuantity <= updated.dailyDoseCount.coerceAtLeast(1)
+            if (lowStock) {
+                executeAutoAction(AutoAction("ADD_TO_SHOPPING", updated.name, "دواء أوشك على النفاد: ${updated.name} (${updated.remainingQuantity} متبقي)"), context)
+            }
+        }
+
+        val nowIso = Instant.now().toString()
+        if (doseLogId != null) {
+            val log = dao.getDoseLogById(doseLogId)
+            if (log != null) {
+                dao.insertDoseLog(log.copy(takenAt = nowIso))
+                try { SupabaseRepo.markDoseLogTaken(doseLogId, nowIso) } catch (e: Exception) {
+                    Log.e(TAG, "markPharmacyDoseTaken() dose log sync failed: ${e.message}")
+                }
+            }
+        } else {
+            // Ad-hoc "I took it" outside a scheduled reminder (e.g. voice command) — no existing
+            // dose_log row to update, so create one that's scheduled=taken=now.
+            val log = ZadDoseLog(pharmacyItemId = itemId, itemName = item.name, scheduledAt = nowIso, takenAt = nowIso, createdAt = nowIso)
+            dao.insertDoseLog(log)
+            try { SupabaseRepo.addDoseLog(log) } catch (e: Exception) {
+                Log.e(TAG, "markPharmacyDoseTaken() ad-hoc dose log sync failed: ${e.message}")
+            }
+        }
+        true
+    }
+
+    /** Executes a deterministic AutoAction immediately (no LLM involved in the decision). */
+    private suspend fun executeAutoAction(action: AutoAction, context: Context) {
+        try {
+            when (action.type) {
+                "ADD_TO_SHOPPING" -> {
+                    SupabaseRepo.addShoppingItem(ZadShoppingItem(itemName = action.payload, quantity = 1, priority = "medium"))
+                    Log.d(TAG, "executeAutoAction ADD_TO_SHOPPING -> ${action.payload}")
+                }
+                "SUGGEST_RECIPE" -> {
+                    ZadNotifier.send(context, "🍽️ اقترب انتهاء الصلاحية", "استخدم قبل ما يخلص: ${action.payload}")
+                    Log.d(TAG, "executeAutoAction SUGGEST_RECIPE -> ${action.payload}")
+                }
+                else -> Log.w(TAG, "executeAutoAction: unhandled type ${action.type}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "executeAutoAction(${action.type}) failed: ${e.message}")
+        }
+    }
+
+    /**
+     * LLM-decides -> tool-executes loop, merged in from the old ZadBrainEngine.evaluateStateAndAct.
+     * Reuses fullAnalysis()'s already-computed lowStockItems/expiringSoon instead of re-scanning
+     * inventory independently (the old engine did its own separate scan — real duplication).
+     */
+    private suspend fun runAiProactiveActions(
+        context: Context,
+        inventory: List<ZadInventory>,
+        transactions: List<ZadTransaction>,
+        lowStockItems: List<ZadInventory>,
+        expiringSoon: List<ZadInventory>,
+        pharmacyItems: List<ZadPharmacyItem>
+    ) {
+        val inventoryStr = inventory.joinToString(", ") { "${it.itemName}(${it.quantity})" }
+        val txStr = transactions.takeLast(10).joinToString(", ") { "${it.title}:${it.amount}" }
+        val pharmacyStr = pharmacyItems.joinToString(", ") {
+            "${it.name}(${it.remainingQuantity} ${it.unit} left, ${it.dailyDoseCount}/day)"
+        }
+
+        val sysPrompt = """
+            You are 'Zad', the central AI brain of a family management app.
+            Current state:
+            - Inventory: $inventoryStr
+            - Expiring soon (≤3 days): ${expiringSoon.joinToString(", ") { it.itemName }}
+            - Low stock: ${lowStockItems.joinToString(", ") { it.itemName }}
+            - Recent transactions: $txStr
+            - Pharmacy/medications: ${pharmacyStr.ifBlank { "none tracked" }}
+
+            Low-stock and expiring-soon items are ALREADY handled automatically (added to the
+            shopping list / notified) — do not repeat that decision. Medication stock deduction
+            on dose-taken is also already automatic — do not issue DEDUCT_PHARMACY_STOCK here for
+            routine doses. Only decide on things a fixed rule can't judge:
+            - If spending looks unusual compared to normal, alert the family (NOTIFY_FAMILY)
+            - If a genuinely creative meal suggestion fits the inventory, propose one (SUGGEST_MEAL)
+            - If a budget concern needs nuanced, non-generic phrasing, raise it (ALERT_BUDGET)
+            - If nothing meets this bar, return empty actions
+
+            Return ONLY valid JSON: {"actions":[{"type":"SUGGEST_MEAL|ALERT_BUDGET|NOTIFY_FAMILY","payload":"...","reason":"Arabic reason"}]}
+        """.trimIndent()
+
+        val jsonResponse = ZadAiRepository.brainEvaluate(sysPrompt, "Analyze and act based on current state.") ?: return
+        val cleanJson = extractJsonBlock(jsonResponse)
+        try {
+            val actionList = Json { ignoreUnknownKeys = true }.decodeFromString<AiActionList>(cleanJson)
+            actionList.actions.forEach { executeAiAction(it, context) }
+        } catch (e: Exception) {
+            Log.e(TAG, "runAiProactiveActions: failed to parse AI actions: ${e.message}")
+        }
+    }
+
+    private suspend fun executeAiAction(action: AiAction, context: Context) {
+        Log.d(TAG, "executeAiAction: ${action.type} - ${action.payload}")
+        when (action.type) {
+            "ADD_TO_SHOPPING" -> {
+                try {
+                    SupabaseRepo.addShoppingItem(ZadShoppingItem(itemName = action.payload, quantity = 1, priority = "medium"))
+                } catch (e: Exception) {
+                    Log.e(TAG, "ADD_TO_SHOPPING failed: ${e.message}")
+                }
+            }
+            "SUGGEST_MEAL" -> {
+                ZadNotifier.send(context, "🍽️ اقتراح وجبة", action.payload)
+                val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
+                if (userId != null) SupabaseRepo.sendAppNotification(userId, "🍽️ اقتراح وجبة", action.payload)
+            }
+            "ALERT_BUDGET" -> {
+                ZadNotifier.send(context, "⚠️ تنبيه ميزانية", action.payload, androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+                val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
+                if (userId != null) SupabaseRepo.sendAppNotification(userId, "⚠️ تنبيه ميزانية", action.payload)
+            }
+            "NOTIFY_FAMILY" -> {
+                val familyId = SupabaseRepo.getMyFamilyMember()?.familyId
+                if (familyId != null) {
+                    SupabaseRepo.sendMessage(familyId, "zad_ai", action.payload)
+                } else {
+                    Log.w(TAG, "NOTIFY_FAMILY skipped: user has no family")
+                }
+            }
+            "DEDUCT_PHARMACY_STOCK" -> {
+                // payload = medication name (the LLM only ever sees names, never DB ids)
+                val dao = com.example.data.local.ZadDatabase.getDatabase(context).zadDao()
+                val item = dao.getAllPharmacyItemsOnce().find { it.name.contains(action.payload, ignoreCase = true) }
+                if (item != null) {
+                    markPharmacyDoseTaken(context, item.id)
+                } else {
+                    Log.w(TAG, "DEDUCT_PHARMACY_STOCK: no pharmacy item matching '${action.payload}'")
+                }
+            }
+            "TRIGGER_PHARMACY_ALARM" -> {
+                // payload = medication name — an ad-hoc one-off reminder from a chat/voice
+                // request ("ذكرني بعد ساعة"), not the recurring per-dose alarms which are
+                // already fully scheduled deterministically by PharmacyReminderScheduler.
+                val dao = com.example.data.local.ZadDatabase.getDatabase(context).zadDao()
+                val item = dao.getAllPharmacyItemsOnce().find { it.name.contains(action.payload, ignoreCase = true) }
+                if (item != null) {
+                    PharmacyReminderScheduler.scheduleSnooze(context, item.id, item.name, "voice_reminder", minutesFromNow = 60)
+                } else {
+                    Log.w(TAG, "TRIGGER_PHARMACY_ALARM: no pharmacy item matching '${action.payload}'")
+                }
+            }
+            else -> Log.w(TAG, "executeAiAction: unknown action ${action.type}")
+        }
+    }
+
+    private fun extractJsonBlock(text: String): String {
+        val start = text.indexOf("{")
+        val end = text.lastIndexOf("}")
+        return if (start != -1 && end != -1 && end >= start) text.substring(start, end + 1) else text
     }
 
     suspend fun quickHealthCheck(inventory: List<ZadInventory>): List<String> {

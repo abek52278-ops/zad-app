@@ -8,6 +8,7 @@ import androidx.work.WorkerParameters
 import com.example.data.ZadAiRepository
 import com.example.data.ZadCentralBrain
 import com.example.data.ZadNotifier
+import com.example.data.buildZadFamilyState
 import com.example.data.local.ZadDatabase
 import kotlinx.coroutines.flow.first
 
@@ -20,7 +21,12 @@ class PeriodicAnalysisWorker(
         Log.d("ZadWorker", "PeriodicAnalysisWorker started!")
         try {
             val dao = ZadDatabase.getDatabase(applicationContext).zadDao()
-            val inventory = dao.getAllInventory().first()
+            // ZadFamilyState covers inventory+pharmacy (its documented single-source-of-truth
+            // scope) — subscriptions/behaviorPatterns aren't part of its schema (see
+            // FamilyState.kt), so those two still come from the DAO directly.
+            val familyState = buildZadFamilyState(dao, applicationContext)
+            val inventory = familyState.inventory.items
+            val pharmacyItems = familyState.pharmacy.activeMeds
             val transactions = dao.getAllTransactions().first()
             val subscriptions = dao.getAllSubscriptions().first()
             val behaviorPatterns = dao.getBehaviorPatterns()
@@ -37,7 +43,8 @@ class PeriodicAnalysisWorker(
                 subscriptions = subscriptions,
                 shoppingList = emptyList(),
                 behaviorPatterns = behaviorPatterns,
-                budget = budget
+                budget = budget,
+                pharmacyItems = pharmacyItems
             )
 
             // Send smart notifications
@@ -65,13 +72,6 @@ class PeriodicAnalysisWorker(
                     val insight = insights.random()
                     showNotification(insight.title, insight.description)
                 }
-            }
-
-            // Run legacy brain engine for compatibility
-            try {
-                com.example.data.ZadBrainEngine.evaluateStateAndAct(inventory, transactions, context = applicationContext)
-            } catch (e: Exception) {
-                Log.e("ZadWorker", "Legacy brain engine failed: ${e.message}")
             }
 
             if (brainResult.autoActions.isNotEmpty()) {

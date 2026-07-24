@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.data.SupabaseRepo
+import com.example.data.SyncOutbox
 import com.example.data.local.ZadDatabase
 
 /**
@@ -21,6 +22,11 @@ class TransactionSyncWorker(
     override suspend fun doWork(): Result {
         Log.d(TAG, "TransactionSyncWorker started")
         return try {
+            // Push queued offline writes before pulling — a pending outbox entry represents
+            // data that already exists locally and just failed its Supabase push earlier
+            // (see SyncOutbox), so it should land before this same run reconciles from remote.
+            SyncOutbox.flush(applicationContext)
+
             val dao = ZadDatabase.getDatabase(applicationContext).zadDao()
 
             val remoteTransactions = SupabaseRepo.getTransactions()
