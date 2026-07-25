@@ -3,6 +3,7 @@ name: Build Debug APK
 on:
   push:
     branches: [main, feat/ui-redesign]
+  pull_request:
   workflow_dispatch: {}
 
 jobs:
@@ -46,6 +47,24 @@ jobs:
           name: unit-test-results
           path: app/build/reports/tests/testDebugUnitTest/
           retention-days: 30
+
+      - name: Lint
+        run: ./gradlew lintDebug --no-daemon
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-debug.html
+          retention-days: 30
+
+      - name: Check dependency alignment
+        run: |
+          ./gradlew app:dependencies --configuration debugRuntimeClasspath --no-daemon > deps.txt
+          if grep -qE "io\.ktor.*:2\." deps.txt; then
+            echo "::error::Ktor 2.x resolved alongside supabase 3.x"; exit 1
+          fi
 
       - name: Build debug APK
         run: ./gradlew assembleDebug --no-daemon
