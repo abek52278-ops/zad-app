@@ -124,6 +124,23 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val _appNotifications = MutableStateFlow<List<AppNotification>>(emptyList())
     val appNotifications: StateFlow<List<AppNotification>> = _appNotifications.asStateFlow()
 
+    // Task 9 — ZadFacts: pure-Kotlin numbers (health score, spending power, resilience,
+    // monthly spend, consumption trend, budget remaining, category breakdown), recomputed
+    // whenever transactions/inventory change so Home can show real numbers, not shells.
+    private val _zadFacts = MutableStateFlow<com.zad.agent.ZadFacts?>(null)
+    val zadFacts: StateFlow<com.zad.agent.ZadFacts?> = _zadFacts.asStateFlow()
+
+    private suspend fun refreshZadFacts(inv: List<ZadInventory> = _inventory.value, txs: List<ZadTransaction> = _transactions.value) {
+        _zadFacts.value = com.zad.agent.computeZadFacts(
+            context = getApplication(),
+            inventory = inv,
+            transactions = txs,
+            subscriptions = _subscriptions.value,
+            budget = _budget.value,
+            emergencyFund = _emergencyFund.value
+        )
+    }
+
     // AI Chat
     private val _aiChatMessages = MutableStateFlow<List<AiChatMessage>>(
         listOf(AiChatMessage(id = "init", text = "أهلاً بك! أنا زاد 🤖، مساعدك العائلي الذكي. كيف يمكنني مساعدتك اليوم؟\nيمكنك سؤالي عن الوصفات، أو مراجعة ثلاجتك، أو إضافة نواقص للتسوق!", isUser = false))
@@ -154,6 +171,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 _insights.value = baseInsights
                 analyzeSubscriptionUsage(_subscriptions.value)
                 analyzeBudgetOverruns(txs)
+                refreshZadFacts(txs = txs)
             }
         }
         viewModelScope.launch {
@@ -194,6 +212,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 _insights.value = baseInsights
                 analyzeSubscriptionUsage(_subscriptions.value)
                 analyzeBudgetOverruns(_transactions.value)
+                refreshZadFacts(inv = inv)
             }
         }
         viewModelScope.launch {
@@ -215,7 +234,15 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 _pharmacyItems.value = items
                 recalculateMonthlyPharmaCost(items)
                 try {
-                    com.example.data.PharmacyReminderScheduler.rescheduleAll(getApplication(), items)
+                    val invalidIds = com.example.data.PharmacyReminderScheduler.rescheduleAll(getApplication(), items).toSet()
+                    // Task 17.2.3 — flip the flag both ways: newly-malformed items get flagged,
+                    // previously-flagged items whose dose_times got fixed get un-flagged.
+                    items.forEach { item ->
+                        val shouldBeInvalid = item.id in invalidIds
+                        if (item.hasInvalidDoseTime != shouldBeInvalid) {
+                            SupabaseRepo.flagInvalidDoseTime(item.id, shouldBeInvalid)
+                        }
+                    }
                 } catch (e: Exception) {
                     Log.e(TAG, "PharmacyReminderScheduler.rescheduleAll() FAILED: ${e.message}")
                 }
@@ -641,6 +668,14 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 _aiChatMessages.value = _aiChatMessages.value + aiMsg
                 persistChatMessage(aiMsg)
+
+                // zad-brain's own header comment says it runs "on a schedule and on debounced
+                // events/chat" — the chat path never actually fired it. This is fire-and-forget
+                // (own launch, not awaited) so the visible chat reply above stays fast; the
+                // brain reasons in the background afterward, same as the daily/event triggers.
+                if (response != null) {
+                    triggerBrainEvent(userText, trigger = "chat")
+                }
             } catch(e: Exception) {
                 val errMsg = AiChatMessage(text = "حدث خطأ غير متوقع.", isUser = false)
                 _aiChatMessages.value = _aiChatMessages.value + errMsg
@@ -669,6 +704,96 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 if (it.id == id) it.copy(isRead = true) else it
             }
             _appNotifications.value = updated
+        }
+    }
+
+    // zad-brain's emit_insight action has written to zad_insights since it shipped,
+    // but nothing ever read the table back — every insight/alert the brain produced
+    // was invisible to the user. This is the read side: Home shows surface=home_card,
+    // the bell merges in surface=bell, and surface=voice gets spoken once via TTS.
+    private val _zadInsights = MutableStateFlow<List<com.example.data.ZadInsight>>(emptyList())
+    val zadInsights: StateFlow<List<com.example.data.ZadInsight>> = _zadInsights.asStateFlow()
+    private var insightsTts: android.speech.tts.TextToSpeech? = null
+
+    fun loadZadInsights() {
+        viewModelScope.launch {
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return@launch
+            val fresh = SupabaseRepo.getPendingInsights(userId)
+            val alreadyKnown = _zadInsights.value.map { it.id }.toSet()
+            _zadInsights.value = fresh
+            fresh.filter { it.surface == "voice" && it.id !in alreadyKnown }.forEach { insight ->
+                speakInsight(insight)
+                SupabaseRepo.updateInsightStatus(insight.id, "seen")
+            }
+        }
+    }
+
+    private fun speakInsight(insight: com.example.data.ZadInsight) {
+        val ctx = getApplication<Application>()
+        if (insightsTts == null) {
+            insightsTts = android.speech.tts.TextToSpeech(ctx) { status ->
+                if (status == android.speech.tts.TextToSpeech.SUCCESS) {
+                    insightsTts?.language = java.util.Locale("ar")
+                    insightsTts?.speak(
+                        insight.body.ifBlank { insight.title },
+                        if (insight.priority == "critical") android.speech.tts.TextToSpeech.QUEUE_FLUSH else android.speech.tts.TextToSpeech.QUEUE_ADD,
+                        null, insight.id
+                    )
+                }
+            }
+        } else {
+            insightsTts?.speak(
+                insight.body.ifBlank { insight.title },
+                if (insight.priority == "critical") android.speech.tts.TextToSpeech.QUEUE_FLUSH else android.speech.tts.TextToSpeech.QUEUE_ADD,
+                null, insight.id
+            )
+        }
+    }
+
+    fun dismissInsight(id: String) {
+        viewModelScope.launch {
+            SupabaseRepo.updateInsightStatus(id, "dismissed")
+            _zadInsights.value = _zadInsights.value.filterNot { it.id == id }
+        }
+    }
+
+    /**
+     * Closes the loop the brain's own ask_user tool opens: zad-brain could already ask
+     * "فاضل قد إيه من الدوا؟" (Task 17.2.4) but nothing in the app could answer it — the
+     * Home/bell cards only had a dismiss button. This routes the answer back through the
+     * brain itself (trigger="event" with the Q+A as user_message) rather than the client
+     * guessing which table/tool applies — same validated tool pipeline as everything else,
+     * consistent with "no screen ever calls an LLM for a data decision, the brain decides".
+     */
+    fun answerBrainQuestion(insight: com.example.data.ZadInsight, answerText: String) {
+        viewModelScope.launch {
+            SupabaseRepo.updateInsightStatus(insight.id, "acted")
+            _zadInsights.value = _zadInsights.value.filterNot { it.id == insight.id }
+            val context = buildString {
+                append("العميل جاوب على سؤال: \"${insight.title} — ${insight.body}\"")
+                insight.aboutItem?.let { append(" (بخصوص: $it)") }
+                append(". الإجابة: $answerText")
+            }
+            triggerBrainEvent(context)
+        }
+    }
+
+    // Real-time event trigger for zad-brain (trigger="event"), for moments that
+    // shouldn't wait for the next daily run — e.g. a nearby store actually stocking
+    // something the user is low on. Reuses the same brain/zad_insights pipeline as
+    // the daily run, then reloads insights so a fresh alert can show immediately.
+    fun triggerBrainEvent(userMessage: String, trigger: String = "event") {
+        viewModelScope.launch {
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return@launch
+            try {
+                SupabaseRepo.callEdgeFunction(
+                    "zad-brain",
+                    mapOf("user_id" to userId, "trigger" to trigger, "user_message" to userMessage)
+                )
+                loadZadInsights()
+            } catch (e: Exception) {
+                Log.e(TAG, "triggerBrainEvent() FAILED: ${e.message}")
+            }
         }
     }
 
@@ -1334,6 +1459,38 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      * _pharmacyItems collector (see init) picks up the resulting DB write automatically — no
      * manual StateFlow update needed here.
      */
+    /**
+     * Task 17.2.2 — the pharmacy screen's dose button(s), routed through the single
+     * markPharmacyDoseTaken() implementation instead of calling updatePharmacyQuantity()
+     * directly (that bypass ignored unitsPerDose and never logged history — see PharmacyScreen).
+     * scheduledAt = PharmacyReminderScheduler.canonicalScheduledAt(time) for a specific
+     * scheduled/retroactive slot, or null for an ad-hoc "took it" with no specific time.
+     */
+    fun consumePharmacyDose(itemId: String, scheduledAt: String? = null) {
+        viewModelScope.launch {
+            com.example.data.ZadCentralBrain.markPharmacyDoseTaken(getApplication(), itemId, scheduledAt = scheduledAt)
+        }
+    }
+
+    /** "فاضل قد إيه فعلاً؟" — resyncs drifted remaining_quantity without delete+re-add. */
+    fun confirmPharmacyQuantity(itemId: String, quantity: Int) {
+        viewModelScope.launch {
+            val updated = _pharmacyItems.value.map { if (it.id == itemId) it.copy(remainingQuantity = quantity) else it }
+            _pharmacyItems.value = updated
+            updated.find { it.id == itemId }?.let { dao.insertPharmacyItem(it) }
+            SupabaseRepo.confirmPharmacyQuantity(itemId, quantity)
+        }
+    }
+
+    fun setPharmacyUnitsPerDose(itemId: String, unitsPerDose: Double) {
+        viewModelScope.launch {
+            val updated = _pharmacyItems.value.map { if (it.id == itemId) it.copy(unitsPerDose = unitsPerDose) else it }
+            _pharmacyItems.value = updated
+            updated.find { it.id == itemId }?.let { dao.insertPharmacyItem(it) }
+            SupabaseRepo.setPharmacyUnitsPerDose(itemId, unitsPerDose)
+        }
+    }
+
     fun markPharmacyDoseTakenByName(spokenName: String): Boolean {
         val item = _pharmacyItems.value.find { it.name.contains(spokenName, ignoreCase = true) || spokenName.contains(it.name, ignoreCase = true) }
         if (item == null) {

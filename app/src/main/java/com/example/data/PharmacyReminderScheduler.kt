@@ -34,23 +34,30 @@ object PharmacyReminderScheduler {
         return alarmManager.canScheduleExactAlarms()
     }
 
-    /** بيعيد مزامنة كل المنبهات مع القائمة الحالية للأدوية — بيلغي القديم اللي مبقاش موجود */
-    fun rescheduleAll(context: Context, items: List<ZadPharmacyItem>) {
+    /**
+     * بيعيد مزامنة كل المنبهات مع القائمة الحالية للأدوية — بيلغي القديم اللي مبقاش موجود.
+     * Task 17.2.3 — returns item ids that had at least one dose_time entry the scheduler
+     * couldn't parse, so the caller can flag it (has_invalid_dose_time) instead of the old
+     * behavior of silently dropping that one dose time with no trace anywhere.
+     */
+    fun rescheduleAll(context: Context, items: List<ZadPharmacyItem>): List<String> {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         if (!canScheduleExact(context)) {
             Log.w(TAG, "rescheduleAll() → SCHEDULE_EXACT_ALARM not granted, skipping")
-            return
+            return emptyList()
         }
 
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val previousKeys = prefs.getStringSet(KEY_SCHEDULED, emptySet()) ?: emptySet()
         val newKeys = mutableSetOf<String>()
+        val invalidItemIds = mutableListOf<String>()
 
         items.forEach { item ->
             item.doseTimesList().forEach { timeStr ->
                 val key = keyFor(item.id, timeStr)
                 newKeys.add(key)
-                scheduleOne(context, alarmManager, item.id, item.name, timeStr)
+                val ok = scheduleOne(context, alarmManager, item.id, item.name, timeStr)
+                if (!ok) invalidItemIds.add(item.id)
             }
         }
 
@@ -59,7 +66,8 @@ object PharmacyReminderScheduler {
         }
 
         prefs.edit().putStringSet(KEY_SCHEDULED, newKeys).apply()
-        Log.d(TAG, "rescheduleAll() → scheduled=${newKeys.size}, cancelled=${(previousKeys - newKeys).size}")
+        Log.d(TAG, "rescheduleAll() → scheduled=${newKeys.size}, cancelled=${(previousKeys - newKeys).size}, invalid=${invalidItemIds.size}")
+        return invalidItemIds
     }
 
     /** بيعيد جدولة جرعة واحدة لبكرة نفس الميعاد — بيتنادى من الـ receiver بعد كل تنبيه يطلق */
@@ -81,6 +89,7 @@ object PharmacyReminderScheduler {
         }
     }
 
+    /** @return false if timeStr couldn't be parsed (nothing was scheduled for it) */
     private fun scheduleOne(
         context: Context,
         alarmManager: AlarmManager,
@@ -88,12 +97,12 @@ object PharmacyReminderScheduler {
         itemName: String,
         timeStr: String,
         forceNextDay: Boolean = false
-    ) {
+    ): Boolean {
         val time = try {
             LocalTime.parse(if (timeStr.length == 5) timeStr else timeStr.padStart(5, '0'))
         } catch (e: DateTimeParseException) {
             Log.w(TAG, "scheduleOne() → invalid time format: $timeStr")
-            return
+            return false
         }
         val now = LocalDateTime.now()
         var trigger = LocalDateTime.of(now.toLocalDate(), time)
@@ -101,10 +110,12 @@ object PharmacyReminderScheduler {
         val triggerAtMillis = trigger.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
         val pendingIntent = buildPendingIntent(context, itemId, itemName, timeStr)
-        try {
+        return try {
             alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+            true
         } catch (e: SecurityException) {
             Log.e(TAG, "scheduleOne() FAILED (permission revoked mid-flight?): ${e.message}")
+            true // parsed fine, just couldn't schedule — not a "malformed dose_time" case
         }
     }
 
@@ -127,6 +138,22 @@ object PharmacyReminderScheduler {
             context, requestCodeFor(itemId, timeStr), intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+    }
+
+    /**
+     * The shared dedupe key for a dose slot (Task 17.2.2): today's date + the HH:mm from
+     * dose_times, in the device's local zone, converted to an instant. Both the fired-alarm
+     * notification path and the pharmacy-screen per-time-slot button compute the SAME value
+     * for "today's 08:00 dose", so the zad_pharmacy_doses unique index actually catches a
+     * double-tap instead of two calls each minting their own near-but-not-identical timestamp.
+     */
+    fun canonicalScheduledAt(timeStr: String, date: LocalDate = LocalDate.now()): String? {
+        val time = try {
+            LocalTime.parse(if (timeStr.length == 5) timeStr else timeStr.padStart(5, '0'))
+        } catch (e: DateTimeParseException) {
+            return null
+        }
+        return LocalDateTime.of(date, time).atZone(ZoneId.systemDefault()).toInstant().toString()
     }
 
     private fun keyFor(itemId: String, timeStr: String) = "$itemId::$timeStr"

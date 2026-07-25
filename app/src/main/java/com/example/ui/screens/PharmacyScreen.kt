@@ -48,6 +48,17 @@ import java.time.temporal.ChronoUnit
 
 private val PHARMACY_CATEGORIES = listOf("عام", "مسكن", "مضاد حيوي", "فيتامين", "مزمن")
 
+/** Task 17.2.3 — validate at entry, not just when the scheduler reads it back later. */
+private fun isValidDoseTimesInput(raw: String): Boolean {
+    if (raw.isBlank()) return true
+    return raw.split(",").map { it.trim() }.filter { it.isNotBlank() }.all { t ->
+        try {
+            java.time.LocalTime.parse(if (t.length == 5) t else t.padStart(5, '0'))
+            true
+        } catch (e: Exception) { false }
+    }
+}
+
 /** مواعيد افتراضية مقترحة لو المستخدم سايب حقل المواعيد فاضي — موزّعة على ساعات الصحيان (8ص-10م) */
 private fun suggestDoseTimes(dailyDoseCount: Int): String {
     if (dailyDoseCount <= 0) return ""
@@ -295,11 +306,13 @@ fun PharmacyScreen(
                                 item = item,
                                 daysUntilExpiry = daysUntilExpiry(item),
                                 familyMemberName = familyMembers.find { it.id == item.familyMemberId }?.alias,
-                                onConsumeDose = {
-                                    if (item.remainingQuantity > 0) {
-                                        viewModel.updatePharmacyQuantity(item.id, item.remainingQuantity - 1)
-                                    }
+                                onConsumeDose = { scheduledAt ->
+                                    // Task 17.2.2 — used to call updatePharmacyQuantity() directly,
+                                    // a THIRD path bypassing markPharmacyDoseTaken() entirely: no
+                                    // history, always -1 regardless of unitsPerDose, no dedupe.
+                                    viewModel.consumePharmacyDose(item.id, scheduledAt)
                                 },
+                                onConfirmQuantity = { qty -> viewModel.confirmPharmacyQuantity(item.id, qty) },
                                 onRefill = { refillTarget = item },
                                 onDelete = { viewModel.deletePharmacyItem(item.id) }
                             )
@@ -378,10 +391,12 @@ private fun PharmacyItemCard(
     item: ZadPharmacyItem,
     daysUntilExpiry: Int?,
     familyMemberName: String?,
-    onConsumeDose: () -> Unit,
+    onConsumeDose: (String?) -> Unit,
+    onConfirmQuantity: (Int) -> Unit,
     onRefill: () -> Unit,
     onDelete: () -> Unit
 ) {
+    var showConfirmDialog by remember(item.id) { mutableStateOf(false) }
     val supplyDays = item.daysOfSupplyLeft()
     val isExpired = daysUntilExpiry != null && daysUntilExpiry < 0
     val isExpiringSoon = daysUntilExpiry != null && daysUntilExpiry in 0..30
@@ -437,6 +452,14 @@ private fun PharmacyItemCard(
                         }
                     }
                 }
+                if (item.hasInvalidDoseTime) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.WarningAmber, contentDescription = null, tint = dangerColor, modifier = Modifier.size(12.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("وقت جرعة مش مفهوم — عدّله", style = Typography.labelSmall, color = dangerColor, fontSize = 10.sp)
+                    }
+                }
                 Spacer(modifier = Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(statusColor.copy(alpha = 0.14f)).padding(horizontal = 8.dp, vertical = 3.dp)) {
@@ -457,13 +480,44 @@ private fun PharmacyItemCard(
                                 style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 11.sp
                             )
                         }
+                    } else if (!isExpired && !item.dosage.isNullOrBlank()) {
+                        // Task 17.2.1 — never show a guessed days-left number. unitsPerDose is
+                        // unknown for this item (free-text dosage was never confidently parsed),
+                        // so this is an honest "we don't know" the user can resolve in one tap.
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(warningColor.copy(alpha = 0.14f))
+                                .clickable { showConfirmDialog = true }
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text("الكمية محتاجة تأكيد", style = Typography.labelSmall, color = warningColor, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
+                // Task 17.2.2 — one button per scheduled dose time today instead of a single
+                // generic "consume" button, so a specific time can be marked/retroactively
+                // logged (and canonicalScheduledAt gives each slot a stable dedupe key, so
+                // tapping this AND the notification's "Taken" for the same slot only counts once).
+                val doseTimes = item.doseTimesList()
+                if (doseTimes.isNotEmpty() && item.remainingQuantity > 0) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        doseTimes.forEach { time ->
+                            OutlinedButton(
+                                onClick = { onConsumeDose(com.example.data.PharmacyReminderScheduler.canonicalScheduledAt(time)) },
+                                modifier = Modifier.height(28.dp).pressableScale(),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                            ) {
+                                Text(time, style = Typography.labelSmall)
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (item.remainingQuantity > 0) {
+                    if (item.remainingQuantity > 0 && doseTimes.isEmpty()) {
                         OutlinedButton(
-                            onClick = onConsumeDose,
+                            onClick = { onConsumeDose(null) },
                             modifier = Modifier.height(30.dp).pressableScale(),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                         ) {
@@ -479,10 +533,55 @@ private fun PharmacyItemCard(
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(stringResource(R.string.renew_order_action), style = Typography.labelSmall)
                     }
+                    TextButton(
+                        onClick = { showConfirmDialog = true },
+                        modifier = Modifier.height(30.dp).pressableScale(),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    ) {
+                        Text("فاضل قد إيه فعلاً؟", style = Typography.labelSmall, color = onSurfaceVariant)
+                    }
                 }
             }
         }
     }
+
+    if (showConfirmDialog) {
+        ConfirmQuantityDialog(
+            item = item,
+            onDismiss = { showConfirmDialog = false },
+            onConfirm = { qty -> onConfirmQuantity(qty); showConfirmDialog = false }
+        )
+    }
+}
+
+/** Task 17.2.2 — manual resync: counts drift no matter how good the logging is, so there
+ * must be a way to fix remaining_quantity directly without deleting/re-adding the medication. */
+@Composable
+private fun ConfirmQuantityDialog(item: ZadPharmacyItem, onDismiss: () -> Unit, onConfirm: (Int) -> Unit) {
+    var text by remember { mutableStateOf(item.remainingQuantity.toString()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("فاضل قد إيه فعلاً؟") },
+        text = {
+            Column {
+                Text("${item.name} — الكمية الحالية المسجلة: ${item.remainingQuantity} ${item.unit}", style = Typography.bodySmall, color = onSurfaceVariant)
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { if (it.all { c -> c.isDigit() }) text = it },
+                    label = { Text(item.unit) },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { text.toIntOrNull()?.let(onConfirm) }) { Text("تأكيد") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
+    )
 }
 
 @Composable
@@ -575,10 +674,18 @@ private fun AddPharmacyItemDialog(
                     OutlinedTextField(value = unit, onValueChange = { unit = it }, label = { Text(stringResource(R.string.unit_hint)) }, modifier = Modifier.weight(1f))
                 }
                 OutlinedTextField(value = dailyDoseCount, onValueChange = { dailyDoseCount = it }, label = { Text(stringResource(R.string.daily_dose_hint)) }, modifier = Modifier.fillMaxWidth())
+                // Task 17.2.3 — dose_times used to be validated only when the scheduler read
+                // it back, silently dropping a bad entry with no trace. Reject it at entry
+                // instead, so a typo like "2o:00" can't reach the scheduler at all.
+                val doseTimesValid = remember(doseTimes) { isValidDoseTimesInput(doseTimes) }
                 OutlinedTextField(
                     value = doseTimes, onValueChange = { doseTimes = it },
                     label = { Text(stringResource(R.string.dose_times_hint)) },
                     placeholder = { Text(suggestDoseTimes(dailyDoseCount.toIntOrNull() ?: 1).ifBlank { "08:00, 20:00" }) },
+                    isError = !doseTimesValid,
+                    supportingText = if (!doseTimesValid) {
+                        { Text("وقت مش مفهوم — استخدم صيغة HH:MM زي 08:00", color = dangerColor, style = Typography.labelSmall) }
+                    } else null,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(value = expiryDate, onValueChange = { expiryDate = it }, label = { Text(stringResource(R.string.expiry_date_hint)) }, modifier = Modifier.fillMaxWidth())
@@ -622,7 +729,8 @@ private fun AddPharmacyItemDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    if (name.isNotBlank()) {
+                    val finalDoseTimes = doseTimes.ifBlank { suggestDoseTimes(dailyDoseCount.toIntOrNull() ?: 1).ifBlank { null } }
+                    if (name.isNotBlank() && isValidDoseTimesInput(doseTimes)) {
                         onSave(
                             ZadPharmacyItem(
                                 name = name,
@@ -632,7 +740,7 @@ private fun AddPharmacyItemDialog(
                                 remainingQuantity = quantity.toIntOrNull() ?: 1,
                                 unit = unit.ifBlank { "قرص" },
                                 dailyDoseCount = dailyDoseCount.toIntOrNull() ?: 1,
-                                doseTimes = doseTimes.ifBlank { suggestDoseTimes(dailyDoseCount.toIntOrNull() ?: 1).ifBlank { null } },
+                                doseTimes = finalDoseTimes,
                                 expiryDate = expiryDate.ifBlank { null },
                                 price = price.toDoubleOrNull() ?: 0.0,
                                 isRecurring = isRecurring,
@@ -641,6 +749,7 @@ private fun AddPharmacyItemDialog(
                         )
                     }
                 },
+                enabled = isValidDoseTimesInput(doseTimes),
                 modifier = Modifier.pressableScale(),
                 shape = RoundedCornerShape(50)
             ) { Text(stringResource(R.string.save)) }

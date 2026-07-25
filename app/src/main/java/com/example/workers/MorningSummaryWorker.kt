@@ -15,6 +15,7 @@ import com.example.data.BudgetTracker
 import com.example.data.ConsumptionLearner
 import com.example.data.ZadCentralBrain
 import com.example.data.local.ZadDatabase
+import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -76,6 +77,24 @@ class MorningSummaryWorker(
 
             showNotification("$greeting ملخص زاد اليومي", body)
             Log.d("ZadMorningWorker", "Morning summary sent — score=${report.healthScore}")
+
+            // zad-brain (the server-side "brain" that emits insights to zad_insights,
+            // read on Home/bell/voice) was fully built and deployed but never actually
+            // invoked from the app — no cron, no client call, nothing. This daily worker
+            // already runs once a day, so it's the natural place to trigger a real run.
+            try {
+                val userId = com.example.data.SupabaseRepo.client.auth.currentUserOrNull()?.id
+                if (userId != null) {
+                    com.example.data.SupabaseRepo.callEdgeFunction(
+                        "zad-brain",
+                        mapOf("user_id" to userId, "trigger" to "daily")
+                    )
+                    Log.d("ZadMorningWorker", "zad-brain daily run triggered")
+                }
+            } catch (e: Exception) {
+                Log.e("ZadMorningWorker", "zad-brain trigger failed: ${e.message}")
+            }
+
             return Result.success()
         } catch (e: Exception) {
             Log.e("ZadMorningWorker", "Morning summary failed", e)

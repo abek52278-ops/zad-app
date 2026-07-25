@@ -45,8 +45,12 @@ fun NotificationCenterScreen(
     val context = LocalContext.current
     val insights by viewModel.insights.collectAsState()
     val notifications by viewModel.appNotifications.collectAsState()
+    val zadInsights by viewModel.zadInsights.collectAsState()
     val alertInsights = insights.filter { it.type == "Alert" }
-    val unreadCount = notifications.count { !it.isRead }
+    // zad-brain's emit_insight(surface="bell") output — was written to zad_insights
+    // and never surfaced anywhere; this is its bell-side home now.
+    val brainAlerts = zadInsights.filter { it.surface == "bell" }
+    val unreadCount = notifications.count { !it.isRead } + brainAlerts.size
 
     var tts: TextToSpeech? by remember { mutableStateOf(null) }
     DisposableEffect(Unit) {
@@ -61,11 +65,13 @@ fun NotificationCenterScreen(
     LaunchedEffect(Unit) {
         Log.d(TAG_NOTIF, "NotificationCenterScreen loaded — refreshing notifications")
         viewModel.loadNotifications()
+        viewModel.loadZadInsights()
     }
 
     fun readAloud() {
         val spoken = buildList {
             alertInsights.forEach { add("${it.title}. ${it.description}") }
+            brainAlerts.forEach { add("${it.title}. ${it.body}") }
             notifications.filter { !it.isRead }.sortedByDescending { it.createdAt }.forEach { add("${it.title}. ${it.message}") }
         }
         if (spoken.isEmpty()) {
@@ -101,7 +107,7 @@ fun NotificationCenterScreen(
             )
         }
     ) { padding ->
-        if (alertInsights.isEmpty() && notifications.isEmpty()) {
+        if (alertInsights.isEmpty() && notifications.isEmpty() && brainAlerts.isEmpty()) {
             com.example.ui.components.ZadEmptyState(
                 icon = Icons.Default.NotificationsNone,
                 title = stringResource(R.string.no_notifications_yet),
@@ -129,6 +135,32 @@ fun NotificationCenterScreen(
                         isRead = true,
                         onClick = {}
                     )
+                }
+                item { Spacer(Modifier.height(20.dp)) }
+            }
+
+            if (brainAlerts.isNotEmpty()) {
+                item {
+                    Text("تنبيهات عقل زاد", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = primary)
+                    Spacer(Modifier.height(8.dp))
+                }
+                items(brainAlerts) { alert ->
+                    if (alert.kind == "question") {
+                        com.example.ui.widgets.ZadQuestionCard(
+                            insight = alert,
+                            onAnswer = { answer -> viewModel.answerBrainQuestion(alert, answer) },
+                            onDismiss = { viewModel.dismissInsight(alert.id) }
+                        )
+                    } else {
+                        NotificationCard(
+                            title = alert.title,
+                            message = alert.body,
+                            icon = if (alert.priority == "critical") Icons.Default.Warning else Icons.Default.AutoAwesome,
+                            color = if (alert.priority == "critical") dangerColor else primary,
+                            isRead = false,
+                            onClick = { viewModel.dismissInsight(alert.id) }
+                        )
+                    }
                 }
                 item { Spacer(Modifier.height(20.dp)) }
             }

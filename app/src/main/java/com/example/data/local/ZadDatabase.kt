@@ -25,7 +25,7 @@ import androidx.room.TypeConverters
     com.example.data.ZadDoseLog::class,
     com.example.data.PendingSyncOp::class,
     com.example.data.RejectedBankMessage::class
-], version = 11, exportSchema = false)
+], version = 12, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class ZadDatabase : RoomDatabase() {
     abstract fun zadDao(): ZadDao

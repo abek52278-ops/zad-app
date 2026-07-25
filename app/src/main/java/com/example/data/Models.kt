@@ -188,14 +188,38 @@ data class ZadPharmacyItem(
     val price: Double = 0.0,
     @SerialName("is_recurring") val isRecurring: Boolean = false, // دواء مزمن/روشتة متجددة — يدخل في حساب التكلفة الشهرية
     @SerialName("family_member_id") val familyMemberId: String? = null,
-    @SerialName("created_at") val createdAt: String? = null
+    @SerialName("created_at") val createdAt: String? = null,
+    // Task 17.2.1 — nullable, NO default. remaining_quantity / daily_dose_count silently
+    // assumed one dose = one unit; defaulting this to 1 would make the same wrong guess
+    // just one layer deeper. null means "we genuinely don't know" — see daysOfSupplyLeft().
+    @SerialName("units_per_dose") val unitsPerDose: Double? = null,
+    @SerialName("qty_confirmed_at") val qtyConfirmedAt: String? = null,
+    @SerialName("has_invalid_dose_time") val hasInvalidDoseTime: Boolean = false
 ) {
-    /** كام يوم يكفي المخزون الحالي بمعدل الاستهلاك اليومي — null لو مفيش معدل استهلاك محدد */
-    fun daysOfSupplyLeft(): Int? =
-        if (dailyDoseCount > 0) remainingQuantity / dailyDoseCount else null
+    /** كام يوم يكفي المخزون الحالي — null لو unitsPerDose مش معروف، مش رقم مخمّن أبداً */
+    fun daysOfSupplyLeft(): Int? {
+        val perDose = unitsPerDose
+        if (perDose == null || perDose <= 0.0 || dailyDoseCount <= 0) return null
+        return kotlin.math.floor(remainingQuantity / (perDose * dailyDoseCount)).toInt()
+    }
 
     fun doseTimesList(): List<String> = doseTimes?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
 }
+
+// Task 17.2.2 — per-dose history record (zad_pharmacy_doses). The unique index on
+// (user_id, item_id, scheduled_at) is what makes logging the same scheduled dose twice
+// (notification tap + screen tap) a safe no-op instead of a double stock deduction.
+@Serializable
+data class ZadPharmacyDose(
+    val id: String = UUID.randomUUID().toString(),
+    @SerialName("user_id") val userId: String? = null,
+    @SerialName("item_id") val itemId: String,
+    @SerialName("scheduled_at") val scheduledAt: String? = null,
+    @SerialName("taken_at") val takenAt: String? = null,
+    val status: String, // taken | skipped | missed
+    val units: Double = 1.0,
+    @SerialName("created_at") val createdAt: String? = null
+)
 
 @Entity(tableName = "zad_dose_log")
 @Serializable

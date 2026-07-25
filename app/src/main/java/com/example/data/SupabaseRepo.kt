@@ -7,6 +7,7 @@ import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.functions.Functions
 import io.github.jan.supabase.storage.Storage
@@ -494,6 +495,62 @@ object SupabaseRepo {
         } catch (e: Exception) {
             Log.e(TAG, "markDoseLogTaken() FAILED: ${e.message}")
             e.printStackTrace()
+        }
+    }
+
+    enum class DoseLogOutcome { INSERTED, DUPLICATE, FAILED }
+
+    // Task 17.2.2 — the unique index on (user_id, item_id, scheduled_at) is what makes
+    // tapping the notification button and the pharmacy-screen button for the SAME
+    // scheduled dose safe: the second insert violates the constraint instead of silently
+    // creating a second row, and the caller must NOT decrement stock again on DUPLICATE.
+    suspend fun insertPharmacyDose(dose: ZadPharmacyDose): DoseLogOutcome {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id
+            client.postgrest["zad_pharmacy_doses"].insert(dose.copy(userId = userId))
+            DoseLogOutcome.INSERTED
+        } catch (e: Exception) {
+            val msg = e.message ?: ""
+            if (msg.contains("23505") || msg.contains("duplicate key") || msg.contains("zad_doses_unique")) {
+                Log.d(TAG, "insertPharmacyDose() → duplicate, already logged for this scheduled dose")
+                DoseLogOutcome.DUPLICATE
+            } else {
+                Log.e(TAG, "insertPharmacyDose() FAILED: ${e.message}")
+                DoseLogOutcome.FAILED
+            }
+        }
+    }
+
+    /** "فاضل قد إيه فعلاً؟" — resyncs a drifted count without deleting/re-adding the medication. */
+    suspend fun confirmPharmacyQuantity(id: String, quantity: Int) {
+        try {
+            client.postgrest["zad_pharmacy_items"].update(
+                mapOf("remaining_quantity" to quantity, "qty_confirmed_at" to java.time.Instant.now().toString())
+            ) { filter { eq("id", id) } }
+            Log.d(TAG, "confirmPharmacyQuantity() SUCCESS — id=$id, qty=$quantity")
+        } catch (e: Exception) {
+            Log.e(TAG, "confirmPharmacyQuantity() FAILED: ${e.message}")
+        }
+    }
+
+    suspend fun setPharmacyUnitsPerDose(id: String, unitsPerDose: Double) {
+        try {
+            client.postgrest["zad_pharmacy_items"].update(
+                mapOf("units_per_dose" to unitsPerDose)
+            ) { filter { eq("id", id) } }
+            Log.d(TAG, "setPharmacyUnitsPerDose() SUCCESS — id=$id, units=$unitsPerDose")
+        } catch (e: Exception) {
+            Log.e(TAG, "setPharmacyUnitsPerDose() FAILED: ${e.message}")
+        }
+    }
+
+    suspend fun flagInvalidDoseTime(id: String, invalid: Boolean) {
+        try {
+            client.postgrest["zad_pharmacy_items"].update(
+                mapOf("has_invalid_dose_time" to invalid)
+            ) { filter { eq("id", id) } }
+        } catch (e: Exception) {
+            Log.e(TAG, "flagInvalidDoseTime() FAILED: ${e.message}")
         }
     }
 
@@ -1032,14 +1089,13 @@ object SupabaseRepo {
     suspend fun deleteAccount(): Boolean {
         return try {
             val userId = client.auth.currentUserOrNull()?.id ?: return false
-            Log.d(TAG, "deleteAccount() → userId=$userId")
-            // Delete user data from tables
-            try { client.postgrest["zad_inventory"].delete { filter { eq("user_id", userId) } } } catch (_: Exception) {}
-            try { client.postgrest["zad_transactions"].delete { filter { eq("user_id", userId) } } } catch (_: Exception) {}
-            try { client.postgrest["zad_subscriptions"].delete { filter { eq("user_id", userId) } } } catch (_: Exception) {}
-            try { client.postgrest["zad_shopping_list"].delete { filter { eq("user_id", userId) } } } catch (_: Exception) {}
-            try { client.postgrest["zad_users"].delete { filter { eq("id", userId) } } } catch (_: Exception) {}
-            // Sign out after cleanup
+            Log.d(TAG, "deleteAccount() → userId=$userId, invoking delete-account edge function")
+            // The old version only deleted 5 tables client-side and never touched
+            // auth.users, so the account (and email) survived forever with orphaned
+            // rows in every other table. delete-account runs server-side with the
+            // service role: it cleans every table lacking an ON DELETE CASCADE to
+            // auth.users, then deletes the auth user itself, which cascades the rest.
+            client.functions.invoke("delete-account")
             client.auth.signOut()
             Log.d(TAG, "deleteAccount() SUCCESS")
             true
@@ -1086,6 +1142,31 @@ object SupabaseRepo {
             Log.d(TAG, "markAppNotificationRead() SUCCESS")
         } catch (e: Exception) {
             Log.e(TAG, "markAppNotificationRead() FAILED: ${e.message}")
+        }
+    }
+
+    // ─── Zad Brain Insights (emit_insight output — home_card/bell/voice) ───────
+    suspend fun getPendingInsights(userId: String): List<ZadInsight> {
+        return try {
+            client.postgrest["zad_insights"]
+                .select {
+                    filter { eq("user_id", userId); eq("status", "pending") }
+                    order("created_at", Order.DESCENDING)
+                }
+                .decodeList<ZadInsight>()
+        } catch (e: Exception) {
+            Log.e(TAG, "getPendingInsights() FAILED: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun updateInsightStatus(id: String, status: String) {
+        try {
+            client.postgrest["zad_insights"].update(
+                mapOf("status" to status, "updated_at" to java.time.Instant.now().toString())
+            ) { filter { eq("id", id) } }
+        } catch (e: Exception) {
+            Log.e(TAG, "updateInsightStatus() FAILED: ${e.message}")
         }
     }
 

@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.Composable
@@ -83,6 +84,7 @@ fun HomeScreen(
     onNavigateToProfile: () -> Unit = {},
     onNavigateToPharmacy: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
+    onNavigateToCamera: () -> Unit = {},
     onOpenDrawer: () -> Unit = {},
     /** تفعيل يدوي من الأب/الأم (Switch to Kids Mode) — بيفرض واجهة الأطفال حتى لو role الحساب "admin" */
     kidsModeOverride: Boolean = false
@@ -92,6 +94,8 @@ fun HomeScreen(
     val subscriptions by viewModel.subscriptions.collectAsState()
     val mealSuggestions by viewModel.mealSuggestions.collectAsState()
     val insights by viewModel.insights.collectAsState()
+    val zadInsights by viewModel.zadInsights.collectAsState()
+    val zadFacts by viewModel.zadFacts.collectAsState()
     val budget by viewModel.budget.collectAsState()
     val remainingBalance by viewModel.remainingBalance.collectAsState()
     val showBudgetDialog by viewModel.showBudgetDialog.collectAsState()
@@ -156,6 +160,7 @@ fun HomeScreen(
         viewModel.refreshAutoSuggestions()
         viewModel.predictNextMonthExpenses()
         viewModel.refreshLiveMarketPrices()
+        viewModel.loadZadInsights()
         familyViewModel.loadUpcomingSeasonalEvents()
         Log.d(TAG_HOME, "HomeScreen loaded — userName=$userNameState, budget=$budget, transactions=${transactions.size}, isChild=$isChild")
     }
@@ -203,7 +208,7 @@ fun HomeScreen(
         PremiumTopBar(
             userName = userName,
             avatarUrl = globalAvatarUri?.toString(),
-            hasUnreadNotifications = appNotificationsState.any { !it.isRead },
+            hasUnreadNotifications = appNotificationsState.any { !it.isRead } || zadInsights.any { it.surface == "bell" },
             onNotificationsClick = {
                 Log.d(TAG_HOME, "🔔 Notifications icon clicked — opening notification center")
                 onNavigateToNotifications()
@@ -240,6 +245,53 @@ fun HomeScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                // أهم تنبيهات عقل زاد — zad_insights كان مكتوب من زاد-برين وميتقراش
+                // خالص، فالتحليل والتنبيهات ما كانتش توصل هنا. دي أول محطة ليها.
+                val homeInsights = zadInsights
+                    .filter { it.surface == "home_card" }
+                    .sortedByDescending { it.priority == "critical" }
+                    .take(3)
+                if (homeInsights.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        homeInsights.forEach { insight ->
+                            if (insight.kind == "question") {
+                                com.example.ui.widgets.ZadQuestionCard(
+                                    insight = insight,
+                                    onAnswer = { answer -> viewModel.answerBrainQuestion(insight, answer) },
+                                    onDismiss = { viewModel.dismissInsight(insight.id) },
+                                    onOpenCamera = onNavigateToCamera
+                                )
+                                return@forEach
+                            }
+                            val isCritical = insight.priority == "critical"
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(if (isCritical) dangerColor.copy(alpha = 0.1f) else primaryContainer)
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    if (isCritical) Icons.Default.Warning else Icons.Default.Lightbulb,
+                                    contentDescription = null,
+                                    tint = if (isCritical) dangerColor else primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(insight.title, style = Typography.labelLarge, fontWeight = FontWeight.Bold, color = onSurface)
+                                    Text(insight.body, style = Typography.bodySmall, color = onSurfaceVariant, maxLines = 2)
+                                }
+                                IconButton(onClick = { viewModel.dismissInsight(insight.id) }, modifier = Modifier.size(28.dp)) {
+                                    Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp), tint = onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
                 if (!isNotificationAccessGranted) {
                     NotificationPermissionCard {
                         Log.d(TAG_HOME, "NotificationPermissionCard button clicked")
@@ -281,6 +333,79 @@ fun HomeScreen(
                             com.example.ui.components.ZadShortcutItem(Icons.Default.Person, stringResource(R.string.profile_title), tertiary, onNavigateToProfile)
                         )
                     )
+                }
+
+                // Task 9 — ZadFacts on Home: these 6 numbers used to only exist inside
+                // ZadIntelligenceScreen's report; nothing on Home ever showed them, so
+                // they read as dead shells even though the underlying math was correct.
+                // Budget-remaining (ZadCardHero above) was already wired — left as-is.
+                zadFacts?.let { facts ->
+                    Spacer(modifier = Modifier.height(18.dp))
+                    Text(
+                        "أرقامك الحقيقية",
+                        style = Typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = onSurface,
+                        modifier = Modifier.padding(bottom = 10.dp)
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            MiniStatCard(
+                                modifier = Modifier.weight(1f).clickable { onNavigateToAssistant() },
+                                label = stringResource(R.string.spending_power),
+                                value = facts.report.spendingPower.status,
+                                icon = Icons.Default.Speed,
+                                iconColor = primary,
+                                bgColor = primaryContainer
+                            )
+                            MiniStatCard(
+                                modifier = Modifier.weight(1f).clickable { onNavigateToAssistant() },
+                                label = stringResource(R.string.stress_test_title),
+                                value = "${facts.stressTest.coverageDays} يوم",
+                                icon = Icons.Default.HealthAndSafety,
+                                iconColor = if (facts.stressTest.status == com.example.ui.screens.StressTestStatus.CRITICAL) dangerColor else successColor,
+                                bgColor = (if (facts.stressTest.status == com.example.ui.screens.StressTestStatus.CRITICAL) dangerColor else successColor).copy(alpha = 0.1f)
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            MiniStatCard(
+                                modifier = Modifier.weight(1f).clickable { onNavigateToAssistant() },
+                                label = "الصحة المالية",
+                                value = "${facts.report.healthScore}/100",
+                                icon = Icons.Default.Favorite,
+                                iconColor = if (facts.report.healthScore < 50) dangerColor else successColor,
+                                bgColor = (if (facts.report.healthScore < 50) dangerColor else successColor).copy(alpha = 0.1f)
+                            )
+                            MiniStatCard(
+                                modifier = Modifier.weight(1f).clickable { onNavigateToAssistant() },
+                                label = "الإنفاق الشهري",
+                                value = com.example.data.CurrencyFormatter.format(context, facts.report.totalSpent),
+                                icon = Icons.Default.CalendarMonth,
+                                iconColor = catBillsIcon,
+                                bgColor = catBillsBg
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            val topCategory = facts.report.categoryBreakdown.maxByOrNull { it.spent }
+                            MiniStatCard(
+                                modifier = Modifier.weight(1f).clickable { onNavigateToAssistant() },
+                                label = stringResource(R.string.expense_distribution),
+                                value = topCategory?.category ?: "—",
+                                icon = Icons.Default.PieChart,
+                                iconColor = catTransportIcon,
+                                bgColor = catTransportBg
+                            )
+                            val consumptionTrend = facts.report.dailyTrend.takeLast(7).sumOf { it.amount }
+                            MiniStatCard(
+                                modifier = Modifier.weight(1f).clickable { onNavigateToAssistant() },
+                                label = stringResource(R.string.consumption_ticker_title),
+                                value = com.example.data.CurrencyFormatter.format(context, consumptionTrend) + " /٧ أيام",
+                                icon = Icons.AutoMirrored.Filled.TrendingUp,
+                                iconColor = secondary,
+                                bgColor = secondary.copy(alpha = 0.1f)
+                            )
+                        }
+                    }
                 }
 
                 if (shortageCount > 0) {
@@ -995,7 +1120,13 @@ fun SmartChefSection(
     onViewAll: () -> Unit,
     onRecipeClick: (String) -> Unit
 ) {
-    val isRealAi = suggestions.isNotBlank() && suggestions.startsWith("1.") || suggestions.startsWith("-") || suggestions.startsWith("•")
+    // Was `isNotBlank() && startsWith("1.") || startsWith("-") || startsWith("•")` —
+    // && binds tighter than ||, so isNotBlank() only guarded the "1." branch, and the
+    // real model output is plain prose ("يمكنك تحضير وجبة دجاج..."), never numbered/
+    // bulleted. Net effect: isRealAi was false for every real AI response, so this
+    // section silently showed the 3 hardcoded English placeholder meals forever,
+    // regardless of what's actually in the user's inventory.
+    val isRealAi = suggestions.isNotBlank() && suggestions != com.example.data.ZadAiRepository.MEAL_SUGGESTIONS_FALLBACK
 
     Column {
         Row(

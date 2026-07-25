@@ -398,32 +398,56 @@ object ZadCentralBrain {
 
     /**
      * Single source of truth for "a dose was taken" — deducts stock, marks/creates the dose
-     * log, and chains into ADD_TO_SHOPPING if that leaves the medication low (< one day's worth
-     * left; ZadPharmacyItem has no explicit low-stock threshold field like ZadInventory does).
-     * Deliberately does NOT log an expense here — the medication's cost is already recorded once
-     * at purchase/refill time (see ZadViewModel.addPharmacyItem/refillPharmacyItem); logging it
-     * again per dose would double-count against the budget. Used by both
-     * PharmacyReminderReceiver (notification "Taken" button) and the voice-command path
-     * (executeAiAction's DEDUCT_PHARMACY_STOCK) so there's one implementation, not two.
+     * log, and chains into ADD_TO_SHOPPING if that leaves the medication low. Used by
+     * PharmacyReminderReceiver (notification "Taken" button), PharmacyScreen's per-dose
+     * buttons, and the voice-command path (executeAiAction's DEDUCT_PHARMACY_STOCK).
+     *
+     * Task 17.2.1/17.2.2: deducts by `unitsPerDose` (not a flat 1 — a dose can be 2 tablets),
+     * and is idempotent per `scheduledAt` via zad_pharmacy_doses' unique index — calling this
+     * twice for the same scheduled dose (notification tap + screen tap) decrements once, not
+     * twice. Deliberately does NOT log an expense here — the medication's cost is already
+     * recorded once at purchase/refill time (see ZadViewModel.addPharmacyItem/refillPharmacyItem).
+     *
+     * @param scheduledAt canonical dose-slot instant (PharmacyReminderScheduler.canonicalScheduledAt)
+     *   for a scheduled dose, or null for an ad-hoc "I took it" outside any schedule — ad-hoc
+     *   calls are never deduped against each other, each is a genuinely new event.
      */
-    suspend fun markPharmacyDoseTaken(context: Context, itemId: String, doseLogId: String? = null): Boolean = withContext(Dispatchers.IO) {
+    suspend fun markPharmacyDoseTaken(context: Context, itemId: String, doseLogId: String? = null, scheduledAt: String? = null): Boolean = withContext(Dispatchers.IO) {
         val dao = com.example.data.local.ZadDatabase.getDatabase(context).zadDao()
         val item = dao.getAllPharmacyItemsOnce().find { it.id == itemId } ?: return@withContext false
+        val nowIso = Instant.now().toString()
 
+        val doseRow = ZadPharmacyDose(
+            itemId = itemId, scheduledAt = scheduledAt, takenAt = nowIso,
+            status = "taken", units = item.unitsPerDose ?: 1.0, createdAt = nowIso
+        )
+        val outcome = try { SupabaseRepo.insertPharmacyDose(doseRow) } catch (e: Exception) {
+            Log.e(TAG, "markPharmacyDoseTaken() insertPharmacyDose threw: ${e.message}")
+            SupabaseRepo.DoseLogOutcome.FAILED
+        }
+        if (outcome == SupabaseRepo.DoseLogOutcome.DUPLICATE) {
+            Log.d(TAG, "markPharmacyDoseTaken() → already logged for scheduledAt=$scheduledAt, skipping stock deduction")
+            return@withContext false
+        }
+        // FAILED (network/etc) still proceeds locally below — Room is the source of truth for
+        // the UI, and the sync retry paths elsewhere pick up the Supabase-side gap. Only an
+        // actual DUPLICATE blocks the deduction, since that's the one case a repeat is wrong.
+
+        val perDose = item.unitsPerDose ?: 1.0
         if (item.remainingQuantity > 0) {
-            val updated = item.copy(remainingQuantity = item.remainingQuantity - 1)
+            val newQty = (item.remainingQuantity - perDose).coerceAtLeast(0.0).toInt()
+            val updated = item.copy(remainingQuantity = newQty)
             dao.insertPharmacyItem(updated)
             try { SupabaseRepo.updatePharmacyQuantity(itemId, updated.remainingQuantity) } catch (e: Exception) {
                 Log.e(TAG, "markPharmacyDoseTaken() Supabase sync failed: ${e.message}")
             }
 
-            val lowStock = updated.remainingQuantity <= updated.dailyDoseCount.coerceAtLeast(1)
-            if (lowStock) {
+            val daysLeft = updated.daysOfSupplyLeft()
+            if (daysLeft != null && daysLeft <= 1) {
                 executeAutoAction(AutoAction("ADD_TO_SHOPPING", updated.name, "دواء أوشك على النفاد: ${updated.name} (${updated.remainingQuantity} متبقي)"), context)
             }
         }
 
-        val nowIso = Instant.now().toString()
         if (doseLogId != null) {
             val log = dao.getDoseLogById(doseLogId)
             if (log != null) {
@@ -433,9 +457,7 @@ object ZadCentralBrain {
                 }
             }
         } else {
-            // Ad-hoc "I took it" outside a scheduled reminder (e.g. voice command) — no existing
-            // dose_log row to update, so create one that's scheduled=taken=now.
-            val log = ZadDoseLog(pharmacyItemId = itemId, itemName = item.name, scheduledAt = nowIso, takenAt = nowIso, createdAt = nowIso)
+            val log = ZadDoseLog(pharmacyItemId = itemId, itemName = item.name, scheduledAt = scheduledAt ?: nowIso, takenAt = nowIso, createdAt = nowIso)
             dao.insertDoseLog(log)
             try { SupabaseRepo.addDoseLog(log) } catch (e: Exception) {
                 Log.e(TAG, "markPharmacyDoseTaken() ad-hoc dose log sync failed: ${e.message}")

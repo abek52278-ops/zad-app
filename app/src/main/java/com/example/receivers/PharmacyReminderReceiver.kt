@@ -36,11 +36,12 @@ class PharmacyReminderReceiver : BroadcastReceiver() {
         val itemName = intent.getStringExtra("item_name") ?: ""
         val doseTime = intent.getStringExtra("dose_time") ?: return
         val doseLogId = intent.getStringExtra("dose_log_id")
+        val scheduledAt = intent.getStringExtra("scheduled_at")
         val notificationId = "$itemId::$doseTime".hashCode()
 
         when (intent.action) {
             PharmacyReminderScheduler.ACTION_TRIGGER -> handleTrigger(context, itemId, itemName, doseTime, notificationId)
-            ACTION_MARK_TAKEN -> handleMarkTaken(context, itemId, doseLogId, notificationId)
+            ACTION_MARK_TAKEN -> handleMarkTaken(context, itemId, doseLogId, scheduledAt, notificationId)
             ACTION_SNOOZE -> handleSnooze(context, itemId, itemName, doseTime, notificationId)
         }
     }
@@ -48,7 +49,11 @@ class PharmacyReminderReceiver : BroadcastReceiver() {
     private fun handleTrigger(context: Context, itemId: String, itemName: String, doseTime: String, notificationId: Int) {
         val pendingResult = goAsync()
         val doseLogId = java.util.UUID.randomUUID().toString()
-        val scheduledAtIso = java.time.Instant.now().toString()
+        // Canonical "today's HH:mm dose" instant, not Instant.now() — this is what lets the
+        // screen's per-time-slot button and this fired-alarm path dedupe against each other
+        // via the zad_pharmacy_doses unique index (Task 17.2.2) instead of minting two
+        // near-identical-but-different timestamps for what is really the same dose.
+        val scheduledAtIso = PharmacyReminderScheduler.canonicalScheduledAt(doseTime) ?: java.time.Instant.now().toString()
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -64,21 +69,21 @@ class PharmacyReminderReceiver : BroadcastReceiver() {
             } catch (e: Exception) {
                 Log.e(TAG, "handleTrigger() dose log insert failed: ${e.message}")
             }
-            showReminderNotification(context, itemId, itemName, doseTime, notificationId, doseLogId)
+            showReminderNotification(context, itemId, itemName, doseTime, notificationId, doseLogId, scheduledAtIso)
             speakReminder(context, itemName, pendingResult)
         }
         // بيتجدد يومياً لنفس الميعاد فور ما يطلق — عشان يفضل شغال من غير ما يحتاج تدخل يدوي
         PharmacyReminderScheduler.rescheduleForTomorrow(context, itemId, itemName, doseTime)
     }
 
-    private fun handleMarkTaken(context: Context, itemId: String, doseLogId: String?, notificationId: Int) {
+    private fun handleMarkTaken(context: Context, itemId: String, doseLogId: String?, scheduledAt: String?, notificationId: Int) {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 // Shared with the voice-command path (ZadCentralBrain.executeAiAction's
                 // DEDUCT_PHARMACY_STOCK) so "Taken" tap and "خدت الدواء" voice command chain
                 // into the same stock-deduct -> low-stock-check -> shopping-list logic once.
-                com.example.data.ZadCentralBrain.markPharmacyDoseTaken(context.applicationContext, itemId, doseLogId)
+                com.example.data.ZadCentralBrain.markPharmacyDoseTaken(context.applicationContext, itemId, doseLogId, scheduledAt)
             } catch (e: Exception) {
                 Log.e(TAG, "handleMarkTaken() FAILED: ${e.message}")
             } finally {
@@ -97,7 +102,7 @@ class PharmacyReminderReceiver : BroadcastReceiver() {
         (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancel(notificationId)
     }
 
-    private fun showReminderNotification(context: Context, itemId: String, itemName: String, doseTime: String, notificationId: Int, doseLogId: String) {
+    private fun showReminderNotification(context: Context, itemId: String, itemName: String, doseTime: String, notificationId: Int, doseLogId: String, scheduledAt: String) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             manager.createNotificationChannel(
@@ -112,6 +117,7 @@ class PharmacyReminderReceiver : BroadcastReceiver() {
                 putExtra("item_name", itemName)
                 putExtra("dose_time", doseTime)
                 putExtra("dose_log_id", doseLogId)
+                putExtra("scheduled_at", scheduledAt)
             }
             return PendingIntent.getBroadcast(
                 context, "$action::$itemId::$doseTime".hashCode(), intent,

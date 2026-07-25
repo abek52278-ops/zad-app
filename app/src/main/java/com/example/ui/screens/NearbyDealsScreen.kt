@@ -63,6 +63,11 @@ fun NearbyDealsScreen(
     var stores by remember { mutableStateOf<List<NearbyStore>>(emptyList()) }
     var pharmacies by remember { mutableStateOf<List<NearbyStore>>(emptyList()) }
     var searchError by remember { mutableStateOf(false) }
+    // This screen only ever showed a static hint text while browsing — no alert
+    // ever reached the brain or the user outside this screen. One event trigger
+    // per successful search reports the real match so zad-brain can reason about
+    // it and (if worth surfacing) emit a real alert to Home/bell/voice.
+    var lastReportedSearch by remember { mutableStateOf(false) }
 
     val lowStockNames = inventory.filter { it.quantity <= (it.lowStockThreshold ?: 2) }.map { it.itemName }
     val refillNeededMeds = pharmacyItems.filter { val d = it.daysOfSupplyLeft(); d != null && d <= 5 }.map { it.name }
@@ -87,6 +92,17 @@ fun NearbyDealsScreen(
                 OverpassRepo.findNearbyPharmacies(location.latitude, location.longitude)
             } else emptyList()
             isLoading = false
+
+            if (!lastReportedSearch && stores.isNotEmpty() && (lowStockNames.isNotEmpty() || refillNeededMeds.isNotEmpty())) {
+                lastReportedSearch = true
+                val parts = buildList {
+                    if (lowStockNames.isNotEmpty()) add("محتاج يشتري: ${lowStockNames.take(5).joinToString("، ")}")
+                    if (refillNeededMeds.isNotEmpty()) add("دواء قرب يخلص: ${refillNeededMeds.take(5).joinToString("، ")}")
+                }.joinToString(" — ")
+                viewModel.triggerBrainEvent(
+                    "العميل فاتح صفحة السوبرماركت القريب ولقى ${stores.size} محل قريب منه. $parts. لو دي فرصة توفير حقيقية نبهه."
+                )
+            }
         }
     }
 

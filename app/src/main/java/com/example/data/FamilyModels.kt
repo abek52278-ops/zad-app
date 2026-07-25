@@ -93,6 +93,27 @@ data class AppNotification(
     @SerialName("created_at") val createdAt: String? = null
 )
 
+// zad-brain's emit_insight action writes here (kind: insight/question/alert,
+// surface: home_card/bell/voice, priority: normal/critical). Written since the
+// brain shipped, never read by the client until now — the whole "brain learns
+// and surfaces it to the user" pipeline was a write-only dead end.
+@Serializable
+data class ZadInsight(
+    val id: String = "",
+    @SerialName("user_id") val userId: String = "",
+    val kind: String = "insight", // insight | question | alert
+    val surface: String = "home_card", // home_card | bell | voice
+    val priority: String = "normal", // normal | critical
+    val title: String = "",
+    val body: String = "",
+    @SerialName("dedupe_key") val dedupeKey: String? = null,
+    val status: String = "pending", // pending | seen | acted | dismissed
+    @SerialName("action_type") val actionType: String? = null,
+    @SerialName("about_item") val aboutItem: String? = null,
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("updated_at") val updatedAt: String? = null
+)
+
 @Serializable
 data class TasbihaTree(
     val id: String = "",
