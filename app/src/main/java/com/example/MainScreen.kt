@@ -75,7 +75,7 @@ sealed class Screen(val route: String, val titleRes: Int, val icon: ImageVector)
     // Bottom Bar specific screens
     object Features : Screen("features", R.string.app_name, Icons.Filled.GridView)
     object Camera : Screen("camera", R.string.app_name, Icons.Filled.CameraAlt)
-    object Subscriptions : Screen("subscriptions", R.string.app_name, Icons.Filled.CalendarToday)
+    object Subscriptions : Screen("subscriptions", R.string.subscriptions, Icons.Filled.CalendarToday)
     object Analytics : Screen("analytics", R.string.app_name, Icons.Filled.PieChart)
     
     // Sub-screens
@@ -153,6 +153,7 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
             Screen.Shopping,
             Screen.Family,
             Screen.Budget,
+            Screen.Subscriptions,
             Screen.Pharmacy,
             Screen.Maintenance,
             Screen.NearbyDeals,
@@ -376,6 +377,12 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                                     launchSingleTop = true
                                 }
                             },
+                            onNavigateToCamera = {
+                                navController.navigate(Screen.Camera.route) {
+                                    popUpTo(navController.graph.findStartDestination().id)
+                                    launchSingleTop = true
+                                }
+                            },
                             onNavigateToSubscriptions = {
                                 navController.navigate(Screen.Subscriptions.route) {
                                     popUpTo(navController.graph.findStartDestination().id)
@@ -590,7 +597,19 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                 // profile avatar). HomeScreen also shows ZadVoiceFab in the same bottom-end
                 // corner, so this bubble sits higher on Home to avoid stacking on top of it.
                 val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
-                val familyFabBottomPadding = if (currentRoute == Screen.Home.route) 106.dp else 16.dp
+                // Clearance sized to clear each route's own bottom-end FAB(s) — plain
+                // Home-vs-not-Home used to leave the family bubble stacked on top of
+                // Budget/Assistant/Pharmacy/Maintenance/Subscriptions/Shopping/Inventory's
+                // own scan/add buttons (worst case: Shopping's single FAB at bottom=32dp,
+                // height 56dp overlapped the family bubble's 16-72dp band directly).
+                val familyFabBottomPadding = when (currentRoute) {
+                    Screen.Home.route -> 106.dp
+                    Screen.Budget.route -> 212.dp
+                    Screen.Assistant.route, Screen.Pharmacy.route, Screen.Maintenance.route, Screen.Subscriptions.route -> 160.dp
+                    Screen.Shopping.route -> 108.dp
+                    Screen.Inventory.route -> 104.dp
+                    else -> 16.dp
+                }
 
                 FloatingActionButton(
                     onClick = {

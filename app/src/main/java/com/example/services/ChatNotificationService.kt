@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.speech.tts.TextToSpeech
 import androidx.core.app.NotificationCompat
 import com.example.MainActivity
 import com.example.R
@@ -18,13 +19,26 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 class ChatNotificationService : Service() {
 
     private val serviceJob = Job()
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
+    // Push notifications alone (DEFAULT_ALL sound) don't read the message content
+    // aloud, so a member away from the screen never hears what actually happened.
+    // TTS speaks the real text — same pattern already used for pharmacy reminders
+    // and the voice-agent FAB elsewhere in the app.
+    private var tts: TextToSpeech? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        tts = TextToSpeech(applicationContext) { status ->
+            if (status == TextToSpeech.SUCCESS) tts?.language = Locale("ar")
+        }
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         createNotificationChannel()
@@ -37,6 +51,8 @@ class ChatNotificationService : Service() {
                         val title = if (isSos) "\uD83D\uDEA8 نداء طوارئ" else "\uD83D\uDCAC عائلة زاد"
                         val message = if (isSos) "حالة طوارئ من أحد أفراد العائلة!" else newMsg.message
                         showNotification(title, message, isSos)
+                        val spoken = if (isSos) "$title! $message" else "رسالة جديدة من العائلة: $message"
+                        tts?.speak(spoken, if (isSos) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD, null, newMsg.id)
                     }
                 }
             }
@@ -86,5 +102,7 @@ class ChatNotificationService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         serviceJob.cancel()
+        tts?.stop()
+        tts?.shutdown()
     }
 }

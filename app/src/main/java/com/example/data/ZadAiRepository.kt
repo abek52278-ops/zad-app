@@ -80,6 +80,11 @@ data class GrocerySuggestion(
 )
 
 object ZadAiRepository {
+    // Exposed so callers (SmartChefSection) can tell "AI genuinely failed" apart from
+    // "AI succeeded but wrote something callAction's caller doesn't recognize" without
+    // fragile prefix-matching on the model's prose formatting.
+    const val MEAL_SUGGESTIONS_FALLBACK = "لم أتمكن من إيجاد اقتراحات حالياً."
+
     // Name is legacy — this key is actually sent to Groq's API by ZadAiGeminiClient, not
     // Google Gemini (CameraScreen's dialog was corrected to ask for a Groq key). Kept as-is
     // to avoid a SharedPreferences migration for users who already saved a key under
@@ -149,7 +154,7 @@ object ZadAiRepository {
         val itemsList = if (inventory.isEmpty()) "لا يوجد مخزون حاليا"
         else inventory.joinToString(", ") { "${it.itemName} (${it.quantity})" }
         val response = callAction("meal_suggestions", mapOf("items" to itemsList))
-        return response["text"] as? String ?: "لم أتمكن من إيجاد اقتراحات حالياً."
+        return response["text"] as? String ?: MEAL_SUGGESTIONS_FALLBACK
     }
 
     /** وصفات مركزة على أصناف هتخلص/تنتهي — مربوطة بالعقل المركزي */
@@ -159,7 +164,7 @@ object ZadAiRepository {
         val itemsPayload = "مهم جداً: اقترح 3 وصفات تستخدم أولاً هذه الأصناف لأنها على وشك الانتهاء أو النفاد: " +
             urgentItems.joinToString("، ") + ". باقي المخزون المتاح: " + invList
         val response = callAction("meal_suggestions", mapOf("items" to itemsPayload))
-        return response["text"] as? String ?: "لم أتمكن من إيجاد اقتراحات حالياً."
+        return response["text"] as? String ?: MEAL_SUGGESTIONS_FALLBACK
     }
 
     suspend fun getRecipeDetails(recipeName: String, inventory: List<ZadInventory>): String {

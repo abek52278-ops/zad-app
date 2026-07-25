@@ -132,6 +132,12 @@ fun BuyButton(onClick: () -> Unit) {
 
 @Composable
 fun AffiliateEmptyState(searchedTerm: String) {
+    // The curated catalog is a handful of products, so most searched items never
+    // match one — this used to be a dead end with no button at all, so every
+    // unmatched purchase lost the affiliate commission entirely. Fall back to a
+    // tagged Amazon search link (same AFFILIATE_TAG as matched products) so the
+    // commission still tracks even without a curated match.
+    val context = LocalContext.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -158,6 +164,17 @@ fun AffiliateEmptyState(searchedTerm: String) {
             color = onSurfaceVariant.copy(alpha = 0.6f),
             textAlign = TextAlign.Center
         )
+        Spacer(modifier = Modifier.height(16.dp))
+        TextButton(onClick = {
+            com.example.data.AffiliateHelper.open(
+                context,
+                com.example.data.AffiliateHelper.productUrl(asin = null, fallbackSearchTerm = searchedTerm)
+            )
+        }) {
+            Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("ابحث في أمازون")
+        }
     }
 }
 

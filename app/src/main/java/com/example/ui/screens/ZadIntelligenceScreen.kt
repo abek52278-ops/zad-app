@@ -230,16 +230,26 @@ fun AnalyticsTab(
             report.behaviorProfile?.let { bp ->
                 item { BehaviorAnalysisCard(bp) }
             }
-            if (report.insights.isNotEmpty()) {
-                item { BrainInsightsCard(report.insights) }
-            }
             if (report.depletionForecasts.isNotEmpty()) {
                 item { DepletionForecastCard(report.depletionForecasts) }
             }
             item { ExportReportButton(report) }
         }
 
-        // بروفايل السلوك المحسوب على الخادم (user_behavior_profile)
+        // تحليل سلوكك — بروفايل الخادم + ملاحظة يوم الإنفاق الأعلى + الأنماط
+        // المكتشفة محليا، كلها كانت 3 بطاقات متفرقة بلا رابط بصري، دلوقتي قسم واحد.
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Insights, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    "تحليل سلوكك",
+                    style = Typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = onSurface
+                )
+            }
+        }
         item {
             ServerBehaviorProfileCard(
                 profile = serverBehaviorProfile,
@@ -247,8 +257,6 @@ fun AnalyticsTab(
                 onRefresh = onRefreshBehaviorProfile
             )
         }
-
-        // ملاحظة سلوكية: يوم الإنفاق الأعلى مقارنة ببقية الأيام (Feature 4)
         if (detectWeekdaySpike(serverBehaviorProfile) != null) {
             item { BehavioralNudgeCard(serverBehaviorProfile) }
         }
@@ -316,7 +324,15 @@ fun AnalyticsTab(
         // مؤشر الاستهلاك اليومي — خط زمني بالتواريخ بأسلوب شاشة بورصة
         item { ConsumptionTickerCard(transactions) }
 
-        // بطاقة التنبؤ الذكي
+        // توقعات زاد — كانت 3 بطاقات منفصلة (تنبؤ الصرف، توقيت الشراء، الأنماط
+        // السلوكية) بتعرض كلها اشتقاقات من نفس البيانات المتوقعة. قسم واحد دلوقتي.
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("توقعات زاد", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+            }
+        }
         item {
             PredictionCard(
                 predictedAmount = predictedNextMonth,
@@ -325,9 +341,26 @@ fun AnalyticsTab(
                 subscriptionsCount = subscriptions.count { it.isActive }
             )
         }
-
-        // توقيت الشراء الذكي للمخزون (Feature 6)
         item { SmartBuyingTimingCard(inventory, serverBehaviorProfile) }
+        if (patterns.isNotEmpty()) {
+            items(patterns.take(5)) { pattern ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                        .background(surface).padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(catBillsBg),
+                        contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.Schedule, contentDescription = null, tint = catBillsIcon, modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(pattern.category, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                        Text(stringResource(R.string.avg_every_days, com.example.data.CurrencyFormatter.format(context, pattern.avgAmount), pattern.frequencyDays), style = Typography.bodySmall, color = onSurfaceVariant)
+                    }
+                }
+            }
+        }
 
         // العروض المتاحة لنواقصك — بحث حي حقيقي (Deal Matcher)
         item {
@@ -348,41 +381,14 @@ fun AnalyticsTab(
             WhatIfSimulatorCard(viewModel = viewModel, predictedMonthlySpend = predictedNextMonth)
         }
 
-        // الأنماط السلوكية
-        if (patterns.isNotEmpty()) {
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        stringResource(R.string.behavior_patterns_detected_title),
-                        style = Typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = onSurface
-                    )
-                }
-            }
-            items(patterns.take(5)) { pattern ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                        .background(surface).padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(catBillsBg),
-                        contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Schedule, contentDescription = null, tint = catBillsIcon, modifier = Modifier.size(20.dp))
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(pattern.category, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                        Text(stringResource(R.string.avg_every_days, com.example.data.CurrencyFormatter.format(context, pattern.avgAmount), pattern.frequencyDays), style = Typography.bodySmall, color = onSurfaceVariant)
-                    }
-                }
-            }
+        // رؤى زاد الذكية — دمجنا هنا ملاحظات التقرير النصية (كانت قبل كدة بطاقة
+        // منفصلة "ملاحظات زاد" فوق) مع الرؤى القابلة للتنفيذ، عشان العميل يشوف
+        // كل رؤى العقل في قايمة واحدة بدل قسمين متفرقين لنفس الغرض.
+        val brainNotes = report?.insights.orEmpty().map { note ->
+            AiInsight(title = "ملاحظة من عقل زاد", description = note, type = "Tip")
         }
-
-        // رؤى زاد الذكية
-        if (insights.isNotEmpty()) {
+        val allInsights = brainNotes + insights
+        if (allInsights.isNotEmpty()) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Lightbulb, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
@@ -395,7 +401,7 @@ fun AnalyticsTab(
                     )
                 }
             }
-            items(insights.take(5)) { insight -> IntelligenceInsightCard(insight, viewModel) }
+            items(allInsights.take(8)) { insight -> IntelligenceInsightCard(insight, viewModel) }
         }
 
         item { Spacer(modifier = Modifier.height(80.dp)) }
@@ -2984,46 +2990,6 @@ private fun HealthScoreCard(report: com.example.data.ZadCentralBrain.BrainReport
                         stringResource(R.string.subscriptions_monthly_cost_label, com.example.data.CurrencyFormatter.format(context, report.subscriptionsMonthlyCost)),
                         style = Typography.bodySmall,
                         color = onSurfaceVariant
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun BrainInsightsCard(insights: List<String>) {
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = Color(0xFFF5F3FF),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.Psychology,
-                    contentDescription = null,
-                    tint = Color(0xFF8B5CF6),
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    stringResource(R.string.zad_notes_title),
-                    style = Typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF6D28D9)
-                )
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-            insights.take(4).forEach { insight ->
-                Row(modifier = Modifier.padding(vertical = 4.dp)) {
-                    Text("•", color = Color(0xFF8B5CF6), fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        insight,
-                        style = Typography.bodySmall,
-                        color = Color(0xFF4C1D95),
-                        lineHeight = 18.sp
                     )
                 }
             }
