@@ -423,10 +423,25 @@ data class ZadChatMessage(
 @Entity(tableName = "zad_pending_sync_ops")
 data class PendingSyncOp(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
-    val opType: String, // "add_transaction" — only type today, extend as new offline-write paths need it
+    val opType: String, // "add_transaction" | "analyze_unparsed_notification"
     val payloadJson: String,
     val createdAt: String,
     val attempts: Int = 0
+)
+
+/**
+ * Payload for opType "analyze_unparsed_notification" — a bank-looking notification that both
+ * SaBankParser and the immediate AI-fallback call failed to turn into a transaction. Most such
+ * failures are a transient network/AI-call error (ZadAiRepository.callAction swallows exceptions
+ * and returns an empty map, indistinguishable from "AI legitimately found nothing" — so this
+ * queues *every* miss that looks like it had an amount, not just confirmed network failures),
+ * retried by TransactionSyncWorker via SyncOutbox.flush() next time it runs.
+ */
+@Serializable
+data class UnparsedNotificationPayload(
+    val source: String,
+    val title: String,
+    val text: String
 )
 
 /**

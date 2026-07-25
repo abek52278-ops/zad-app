@@ -492,6 +492,7 @@ fun BankReadingStatusSection() {
 
     var smsGranted by remember { mutableStateOf(BankReadingStatus.isSmsPermissionGranted(context)) }
     var listenerEnabled by remember { mutableStateOf(BankReadingStatus.isNotificationListenerEnabled(context)) }
+    var batteryUnrestricted by remember { mutableStateOf(BankReadingStatus.isIgnoringBatteryOptimizations(context)) }
     var lastParsedAt by remember { mutableStateOf(BankReadingStatus.lastParsedAt(context)) }
     var testResult by remember { mutableStateOf<String?>(null) }
 
@@ -501,6 +502,7 @@ fun BankReadingStatusSection() {
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                 smsGranted = BankReadingStatus.isSmsPermissionGranted(context)
                 listenerEnabled = BankReadingStatus.isNotificationListenerEnabled(context)
+                batteryUnrestricted = BankReadingStatus.isIgnoringBatteryOptimizations(context)
                 lastParsedAt = BankReadingStatus.lastParsedAt(context)
             }
         }
@@ -530,6 +532,18 @@ fun BankReadingStatusSection() {
             actionLabel = if (!listenerEnabled) stringResource(R.string.enable_action) else null,
             onAction = {
                 context.startActivity(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+            }
+        )
+        BankReadingStatusRow(
+            label = stringResource(R.string.battery_optimization_status_label),
+            isOn = batteryUnrestricted,
+            actionLabel = if (!batteryUnrestricted) stringResource(R.string.enable_action) else null,
+            onAction = {
+                val intent = android.content.Intent(
+                    android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    android.net.Uri.parse("package:${context.packageName}")
+                )
+                context.startActivity(intent)
             }
         )
 

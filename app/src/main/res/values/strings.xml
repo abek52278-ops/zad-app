@@ -678,6 +678,7 @@
     <string name="bank_reading_status_desc">الحالة الحقيقية للصلاحيات — لو الصلاحية متسحوبة من إعدادات النظام، هتلاقيها هنا فوراً</string>
     <string name="sms_reading_status_label">قراءة الرسايل</string>
     <string name="notification_reading_status_label">قراءة إشعارات البنك</string>
+    <string name="battery_optimization_status_label">استثناء توفير البطارية</string>
     <string name="enable_action">تفعيل</string>
     <string name="status_on">شغالة ✓</string>
     <string name="status_off">مش شغالة</string>

@@ -214,23 +214,17 @@ class UnifiedBankListener : NotificationListenerService() {
                 if (aiParsed != null) {
                     // نفس الحماية من التكرار على مسار الـ AI
                     if (!TxDeduplicator.isNewTransaction(applicationContext, aiParsed.amount, aiParsed.isExpense)) return
-                    val db = ZadDatabase.getDatabase(applicationContext)
-                    val dao = db.zadDao()
-                    dao.insertTransaction(aiParsed)
-                    BankReadingStatus.recordParsed(applicationContext)
-                    if (!SupabaseRepo.addTransaction(aiParsed)) {
-                        Log.w("UnifiedBankListener", "Supabase sync failed (offline?) — queued for retry")
-                        SyncOutbox.enqueueTransaction(applicationContext, aiParsed)
-                    }
-                    if (aiParsed.isExpense) {
-                        BudgetTracker.deductExpense(applicationContext, aiParsed.amount, aiParsed.title, aiParsed.category ?: "أخرى")
-                    } else {
-                        BudgetTracker.addIncome(applicationContext, aiParsed.amount, aiParsed.title)
-                    }
+                    BankTransactionApplier.apply(applicationContext, aiParsed)
                     Log.d("UnifiedBankListener", "AI-fallback transaction saved: ${aiParsed.title}")
                 } else {
                     // شكلها إشعار بنكي (عدّت isFinancialNotification) بس محدش من المسارات فهمها
                     SaBankParser.logRejection(applicationContext, SaBankParser.RejectReason.UNPARSED, packageName, "$title $text")
+
+                    // لو فيه مبلغ واضح في النص، الأرجح إنها معاملة حقيقية فشل تحليلها (شبكة/AI
+                    // مؤقتاً) مش ضجيج — تتحط في outbox عشان TransactionSyncWorker يعيد المحاولة
+                    if (SaBankParser.extractAmount("$title $text") != null) {
+                        SyncOutbox.enqueueUnparsedNotification(applicationContext, packageName, title, text)
+                    }
                 }
             }
         } catch (e: Exception) {

@@ -3,6 +3,7 @@ package com.example.data
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.PowerManager
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 
@@ -30,4 +31,10 @@ object BankReadingStatus {
 
     fun isSmsPermissionGranted(context: Context): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
+
+    /** لو مش مستثنى، دوز/App Standby ممكن يأخر أو يوقف UnifiedBankListener لما التطبيق في الخلفية */
+    fun isIgnoringBatteryOptimizations(context: Context): Boolean {
+        val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        return pm.isIgnoringBatteryOptimizations(context.packageName)
+    }
 }
