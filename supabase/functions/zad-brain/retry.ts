@@ -1,25 +1,22 @@
-// Task 16.3 — retry with backoff. Separate module (no Deno.serve) so tests can inject
-// a fake fetch instead of hitting the real Anthropic API.
+// Task 16.3 — retry with backoff. Provider-agnostic (url/headers passed in) so tests can
+// inject a fake fetch instead of hitting a real API, and so this isn't tied to one vendor.
 
 export interface RetryOptions {
-  apiKey: string;
+  url: string;
+  headers: Record<string, string>;
   fetchFn?: typeof fetch;
   sleepFn?: (ms: number) => Promise<void>;
   maxAttempts?: number; // default 3 (initial + 2 retries)
 }
 
-export async function callClaudeWithRetry(body: unknown, opts: RetryOptions, attempt = 0): Promise<any> {
+export async function callModelWithRetry(body: unknown, opts: RetryOptions, attempt = 0): Promise<any> {
   const fetchFn = opts.fetchFn ?? fetch;
   const sleepFn = opts.sleepFn ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
   const maxAttempts = opts.maxAttempts ?? 3;
 
-  const res = await fetchFn("https://api.anthropic.com/v1/messages", {
+  const res = await fetchFn(opts.url, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": opts.apiKey,
-      "anthropic-version": "2023-06-01",
-    },
+    headers: { "content-type": "application/json", ...opts.headers },
     body: JSON.stringify(body),
   });
 
@@ -36,5 +33,5 @@ export async function callClaudeWithRetry(body: unknown, opts: RetryOptions, att
   const backoff = retryAfter || 1000 * Math.pow(4, attempt);
   const jitter = Math.random() * 500;
   await sleepFn(backoff + jitter);
-  return callClaudeWithRetry(body, opts, attempt + 1);
+  return callModelWithRetry(body, opts, attempt + 1);
 }

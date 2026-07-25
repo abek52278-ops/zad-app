@@ -22,7 +22,7 @@ import {
   validateTool,
   validateUpdateInventoryQty,
 } from "./validators.ts";
-import { callClaudeWithRetry } from "./retry.ts";
+import { callModelWithRetry } from "./retry.ts";
 import { decideOnBrainFailure, hasRecentMutatingRun } from "./shared.ts";
 
 const healthySnapshot = {
@@ -111,7 +111,7 @@ Deno.test("validateTool rejects the sixth mutation in a run via the global cap",
 });
 
 // 10a. 429 then 200 → succeeds after one backoff
-Deno.test("callClaudeWithRetry succeeds after one 429 retry", async () => {
+Deno.test("callModelWithRetry succeeds after one 429 retry", async () => {
   let calls = 0;
   const fakeFetch = (() => {
     calls++;
@@ -121,8 +121,9 @@ Deno.test("callClaudeWithRetry succeeds after one 429 retry", async () => {
     return Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }));
   }) as typeof fetch;
   let slept = -1;
-  const result = await callClaudeWithRetry({}, {
-    apiKey: "test", fetchFn: fakeFetch, sleepFn: (ms) => { slept = ms; return Promise.resolve(); },
+  const result = await callModelWithRetry({}, {
+    url: "https://example.test/api", headers: { "Authorization": "Bearer test" },
+    fetchFn: fakeFetch, sleepFn: (ms) => { slept = ms; return Promise.resolve(); },
   });
   assertEquals(result.ok, true);
   assertEquals(calls, 2);
@@ -130,14 +131,14 @@ Deno.test("callClaudeWithRetry succeeds after one 429 retry", async () => {
 });
 
 // 10b. 401 → throws immediately, no retry
-Deno.test("callClaudeWithRetry throws immediately on 401 without retrying", async () => {
+Deno.test("callModelWithRetry throws immediately on 401 without retrying", async () => {
   let calls = 0;
   const fakeFetch = (() => {
     calls++;
     return Promise.resolve(new Response("unauthorized", { status: 401 }));
   }) as typeof fetch;
   await assertRejects(
-    () => callClaudeWithRetry({}, { apiKey: "bad", fetchFn: fakeFetch, sleepFn: () => Promise.resolve() }),
+    () => callModelWithRetry({}, { url: "https://example.test/api", headers: { "Authorization": "Bearer bad" }, fetchFn: fakeFetch, sleepFn: () => Promise.resolve() }),
   );
   assertEquals(calls, 1);
 });
