@@ -926,7 +926,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
     fun loadBudget() {
         viewModelScope.launch {
-            Log.d(TAG, "loadBudget() → calling SupabaseRepo.getUserBudget()")
+            Log.d(TAG, "loadBudget() → local cache is the ceiling's source of truth once it exists")
             val prefs = getApplication<Application>().getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
             val cachedBudget = prefs.getFloat("cached_budget", 3500.0f).toDouble()
             // Use BudgetTracker's remaining (auto-updated by bank listener) as source of truth
@@ -934,8 +934,13 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             _budget.value = cachedBudget
             _remainingBalance.value = budgetTrackerRemaining
 
-            val b = SupabaseRepo.getUserBudget()
-            if (b != 3500.0 || !prefs.contains("cached_budget")) {
+            if (prefs.contains("cached_budget")) {
+                // Device already has a real ceiling — push it up rather than pulling server's,
+                // so a stale/first-install-default server value can never overwrite it locally.
+                SupabaseRepo.updateUserBudget(cachedBudget)
+            } else {
+                // Genuinely first load on this device — nothing local yet, safe to pull.
+                val b = SupabaseRepo.getUserBudget()
                 _budget.value = b
                 prefs.edit().putFloat("cached_budget", b.toFloat()).apply()
             }
