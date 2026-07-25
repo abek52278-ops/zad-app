@@ -279,9 +279,13 @@ function buildOpenRouterRequest(systemPrompt: string, userMessage: string) {
       { role: "user", content: userMessage },
     ],
     response_format: { type: "json_object" },
-    temperature: 0.3,
+    // temperature:0 (كان 0.3) وreasoning "medium" (كان "low") — الموديل المجاني ده لاحظنا
+    // فعلياً (مش تخمين) إنه بيحكي في message إنه عمل حاجة من غير ما يحطها في actions[].
+    // ده تحسين تكميلي رخيص (مهمة background، مش زي zad-core-intelligence اللي محتاج سرعة)،
+    // لكن الحماية الحقيقية إن finalMessage تحت بقى مبني على نتيجة التنفيذ الفعلي مش كلام الموديل.
+    temperature: 0,
     max_tokens: 1200,
-    reasoning: { effort: "low" },
+    reasoning: { effort: "medium" },
   };
 }
 
@@ -335,8 +339,11 @@ Deno.serve(async (req: Request) => {
     const systemPrompt = buildSystemPrompt(snap);
 
     let inputTokens = 0, outputTokens = 0;
-    let finalMessage = "";
+    let modelOwnMessage = ""; // كلام الموديل الحر — يتصدق بس لو صفر actions اتحاولت خالص
     let userTurnMessage = userMessage ?? `trigger: ${trigger}`;
+    const executedSummaries: string[] = [];
+    const allTurnRejections: string[] = [];
+    let anyActionAttempted = false;
 
     // مفيش tool_result حقيقي في JSON mode — التصحيح الذاتي بيبقى round-trip تاني بس لو
     // فيه رفض، مش لوب طويل زي tool-calling الحقيقي (أقصى حاجة دورتين، مش ٦)
@@ -360,20 +367,32 @@ Deno.serve(async (req: Request) => {
       outputTokens += data.usage?.completion_tokens ?? 0;
       const raw = data.choices?.[0]?.message?.content ?? "{}";
       const reply = parseBrainReply(raw);
-      if (reply.message) finalMessage = reply.message;
+      if (reply.message) modelOwnMessage = reply.message;
 
       if (reply.actions.length === 0) break;
+      anyActionAttempted = true;
 
       const turnRejections: string[] = [];
       for (const action of reply.actions) {
         const result = await runTool(sb, userId, action.tool, action.input, snap, ctx);
         if (result.startsWith("مرفوض:")) turnRejections.push(`${action.tool}: ${result}`);
+        else executedSummaries.push(result);
       }
+      allTurnRejections.push(...turnRejections);
 
       if (turnRejections.length === 0) break;
       // دورة تصحيح واحدة بس — نديله سبب الرفض ونسيبه يصحح، مش نكرر لانهائي
       userTurnMessage = `حاولت الأول وده كان الرد بتاعك: ${raw}\nده اللي اترفض: ${turnRejections.join(" | ")}\nصحح الـ actions اللي اترفضت بس وابعتها تاني بنفس صيغة الـ JSON.`;
     }
+
+    // finalMessage متبني على نتيجة التنفيذ الفعلي، مش كلام الموديل الحر — لو الموديل حاول
+    // action واحد على الأقل، بنصدق الـ DB مش الـ message (اتلاحظ فعلياً إن الموديل بيقول
+    // "سجلت" من غير ما يحط action حقيقي — متصدقوش أبداً لما يكون فيه محاولة تنفيذ).
+    const finalMessage = executedSummaries.length > 0
+      ? executedSummaries.join(" ")
+      : allTurnRejections.length > 0
+        ? `معرفتش أنفذ الطلب: ${allTurnRejections.join(" | ")}`
+        : anyActionAttempted ? "" : modelOwnMessage;
 
     await sb.from("zad_brain_runs").update({
       status: "success", finished_at: new Date().toISOString(),

@@ -102,6 +102,9 @@ export const validateRemember: Validator = (input, snap, ctx) => {
   const len = (input.note ?? "").length;
   if (len < 10) return { ok: false, reason: "الملاحظة قصيرة أوي" };
   if (len > 200) return { ok: false, reason: "طويلة أوي، لخّصها في جملة" };
+  if (input.confidence !== undefined && (typeof input.confidence !== "number" || input.confidence < 0 || input.confidence > 1)) {
+    return { ok: false, reason: "confidence لازم يكون رقم بين 0 و 1، مش كلمة زي \"medium\"" };
+  }
   return { ok: true };
 };
 

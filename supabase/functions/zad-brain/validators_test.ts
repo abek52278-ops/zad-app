@@ -188,3 +188,13 @@ Deno.test("remember rejects a note shorter than 10 characters", async () => {
   const v = await validateRemember({ note: "قصيرة" }, healthySnapshot, freshContext("u1"));
   assertRejected(v);
 });
+
+// Live-bug regression (2026-07-25): model sent confidence:"medium" (string) — validator
+// let it through, Postgres rejected it at the RPC boundary since p_conf is real. Caught
+// live via the same test message/user from the Task 16 session; validator must reject
+// this before it ever reaches the DB, not after.
+Deno.test("remember rejects a non-numeric confidence value", async () => {
+  const v = await validateRemember({ note: "صرفت كتير على المطاعم الشهر ده", confidence: "medium" }, healthySnapshot, freshContext("u1"));
+  assertRejected(v);
+  assertStringIncludes(v.reason, "confidence");
+});
