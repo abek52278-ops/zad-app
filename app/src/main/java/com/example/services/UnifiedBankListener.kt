@@ -120,8 +120,11 @@ class UnifiedBankListener : NotificationListenerService() {
 
     private suspend fun processAndTrackNotification(packageName: String, title: String, text: String) {
         try {
-            // فلترة الضجيج أولاً: OTP / مرفوضة / عروض — تتجاهل نهائياً
-            if (SaBankParser.isNoise("$title $text")) return
+            // فلترة الضجيج أولاً: OTP / مرفوضة / منتهية / عروض — تتجاهل نهائياً، مع تسجيل السبب
+            SaBankParser.rejectionReason("$title $text")?.let { reason ->
+                SaBankParser.logRejection(applicationContext, reason, packageName, "$title $text")
+                return
+            }
 
             val parsed = SaBankParser.detectAndParse(packageName, title, text)
 

@@ -80,6 +80,34 @@ class SaBankParserTest {
     }
 
     @Test
+    fun `detectAndParse ignores password reset message`() {
+        val result = SaBankParser.detectAndParse(
+            "alrajhi", "الراجحي",
+            "تم تغيير كلمة المرور الخاصة بحسابك. لو مكنتش انت تواصل معنا فوراً"
+        )
+        assertNull(result)
+    }
+
+    @Test
+    fun `detectAndParse ignores expired card message`() {
+        val result = SaBankParser.detectAndParse(
+            "alrajhi", "الراجحي",
+            "بطاقتك المستخدمة بمبلغ 150 ريال انتهت صلاحيتها، يرجى تحديث بياناتك"
+        )
+        assertNull(result)
+    }
+
+    @Test
+    fun `rejectionReason classifies each noise category correctly`() {
+        assertEquals(SaBankParser.RejectReason.OTP, SaBankParser.rejectionReason("رمز التحقق الخاص بك هو 4521"))
+        assertEquals(SaBankParser.RejectReason.OTP, SaBankParser.rejectionReason("لا تشارك كلمة المرور مع أحد"))
+        assertEquals(SaBankParser.RejectReason.DECLINED, SaBankParser.rejectionReason("العملية لم تتم بسبب رصيد غير كاف"))
+        assertEquals(SaBankParser.RejectReason.EXPIRED, SaBankParser.rejectionReason("بطاقتك انتهت صلاحيتها"))
+        assertEquals(SaBankParser.RejectReason.PROMO, SaBankParser.rejectionReason("عرض خاص! خصم يصل الى 20%"))
+        assertNull(SaBankParser.rejectionReason("تم خصم 50 ريال من حسابك لدى بنده"))
+    }
+
+    @Test
     fun `detectAndParse returns null when no explicit tx type keyword`() {
         val result = SaBankParser.detectAndParse("unknown", "تنبيه", "بمبلغ 75.00 ريال")
         assertNull(result)

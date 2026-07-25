@@ -404,3 +404,18 @@ data class PendingSyncOp(
     val createdAt: String,
     val attempts: Int = 0
 )
+
+/**
+ * سجل الرسائل البنكية اللي اتّرفضت قبل أي محاولة تحليل — OTP/عملية مرفوضة/بطاقة منتهية/عرض
+ * ترويجي. Room-only، مش بيتزامن مع Supabase (بيانات تشخيصية بس، مش بيانات مستخدم مالية).
+ * الغرض: التأكد إن الفلتر مش بيبلع عمليات حقيقية غلط — لو مستخدم اشتكى "معاملة ضاعت"،
+ * الجدول ده أول مكان تتفقده. مقفول على آخر 200 صف (SaBankParser.RejectedMessageLog.log()).
+ */
+@Entity(tableName = "zad_rejected_bank_messages")
+data class RejectedBankMessage(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val reason: String, // "OTP" | "DECLINED" | "EXPIRED" | "PROMO"
+    val source: String,
+    val rawText: String,
+    val createdAt: String
+)

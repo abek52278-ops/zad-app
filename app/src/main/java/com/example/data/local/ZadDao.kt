@@ -148,4 +148,17 @@ interface ZadDao {
 
     @Query("SELECT COUNT(*) FROM zad_chat_messages")
     suspend fun getChatMessageCount(): Int
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertRejectedBankMessage(message: com.example.data.RejectedBankMessage)
+
+    @Query("SELECT * FROM zad_rejected_bank_messages ORDER BY createdAt DESC")
+    suspend fun getRejectedBankMessages(): List<com.example.data.RejectedBankMessage>
+
+    @Query("""
+        DELETE FROM zad_rejected_bank_messages WHERE id NOT IN (
+            SELECT id FROM zad_rejected_bank_messages ORDER BY createdAt DESC LIMIT 200
+        )
+    """)
+    suspend fun trimRejectedBankMessages()
 }

@@ -76,8 +76,11 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
 
     private suspend fun processSms(context: Context, sender: String, text: String) {
         try {
-            // فلترة الضجيج: OTP / مرفوضة / عروض — تتجاهل نهائياً
-            if (SaBankParser.isNoise(text)) return
+            // فلترة الضجيج: OTP / مرفوضة / منتهية / عروض — تتجاهل نهائياً، مع تسجيل السبب
+            SaBankParser.rejectionReason(text)?.let { reason ->
+                SaBankParser.logRejection(context.applicationContext, reason, sender, text)
+                return
+            }
 
             val parsed = SaBankParser.detectAndParse(sender, "", text)
             if (parsed != null) {

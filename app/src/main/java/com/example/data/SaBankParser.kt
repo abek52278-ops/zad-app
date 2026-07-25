@@ -46,8 +46,8 @@ object SaBankParser {
 
     private val otpKeywords = listOf(
         "رمز التحقق", "رمز تحقق", "كود التحقق", "الرمز السري", "رمز الدخول",
-        "رمز التفعيل", "لا تشارك", "لا تشاركه", "otp", "verification code",
-        "one-time", "one time password", "do not share", "الرقم السري المؤقت",
+        "رمز التفعيل", "كلمة المرور", "لا تشارك", "لا تشاركه", "otp", "verification code",
+        "one-time", "one time password", "do not share", "password", "الرقم السري المؤقت",
         "doğrulama kodu", "tek kullanımlık şifre", "kimseyle paylaşmayın"
     )
 
@@ -58,19 +58,34 @@ object SaBankParser {
         "başarısız", "reddedildi", "yetersiz bakiye", "işlem gerçekleşmedi"
     )
 
+    private val expiredKeywords = listOf(
+        "انتهت صلاحية", "انتهت صلاحيتها", "منتهية الصلاحية", "بطاقة منتهية",
+        "expired", "has expired", "card expired",
+        "süresi doldu", "kartın süresi dolmuş"
+    )
+
     private val promoKeywords = listOf(
         "عرض خاص", "عروض", "خصم يصل", "استمتع", "اشترك الآن", "حمل التطبيق",
         "سارع", "لفترة محدودة", "كاش باك يصل", "% off", "promo", "offer ends",
         "özel teklif", "kampanya", "şimdi abone ol", "uygulamayı indir"
     )
 
-    /** هل الرسالة ضجيج (OTP / مرفوضة / إعلان)؟ — تُستخدم أيضاً من الـ Receivers */
-    fun isNoise(text: String): Boolean {
+    /** سبب رفض الرسالة — null لو مش ضجيج. الترتيب مهم: يتفحص قبل أي استخراج مبلغ/نوع. */
+    enum class RejectReason { OTP, DECLINED, EXPIRED, PROMO }
+
+    fun rejectionReason(text: String): RejectReason? {
         val t = text.lowercase()
-        return otpKeywords.any { t.contains(it) } ||
-                declinedKeywords.any { t.contains(it) } ||
-                promoKeywords.any { t.contains(it) }
+        return when {
+            otpKeywords.any { t.contains(it) } -> RejectReason.OTP
+            declinedKeywords.any { t.contains(it) } -> RejectReason.DECLINED
+            expiredKeywords.any { t.contains(it) } -> RejectReason.EXPIRED
+            promoKeywords.any { t.contains(it) } -> RejectReason.PROMO
+            else -> null
+        }
     }
+
+    /** هل الرسالة ضجيج (OTP / مرفوضة / منتهية / إعلان)؟ — تُستخدم أيضاً من الـ Receivers */
+    fun isNoise(text: String): Boolean = rejectionReason(text) != null
 
     // ─── 2) استخراج المبلغ بدقة ──────────────────────────────────
 
@@ -316,6 +331,27 @@ object SaBankParser {
             rawText = text.take(160),
             txType = finalType
         )
+    }
+
+    /**
+     * يسجّل رسالة مرفوضة (OTP/عملية مرفوضة/بطاقة منتهية/عرض) في جدول محلي مقفول على ٢٠٠ صف —
+     * الدليل على إن الفلتر مش بيبلع عمليات حقيقية غلط. Room-only، بلا مزامنة Supabase.
+     */
+    suspend fun logRejection(context: android.content.Context, reason: RejectReason, source: String, rawText: String) {
+        try {
+            val dao = com.example.data.local.ZadDatabase.getDatabase(context).zadDao()
+            dao.insertRejectedBankMessage(
+                RejectedBankMessage(
+                    reason = reason.name,
+                    source = source,
+                    rawText = rawText.take(300),
+                    createdAt = java.time.Instant.now().toString()
+                )
+            )
+            dao.trimRejectedBankMessages()
+        } catch (e: Exception) {
+            Log.e(TAG_BANK, "logRejection() failed: ${e.message}")
+        }
     }
 }
 
