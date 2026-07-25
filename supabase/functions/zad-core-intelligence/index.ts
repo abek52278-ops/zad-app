@@ -23,7 +23,13 @@ const GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
 // has churned before (Llama vision models were pulled from Groq's catalog previously over
 // licensing). A wrong/deprecated slug becomes a secret update, not a redeploy.
 const GROQ_TEXT_MODEL = Deno.env.get("ZAD_GROQ_TEXT_MODEL") || "llama-3.3-70b-versatile";
-const GROQ_VISION_MODEL = Deno.env.get("ZAD_GROQ_VISION_MODEL") || "llama-3.2-11b-vision-instruct";
+// Verified live 2026-07-25 against console.groq.com/docs/models: "llama-3.2-11b-vision-
+// instruct" (this file's original default) is not in Groq's current production/preview
+// catalog at all — a synthetic smoke test against it returned in 312ms (vs ~1-1.6s for a
+// real successful call), consistent with a fast 404 silently swallowed by the {items:[]}
+// fallback. meta-llama/llama-4-scout-17b-16e-instruct is Groq's current active multimodal
+// model (natively multimodal, up to 5 image inputs) — confirmed on its GroqDocs page.
+const GROQ_VISION_MODEL = Deno.env.get("ZAD_GROQ_VISION_MODEL") || "meta-llama/llama-4-scout-17b-16e-instruct";
 
 // Round-robin pointer across warm invocations of this isolate — "alternate" per the pool,
 // not a fresh random pick every call (steadier load distribution across N keys than pure
