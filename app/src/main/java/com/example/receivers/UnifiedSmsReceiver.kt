@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
 import android.util.Log
+import com.example.data.BankReadingStatus
 import com.example.data.BudgetTracker
 import com.example.data.MerchantCategoryOverrides
 import com.example.data.SaBankParser
@@ -25,6 +26,21 @@ import android.app.NotificationManager
 import androidx.core.app.NotificationCompat
 import com.example.R
 
+/**
+ * بيجمع أجزاء رسالة SMS الطويلة (multipart) بنفس المرسل في نص واحد كامل، بالترتيب اللي
+ * وصلوا بيه — بدل ما كل جزء يتفحص/يتحلل لوحده كأنه رسالة كاملة (نص ناقص، تحليل غالباً غلط).
+ * دالة صريحة (مش داخل onReceive) عشان تتختبر من غير الحاجة لـ android.telephony.SmsMessage.
+ */
+internal fun concatenateMultipartSms(parts: List<Pair<String, String>>): Map<String, String> {
+    val grouped = linkedMapOf<String, MutableList<String>>()
+    for ((sender, body) in parts) {
+        if (sender.isBlank()) continue
+        grouped.getOrPut(sender) { mutableListOf() }.add(body)
+    }
+    return grouped.mapValues { (_, bodies) -> bodies.joinToString(separator = "") }
+        .filterValues { it.isNotBlank() }
+}
+
 class UnifiedSmsReceiver : BroadcastReceiver() {
 
     private val bankSmsSenders = listOf(
@@ -33,16 +49,21 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
         "stcpay", "tabby", "tamara",
         // بنوك تركيا — أفضل معرفة، لسه محتاجة اختبار على SMS حقيقي
         "isbank", "garanti", "akbank", "yapikredi", "ziraat",
-        "halkbank", "vakifbank", "qnb", "finansbank", "denizbank", "teb", "papara"
+        "halkbank", "vakifbank", "qnb", "finansbank", "denizbank", "teb", "papara",
+        // بنوك ومحافظ مصر — أفضل معرفة، لسه محتاجة اختبار على SMS حقيقي
+        "cib", "qnbalahli", "nbe", "banquemisr", "alexbank", "hsbc",
+        "vodafonecash", "instapay", "fawry"
     )
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Telephony.Sms.Intents.SMS_RECEIVED_ACTION) {
             val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
-            for (sms in messages) {
-                val sender = sms.displayOriginatingAddress ?: continue
-                val text = sms.displayMessageBody ?: continue
-
+            // رسايل البنوك الطويلة بتوصل multipart — كل جزء SmsMessage منفصل بنفس
+            // originatingAddress. قبل كده كل جزء كان بيتفحص ويتحلل لوحده (نص ناقص، غالباً
+            // بيفشل التحليل أو الأسوأ يتفهم غلط) — لازم نجمع كل الأجزاء بنفس المرسل أولاً.
+            val parts = messages.map { (it.displayOriginatingAddress ?: "") to (it.displayMessageBody ?: "") }
+            val bySender = concatenateMultipartSms(parts)
+            for ((sender, text) in bySender) {
                 if (isFinancialSms(sender, text)) {
                     Log.d("UnifiedSmsReceiver", "Financial SMS from: $sender")
                     // Use goAsync() — correct pattern for coroutines inside BroadcastReceiver
@@ -67,7 +88,8 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
             "خصم", "شراء", "دفع", "تم الدفع", "رصيد",
             "إيداع", "تحويل", "مبلغ", "بطاقة", "مشتريات",
             "pay", "purchase", "amount",
-            "TL", "₺", "TRY", "ödeme", "harcama", "bakiye", "kartınızdan"
+            "TL", "₺", "TRY", "ödeme", "harcama", "bakiye", "kartınızdan",
+            "EGP", "ج.م", "جنيه"
         )
         val containsKeyword = keywords.any { text.contains(it, ignoreCase = true) }
         val isLikelyBank = sender.length <= 12 && sender.matches(Regex("^[a-zA-Z]+[0-9]*$"))
@@ -82,7 +104,7 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
                 return
             }
 
-            val parsed = SaBankParser.detectAndParse(sender, "", text)
+            val parsed = SaBankParser.detectAndParse(sender, "", text, context.applicationContext)
             if (parsed != null) {
                 // منع الخصم المزدوج (نفس العملية توصل SMS + إشعار تطبيق البنك)، مع اسم التاجر
                 // كمُميّز عشان عمليتين مختلفتين بنفس المبلغ والاتجاه في نفس النافذة الزمنية
@@ -100,6 +122,7 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
                 )
                 val db = ZadDatabase.getDatabase(context.applicationContext)
                 db.zadDao().insertTransaction(transaction)
+                BankReadingStatus.recordParsed(context.applicationContext)
                 if (!SupabaseRepo.addTransaction(transaction)) {
                     Log.w("UnifiedSmsReceiver", "Supabase sync failed (offline?) — queued for retry")
                     SyncOutbox.enqueueTransaction(context.applicationContext, transaction)
@@ -153,6 +176,7 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
                     )
                     val db = ZadDatabase.getDatabase(context.applicationContext)
                     db.zadDao().insertTransaction(transaction)
+                    BankReadingStatus.recordParsed(context.applicationContext)
                     if (!SupabaseRepo.addTransaction(transaction)) {
                         Log.w("UnifiedSmsReceiver", "Supabase sync failed (offline?) — queued for retry")
                         SyncOutbox.enqueueTransaction(context.applicationContext, transaction)
@@ -169,6 +193,7 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
                         if (!TxDeduplicator.isNewTransaction(context.applicationContext, aiParsed.amount, aiParsed.isExpense)) return
                         val db = ZadDatabase.getDatabase(context.applicationContext)
                         db.zadDao().insertTransaction(aiParsed)
+                        BankReadingStatus.recordParsed(context.applicationContext)
                         if (!SupabaseRepo.addTransaction(aiParsed)) {
                             Log.w("UnifiedSmsReceiver", "Supabase sync failed (offline?) — queued for retry")
                             SyncOutbox.enqueueTransaction(context.applicationContext, aiParsed)
@@ -179,6 +204,10 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
                             BudgetTracker.addIncome(context.applicationContext, aiParsed.amount, aiParsed.title)
                         }
                         Log.d("UnifiedSmsReceiver", "AI-fallback transaction saved: ${aiParsed.title}")
+                    } else {
+                        // شكلها رسالة بنكية (عدّت isFinancialSms) بس محدش من المسارات فهمها —
+                        // بيانات خام لإضافة rule جديدة في bank_rules.json لاحقاً
+                        SaBankParser.logRejection(context.applicationContext, SaBankParser.RejectReason.UNPARSED, sender, text)
                     }
                 }
             }

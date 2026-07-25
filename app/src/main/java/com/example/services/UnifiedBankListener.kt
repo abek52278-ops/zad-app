@@ -34,7 +34,11 @@ class UnifiedBankListener : NotificationListenerService() {
         "stcpay", "tabby", "tamara",
         // بنوك تركيا — أسماء حزمة تقريبية بأفضل معرفة، لسه محتاجة تأكيد فعلي على أجهزة حقيقية
         "isbank", "garanti", "akbank", "yapikredi", "ziraat",
-        "halkbank", "vakifbank", "qnbfinansbank", "denizbank", "teb", "papara"
+        "halkbank", "vakifbank", "qnbfinansbank", "denizbank", "teb", "papara",
+        // بنوك ومحافظ مصر — أسماء حزمة تقريبية بأفضل معرفة، لسه محتاجة تأكيد فعلي على أجهزة حقيقية
+        "com.cib.cbe", "com.qnb.alahli", "com.nbe", "com.banquemisr",
+        "com.alexbank", "com.hsbc.egypt", "com.instapay",
+        "cib", "qnbalahli", "nbe", "banquemisr", "alexbank", "hsbcegypt", "instapay", "fawry", "vodafonecash"
     )
 
     override fun onDestroy() {
@@ -111,7 +115,8 @@ class UnifiedBankListener : NotificationListenerService() {
             "رصيد", "إيداع", "تحويل", "pay", "purchase", "amount",
             "مبلغ", "بطاقة", "مشتريات", "سحب", "راتب", "مرتب",
             "مدين", "دائن", "قسط", "فاتورة", "اشتراك",
-            "TL", "₺", "TRY", "ödeme", "harcama", "bakiye", "kartınızdan", "fatura", "maaş"
+            "TL", "₺", "TRY", "ödeme", "harcama", "bakiye", "kartınızdan", "fatura", "maaş",
+            "EGP", "ج.م", "جنيه"
         )
         return isBankApp || keywords.any {
             text.contains(it, ignoreCase = true) || title.contains(it, ignoreCase = true)
@@ -126,7 +131,7 @@ class UnifiedBankListener : NotificationListenerService() {
                 return
             }
 
-            val parsed = SaBankParser.detectAndParse(packageName, title, text)
+            val parsed = SaBankParser.detectAndParse(packageName, title, text, applicationContext)
 
             if (parsed != null) {
                 // منع الخصم المزدوج (نفس العملية توصل SMS + إشعار)، مع اسم التاجر كمُميّز —
@@ -148,6 +153,7 @@ class UnifiedBankListener : NotificationListenerService() {
                 val db = ZadDatabase.getDatabase(applicationContext)
                 val dao = db.zadDao()
                 dao.insertTransaction(transaction)
+                BankReadingStatus.recordParsed(applicationContext)
 
                 if (!SupabaseRepo.addTransaction(transaction)) {
                     Log.w("UnifiedBankListener", "Supabase sync failed (offline?) — queued for retry")
@@ -211,6 +217,7 @@ class UnifiedBankListener : NotificationListenerService() {
                     val db = ZadDatabase.getDatabase(applicationContext)
                     val dao = db.zadDao()
                     dao.insertTransaction(aiParsed)
+                    BankReadingStatus.recordParsed(applicationContext)
                     if (!SupabaseRepo.addTransaction(aiParsed)) {
                         Log.w("UnifiedBankListener", "Supabase sync failed (offline?) — queued for retry")
                         SyncOutbox.enqueueTransaction(applicationContext, aiParsed)
@@ -221,6 +228,9 @@ class UnifiedBankListener : NotificationListenerService() {
                         BudgetTracker.addIncome(applicationContext, aiParsed.amount, aiParsed.title)
                     }
                     Log.d("UnifiedBankListener", "AI-fallback transaction saved: ${aiParsed.title}")
+                } else {
+                    // شكلها إشعار بنكي (عدّت isFinancialNotification) بس محدش من المسارات فهمها
+                    SaBankParser.logRejection(applicationContext, SaBankParser.RejectReason.UNPARSED, packageName, "$title $text")
                 }
             }
         } catch (e: Exception) {

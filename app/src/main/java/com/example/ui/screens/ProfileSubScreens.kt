@@ -40,6 +40,10 @@ import androidx.compose.animation.scaleIn
 import com.example.ui.components.AppearOnEntry
 import com.example.ui.components.ZadLottieAsset
 import com.example.ui.components.pressableScale
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.example.data.BankReadingStatus
+import com.example.data.SaBankParser
 
 private const val TAG_SUB_PROF = "ProfileSubScreens"
 
@@ -467,7 +471,130 @@ fun AssistantAlertsScreen(onBack: () -> Unit) {
                 tasbihReminder = it
                 AlertPrefs.setEnabled(context, AlertPrefs.KEY_TASBIH_REMINDER, it)
             }
+
+            HorizontalDivider(color = outlineVariant, modifier = Modifier.padding(vertical = 16.dp))
+            BankReadingStatusSection()
         }
+        }
+    }
+}
+
+/**
+ * حالة قراءة رسايل البنك — حية فعلاً، مش toggle بيكذب. لو المستخدم فعّل الصلاحية من إعدادات
+ * النظام ثم سحبها، الصف ده هيعرف فوراً (بيقرا NotificationManagerCompat/ContextCompat
+ * مباشرة، مش قيمة متخزنة). زر "اختبار" بيشغل الـ parser على رسالة عينة عشان المستخدم
+ * يتأكد إن القراءة شغالة من غير ما يستنى معاملة حقيقية.
+ */
+@Composable
+fun BankReadingStatusSection() {
+    val context = LocalContext.current
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+
+    var smsGranted by remember { mutableStateOf(BankReadingStatus.isSmsPermissionGranted(context)) }
+    var listenerEnabled by remember { mutableStateOf(BankReadingStatus.isNotificationListenerEnabled(context)) }
+    var lastParsedAt by remember { mutableStateOf(BankReadingStatus.lastParsedAt(context)) }
+    var testResult by remember { mutableStateOf<String?>(null) }
+
+    // الرجوع من إعدادات النظام (بعد منح/سحب صلاحية) لازم يحدّث الحالة فوراً — مش بس أول فتح للشاشة
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                smsGranted = BankReadingStatus.isSmsPermissionGranted(context)
+                listenerEnabled = BankReadingStatus.isNotificationListenerEnabled(context)
+                lastParsedAt = BankReadingStatus.lastParsedAt(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val smsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted -> smsGranted = granted }
+
+    Column {
+        Text(stringResource(R.string.bank_reading_status_title), fontWeight = FontWeight.Bold, color = onSurface)
+        Spacer(Modifier.height(4.dp))
+        Text(stringResource(R.string.bank_reading_status_desc), fontSize = 12.sp, color = onSurfaceVariant)
+        Spacer(Modifier.height(12.dp))
+
+        BankReadingStatusRow(
+            label = stringResource(R.string.sms_reading_status_label),
+            isOn = smsGranted,
+            actionLabel = if (!smsGranted) stringResource(R.string.enable_action) else null,
+            onAction = { smsPermissionLauncher.launch(android.Manifest.permission.RECEIVE_SMS) }
+        )
+        BankReadingStatusRow(
+            label = stringResource(R.string.notification_reading_status_label),
+            isOn = listenerEnabled,
+            actionLabel = if (!listenerEnabled) stringResource(R.string.enable_action) else null,
+            onAction = {
+                context.startActivity(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+            }
+        )
+
+        Spacer(Modifier.height(8.dp))
+        Text(
+            lastParsedAt?.let {
+                val minutesAgo = (System.currentTimeMillis() - it) / 60000
+                stringResource(R.string.last_parsed_at_format, minutesAgo)
+            } ?: stringResource(R.string.last_parsed_never),
+            fontSize = 12.sp,
+            color = onSurfaceVariant
+        )
+
+        Spacer(Modifier.height(16.dp))
+        Button(
+            onClick = {
+                val sample = "CIB: تم خصم مبلغ 250.00 جنيه من حسابك لدى كارفور مصر الجديدة. مرجع: TX48213"
+                val parsed = SaBankParser.detectAndParse("CIB", "", sample, context)
+                testResult = if (parsed != null) {
+                    "${context.getString(R.string.test_parse_success)}\n" +
+                        "${context.getString(R.string.test_parse_amount)}: ${parsed.amount} ${parsed.category}\n" +
+                        "${context.getString(R.string.test_parse_merchant)}: ${parsed.merchantName ?: "—"}\n" +
+                        "${context.getString(R.string.test_parse_type)}: ${parsed.txType.arabicLabel}"
+                } else {
+                    context.getString(R.string.test_parse_failed)
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(stringResource(R.string.test_bank_parser_button))
+        }
+
+        testResult?.let { result ->
+            AlertDialog(
+                onDismissRequest = { testResult = null },
+                title = { Text(stringResource(R.string.test_bank_parser_button), fontWeight = FontWeight.Bold) },
+                text = { Text(result) },
+                confirmButton = {
+                    TextButton(onClick = { testResult = null }) { Text(stringResource(R.string.ok_action)) }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun BankReadingStatusRow(label: String, isOn: Boolean, actionLabel: String?, onAction: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier.size(8.dp).clip(CircleShape)
+                    .background(if (isOn) successColor else dangerColor)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "$label: ${if (isOn) stringResource(R.string.status_on) else stringResource(R.string.status_off)}",
+                color = onSurface, fontSize = 13.sp
+            )
+        }
+        if (actionLabel != null) {
+            TextButton(onClick = onAction) { Text(actionLabel, color = primary) }
         }
     }
 }

@@ -2588,7 +2588,7 @@
         errorLine2="                                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values-ar-rSA/strings.xml"
-            line="662"
+            line="678"
             column="47"/>
     </issue>
 
@@ -2599,7 +2599,7 @@
         errorLine2="                                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values-ar-rEG/strings.xml"
-            line="667"
+            line="683"
             column="47"/>
     </issue>
 
@@ -2610,7 +2610,7 @@
         errorLine2="                                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values-tr/strings.xml"
-            line="667"
+            line="683"
             column="47"/>
     </issue>
 
@@ -2621,7 +2621,7 @@
         errorLine2="                                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/values/strings.xml"
-            line="689"
+            line="705"
             column="47"/>
     </issue>
 
@@ -2727,6 +2727,17 @@
             file="src/main/java/com/example/data/AffiliateHelper.kt"
             line="54"
             column="44"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)"
+        errorLine2="        ^">
+        <location
+            file="src/main/java/com/example/data/BankReadingStatus.kt"
+            line="19"
+            column="9"/>
     </issue>
 
     <issue
@@ -2934,7 +2945,7 @@
         errorLine2="        ^">
         <location
             file="src/main/java/com/example/ui/screens/ProfileSubScreens.kt"
-            line="437"
+            line="441"
             column="9"/>
     </issue>
 
@@ -2967,7 +2978,7 @@
         errorLine2="        ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/example/data/SaBankParser.kt"
-            line="365"
+            line="434"
             column="9"/>
     </issue>
 
@@ -3066,7 +3077,7 @@
         errorLine2="            ~~~~~~~~~~~~">
         <location
             file="src/main/java/com/example/services/UnifiedBankListener.kt"
-            line="79"
+            line="83"
             column="13"/>
     </issue>
 

@@ -1,0 +1,92 @@
+[
+  {
+    "id": "eg_cib_debit",
+    "country": "EG",
+    "senders": ["CIB", "CIBEG", "سي آي بي"],
+    "match": "(?:شراء|خصم|purchase|debited)\\D{0,30}(?<amount>[\\d,]+\\.?\\d*)\\s*(?<currency>EGP|ج\\.?م|جنيه)",
+    "merchant": "(?:لدى|at)\\s+(?<merchant>[^\\n,.]{2,40})",
+    "ref": "(?:مرجع|ref)\\.?\\s*(?<ref>[A-Za-z0-9]{4,})",
+    "type": "debit",
+    "confidence": 0.9
+  },
+  {
+    "id": "eg_qnb_alahli_debit",
+    "country": "EG",
+    "senders": ["QNBAlAhli", "QNB Alahli", "QNB-AlAhli"],
+    "match": "(?:شراء|خصم|purchase|debited)\\D{0,30}(?<amount>[\\d,]+\\.?\\d*)\\s*(?<currency>EGP|ج\\.?م|جنيه)",
+    "merchant": "(?:لدى|at)\\s+(?<merchant>[^\\n,.]{2,40})",
+    "ref": "(?:مرجع|ref)\\.?\\s*(?<ref>[A-Za-z0-9]{4,})",
+    "type": "debit",
+    "confidence": 0.9
+  },
+  {
+    "id": "eg_nbe_debit",
+    "country": "EG",
+    "senders": ["NBE", "National Bank of Egypt", "البنك الأهلي المصري"],
+    "match": "(?:شراء|خصم|purchase|debited)\\D{0,30}(?<amount>[\\d,]+\\.?\\d*)\\s*(?<currency>EGP|ج\\.?م|جنيه)",
+    "merchant": "(?:لدى|at)\\s+(?<merchant>[^\\n,.]{2,40})",
+    "ref": "(?:مرجع|ref)\\.?\\s*(?<ref>[A-Za-z0-9]{4,})",
+    "type": "debit",
+    "confidence": 0.9
+  },
+  {
+    "id": "eg_banque_misr_debit",
+    "country": "EG",
+    "senders": ["BanqueMisr", "Banque Misr", "بنك مصر"],
+    "match": "(?:شراء|خصم|purchase|debited)\\D{0,30}(?<amount>[\\d,]+\\.?\\d*)\\s*(?<currency>EGP|ج\\.?م|جنيه)",
+    "merchant": "(?:لدى|at)\\s+(?<merchant>[^\\n,.]{2,40})",
+    "ref": "(?:مرجع|ref)\\.?\\s*(?<ref>[A-Za-z0-9]{4,})",
+    "type": "debit",
+    "confidence": 0.9
+  },
+  {
+    "id": "eg_alexbank_debit",
+    "country": "EG",
+    "senders": ["AlexBank", "بنك الإسكندرية", "بنك الاسكندرية"],
+    "match": "(?:شراء|خصم|purchase|debited)\\D{0,30}(?<amount>[\\d,]+\\.?\\d*)\\s*(?<currency>EGP|ج\\.?م|جنيه)",
+    "merchant": "(?:لدى|at)\\s+(?<merchant>[^\\n,.]{2,40})",
+    "ref": "(?:مرجع|ref)\\.?\\s*(?<ref>[A-Za-z0-9]{4,})",
+    "type": "debit",
+    "confidence": 0.9
+  },
+  {
+    "id": "eg_hsbc_debit",
+    "country": "EG",
+    "senders": ["HSBC", "HSBC Egypt"],
+    "match": "(?:شراء|خصم|purchase|debited)\\D{0,30}(?<amount>[\\d,]+\\.?\\d*)\\s*(?<currency>EGP|ج\\.?م|جنيه)",
+    "merchant": "(?:لدى|at)\\s+(?<merchant>[^\\n,.]{2,40})",
+    "ref": "(?:مرجع|ref)\\.?\\s*(?<ref>[A-Za-z0-9]{4,})",
+    "type": "debit",
+    "confidence": 0.85
+  },
+  {
+    "id": "eg_vodafone_cash_debit",
+    "country": "EG",
+    "senders": ["Vodafone Cash", "VodafoneCash", "فودافون كاش"],
+    "match": "(?:تحويل|دفع|purchase|debited)\\D{0,30}(?<amount>[\\d,]+\\.?\\d*)\\s*(?<currency>EGP|ج\\.?م|جنيه)",
+    "merchant": "(?:لصالح|إلى|at|to)\\s+(?<merchant>[^\\n,.]{2,40})",
+    "ref": "(?:مرجع|ref)\\.?\\s*(?<ref>[A-Za-z0-9]{4,})",
+    "type": "debit",
+    "confidence": 0.85
+  },
+  {
+    "id": "eg_instapay_debit",
+    "country": "EG",
+    "senders": ["InstaPay"],
+    "match": "(?:تحويل|تم إرسال|sent)\\D{0,30}(?<amount>[\\d,]+\\.?\\d*)\\s*(?<currency>EGP|ج\\.?م|جنيه)",
+    "merchant": "(?:إلى|to)\\s+(?<merchant>[^\\n,.]{2,40})",
+    "ref": "(?:مرجع|ref)\\.?\\s*(?<ref>[A-Za-z0-9]{4,})",
+    "type": "debit",
+    "confidence": 0.85
+  },
+  {
+    "id": "eg_fawry_debit",
+    "country": "EG",
+    "senders": ["Fawry", "فورى", "فوري"],
+    "match": "(?:سداد|دفع|payment)\\D{0,30}(?<amount>[\\d,]+\\.?\\d*)\\s*(?<currency>EGP|ج\\.?م|جنيه)",
+    "merchant": "(?:فاتورة|لصالح)\\s+(?<merchant>[^\\n,.]{2,40})",
+    "ref": "(?:مرجع|ref)\\.?\\s*(?<ref>[A-Za-z0-9]{4,})",
+    "type": "debit",
+    "confidence": 0.85
+  }
+]

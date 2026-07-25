@@ -28,7 +28,10 @@ data class ParsedBankTx(
     val bankName: String,
     val merchantName: String?,
     val rawText: String,
-    val txType: TxType = if (isExpense) TxType.PURCHASE else TxType.DEPOSIT
+    val txType: TxType = if (isExpense) TxType.PURCHASE else TxType.DEPOSIT,
+    // 1.0 للمسار الكوتلاني القديم (قرار ثنائي: اتفهمت أو null) — الأقل من كده جاي من
+    // bank_rules.json بس (BankRulesEngine)، فيه تدرّج ثقة حقيقي حسب دقة القاعدة
+    val confidence: Float = 1.0f
 )
 
 /**
@@ -70,8 +73,14 @@ object SaBankParser {
         "özel teklif", "kampanya", "şimdi abone ol", "uygulamayı indir"
     )
 
-    /** سبب رفض الرسالة — null لو مش ضجيج. الترتيب مهم: يتفحص قبل أي استخراج مبلغ/نوع. */
-    enum class RejectReason { OTP, DECLINED, EXPIRED, PROMO }
+    /**
+     * سبب تسجيل الرسالة في zad_rejected_bank_messages. OTP/DECLINED/EXPIRED/PROMO بترجع من
+     * [rejectionReason] (ضجيج اتفلتر قبل أي تحليل). UNPARSED مختلفة: الرسالة عدّت فحص
+     * "شكلها بنكية" لكن كل المسارات (JSON/كوتلاني/AI) فشلت تفهمها — الـ Receivers هي اللي
+     * بتسجلها كده صراحة (مش من rejectionReason)، عشان تبقى مادة خام لقاعدة جديدة في
+     * bank_rules.json لاحقاً.
+     */
+    enum class RejectReason { OTP, DECLINED, EXPIRED, PROMO, UNPARSED }
 
     fun rejectionReason(text: String): RejectReason? {
         val t = text.lowercase()
@@ -94,14 +103,16 @@ object SaBankParser {
         '٥' to '5', '٦' to '6', '٧' to '7', '٨' to '8', '٩' to '9', '٫' to '.'
     )
 
-    private fun normalizeDigits(text: String): String =
+    // internal مش private — BankRulesEngine (نفس الموديول) محتاجها عشان يطبّع رقم الـ JSON rule
+    // نفس الطريقة قبل ما يطبّق الـ regex بتاعه، بدل ما يكرر نفس منطق تطبيع الأرقام
+    internal fun normalizeDigits(text: String): String =
         text.map { arabicIndicDigits[it] ?: it }.joinToString("")
 
     // البديل الأول (فاصلة آلاف/نقطة عشري) بيغطي السعودية/مصر زي ما هو — البديل التاني
     // (نقطة آلاف/فاصلة عشري) مضاف لتركيا (١.٢٣٤,٥٦) من غير ما يأثر على ترتيب المطابقة القديم
     private const val NUM = """(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?|\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)"""
-    // TL/₺/TRY مضافة لدعم تركيا — لسه محتاج اختبار على SMS تركي حقيقي
-    private const val CUR = """(?:ر\.س|رس|ريال|SAR|SR|TL|₺|TRY)"""
+    // TL/₺/TRY مضافة لدعم تركيا، EGP/ج.م/جنيه لمصر — لسه محتاجين اختبار على SMS حقيقية
+    private const val CUR = """(?:ر\.س|رس|ريال|SAR|SR|TL|₺|TRY|EGP|ج\.?م|جنيه)"""
 
     // مبلغ مُسمّى صراحة — أعلى أولوية
     private val labeledAmount = Regex("""(?:بمبلغ|مبلغ|بقيمة|قيمة|القيمة|amount)\s*:?\s*$CUR?\s*$NUM\s*$CUR?""", RegexOption.IGNORE_CASE)
@@ -119,7 +130,7 @@ object SaBankParser {
      * (1.234,56 — فاصلة عشرية). لو الاتنين موجودين، آخر واحد على اليمين هو العلامة العشرية.
      * لو فاصلة واحدة بس وبعدها رقمين بالظبط، الأرجح إنها عشرية (تركي) لا آلاف.
      */
-    private fun normalizeNumber(raw: String): Double? {
+    internal fun normalizeNumber(raw: String): Double? {
         val hasComma = raw.contains(',')
         val hasDot = raw.contains('.')
         val normalized = when {
@@ -257,6 +268,19 @@ object SaBankParser {
         BankDef("تمارة", listOf("tamara", "تمارة")),
         BankDef("urpay", listOf("urpay")),
         BankDef("D360", listOf("d360")),
+        // بنوك ومحافظ مصر — أسماء عامة معروفة، idKeywords دي أفضل معرفة مش تجربة فعلية على SMS
+        // حقيقية من الجهات دي. لو عندك رسالة حقيقية، ابعتها عشان نظبط الكلمات الصح. حذرين من
+        // تصادم كلمات مع بنوك السعودية/تركيا الموجودة (مثلاً "qnb" بمفرده محجوز لـ QNB Finansbank
+        // التركي تحت، فـ QNB الأهلي المصري بياخد "qnbalahli" بدل الكلمة المجردة).
+        BankDef("CIB", listOf("cib", "سي آي بي", "البنك التجاري الدولي")),
+        BankDef("QNB الأهلي", listOf("qnbalahli", "qnb alahli", "qnb-alahli", "كيو ان بي الأهلي")),
+        BankDef("البنك الأهلي المصري", listOf("nbe", "البنك الأهلي المصري")),
+        BankDef("بنك مصر", listOf("banquemisr", "banque misr", "بنك مصر")),
+        BankDef("بنك الإسكندرية", listOf("alexbank", "بنك الإسكندرية", "بنك الاسكندرية")),
+        BankDef("HSBC مصر", listOf("hsbcegypt", "hsbc egypt", "hsbc")),
+        BankDef("فودافون كاش", listOf("vodafonecash", "vodafone cash", "فودافون كاش")),
+        BankDef("InstaPay", listOf("instapay")),
+        BankDef("فورى", listOf("fawry", "فورى", "فوري")),
         // بنوك تركيا — أسماء عامة معروفة، بس idKeywords دي تخمين بأفضل معرفة مش تجربة فعلية
         // على SMS حقيقية من البنوك دي. لو عندك رسالة حقيقية من بنك تركي، ابعتها عشان نظبط
         // الكلمات الصح (sender ID الفعلي ممكن يكون مختلف تماماً عن اسم البنك).
@@ -283,14 +307,23 @@ object SaBankParser {
     /**
      * التحليل الكامل: مصدر (package أو SMS sender) + عنوان + نص
      * يرجع null لو: ضجيج / مفيش مبلغ / مفيش نوع عملية واضح → AI fallback يتصرف
+     *
+     * [context] اختياري — لو موجود، بيجرب bank_rules.json (BankRulesEngine) الأول قبل المسار
+     * الكوتلاني تحت. من غيره (زي كل اختبارات الوحدة الحالية) بيتخطى الـ JSON مباشرة للمسار
+     * القديم — نفس السلوك السابق بالظبط، من غير ما نكسر أي اختبار موجود.
      */
-    fun detectAndParse(source: String, title: String, text: String): ParsedBankTx? {
+    fun detectAndParse(source: String, title: String, text: String, context: Context? = null): ParsedBankTx? {
         val fullText = "$title $text"
 
-        // 1) فلترة الضجيج — أهم خطوة
+        // 1) فلترة الضجيج — أهم خطوة، قبل أي مسار (JSON أو كوتلاني)
         if (isNoise(fullText)) {
             Log.d(TAG_BANK, "Ignored noise message (OTP/declined/promo)")
             return null
+        }
+
+        // 1.5) قواعد JSON (بنوك/محافظ جديدة زي مصر) — لو مفيش match بيرجع null ويكمل تحت عادي
+        if (context != null) {
+            BankRulesEngine.tryParse(context, source, fullText)?.let { return it }
         }
 
         // 2) المبلغ — بدون مبلغ مفيش عملية
