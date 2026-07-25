@@ -657,7 +657,7 @@ private fun CategoryBudgetCard(category: String, budget: Double, spent: Double, 
     val pct = if (budget > 0) (spent / budget * 100).toInt() else 0
     val overBudget = budget > 0 && spent > budget
     val barColor = when {
-        budget == 0.0 -> onSurfaceVariant.copy(alpha = 0.4f)
+        kotlin.math.abs(budget) < 0.005 -> onSurfaceVariant.copy(alpha = 0.4f)
         overBudget -> dangerColor
         pct >= 85 -> warningColor
         else -> primary

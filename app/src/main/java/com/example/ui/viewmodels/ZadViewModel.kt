@@ -829,7 +829,8 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         _showBudgetDialog.value = false
     }
 
-    fun updateBudget(newBudget: Double) {
+    fun updateBudget(newBudgetRaw: Double) {
+        val newBudget = newBudgetRaw.asMoney()
         viewModelScope.launch {
             Log.d(TAG, "updateBudget() → newBudget=$newBudget")
             val prefs = getApplication<Application>().getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
@@ -1409,13 +1410,13 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     // Convenience overloads
     fun addTransaction(amount: Double, title: String, isExpense: Boolean, category: String = "Other") {
         Log.d(TAG, "addTransaction(overload) → amount=$amount, title=$title, isExpense=$isExpense, category=$category")
-        val t = ZadTransaction(amount = amount, title = title, isExpense = isExpense, category = category)
+        val t = ZadTransaction(amount = amount.asMoney(), title = title, isExpense = isExpense, category = category)
         addTransaction(t)
     }
 
     fun addSubscription(title: String, amount: Double) {
         Log.d(TAG, "addSubscription(overload) → title=$title, amount=$amount")
-        val s = ZadSubscription(title = title, amount = amount)
+        val s = ZadSubscription(title = title, amount = amount.asMoney())
         addSubscription(s)
     }
 

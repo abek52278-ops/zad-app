@@ -86,7 +86,7 @@ object StatementCsvImporter {
 
     private fun parseAmount(raw: String): Double? {
         val cleaned = raw.trim().replace(",", "").replace("SAR", "", ignoreCase = true).replace("ر.س", "").trim()
-        return cleaned.toDoubleOrNull()
+        return cleaned.toDoubleOrNull()?.asMoney()
     }
 
     fun buildPreview(context: Context, table: CsvTable, mapping: ColumnMapping): List<PreviewRow> {

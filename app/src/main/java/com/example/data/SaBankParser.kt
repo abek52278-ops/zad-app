@@ -146,7 +146,7 @@ object SaBankParser {
             }
             else -> raw
         }
-        return normalized.toDoubleOrNull()
+        return normalized.toDoubleOrNull()?.asMoney()
     }
 
     /**

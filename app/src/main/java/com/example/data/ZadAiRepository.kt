@@ -99,14 +99,14 @@ object ZadAiRepository {
             Log.d(TAG_REPO, "analyzeReceipt Edge RAW response: $response")
             @Suppress("UNCHECKED_CAST")
             val itemsRaw = response["items"] as? List<*>
-            val total = (response["total"] as? Number)?.toDouble() ?: 0.0
+            val total = (response["total"] as? Number)?.toDouble()?.asMoney() ?: 0.0
             val category = response["category"] as? String ?: ""
             val storeName = response["storeName"] as? String ?: ""
             val items = itemsRaw?.mapNotNull { item ->
                 val map = item as? Map<*, *> ?: return@mapNotNull null
                 AiParsedReceiptItem(
                     name = map["name"] as? String ?: return@mapNotNull null,
-                    price = (map["price"] as? Number)?.toDouble() ?: 0.0,
+                    price = (map["price"] as? Number)?.toDouble()?.asMoney() ?: 0.0,
                     quantity = (map["quantity"] as? Number)?.toDouble() ?: 1.0,
                     unit = map["unit"] as? String ?: "قطعة",
                     category = map["category"] as? String ?: "عام"
@@ -204,7 +204,7 @@ object ZadAiRepository {
 
     suspend fun analyzeBankNotification(title: String, text: String): ZadTransaction? {
         val response = callAction("analyze_bank_notification", mapOf("bank" to title, "sms_text" to text))
-        val amount = (response["amount"] as? Number)?.toDouble() ?: return null
+        val amount = (response["amount"] as? Number)?.toDouble()?.asMoney() ?: return null
         val parsedTitle = response["title"] as? String ?: return null
         return ZadTransaction(
             amount = amount,
@@ -229,7 +229,7 @@ object ZadAiRepository {
             val map = item as? Map<*, *> ?: return@mapNotNull null
             DetectedSubscription(
                 name = map["name"] as? String ?: "",
-                amount = (map["amount"] as? Number)?.toDouble() ?: 0.0,
+                amount = (map["amount"] as? Number)?.toDouble()?.asMoney() ?: 0.0,
                 frequency = map["frequency"] as? String ?: "monthly",
                 confidence = (map["confidence"] as? Number)?.toDouble() ?: 0.0,
                 nextBillingDate = map["next_billing_date"] as? String ?: ""
@@ -587,7 +587,7 @@ object ZadAiRepository {
         val dataRaw = response["data"] as? Map<*, *>
         val data = dataRaw?.let {
             VoiceAgentData(
-                amount = (it["amount"] as? Number)?.toDouble() ?: 0.0,
+                amount = (it["amount"] as? Number)?.toDouble()?.asMoney() ?: 0.0,
                 title = it["title"] as? String ?: "",
                 category = it["category"] as? String ?: "عام"
             )
