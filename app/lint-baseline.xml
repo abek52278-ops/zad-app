@@ -3413,9 +3413,9 @@
 
     <issue
         id="HardcodedText"
-        message="Hardcoded string &quot;0.00 ر.س&quot;, should use `@string` resource"
-        errorLine1="                android:text=&quot;0.00 ر.س&quot;"
-        errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~">
+        message="Hardcoded string &quot;0.00&quot;, should use `@string` resource"
+        errorLine1="                android:text=&quot;0.00&quot;"
+        errorLine2="                ~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/res/layout/transaction_widget.xml"
             line="46"
