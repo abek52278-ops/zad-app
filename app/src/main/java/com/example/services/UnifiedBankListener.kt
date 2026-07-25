@@ -4,7 +4,6 @@ import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import com.example.data.*
-import com.example.data.local.ZadDatabase
 import com.example.data.SaBankParser
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.CoroutineScope
@@ -150,25 +149,7 @@ class UnifiedBankListener : NotificationListenerService() {
                     createdAt = Instant.now().toString()
                 )
 
-                val db = ZadDatabase.getDatabase(applicationContext)
-                val dao = db.zadDao()
-                dao.insertTransaction(transaction)
-                BankReadingStatus.recordParsed(applicationContext)
-
-                if (!SupabaseRepo.addTransaction(transaction)) {
-                    Log.w("UnifiedBankListener", "Supabase sync failed (offline?) — queued for retry")
-                    SyncOutbox.enqueueTransaction(applicationContext, transaction)
-                }
-
-                // الحقن الدقيق حسب نوع العملية
-                when (parsed.txType) {
-                    TxType.REFUND -> BudgetTracker.applyRefund(applicationContext, parsed.amount, parsed.title, parsed.category)
-                    else -> if (parsed.isExpense) {
-                        BudgetTracker.deductExpense(applicationContext, parsed.amount, parsed.title, parsed.category)
-                    } else {
-                        BudgetTracker.addIncome(applicationContext, parsed.amount, parsed.title)
-                    }
-                }
+                BankTransactionApplier.apply(applicationContext, transaction, parsed.txType)
 
                 // Salary detection: ADD to budget (not replace)
                 if (parsed.category == "الراتب" && !parsed.isExpense) {

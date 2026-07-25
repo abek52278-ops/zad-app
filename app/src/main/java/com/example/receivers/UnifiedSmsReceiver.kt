@@ -5,8 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
 import android.util.Log
-import com.example.data.BankReadingStatus
-import com.example.data.BudgetTracker
+import com.example.data.BankTransactionApplier
 import com.example.data.MerchantCategoryOverrides
 import com.example.data.SaBankParser
 import com.example.data.SupabaseRepo
@@ -14,7 +13,6 @@ import com.example.data.SyncOutbox
 import com.example.data.TxDeduplicator
 import com.example.data.TxType
 import com.example.data.ZadTransaction
-import com.example.data.local.ZadDatabase
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -120,23 +118,7 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
                     category = MerchantCategoryOverrides.get(context.applicationContext, parsed.merchantName) ?: parsed.category,
                     createdAt = Instant.now().toString()
                 )
-                val db = ZadDatabase.getDatabase(context.applicationContext)
-                db.zadDao().insertTransaction(transaction)
-                BankReadingStatus.recordParsed(context.applicationContext)
-                if (!SupabaseRepo.addTransaction(transaction)) {
-                    Log.w("UnifiedSmsReceiver", "Supabase sync failed (offline?) — queued for retry")
-                    SyncOutbox.enqueueTransaction(context.applicationContext, transaction)
-                }
-
-                // الحقن الدقيق حسب نوع العملية
-                when (parsed.txType) {
-                    TxType.REFUND -> BudgetTracker.applyRefund(context.applicationContext, parsed.amount, parsed.title, parsed.category)
-                    else -> if (parsed.isExpense) {
-                        BudgetTracker.deductExpense(context.applicationContext, parsed.amount, parsed.title, parsed.category)
-                    } else {
-                        BudgetTracker.addIncome(context.applicationContext, parsed.amount, parsed.title)
-                    }
-                }
+                BankTransactionApplier.apply(context.applicationContext, transaction, parsed.txType)
 
                 if (parsed.category == "الراتب") {
                     try {
@@ -174,40 +156,24 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
                         category = category,
                         createdAt = Instant.now().toString()
                     )
-                    val db = ZadDatabase.getDatabase(context.applicationContext)
-                    db.zadDao().insertTransaction(transaction)
-                    BankReadingStatus.recordParsed(context.applicationContext)
-                    if (!SupabaseRepo.addTransaction(transaction)) {
-                        Log.w("UnifiedSmsReceiver", "Supabase sync failed (offline?) — queued for retry")
-                        SyncOutbox.enqueueTransaction(context.applicationContext, transaction)
-                    }
-                    if (txType.isExpense) {
-                        BudgetTracker.deductExpense(context.applicationContext, amount, transaction.title, category)
-                    } else {
-                        BudgetTracker.addIncome(context.applicationContext, amount, transaction.title)
-                    }
+                    BankTransactionApplier.apply(context.applicationContext, transaction, txType)
                     Log.d("UnifiedSmsReceiver", "Fallback transaction added: ${transaction.title} - $amount")
                 } else {
                     val aiParsed = com.example.data.ZadAiRepository.analyzeBankNotification(sender, text)
                     if (aiParsed != null) {
                         if (!TxDeduplicator.isNewTransaction(context.applicationContext, aiParsed.amount, aiParsed.isExpense)) return
-                        val db = ZadDatabase.getDatabase(context.applicationContext)
-                        db.zadDao().insertTransaction(aiParsed)
-                        BankReadingStatus.recordParsed(context.applicationContext)
-                        if (!SupabaseRepo.addTransaction(aiParsed)) {
-                            Log.w("UnifiedSmsReceiver", "Supabase sync failed (offline?) — queued for retry")
-                            SyncOutbox.enqueueTransaction(context.applicationContext, aiParsed)
-                        }
-                        if (aiParsed.isExpense) {
-                            BudgetTracker.deductExpense(context.applicationContext, aiParsed.amount, aiParsed.title, aiParsed.category ?: "أخرى")
-                        } else {
-                            BudgetTracker.addIncome(context.applicationContext, aiParsed.amount, aiParsed.title)
-                        }
+                        BankTransactionApplier.apply(context.applicationContext, aiParsed)
                         Log.d("UnifiedSmsReceiver", "AI-fallback transaction saved: ${aiParsed.title}")
                     } else {
                         // شكلها رسالة بنكية (عدّت isFinancialSms) بس محدش من المسارات فهمها —
                         // بيانات خام لإضافة rule جديدة في bank_rules.json لاحقاً
                         SaBankParser.logRejection(context.applicationContext, SaBankParser.RejectReason.UNPARSED, sender, text)
+
+                        // نفس منطق UnifiedBankListener: لو فيه مبلغ واضح، الأرجح معاملة حقيقية
+                        // فشل تحليلها مؤقتاً (شبكة/AI) مش ضجيج — retry عبر TransactionSyncWorker
+                        if (SaBankParser.extractAmount(text) != null) {
+                            SyncOutbox.enqueueUnparsedNotification(context.applicationContext, sender, "", text)
+                        }
                     }
                 }
             }

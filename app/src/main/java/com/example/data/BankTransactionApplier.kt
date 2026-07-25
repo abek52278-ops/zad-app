@@ -13,7 +13,11 @@ object BankTransactionApplier {
 
     private const val TAG = "BankTransactionApplier"
 
-    suspend fun apply(context: Context, transaction: ZadTransaction) {
+    /**
+     * [txType] اختياري — لازم بس لو المعاملة ممكن تكون REFUND (بتترد للبادجت بدل ما تتخصم
+     * منه). المسارات اللي مفيهاش نوع صريح (AI fallback) سايباه null، فبيتعامل كمصروف/دخل عادي.
+     */
+    suspend fun apply(context: Context, transaction: ZadTransaction, txType: TxType? = null) {
         val dao = ZadDatabase.getDatabase(context).zadDao()
         dao.insertTransaction(transaction)
         BankReadingStatus.recordParsed(context)
@@ -23,10 +27,13 @@ object BankTransactionApplier {
             SyncOutbox.enqueueTransaction(context, transaction)
         }
 
-        if (transaction.isExpense) {
-            BudgetTracker.deductExpense(context, transaction.amount, transaction.title, transaction.category ?: "أخرى")
-        } else {
-            BudgetTracker.addIncome(context, transaction.amount, transaction.title)
+        when (txType) {
+            TxType.REFUND -> BudgetTracker.applyRefund(context, transaction.amount, transaction.title, transaction.category ?: "أخرى")
+            else -> if (transaction.isExpense) {
+                BudgetTracker.deductExpense(context, transaction.amount, transaction.title, transaction.category ?: "أخرى")
+            } else {
+                BudgetTracker.addIncome(context, transaction.amount, transaction.title)
+            }
         }
     }
 }
