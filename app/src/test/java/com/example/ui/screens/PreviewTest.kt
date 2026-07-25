@@ -83,4 +83,32 @@ class PreviewTest {
             filePath = "build/outputs/roborazzi/zad_question_card_yes_no.png"
         )
     }
+
+    // Verbatim content of the first question zad-brain ever emitted from a real daily run
+    // (zad_insights row 2312b7d4, dedupe_key=ask_eggs_qty) — kept as-is rather than
+    // paraphrased so this capture proves what the user actually sees for that row.
+    @Test
+    fun captureZadQuestionCard_liveBrainQuestion() {
+        composeTestRule.setContent {
+            AppTheme {
+                ZadQuestionCard(
+                    insight = ZadInsight(
+                        id = "2312b7d4-c87c-4a6f-97ca-e1a24f81c295",
+                        kind = "question",
+                        surface = "home_card",
+                        title = "البيض",
+                        body = "كم عدد البيض الذي لديك حاليًا؟",
+                        actionType = "number",
+                        aboutItem = "بيض"
+                    ),
+                    onAnswer = {},
+                    onDismiss = {}
+                )
+            }
+        }
+
+        composeTestRule.onRoot().captureRoboImage(
+            filePath = "build/outputs/roborazzi/zad_question_card_live_eggs.png"
+        )
+    }
 }
