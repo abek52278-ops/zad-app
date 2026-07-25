@@ -116,21 +116,43 @@ object StatementCsvImporter {
         }
     }
 
+    /**
+     * "بلاش" مش كافية بمبلغ+يوم بس — يومين معاملات مختلفتين فعلاً بنفس المبلغ في نفس اليوم
+     * وارد جداً (قهوتين مثلاً)، فلازم نراعي الوصف/التاجر كمان قبل ما نقرر إنها نفس العملية.
+     * مفيش تاجر منفصل في صف الـ CSV — العمود الوحيد المتاح هو title (وصف كشف الحساب)،
+     * فبنقارنه بـ merchantName لو موجود وإلا title نفسه للمعاملة المخزّنة.
+     */
+    internal fun isGenericTitle(title: String?): Boolean =
+        title.isNullOrBlank() || title == "معاملة مستوردة"
+
+    internal fun descriptionsCompatible(existing: String?, imported: String): Boolean {
+        if (isGenericTitle(existing) || isGenericTitle(imported)) return true
+        val e = existing!!.trim().lowercase()
+        val i = imported.trim().lowercase()
+        return e.contains(i) || i.contains(e)
+    }
+
+    /** المعاملة المستوردة دي نفس [tx] الموجودة فعلاً؟ — مبلغ (سماحية ٠.٠٠٥) + اتجاه + نفس اليوم + وصف متوافق */
+    internal fun isDuplicateOfExisting(tx: ZadTransaction, row: PreviewRow): Boolean {
+        if (row.amount == null || row.date == null) return false
+        return tx.isExpense == row.isExpense &&
+            kotlin.math.abs(tx.amount - row.amount) < 0.005 &&
+            tx.createdAt?.take(10) == row.date &&
+            descriptionsCompatible(tx.merchantName ?: tx.title, row.title)
+    }
+
     suspend fun commitImport(context: Context, rows: List<PreviewRow>): Pair<Int, Int> {
         val dao = ZadDatabase.getDatabase(context.applicationContext).zadDao()
-        val existingFingerprints = try {
-            dao.getAllTransactionsOnce().mapTo(mutableSetOf()) {
-                "${"%.2f".format(it.amount)}|${it.isExpense}|${it.createdAt?.take(10)}"
-            }
-        } catch (e: Exception) { emptySet() }
+        val existingTransactions = try { dao.getAllTransactionsOnce() } catch (e: Exception) { emptyList() }
 
         var imported = 0
         var skippedDuplicate = 0
         for (row in rows) {
             if (row.hasError || row.amount == null || row.date == null) continue
             val createdAt = "${row.date}T00:00:00Z"
-            val fingerprint = "${"%.2f".format(row.amount)}|${row.isExpense}|${row.date}"
-            if (fingerprint in existingFingerprints) { skippedDuplicate++; continue }
+
+            val isDuplicate = existingTransactions.any { tx -> isDuplicateOfExisting(tx, row) }
+            if (isDuplicate) { skippedDuplicate++; continue }
 
             val transaction = ZadTransaction(
                 title = row.title,

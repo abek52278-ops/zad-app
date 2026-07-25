@@ -89,6 +89,15 @@ object BankRulesEngine {
                 }
             }
 
+            val externalRef = rule.ref?.let { pattern ->
+                try {
+                    Regex(pattern, RegexOption.IGNORE_CASE).find(normalizedText)
+                        ?.groupValues?.getOrNull(1)?.trim()?.takeIf { it.isNotBlank() }
+                } catch (e: Exception) {
+                    null
+                }
+            }
+
             val txType = typeToTxType(rule.type)
             val category = SaBankParser.classify(normalizedText, txType)
             val bankName = rule.senders.firstOrNull() ?: rule.id
@@ -104,7 +113,8 @@ object BankRulesEngine {
                 merchantName = merchant,
                 rawText = fullText.take(160),
                 txType = txType,
-                confidence = rule.confidence
+                confidence = rule.confidence,
+                externalRef = externalRef
             )
         }
         return null

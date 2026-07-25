@@ -6,11 +6,27 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.data.SupabaseRepo
 import com.example.data.ZadNotifier
+import com.example.data.ZadSubscription
 import com.example.data.ZadTransaction
 import com.example.data.local.ZadDatabase
 import kotlinx.coroutines.flow.first
 import java.time.Instant
 import java.time.LocalDate
+
+/**
+ * البنك ممكن يبعت SMS/إشعار بنفس خصم الاشتراك ده، ولو وصل الاتنين مفيش أي حاجة كانت
+ * بتمنع الخصم يتسجل مرتين (نفس شكل مشكلة تكرار استيراد الـ CSV). بيتفحص على شهر التجديد
+ * + مبلغ (سماحية ٠.٠٠٥) + (عنوان متطابق جزئياً أو نفس مزوّد الخدمة).
+ */
+internal fun isSubscriptionAlreadyCharged(tx: ZadTransaction, sub: ZadSubscription, renewal: LocalDate): Boolean {
+    val txDate = try { LocalDate.parse((tx.createdAt ?: "").take(10)) } catch (e: Exception) { null } ?: return false
+    if (txDate.year != renewal.year || txDate.monthValue != renewal.monthValue) return false
+    if (kotlin.math.abs(tx.amount - sub.amount) >= 0.005) return false
+    return tx.title.contains(sub.title, ignoreCase = true) ||
+        sub.title.contains(tx.title, ignoreCase = true) ||
+        (!tx.merchantName.isNullOrBlank() && !sub.provider.isNullOrBlank() &&
+            tx.merchantName.equals(sub.provider, ignoreCase = true))
+}
 
 /**
  * يفحص الاشتراكات الفعّالة اللي معلّم عليها auto_deduct يومياً — أي اشتراك
@@ -30,26 +46,36 @@ class SubscriptionAutoDeductWorker(
             val subs = dao.getAllSubscriptions().first()
             val today = LocalDate.now()
             var deductedCount = 0
+            // نجيبها مرة واحدة قبل اللوب — البنك ممكن يبعت SMS/إشعار بنفس خصم الاشتراك ده،
+            // ولو وصل الاتنين مفيش أي حاجة بتمنع الخصم يتسجل مرتين (نفس شكل مشكلة CSV فوق)
+            val existingTransactions = try { dao.getAllTransactionsOnce() } catch (e: Exception) { emptyList() }
 
             subs.filter { it.isActive && it.autoDeduct && !it.renewalDate.isNullOrBlank() }.forEach { sub ->
                 val renewal = try { LocalDate.parse(sub.renewalDate!!.take(10)) } catch (e: Exception) { null } ?: return@forEach
                 if (renewal.isAfter(today)) return@forEach
 
-                Log.d(TAG, "Auto-deducting subscription: ${sub.title}, amount=${sub.amount}")
-                val transaction = ZadTransaction(
-                    amount = sub.amount,
-                    title = sub.title,
-                    category = sub.category ?: "فواتير",
-                    isExpense = true,
-                    createdAt = Instant.now().toString(),
-                    merchantName = sub.provider,
-                    sourceType = "auto_subscription",
-                    isVerified = true
-                )
-                dao.insertTransaction(transaction)
-                if (!SupabaseRepo.addTransaction(transaction)) {
-                    Log.w(TAG, "addTransaction sync failed for ${sub.title} — queued for retry")
-                    com.example.data.SyncOutbox.enqueueTransaction(applicationContext, transaction)
+                val alreadyCharged = existingTransactions.any { tx -> isSubscriptionAlreadyCharged(tx, sub, renewal) }
+
+                if (!alreadyCharged) {
+                    Log.d(TAG, "Auto-deducting subscription: ${sub.title}, amount=${sub.amount}")
+                    val transaction = ZadTransaction(
+                        amount = sub.amount,
+                        title = sub.title,
+                        category = sub.category ?: "فواتير",
+                        isExpense = true,
+                        createdAt = Instant.now().toString(),
+                        merchantName = sub.provider,
+                        sourceType = "auto_subscription",
+                        isVerified = true
+                    )
+                    dao.insertTransaction(transaction)
+                    if (!SupabaseRepo.addTransaction(transaction)) {
+                        Log.w(TAG, "addTransaction sync failed for ${sub.title} — queued for retry")
+                        com.example.data.SyncOutbox.enqueueTransaction(applicationContext, transaction)
+                    }
+                    deductedCount++
+                } else {
+                    Log.d(TAG, "Skipping auto-deduct for ${sub.title} — bank already reported this charge this cycle")
                 }
 
                 val nextRenewal = when (sub.billingCycle?.uppercase()) {
@@ -62,12 +88,13 @@ class SubscriptionAutoDeductWorker(
                     Log.e(TAG, "updateSubscriptionRenewalDate sync failed for ${sub.title}: ${e.message}")
                 }
 
-                ZadNotifier.send(
-                    applicationContext,
-                    "تم خصم ${sub.title} تلقائياً",
-                    "${com.example.data.CurrencyFormatter.format(applicationContext, sub.amount)} خُصمت من ميزانيتك — التجديد الجاي ${nextRenewal.take(10)}"
-                )
-                deductedCount++
+                if (!alreadyCharged) {
+                    ZadNotifier.send(
+                        applicationContext,
+                        "تم خصم ${sub.title} تلقائياً",
+                        "${com.example.data.CurrencyFormatter.format(applicationContext, sub.amount)} خُصمت من ميزانيتك — التجديد الجاي ${nextRenewal.take(10)}"
+                    )
+                }
             }
 
             Log.d(TAG, "SubscriptionAutoDeductWorker finished — deducted $deductedCount subscription(s)")

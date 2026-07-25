@@ -109,7 +109,7 @@ class UnifiedSmsReceiver : BroadcastReceiver() {
                 // منع الخصم المزدوج (نفس العملية توصل SMS + إشعار تطبيق البنك)، مع اسم التاجر
                 // كمُميّز عشان عمليتين مختلفتين بنفس المبلغ والاتجاه في نفس النافذة الزمنية
                 // (زي شرائين بنفس القيمة من محلين مختلفين) متتحسبش مكررة غلط
-                if (!TxDeduplicator.isNewTransaction(context.applicationContext, parsed.amount, parsed.isExpense, parsed.merchantName ?: parsed.bankName)) {
+                if (!TxDeduplicator.isNewTransaction(context.applicationContext, parsed.amount, parsed.isExpense, parsed.merchantName ?: parsed.bankName, parsed.externalRef, parsed.confidence)) {
                     Log.d("UnifiedSmsReceiver", "Duplicate blocked: ${parsed.amount}")
                     return
                 }

@@ -30,6 +30,7 @@ class BankRulesEngineTest {
         assertTrue(result.isExpense)
         assertEquals("كارفور مصر الجديدة", result.merchantName)
         assertEquals(0.9f, result.confidence, 0.001f)
+        assertEquals("TX48213", result.externalRef)
     }
 
     @Test

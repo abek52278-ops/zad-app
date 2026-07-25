@@ -136,7 +136,7 @@ class UnifiedBankListener : NotificationListenerService() {
             if (parsed != null) {
                 // منع الخصم المزدوج (نفس العملية توصل SMS + إشعار)، مع اسم التاجر كمُميّز —
                 // نفس المنطق المستخدم في UnifiedSmsReceiver عشان القناتين يتفقوا على نفس البصمة
-                if (!TxDeduplicator.isNewTransaction(applicationContext, parsed.amount, parsed.isExpense, parsed.merchantName ?: parsed.bankName)) {
+                if (!TxDeduplicator.isNewTransaction(applicationContext, parsed.amount, parsed.isExpense, parsed.merchantName ?: parsed.bankName, parsed.externalRef, parsed.confidence)) {
                     Log.d("UnifiedBankListener", "Duplicate blocked: ${parsed.amount}")
                     return
                 }

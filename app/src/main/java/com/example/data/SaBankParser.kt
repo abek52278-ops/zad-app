@@ -31,7 +31,10 @@ data class ParsedBankTx(
     val txType: TxType = if (isExpense) TxType.PURCHASE else TxType.DEPOSIT,
     // 1.0 للمسار الكوتلاني القديم (قرار ثنائي: اتفهمت أو null) — الأقل من كده جاي من
     // bank_rules.json بس (BankRulesEngine)، فيه تدرّج ثقة حقيقي حسب دقة القاعدة
-    val confidence: Float = 1.0f
+    val confidence: Float = 1.0f,
+    // مرجع العملية البنكي لو القاعدة لقته (bank_rules.json بس دلوقتي) — بصمة أقوى بكتير
+    // من مبلغ+تاجر لـ TxDeduplicator، لأنه رقم فريد فعلي للعملية مش تخمين
+    val externalRef: String? = null
 )
 
 /**
@@ -403,34 +406,51 @@ object TxDeduplicator {
      * [disambiguator] (اسم التاجر أو عنوان العملية) بيميّز عمليتين مختلفتين بنفس المبلغ
      * والاتجاه في نفس النافذة الزمنية (زي شرائين بنفس القيمة من محلين مختلفين) —
      * قبل كده كان بيتحسبوا مكررين غلط لأن البصمة كانت مبلغ+اتجاه بس.
+     * [externalRef] مرجع البنك الفعلي لو القاعدة لقته (bank_rules.json) — بصمة أقوى بكتير
+     * من مبلغ+تاجر لأنه رقم فريد حقيقي للعملية، فبيتفحص الأول وبيتغلّب على أي حاجة تانية.
+     * [confidence] بيتخزن مع البصمة بس (مش بيأثر على قرار التكرار هنا) — استهلاكه الفعلي
+     * شغل ZadIngest (Task 12) لما يوصل.
      */
     @Synchronized
-    fun isNewTransaction(context: Context, amount: Double, isExpense: Boolean, disambiguator: String? = null): Boolean {
+    fun isNewTransaction(
+        context: Context,
+        amount: Double,
+        isExpense: Boolean,
+        disambiguator: String? = null,
+        externalRef: String? = null,
+        confidence: Float = 1.0f
+    ): Boolean {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
 
-        // البصمات المحفوظة: "amount|isExpense|timestamp|disambiguatorHash"
+        // البصمات المحفوظة: "amount|isExpense|timestamp|disambiguatorHash|externalRef|confidence"
         val stored = prefs.getStringSet(KEY, emptySet()) ?: emptySet()
         val valid = stored.mapNotNull { entry ->
             val parts = entry.split("|")
-            if (parts.size == 4) {
+            if (parts.size == 6) {
                 val ts = parts[2].toLongOrNull() ?: return@mapNotNull null
-                if (now - ts < WINDOW_MS) arrayOf(parts[0], parts[1], ts.toString(), parts[3]) else null
+                if (now - ts < WINDOW_MS) parts else null
             } else null
         }
 
         val amountKey = String.format(java.util.Locale.US, "%.2f", amount)
         val expenseKey = isExpense.toString()
         val disambigKey = (disambiguator?.trim()?.lowercase() ?: "").hashCode().toString()
-        val isDuplicate = valid.any { it[0] == amountKey && it[1] == expenseKey && it[3] == disambigKey }
+        val refKey = externalRef?.trim()?.uppercase() ?: ""
+
+        // مرجع البنك أقوى إشارة — لو موجود وطابق مرجع مخزّن، دي نفس العملية أكيد بغض النظر
+        // عن المبلغ/التاجر (ممكن يكونوا مختلفين شكلياً بس المرجع بيقول نفس العملية)
+        val isDuplicateByRef = refKey.isNotBlank() && valid.any { it[4] == refKey }
+        val isDuplicateByAmount = valid.any { it[0] == amountKey && it[1] == expenseKey && it[3] == disambigKey }
+        val isDuplicate = isDuplicateByRef || isDuplicateByAmount
 
         if (isDuplicate) {
-            Log.d(TAG_BANK, "Duplicate transaction blocked: $amountKey SAR (expense=$expenseKey)")
+            Log.d(TAG_BANK, "Duplicate transaction blocked: $amountKey (expense=$expenseKey, byRef=$isDuplicateByRef)")
             return false
         }
 
-        val updated = valid.map { "${it[0]}|${it[1]}|${it[2]}|${it[3]}" }.toMutableSet()
-        updated.add("$amountKey|$expenseKey|$now|$disambigKey")
+        val updated = valid.map { it.joinToString("|") }.toMutableSet()
+        updated.add("$amountKey|$expenseKey|$now|$disambigKey|$refKey|$confidence")
         prefs.edit().putStringSet(KEY, updated).apply()
         return true
     }

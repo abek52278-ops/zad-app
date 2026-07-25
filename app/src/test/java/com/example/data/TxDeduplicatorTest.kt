@@ -58,4 +58,24 @@ class TxDeduplicatorTest {
         assertTrue(TxDeduplicator.isNewTransaction(context, 40.0, true, "الراجحي"))
         assertTrue(TxDeduplicator.isNewTransaction(context, 40.0, false, "الراجحي"))
     }
+
+    @Test
+    fun `matching externalRef is a duplicate even with a different merchant string`() {
+        // نفس المرجع البنكي = نفس العملية أكيد، حتى لو التاجر اتقرا مختلف شكلياً من قناتين
+        assertTrue(TxDeduplicator.isNewTransaction(context, 250.0, true, "كارفور", externalRef = "TX48213"))
+        assertFalse(TxDeduplicator.isNewTransaction(context, 250.0, true, "Carrefour Egypt", externalRef = "TX48213"))
+    }
+
+    @Test
+    fun `externalRef match is case-insensitive`() {
+        assertTrue(TxDeduplicator.isNewTransaction(context, 75.0, true, externalRef = "abc123"))
+        assertFalse(TxDeduplicator.isNewTransaction(context, 75.0, true, externalRef = "ABC123"))
+    }
+
+    @Test
+    fun `different externalRef with same amount and merchant is still a duplicate by the old rule`() {
+        // ref مختلف مش دليل كفاية إنها عملية جديدة — لسه المبلغ+التاجر بيمسكها زي الأول
+        assertTrue(TxDeduplicator.isNewTransaction(context, 60.0, true, "فوري", externalRef = "REF001"))
+        assertFalse(TxDeduplicator.isNewTransaction(context, 60.0, true, "فوري", externalRef = "REF002"))
+    }
 }
