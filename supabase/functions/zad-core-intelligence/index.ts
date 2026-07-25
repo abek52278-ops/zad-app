@@ -1,35 +1,48 @@
 // deno-lint-ignore-file
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.6";
 
-// GROQ_API_KEY is now used ONLY for audio transcription (transcribeAudio) and the two
-// groq/compound-mini web-search actions further down — OpenRouter has no free-tier audio
-// endpoint (confirmed: 404 on /v1/audio/transcriptions, and chat-based audio input models
-// require a paid balance even on ":free"-suffixed models). It is not used for general
-// text/JSON reasoning or vision.
+// ── Provider chain (rewritten): Groq (multi-key pool) primary, Gemini secondary ──────────
+//
+// GROQ_API_KEY (singular, no suffix) stays reserved for transcribeAudio() and
+// callCompoundSearch() further down — untouched by this refactor. Their retry/TPM-budget
+// behavior was live-diagnosed and is documented in detail at each call site; rotating keys
+// under them wasn't asked for here and risks regressing tuning that took real production
+// incidents to get right. If 429s show up there too, that's a follow-up, not this change.
 const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
 
-const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const TEXT_MODEL = "openai/gpt-oss-20b:free";
-const VISION_MODEL = "nvidia/nemotron-nano-12b-v2-vl:free";
+// GROQ_KEYS is the pool for callTextModel/callJsonModel/callVisionModel: GROQ_API_KEY_1
+// (falls back to the original singular GROQ_API_KEY so existing deployments with only one
+// key keep working unmodified) plus GROQ_API_KEY_2. Add GROQ_API_KEY_3 etc. below if the
+// pool ever needs to grow — nextGroqKey() already loops over whatever length GROQ_KEYS is.
+const GROQ_KEYS: string[] = [
+  Deno.env.get("GROQ_API_KEY_1") || Deno.env.get("GROQ_API_KEY"),
+  Deno.env.get("GROQ_API_KEY_2"),
+].filter((k): k is string => !!k);
+const GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
+// Model IDs are env-configurable, not hardcoded — Groq's model catalog (especially vision)
+// has churned before (Llama vision models were pulled from Groq's catalog previously over
+// licensing). A wrong/deprecated slug becomes a secret update, not a redeploy.
+const GROQ_TEXT_MODEL = Deno.env.get("ZAD_GROQ_TEXT_MODEL") || "llama-3.3-70b-versatile";
+const GROQ_VISION_MODEL = Deno.env.get("ZAD_GROQ_VISION_MODEL") || "llama-3.2-11b-vision-instruct";
 
-// GEMINI_API_KEY has a DIFFERENT tier order depending on task type — this is deliberate,
-// not an inconsistency:
-//  - Text/JSON actions (callTextModel/callJsonModel): OPENROUTER_API_KEY is primary, Gemini
-//    is the fallback used only when OpenRouter returns no content (429 after one backoff
-//    retry, HTTP error, timeout, or unparsable reply).
-//  - Vision actions (analyze_receipt, analyze_inventory_image): Gemini is PRIMARY — its
-//    vision model reads receipt/label text more reliably than the free OpenRouter vision
-//    model — and OpenRouter is the fallback. Groq is never used for vision (no vision support
-//    on Groq's API at all).
-// Both callGeminiText and callGeminiVision below are dead code paths when this key is unset
-// (optional secret, per CLAUDE.md) — the OpenRouter/Groq paths still work without it, just
-// without the fallback (text) or the primary (vision).
+// Round-robin pointer across warm invocations of this isolate — "alternate" per the pool,
+// not a fresh random pick every call (steadier load distribution across N keys than pure
+// random, and still spreads load the same way pure alternation would).
+let groqKeyCursor = 0;
+function nextGroqKeyIndex(): number {
+  const i = groqKeyCursor % Math.max(GROQ_KEYS.length, 1);
+  groqKeyCursor = (groqKeyCursor + 1) % Math.max(GROQ_KEYS.length, 1);
+  return i;
+}
+
+// GEMINI_API_KEY is the SAME project secret CLAUDE.md documents — shared across every edge
+// function in this project, not a new/separate key. Now called via Gemini's OpenAI-
+// compatible endpoint (not the native generateContent REST shape used elsewhere in this
+// file previously) specifically so it can share callOpenAICompatibleChat() with the Groq
+// pool instead of a third near-duplicate fetch/parse implementation.
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-// gemini-2.5-flash returns 404 "no longer available to new users" on this key —
-// verified directly against the API. gemini-flash-latest is Google's floating
-// alias to the current flash model, avoiding this class of deprecation break.
-const GEMINI_VISION_MODEL = "gemini-flash-latest";
+const GEMINI_OPENAI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+const GEMINI_FALLBACK_MODEL = Deno.env.get("ZAD_GEMINI_FALLBACK_MODEL") || "gemini-2.0-flash";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -60,160 +73,122 @@ function jsonResponse(data: unknown, status = 200) {
 // (e.g. the Chef Zad recipe screen).
 const UPSTREAM_TIMEOUT_MS = 25000;
 
-// Bounded exponential backoff for OpenRouter's 429 — never an infinite retry loop.
-// One retry only (mirrors callCompoundSearch's proven pattern for the same shared free-tier
-// 429 behavior further down this file): OpenRouter returns 429 near-instantly, so this adds
-// low hundreds of ms, not a second full UPSTREAM_TIMEOUT_MS window, before the caller falls
-// through to the Gemini failover below. Retry-After (seconds, RFC 6585) wins when present.
-async function fetchOpenRouterWithRetry(bodyObj: Record<string, unknown>): Promise<Response> {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const resp = await fetch(OPENROUTER_URL, {
+// Generic OpenAI-compatible chat-completions caller, shared by the Groq pool and the Gemini
+// fallback (Gemini's OpenAI-compat endpoint speaks the same shape) — one fetch/parse
+// implementation instead of three near-duplicates. `content` accepts either a plain string
+// (text/JSON actions) or OpenAI's multimodal content-block array (vision).
+async function callOpenAICompatibleChat(opts: {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  systemPrompt: string;
+  content: string | Array<Record<string, unknown>>;
+  temperature?: number;
+  maxTokens?: number;
+  jsonMode?: boolean;
+}): Promise<{ content: string | null; status: number; ok: boolean; raw: unknown }> {
+  try {
+    const body: Record<string, unknown> = {
+      model: opts.model,
+      messages: [
+        { role: "system", content: opts.systemPrompt },
+        { role: "user", content: opts.content },
+      ],
+      temperature: opts.temperature ?? 0.3,
+      max_tokens: Math.max(opts.maxTokens ?? 1000, 300),
+    };
+    if (opts.jsonMode) body.response_format = { type: "json_object" };
+    const resp = await fetch(opts.baseUrl, {
       method: "POST",
-      headers: {
-        "Authorization": "Bearer " + OPENROUTER_API_KEY,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://zad-app.com",
-        "X-Title": "Zad",
-      },
-      body: JSON.stringify(bodyObj),
+      headers: { "Authorization": "Bearer " + opts.apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
-    if (resp.status === 429 && attempt === 0) {
-      const retryAfter = resp.headers.get("Retry-After");
-      const delayMs = retryAfter ? Number(retryAfter) * 1000 : 800;
-      console.warn("[CoreIntel] OpenRouter 429 rate limited, retrying in " + delayMs + "ms");
-      await new Promise((r) => setTimeout(r, delayMs));
-      continue;
-    }
-    return resp;
+    const data = await resp.json();
+    return { content: data.choices?.[0]?.message?.content || null, status: resp.status, ok: resp.ok, raw: data };
+  } catch (e) {
+    return { content: null, status: 0, ok: false, raw: { error: e.message } };
   }
-  // unreachable — loop always returns on attempt 1
-  throw new Error("fetchOpenRouterWithRetry: exhausted retries");
+}
+
+// Tries every key in GROQ_KEYS, starting from the round-robin pointer, before giving up.
+// A 429 on one key immediately retries the SAME request on the next key (per spec 2a) — this
+// is not a per-incoming-request rotation, it's exhausting the whole pool within one call
+// before ever falling through to Gemini. Any other failure (HTTP error, timeout, empty
+// content) also advances to the next key rather than failing fast, since a bad key or a
+// transient upstream blip shouldn't cost the whole pool.
+async function callGroqPool(opts: {
+  model: string;
+  systemPrompt: string;
+  content: string | Array<Record<string, unknown>>;
+  temperature?: number;
+  maxTokens?: number;
+  jsonMode?: boolean;
+}): Promise<{ content: string | null; ok: boolean }> {
+  if (GROQ_KEYS.length === 0) return { content: null, ok: false };
+  const start = nextGroqKeyIndex();
+  for (let i = 0; i < GROQ_KEYS.length; i++) {
+    const keyIndex = (start + i) % GROQ_KEYS.length;
+    const result = await callOpenAICompatibleChat({ baseUrl: GROQ_CHAT_URL, apiKey: GROQ_KEYS[keyIndex], ...opts });
+    if (result.ok && result.content) return { content: result.content, ok: true };
+    if (result.status === 429) {
+      console.warn(`[CoreIntel] Groq key ${keyIndex + 1} hit 429, switching to next Groq key...`);
+    } else {
+      console.error(`[CoreIntel] Groq key ${keyIndex + 1} failed (status ${result.status}):`, JSON.stringify(result.raw));
+    }
+  }
+  console.warn("[CoreIntel] All Groq keys exhausted, falling back to Gemini Direct");
+  return { content: null, ok: false };
+}
+
+async function callGeminiFallback(opts: {
+  systemPrompt: string;
+  content: string | Array<Record<string, unknown>>;
+  temperature?: number;
+  maxTokens?: number;
+  jsonMode?: boolean;
+}): Promise<string | null> {
+  if (!GEMINI_API_KEY) {
+    console.error("[CoreIntel] Gemini fallback unavailable: GEMINI_API_KEY not set");
+    return null;
+  }
+  const result = await callOpenAICompatibleChat({ baseUrl: GEMINI_OPENAI_URL, apiKey: GEMINI_API_KEY, model: GEMINI_FALLBACK_MODEL, ...opts });
+  if (!result.ok || !result.content) {
+    console.error("[CoreIntel] Gemini fallback failed:", result.status, JSON.stringify(result.raw));
+    return null;
+  }
+  return result.content;
 }
 
 async function callTextModel(systemPrompt: string, userPrompt: string, maxTokens = 1000, temperature = 0.7) {
-  if (!OPENROUTER_API_KEY) return await callGeminiText(systemPrompt, userPrompt, false, maxTokens);
-  try {
-    const resp = await fetchOpenRouterWithRetry({
-      model: TEXT_MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      temperature,
-      max_tokens: Math.max(maxTokens, 300),
-      reasoning: { effort: "low" },
-    });
-    const data = await resp.json();
-    if (!resp.ok) {
-      console.error("[CoreIntel] OpenRouter text HTTP error:", resp.status, JSON.stringify(data));
-      console.warn("[CoreIntel] callTextModel: failing over to Gemini after OpenRouter error");
-      return await callGeminiText(systemPrompt, userPrompt, false, maxTokens);
-    }
-    const content = data.choices?.[0]?.message?.content || null;
-    return content !== null ? content : await callGeminiText(systemPrompt, userPrompt, false, maxTokens);
-  } catch (e) {
-    console.error("[CoreIntel] callTextModel failed/timed out:", e.message);
-    return await callGeminiText(systemPrompt, userPrompt, false, maxTokens);
-  }
+  const groq = await callGroqPool({ model: GROQ_TEXT_MODEL, systemPrompt, content: userPrompt, temperature, maxTokens });
+  if (groq.ok) return groq.content;
+  return await callGeminiFallback({ systemPrompt, content: userPrompt, temperature, maxTokens });
 }
 
-async function callVisionModel(systemPrompt: string, userPrompt: string, imageBase64: string, mimeType: string) {
-  if (!OPENROUTER_API_KEY) return { content: null, raw: { error: "OPENROUTER_API_KEY not set" }, ok: false, status: 0 };
-  try {
-    const resp = await fetchOpenRouterWithRetry({
-      model: VISION_MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: userPrompt },
-            { type: "image_url", image_url: { url: "data:" + mimeType + ";base64," + imageBase64 } },
-          ],
-        },
-      ],
-      temperature: 0.2,
-      max_tokens: 2000,
-    });
-    const data = await resp.json();
-    console.log("[CoreIntel] OpenRouter vision raw response:", JSON.stringify(data));
-    if (!resp.ok) {
-      console.error("[CoreIntel] OpenRouter vision HTTP error:", resp.status, JSON.stringify(data));
-    }
-    return { content: data.choices?.[0]?.message?.content || null, raw: data, ok: resp.ok, status: resp.status };
-  } catch (e) {
-    console.error("[CoreIntel] callVisionModel failed/timed out:", e.message);
-    return { content: null, raw: { error: e.message }, ok: false, status: 0 };
-  }
-}
-
-// Primary vision path (see GEMINI_API_KEY comment above for why vision's tier order is
-// flipped vs text/JSON) — callVisionModel (OpenRouter) is the fallback, only reached when this
-// returns no content (key unset, HTTP error, or unparsable reply). Same 25s upstream timeout
-// budget as callVisionModel so a caller waiting on both in sequence still finishes under the
-// Android client's 30s HttpURLConnection timeout.
-async function callGeminiVision(systemPrompt: string, userPrompt: string, imageBase64: string, mimeType: string) {
-  if (!GEMINI_API_KEY) return { content: null, ok: false };
-  try {
-    const url = "https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_VISION_MODEL + ":generateContent?key=" + GEMINI_API_KEY;
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: systemPrompt + "\n\n" + userPrompt },
-            { inlineData: { mimeType: mimeType, data: imageBase64 } },
-          ],
-        }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 2000 },
-      }),
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-    });
-    const data = await resp.json();
-    if (!resp.ok) {
-      console.error("[CoreIntel] Gemini vision HTTP error:", resp.status, JSON.stringify(data));
-      return { content: null, ok: false };
-    }
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || null;
-    return { content: text, ok: !!text };
-  } catch (e) {
-    console.error("[CoreIntel] callGeminiVision failed/timed out:", e.message);
-    return { content: null, ok: false };
-  }
-}
-
-// Text/JSON failover leg of the key-rotation pool — same GEMINI_API_KEY/model already used
-// as the vision fallback above, reused here for plain text so callTextModel/callJsonModel
-// never dead-end just because OPENROUTER_API_KEY's free tier is rate-limited. jsonMode uses
-// Gemini's native responseMimeType so callJsonModel can JSON.parse the result the same way
-// it parses OpenRouter's response_format:{type:"json_object"} output.
-async function callGeminiText(systemPrompt: string, userPrompt: string, jsonMode: boolean, maxTokens: number) {
-  if (!GEMINI_API_KEY) return null;
-  try {
-    const url = "https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_VISION_MODEL + ":generateContent?key=" + GEMINI_API_KEY;
-    const generationConfig: Record<string, unknown> = { temperature: 0.3, maxOutputTokens: Math.max(maxTokens, 300) };
-    if (jsonMode) generationConfig.responseMimeType = "application/json";
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: systemPrompt + "\n\n" + userPrompt }] }],
-        generationConfig,
-      }),
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-    });
-    const data = await resp.json();
-    if (!resp.ok) {
-      console.error("[CoreIntel] Gemini text HTTP error:", resp.status, JSON.stringify(data));
-      return null;
-    }
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
-  } catch (e) {
-    console.error("[CoreIntel] callGeminiText failed/timed out:", e.message);
+async function callJsonModel(systemPrompt: string, userPrompt: string, maxTokens = 1500) {
+  const groq = await callGroqPool({ model: GROQ_TEXT_MODEL, systemPrompt, content: userPrompt, temperature: 0.2, maxTokens, jsonMode: true });
+  const raw = groq.ok ? groq.content : await callGeminiFallback({ systemPrompt, content: userPrompt, temperature: 0.2, maxTokens, jsonMode: true });
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch (e) {
+    console.error("[CoreIntel] callJsonModel: JSON.parse failed:", e.message, "raw:", raw);
     return null;
   }
+}
+
+// Vision: Groq primary (GROQ_VISION_MODEL, whichever key answers first), Gemini fallback —
+// same pool/fallback order as text, per spec section 3 ("If Groq Vision fails, route
+// directly to Gemini"). image_url + base64 data URI is the OpenAI-compatible multimodal
+// shape both Groq and Gemini's compat endpoint accept, so the same content-block array
+// works unchanged across both.
+async function callVisionModel(systemPrompt: string, userPrompt: string, imageBase64: string, mimeType: string) {
+  const content = [
+    { type: "text", text: userPrompt },
+    { type: "image_url", image_url: { url: "data:" + mimeType + ";base64," + imageBase64 } },
+  ];
+  const groq = await callGroqPool({ model: GROQ_VISION_MODEL, systemPrompt, content, temperature: 0.2, maxTokens: 2000 });
+  if (groq.ok) return groq.content;
+  return await callGeminiFallback({ systemPrompt, content, temperature: 0.2, maxTokens: 2000 });
 }
 
 async function transcribeAudio(audioBase64: string, mimeType: string) {
@@ -242,46 +217,6 @@ async function transcribeAudio(audioBase64: string, mimeType: string) {
   } catch (e) {
     console.error("[CoreIntel] transcribeAudio failed:", e.message);
     return { text: null, raw: { error: e.message }, ok: false, status: 0 };
-  }
-}
-
-async function callJsonModel(systemPrompt: string, userPrompt: string, maxTokens = 1500) {
-  if (!OPENROUTER_API_KEY) return await parseGeminiJson(systemPrompt, userPrompt, maxTokens);
-  try {
-    const resp = await fetchOpenRouterWithRetry({
-      model: TEXT_MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.2,
-      max_tokens: Math.max(maxTokens, 300),
-      reasoning: { effort: "low" },
-    });
-    const data = await resp.json();
-    if (!resp.ok) {
-      console.error("[CoreIntel] OpenRouter json HTTP error:", resp.status, JSON.stringify(data));
-      console.warn("[CoreIntel] callJsonModel: failing over to Gemini after OpenRouter error");
-      return await parseGeminiJson(systemPrompt, userPrompt, maxTokens);
-    }
-    const text = data.choices?.[0]?.message?.content || "{}";
-    try { return JSON.parse(text); } catch (e) {
-      console.error("[CoreIntel] callJsonModel: JSON.parse failed:", e.message, "raw:", text);
-      return await parseGeminiJson(systemPrompt, userPrompt, maxTokens);
-    }
-  } catch (e) {
-    console.error("[CoreIntel] callJsonModel failed/timed out:", e.message);
-    return await parseGeminiJson(systemPrompt, userPrompt, maxTokens);
-  }
-}
-
-async function parseGeminiJson(systemPrompt: string, userPrompt: string, maxTokens: number) {
-  const text = await callGeminiText(systemPrompt, userPrompt, true, maxTokens);
-  if (!text) return null;
-  try { return JSON.parse(text); } catch (e) {
-    console.error("[CoreIntel] parseGeminiJson: JSON.parse failed:", e.message, "raw:", text);
-    return null;
   }
 }
 
@@ -511,16 +446,10 @@ Deno.serve(async (req: Request) => {
         if (!image_base64) return jsonResponse({ items: [] });
         const systemPrompt = "You are a vision AI. Analyze the image of refrigerator/pantry contents. Identify every food item visible. Return ONLY JSON: {\"items\":[{\"name\":\"\",\"quantity\":1.0,\"unit\":\"قطعة\",\"category\":\"عام\"}]}";
         const userPrompt = "List all food items visible in this image with estimated quantity, unit, and category.";
-        // Gemini is tier-1 for vision/OCR specifically (stronger at reading receipt/label text
-        // than the free OpenRouter vision model) — OpenRouter is the fallback here, opposite of
-        // the text/JSON actions above where OpenRouter is primary and Gemini is the fallback.
-        let visionResult = (await callGeminiVision(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
+        // callVisionModel already tries every Groq key then falls back to Gemini internally.
+        const visionResult = await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg");
         if (!visionResult) {
-          console.error("[CoreIntel] analyze_inventory_image: Gemini vision unavailable/failed, trying OpenRouter fallback");
-          visionResult = (await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
-        }
-        if (!visionResult) {
-          console.error("[CoreIntel] analyze_inventory_image: both Gemini and OpenRouter vision returned null content");
+          console.error("[CoreIntel] analyze_inventory_image: Groq pool and Gemini fallback both returned null content");
           return jsonResponse({ items: [] });
         }
         const objectMatch = visionResult.match(/\{[\s\S]*\}/);
@@ -555,13 +484,8 @@ Deno.serve(async (req: Request) => {
         if (!image_base64) return jsonResponse({ total: 0, category: "", storeName: "", items: [] });
         const systemPrompt = "You are a receipt scanning AI. Extract all information from this receipt image. Return ONLY JSON: {\"total\":0.0,\"category\":\"\",\"storeName\":\"\",\"items\":[{\"name\":\"\",\"price\":0.0,\"quantity\":1.0,\"unit\":\"قطعة\",\"category\":\"عام\"}]}";
         const userPrompt = "Extract the total amount, store name, category, and all line items from this receipt.";
-        // Same tier order as analyze_inventory_image above: Gemini primary for vision/OCR quality,
-        // OpenRouter's free vision model as fallback.
-        let visionResult = (await callGeminiVision(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
-        if (!visionResult) {
-          console.error("[CoreIntel] analyze_receipt: Gemini vision unavailable/failed, trying OpenRouter fallback");
-          visionResult = (await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg")).content;
-        }
+        // callVisionModel already tries every Groq key then falls back to Gemini internally.
+        const visionResult = await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg");
         if (visionResult) {
           const jsonMatch = visionResult.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
@@ -841,7 +765,7 @@ Deno.serve(async (req: Request) => {
       }
 
       // ──────────────────────────────────────────────
-      // AI_TEXT — Generic text generation (used by callGeminiText)
+      // AI_TEXT — Generic text generation
       // ──────────────────────────────────────────────
       case "ai_text": {
         const { system_prompt, user_prompt, response_mime_type } = payload || {};
