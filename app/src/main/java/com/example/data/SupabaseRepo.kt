@@ -169,6 +169,50 @@ object SupabaseRepo {
         }
     }
 
+    @Serializable
+    private data class ObservationParams(
+        @SerialName("p_user") val user: String,
+        @SerialName("p_item") val item: String,
+        @SerialName("p_qty") val qty: Int,
+        @SerialName("p_source") val source: String
+    )
+
+    /**
+     * Task 18 — records a timestamped quantity observation and recomputes the item's
+     * consumption rate server-side (zad_record_observation → zad_recompute_consumption).
+     *
+     * Why this exists: a quantity write on its own teaches the system nothing. Two
+     * observations give one consumption sample; three samples make `rate_known` true, which
+     * is what finally removes the item from the brain's `stock_unknown` list and stops it
+     * asking about that item every day. Camera OCR and manual −/+ edits are free rate data,
+     * so feeding them here makes rates converge in days instead of weeks — and the brain
+     * then asks far fewer questions overall.
+     *
+     * The median-based rate math lives in SQL on purpose, so this client and the zad-brain
+     * edge function share one implementation instead of two that drift apart.
+     *
+     * Task 12 note: when `ZadIngest` finally consolidates the seven write paths, this call
+     * belongs inside `submit()` — every path would then record observations for free. Until
+     * then callers invoke it directly, matching the existing `object SupabaseRepo` pattern.
+     *
+     * @param source one of question_answer | camera_ocr | manual | purchase (DB CHECK enforced)
+     */
+    suspend fun recordInventoryObservation(itemName: String, qty: Int, source: String) {
+        try {
+            val userId = client.auth.currentUserOrNull()?.id ?: return
+            client.postgrest.rpc(
+                "zad_record_observation",
+                Json.encodeToJsonElement(
+                    ObservationParams(user = userId, item = itemName, qty = qty, source = source)
+                ).jsonObject
+            )
+            Log.d(TAG, "recordInventoryObservation() SUCCESS — $itemName qty=$qty source=$source")
+        } catch (e: Exception) {
+            // Never fail the user-visible inventory edit over a learning-signal write.
+            Log.e(TAG, "recordInventoryObservation() FAILED: ${e.message}")
+        }
+    }
+
     suspend fun deleteInventory(id: String) {
         try {
             Log.d(TAG, "deleteInventory() → table=zad_inventory, id=$id")

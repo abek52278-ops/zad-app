@@ -178,6 +178,40 @@ Deno.test("ask_user rejects a second question in the same run", async () => {
   assertRejected(v);
 });
 
+// ── Task 18 cooldown (acceptance #4 and #5) ────────────────────────────────────
+// These are the guard against Fault B: an item needs four observations before
+// samples>=3, and without a cooldown the brain re-asks about it on every daily run
+// in the meantime — the "asks and forgets" behaviour the user originally reported.
+
+Deno.test("ask_user rejects the same about_item asked within 72 hours", async () => {
+  const snap = { ...healthySnapshot, stock_unknown: ["بيض"], asked_recently: ["بيض"] };
+  const v = await validateAskUser(
+    { title: "البيض", body: "كام؟", dedupe_key: "ask_eggs_qty", answer_type: "number", about_item: "بيض" },
+    snap, freshContext("u1"),
+  );
+  assertRejected(v);
+  assertStringIncludes(v.reason, "٣ أيام");
+});
+
+Deno.test("ask_user rejects an item whose consumption rate is already known", async () => {
+  const snap = { ...healthySnapshot, stock_unknown: ["بيض"], rate_known_items: ["بيض"] };
+  const v = await validateAskUser(
+    { title: "البيض", body: "كام؟", dedupe_key: "ask_eggs_qty", answer_type: "number", about_item: "بيض" },
+    snap, freshContext("u1"),
+  );
+  assertRejected(v);
+  assertStringIncludes(v.reason, "المعدل معروف");
+});
+
+Deno.test("ask_user still allows a fresh unknown-rate item", async () => {
+  const snap = { ...healthySnapshot, stock_unknown: ["بيض"], asked_recently: ["لبن"], rate_known_items: [] };
+  const v = await validateAskUser(
+    { title: "البيض", body: "كام؟", dedupe_key: "ask_eggs_qty", answer_type: "number", about_item: "بيض" },
+    snap, freshContext("u1"),
+  );
+  assertEquals(v.ok, true);
+});
+
 Deno.test("add_shopping_item rejects an item already pending", async () => {
   const snap = { ...healthySnapshot, shopping_list_pending: ["لبن"] };
   const v = await validateAddShoppingItem({ item_name: "لبن", quantity: 2 }, snap, freshContext("u1"));

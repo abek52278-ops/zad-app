@@ -1174,6 +1174,12 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 // مزامنة Supabase
                 result.addedNew.forEach { try { SupabaseRepo.addInventory(it) } catch (_: Exception) {} }
                 result.updatedExisting.forEach { try { SupabaseRepo.upsertInventory(it) } catch (_: Exception) {} }
+                // Task 18 — every scanned quantity is free consumption-rate data. Feeding OCR
+                // here (not just brain answers) is what makes rates converge in days instead
+                // of weeks, which in turn means the brain asks the user far fewer questions.
+                (result.addedNew + result.updatedExisting).forEach {
+                    try { SupabaseRepo.recordInventoryObservation(it.itemName, it.quantity, "camera_ocr") } catch (_: Exception) {}
+                }
                 result.removedFromShopping.forEach {
                     try { SupabaseRepo.toggleShoppingItemPurchased(it.id, true) } catch (_: Exception) {}
                 }
@@ -1197,6 +1203,12 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     getApplication(), dao, item, amount
                 )
                 try { SupabaseRepo.upsertInventory(result.updatedItem) } catch (_: Exception) {}
+                // Task 18 — the − button is the highest-frequency real consumption signal in
+                // the app; recording it as an observation is what lets a rate become trusted
+                // (samples>=3) without the brain having to ask anything at all.
+                try {
+                    SupabaseRepo.recordInventoryObservation(result.updatedItem.itemName, result.updatedItem.quantity, "manual")
+                } catch (_: Exception) {}
 
                 if (result.hitLowStock) {
                     val added = com.example.data.InventoryFlowEngine.autoReplenish(

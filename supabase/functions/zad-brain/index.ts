@@ -29,6 +29,7 @@
 // amount,renewal_date,is_active), zad_shopping_list(user_id,item_name,is_purchased),
 // zad_consumption(user_id,item_name,avg_daily_qty,rate_known), zad_insights, zad_memory,
 // zad_brain_runs, zad_brain_queue — all created in migrations/0001_zad_brain.sql.
+// Task 18 adds zad_inventory_observations + zad_record_observation/zad_recompute_consumption.
 //
 // Validators (Task 16.1/16.2) live in validators.ts — untouched, still the sole gate
 // before any tool executes. Model adapter (STEP 0) lives in callModel.ts.
@@ -56,7 +57,7 @@ type Trigger = "daily" | "event" | "chat";
 // ═══════════════════════════════════════════════════════════
 
 async function buildSnapshot(sb: SupabaseClient, userId: string) {
-  const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes] =
+  const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes, askedRes, selfMemRes] =
     await Promise.all([
       sb.from("zad_users").select("budget").eq("id", userId).maybeSingle(),
       sb.from("zad_transactions").select("amount,title,category,is_expense,created_at,merchant_name")
@@ -73,6 +74,17 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
         .eq("user_id", userId).order("confidence", { ascending: false }).limit(20),
       sb.from("zad_insights").select("dedupe_key").eq("user_id", userId).eq("status", "dismissed"),
       sb.rpc("zad_brain_self_review", { p_user: userId }),
+      // Task 18 cooldown data. Deliberately NOT filtered by status: an answered ("acted")
+      // question must still block a re-ask, which is the bug that made the brain re-ask
+      // about eggs the day after it was told the answer.
+      sb.from("zad_insights").select("about_item,created_at")
+        .eq("user_id", userId).eq("kind", "question").not("about_item", "is", null)
+        .gte("created_at", new Date(Date.now() - 72 * 3600000).toISOString()),
+      // "Did I already write myself a lesson recently?" — gates the 18.4 forced turn so it
+      // fires at most once per fortnight instead of nagging the model every run.
+      sb.from("zad_memory").select("id")
+        .eq("user_id", userId).eq("scope", "self")
+        .gte("created_at", new Date(Date.now() - 14 * 86400000).toISOString()),
     ]);
 
   const budget = userRes.data?.budget ?? 0;
@@ -113,8 +125,10 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
   }
 
   const consumptionByItem: Record<string, { avgDailyQty: number; rateKnown: boolean }> = {};
+  const rateKnownItems: string[] = [];
   for (const c of consRes.data ?? []) {
     consumptionByItem[c.item_name] = { avgDailyQty: c.avg_daily_qty, rateKnown: c.rate_known };
+    if (c.rate_known) rateKnownItems.push(c.item_name);
   }
   const stock = (invRes.data ?? []).map((item) => {
     const cons = consumptionByItem[item.item_name];
@@ -141,6 +155,11 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     memory: (memRes.data ?? []).map((m) => ({ scope: m.scope, note: m.note, confidence: m.confidence })),
     dismissed_keys: (dismissedRes.data ?? []).map((d) => d.dedupe_key),
     distinct_categories: [...new Set(transactions.map((t) => t.category).filter(Boolean))],
+    // Task 18: items asked about in the last 72h (any status) and items whose rate is already
+    // trusted — both are hard "don't ask again" signals enforced in validateAskUser.
+    asked_recently: [...new Set((askedRes.data ?? []).map((a: any) => a.about_item))],
+    rate_known_items: rateKnownItems,
+    wrote_self_lesson_recently: (selfMemRes.data ?? []).length > 0,
     // "خلّي العقل يشوف نتيجة كلامه القديم" — تحذيرات سرعة الصرف/نواقص المخزون آخر
     // أسبوعين، اتأكدت ولا طلعت غلط. لو نمط متكرر (٣+ مرات غلط)، المفروض العقل يستخدم
     // remember() يسجله كدرس بدل ما يكرر نفس الغلطة كل مرة.
@@ -197,7 +216,27 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       if (error) return `فشل التعديل: ${error.message}`;
       ctx.mutationCount++;
       ctx.mutations.push({ tool: name, old: before?.quantity, new: input.new_qty });
-      return "اتعدلت الكمية";
+
+      // Task 18 Fault B: the quantity write alone left the item in stock_unknown forever, so
+      // the brain re-asked about it daily and the answer taught the system nothing. Recording
+      // the observation + recomputing the rate is UNCONDITIONAL here — deliberately not a
+      // separate tool the model may or may not call, since skipping the optional step is
+      // exactly what a 20B model did in the STEP 3 run.
+      const { data: obs, error: obsErr } = await sb.rpc("zad_record_observation", {
+        p_user: userId, p_item: input.item_name, p_qty: input.new_qty, p_source: "question_answer",
+      });
+      if (obsErr) {
+        // The inventory write already committed; report honestly rather than claiming the
+        // rate advanced, so a broken learning loop is visible instead of silent.
+        console.error("zad_record_observation failed:", obsErr.message);
+        return `اتعدلت الكمية بس معرفتش أسجل الملاحظة للتعلم: ${obsErr.message}`;
+      }
+      const samples = (obs as any)?.samples ?? 0;
+      const rateKnown = (obs as any)?.rate_known === true;
+      ctx.observations.push({ item: input.item_name, qty: input.new_qty, samples, rateKnown });
+      return rateKnown
+        ? `اتعدلت الكمية، وبقى عندي معدل استهلاك مؤكد للصنف ده (${samples} قياسات) — مش محتاج أسأل عنه تاني`
+        : `اتعدلت الكمية واتسجلت ملاحظة للتعلم (${samples} قياسات لحد الآن، محتاج ٣)`;
     }
     case "set_transaction_category": {
       const { data: before } = await sb.from("zad_transactions").select("category").eq("id", input.transaction_id).eq("user_id", userId).maybeSingle();
@@ -364,6 +403,17 @@ function buildSystemPrompt(snap: any): string {
 - self_review جوه الـ snapshot هو حكمك انت على كلامك القديم — لو نمط معين طلع غلط ٣ مرات، سجله بـ remember() كدرس بدل ما تكرره.
 - كل حاجة تقولها في ردك النصي إنك عملتها لازم يكون فعلاً نداء أداة حقيقي في نفس الرد — مينفعش تقول "سجلت/عدّلت/ضفت" من غير ما تنادي الأداة المقابلة فعلاً.
 
+لما العميل يرد على سؤال:
+- الرد بيتسجل تلقائياً في النظام، متقلقش على الرقم نفسه.
+- شوف الرد ده بيقولك إيه عن العميل غير الرقم. لو فيه نمط فعلاً، اكتبه بـ remember.
+  مثال: رد إن فاضل ٢ بس من حاجة اشتراها الأسبوع اللي فات = بيستهلكها بسرعة.
+- لو الرد رقم عادي ومفيش منه استنتاج، متكتبش ملاحظة. ملاحظة فاضية أوحش من مفيش.
+
+remember مش للأرقام. للأنماط:
+- سلوك متكرر ("بيصرف أكتر آخر الشهر")
+- تفضيلات ("مش مهتم بتنبيهات الاشتراكات")
+- دروس عن نفسك ("تحذيراتي عن سرعة الصرف طلعت غلط ٣ مرات")
+
 === SNAPSHOT ===
 ${JSON.stringify(snap)}
 === END SNAPSHOT ===`;
@@ -465,6 +515,44 @@ Deno.serve(async (req: Request) => {
       history.push({ role: "tool", results: toolResults });
     }
 
+    // ── Task 18.4: forced follow-up turn ──────────────────────────────────────
+    // Prompt instructions are unreliable on small models, so for the ONE case where a
+    // missing remember() is a genuine failure — the brain repeatedly cried wolf and never
+    // recorded the lesson — enforce it in the loop instead of asking nicely.
+    //
+    // NOTE ON A SPEC/CODE MISMATCH (flagged per ZAD_MASTER "stop and ask"): the task text
+    // describes `warning_accuracy` holding `false_alarm` verdicts. No such field exists —
+    // zad_brain_self_review() returns self_review.{velocity,low_stock}_warnings.{correct,
+    // incorrect}, where `incorrect` IS the false-alarm count. Implemented against the real
+    // shape; the threshold (>=2) and the once-per-run cap are as specified.
+    const falseAlarms = (snap.self_review?.velocity_warnings?.incorrect ?? 0) +
+                        (snap.self_review?.low_stock_warnings?.incorrect ?? 0);
+    const wroteRemember = (ctx.counts["remember"] ?? 0) > 0;
+    if (falseAlarms >= 2 && !wroteRemember && !snap.wrote_self_lesson_recently) {
+      const rememberOnly = TOOLS.filter((t) => t.name === "remember");
+      history.push({
+        role: "user",
+        text: `تحذيراتك عن الميزانية طلعت غلط ${falseAlarms} مرات ومكتبتش الدرس. نادِ remember بـ scope='self' بجملة واحدة عن الخطأ المتكرر ده. مفيش أدوات تانية في اللفة دي.`,
+      });
+      try {
+        const forced = await callModel({ model: MODEL_ROUTINE, system: systemPrompt, tools: rememberOnly, history, maxTokens: 400 });
+        inputTokens += forced.usage.inTok;
+        outputTokens += forced.usage.outTok;
+        const rememberCalls = forced.toolCalls.filter((c) => c.name === "remember");
+        for (const call of rememberCalls) {
+          const result = await runTool(sb, userId, call.name, { ...call.input, scope: "self" }, snap, ctx);
+          if (!result.startsWith("مرفوض:")) executedSummaries.push(result);
+        }
+        if (rememberCalls.length === 0) {
+          // Declining the forced turn means the model is too small for the job. Log it as a
+          // signal to change models rather than to pile on more instructions.
+          ctx.rejections.push({ tool: "remember", reason: "forced_remember_declined", input: { falseAlarms } });
+        }
+      } catch (e) {
+        console.error("forced remember turn failed:", e);
+      }
+    }
+
     // finalMessage متبني على نتيجة التنفيذ الفعلي، مش كلام الموديل الحر — لو الموديل حاول
     // action واحد على الأقل، بنصدق الـ DB مش الـ message (اتلاحظ فعلياً إن الموديل بيقول
     // "سجلت" من غير ما يحط action حقيقي — متصدقوش أبداً لما يكون فيه محاولة تنفيذ).
@@ -482,6 +570,7 @@ Deno.serve(async (req: Request) => {
 
     return new Response(JSON.stringify({
       message: finalMessage, insights_emitted: ctx.insightCount, mutations: ctx.mutations, rejections: ctx.rejections,
+      observations: ctx.observations, // Task 18: proves the rate advanced, not just the qty
       tokens: { input: inputTokens, output: outputTokens },
     }), { headers: CORS_HEADERS });
   } catch (e) {

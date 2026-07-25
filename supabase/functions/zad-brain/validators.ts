@@ -12,12 +12,14 @@ export interface RunContext {
   rejections: Array<{ tool: string; reason: string; input: unknown }>;
   mutations: Array<{ tool: string; old: unknown; new: unknown }>;
   abortedTools: Set<string>;
+  /** Task 18: rate-learning artifacts produced this run (observation + recomputed rate). */
+  observations: Array<{ item: string; qty: number; samples: number; rateKnown: boolean }>;
 }
 
 export type Validator = (input: any, snap: any, ctx: RunContext) => Promise<Validation> | Validation;
 
 export function freshContext(userId: string): RunContext {
-  return { userId, counts: {}, mutationCount: 0, insightCount: 0, rejections: [], mutations: [], abortedTools: new Set() };
+  return { userId, counts: {}, mutationCount: 0, insightCount: 0, rejections: [], mutations: [], abortedTools: new Set(), observations: [] };
 }
 
 const DEDUPE_KEY_RE = /^[a-z0-9_]{3,60}$/;
@@ -47,6 +49,17 @@ export const validateAskUser: Validator = (input, snap, ctx) => {
   if ((ctx.counts["ask_user"] ?? 0) >= 1) return { ok: false, reason: "سؤال واحد في المرة" };
   if (!["number", "yes_no", "camera"].includes(input.answer_type)) {
     return { ok: false, reason: "answer_type لازم يكون number أو yes_no أو camera" };
+  }
+  // Task 18 cooldown. Without this, Fault B survives the rate logic: an item needs four
+  // observations before samples>=3, so it stays in stock_unknown for days, and the brain
+  // would re-ask every single daily run in the meantime — which reads to the user exactly
+  // like "the app asks and forgets". Checked BEFORE the stock_unknown test so the model gets
+  // the specific reason (and can learn the rule) instead of a generic one.
+  if (input.about_item && (snap.rate_known_items ?? []).includes(input.about_item)) {
+    return { ok: false, reason: "المعدل معروف بالفعل" };
+  }
+  if (input.about_item && (snap.asked_recently ?? []).includes(input.about_item)) {
+    return { ok: false, reason: "سألت عن ده قبل ٣ أيام — استنى" };
   }
   if (input.about_item && !snap.stock_unknown?.includes(input.about_item)) {
     return { ok: false, reason: "الصنف ده مش في المخزون أو معدله معروف أصلاً" };
