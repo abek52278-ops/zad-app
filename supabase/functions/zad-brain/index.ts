@@ -35,7 +35,7 @@
 
 import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { freshContext, RunContext, validateTool } from "./validators.ts";
-import { callModel, Turn, ToolDef } from "./callModel.ts";
+import { callModel, smokeTestTools, Turn, ToolDef } from "./callModel.ts";
 import { decideOnBrainFailure, hasRecentMutatingRun } from "./shared.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -378,6 +378,19 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json();
+
+    // STEP 1 diagnostic — bypasses everything else (no user_id/DB needed) so
+    // ZAD_PROVIDER/ZAD_API_KEY/ZAD_MODEL_ROUTINE can be checked in isolation
+    // before trusting any real run. { "smoke_test": true } in the body.
+    if (body.smoke_test === true) {
+      try {
+        const result = await smokeTestTools(MODEL_ROUTINE);
+        return new Response(JSON.stringify(result), { headers: CORS_HEADERS });
+      } catch (e) {
+        return new Response(JSON.stringify({ ok: false, error: String(e) }), { status: 200, headers: CORS_HEADERS });
+      }
+    }
+
     const userId: string | undefined = body.user_id;
     const trigger: Trigger = body.trigger ?? "event";
     const userMessage: string | undefined = body.user_message;
