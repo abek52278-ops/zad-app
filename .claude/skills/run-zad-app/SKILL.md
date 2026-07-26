@@ -68,6 +68,7 @@ which is enough for `compileDebugKotlin` and Robolectric rendering
 | `captureOnboardingScreen` | `OnboardingScreen` (no ViewModel) | `app/build/outputs/roborazzi/onboarding_screen.png` |
 | `captureZadQuestionCard_numberType` | `ZadQuestionCard`, `actionType="number"` | `app/build/outputs/roborazzi/zad_question_card_number.png` |
 | `captureZadQuestionCard_yesNoType` | `ZadQuestionCard`, `actionType="yes_no"` | `app/build/outputs/roborazzi/zad_question_card_yes_no.png` |
+| `captureZadQuestionCard_liveBrainQuestion` | Real zad-brain insight row (eggs quantity question) | `app/build/outputs/roborazzi/zad_question_card_live_eggs.png` |
 
 ## Run (human path)
 
@@ -81,8 +82,8 @@ you just need to confirm it packages.
 ./gradlew --no-daemon :app:testDebugUnitTest
 ```
 
-68 tests, 0 failures (this session, full `app/src/test/` suite —
-15 test files, includes the 3 Roborazzi capture tests above).
+69 tests, 0 failures (this session, full `app/src/test/` suite —
+15 test files, includes the 4 Roborazzi capture tests above).
 `app/src/androidTest/` (2 files) needs a real device/emulator and
 **cannot run in this container** — don't attempt it here.
 
