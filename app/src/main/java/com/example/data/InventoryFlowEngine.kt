@@ -162,9 +162,36 @@ object InventoryFlowEngine {
         )
     }
 
+    private const val STAGNANT_DAYS = 30L
+
+    private fun parseToEpochDay(raw: String): Long? = try {
+        java.time.Instant.parse(raw).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toEpochDay()
+    } catch (e: Exception) {
+        try { LocalDate.parse(raw.take(10)).toEpochDay() } catch (e2: Exception) { null }
+    }
+
+    /**
+     * Task 23 — راكد: مفيش نقص في الكمية آخر ٣٠ يوم ومفيش عينة استهلاك واحدة اتسجلت خالص.
+     * آخر نشاط (شراء أو استهلاك) هو المرجع، مش تاريخ الإضافة وحده — عشان صنف بيتجدد شراؤه
+     * بانتظام (تصوير فاتورة بيزوّد كميته من غير ما يستهلك حد منه لسه) ميتصنفش راكد غلط لمجرد
+     * إن أول إضافة له كانت من شهر. لو مفيش أي نشاط خالص، تاريخ الإضافة نفسه هو المرجع.
+     */
+    fun isStagnant(context: Context, item: ZadInventory): Boolean {
+        if (item.quantity <= 0) return false
+        val today = LocalDate.now().toEpochDay()
+        val referenceDay = ConsumptionLearner.lastActivityEpochDay(context, item.itemName)
+            ?: item.createdAt?.let { parseToEpochDay(it) }
+            ?: return false
+        if (today - referenceDay < STAGNANT_DAYS) return false
+        return !ConsumptionLearner.hasAnyConsumeEvent(context, item.itemName)
+    }
+
     /**
      * التغذية التلقائية للنواقص: أي منتج تحت الحد الأدنى وغير موجود
      * في قائمة التسوق → ينزل فيها تلقائياً بأولوية حسب الحالة
+     *
+     * Task 23 — الأصناف الراكدة مستبعدة: لو المستخدم مش بيستخدمها أصلاً، اقتراح "اشتري منها
+     * تاني" غلط بالكامل، بغض النظر عن الكمية الحالية.
      */
     suspend fun autoReplenish(
         context: Context,
@@ -173,7 +200,9 @@ object InventoryFlowEngine {
         currentShopping: List<ZadShoppingItem>
     ): List<ZadShoppingItem> {
         val added = mutableListOf<ZadShoppingItem>()
-        val lowStock = currentInventory.filter { it.quantity <= (it.lowStockThreshold ?: 2) }
+        val lowStock = currentInventory.filter {
+            it.quantity <= (it.lowStockThreshold ?: 2) && !isStagnant(context, it)
+        }
 
         for (item in lowStock) {
             val alreadyListed = currentShopping.any { !it.isPurchased && namesMatch(it.itemName, item.itemName) }
@@ -255,6 +284,20 @@ object ConsumptionLearner {
     fun recordPurchase(context: Context, itemName: String) = recordEvent(context, PURCHASE_PREFIX, itemName)
 
     fun recordConsumption(context: Context, itemName: String) = recordEvent(context, CONSUME_PREFIX, itemName)
+
+    private fun eventDays(context: Context, prefix: String, itemName: String): List<Long> {
+        val key = prefix + InventoryFlowEngine.normalizeName(itemName)
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return (prefs.getString(key, "") ?: "").split(",").mapNotNull { it.toLongOrNull() }
+    }
+
+    /** Task 23 — "لا عينات استهلاك" يعني مفيش أي حدث use_ اتسجل خالص للصنف ده */
+    fun hasAnyConsumeEvent(context: Context, itemName: String): Boolean =
+        eventDays(context, CONSUME_PREFIX, itemName).isNotEmpty()
+
+    /** Task 23 — آخر يوم اتسجل فيه أي نشاط (شراء أو استهلاك) للصنف ده، null لو مفيش خالص */
+    fun lastActivityEpochDay(context: Context, itemName: String): Long? =
+        (eventDays(context, PURCHASE_PREFIX, itemName) + eventDays(context, CONSUME_PREFIX, itemName)).maxOrNull()
 
     /** متوسط الأيام بين عمليات الشراء (بتنعيم أسي تراكمي) — null لو مفيش بيانات كافية */
     fun averagePurchaseIntervalDays(context: Context, itemName: String): Int? {

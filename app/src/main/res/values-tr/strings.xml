@@ -240,6 +240,8 @@
     <string name="inventory_items_label">envanterdeki ürün</string>
     <string name="items_count">%1$d ürün</string>
     <string name="items_expiring_soon_hint">%1$s yakında bitiyor 👀</string>
+    <string name="items_stagnant_hint">%1$s bir süredir kullanılmıyor 🤔</string>
+    <string name="suggested_recipes_use_it_up">Bozulmadan önce kullanmana yardımcı olacak tarifler</string>
     <string name="kids_new_purchase_request_message">Yeni bir harcama/talep istiyorum</string>
     <string name="meal_breakfast_shakshuka">Kahvaltılık shakshuka</string>
     <string name="meal_breakfast_shakshuka_desc">Mevcut yumurta ve domatesle hızlı bir kahvaltı.</string>

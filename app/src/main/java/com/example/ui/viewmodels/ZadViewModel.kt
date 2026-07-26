@@ -1944,7 +1944,12 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             Log.d(TAG, "fetchGrocerySuggestions() → familySize=$familySize")
             _grocerySuggestions.value = emptyList() // Clear old data
             try {
-                val suggestions = ZadAiRepository.suggestGroceries(_inventory.value, familySize)
+                // Task 23 — أصناف راكدة (مفيش استهلاك خالص آخر ٣٠ يوم) متتبعتش لل AI أصلاً
+                // كجزء من "المخزون الحالي" — عشان الاقتراح مايفكرش يقول "اشتري منها كمان"
+                // لحاجة المستخدم أصلاً مش بيستخدمها.
+                val ctx = getApplication<Application>()
+                val nonStagnant = _inventory.value.filterNot { com.example.data.InventoryFlowEngine.isStagnant(ctx, it) }
+                val suggestions = ZadAiRepository.suggestGroceries(nonStagnant, familySize)
                 Log.d(TAG, "fetchGrocerySuggestions() → received ${suggestions.size} suggestions")
                 _grocerySuggestions.value = suggestions
             } catch (e: Exception) {
@@ -2179,7 +2184,9 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // --- وصفات ذكية مربوطة بالعقل: "عندك دجاج هينتهي بكرة → 3 وصفات بيه" ---
-    data class UrgentRecipes(val triggerItems: List<String>, val text: String)
+    /** Task 23 — [stagnantItems] فرعية من [triggerItems]، عشان الكارت يقدر يفرّق العنوان
+     * ("هيخلص قريب" مقابل "من فترة وماستخدمتهاش") حسب سبب التحفيز الفعلي */
+    data class UrgentRecipes(val triggerItems: List<String>, val text: String, val stagnantItems: List<String> = emptyList())
 
     private val _urgentRecipes = MutableStateFlow<UrgentRecipes?>(null)
     val urgentRecipes: StateFlow<UrgentRecipes?> = _urgentRecipes.asStateFlow()
@@ -2191,30 +2198,37 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val ctx = getApplication<Application>()
                 val today = java.time.LocalDate.now()
-                // أصناف تنتهي صلاحيتها خلال يومين أو متوقع نفادها خلال يومين
+                // Task 23 — راكدة: مفيش نقص في الكمية ٣٠ يوم ومفيش عينة استهلاك خالص.
+                // بتتحط أول القايمة (سياق الشيف الأول)، قبل أصناف هتخلص/تنتهي.
+                val stagnant = _inventory.value.filter { item ->
+                    item.quantity > 0 && com.example.data.InventoryFlowEngine.isStagnant(ctx, item)
+                }.map { it.itemName }.distinct().take(3)
+
+                // أصناف تنتهي صلاحيتها خلال ٥ أيام أو متوقع نفادها خلال يومين
                 val urgent = _inventory.value.filter { item ->
                     val expiringSoon = item.expiryDate?.let {
                         try {
-                            java.time.temporal.ChronoUnit.DAYS.between(today, java.time.LocalDate.parse(it)) in 0..2
+                            java.time.temporal.ChronoUnit.DAYS.between(today, java.time.LocalDate.parse(it)) in 0..5
                         } catch (e: Exception) { false }
                     } ?: false
                     val depletingSoon = com.example.data.ConsumptionLearner
                         .predictDaysLeft(ctx, item.itemName, item.quantity)?.let { it in 0..2 } ?: false
-                    (expiringSoon || depletingSoon) && item.quantity > 0
-                }.map { it.itemName }.distinct().take(5)
+                    (expiringSoon || depletingSoon) && item.quantity > 0 && item.itemName !in stagnant
+                }.map { it.itemName }.distinct().take(5 - stagnant.size)
 
-                if (urgent.isEmpty()) {
+                if (stagnant.isEmpty() && urgent.isEmpty()) {
                     _urgentRecipes.value = null
                     return@launch
                 }
+                val triggerItems = (stagnant + urgent).distinct()
                 // ما نكررش نفس النداء لنفس الأصناف
-                val key = urgent.sorted().joinToString(",")
+                val key = triggerItems.sorted().joinToString(",")
                 if (key == lastUrgentRecipeKey && _urgentRecipes.value != null) return@launch
                 lastUrgentRecipeKey = key
 
-                val text = ZadAiRepository.suggestMealsForUrgentItems(urgent, _inventory.value)
-                _urgentRecipes.value = UrgentRecipes(triggerItems = urgent, text = text)
-                Log.d(TAG, "generateUrgentRecipes() → ${urgent.size} urgent items")
+                val text = ZadAiRepository.suggestMealsForUrgentItems(urgent, _inventory.value, stagnant)
+                _urgentRecipes.value = UrgentRecipes(triggerItems = triggerItems, text = text, stagnantItems = stagnant)
+                Log.d(TAG, "generateUrgentRecipes() → ${stagnant.size} stagnant, ${urgent.size} urgent")
             } catch (e: Exception) {
                 Log.e(TAG, "generateUrgentRecipes() FAILED: ${e.message}")
             }

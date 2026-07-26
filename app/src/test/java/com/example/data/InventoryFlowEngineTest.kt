@@ -1,11 +1,15 @@
 package com.example.data
 
+import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.time.Instant
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 
 /**
  * تغطية لفلتر [InventoryFlowEngine.looksLikeNonProductName] — الدفاع اللي بيشيل صفوف
@@ -43,5 +47,51 @@ class InventoryFlowEngineTest {
     fun `namesMatch still treats Arabic definite article and variants as equal`() {
         assertTrue(InventoryFlowEngine.namesMatch("الحليب", "حليب"))
         assertTrue(InventoryFlowEngine.namesMatch("حليب المراعي", "المراعي حليب"))
+    }
+
+    // ─── Task 23: isStagnant ────────────────────────────────────────────────
+
+    private val context get() = ApplicationProvider.getApplicationContext<android.content.Context>()
+
+    private fun daysAgo(days: Long): String = Instant.now().minus(days, ChronoUnit.DAYS).toString()
+
+    /** يكتب حدث مباشرة في نفس تنسيق ConsumptionLearner (epoch days مفصولة بفاصلة) — عشان نقدر نحاكي حدث "قديم" من غير ما نستنى ٣٠ يوم فعلياً */
+    private fun seedEvent(prefix: String, itemName: String, daysAgo: Long) {
+        val key = prefix + InventoryFlowEngine.normalizeName(itemName)
+        val epochDay = LocalDate.now().minusDays(daysAgo).toEpochDay()
+        context.getSharedPreferences("zad_consumption", android.content.Context.MODE_PRIVATE)
+            .edit().putString(key, epochDay.toString()).apply()
+    }
+
+    @Test
+    fun `a brand new item with no events is not stagnant yet`() {
+        val item = ZadInventory(itemName = "معلبة تونة جديدة", quantity = 3, createdAt = daysAgo(1))
+        assertFalse(InventoryFlowEngine.isStagnant(context, item))
+    }
+
+    @Test
+    fun `an item added 40 days ago with zero consumption samples is stagnant`() {
+        val item = ZadInventory(itemName = "تونة راكدة", quantity = 5, createdAt = daysAgo(40))
+        assertTrue(InventoryFlowEngine.isStagnant(context, item))
+    }
+
+    @Test
+    fun `an item actively repurchased recently is not stagnant even if added long ago`() {
+        val item = ZadInventory(itemName = "أرز متجدد", quantity = 5, createdAt = daysAgo(60))
+        seedEvent("buy_", "أرز متجدد", daysAgo = 3)
+        assertFalse(InventoryFlowEngine.isStagnant(context, item))
+    }
+
+    @Test
+    fun `an item with any consumption sample ever is never stagnant, even an old one`() {
+        val item = ZadInventory(itemName = "زيت قديم الاستهلاك", quantity = 5, createdAt = daysAgo(90))
+        seedEvent("use_", "زيت قديم الاستهلاك", daysAgo = 89)
+        assertFalse(InventoryFlowEngine.isStagnant(context, item))
+    }
+
+    @Test
+    fun `a fully depleted item (quantity zero) is never stagnant`() {
+        val item = ZadInventory(itemName = "فاضي خالص", quantity = 0, createdAt = daysAgo(90))
+        assertFalse(InventoryFlowEngine.isStagnant(context, item))
     }
 }

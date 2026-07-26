@@ -237,6 +237,8 @@
     <string name="inventory_items_label">عنصر بالمخزون</string>
     <string name="items_count">%1$d عناصر</string>
     <string name="items_expiring_soon_hint">عندك %1$s بيخلص قريب 👀</string>
+    <string name="items_stagnant_hint">عندك %1$s من فترة وما استخدمتهم 🤔</string>
+    <string name="suggested_recipes_use_it_up">وصفات تساعدك تستخدمهم قبل لا يتلفوا</string>
     <string name="kids_new_purchase_request_message">أبغى مصروف/طلب جديد</string>
     <string name="meal_breakfast_shakshuka">شكشوكة الفطور</string>
     <string name="meal_breakfast_shakshuka_desc">فطور سريع بالبيض والطماطم المتوفرة.</string>

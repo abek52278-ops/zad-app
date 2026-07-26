@@ -578,6 +578,9 @@ fun HomeScreen(
                     UrgentRecipeCard(
                         triggerItems = urgent.triggerItems,
                         text = urgent.text,
+                        // Task 23 — لو كل الأصناف المحفّزة راكدة (مفيش صنف هيخلص/ينتهي فعلاً)،
+                        // العنوان يتغيّر — "هيخلص قريب" غلط لصنف حد ناسيه من شهر مش هيتلف بكرة.
+                        isStagnantOnly = urgent.stagnantItems.isNotEmpty() && urgent.stagnantItems.size == urgent.triggerItems.size,
                         onOpenChat = onNavigateToAssistant
                     )
                     Spacer(modifier = Modifier.height(24.dp))
@@ -1120,6 +1123,7 @@ fun StatCard(
 fun UrgentRecipeCard(
     triggerItems: List<String>,
     text: String,
+    isStagnantOnly: Boolean = false,
     onOpenChat: () -> Unit
 ) {
     Surface(
@@ -1139,12 +1143,19 @@ fun UrgentRecipeCard(
                 Spacer(modifier = Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        stringResource(R.string.items_expiring_soon_hint, triggerItems.take(2).joinToString("، ")),
+                        stringResource(
+                            if (isStagnantOnly) R.string.items_stagnant_hint else R.string.items_expiring_soon_hint,
+                            triggerItems.take(2).joinToString("، ")
+                        ),
                         style = Typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF9A3412)
                     )
-                    Text(stringResource(R.string.suggested_recipes_before_expiry), style = Typography.labelSmall, color = Color(0xFFC2410C))
+                    Text(
+                        stringResource(if (isStagnantOnly) R.string.suggested_recipes_use_it_up else R.string.suggested_recipes_before_expiry),
+                        style = Typography.labelSmall,
+                        color = Color(0xFFC2410C)
+                    )
                 }
             }
             Spacer(modifier = Modifier.height(10.dp))

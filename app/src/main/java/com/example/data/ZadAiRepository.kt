@@ -157,12 +157,27 @@ object ZadAiRepository {
         return response["text"] as? String ?: MEAL_SUGGESTIONS_FALLBACK
     }
 
-    /** وصفات مركزة على أصناف هتخلص/تنتهي — مربوطة بالعقل المركزي */
-    suspend fun suggestMealsForUrgentItems(urgentItems: List<String>, inventory: List<ZadInventory>): String {
+    /**
+     * وصفات مركزة على أصناف هتخلص/تنتهي — مربوطة بالعقل المركزي.
+     * Task 23 — [stagnantItems] (راكدة من ٣٠ يوم، مفيش استهلاك خالص) بتتحط أول الطلب،
+     * بصياغة مختلفة عن [urgentItems] (هتخلص/هتنتهي قريب) — السبب مختلف تماماً: دول مش
+     * على وشك النفاد، العكس، حد نسيهم.
+     */
+    suspend fun suggestMealsForUrgentItems(
+        urgentItems: List<String>,
+        inventory: List<ZadInventory>,
+        stagnantItems: List<String> = emptyList()
+    ): String {
         val invList = if (inventory.isEmpty()) "لا يوجد مخزون"
         else inventory.joinToString(", ") { "${it.itemName} (${it.quantity})" }
-        val itemsPayload = "مهم جداً: اقترح 3 وصفات تستخدم أولاً هذه الأصناف لأنها على وشك الانتهاء أو النفاد: " +
-            urgentItems.joinToString("، ") + ". باقي المخزون المتاح: " + invList
+        val parts = mutableListOf<String>()
+        if (stagnantItems.isNotEmpty()) {
+            parts += "عندك من فترة (شهر تقريباً) وماستخدمتهاش خالص: " + stagnantItems.joinToString("، ") + " — استخدمها الأول قبل أي حاجة تانية"
+        }
+        if (urgentItems.isNotEmpty()) {
+            parts += "على وشك الانتهاء أو النفاد: " + urgentItems.joinToString("، ")
+        }
+        val itemsPayload = "مهم جداً: اقترح 3 وصفات. " + parts.joinToString(". ثم ") + ". باقي المخزون المتاح: " + invList
         val response = callAction("meal_suggestions", mapOf("items" to itemsPayload))
         return response["text"] as? String ?: MEAL_SUGGESTIONS_FALLBACK
     }
