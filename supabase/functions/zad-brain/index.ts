@@ -60,7 +60,7 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
   const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes, askedRes, selfMemRes] =
     await Promise.all([
       sb.from("zad_users").select("monthly_limit").eq("id", userId).maybeSingle(),
-      sb.from("zad_transactions").select("amount,title,category,is_expense,created_at,merchant_name")
+      sb.from("zad_transactions").select("amount,title,category,is_expense,txn_kind,created_at,merchant_name")
         .eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
       sb.from("zad_inventory").select("item_name,category,quantity,unit,expiry_date,low_stock_threshold,created_at")
         .eq("user_id", userId),
@@ -95,7 +95,9 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const monthTx = transactions.filter((t) => new Date(t.created_at) >= monthStart);
-  const spent = monthTx.filter((t) => t.is_expense).reduce((s, t) => s + t.amount, 0);
+  // Task 19.3 — txn_kind، مش is_expense. سحب ATM كان is_expense=true بس دلوقتي
+  // txn_kind="transfer" بعد الـ backfill، فمينفعش يتحسب مصروف تاني (نفس بق 19.1).
+  const spent = monthTx.filter((t) => t.txn_kind === "expense").reduce((s, t) => s + t.amount, 0);
   const remaining = budget - spent;
 
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();

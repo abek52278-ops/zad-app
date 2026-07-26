@@ -703,11 +703,14 @@ object ZadCentralBrain {
         }
 
         val monthTx = transactions.filter { (txDate(it) ?: today) >= monthStart }
+        // كروت الفئات وتحليلات تانية تحت لسه بتستخدم isExpense — تحويلات (سحب ATM) لسه
+        // بتظهر في تحليل الفئات/أكتر التجار، مش مشكلة 19.3 (هي رقم "المتبقي" بس)، تتبع
+        // منفصل. totalSpent/totalIncome هنا نفسهم لسه isExpense-based لنفس السبب.
         val totalSpent = monthTx.filter { it.isExpense }.sumOf { it.amount }
         val totalIncome = monthTx.filter { !it.isExpense }.sumOf { it.amount }
-        // Task 19.0 — كان بيقرا رصيد BudgetTracker المتراكم (مصدر تاني منفصل عن totalSpent/
-        // totalIncome المحسوبين فوق في نفس الدالة دي). دلوقتي نفس المصدر، بلا تكرار.
-        val remaining = budget - totalSpent + totalIncome
+        // Task 19.3 — remaining هو الرقم اللي المستخدم بيشوفه (BrainReport.remaining)،
+        // فلازم يتفق مع BudgetMath.remaining بالظبط، بما فيها استبعاد التحويلات (سحب ATM).
+        val remaining = BudgetMath.remaining(budget, transactions, today)
 
         // 1) كروت الفئات: المصروف الفعلي من المعاملات + البادجت من BudgetTracker
         val spentByCategory = monthTx.filter { it.isExpense }

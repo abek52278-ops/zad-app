@@ -52,6 +52,22 @@ abstract class ZadDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE zad_transactions ADD COLUMN wallet TEXT NOT NULL DEFAULT 'card'")
                 db.execSQL("ALTER TABLE zad_transactions ADD COLUMN txnKind TEXT NOT NULL DEFAULT 'expense'")
                 db.execSQL("ALTER TABLE zad_transactions ADD COLUMN transferTo TEXT")
+
+                // Task 19.3 backfill, mirrored from the Supabase migration — the ADD COLUMN
+                // DEFAULT above just labeled every existing row 'expense' unconditionally,
+                // which is wrong for every historical income row (isExpense=0). Must run
+                // before anything reads txnKind, or a synced-but-not-yet-resynced device
+                // would briefly count old salary/income rows as spending.
+                db.execSQL("UPDATE zad_transactions SET txnKind = 'income' WHERE isExpense = 0 AND txnKind = 'expense'")
+
+                // Historical ATM withdrawals -> transfer/cash (the actual Task 19 bug).
+                // Keyword match mirrors SaBankParser's WITHDRAWAL typeRule.
+                db.execSQL(
+                    "UPDATE zad_transactions SET txnKind = 'transfer', transferTo = 'cash' " +
+                    "WHERE isExpense = 1 AND txnKind = 'expense' AND (" +
+                    "title LIKE '%سحب%' OR title LIKE '%صراف%' OR title LIKE '%ATM%' " +
+                    "OR title LIKE '%withdrawal%' OR title LIKE '%çekme%')"
+                )
             }
         }
 

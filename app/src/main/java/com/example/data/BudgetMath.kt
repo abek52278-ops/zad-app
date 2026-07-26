@@ -24,17 +24,24 @@ object BudgetMath {
         }
     }
 
+    /**
+     * Task 19.3 — بيفلتر على txnKind == "expense"، مش isExpense. الفرق يظهر بس في حالة
+     * واحدة دلوقتي: سحب ATM (isExpense=true، txnKind="transfer") مابقاش بيتحسب مصروف —
+     * ده بالظبط بق 19.1 (سحب+صرف كانوا بيتحسبوا مرتين). لازم backfill الأعمدة
+     * القديمة يشتغل الأول (20260726060000) قبل ما الفلتر ده يتفعّل، وإلا صفوف دخل
+     * قديمة كانت لسه txnKind="expense" (default العمود قبل التصحيح) كانت هتتحسب مصروف.
+     */
     fun spentThisMonth(transactions: List<ZadTransaction>, asOf: LocalDate = LocalDate.now()): Double {
         val monthStart = asOf.withDayOfMonth(1)
         return transactions
-            .filter { it.isExpense && (txDate(it) ?: asOf) >= monthStart }
+            .filter { it.txnKind == "expense" && (txDate(it) ?: asOf) >= monthStart }
             .sumOf { it.amount }
     }
 
     fun incomeThisMonth(transactions: List<ZadTransaction>, asOf: LocalDate = LocalDate.now()): Double {
         val monthStart = asOf.withDayOfMonth(1)
         return transactions
-            .filter { !it.isExpense && (txDate(it) ?: asOf) >= monthStart }
+            .filter { it.txnKind == "income" && (txDate(it) ?: asOf) >= monthStart }
             .sumOf { it.amount }
     }
 
