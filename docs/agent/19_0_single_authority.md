@@ -86,9 +86,17 @@ with the standing rule: unconfirmed guesses do not drive numbers. Show "اظبط
 ### Then stop the mutation
 
 ```sql
-drop trigger if exists trg_update_budget_on_transaction on public.zad_transactions;
+-- ORDER IS MANDATORY: trigger first, then the function.
+-- Dropping the function while the trigger still exists makes every INSERT on
+-- zad_transactions fail — the trigger would reference a function that is gone.
+drop trigger if exists trigger_update_budget on public.zad_transactions;
 drop function if exists public.update_budget_on_transaction();
 ```
+
+> **الاسم الصح في Supabase: `trigger_update_budget`، مش `trg_update_budget_on_transaction`.**
+> اتأكد من [baseline:81-82](../../supabase/migrations/20260722050000_baseline_catchup_and_hardening.sql#L81).
+> بالاسم الغلط `drop ... if exists` بيعدي بنجاح كاذب والـ trigger يفضل شغّال خلف كل حاجة بعده —
+> وده أسوأ من فشل صريح لأن كل اللي بعده هيتبني فوق افتراض إن الكتابة وقفت.
 
 Keep the old `budget` column for one release as a dead field for rollback safety, then drop it.
 Do not read it anywhere after this task.

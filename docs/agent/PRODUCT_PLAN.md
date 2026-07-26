@@ -96,9 +96,16 @@ Each phase must be finished before the next. Within a phase, order matters less.
 
 | # | Task | Where |
 |---|---|---|
-| C1 | **Confidence-visible numbers (`≈`)** | Task 27 below |
-| C2 | **"Why did this number change?" trail** | Task 27 below |
-| C3 | **Informative dismissal** | Task 28 below |
+| C1 | **Informative dismissal** — "الرقم غلط" | Task 28 below |
+| C2 | **Confidence-visible numbers (`≈`)** | Task 27 below |
+| C3 | **"Why did this number change?" trail** | Task 27 below |
+
+Task 28 moved ahead of Task 27 deliberately. "الرقم غلط" is the only channel that reports
+ground truth from the one person able to see it — without it, sensing bugs are found by
+accident. Three were found by accident in a single session (ATM withdrawals booked as
+expenses, the brain subtracting spending twice, zero-amount rows reaching the ledger), which
+is the argument for making the reporting channel exist before the confidence display that
+depends on knowing what is actually wrong.
 
 ### Phase D — Learning
 
