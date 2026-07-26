@@ -169,3 +169,30 @@ failures; `lintDebug`/`assembleDebug` green. Commit `bfda9a2`.
 Next up: Task 19.5 (weekly reconciliation via the brain's `ask_user` tool) — needs
 confirming that flow is actually live first (Task 8/16 flagged it blocked earlier this
 epic on a missing `ZAD_API_KEY`).
+
+## Task 19.5 — weekly cash reconciliation — DONE, blocked on unrelated secret
+buildSnapshot() now finally consumes `zad_cash_balance()` server-side (the RPC 19.3 built
+and 19.4 deliberately left unconsumed "for other consumers e.g. zad-brain"). ISO-week
+`dedupe_key` (`cash_reconciliation_<yr>_w<wk>`) computed in code (isoWeekKey), same
+pattern as `suggest_budget_change`'s monthly key — not left to the model. `validateAskUser`
+hard-blocks: an invented key not matching the snapshot, re-asking the same week, and
+asking at all once `dismissed_count >= 2` — deterministic code gates, not prompt-only
+guidance, matching this project's established discipline (Task 18's cooldown, Task 20's
+5% ceiling). New `reconcile_cash_balance` tool inserts one correcting `zad_transactions`
+row. Found a wording/mechanism gap: spec says "transfer row" for both directions, but the
+only real lever that decreases `cashOnHand` (Task 19.3/19.4's own formula) is
+`expense+wallet=cash`, not `transfer` — documented inline, not silently deviated from.
+27 Deno tests (7 new, all passing), `deno check` clean on all zad-brain source. Deployed
+live (zad-brain v31, `verify_jwt=false` unchanged).
+
+**Found during post-deploy verification, not caused by this change:** a smoke-test POST
+to the deployed function fails with `Invalid URL: '[https://api.groq.com/openai/v1](...)'`
+— the `ZAD_BASE_URL` secret contains a markdown-link-wrapped value instead of a bare URL.
+This blocks every zad-brain tool-calling path (daily/event/chat — not just cash
+reconciliation) until fixed. No secret-management tool was available to fix this
+directly; flagged for the user to fix via the Supabase dashboard or
+`supabase secrets set ZAD_BASE_URL=https://api.groq.com/openai/v1`. Commit `6037768`.
+
+Next up per `EPIC_1_4.md`'s order: Task 23 (inventory stagnation) or Task 24 (full-app
+consistency audit) — both unblocked by the ZAD_BASE_URL issue since neither depends on a
+live brain run.
