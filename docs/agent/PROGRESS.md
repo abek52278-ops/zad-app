@@ -61,21 +61,21 @@ interdependent files.
 it instead of best-effort deleting 5 tables client-side and leaving the auth user (and
 every table without an ON DELETE CASCADE) behind.
 
-## Task 20 (dedupe config) — PARTIAL, not done
-Commit `f5139a5` landed the two corrected *values* directly in `TxDeduplicator`
-(`SaBankParser.kt`): window `10min → 36h`, amount match `exact → 5% symmetric relative
-tolerance` (`abs(a-b)/max(a,b) <= 0.05`). 12 tests pass, full suite 73/0 failures.
+## Task 20 (dedupe config) — DONE
+Finished what was left PARTIAL after `f5139a5` (values were correct, architecture wasn't).
+`zad_locale_config` table added (EG/SA/TR, 36h/5% defaults), applied live with RLS.
+`TxDeduplicator.WINDOW_MS`/tolerance are now loaded via `refreshLocaleConfig()` (cached in
+SharedPreferences, wired into `ZadViewModel.init`), with a hard 5% ceiling clamp in the
+write path per EPIC_1_4.md's explicit "do not raise tolerance above 5%". 78 tests (5 new),
+full suite 0 failures. Commit `8dfe84a`.
 
-**This is half of Task 20 and the wrong half architecturally.** `EPIC_1_4.md` Task 20
-requires both parameters to come from a `zad_locale_config` row keyed by the user's active
-country, not from Kotlin constants — "hardcoding the corrected values repeats the mistake."
-Remaining work: create `zad_locale_config`, load per-country config at runtime, drop the
-constants. The values themselves are correct and match the spec, so this is not a
-regression — just an unfinished task that must not be marked DONE.
-
-Numbering note: that commit called itself "Task 15" before `EPIC_1_4.md`/`PRODUCT_PLAN.md`
+Numbering note: `f5139a5` called itself "Task 15" before `EPIC_1_4.md`/`PRODUCT_PLAN.md`
 arrived. Tasks 15/16 belong to `15_family_alerts.md` / `16_validation_and_recovery.md`
-(still not in the repo). The dedupe work is Task 20.
+(still not in the repo). The dedupe work is Task 20, now complete.
+
+Not done, flagged in EPIC_1_4.md itself: Task 21 (Egypt SMS regex accuracy — needs real
+SMS samples this session doesn't have) and StatementCsvImporter's own database-query
+matching for rows older than the dedupe window (Task 6, separate mechanism).
 
 ## Task 19.1 — audit: ATM withdrawal double-counted as spending — DONE
 Confirmed the bug: `SaBankParser.kt` classified WITHDRAWAL as `is_expense=true`, so
