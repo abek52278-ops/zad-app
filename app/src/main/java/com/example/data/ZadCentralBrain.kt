@@ -203,7 +203,9 @@ object ZadCentralBrain {
         }
 
         // ====== 6. BUDGET TRACKING ======
-        val totalSpent = transactions.filter { it.isExpense }.sumOf { it.amount }
+        // Task 19.0 — كان مصروف كل العمر مقابل سقف شهري، فبيتخطى 100% دايماً بعد أول شهر
+        // ويفضل "🚨 تجاوزت الميزانية" ظاهر للأبد. دلوقتي شهري عبر BudgetMath.
+        val totalSpent = BudgetMath.spentThisMonth(transactions)
         if (budget > 0) {
             val pct = (totalSpent / budget * 100).toInt()
             val remaining = budget - totalSpent
@@ -703,7 +705,9 @@ object ZadCentralBrain {
         val monthTx = transactions.filter { (txDate(it) ?: today) >= monthStart }
         val totalSpent = monthTx.filter { it.isExpense }.sumOf { it.amount }
         val totalIncome = monthTx.filter { !it.isExpense }.sumOf { it.amount }
-        val remaining = BudgetTracker.getRemaining(context)
+        // Task 19.0 — كان بيقرا رصيد BudgetTracker المتراكم (مصدر تاني منفصل عن totalSpent/
+        // totalIncome المحسوبين فوق في نفس الدالة دي). دلوقتي نفس المصدر، بلا تكرار.
+        val remaining = budget - totalSpent + totalIncome
 
         // 1) كروت الفئات: المصروف الفعلي من المعاملات + البادجت من BudgetTracker
         val spentByCategory = monthTx.filter { it.isExpense }

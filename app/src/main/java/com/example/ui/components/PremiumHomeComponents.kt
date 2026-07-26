@@ -271,6 +271,56 @@ fun ZadCardHero(
     }
 }
 
+/**
+ * Task 19.0 معيار قبول ٦ — بديل ZadCardHero لما monthly_limit لسه مش مؤكد. عمداً
+ * بيعرض دعوة لضبط السقف بدل رقم مش موثوق فيه — نفس نمط الحالة الفاضية (أيقونة +
+ * عنوان + سطر توضيح + زرار) المستخدم في باقي الشاشات، مش رقم صفر مضلل.
+ */
+@Composable
+fun BudgetSetupPromptCard(onSetBudget: () -> Unit) {
+    val cardShape = RoundedCornerShape(24.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1.62f)
+            .shadow(elevation = 22.dp, shape = cardShape, spotColor = primary.copy(alpha = 0.4f))
+            .clip(cardShape)
+            .background(Brush.linearGradient(listOf(primaryDark, primary, primaryDark)))
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                Icons.Default.AccountBalanceWallet,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(36.dp)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                stringResource(R.string.budget_setup_prompt_title),
+                style = Typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                stringResource(R.string.budget_setup_prompt_subtitle),
+                style = Typography.bodySmall,
+                color = Color.White.copy(alpha = 0.8f)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = onSetBudget,
+                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = primary),
+                shape = RoundedCornerShape(999.dp)
+            ) {
+                Text(stringResource(R.string.budget_setup_prompt_action), style = Typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+            }
+        }
+    }
+}
+
 data class ZadShortcutItem(
     val icon: ImageVector,
     val label: String,

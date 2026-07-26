@@ -7,24 +7,28 @@ import android.content.SharedPreferences
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.R
+import com.example.data.local.ZadDatabase
+import kotlinx.coroutines.flow.first
 
 /**
- * متتبع الميزانية — إجمالي + كروت فئات
+ * متتبع الميزانية — كروت الفئات + تنبيهات
  *
- * كل فئة ليها بادجت خاص (يدوي أو AI) والمصروف بيتحقن في الكرت الصح تلقائياً
- * من UnifiedBankListener / UnifiedSmsReceiver بعد التحليل الدقيق.
+ * Task 19.0: كان فيه رصيد إجمالي متراكم هنا (KEY_REMAINING) بيتحدث بمعاملة معاملة —
+ * ده اتشال، لأنه كان مصدر تاني منفصل عن الحساب المشتق (BudgetMath) وبيدرفت بصمت (مزامنة
+ * فاشلة، معاملة اتمسحت، تثبيت تاني). المتبقي الإجمالي دلوقتي بيتحسب دايماً من الصفر —
+ * في ZadViewModel وقت التطبيق مفتوح (Room Flow reactive)، وهنا في checkOverallBudgetThreshold
+ * لما معاملة توصل في الخلفية من غير ViewModel حي (bank listener).
  *
- * كل المفاتيح دلوقتي مربوطة بـ user_id الحالي — قبل كده كانت SharedPreferences مشتركة
- * لأي حساب مسجّل دخول على نفس الجهاز (لو أكتر من فرد في العيلة بيستخدموا نفس التابلت
- * مثلاً، ميزانية حد كانت ممكن تتعرض/تتخلط مع التاني). [readLegacyFloat] بيرجع لأي قيمة
- * قديمة غير مربوطة بمستخدم لو المفتاح الجديد لسه فاضي — عشان مستخدمين موجودين قبل كده
- * ما يفقدوش رصيدهم المسجل فجأة.
+ * كروت الفئات (cat_budget_/cat_spent_) ميزة منفصلة تماماً — مالهاش علاقة بالبق ده،
+ * فضلت زي ما هي.
+ *
+ * كل المفاتيح مربوطة بـ user_id الحالي — [readLegacyFloat] بيرجع لأي قيمة قديمة غير
+ * مربوطة بمستخدم لو المفتاح الجديد لسه فاضي.
  */
 object BudgetTracker {
 
     private const val TAG = "BudgetTracker"
     private const val PREFS_NAME = "zad_prefs"
-    private const val KEY_REMAINING = "remaining_balance"
     private const val KEY_BUDGET = "cached_budget"
     private const val KEY_MONTH = "budget_month"
     private const val CHANNEL_ID = "zad_budget_alerts"
@@ -32,6 +36,9 @@ object BudgetTracker {
     // مفاتيح كروت الفئات
     private const val CAT_BUDGET_PREFIX = "cat_budget_"
     private const val CAT_SPENT_PREFIX = "cat_spent_"
+
+    // بادج تنبيه تخطي نسبة من الإجمالي — dedup بس، مش مصدر الرقم نفسه
+    private const val OVERALL_ALERT_BUCKET_PREFIX = "overall_alert_bucket_"
 
     /** الفئات القياسية في زاد — نفس أسماء SaBankParser */
     val STANDARD_CATEGORIES = listOf(
@@ -48,34 +55,6 @@ object BudgetTracker {
     private fun readLegacyFloat(prefs: SharedPreferences, scopedKey: String, legacyKey: String, default: Float): Float =
         if (prefs.contains(scopedKey)) prefs.getFloat(scopedKey, default)
         else prefs.getFloat(legacyKey, default)
-
-    // ─── الميزانية الإجمالية ─────────────────────────────────────
-
-    fun getRemaining(context: Context): Double {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val budget = readLegacyFloat(prefs, scopedKey(context, KEY_BUDGET), KEY_BUDGET, 3500.0f).toDouble()
-        return readLegacyFloat(prefs, scopedKey(context, KEY_REMAINING), KEY_REMAINING, budget.toFloat()).toDouble()
-    }
-
-    /** إعادة تعيين شهرية: الرصيد يرجع للبادجت + كل مصاريف الفئات تتصفر */
-    private fun checkMonthlyReset(context: Context, prefs: SharedPreferences): Double {
-        val budget = readLegacyFloat(prefs, scopedKey(context, KEY_BUDGET), KEY_BUDGET, 3500.0f).toDouble()
-        val savedMonth = prefs.getInt(scopedKey(context, KEY_MONTH), prefs.getInt(KEY_MONTH, -1))
-        val currentMonth = java.time.LocalDate.now().monthValue
-        var current = readLegacyFloat(prefs, scopedKey(context, KEY_REMAINING), KEY_REMAINING, budget.toFloat()).toDouble()
-
-        if (savedMonth != -1 && savedMonth != currentMonth) {
-            current = budget
-            val editor = prefs.edit().putInt(scopedKey(context, KEY_MONTH), currentMonth)
-            // تصفير مصاريف كل الفئات للشهر الجديد
-            STANDARD_CATEGORIES.forEach { editor.putFloat(scopedKey(context, CAT_SPENT_PREFIX + it), 0f) }
-            editor.putFloat(scopedKey(context, KEY_REMAINING), budget.toFloat()).apply()
-            Log.d(TAG, "Monthly reset applied for month $currentMonth")
-        } else if (savedMonth == -1) {
-            prefs.edit().putInt(scopedKey(context, KEY_MONTH), currentMonth).apply()
-        }
-        return current
-    }
 
     // ─── كروت الفئات ─────────────────────────────────────────────
 
@@ -102,27 +81,32 @@ object BudgetTracker {
             Triple(cat, getCategoryBudget(context, cat), getCategorySpent(context, cat))
         }
 
-    // ─── الحقن الدقيق للمصروف ────────────────────────────────────
+    /** إعادة تعيين شهرية لمصاريف الفئات بس — الإجمالي مشتق دلوقتي، مالوش reset يتخزن */
+    private fun checkCategoryMonthlyReset(context: Context, prefs: SharedPreferences) {
+        val savedMonth = prefs.getInt(scopedKey(context, KEY_MONTH), prefs.getInt(KEY_MONTH, -1))
+        val currentMonth = java.time.LocalDate.now().monthValue
+        if (savedMonth != -1 && savedMonth != currentMonth) {
+            val editor = prefs.edit().putInt(scopedKey(context, KEY_MONTH), currentMonth)
+            STANDARD_CATEGORIES.forEach { editor.putFloat(scopedKey(context, CAT_SPENT_PREFIX + it), 0f) }
+            editor.apply()
+            Log.d(TAG, "Category monthly reset applied for month $currentMonth")
+        } else if (savedMonth == -1) {
+            prefs.edit().putInt(scopedKey(context, KEY_MONTH), currentMonth).apply()
+        }
+    }
 
-    /**
-     * خصم مصروف: من الإجمالي + من كرت الفئة الصح
-     * التنبيهات على مستويين: الفئة (تجاوز كرت) والإجمالي (75%/90%/نفاد)
-     */
+    // ─── الحقن الدقيق للمصروف — كروت الفئات فقط، الإجمالي مالوش حقن هنا ─────
+
+    /** خصم مصروف من كرت الفئة الصح + تنبيه لو الفئة تخطت حدها */
     fun deductExpense(context: Context, amount: Double, title: String, category: String = "أخرى") {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val budget = readLegacyFloat(prefs, scopedKey(context, KEY_BUDGET), KEY_BUDGET, 3500.0f).toDouble()
-        val current = checkMonthlyReset(context, prefs)
+        checkCategoryMonthlyReset(context, prefs)
 
-        val newRemaining = current - amount
-        prefs.edit().putFloat(scopedKey(context, KEY_REMAINING), newRemaining.toFloat()).apply()
-
-        // حقن في كرت الفئة
         val cat = if (category in STANDARD_CATEGORIES) category else "أخرى"
         val catSpent = readLegacyFloat(prefs, scopedKey(context, CAT_SPENT_PREFIX + cat), CAT_SPENT_PREFIX + cat, 0f).toDouble() + amount
         prefs.edit().putFloat(scopedKey(context, CAT_SPENT_PREFIX + cat), catSpent.toFloat()).apply()
-        Log.d(TAG, "deductExpense: $amount [$cat] | total: $current → $newRemaining | cat spent: $catSpent")
+        Log.d(TAG, "deductExpense: $amount [$cat] | cat spent: $catSpent")
 
-        // تنبيه تجاوز كرت الفئة
         val catBudget = readLegacyFloat(prefs, scopedKey(context, CAT_BUDGET_PREFIX + cat), CAT_BUDGET_PREFIX + cat, 0f).toDouble()
         if (catBudget > 0) {
             val catPct = (catSpent / catBudget * 100).toInt()
@@ -132,21 +116,12 @@ object BudgetTracker {
                 sendAlert(context, "⚠️ ميزانية $cat توشك على النفاد", "استخدمت $catPct% من كرت $cat")
             }
         }
-
-        // تنبيهات الإجمالي
-        val spentPct = if (budget > 0) ((budget - newRemaining) / budget * 100).toInt() else 0
-        when {
-            newRemaining <= 0 -> sendAlert(context, "⛔ الميزانية منتهية!", "تم استنفاذ الميزانية بالكامل. راجع مصاريفك.")
-            spentPct >= 90 -> sendAlert(context, "⚠️ الميزانية أوشكت على الانتهاء", "استخدمت $spentPct% من ميزانيتك. المتبقي: ${CurrencyFormatter.format(context, newRemaining)}")
-            spentPct >= 75 -> sendAlert(context, "💡 تذكير بالميزانية", "صرفت $spentPct% من ميزانيتك. المتبقي: ${CurrencyFormatter.format(context, newRemaining)}")
-        }
     }
 
-    /** استرداد (Refund): يرجع للإجمالي ويُخصم من كرت الفئة */
+    /** استرداد (Refund): يُخصم من كرت الفئة بس — الإجمالي بيتصحح لوحده من كونه مشتق */
     fun applyRefund(context: Context, amount: Double, title: String, category: String = "أخرى") {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val current = checkMonthlyReset(context, prefs)
-        prefs.edit().putFloat(scopedKey(context, KEY_REMAINING), (current + amount).toFloat()).apply()
+        checkCategoryMonthlyReset(context, prefs)
 
         val cat = if (category in STANDARD_CATEGORIES) category else "أخرى"
         val catSpent = (readLegacyFloat(prefs, scopedKey(context, CAT_SPENT_PREFIX + cat), CAT_SPENT_PREFIX + cat, 0f).toDouble() - amount).coerceAtLeast(0.0)
@@ -156,13 +131,52 @@ object BudgetTracker {
         Log.d(TAG, "applyRefund: $amount [$cat]")
     }
 
+    /** إشعار إيداع بس — مفيش فئة للدخل، ومفيش رصيد إجمالي يتحدث هنا */
     fun addIncome(context: Context, amount: Double, title: String) {
+        sendAlert(context, "💰 تمت إضافة إيداع", "$title: +${CurrencyFormatter.format(context, amount)}")
+        Log.d(TAG, "addIncome: $amount")
+    }
+
+    /**
+     * Task 19.0 خطوة ٧ — تنبيه تخطي 75%/90%/100% من الإجمالي، محسوب لحظياً من Room +
+     * السقف المخزّن محلياً (بيتحدث من ZadViewModel.loadBudget/updateBudget)، مش من
+     * رصيد متراكم مخزّن هنا. لازم يشتغل من مسار الخلفية (UnifiedBankListener عبر
+     * BankTransactionApplier) اللي مفيهوش ViewModel حي، فمينفعش يعتمد على
+     * _remainingBalance اللي الـ ViewModel بس بتحسبها وقت التطبيق مفتوح.
+     *
+     * bucket في SharedPreferences هنا dedup بس (منع تكرار نفس التنبيه) — مايستخدمش
+     * كمصدر للرقم نفسه، البادجت المشتق دايماً من BudgetMath.
+     */
+    suspend fun checkOverallBudgetThreshold(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val current = checkMonthlyReset(context, prefs)
-        val newRemaining = current + amount
-        prefs.edit().putFloat(scopedKey(context, KEY_REMAINING), newRemaining.toFloat()).apply()
-        Log.d(TAG, "addIncome: $amount | $current → $newRemaining")
-        sendAlert(context, "💰 تمت إضافة إيداع", "$title: +${CurrencyFormatter.format(context, amount)} — الرصيد المتبقي: ${CurrencyFormatter.format(context, newRemaining)}")
+        val budget = readLegacyFloat(prefs, scopedKey(context, KEY_BUDGET), KEY_BUDGET, 0f).toDouble()
+        if (budget <= 0.0) return
+
+        val dao = ZadDatabase.getDatabase(context).zadDao()
+        val transactions = dao.getAllTransactions().first()
+        val spent = BudgetMath.spentThisMonth(transactions)
+        val remaining = BudgetMath.remaining(budget, transactions)
+        val spentPct = ((budget - remaining) / budget * 100).toInt()
+
+        val monthKey = java.time.YearMonth.now().toString() // "2026-07"
+        val bucketKey = scopedKey(context, OVERALL_ALERT_BUCKET_PREFIX + monthKey)
+        val alreadyAlertedPct = prefs.getInt(bucketKey, 0)
+
+        val bucket = when {
+            remaining <= 0 -> 100
+            spentPct >= 90 -> 90
+            spentPct >= 75 -> 75
+            else -> 0
+        }
+        if (bucket == 0 || bucket <= alreadyAlertedPct) return
+
+        prefs.edit().putInt(bucketKey, bucket).apply()
+        when (bucket) {
+            100 -> sendAlert(context, "⛔ الميزانية منتهية!", "تم استنفاذ الميزانية بالكامل. راجع مصاريفك.")
+            90 -> sendAlert(context, "⚠️ الميزانية أوشكت على الانتهاء", "استخدمت $spentPct% من ميزانيتك. المتبقي: ${CurrencyFormatter.format(context, remaining)}")
+            75 -> sendAlert(context, "💡 تذكير بالميزانية", "صرفت $spentPct% من ميزانيتك. المتبقي: ${CurrencyFormatter.format(context, remaining)}")
+        }
+        Log.d(TAG, "checkOverallBudgetThreshold → spent=$spent, remaining=$remaining, bucket=$bucket")
     }
 
     private fun sendAlert(context: Context, title: String, message: String) {

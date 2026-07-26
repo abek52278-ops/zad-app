@@ -97,6 +97,7 @@ fun HomeScreen(
     val zadInsights by viewModel.zadInsights.collectAsState()
     val zadFacts by viewModel.zadFacts.collectAsState()
     val budget by viewModel.budget.collectAsState()
+    val budgetConfirmed by viewModel.budgetConfirmed.collectAsState()
     val remainingBalance by viewModel.remainingBalance.collectAsState()
     val showBudgetDialog by viewModel.showBudgetDialog.collectAsState()
     val shoppingList by viewModel.shoppingList.collectAsState()
@@ -307,13 +308,20 @@ fun HomeScreen(
                 val daysLeft = lastDay - currentDay
 
                 com.example.ui.components.AppearOnEntry {
-                    com.example.ui.components.ZadCardHero(
-                        budget = budget,
-                        spent = totalSpent,
-                        remaining = currentBudget,
-                        daysLeft = daysLeft,
-                        onDepositClick = { showAddTransactionDialog = true }
-                    )
+                    if (budgetConfirmed) {
+                        com.example.ui.components.ZadCardHero(
+                            budget = budget,
+                            spent = totalSpent,
+                            remaining = currentBudget,
+                            daysLeft = daysLeft,
+                            onDepositClick = { showAddTransactionDialog = true }
+                        )
+                    } else {
+                        // Task 19.0 معيار قبول ٦ — سقف مش مؤكد، نسأل بدل ما نعرض رقم
+                        com.example.ui.components.BudgetSetupPromptCard(
+                            onSetBudget = { viewModel.showBudgetDialog() }
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(18.dp))

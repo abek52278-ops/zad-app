@@ -35,5 +35,7 @@ object BankTransactionApplier {
                 BudgetTracker.addIncome(context, transaction.amount, transaction.title)
             }
         }
+        // Task 19.0 — تنبيه تخطي 75/90/100% من الإجمالي، محسوب لحظياً بعد إدراج المعاملة
+        BudgetTracker.checkOverallBudgetThreshold(context)
     }
 }

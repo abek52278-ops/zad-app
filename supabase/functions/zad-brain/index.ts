@@ -23,7 +23,7 @@
 //
 // Schema this file depends on (cross-checked against the live DB before writing this —
 // Task 8b): zad_transactions(user_id,amount,title,category,is_expense,created_at,
-// merchant_name), zad_users(id,budget), zad_inventory(user_id,item_name,category,
+// merchant_name), zad_users(id,monthly_limit), zad_inventory(user_id,item_name,category,
 // quantity,unit,expiry_date,low_stock_threshold,created_at), zad_pharmacy_items(user_id,
 // name,remaining_quantity,daily_dose_count,dose_times), zad_subscriptions(user_id,title,
 // amount,renewal_date,is_active), zad_shopping_list(user_id,item_name,is_purchased),
@@ -59,7 +59,7 @@ type Trigger = "daily" | "event" | "chat";
 async function buildSnapshot(sb: SupabaseClient, userId: string) {
   const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes, askedRes, selfMemRes] =
     await Promise.all([
-      sb.from("zad_users").select("budget").eq("id", userId).maybeSingle(),
+      sb.from("zad_users").select("monthly_limit").eq("id", userId).maybeSingle(),
       sb.from("zad_transactions").select("amount,title,category,is_expense,created_at,merchant_name")
         .eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
       sb.from("zad_inventory").select("item_name,category,quantity,unit,expiry_date,low_stock_threshold,created_at")
@@ -87,7 +87,10 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
         .gte("created_at", new Date(Date.now() - 14 * 86400000).toISOString()),
     ]);
 
-  const budget = userRes.data?.budget ?? 0;
+  // Task 19.0 — zad_users.budget كان بيتنقّص بمعاملة معاملة، فبيتقرا هنا وبيتطرح منه
+  // المصروف تاني (السطر تحت)، يعني الطرح بيحصل مرتين. monthly_limit سقف ثابت مايتلمسش
+  // إلا من فعل مستخدم مباشر.
+  const budget = userRes.data?.monthly_limit ?? 0;
   const transactions = txRes.data ?? [];
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);

@@ -91,33 +91,24 @@ object SupabaseRepo {
     }
 
     // ─── User Budget ─────────────────────────────────────────────────────────
-    suspend fun getUserBudget(): Double {
+    /**
+     * Task 19.0 — كتابة صريحة بتأكيد المستخدم. مختلفة عن captureMonthlyLimit (خطوة ٢،
+     * بتكتب بس لو null وبتسيب limit_confirmed_at فاضي): دي بتحصل من فعل مستخدم مباشر
+     * (حفظ في BudgetEditDialog)، فبتدهس أي قيمة قديمة وبتأكد فوراً — مفيش داعي لسؤال
+     * تأكيد تاني بعدها.
+     */
+    suspend fun setMonthlyLimit(userId: String, limit: Double): Boolean {
         return try {
-            val userId = client.auth.currentUserOrNull()?.id ?: return 3500.0
-            Log.d(TAG, "getUserBudget() → userId=$userId, table=zad_users")
-            val users = client.postgrest["zad_users"].select {
-                filter { eq("id", userId) }
-            }.decodeList<ZadUser>()
-            val budget = users.firstOrNull()?.budget ?: 3500.0
-            Log.d(TAG, "getUserBudget() → budget=$budget")
-            budget
-        } catch (e: Exception) {
-            Log.e(TAG, "getUserBudget() FAILED: ${e.message} — fallback to 3500.0")
-            3500.0
-        }
-    }
-
-    suspend fun updateUserBudget(newBudget: Double): Boolean {
-        return try {
-            val userId = client.auth.currentUserOrNull()?.id ?: return false
-            val current = getUserProfile() ?: ZadUser(id = userId)
-            Log.d(TAG, "updateUserBudget() → userId=$userId, newBudget=$newBudget, table=zad_users")
-            client.postgrest["zad_users"].upsert(current.copy(budget = newBudget))
-            Log.d(TAG, "updateUserBudget() SUCCESS")
+            client.postgrest["zad_users"].update(
+                mapOf(
+                    "monthly_limit" to limit,
+                    "limit_confirmed_at" to java.time.Instant.now().toString()
+                )
+            ) { filter { eq("id", userId) } }
+            Log.d(TAG, "setMonthlyLimit() SUCCESS → userId=$userId, limit=$limit")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "updateUserBudget() FAILED: ${e.message}")
-            e.printStackTrace()
+            Log.e(TAG, "setMonthlyLimit() FAILED: ${e.message}")
             false
         }
     }
@@ -138,13 +129,27 @@ object SupabaseRepo {
         }
     }
 
-    /** سقف ميزانية كل مستخدم في القائمة — نفس منطق get_family_admin_read_child_budget RLS */
+    @Serializable
+    private data class UserMonthlyLimitRow(
+        val id: String = "",
+        @SerialName("monthly_limit") val monthlyLimit: Double? = null
+    )
+
+    /**
+     * سقف ميزانية كل مستخدم في القائمة — نفس منطق get_family_admin_read_child_budget RLS.
+     * Task 19.0 — كان بيقرا ZadUser.budget (العمود الميت). monthly_limit مش موجود على
+     * ZadUser نفسها (Room entity، تعديل الـ schema بتاعها خارج نطاق التاسك ده)، فبيتقرا
+     * بـ DTO خفيف هنا زي getMonthlyLimit().
+     */
     suspend fun getUsersBudgets(userIds: List<String>): Map<String, Double> {
         if (userIds.isEmpty()) return emptyMap()
         return try {
-            client.postgrest["zad_users"].select {
-                filter { isIn("id", userIds) }
-            }.decodeList<ZadUser>().associate { it.id to it.budget }
+            client.postgrest["zad_users"]
+                .select(Columns.list("id", "monthly_limit")) {
+                    filter { isIn("id", userIds) }
+                }
+                .decodeList<UserMonthlyLimitRow>()
+                .associate { it.id to (it.monthlyLimit ?: 0.0) }
         } catch (e: Exception) {
             Log.e(TAG, "getUsersBudgets() FAILED: ${e.message}")
             emptyMap()

@@ -96,6 +96,13 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val _budget = MutableStateFlow<Double>(3500.0)
     val budget: StateFlow<Double> = _budget.asStateFlow()
 
+    /** Task 19.0 §6 معيار ٦ — false يعني السقف لسه مش مؤكد، الشاشة تسأل مش تعرض رقم */
+    private val _budgetConfirmed = MutableStateFlow(false)
+    val budgetConfirmed: StateFlow<Boolean> = _budgetConfirmed.asStateFlow()
+
+    /** Task 19.0 — مصروف الشهر الحالي بس، مشتق من BudgetMath، مش كل الوقت. مستخدم في تنبيه ٨٥٪. */
+    private val _spentThisMonth = MutableStateFlow(0.0)
+
     private val _remainingBalance = MutableStateFlow<Double>(3500.0)
     val remainingBalance: StateFlow<Double> = _remainingBalance.asStateFlow()
 
@@ -492,7 +499,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         return """
             === معلومات العميل ===
             الاسم: ${_userName.value ?: "مستخدم"} | التاريخ اليوم: $today
-            الميزانية الشهرية: ${com.example.data.CurrencyFormatter.format(ctx, _budget.value)} | المتبقي: ${com.example.data.CurrencyFormatter.format(ctx, com.example.data.BudgetTracker.getRemaining(ctx))}
+            الميزانية الشهرية: ${com.example.data.CurrencyFormatter.format(ctx, _budget.value)} | المتبقي: ${com.example.data.CurrencyFormatter.format(ctx, com.example.data.BudgetMath.remaining(_budget.value, _transactions.value))}
 
             === مخزون المنزل (بتنبؤات النفاد) ===
             ${invText.ifBlank { "لا يوجد عناصر حالياً." }}
@@ -810,8 +817,9 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             val today = java.time.LocalDate.now()
             val ctx = getApplication<Application>()
 
-            // 1. Budget threshold alert (85%)
-            val spent = _transactions.value.filter { it.isExpense }.sumOf { it.amount }
+            // 1. Budget threshold alert (85%) — Task 19.0: كان بيقارن مصروف كل العمر
+            // بسقف شهري، فبيتخطى 100% دايماً بعد أول شهر ويفضل كده للأبد. دلوقتي شهري.
+            val spent = BudgetMath.spentThisMonth(_transactions.value)
             val budgetVal = _budget.value
             if (budgetVal > 0 && spent >= budgetVal * 0.85) {
                 val pct = (spent / budgetVal * 100).toInt()
@@ -930,32 +938,34 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Task 19.0 خطوات ٤-٥ — السقف بيجي من monthly_limit، مش من عمود budget الميت ولا من
+     * BudgetTracker. لو لسه مش مؤكد (limit_confirmed_at null)، _budgetConfirmed بتفضل
+     * false والشاشة تسأل بدل ما تعرض رقم — معيار قبول ٦.
+     */
     fun loadBudget() {
         viewModelScope.launch {
-            Log.d(TAG, "loadBudget() → local cache is the ceiling's source of truth once it exists")
             val prefs = getApplication<Application>().getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
-            val cachedBudget = prefs.getFloat("cached_budget", 3500.0f).toDouble()
-            // Use BudgetTracker's remaining (auto-updated by bank listener) as source of truth
-            val budgetTrackerRemaining = BudgetTracker.getRemaining(getApplication())
-            _budget.value = cachedBudget
-            _remainingBalance.value = budgetTrackerRemaining
+            val cachedBudget = prefs.getFloat("cached_budget", DEFAULT_BUDGET_SENTINEL.toFloat()).toDouble()
 
             if (prefs.contains("cached_budget")) {
-                // Task 19.0 — كان بيدفع السقف المحلي فوق zad_users.budget كل فتح للتطبيق،
-                // فالعمود ده مكانش لا سقف ولا رصيد: بيترد للسقف كل فتح وبعدين الـ trigger
-                // ينقّصه بالمعاملات اللي بتوصل. ده اللي خلّى معادلة استرجاع السقف
-                // (budget + sum(expenses)) باطلة. بطّلنا الدفع، وبنلتقط السقف مرة واحدة
-                // في عموده الخاص قبل ما يضيع من الجهاز.
                 captureMonthlyLimitOnce(prefs, cachedBudget)
-            } else {
-                // Genuinely first load on this device — nothing local yet, safe to pull.
-                val b = SupabaseRepo.getUserBudget()
-                _budget.value = b
-                prefs.edit().putFloat("cached_budget", b.toFloat()).apply()
             }
-            // BudgetTracker already handles monthly reset, so use its value directly
-            _remainingBalance.value = BudgetTracker.getRemaining(getApplication())
-            Log.d(TAG, "loadBudget() → budget = ${_budget.value}, remaining = ${_remainingBalance.value}")
+
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
+            val (limit, confirmedAt) = if (userId != null) SupabaseRepo.getMonthlyLimit(userId) else Pair(null, null)
+
+            if (limit != null) {
+                _budget.value = limit
+                _budgetConfirmed.value = confirmedAt != null
+                prefs.edit().putFloat("cached_budget", limit.toFloat()).apply()
+            } else {
+                _budget.value = DEFAULT_BUDGET_SENTINEL
+                _budgetConfirmed.value = false
+            }
+
+            recalculateRemainingBalance(_transactions.value, _budget.value)
+            Log.d(TAG, "loadBudget() → monthlyLimit=${_budget.value}, confirmed=${_budgetConfirmed.value}")
         }
     }
 
@@ -994,6 +1004,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         _showBudgetDialog.value = false
     }
 
+    /** Task 19.0 — فعل مستخدم مباشر = تأكيد فوري. بيكتب monthly_limit، مش العمود الميت budget. */
     fun updateBudget(newBudgetRaw: Double) {
         val newBudget = newBudgetRaw.asMoney()
         viewModelScope.launch {
@@ -1001,11 +1012,13 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             val prefs = getApplication<Application>().getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
             prefs.edit().putFloat("cached_budget", newBudget.toFloat()).apply()
             _budget.value = newBudget
+            _budgetConfirmed.value = true
             recalculateRemainingBalance(_transactions.value, newBudget)
 
-            val success = SupabaseRepo.updateUserBudget(newBudget)
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
+            val success = if (userId != null) SupabaseRepo.setMonthlyLimit(userId, newBudget) else false
             if (success) {
-                Log.d(TAG, "updateBudget() SUCCESS → new budget in state = $newBudget")
+                Log.d(TAG, "updateBudget() SUCCESS → monthly_limit = $newBudget")
             } else {
                 Log.e(TAG, "updateBudget() FAILED sync to Supabase, but saved locally")
             }
@@ -1064,44 +1077,17 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Task 19.0 خطوة ٧ — مشتق بالكامل من BudgetMath، مفيش تراكم مخزّن ومفيش دمج مع
+     * BudgetTracker (كان بياخد الأقل بين الاتنين، يعني رصيد BudgetTracker المتراكم كان
+     * ممكن يغلب الحساب الصح — بالظبط ثنائية المرجع اللي 19.0 جاي يقفلها). كل تغيير في
+     * txs أو currentBudget بيعيد الحساب من الصفر، مش يعدّل قيمة قديمة.
+     */
     private fun recalculateRemainingBalance(txs: List<ZadTransaction>, currentBudget: Double) {
-        if (currentBudget <= 0.0) return
-
-        val currentMonth = java.time.LocalDate.now().monthValue
-        val currentYear = java.time.LocalDate.now().year
-
-        var spentThisMonth = 0.0
-        var incomeThisMonth = 0.0
-
-        for (tx in txs) {
-            val txDateStr = tx.createdAt
-            if (txDateStr != null) {
-                try {
-                    val txDate = java.time.Instant.parse(txDateStr).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-                    if (txDate.monthValue == currentMonth && txDate.year == currentYear) {
-                        if (tx.isExpense) {
-                            spentThisMonth += tx.amount
-                        } else {
-                            incomeThisMonth += tx.amount
-                        }
-                    }
-                } catch(e: Exception) {
-                    // Ignore parsing errors
-                }
-            }
-        }
-
-        val newRemaining = currentBudget - spentThisMonth + incomeThisMonth
-        // Only update if BudgetTracker hasn't been updated by bank listener
-        // (BudgetTracker is the source of truth for real-time deductions)
-        val budgetTrackerRemaining = BudgetTracker.getRemaining(getApplication())
-        // Use BudgetTracker value if it's more recent (lower = more deductions happened)
-        val finalRemaining = if (budgetTrackerRemaining < newRemaining) budgetTrackerRemaining else newRemaining
-        _remainingBalance.value = finalRemaining
-
-        val prefs = getApplication<Application>().getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
-        prefs.edit().putFloat("remaining_balance", finalRemaining.toFloat()).apply()
-        Log.d(TAG, "recalculateRemainingBalance → Budget: $currentBudget, Spent: $spentThisMonth, Income: $incomeThisMonth, Remaining: $finalRemaining")
+        val spent = BudgetMath.spentThisMonth(txs)
+        _spentThisMonth.value = spent
+        _remainingBalance.value = BudgetMath.remaining(currentBudget, txs)
+        Log.d(TAG, "recalculateRemainingBalance → Budget: $currentBudget, Spent: $spent, Remaining: ${_remainingBalance.value}")
     }
 
     /** نسبة الجرعات اللي اتاخدت من إجمالي الجرعات المجدولة آخر 7 أيام — null لو مفيش بيانات كفاية */

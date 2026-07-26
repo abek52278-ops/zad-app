@@ -55,8 +55,10 @@ suspend fun buildZadFamilyState(dao: ZadDao, context: Context): ZadFamilyState {
     val doseLogs = dao.getAllDoseLogs().first()
 
     val prefs = context.getSharedPreferences("zad_prefs", Context.MODE_PRIVATE)
+    // cached_budget دلوقتي مرآة لـ monthly_limit (ZadViewModel.loadBudget/updateBudget
+    // بيحدّثوه) — مش عمود budget الميت. Task 19.0.
     val monthlyBudget = prefs.getFloat("cached_budget", 3500f).toDouble()
-    val remaining = BudgetTracker.getRemaining(context)
+    val remaining = BudgetMath.remaining(monthlyBudget, transactions)
 
     val lowStockItems = inventory.filter { it.quantity <= (it.lowStockThreshold ?: 0) }
 

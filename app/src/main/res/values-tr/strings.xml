@@ -27,6 +27,9 @@
     <string name="allocated_salary">Ayrılan bütçe</string>
     <string name="currency">₺</string>
     <string name="deposit">Yatır</string>
+    <string name="budget_setup_prompt_title">Aylık bütçenizi ayarlayın</string>
+    <string name="budget_setup_prompt_subtitle">Kalan tutarı hesaplayabilmemiz için üst limiti onaylamamız gerekiyor</string>
+    <string name="budget_setup_prompt_action">Bütçeyi ayarla</string>
     <string name="expense">Gider</string>
     <string name="remaining">Kalan</string>
     <string name="budget_percent">Bütçe</string>

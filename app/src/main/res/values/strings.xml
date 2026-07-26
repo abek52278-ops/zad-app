@@ -27,6 +27,9 @@
     <string name="allocated_salary">الميزانية المخصصة</string>
     <string name="currency">ر.س</string>
     <string name="deposit">إيداع</string>
+    <string name="budget_setup_prompt_title">اضبط ميزانيتك الشهرية</string>
+    <string name="budget_setup_prompt_subtitle">محتاجين نأكد السقف اللي هنحسب عليه المتبقي</string>
+    <string name="budget_setup_prompt_action">ضبط الميزانية</string>
     <string name="expense">مصروف</string>
     <string name="remaining">المتبقي</string>
     <string name="budget_percent">الميزانية</string>
