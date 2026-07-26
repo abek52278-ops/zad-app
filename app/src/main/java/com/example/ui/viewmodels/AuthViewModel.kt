@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.SupabaseRepo
 import com.example.data.SessionHelper
+import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,6 +29,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             val result = SupabaseRepo.signUp(email, pass)
             if (result) {
                 SessionHelper.saveSession(getApplication())
+                com.example.data.CurrentUser.cache(getApplication(), SupabaseRepo.client.auth.currentUserOrNull()?.id)
                 _authState.value = AuthState.Success
             } else {
                 _authState.value = AuthState.Error("Sign up failed. Check your connection or try another email.")
@@ -41,6 +43,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             val result = SupabaseRepo.signIn(email, pass)
             if (result) {
                 SessionHelper.saveSession(getApplication())
+                com.example.data.CurrentUser.cache(getApplication(), SupabaseRepo.client.auth.currentUserOrNull()?.id)
                 _authState.value = AuthState.Success
             } else {
                 _authState.value = AuthState.Error("Login failed. Check your credentials.")

@@ -401,6 +401,14 @@ object TxDeduplicator {
     private const val KEY = "recent_fingerprints"
     private const val WINDOW_MS = 10 * 60 * 1000L // 10 دقائق
 
+    // ملف SharedPreferences منفصل لكل مستخدم — قبل كده كان مشترك لأي حساب مسجل دخول على
+    // نفس الجهاز، فبصمات مستخدم كانت ممكن تمنع (أو تتخلط مع) معاملة حقيقية لمستخدم تاني على
+    // نفس الجهاز. البصمات مؤقتة (نافذة 10 دقايق) فمفيش داعي لـ fallback على بيانات قديمة.
+    // CurrentUser (كاش SharedPreferences محلي) مش SupabaseRepo.client مباشرة — عشان أداة
+    // تخزين محلي بحتة ما تبقاش معتمدة على تهيئة عميل الشبكة (شافها فشل تحت اختبارات Robolectric).
+    private fun userScopedPrefsName(context: Context): String =
+        PREFS + (CurrentUser.get(context)?.let { "_$it" } ?: "")
+
     /**
      * يرجع true لو العملية جديدة (ويسجلها)، false لو مكررة.
      * [disambiguator] (اسم التاجر أو عنوان العملية) بيميّز عمليتين مختلفتين بنفس المبلغ
@@ -420,7 +428,7 @@ object TxDeduplicator {
         externalRef: String? = null,
         confidence: Float = 1.0f
     ): Boolean {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val prefs = context.getSharedPreferences(userScopedPrefsName(context), Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
 
         // البصمات المحفوظة: "amount|isExpense|timestamp|disambiguatorHash|externalRef|confidence"

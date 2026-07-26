@@ -329,7 +329,8 @@ fun SplashScreen(onTimeout: () -> Unit) {
         
         delay(2000)
         SupabaseRepo.client.auth.awaitInitialization()
-        
+        com.example.data.CurrentUser.cache(context, SupabaseRepo.client.auth.currentUserOrNull()?.id)
+
         val permissionsToRequest = mutableListOf<String>()
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             permissionsToRequest.add(Manifest.permission.CAMERA)
