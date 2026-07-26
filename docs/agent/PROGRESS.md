@@ -281,3 +281,26 @@ Full per-screen table and a prioritized summary for next session are in
 **Epic 1+4 (Tasks 19–24) is now complete.** Remaining open items: the `lintDebug`
 verification above, and Task 22's deliberately-deferred "habit lifetime cost" bonus
 insight. Everything else in `EPIC_1_4.md` is done.
+
+## Task 29.1 — Epic 2: Zad AI screen restructure (4-tab regroup) — CODE COMPLETE, BUILD UNVERIFIED
+
+Scope agreed with user, documented in `docs/agent/EPIC_2_ai_screen.md`. Split the old
+3-tab `ZadIntelligenceScreen` (Analytics/Subscriptions/Chat, with Analytics alone
+stacking ~20 ungrouped cards) into 4 tabs: نظرة عامة (Overview), السلوك والتوقعات
+(Behavior & Predictions), الاشتراكات والفرص (Subscriptions & Deals — gained
+`LiveDealsCard`/`FinancialChallengesCard`/`SinkingFundsCard`, moved in from the old
+Analytics tab), أدوات ومحادثة (Tools & Chat — new `ToolsChatTab` with a segmented
+`FilterChip` toggle between What-If/Insights and the existing Chat UI, avoiding nested
+LazyColumn/LazyColumn scroll conflict). Pure layout regroup — no card internals, no data
+source, no LLM-call logic changed. New string resources added across all 4 locale files.
+
+**Build not verified this session**: `compileDebugKotlin` was OOM-killed by the container
+on 4 consecutive attempts (with and without reduced `-Xmx`); `free -h` showed under 1GB
+free throughout, multiple concurrent Claude Code sessions running. Same class of
+environment constraint as the outstanding `lintDebug` issue above. Diff was manually
+reviewed for signature/call-site consistency instead. **Do not mark this task done until
+a clean `compileDebugKotlin`/`assembleDebug`/`testDebugUnitTest` run happens next
+session** — first thing to do.
+
+Deliberately deferred (user's explicit call): `detectSubscriptions()` auto-write bug and
+the rule-1 screen-local income/expense duplication, both still open per `AUDIT.md`.

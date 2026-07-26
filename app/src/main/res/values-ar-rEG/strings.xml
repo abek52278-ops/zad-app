@@ -156,6 +156,12 @@
     <string name="analytics_tab">التحليلات</string>
     <string name="subscriptions_title">الاشتراكات</string>
     <string name="zad_chat_tab">شات زاد</string>
+    <string name="tab_overview">نظرة عامة</string>
+    <string name="tab_behavior_predictions">السلوك والتوقعات</string>
+    <string name="tab_subscriptions_deals">الاشتراكات والفرص</string>
+    <string name="tab_tools_chat">أدوات ومحادثة</string>
+    <string name="tools_chat_tools_label">أدوات</string>
+    <string name="tools_chat_chat_label">محادثة</string>
     <string name="total_monthly_subscriptions">إجمالي الاشتراكات الشهرية</string>
     <string name="active_filter">النشطة</string>
     <string name="no_subscriptions_any">مفيش اشتراكات</string>

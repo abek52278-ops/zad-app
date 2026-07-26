@@ -66,7 +66,6 @@ fun ZadIntelligenceScreen(
     val insights by viewModel.insights.collectAsState()
     val messages by viewModel.aiChatMessages.collectAsState()
     val isTyping by viewModel.isAiTyping.collectAsState()
-    val prediction by viewModel.expensePrediction.collectAsState()
     val patterns by viewModel.behaviorPatterns.collectAsState()
     val serverBehaviorProfile by viewModel.behaviorProfile.collectAsState()
     val isRefreshingBehaviorProfile by viewModel.isRefreshingBehaviorProfile.collectAsState()
@@ -95,9 +94,10 @@ fun ZadIntelligenceScreen(
         IntelligenceTopBar(onOpenDrawer)
 
         val tabs = listOf(
-            Icons.Default.Psychology to stringResource(R.string.analytics_tab),
-            Icons.Default.BarChart to stringResource(R.string.subscriptions_title),
-            Icons.Default.Chat to stringResource(R.string.zad_chat_tab)
+            Icons.Default.Psychology to stringResource(R.string.tab_overview),
+            Icons.Default.Insights to stringResource(R.string.tab_behavior_predictions),
+            Icons.Default.BarChart to stringResource(R.string.tab_subscriptions_deals),
+            Icons.Default.Chat to stringResource(R.string.tab_tools_chat)
         )
         TabRow(
             selectedTabIndex = selectedTab,
@@ -141,25 +141,35 @@ fun ZadIntelligenceScreen(
             label = "tabs"
         ) { tab ->
             when (tab) {
-                0 -> AnalyticsTab(
+                0 -> OverviewTab(
                     transactions = transactions,
                     inventory = inventory,
                     subscriptions = subscriptions,
-                    insights = insights,
-                    prediction = prediction,
+                    report = brainReport,
+                    viewModel = viewModel
+                )
+                1 -> BehaviorPredictionsTab(
+                    transactions = transactions,
+                    inventory = inventory,
+                    subscriptions = subscriptions,
                     patterns = patterns,
                     report = brainReport,
                     serverBehaviorProfile = serverBehaviorProfile,
                     isRefreshingBehaviorProfile = isRefreshingBehaviorProfile,
                     onRefreshBehaviorProfile = { viewModel.refreshBehaviorProfile() },
+                    viewModel = viewModel
+                )
+                2 -> SubscriptionsTab(
+                    subscriptions = subscriptions,
+                    inventory = inventory,
                     viewModel = viewModel,
                     familyViewModel = familyViewModel
                 )
-                1 -> SubscriptionsTab(
-                    subscriptions = subscriptions,
-                    viewModel = viewModel
-                )
-                else -> ChatTab(
+                else -> ToolsChatTab(
+                    insights = insights,
+                    report = brainReport,
+                    predictedNextMonth = predictNextMonth(computeMonthlyData(transactions, LocalContext.current)),
+                    viewModel = viewModel,
                     messages = messages,
                     isTyping = isTyping,
                     inputText = inputText,
@@ -178,23 +188,16 @@ fun ZadIntelligenceScreen(
 }
 
 // ════════════════════════════════════════════════════════════════
-//  TAB 1: ANALYTICS
+//  TAB 1: OVERVIEW (financial health at a glance)
 // ════════════════════════════════════════════════════════════════
 
 @Composable
-fun AnalyticsTab(
+fun OverviewTab(
     transactions: List<ZadTransaction>,
     inventory: List<ZadInventory>,
     subscriptions: List<ZadSubscription>,
-    insights: List<AiInsight>,
-    prediction: com.example.data.AiExpensePrediction?,
-    patterns: List<com.example.data.ZadBehaviorPattern>,
     report: com.example.data.ZadCentralBrain.BrainReport? = null,
-    serverBehaviorProfile: com.example.data.UserBehaviorProfile? = null,
-    isRefreshingBehaviorProfile: Boolean = false,
-    onRefreshBehaviorProfile: () -> Unit = {},
-    viewModel: ZadViewModel,
-    familyViewModel: com.example.ui.viewmodels.FamilyViewModel
+    viewModel: ZadViewModel
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val otherCategoryLabel = stringResource(R.string.other_category)
@@ -212,7 +215,6 @@ fun AnalyticsTab(
 
     val monthlyData = computeMonthlyData(transactions, context)
     val predictedNextMonth = predictNextMonth(monthlyData)
-    val lowStockCount = inventory.count { it.quantity <= (it.lowStockThreshold ?: 2) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -227,38 +229,10 @@ fun AnalyticsTab(
             report.monthComparison?.let { mc ->
                 item { MonthComparisonCard(mc) }
             }
-            report.behaviorProfile?.let { bp ->
-                item { BehaviorAnalysisCard(bp) }
-            }
             if (report.depletionForecasts.isNotEmpty()) {
                 item { DepletionForecastCard(report.depletionForecasts) }
             }
             item { ExportReportButton(report) }
-        }
-
-        // تحليل سلوكك — بروفايل الخادم + ملاحظة يوم الإنفاق الأعلى + الأنماط
-        // المكتشفة محليا، كلها كانت 3 بطاقات متفرقة بلا رابط بصري، دلوقتي قسم واحد.
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Insights, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    "تحليل سلوكك",
-                    style = Typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = onSurface
-                )
-            }
-        }
-        item {
-            ServerBehaviorProfileCard(
-                profile = serverBehaviorProfile,
-                isRefreshing = isRefreshingBehaviorProfile,
-                onRefresh = onRefreshBehaviorProfile
-            )
-        }
-        if (detectWeekdaySpike(serverBehaviorProfile) != null) {
-            item { BehavioralNudgeCard(serverBehaviorProfile) }
         }
 
         // إحصائيات سريعة
@@ -307,12 +281,6 @@ fun AnalyticsTab(
         // توزيع المصروفات
         item { ExpenseDonutCard(categoryMap = categoryMap, total = totalExpense) }
 
-        // رادار التضخم الشخصي (Feature 3)
-        item { InflationRadarCard(transactions) }
-
-        // رادار تغيرات الأسعار في السوق — بحث حي حقيقي (Price Shock Predictor)
-        item { PriceShockRadarCard(categoryMap.map { it.first }.take(5), viewModel) }
-
         // الرسم البياني الشهري
         item {
             MonthlyBarChartCard(
@@ -320,6 +288,79 @@ fun AnalyticsTab(
                 predictedNextMonth = predictedNextMonth
             )
         }
+
+        item { Spacer(modifier = Modifier.height(80.dp)) }
+    }
+}
+
+// ════════════════════════════════════════════════════════════════
+//  TAB 2: BEHAVIOR & PREDICTIONS
+// ════════════════════════════════════════════════════════════════
+
+@Composable
+fun BehaviorPredictionsTab(
+    transactions: List<ZadTransaction>,
+    inventory: List<ZadInventory>,
+    subscriptions: List<ZadSubscription>,
+    patterns: List<com.example.data.ZadBehaviorPattern>,
+    report: com.example.data.ZadCentralBrain.BrainReport? = null,
+    serverBehaviorProfile: com.example.data.UserBehaviorProfile? = null,
+    isRefreshingBehaviorProfile: Boolean = false,
+    onRefreshBehaviorProfile: () -> Unit = {},
+    viewModel: ZadViewModel
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val otherCategoryLabel = stringResource(R.string.other_category)
+    val monthlyData = computeMonthlyData(transactions, context)
+    val predictedNextMonth = predictNextMonth(monthlyData)
+    val lowStockCount = inventory.count { it.quantity <= (it.lowStockThreshold ?: 2) }
+    val topExpenseCategories = transactions.filter { it.isExpense }
+        .groupBy { it.category ?: otherCategoryLabel }
+        .mapValues { it.value.sumOf { t -> t.amount } }
+        .toList()
+        .sortedByDescending { it.second }
+        .map { it.first }
+        .take(5)
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        report?.behaviorProfile?.let { bp ->
+            item { BehaviorAnalysisCard(bp) }
+        }
+
+        // تحليل سلوكك — بروفايل الخادم + ملاحظة يوم الإنفاق الأعلى + الأنماط
+        // المكتشفة محليا، كلها كانت 3 بطاقات متفرقة بلا رابط بصري، دلوقتي قسم واحد.
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Insights, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    "تحليل سلوكك",
+                    style = Typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = onSurface
+                )
+            }
+        }
+        item {
+            ServerBehaviorProfileCard(
+                profile = serverBehaviorProfile,
+                isRefreshing = isRefreshingBehaviorProfile,
+                onRefresh = onRefreshBehaviorProfile
+            )
+        }
+        if (detectWeekdaySpike(serverBehaviorProfile) != null) {
+            item { BehavioralNudgeCard(serverBehaviorProfile) }
+        }
+
+        // رادار التضخم الشخصي (Feature 3)
+        item { InflationRadarCard(transactions) }
+
+        // رادار تغيرات الأسعار في السوق — بحث حي حقيقي (Price Shock Predictor)
+        item { PriceShockRadarCard(topExpenseCategories, viewModel) }
 
         // مؤشر الاستهلاك اليومي — خط زمني بالتواريخ بأسلوب شاشة بورصة
         item { ConsumptionTickerCard(transactions) }
@@ -362,49 +403,102 @@ fun AnalyticsTab(
             }
         }
 
-        // العروض المتاحة لنواقصك — بحث حي حقيقي (Deal Matcher)
-        item {
-            LiveDealsCard(
-                shortageItems = inventory.filter { it.quantity <= (it.lowStockThreshold ?: 2) }.map { it.itemName },
-                viewModel = viewModel
+        item { Spacer(modifier = Modifier.height(80.dp)) }
+    }
+}
+
+// ════════════════════════════════════════════════════════════════
+//  TAB 4: TOOLS & CHAT (segmented — What-If/Insights, or Chat)
+// ════════════════════════════════════════════════════════════════
+
+@Composable
+fun ToolsChatTab(
+    insights: List<AiInsight>,
+    report: com.example.data.ZadCentralBrain.BrainReport? = null,
+    predictedNextMonth: Double,
+    viewModel: ZadViewModel,
+    messages: List<AiChatMessage>,
+    isTyping: Boolean,
+    inputText: String,
+    listState: androidx.compose.foundation.lazy.LazyListState,
+    onInputChange: (String) -> Unit,
+    onSend: () -> Unit
+) {
+    var showChat by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterChip(
+                selected = !showChat,
+                onClick = { showChat = false },
+                label = { Text(stringResource(R.string.tools_chat_tools_label)) },
+                leadingIcon = { Icon(Icons.Default.Build, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = primaryContainer)
+            )
+            FilterChip(
+                selected = showChat,
+                onClick = { showChat = true },
+                label = { Text(stringResource(R.string.tools_chat_chat_label)) },
+                leadingIcon = { Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = primaryContainer)
             )
         }
 
-        // تحديات العائلة المالية (Feature 5)
-        item { FinancialChallengesCard(familyViewModel) }
+        AnimatedContent(
+            targetState = showChat,
+            transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
+            label = "toolsChat"
+        ) { onChat ->
+            if (onChat) {
+                ChatTab(
+                    messages = messages,
+                    isTyping = isTyping,
+                    inputText = inputText,
+                    listState = listState,
+                    onInputChange = onInputChange,
+                    onSend = onSend
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // محاكي القرارات المالية (What-If)
+                    item {
+                        WhatIfSimulatorCard(viewModel = viewModel, predictedMonthlySpend = predictedNextMonth)
+                    }
 
-        // صناديق التجميع للمناسبات الموسمية (Seasonal & Event Budget Forecasting)
-        item { SinkingFundsCard(familyViewModel) }
+                    // رؤى زاد الذكية — دمجنا هنا ملاحظات التقرير النصية (كانت قبل كدة بطاقة
+                    // منفصلة "ملاحظات زاد" فوق) مع الرؤى القابلة للتنفيذ، عشان العميل يشوف
+                    // كل رؤى العقل في قايمة واحدة بدل قسمين متفرقين لنفس الغرض.
+                    val brainNotes = report?.insights.orEmpty().map { note ->
+                        AiInsight(title = "ملاحظة من عقل زاد", description = note, type = "Tip")
+                    }
+                    val allInsights = brainNotes + insights
+                    if (allInsights.isNotEmpty()) {
+                        item {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Lightbulb, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    stringResource(R.string.zad_smart_insights_title),
+                                    style = Typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = onSurface
+                                )
+                            }
+                        }
+                        items(allInsights.take(8)) { insight -> IntelligenceInsightCard(insight, viewModel) }
+                    }
 
-        // محاكي القرارات المالية (What-If)
-        item {
-            WhatIfSimulatorCard(viewModel = viewModel, predictedMonthlySpend = predictedNextMonth)
-        }
-
-        // رؤى زاد الذكية — دمجنا هنا ملاحظات التقرير النصية (كانت قبل كدة بطاقة
-        // منفصلة "ملاحظات زاد" فوق) مع الرؤى القابلة للتنفيذ، عشان العميل يشوف
-        // كل رؤى العقل في قايمة واحدة بدل قسمين متفرقين لنفس الغرض.
-        val brainNotes = report?.insights.orEmpty().map { note ->
-            AiInsight(title = "ملاحظة من عقل زاد", description = note, type = "Tip")
-        }
-        val allInsights = brainNotes + insights
-        if (allInsights.isNotEmpty()) {
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Lightbulb, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        stringResource(R.string.zad_smart_insights_title),
-                        style = Typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = onSurface
-                    )
+                    item { Spacer(modifier = Modifier.height(80.dp)) }
                 }
             }
-            items(allInsights.take(8)) { insight -> IntelligenceInsightCard(insight, viewModel) }
         }
-
-        item { Spacer(modifier = Modifier.height(80.dp)) }
     }
 }
 
@@ -586,7 +680,9 @@ fun ServerBehaviorProfileCard(
 @Composable
 fun SubscriptionsTab(
     subscriptions: List<ZadSubscription>,
-    viewModel: ZadViewModel
+    inventory: List<ZadInventory>,
+    viewModel: ZadViewModel,
+    familyViewModel: com.example.ui.viewmodels.FamilyViewModel
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
     var showInactive by remember { mutableStateOf(false) }
@@ -655,6 +751,29 @@ fun SubscriptionsTab(
                 )
             }
         }
+
+        // فرص واقتصاد
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.LocalOffer, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("فرص واقتصاد", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+            }
+        }
+
+        // العروض المتاحة لنواقصك — بحث حي حقيقي (Deal Matcher)
+        item {
+            LiveDealsCard(
+                shortageItems = inventory.filter { it.quantity <= (it.lowStockThreshold ?: 2) }.map { it.itemName },
+                viewModel = viewModel
+            )
+        }
+
+        // تحديات العائلة المالية (Feature 5)
+        item { FinancialChallengesCard(familyViewModel) }
+
+        // صناديق التجميع للمناسبات الموسمية (Seasonal & Event Budget Forecasting)
+        item { SinkingFundsCard(familyViewModel) }
 
         item { Spacer(modifier = Modifier.height(80.dp)) }
     }

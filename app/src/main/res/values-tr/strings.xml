@@ -156,6 +156,12 @@
     <string name="analytics_tab">Analizler</string>
     <string name="subscriptions_title">Abonelikler</string>
     <string name="zad_chat_tab">Zad Sohbet</string>
+    <string name="tab_overview">Genel Bakış</string>
+    <string name="tab_behavior_predictions">Davranış ve Tahminler</string>
+    <string name="tab_subscriptions_deals">Abonelikler ve Fırsatlar</string>
+    <string name="tab_tools_chat">Araçlar ve Sohbet</string>
+    <string name="tools_chat_tools_label">Araçlar</string>
+    <string name="tools_chat_chat_label">Sohbet</string>
     <string name="total_monthly_subscriptions">Toplam aylık abonelikler</string>
     <string name="active_filter">Aktif</string>
     <string name="no_subscriptions_any">Abonelik yok</string>
