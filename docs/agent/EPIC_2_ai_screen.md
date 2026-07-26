@@ -54,6 +54,15 @@ name confirmed via `grep`), but this is not a substitute for an actual compiler 
 thing next session: run `compileDebugKotlin` + `assembleDebug` + `testDebugUnitTest` in a less
 contended session and confirm clean before treating this task as done.**
 
+## Session close — 2026-07-26
+
+User explicitly signed off on closing the session with Task 29.1 in this state: code
+committed (`70ba336`), build **not** re-verified — `compileDebugKotlin` still OOM-killed
+by the container after 4 attempts, no clean run happened. This is a recorded user
+decision to accept that risk and stop here, not a claim that the build passed. **Next
+session must still run `compileDebugKotlin`/`assembleDebug`/`testDebugUnitTest` before
+Task 29.1 is marked done in `PROGRESS.md`.**
+
 ## What's next in Epic 2 (not started)
 
 - Confirm the build (see above).
