@@ -196,3 +196,36 @@ directly; flagged for the user to fix via the Supabase dashboard or
 Next up per `EPIC_1_4.md`'s order: Task 23 (inventory stagnation) or Task 24 (full-app
 consistency audit) — both unblocked by the ZAD_BASE_URL issue since neither depends on a
 live brain run.
+
+## Task 23 — Inventory stagnation — DONE (code), lintDebug/assembleDebug unverified
+Confirmed with the user first which "shopping suggestion" path(s) to filter — the
+codebase has two (`InventoryFlowEngine.autoReplenish`'s deterministic low-stock filter
+and `ZadAiRepository.suggestGroceries`'s AI-driven suggestions); user said both.
+`InventoryFlowEngine.isStagnant()`: no quantity decrease in 30 days AND zero consumption
+samples ever. Uses the most recent activity (purchase OR consume event) as the reference
+point, not just `createdAt` — otherwise a regularly-restocked item (receipt-scanned,
+quantity topped up, never itself consumed yet) would misclassify as stagnant just for
+having an old original row. Any consume event ever, even an old one, permanently rules
+an item out (mirrors Task 18's `rate_known`). Wired into `autoReplenish()` (excluded from
+auto-add) and `fetchGrocerySuggestions()` (excluded from what's sent to the AI as
+"current inventory"). `generateUrgentRecipes()` (chef mode): stagnant items now lead the
+trigger list per spec's "first", expiry window widened 2→5 days to match the spec's
+literal wording, and the AI prompt now distinguishes stagnant framing from
+expiring/depleting framing. `UrgentRecipeCard` UI branches its copy accordingly (new
+strings in all 4 locale files). Flagged but not fixed: EPIC_1_4.md claims "items with
+expiry_date within 5 days already reach the brain via the snapshot" — false, zad-brain's
+`buildSnapshot()` fetches `expiry_date` but never returns it in any field; not fixed
+because chef mode reads straight from the client's own inventory state and never
+consumes zad-brain's snapshot, so the gap doesn't actually affect it. +5
+`InventoryFlowEngineTest` cases for `isStagnant`.
+
+**Verification gap, flagged explicitly:** `testDebugUnitTest` passed standalone twice
+(94 tests, 0 failures, includes catching and fixing a real `MissingTranslation` lint
+error along the way). `compileDebugKotlin`/`compileDebugUnitTestKotlin` passed clean.
+`lintDebug`/`assembleDebug` could NOT be completed — the container had up to 8 concurrent
+Claude Code sessions running in parallel this session, and the Gradle daemon (even
+`--no-daemon`) was silently SIGKILLed by memory pressure five consecutive times before
+finishing lint analysis. This is an environment constraint, not a code defect. User
+explicitly approved committing without that final verification given the constraint —
+running `lintDebug`/`assembleDebug` cleanly is still owed and should be the first thing
+done next session. Commit `76f488d`.
