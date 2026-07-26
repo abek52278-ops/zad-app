@@ -393,13 +393,16 @@ object SaBankParser {
 
 /**
  * مانع الخصم المزدوج — نفس العملية بتوصل SMS + إشعار تطبيق البنك
- * البصمة: المبلغ + الاتجاه + (اسم التاجر/العنوان لو متوفر) + نافذة زمنية 10 دقائق
+ * البصمة: المبلغ + الاتجاه + (اسم التاجر/العنوان لو متوفر) + نافذة زمنية 36 ساعة
+ * المبلغ بيتفحص بتسامح ±5% بدل التطابق التام — عشان بعض البنوك بتقرب المبلغ
+ * بطريقة مختلفة في SMS مقابل الإشعار (مثال: 100.5 في SMS قد تظهر 100 أو 101 في التطبيق).
  */
 object TxDeduplicator {
 
     private const val PREFS = "zad_tx_dedup"
     private const val KEY = "recent_fingerprints"
-    private const val WINDOW_MS = 10 * 60 * 1000L // 10 دقائق
+    internal const val WINDOW_MS = 36 * 60 * 60 * 1000L // 36 ساعة
+    private const val AMOUNT_TOLERANCE = 0.05 // 5% relative tolerance
 
     // ملف SharedPreferences منفصل لكل مستخدم — قبل كده كان مشترك لأي حساب مسجل دخول على
     // نفس الجهاز، فبصمات مستخدم كانت ممكن تمنع (أو تتخلط مع) معاملة حقيقية لمستخدم تاني على
@@ -408,6 +411,13 @@ object TxDeduplicator {
     // تخزين محلي بحتة ما تبقاش معتمدة على تهيئة عميل الشبكة (شافها فشل تحت اختبارات Robolectric).
     private fun userScopedPrefsName(context: Context): String =
         PREFS + (CurrentUser.get(context)?.let { "_$it" } ?: "")
+
+    private fun isAmountMatch(a: Double, b: Double): Boolean {
+        if (a == b) return true
+        val denom = kotlin.math.max(kotlin.math.abs(a), kotlin.math.abs(b))
+        if (denom == 0.0) return true
+        return kotlin.math.abs(a - b) / denom <= AMOUNT_TOLERANCE
+    }
 
     /**
      * يرجع true لو العملية جديدة (ويسجلها)، false لو مكررة.
@@ -449,7 +459,11 @@ object TxDeduplicator {
         // مرجع البنك أقوى إشارة — لو موجود وطابق مرجع مخزّن، دي نفس العملية أكيد بغض النظر
         // عن المبلغ/التاجر (ممكن يكونوا مختلفين شكلياً بس المرجع بيقول نفس العملية)
         val isDuplicateByRef = refKey.isNotBlank() && valid.any { it[4] == refKey }
-        val isDuplicateByAmount = valid.any { it[0] == amountKey && it[1] == expenseKey && it[3] == disambigKey }
+        // المبلغ مع تسامح ±5%: البصمة المحفوظة تحتفظ بقيمة 2-عشرية نصية، بتحتاج تحويل لـ Double
+        val isDuplicateByAmount = valid.any {
+            val storedAmount = it[0].toDoubleOrNull() ?: return@any false
+            isAmountMatch(storedAmount, amount) && it[1] == expenseKey && it[3] == disambigKey
+        }
         val isDuplicate = isDuplicateByRef || isDuplicateByAmount
 
         if (isDuplicate) {

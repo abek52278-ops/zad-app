@@ -47,9 +47,8 @@ used in conversation (Task 9, Task 17.2, etc.) refer to that file.
 - `docs/agent/NEXT_visible_progress.md` — current task order (supersedes the order in
   ZAD_MASTER; task contents unchanged). **Incomplete as of 2026-07-25** — truncated
   mid TASK 17.3, tail was never received.
-- `docs/agent/15_family_alerts.md` — Task 15 (**not yet in the repo** — referenced but
-  never pasted; ask the user for it before assuming Task 15 content)
-- `docs/agent/16_validation_and_recovery.md` — Task 16 (**not yet in the repo**, same as above)
+- `docs/agent/15_dedup_tolerance_fix.md` — Task 15 (dedup window 10min→36h, match tolerance +5%)
+- `docs/agent/16_cash_wallet.md` — Task 16 (passive cash tracking UX, ATM teaching, weekly reconciliation)
 - `docs/agent/17_2_pharmacy_fix.md` — Task 17.2 (**not yet in the repo**, same as above —
   Task 17.2's actual pharmacy-dosage fix already landed in code per
   `docs/agent/PROGRESS.md`; this file would only be the written spec for it)

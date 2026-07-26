@@ -2,6 +2,7 @@ package com.example.data
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -26,6 +27,8 @@ class TxDeduplicatorTest {
         context = ApplicationProvider.getApplicationContext()
         // ينضف SharedPreferences بين الاختبارات عشان بصمات اختبار سابق متأثرش على اللي بعده
         context.getSharedPreferences("zad_tx_dedup", Context.MODE_PRIVATE).edit().clear().apply()
+        // وفي كل اختبار مستخدم (لو كان فيه) محتاج أنه يختلف عن الاختبارات التانية
+        // لكن CurrentUser ما بيتغير خلال الـ test run — بتحت الرطر بيشتغل كويس
     }
 
     @Test
@@ -77,5 +80,32 @@ class TxDeduplicatorTest {
         // ref مختلف مش دليل كفاية إنها عملية جديدة — لسه المبلغ+التاجر بيمسكها زي الأول
         assertTrue(TxDeduplicator.isNewTransaction(context, 60.0, true, "فوري", externalRef = "REF001"))
         assertFalse(TxDeduplicator.isNewTransaction(context, 60.0, true, "فوري", externalRef = "REF002"))
+    }
+
+    @Test
+    fun `amount within 5 percent tolerance is a duplicate`() {
+        // 100 و 104 (4% difference) — داخل التسامح ±5%
+        assertTrue(TxDeduplicator.isNewTransaction(context, 100.0, true, "كارفور"))
+        assertFalse(TxDeduplicator.isNewTransaction(context, 104.0, true, "كارفور"))
+    }
+
+    @Test
+    fun `amount beyond 5 percent tolerance is NOT a duplicate`() {
+        // 100 و 106 (6% difference) — خارج التسامح ±5%
+        assertTrue(TxDeduplicator.isNewTransaction(context, 100.0, true, "كارفور"))
+        assertTrue(TxDeduplicator.isNewTransaction(context, 106.0, true, "كارفور"))
+    }
+
+    @Test
+    fun `tolerance is symmetric (order independent)`() {
+        // 100.5 first, then 104.8 stored (both should see each other as near)
+        assertTrue(TxDeduplicator.isNewTransaction(context, 100.5, true, "محل"))
+        assertFalse(TxDeduplicator.isNewTransaction(context, 104.8, true, "محل"))
+        // difference = 4.3, max = 104.8, ratio = 4.3/104.8 = 4.1% < 5%
+    }
+
+    @Test
+    fun `WINDOW_MS is 36 hours`() {
+        assertEquals(36 * 60 * 60 * 1000L, TxDeduplicator.WINDOW_MS)
     }
 }
