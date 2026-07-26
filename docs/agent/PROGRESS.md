@@ -148,3 +148,24 @@ scoping discipline as 19.0. Commit: `58b69eb`.
 
 Next up per `EPIC_1_4.md`'s stated order: Task 20 (dedupe as per-country config,
 currently PARTIAL) or Task 19.4 (cash card UI, `zad_cash_balance()` is ready).
+
+## Task 19.4 — cash card on Home — DONE
+`BudgetMath.cashOnHand(txs)` mirrors `zad_cash_balance()` SQL exactly, but computed from
+the same Room-backed transactions flow every other Home number already derives from
+(`ZadViewModel.recalculateRemainingBalance`) instead of a second network round-trip to
+the RPC — one authority, per 19.0's principle. The RPC itself is untouched for other
+consumers (zad-brain). New `CashCard` (`ui/components/ZadCashCard.kt`) on `HomeScreen`:
+shows only when `cashOnHand > 0`, disappears at zero, reuses Task 22's `HabitChipsRow`
+(now `internal`, gained a `horizontalPadding` param to avoid double-padding inside the
+card) so tapping a chip logs a cash expense, plus a "صرفت منهم" button opening a small
+always-expense dialog. One-time lifetime ATM education message added to
+`BankTransactionApplier` (the existing single convergence point for bank transactions)
+via the same `sendAppNotification()` path `UnifiedSmsReceiver` already uses for the
+salary notification — bypasses `ZadAlertRouter` same as that existing precedent;
+Task 24 is where notification paths get reconciled centrally, not here. First
+`BudgetMathTest.kt` in the repo (6 cases, `cashOnHand` only). 89 tests (6 new), 0
+failures; `lintDebug`/`assembleDebug` green. Commit `bfda9a2`.
+
+Next up: Task 19.5 (weekly reconciliation via the brain's `ask_user` tool) — needs
+confirming that flow is actually live first (Task 8/16 flagged it blocked earlier this
+epic on a missing `ZAD_API_KEY`).
