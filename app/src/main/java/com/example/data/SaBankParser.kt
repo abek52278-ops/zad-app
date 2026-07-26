@@ -393,16 +393,31 @@ object SaBankParser {
 
 /**
  * مانع الخصم المزدوج — نفس العملية بتوصل SMS + إشعار تطبيق البنك
- * البصمة: المبلغ + الاتجاه + (اسم التاجر/العنوان لو متوفر) + نافذة زمنية 36 ساعة
- * المبلغ بيتفحص بتسامح ±5% بدل التطابق التام — عشان بعض البنوك بتقرب المبلغ
- * بطريقة مختلفة في SMS مقابل الإشعار (مثال: 100.5 في SMS قد تظهر 100 أو 101 في التطبيق).
+ * البصمة: المبلغ + الاتجاه + (اسم التاجر/العنوان لو متوفر) + نافذة زمنية (افتراضي 36 ساعة)
+ * المبلغ بيتفحص بتسامح نسبي (افتراضي ±5%) بدل التطابق التام — عشان بعض البنوك بتقرب
+ * المبلغ بطريقة مختلفة في SMS مقابل الإشعار (مثال: 100.5 قد تظهر 100 أو 101).
+ *
+ * Task 20 — القيمتين دول كانوا constants ثابتة، دلوقتي بيتحمّلوا من zad_locale_config
+ * (جدول على السيرفر، مفتاحه كود البلد) عن طريق [refreshLocaleConfig]، وبيتخزنوا محلياً
+ * كـ cache. الـ constants فضلوا كـ fallback آمن بس — لو مفيش cache أصلاً (أول تشغيل قبل
+ * أي refresh) أو الفetch فشل (أوفلاين)، بيرجع لنفس القيم اللي كانت متعمدة قبل كده.
  */
 object TxDeduplicator {
 
     private const val PREFS = "zad_tx_dedup"
     private const val KEY = "recent_fingerprints"
-    internal const val WINDOW_MS = 36 * 60 * 60 * 1000L // 36 ساعة
-    private const val AMOUNT_TOLERANCE = 0.05 // 5% relative tolerance
+    private const val KEY_WINDOW_HOURS = "locale_window_hours"
+    private const val KEY_TOLERANCE_PCT = "locale_tolerance_pct"
+    private const val DEFAULT_WINDOW_HOURS = 36
+    private const val DEFAULT_TOLERANCE_PCT = 5.0
+    // Task 20 الوثيقة صراحة: "Do not raise tolerance above 5%" — قفل صلب مش مجرد توصية،
+    // أي صف تاني على السيرفر (خطأ إدخال، تجربة) ميقدرش يتخطاه.
+    private const val MAX_TOLERANCE_PCT = 5.0
+
+    @Volatile private var windowHours: Int = DEFAULT_WINDOW_HOURS
+    @Volatile private var tolerancePct: Double = DEFAULT_TOLERANCE_PCT
+
+    internal val WINDOW_MS: Long get() = windowHours * 60 * 60 * 1000L
 
     // ملف SharedPreferences منفصل لكل مستخدم — قبل كده كان مشترك لأي حساب مسجل دخول على
     // نفس الجهاز، فبصمات مستخدم كانت ممكن تمنع (أو تتخلط مع) معاملة حقيقية لمستخدم تاني على
@@ -412,11 +427,49 @@ object TxDeduplicator {
     private fun userScopedPrefsName(context: Context): String =
         PREFS + (CurrentUser.get(context)?.let { "_$it" } ?: "")
 
+    /**
+     * بتتنادى مرة عند بدء التطبيق (ZadViewModel.init، زي loadBudget). بتقرا كود البلد من
+     * MarketPrefs (مفيهوش Context، متاح دايماً)، تجيب config جديد، وتكاشه محلياً. لو مفيش
+     * نت أو فشل، بتفضل تستخدم آخر cache محفوظ — ومنه الـ defaults لو أول مرة خالص.
+     */
+    suspend fun refreshLocaleConfig(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        // كاش محلي الأول — يشتغل فوراً حتى قبل ما نداء الشبكة يخلص
+        windowHours = prefs.getInt(KEY_WINDOW_HOURS, DEFAULT_WINDOW_HOURS)
+        tolerancePct = prefs.getFloat(KEY_TOLERANCE_PCT, DEFAULT_TOLERANCE_PCT.toFloat()).toDouble()
+            .coerceAtMost(MAX_TOLERANCE_PCT)
+
+        val country = com.example.data.MarketPrefs.currentMarket.localeTag.substringAfter("-")
+        val fresh = SupabaseRepo.getLocaleConfig(country) ?: return
+        val (fetchedWindow, fetchedTolerance) = fresh
+        val clampedTolerance = fetchedTolerance.coerceIn(0.0, MAX_TOLERANCE_PCT)
+
+        windowHours = fetchedWindow
+        tolerancePct = clampedTolerance
+        prefs.edit()
+            .putInt(KEY_WINDOW_HOURS, fetchedWindow)
+            .putFloat(KEY_TOLERANCE_PCT, clampedTolerance.toFloat())
+            .apply()
+        Log.d(TAG_BANK, "refreshLocaleConfig($country) → window=${fetchedWindow}h, tolerance=${clampedTolerance}%")
+    }
+
+    /** اختبار فقط — نفس منطق التصحيح والقفل في [refreshLocaleConfig] من غير نداء شبكة */
+    internal fun applyLocaleConfigForTest(windowHours: Int, tolerancePct: Double) {
+        this.windowHours = windowHours
+        this.tolerancePct = tolerancePct.coerceIn(0.0, MAX_TOLERANCE_PCT)
+    }
+
+    /** اختبار فقط — يرجّع للـ defaults الآمنة بين الاختبارات */
+    internal fun resetToDefaultsForTest() {
+        windowHours = DEFAULT_WINDOW_HOURS
+        tolerancePct = DEFAULT_TOLERANCE_PCT
+    }
+
     private fun isAmountMatch(a: Double, b: Double): Boolean {
         if (a == b) return true
         val denom = kotlin.math.max(kotlin.math.abs(a), kotlin.math.abs(b))
         if (denom == 0.0) return true
-        return kotlin.math.abs(a - b) / denom <= AMOUNT_TOLERANCE
+        return kotlin.math.abs(a - b) / denom <= (tolerancePct / 100.0)
     }
 
     /**

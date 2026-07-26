@@ -29,6 +29,9 @@ class TxDeduplicatorTest {
         context.getSharedPreferences("zad_tx_dedup", Context.MODE_PRIVATE).edit().clear().apply()
         // وفي كل اختبار مستخدم (لو كان فيه) محتاج أنه يختلف عن الاختبارات التانية
         // لكن CurrentUser ما بيتغير خلال الـ test run — بتحت الرطر بيشتغل كويس
+        // Task 20 — TxDeduplicator object واحد مشترك بين كل الاختبارات، فأي اختبار غيّر
+        // window/tolerance لازم يترجع للـ defaults قبل الاختبار اللي بعده
+        TxDeduplicator.resetToDefaultsForTest()
     }
 
     @Test
@@ -107,5 +110,49 @@ class TxDeduplicatorTest {
     @Test
     fun `WINDOW_MS is 36 hours`() {
         assertEquals(36 * 60 * 60 * 1000L, TxDeduplicator.WINDOW_MS)
+    }
+
+    // ── Task 20: config-driven window/tolerance ────────────────────────────
+
+    @Test
+    fun `WINDOW_MS follows a locale-configured window`() {
+        TxDeduplicator.applyLocaleConfigForTest(windowHours = 12, tolerancePct = 5.0)
+        assertEquals(12 * 60 * 60 * 1000L, TxDeduplicator.WINDOW_MS)
+    }
+
+    @Test
+    fun `tolerance boundary — exactly the configured percent is still a duplicate`() {
+        // 5.0 هو أقصى قيمة مسموحة (applyLocaleConfigForTest نفسها بتقفل عند MAX_TOLERANCE_PCT)،
+        // فمينفعش نستخدم قيمة أعلى هنا عشان نختبر الحد فعلاً، مش القيمة المقفولة
+        TxDeduplicator.applyLocaleConfigForTest(windowHours = 36, tolerancePct = 5.0)
+        // abs(100-95)/max(100,95) = 5/100 = 5% بالظبط، والشرط <= فبيتحسب مكرر
+        assertTrue(TxDeduplicator.isNewTransaction(context, 100.0, true, "محل"))
+        assertFalse(TxDeduplicator.isNewTransaction(context, 95.0, true, "محل"))
+    }
+
+    @Test
+    fun `tolerance boundary — just beyond the configured percent is NOT a duplicate`() {
+        TxDeduplicator.applyLocaleConfigForTest(windowHours = 36, tolerancePct = 5.0)
+        // abs(100-94)/max(100,94) = 6/100 = 6% > 5% → مش مكرر
+        assertTrue(TxDeduplicator.isNewTransaction(context, 100.0, true, "محل"))
+        assertTrue(TxDeduplicator.isNewTransaction(context, 94.0, true, "محل"))
+    }
+
+    @Test
+    fun `tolerance is clamped at 5 percent even if config asks for more`() {
+        // الوثيقة صراحة: "Do not raise tolerance above 5%". لو صف على السيرفر بيطلب
+        // نسبة أعلى (غلطة إدخال أو تجربة)، القفل المحلي لازم يمنعها.
+        TxDeduplicator.applyLocaleConfigForTest(windowHours = 36, tolerancePct = 20.0)
+        assertTrue(TxDeduplicator.isNewTransaction(context, 100.0, true, "محل"))
+        // 8% فرق — كان هيتحسب مكرر لو الـ 20% اتقبلت، بس القفل بيوقفها عند 5%
+        assertTrue(TxDeduplicator.isNewTransaction(context, 108.0, true, "محل"))
+    }
+
+    @Test
+    fun `negative tolerance from a bad config row is clamped to zero, not negative`() {
+        TxDeduplicator.applyLocaleConfigForTest(windowHours = 36, tolerancePct = -5.0)
+        assertTrue(TxDeduplicator.isNewTransaction(context, 100.0, true, "محل"))
+        // حتى فرق تافه (0.5%) لازم يتحسب مش مكرر لو التسامح اتقفل عند صفر
+        assertTrue(TxDeduplicator.isNewTransaction(context, 100.5, true, "محل"))
     }
 }

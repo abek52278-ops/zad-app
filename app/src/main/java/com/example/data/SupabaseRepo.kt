@@ -1260,6 +1260,27 @@ object SupabaseRepo {
         }
     }
 
+    @Serializable
+    private data class LocaleConfigRow(
+        @SerialName("dedupe_window_hours") val dedupeWindowHours: Int = 36,
+        @SerialName("amount_tolerance_pct") val amountTolerancePct: Double = 5.0
+    )
+
+    /** Task 20 — (نافذة الساعات، نسبة التسامح٪) لبلد معين، أو null لو فشل/مش موجود */
+    suspend fun getLocaleConfig(country: String): Pair<Int, Double>? {
+        return try {
+            val row = client.postgrest["zad_locale_config"]
+                .select(Columns.list("dedupe_window_hours", "amount_tolerance_pct")) {
+                    filter { eq("country", country) }
+                }
+                .decodeSingleOrNull<LocaleConfigRow>()
+            row?.let { Pair(it.dedupeWindowHours, it.amountTolerancePct) }
+        } catch (e: Exception) {
+            Log.e(TAG, "getLocaleConfig() FAILED: ${e.message}")
+            null
+        }
+    }
+
     /**
      * Task 19.0 — بينقل السقف الشهري المحفوظ على الجهاز لعموده الخاص على السيرفر.
      * targeted update بـ map مش upsert لـ ZadUser: الـ upsert بيكتب كل الأعمدة فبيدهس

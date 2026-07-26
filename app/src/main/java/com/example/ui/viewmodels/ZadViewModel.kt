@@ -293,6 +293,15 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         loadBudget()
         loadUserProfile()
         loadAffiliateProducts()
+        // Task 20 — تحميل نافذة/تسامح الـ dedupe الخاصين ببلد المستخدم. بيكاش محلياً، فمسار
+        // الخلفية (bank listener) بيلاقيه جاهز حتى لو التطبيق مقفول وقت وصول المعاملة.
+        viewModelScope.launch {
+            try {
+                com.example.data.TxDeduplicator.refreshLocaleConfig(getApplication())
+            } catch (e: Exception) {
+                Log.e(TAG, "refreshLocaleConfig() FAILED: ${e.message}")
+            }
+        }
     }
 
     private fun persistChatMessage(msg: AiChatMessage) {
