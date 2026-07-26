@@ -7,6 +7,7 @@ import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.functions.Functions
@@ -1230,6 +1231,52 @@ object SupabaseRepo {
         } catch (e: Exception) {
             Log.e(TAG, "getPendingInsights() FAILED: ${e.message}")
             emptyList()
+        }
+    }
+
+    @Serializable
+    private data class MonthlyLimitRow(
+        @SerialName("monthly_limit") val monthlyLimit: Double? = null,
+        @SerialName("limit_confirmed_at") val limitConfirmedAt: String? = null
+    )
+
+    /** Task 19.0 — null معناها لسه متسجلش. مفيش حاجة تعرض أو تحسب على ده قبل التأكيد. */
+    suspend fun getMonthlyLimit(userId: String): Pair<Double?, String?> {
+        return try {
+            val row = client.postgrest["zad_users"]
+                .select(Columns.list("monthly_limit", "limit_confirmed_at")) {
+                    filter { eq("id", userId) }
+                }
+                .decodeSingleOrNull<MonthlyLimitRow>()
+            Pair(row?.monthlyLimit, row?.limitConfirmedAt)
+        } catch (e: Exception) {
+            Log.e(TAG, "getMonthlyLimit() FAILED: ${e.message}")
+            Pair(null, null)
+        }
+    }
+
+    /**
+     * Task 19.0 — بينقل السقف الشهري المحفوظ على الجهاز لعموده الخاص على السيرفر.
+     * targeted update بـ map مش upsert لـ ZadUser: الـ upsert بيكتب كل الأعمدة فبيدهس
+     * أي حاجة اتكتبت من جهاز تاني، والعمود ده تحديداً مالوش نسخة تانية يترجع منها.
+     * بيكتب بس لو العمود لسه null — أول جهاز يلتقط بيكسب، والباقي مابيدهسوش.
+     * limit_confirmed_at بيفضل null — القيمة ملتقطة مش مؤكدة، ومحدش يقرأها قبل التأكيد.
+     */
+    suspend fun captureMonthlyLimit(userId: String, limit: Double): Boolean {
+        return try {
+            val (existing, _) = getMonthlyLimit(userId)
+            if (existing != null) {
+                Log.d(TAG, "captureMonthlyLimit() skipped — already set to $existing")
+                return false
+            }
+            client.postgrest["zad_users"].update(
+                mapOf("monthly_limit" to limit)
+            ) { filter { eq("id", userId) } }
+            Log.d(TAG, "captureMonthlyLimit() → userId=$userId, limit=$limit")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "captureMonthlyLimit() FAILED: ${e.message}")
+            false
         }
     }
 

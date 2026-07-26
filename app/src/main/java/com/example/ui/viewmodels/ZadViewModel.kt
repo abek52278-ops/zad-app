@@ -30,6 +30,12 @@ data class AiChatMessage(
 )
 
 private const val TAG = "ZadViewModel"
+
+/**
+ * Task 19.0 — الافتراضي اللي بيتحط لما مفيش سقف محفوظ (loadBudget/getUserBudget).
+ * مش فارق عن مستخدم اختار 3500 بجد، فبيتعامل كـ "غير معروف" وقت التقاط السقف.
+ */
+private const val DEFAULT_BUDGET_SENTINEL = 3500.0
 private var lastMealSuggestInventorySize = -1
 
 class ZadViewModel(application: Application) : AndroidViewModel(application) {
@@ -935,9 +941,12 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             _remainingBalance.value = budgetTrackerRemaining
 
             if (prefs.contains("cached_budget")) {
-                // Device already has a real ceiling — push it up rather than pulling server's,
-                // so a stale/first-install-default server value can never overwrite it locally.
-                SupabaseRepo.updateUserBudget(cachedBudget)
+                // Task 19.0 — كان بيدفع السقف المحلي فوق zad_users.budget كل فتح للتطبيق،
+                // فالعمود ده مكانش لا سقف ولا رصيد: بيترد للسقف كل فتح وبعدين الـ trigger
+                // ينقّصه بالمعاملات اللي بتوصل. ده اللي خلّى معادلة استرجاع السقف
+                // (budget + sum(expenses)) باطلة. بطّلنا الدفع، وبنلتقط السقف مرة واحدة
+                // في عموده الخاص قبل ما يضيع من الجهاز.
+                captureMonthlyLimitOnce(prefs, cachedBudget)
             } else {
                 // Genuinely first load on this device — nothing local yet, safe to pull.
                 val b = SupabaseRepo.getUserBudget()
@@ -948,6 +957,32 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             _remainingBalance.value = BudgetTracker.getRemaining(getApplication())
             Log.d(TAG, "loadBudget() → budget = ${_budget.value}, remaining = ${_remainingBalance.value}")
         }
+    }
+
+    /**
+     * Task 19.0 خطوة ٢ — نقل السقف الشهري لعموده الخاص، مرة واحدة لكل جهاز.
+     *
+     * السقف السليم موجود بس في SharedPreferences هنا — مش على السيرفر، لأن
+     * update_budget_on_transaction() بينقّص zad_users.budget بالمعاملات. فالنقل ده
+     * client-side بالضرورة، مش SQL backfill.
+     *
+     * 3500.0 بالظبط = الـ default في loadBudget()/getUserBudget()، مش فارق عن مستخدم
+     * اختار 3500 بجد — فبيتعامل كـ "مش معروف" وبيتساب null عشان الـ UI يسأل بدل ما يخمّن.
+     */
+    private suspend fun captureMonthlyLimitOnce(
+        prefs: android.content.SharedPreferences,
+        cachedBudget: Double
+    ) {
+        if (prefs.getBoolean("monthly_limit_captured", false)) return
+        if (cachedBudget == DEFAULT_BUDGET_SENTINEL) {
+            Log.d(TAG, "captureMonthlyLimitOnce() skipped — value is the default sentinel, ask instead")
+            return
+        }
+        val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return
+        SupabaseRepo.captureMonthlyLimit(userId, cachedBudget)
+        // بيتعلّم محلياً بغض النظر عن نتيجة السيرفر: لو العمود كان متسجل من جهاز تاني،
+        // الجهاز ده مالوش لازمة يحاول تاني كل فتح.
+        prefs.edit().putBoolean("monthly_limit_captured", true).apply()
     }
 
     fun showBudgetDialog() {
