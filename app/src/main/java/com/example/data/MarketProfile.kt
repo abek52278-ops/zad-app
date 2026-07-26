@@ -67,6 +67,11 @@ object MarketPrefs {
         applyLocale(market)
     }
 
+    /** اختبار فقط — يغيّر currentMarket من غير SharedPreferences أو applyLocale */
+    internal fun setCurrentMarketForTest(market: Market) {
+        currentMarket = market
+    }
+
     /** أول مرة يفتح فيها التطبيق — لسه محددش بلد */
     fun hasSelectedMarket(context: Context): Boolean {
         return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).contains(KEY_MARKET)

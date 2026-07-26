@@ -52,7 +52,7 @@ object SaBankParser {
 
     private val otpKeywords = listOf(
         "رمز التحقق", "رمز تحقق", "كود التحقق", "الرمز السري", "رمز الدخول",
-        "رمز التفعيل", "كلمة المرور", "لا تشارك", "لا تشاركه", "otp", "verification code",
+        "رمز التفعيل", "كود التفعيل", "كلمة المرور", "لا تشارك", "لا تشاركه", "otp", "verification code",
         "one-time", "one time password", "do not share", "password", "الرقم السري المؤقت",
         "doğrulama kodu", "tek kullanımlık şifre", "kimseyle paylaşmayın"
     )
@@ -188,7 +188,7 @@ object SaBankParser {
         TypeRule(TxType.BILL_PAYMENT, listOf("سداد", "فاتورة", "sadad", "bill payment", "دفع فاتورة", "fatura ödemesi", "fatura")),
         TypeRule(TxType.INSTALLMENT, listOf("قسط", "أقساط", "دفعة من", "installment", "تابي", "تمارة", "tabby", "tamara", "taksit")),
         TypeRule(TxType.FEE, listOf("رسوم", "عمولة", "fee", "charges", "vat", "ücret", "komisyon")),
-        TypeRule(TxType.PURCHASE, listOf("شراء", "مشتريات", "عملية شراء", "نقاط البيع", "خصم", "دفع", "تم الدفع", "مدين", "قيد مدين", "purchase", "pos", "debited", "payment", "paid", "spent", "مدفوعات", "أبل باي", "apple pay", "mada", "مدى", "satın alma", "harcama", "ödeme", "kartınızdan"))
+        TypeRule(TxType.PURCHASE, listOf("شراء", "مشتريات", "عملية شراء", "نقاط البيع", "خصم", "دفع", "تم الدفع", "مدين", "قيد مدين", "purchase", "pos", "debited", "payment", "paid", "spent", "مدفوعات", "مدفوعة", "أبل باي", "apple pay", "mada", "مدى", "satın alma", "harcama", "ödeme", "kartınızdan"))
     )
 
     /** يحدد نوع العملية — يرجع null لو مفيش كلمة صريحة (يروح AI fallback) */

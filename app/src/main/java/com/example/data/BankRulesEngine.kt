@@ -47,15 +47,24 @@ object BankRulesEngine {
 
     private fun typeToTxType(type: String): TxType = when (type) {
         "debit" -> TxType.PURCHASE
+        "withdrawal" -> TxType.WITHDRAWAL
         "refund" -> TxType.REFUND
         "salary" -> TxType.SALARY
         "credit" -> TxType.DEPOSIT
         else -> TxType.PURCHASE
     }
 
+    // Task 21 — بتحمّل بس قواعد البلد الفعّال (زائد "ALL" لو فيه قاعدة عامة لأي بلد)، مش
+    // كل الملف. كل بنوك مصر دلوقتي "EG"، فمستخدم سعودي (بيروح للمسار الكوتلاني القديم في
+    // SaBankParser أصلاً لأنه مفيش قواعد JSON بـ country="SA") ميقدرش يتفهم غلط برسالة
+    // مصرية العملة أو العكس — لو ما اتطابقش هنا، الـ AI fallback (analyze_bank_notification)
+    // هو خط الدفاع العام لأي بلد/عملة، مش محرك regex ثاني هنا.
+    private fun activeCountryCode(): String = MarketPrefs.currentMarket.localeTag.substringAfter("-")
+
     /** يرجع null لو مفيش rule سندرها يطابق، أو الـ rule طابق بس المبلغ متعرفش يتفسّر */
     fun tryParse(context: Context, source: String, fullText: String): ParsedBankTx? {
-        val rules = loadRules(context)
+        val country = activeCountryCode()
+        val rules = loadRules(context).filter { it.country.equals(country, ignoreCase = true) || it.country.equals("ALL", ignoreCase = true) }
         if (rules.isEmpty()) return null
 
         val normalizedText = SaBankParser.normalizeDigits(fullText)
