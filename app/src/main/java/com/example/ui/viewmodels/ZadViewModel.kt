@@ -293,6 +293,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         loadBudget()
         loadUserProfile()
         loadAffiliateProducts()
+        loadHabitChips()
         // Task 20 — تحميل نافذة/تسامح الـ dedupe الخاصين ببلد المستخدم. بيكاش محلياً، فمسار
         // الخلفية (bank listener) بيلاقيه جاهز حتى لو التطبيق مقفول وقت وصول المعاملة.
         viewModelScope.launch {
@@ -1083,6 +1084,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 e.printStackTrace()
             }
             com.example.widgets.TransactionWidget.updateAllWidgets(getApplication())
+            loadHabitChips()
         }
     }
 
@@ -2559,6 +2561,20 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setAffiliateConsent(given: Boolean) {
         _affiliateConsentGiven.value = given
+    }
+
+    private val _habitChips = MutableStateFlow<List<com.example.data.HabitChip>>(emptyList())
+    val habitChips: StateFlow<List<com.example.data.HabitChip>> = _habitChips.asStateFlow()
+
+    /** Task 22 — يتحمّل مرة عند بدء الجلسة (زي loadAffiliateProducts)، مش عند كل تحديث معاملات */
+    fun loadHabitChips() {
+        viewModelScope.launch {
+            try {
+                _habitChips.value = SupabaseRepo.getHabitChips()
+            } catch (e: Exception) {
+                Log.e(TAG, "loadHabitChips() FAILED: ${e.message}")
+            }
+        }
     }
 
     fun loadAffiliateProducts() {

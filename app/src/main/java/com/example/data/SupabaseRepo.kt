@@ -1266,6 +1266,30 @@ object SupabaseRepo {
         @SerialName("amount_tolerance_pct") val amountTolerancePct: Double = 5.0
     )
 
+    @Serializable
+    private data class HabitChipsParams(
+        @SerialName("p_user") val user: String,
+        @SerialName("p_same_weekday") val sameWeekday: Boolean
+    )
+
+    /**
+     * Task 22 — "قهوة ٢٥" جنب "رصيدك اتصرف عليه ٤ مرات آخر ٦٠ يوم بمبلغ ثابت تقريباً"،
+     * محسوبة كلها في zad_habit_chips() (فلتر stddev هناك، مش هنا). فاضية لو المستخدم
+     * جديد أو مفيش نمط ثابت — الشاشة تختفي الصف بدل ما تعرض حاجة فاضية.
+     */
+    suspend fun getHabitChips(sameWeekday: Boolean = false): List<HabitChip> {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id ?: return emptyList()
+            client.postgrest.rpc(
+                "zad_habit_chips",
+                Json.encodeToJsonElement(HabitChipsParams(user = userId, sameWeekday = sameWeekday)).jsonObject
+            ).decodeList<HabitChip>()
+        } catch (e: Exception) {
+            Log.e(TAG, "getHabitChips() FAILED: ${e.message}")
+            emptyList()
+        }
+    }
+
     /** Task 20 — (نافذة الساعات، نسبة التسامح٪) لبلد معين، أو null لو فشل/مش موجود */
     suspend fun getLocaleConfig(country: String): Pair<Int, Double>? {
         return try {

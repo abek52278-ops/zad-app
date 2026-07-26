@@ -144,6 +144,15 @@ data class ZadTransaction(
     @SerialName("transfer_to") val transferTo: String? = null
 )
 
+/** Task 22 — نتيجة صف واحد من zad_habit_chips() RPC. label بيكون العنوان (title) لو موجود، وإلا الفئة */
+@Serializable
+data class HabitChip(
+    val label: String,
+    val amount: Double,
+    val category: String,
+    val hits: Int
+)
+
 @Serializable
 data class BehaviorCategoryTotal(
     val category: String = "",

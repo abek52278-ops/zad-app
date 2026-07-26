@@ -61,6 +61,7 @@ fun TransactionsScreen(
 ) {
     val transactions by viewModel.transactions.collectAsState()
     val budget by viewModel.budget.collectAsState()
+    val habitChips by viewModel.habitChips.collectAsState()
 
     var selectedFilter by remember { mutableStateOf(TxFilter.ALL) }
     var searchQuery by remember { mutableStateOf("") }
@@ -116,6 +117,29 @@ fun TransactionsScreen(
                     selected = selectedFilter,
                     onSelected = { selectedFilter = it }
                 )
+            }
+
+            // Task 22 — habit chips: one tap logs a recurring, amount-consistent expense
+            // (e.g. "قهوة ٢٥") without opening the add dialog. Empty when the user has no
+            // stable pattern yet — zad_habit_chips() already filters that server-side.
+            if (habitChips.isNotEmpty()) {
+                item {
+                    HabitChipsRow(
+                        chips = habitChips,
+                        onChipTap = { chip ->
+                            viewModel.addTransaction(
+                                ZadTransaction(
+                                    amount = chip.amount,
+                                    title = chip.label,
+                                    category = chip.category,
+                                    isExpense = true,
+                                    wallet = "cash",
+                                    createdAt = java.time.Instant.now().toString()
+                                )
+                            )
+                        }
+                    )
+                }
             }
 
             // Transactions list header
@@ -466,6 +490,49 @@ private fun FilterChipsRow(selected: TxFilter, onSelected: (TxFilter) -> Unit) {
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                         color = if (isSelected) Color.White else onSurface
                     )
+                }
+            }
+        }
+    }
+}
+
+/** Task 22 — كارت لكل عادة صرف ثابتة، Tap واحد يسجّلها كمصروف كاش فوري */
+@Composable
+private fun HabitChipsRow(chips: List<com.example.data.HabitChip>, onChipTap: (com.example.data.HabitChip) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    Column(modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)) {
+        Text(
+            "عادات صرفك",
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = onSurfaceVariant
+        )
+        androidx.compose.foundation.lazy.LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(chips, key = { it.label + it.category }) { chip ->
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(surface)
+                        .border(1.dp, outlineVariant, RoundedCornerShape(20.dp))
+                        .clickable { onChipTap(chip) }
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.Bolt, contentDescription = null, tint = primary, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Column {
+                            Text(chip.label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                com.example.data.CurrencyFormatter.formatNumber(context, chip.amount),
+                                fontSize = 11.sp,
+                                color = onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             }
         }
