@@ -496,20 +496,24 @@ private fun FilterChipsRow(selected: TxFilter, onSelected: (TxFilter) -> Unit) {
     }
 }
 
-/** Task 22 — كارت لكل عادة صرف ثابتة، Tap واحد يسجّلها كمصروف كاش فوري */
+/** Task 22 — كارت لكل عادة صرف ثابتة، Tap واحد يسجّلها كمصروف كاش فوري. internal — معاد استخدامه في CashCard (Task 19.4) */
 @Composable
-private fun HabitChipsRow(chips: List<com.example.data.HabitChip>, onChipTap: (com.example.data.HabitChip) -> Unit) {
+internal fun HabitChipsRow(
+    chips: List<com.example.data.HabitChip>,
+    onChipTap: (com.example.data.HabitChip) -> Unit,
+    horizontalPadding: androidx.compose.ui.unit.Dp = 16.dp
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     Column(modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)) {
         Text(
             "عادات صرفك",
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = horizontalPadding, vertical = 4.dp),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Bold,
             color = onSurfaceVariant
         )
         androidx.compose.foundation.lazy.LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
+            contentPadding = PaddingValues(horizontal = horizontalPadding),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(chips, key = { it.label + it.category }) { chip ->

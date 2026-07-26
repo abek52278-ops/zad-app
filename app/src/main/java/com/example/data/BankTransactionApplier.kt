@@ -3,6 +3,7 @@ package com.example.data
 import android.content.Context
 import android.util.Log
 import com.example.data.local.ZadDatabase
+import io.github.jan.supabase.auth.auth
 
 /**
  * تطبيق معاملة بنكية اتفهمت (Room + Supabase + حقن البادجت) — نفس الخطوات سواء المعاملة
@@ -47,5 +48,35 @@ object BankTransactionApplier {
         }
         // Task 19.0 — تنبيه تخطي 75/90/100% من الإجمالي، محسوب لحظياً بعد إدراج المعاملة
         BudgetTracker.checkOverallBudgetThreshold(context)
+
+        if (txType == TxType.WITHDRAWAL) {
+            maybeShowCashEducationOnce(context, classified.amount)
+        }
+    }
+
+    private const val PREFS_CASH_EDU = "zad_cash_education"
+    private const val KEY_SHOWN_ONCE = "shown_once"
+
+    /**
+     * Task 19.4 — "أول سحب ATM، رسالة تعليمية واحدة، مرة واحدة طول العمر" (EPIC_1_4.md).
+     * نفس مسار sendAppNotification المستخدم أصلاً في UnifiedSmsReceiver لإشعار الراتب —
+     * ده مش المسار المثالي (ZadAlertRouter من المفروض يبقى نقطة العبور الوحيدة لكل
+     * إشعار، حسب معيار Task 24)، لكنه المسار الموجود فعلياً لإشعارات مبنية على SMS بنكي،
+     * ومش هدف هذا التاسك إعادة هيكلة الإشعارات كلها — Task 24 هو اللي هيوحّدها.
+     */
+    private suspend fun maybeShowCashEducationOnce(context: Context, amount: Double) {
+        val prefs = context.getSharedPreferences(PREFS_CASH_EDU, Context.MODE_PRIVATE)
+        if (prefs.getBoolean(KEY_SHOWN_ONCE, false)) return
+        prefs.edit().putBoolean(KEY_SHOWN_ONCE, true).apply()
+        try {
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return
+            SupabaseRepo.sendAppNotification(
+                userId,
+                "سحبت ${CurrencyFormatter.format(context, amount)}",
+                "دي مش محسوبة كمصروف لسه — لما تصرف منها قوللي. ولو نسيت، هسألك آخر الأسبوع."
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "maybeShowCashEducationOnce() FAILED: ${e.message}")
+        }
     }
 }

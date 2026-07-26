@@ -106,6 +106,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val _remainingBalance = MutableStateFlow<Double>(3500.0)
     val remainingBalance: StateFlow<Double> = _remainingBalance.asStateFlow()
 
+    /** Task 19.4 — مشتق من BudgetMath.cashOnHand، بيتحدث مع كل تحديث Room زي remainingBalance بالظبط */
+    private val _cashOnHand = MutableStateFlow(0.0)
+    val cashOnHand: StateFlow<Double> = _cashOnHand.asStateFlow()
+
     /** اقتراح تعديل الميزانية بناء على متوسط آخر شهرين مكتملين فعلياً — اقتراح بس، محتاج موافقة المستخدم، مفيش تطبيق تلقائي */
     private val _suggestedBudget = MutableStateFlow<Double?>(null)
     val suggestedBudget: StateFlow<Double?> = _suggestedBudget.asStateFlow()
@@ -1098,7 +1102,8 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         val spent = BudgetMath.spentThisMonth(txs)
         _spentThisMonth.value = spent
         _remainingBalance.value = BudgetMath.remaining(currentBudget, txs)
-        Log.d(TAG, "recalculateRemainingBalance → Budget: $currentBudget, Spent: $spent, Remaining: ${_remainingBalance.value}")
+        _cashOnHand.value = BudgetMath.cashOnHand(txs)
+        Log.d(TAG, "recalculateRemainingBalance → Budget: $currentBudget, Spent: $spent, Remaining: ${_remainingBalance.value}, Cash: ${_cashOnHand.value}")
     }
 
     /** نسبة الجرعات اللي اتاخدت من إجمالي الجرعات المجدولة آخر 7 أيام — null لو مفيش بيانات كفاية */

@@ -50,4 +50,21 @@ object BudgetMath {
         if (monthlyLimit <= 0.0) return 0.0
         return monthlyLimit - spentThisMonth(transactions, asOf) + incomeThisMonth(transactions, asOf)
     }
+
+    /**
+     * Task 19.4 — فلوس الكاش تحت اليد. مطابق تماماً لمنطق zad_cash_balance() SQL (migration
+     * 20260726060000): سحب ATM (transfer→cash) بيزود، صرف من الكاش (expense مع wallet=cash)
+     * بينقص. محسوب هنا من Room مباشرة (مش عن طريق نداء شبكة لنفس دالة الـ RPC) عشان يفضل
+     * على نفس مبدأ سلطة واحدة مشتقة اللي 19.0 أسسه — كل رقم فلوس على الشاشة بييجي من هنا،
+     * مش من مصدرين مختلفين ممكن يختلفوا لو الجهاز أوفلاين. الدالة على السيرفر (zad_cash_balance)
+     * فضلت زي ما هي لمستهلكين تانيين (زاد-برين مثلاً)، مش استُبدلت.
+     */
+    fun cashOnHand(transactions: List<ZadTransaction>): Double {
+        var balance = 0.0
+        for (tx in transactions) {
+            if (tx.txnKind == "transfer" && tx.transferTo == "cash") balance += tx.amount
+            else if (tx.txnKind == "expense" && tx.wallet == "cash") balance -= tx.amount
+        }
+        return balance.asMoney()
+    }
 }
