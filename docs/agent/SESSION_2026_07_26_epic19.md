@@ -151,7 +151,7 @@
 | # | الموضوع | الحالة |
 |---|---|---|
 | **habit lifetime cost** | بونص Task 22 (تكلفة سنوية، cap ربع-سنوي) | ❌ مؤجل عمداً |
-| **⚠️ ZAD_BASE_URL** | secret فيه Markdown-wrapped URL بدل رابط خام | ❌ يوقف zad-brain كله — يحتاج تدخل يدوي من المستخدم |
+| ~~**ZAD_BASE_URL**~~ | secret كان فيه Markdown-wrapped URL | ✅ اتصلح من المستخدم — smoke test اتأكد (`ok:true`) |
 | **23** | Inventory stagnation | ❌ مبدأش |
 | **24** | Full-app consistency audit (`AUDIT.md`) | ❌ مبدأش |
 
