@@ -76,3 +76,41 @@ regression — just an unfinished task that must not be marked DONE.
 Numbering note: that commit called itself "Task 15" before `EPIC_1_4.md`/`PRODUCT_PLAN.md`
 arrived. Tasks 15/16 belong to `15_family_alerts.md` / `16_validation_and_recovery.md`
 (still not in the repo). The dedupe work is Task 20.
+
+## Task 19.1 — audit: ATM withdrawal double-counted as spending — DONE
+Confirmed the bug: `SaBankParser.kt` classified WITHDRAWAL as `is_expense=true`, so
+withdrawing then spending double-counted. No cash/wallet concept existed. See
+`docs/agent/SESSION_2026_07_26_epic19.md` for the full session narrative.
+
+## Task 19.0 — one derived budget authority — DONE
+Not in the original epic — discovered necessary during 19.1. `zad_users.budget` was
+doing two jobs (user ceiling + trigger-decremented balance). Split into `monthly_limit`
+(user-set) + a fully derived remaining/spent via new `BudgetMath.kt`. Dropped the
+`update_budget_on_transaction` trigger (confirmed live, not assumed). Stripped
+`BudgetTracker`'s overall-balance mutation, kept category tracking. Added
+`BudgetSetupPromptCard` for unconfirmed limits. Found and fixed
+`fallbackToDestructiveMigration()` wiping the whole local Room DB on any version bump —
+added a real `Migration(12,13)`. Full spec: `docs/agent/19_0_single_authority.md`.
+Commits: `abead82`, `6de438f`, `a19ea3d`, `60ea32f`, `8fb8caf`, `0c79f80`.
+
+## Task 19.2 — wallet/txn_kind/transfer_to schema — DONE
+Added the three columns to `zad_transactions` (Supabase + Room `Migration_12_13`,
+`ZadTransaction` is a real Room entity). ATM withdrawals classified `txn_kind='transfer'`
+at `BankTransactionApplier` (single convergence point for all bank-detected transactions).
+Additive only — nothing read the column yet, zero behavior change. Commit: `7cbf1a0`.
+
+## Task 19.3 — spending reads txn_kind, backfill, zad_cash_balance() — DONE
+Backfilled existing rows (3 of 4 live rows had is_expense/txn_kind mismatch, corrected;
+zero withdrawal rows existed so zero transfer reclassifications, zero visible-number
+change — verified before/after via direct query). Flipped `BudgetMath` and the
+`zad-brain` snapshot from `is_expense` to `txn_kind` — this closes the actual Task 19.1
+bug. Fixed `notify_parents_on_child_spend` and `zad_brain_self_review` (SQL functions)
+to match — closes the "not fixed here, that's 19.2/19.3's job" gap flagged in Task
+19.0's own migration comment. `zad_cash_balance()` RPC added per spec, unused until
+Task 19.4. Deliberately not touched: `ZadCentralBrain`'s 13 other `isExpense` sites
+(category/merchant/trend analytics) and the server-side behavior-profile/seasonal
+forecasting queries — same latent transfer-not-excluded gap, tracked not fixed, same
+scoping discipline as 19.0. Commit: `58b69eb`.
+
+Next up per `EPIC_1_4.md`'s stated order: Task 20 (dedupe as per-country config,
+currently PARTIAL) or Task 19.4 (cash card UI, `zad_cash_balance()` is ready).
