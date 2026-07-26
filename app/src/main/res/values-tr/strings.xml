@@ -366,6 +366,7 @@
     <string name="edit_limits_action">Düzenle</string>
     <string name="daily_limit_label">Günlük</string>
     <string name="weekly_limit_label">Haftalık</string>
+    <string name="real_monthly_spend_label">Aylık harcama</string>
     <string name="no_limit_set">Limit yok</string>
     <string name="spend_limits_hint">%1$s için günlük/haftalık harcayabileceği azami tutarı belirleyin. Limiti kaldırmak için boş bırakın.</string>
     <string name="daily_limit_with_currency">Günlük limit (%1$s)</string>
@@ -656,6 +657,7 @@
     <string name="bank_reading_status_desc">Gerçek izin durumu — sistem ayarlarından izni kaldırırsan burada hemen görünür</string>
     <string name="sms_reading_status_label">SMS okuma</string>
     <string name="notification_reading_status_label">Banka bildirimi okuma</string>
+    <string name="battery_optimization_status_label">Pil optimizasyonu istisnası</string>
     <string name="enable_action">Etkinleştir</string>
     <string name="status_on">Aktif ✓</string>
     <string name="status_off">Aktif değil</string>

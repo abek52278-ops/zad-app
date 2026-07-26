@@ -366,6 +366,7 @@
     <string name="edit_limits_action">تعديل</string>
     <string name="daily_limit_label">اليومي</string>
     <string name="weekly_limit_label">الأسبوعي</string>
+    <string name="real_monthly_spend_label">المصروف الشهري</string>
     <string name="no_limit_set">من غير حد</string>
     <string name="spend_limits_hint">حدد أقصى مبلغ %1$s يقدر يصرفه يومي/أسبوعي. سيبها فاضية علشان تلغي الحد.</string>
     <string name="daily_limit_with_currency">الحد اليومي (%1$s)</string>
@@ -656,6 +657,7 @@
     <string name="bank_reading_status_desc">الحالة الحقيقية للصلاحيات — لو سحبت الصلاحية من إعدادات الموبايل، هتلاقيها هنا على طول</string>
     <string name="sms_reading_status_label">قراءة الرسايل</string>
     <string name="notification_reading_status_label">قراءة إشعارات البنك</string>
+    <string name="battery_optimization_status_label">استثناء توفير البطارية</string>
     <string name="enable_action">تفعيل</string>
     <string name="status_on">شغالة ✓</string>
     <string name="status_off">مش شغالة</string>
