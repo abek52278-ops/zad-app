@@ -56,8 +56,24 @@ type Trigger = "daily" | "event" | "chat";
 // the device doesn't have reason to carry.
 // ═══════════════════════════════════════════════════════════
 
+/**
+ * Task 19.5 — مفتاح ثابت لكل أسبوع تقويمي (ISO week)، محسوب هنا في الكود مش من الموديل،
+ * عشان upsert بـ (user_id, dedupe_key) يبقى idempotent فعلاً لو الموديل قرر يسأل أكتر
+ * من مرة في نفس الأسبوع (بيرجع نفس الصف pending، مش يكرره)، ونفس المبدأ اللي
+ * suggest_budget_change بيستخدمه لمفتاحه الشهري — الموديل ميحسبش مفاتيح زمنية بنفسه.
+ */
+function isoWeekKey(d: Date): string {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return `cash_reconciliation_${date.getUTCFullYear()}_w${weekNo}`;
+}
+
 async function buildSnapshot(sb: SupabaseClient, userId: string) {
-  const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes, askedRes, selfMemRes] =
+  const cashKey = isoWeekKey(new Date());
+  const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes, askedRes, selfMemRes, cashBalRes, cashAskedRes] =
     await Promise.all([
       sb.from("zad_users").select("monthly_limit").eq("id", userId).maybeSingle(),
       sb.from("zad_transactions").select("amount,title,category,is_expense,txn_kind,created_at,merchant_name")
@@ -85,6 +101,12 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
       sb.from("zad_memory").select("id")
         .eq("user_id", userId).eq("scope", "self")
         .gte("created_at", new Date(Date.now() - 14 * 86400000).toISOString()),
+      // Task 19.4 left this RPC unconsumed on purpose ("for other consumers e.g. zad-brain")
+      // — this is that consumer. Same number the cash card shows the user.
+      sb.rpc("zad_cash_balance", { p_user: userId }),
+      // "already asked this exact week's key?" — one cheap query so the model doesn't burn
+      // its one-question-per-run budget re-proposing an already-pending/answered ask.
+      sb.from("zad_insights").select("id").eq("user_id", userId).eq("dedupe_key", cashKey).limit(1),
     ]);
 
   // Task 19.0 — zad_users.budget كان بيتنقّص بمعاملة معاملة، فبيتقرا هنا وبيتطرح منه
@@ -169,6 +191,15 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     // أسبوعين، اتأكدت ولا طلعت غلط. لو نمط متكرر (٣+ مرات غلط)، المفروض العقل يستخدم
     // remember() يسجله كدرس بدل ما يكرر نفس الغلطة كل مرة.
     self_review: selfReviewRes.data ?? { velocity_warnings: { correct: 0, incorrect: 0 }, low_stock_warnings: { correct: 0, incorrect: 0 } },
+    // Task 19.5 — تسوية أسبوعية. key محسوب هنا (isoWeekKey)، مش من الموديل، عشان
+    // validateAskUser يقدر يرفض أي مفتاح تاني بنفس البادئة (اختراع مفتاح غلط). dismissed_count
+    // بيتحسب من dismissed_keys الموجودة فعلاً — رفضين اتنين يقفلوا السؤال نهائي (validators.ts).
+    cash_reconciliation: {
+      key: cashKey,
+      cash_on_hand: Number(cashBalRes.data ?? 0),
+      needs_ask: (cashAskedRes.data ?? []).length === 0,
+      dismissed_count: (dismissedRes.data ?? []).filter((d: any) => (d.dedupe_key ?? "").startsWith("cash_reconciliation_")).length,
+    },
   };
 }
 
@@ -268,6 +299,34 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       ctx.mutationCount++;
       ctx.mutations.push({ tool: name, old: input.drop_id, new: input.keep_id });
       return "اتدمجت العملية المكررة";
+    }
+    case "reconcile_cash_balance": {
+      // Task 19.5 — "الإجابة تظبط الرصيد مباشرة بإدراج صف transfer تصحيحي، من غير تفصيل".
+      // الميكانيزم الوحيد الحالي (zad_cash_balance()/BudgetMath.cashOnHand، Task 19.3/19.4)
+      // بيزود الكاش بس مع (transfer + transfer_to=cash)، وبينقصه بس مع (expense + wallet=cash)
+      // — فمفيش "transfer للخارج" فعلي يقدر ينقّص الرصيد. تصحيح لأسفل (العميل معاه كاش أقل
+      // من المتوقع = صرف حقيقي حصل وماتسجلش) بيتسجل expense/wallet=cash فعلاً، مش transfer —
+      // ده الاتجاه المتسق الوحيد مع الصيغة الموجودة، مش خروج عن الطلب.
+      const { data: cashData, error: cashErr } = await sb.rpc("zad_cash_balance", { p_user: userId });
+      if (cashErr) return `فشل قراءة رصيد الكاش: ${cashErr.message}`;
+      const current = Number(cashData ?? 0);
+      const delta = input.reported_amount - current;
+      if (Math.abs(delta) < 0.01) return "الرصيد اللي قاله العميل مطابق للمحسوب فعلاً — مفيش تصحيح لازم";
+      const isIncrease = delta > 0;
+      const { error } = await sb.from("zad_transactions").insert({
+        user_id: userId,
+        amount: Math.round(Math.abs(delta) * 100) / 100,
+        title: "تسوية كاش أسبوعية (تقريبية)",
+        category: isIncrease ? "تحويلات" : "أخرى",
+        is_expense: true,
+        txn_kind: isIncrease ? "transfer" : "expense",
+        transfer_to: isIncrease ? "cash" : null,
+        wallet: "cash",
+      });
+      if (error) return `فشل تسجيل التسوية: ${error.message}`;
+      ctx.mutationCount++;
+      ctx.mutations.push({ tool: name, old: current, new: input.reported_amount });
+      return `اتسجل تصحيح ${Math.abs(delta).toFixed(2)} (${isIncrease ? "زيادة" : "نقصان"}) عشان الكاش يطابق كلام العميل`;
     }
     default:
       return `أداة غير معروفة: ${name}`;
@@ -396,6 +455,17 @@ const TOOLS: ToolDef[] = [
       required: ["keep_id", "drop_id"],
     },
   },
+  {
+    name: "reconcile_cash_balance",
+    description: "بعد ما العميل يرد على سؤال تسوية الكاش الأسبوعي برقم، نادِ الأداة دي بالرقم اللي قاله — بتظبط الرصيد المحسوب من غير تفاصيل.",
+    input_schema: {
+      type: "object",
+      properties: {
+        reported_amount: { type: "number", description: "الرقم اللي العميل قاله — تقريبي، مفيش تفصيل مطلوب" },
+      },
+      required: ["reported_amount"],
+    },
+  },
 ];
 
 function buildSystemPrompt(snap: any): string {
@@ -418,6 +488,16 @@ remember مش للأرقام. للأنماط:
 - سلوك متكرر ("بيصرف أكتر آخر الشهر")
 - تفضيلات ("مش مهتم بتنبيهات الاشتراكات")
 - دروس عن نفسك ("تحذيراتي عن سرعة الصرف طلعت غلط ٣ مرات")
+
+تسوية الكاش الأسبوعية (cash_reconciliation جوه الـ snapshot):
+- لو needs_ask=true ودمج dismissed_count أقل من ٢، ممكن تسأل مرة واحدة في الأسبوع
+  ("فاضل معاك كام كاش تقريباً؟") عن طريق ask_user، answer_type="number"، dedupe_key =
+  cash_reconciliation.key بالظبط زي ما هو في الـ snapshot — متخترعش مفتاح تاني.
+- لو needs_ask=false، معناها اتسأل الأسبوع ده بالفعل — متسألش تاني.
+- لو dismissed_count >= 2، ماتسألش خالص — سجّل بـ remember() لو لسه ما سجلتهاش:
+  "مش بيرد على أسئلة الكاش — اكتفي بالمجموع من السحب" (مرة واحدة بس، دور في memory الأول).
+- لو الرد على السؤال ده جالك (رقم)، نادِ reconcile_cash_balance فوراً بنفس الرقم — الأداة
+  بتحسب الفرق مع cash_on_hand وتسجله تصحيح، مفيش تفصيل مطلوب منك ولا حساب يدوي.
 
 === SNAPSHOT ===
 ${JSON.stringify(snap)}

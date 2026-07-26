@@ -16,6 +16,7 @@ import {
   validateAddShoppingItem,
   validateAskUser,
   validateEmitInsight,
+  validateReconcileCashBalance,
   validateRemember,
   validateSetTransactionCategory,
   validateSuggestBudgetChange,
@@ -231,4 +232,64 @@ Deno.test("remember rejects a non-numeric confidence value", async () => {
   const v = await validateRemember({ note: "صرفت كتير على المطاعم الشهر ده", confidence: "medium" }, healthySnapshot, freshContext("u1"));
   assertRejected(v);
   assertStringIncludes(v.reason, "confidence");
+});
+
+// ── Task 19.5: weekly cash reconciliation ──────────────────────────────────────
+
+const cashSnapshot = {
+  ...healthySnapshot,
+  cash_reconciliation: { key: "cash_reconciliation_2026_w30", cash_on_hand: 700, needs_ask: true, dismissed_count: 0 },
+};
+
+Deno.test("ask_user allows the cash reconciliation question with the exact snapshot key", async () => {
+  const v = await validateAskUser(
+    { title: "الكاش", body: "فاضل معاك كام؟", dedupe_key: "cash_reconciliation_2026_w30", answer_type: "number" },
+    cashSnapshot, freshContext("u1"),
+  );
+  assertEquals(v.ok, true);
+});
+
+Deno.test("ask_user rejects an invented cash_reconciliation key not matching the snapshot", async () => {
+  const v = await validateAskUser(
+    { title: "الكاش", body: "فاضل معاك كام؟", dedupe_key: "cash_reconciliation_made_up", answer_type: "number" },
+    cashSnapshot, freshContext("u1"),
+  );
+  assertRejected(v);
+  assertStringIncludes(v.reason, "متخترعش");
+});
+
+Deno.test("ask_user rejects cash reconciliation after two dismissals — permanent stop", async () => {
+  const snap = { ...cashSnapshot, cash_reconciliation: { ...cashSnapshot.cash_reconciliation, dismissed_count: 2 } };
+  const v = await validateAskUser(
+    { title: "الكاش", body: "فاضل معاك كام؟", dedupe_key: "cash_reconciliation_2026_w30", answer_type: "number" },
+    snap, freshContext("u1"),
+  );
+  assertRejected(v);
+  assertStringIncludes(v.reason, "رفض");
+});
+
+Deno.test("ask_user rejects cash reconciliation already asked this week", async () => {
+  const snap = { ...cashSnapshot, cash_reconciliation: { ...cashSnapshot.cash_reconciliation, needs_ask: false } };
+  const v = await validateAskUser(
+    { title: "الكاش", body: "فاضل معاك كام؟", dedupe_key: "cash_reconciliation_2026_w30", answer_type: "number" },
+    snap, freshContext("u1"),
+  );
+  assertRejected(v);
+});
+
+Deno.test("reconcile_cash_balance rejects a negative reported amount", async () => {
+  const v = await validateReconcileCashBalance({ reported_amount: -50 }, cashSnapshot, freshContext("u1"));
+  assertRejected(v);
+});
+
+Deno.test("reconcile_cash_balance rejects a second call in the same run", async () => {
+  const ctx = freshContext("u1");
+  ctx.counts["reconcile_cash_balance"] = 1;
+  const v = await validateReconcileCashBalance({ reported_amount: 500 }, cashSnapshot, ctx);
+  assertRejected(v);
+});
+
+Deno.test("reconcile_cash_balance allows a plain non-negative number", async () => {
+  const v = await validateReconcileCashBalance({ reported_amount: 500 }, cashSnapshot, freshContext("u1"));
+  assertEquals(v.ok, true);
 });

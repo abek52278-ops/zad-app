@@ -64,6 +64,19 @@ export const validateAskUser: Validator = (input, snap, ctx) => {
   if (input.about_item && !snap.stock_unknown?.includes(input.about_item)) {
     return { ok: false, reason: "الصنف ده مش في المخزون أو معدله معروف أصلاً" };
   }
+  // Task 19.5 — تسوية الكاش الأسبوعية. key محسوب في buildSnapshot (isoWeekKey)، مش من
+  // الموديل، عشان مفيش مفتاح مخترع يفلت من عدّاد الرفض. رفضين اتنين = وقف نهائي.
+  if ((input.dedupe_key ?? "").startsWith("cash_reconciliation_")) {
+    if (input.dedupe_key !== snap.cash_reconciliation?.key) {
+      return { ok: false, reason: "استخدم cash_reconciliation.key من الـ snapshot بالظبط، متخترعش مفتاح تاني" };
+    }
+    if ((snap.cash_reconciliation?.dismissed_count ?? 0) >= 2) {
+      return { ok: false, reason: "العميل رفض سؤال تسوية الكاش مرتين قبل كده — متسألش تاني، اعتمد على السحب بس، وسجّلها بـ remember() لو لسه ما سجلتهاش" };
+    }
+    if (snap.cash_reconciliation?.needs_ask === false) {
+      return { ok: false, reason: "سؤال الأسبوع ده اتسأل بالفعل" };
+    }
+  }
   return { ok: true };
 };
 
@@ -121,6 +134,14 @@ export const validateRemember: Validator = (input, snap, ctx) => {
   return { ok: true };
 };
 
+export const validateReconcileCashBalance: Validator = (input, snap, ctx) => {
+  if ((ctx.counts["reconcile_cash_balance"] ?? 0) >= 1) return { ok: false, reason: "تصحيح واحد بس في المرة" };
+  if (typeof input.reported_amount !== "number" || !Number.isFinite(input.reported_amount) || input.reported_amount < 0) {
+    return { ok: false, reason: "reported_amount لازم يكون رقم موجب" };
+  }
+  return { ok: true };
+};
+
 export const VALIDATORS: Record<string, Validator> = {
   emit_insight: validateEmitInsight,
   ask_user: validateAskUser,
@@ -130,6 +151,7 @@ export const VALIDATORS: Record<string, Validator> = {
   add_shopping_item: validateAddShoppingItem,
   remember: validateRemember,
   merge_duplicate_expense: () => ({ ok: true }),
+  reconcile_cash_balance: validateReconcileCashBalance,
 };
 
 /** بوابة الفحص العامة — الحدود المشتركة (mutation cap, 3-strikes abort) قبل ما توصل للـ validator المتخصص */
@@ -137,7 +159,7 @@ export async function validateTool(name: string, input: any, snap: any, ctx: Run
   if (ctx.abortedTools.has(name)) {
     return { ok: false, reason: "الأداة دي اتوقفت الجلسة دي بعد ٣ محاولات فاشلة" };
   }
-  if (ctx.mutationCount >= 5 && ["update_inventory_qty", "set_transaction_category", "merge_duplicate_expense"].includes(name)) {
+  if (ctx.mutationCount >= 5 && ["update_inventory_qty", "set_transaction_category", "merge_duplicate_expense", "reconcile_cash_balance"].includes(name)) {
     return { ok: false, reason: "وصلت الحد الأقصى للتعديلات في الجلسة دي" };
   }
   const validator = VALIDATORS[name];
