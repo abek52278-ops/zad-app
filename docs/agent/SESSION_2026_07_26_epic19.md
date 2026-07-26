@@ -78,16 +78,37 @@
   `lintDebug` و`assembleDebug` نجحوا (`./gradlew --no-daemon`).
 - Commit: `df46bf3`
 
+### Task 22 — Habit chips
+- توثيق التاسك مفترض بنية تحتية مش موجودة: `ZadIngest` (Task 12، لسه تعليق TODO بس)،
+  كارت الكاش (Task 19.4، ❌ مبدأش)، و"quick-add sheet" (مش موجودة أصلاً). اتوقف واتسأل
+  المستخدم — اختار: نعمل الدالة SQL + الـ chips على شاشة موجودة (`TransactionsScreen`)،
+  والإدراج عن طريق `ZadViewModel.addTransaction()` الحالي (مش ZadIngest).
+- بق تاني اتلقى وقت التنفيذ: الـ SQL في التوثيق بيعمل `group by merchant_name`، والعمود
+  ده مش موجود في `zad_transactions` الحي (اتأكد بالاستعلام المباشر — الأعمدة الفعلية:
+  id/user_id/amount/title/category/is_expense/created_at/wallet/txn_kind/transfer_to).
+  استُخدم `title` بدل، وهو أقرب عمود نصي حر فعلي موجود.
+- `zad_habit_chips(p_user, p_same_weekday)` اتطبقت حية وتأكدت بالاستعلام (رجعت فاضية
+  لمستخدم وهمي، وفاضية كمان على الجدول الحقيقي — طبيعي، البيانات لسه قليلة زي ما
+  Task 19.3 لقى).
+- `SupabaseRepo.getHabitChips()`, `ZadViewModel.habitChips` (StateFlow، يتحمّل عند
+  init + بعد أي إضافة معاملة)، `HabitChipsRow` composable في `TransactionsScreen` —
+  Tap بيسجل مصروف كاش (`wallet="cash"`) فوري.
+- **مؤجل عمداً** (مش من ضمن الخيارين المطلوبين): "تكلفة العادة السنوية" (البونص المجاني
+  في نفس التاسك) — محتاج آلية cap ربع-سنوي لكل عادة، مش جزء من نطاق الكوميت ده.
+- 83 اختبار (0 جديد — منطق SQL/شبكة، مفيش mock framework للـ Supabase في المشروع أصلاً،
+  نفس نمط باقي دوال SupabaseRepo). lintDebug وassembleDebug نجحوا.
+- Commit: `48e49ed`
+
 ## اللي لسه فاضل — بالترتيب المتفق عليه في EPIC_1_4.md
 
 ```
-19.1 ✅ → 19.0 ✅ (إضافي) → 19.2 ✅ → 19.3 ✅ → 20 ✅ → 21 ✅ → 22 → 19.4/19.5 → 23 → 24
+19.1 ✅ → 19.0 ✅ (إضافي) → 19.2 ✅ → 19.3 ✅ → 20 ✅ → 21 ✅ → 22 ✅ → 19.4/19.5 → 23 → 24
 ```
 
 | # | الموضوع | الحالة |
 |---|---|---|
-| **22** | Habit chips (SQL function واحدة، بلا graph) | ❌ مبدأش — مفيش dependency خارجي، جاهز يتعمل |
-| **19.4** | كارت الكاش على الشاشة الرئيسية (`زر "صرفت منهم"` + habit chips) | ❌ مبدأش. `zad_cash_balance()` جاهزة على السيرفر، محتاجة UI |
+| **habit lifetime cost** | بونص Task 22 (تكلفة سنوية، cap ربع-سنوي) | ❌ مؤجل عمداً |
+| **19.4** | كارت الكاش على الشاشة الرئيسية (`زر "صرفت منهم"`) | ❌ مبدأش. `zad_cash_balance()` جاهزة على السيرفر، محتاجة UI. (habit chips نفسها خلصت في Task 22 على `TransactionsScreen` — لو الكارت اتعمل لاحقاً، ينقل الصف مش يتكرر) |
 | **19.5** | تسوية أسبوعية ("فاضل معاك كام كاش؟") عبر `ask_user` | ❌ مبدأش |
 | **23** | Inventory stagnation | ❌ مبدأش |
 | **24** | Full-app consistency audit (`AUDIT.md`) | ❌ مبدأش |

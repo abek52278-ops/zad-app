@@ -94,6 +94,23 @@ common real-world shape "Purchase of EGP 450.00" (currency before amount) never 
 83 tests total (7 new), 0 failures; `lintDebug` and `assembleDebug` both green
 (`./gradlew --no-daemon`). Commit `df46bf3`.
 
+## Task 22 — Habit chips — DONE (core), bonus deferred
+EPIC_1_4.md's spec assumed infra that doesn't exist (`ZadIngest`/Task 12 still a TODO
+comment, cash card/Task 19.4 not started, no "quick-add sheet"). Stopped and asked;
+user chose landing the chips on the existing `TransactionsScreen` via the existing
+`ZadViewModel.addTransaction()` write path instead of blocking on that infra. Also found
+a second doc/code mismatch while applying the migration: the spec's SQL groups by
+`merchant_name`, which does not exist on the live `zad_transactions` table (verified via
+direct query) — used `title` instead, the closest real column. `zad_habit_chips(p_user,
+p_same_weekday)` applied live and verified (empty for a fake user, empty on the real
+table too — dataset still too small to have any >=4-hit pattern, consistent with 19.3's
+findings). Added `SupabaseRepo.getHabitChips()`, `ZadViewModel.habitChips` StateFlow, and
+a tap-to-log `HabitChipsRow` on `TransactionsScreen` (inserts with `wallet="cash"`
+through the existing manual-add path). Deliberately deferred: the "habit lifetime cost"
+bonus insight (needs a separate quarterly-cap mechanism, out of scope for this commit).
+83 tests, 0 new (no mock framework for Supabase calls in this codebase, consistent with
+every other `SupabaseRepo` function). `lintDebug`/`assembleDebug` green. Commit `48e49ed`.
+
 ## Task 19.1 — audit: ATM withdrawal double-counted as spending — DONE
 Confirmed the bug: `SaBankParser.kt` classified WITHDRAWAL as `is_expense=true`, so
 withdrawing then spending double-counted. No cash/wallet concept existed. See
