@@ -229,3 +229,55 @@ finishing lint analysis. This is an environment constraint, not a code defect. U
 explicitly approved committing without that final verification given the constraint —
 running `lintDebug`/`assembleDebug` cleanly is still owed and should be the first thing
 done next session. Commit `76f488d`.
+
+Update: `assembleDebug` succeeded cleanly later the same session once memory pressure
+eased. `lintDebug` specifically still could not complete — roughly 8 attempts total
+across the session, all SIGKILLed at the same `lintAnalyzeDebug` step with no Java-side
+error (classic OOM-killer signature, confirmed no stack trace in any daemon log).
+Consistently reproducible even after `assembleDebug` succeeded, suggesting lint analysis
+specifically has a higher peak memory footprint than assemble on this codebase. Still
+owed next session, ideally with fewer concurrent sessions in the container.
+
+## Task 24 — Full-app consistency audit — DONE
+Three parallel Explore-agent code-reading passes covered all ~24 live screens against
+the six rules in EPIC_1_4.md; the highest-severity claims (dead-code routes, the
+price-radar call origin, the subscription auto-write, whether `ZadAlertRouter` is called
+anywhere) were independently re-verified via direct `grep`/`Read`, not taken at face
+value from the agents.
+
+Headline findings, most severe first:
+- **`ZadAlertRouter` has zero call sites anywhere in the app** (confirmed via grep) —
+  fully implemented but entirely unused. Every real notification goes through one of 14
+  other files calling `NotificationCompat.Builder`/`SupabaseRepo.sendAppNotification`
+  directly. Not a partial bypass; the router is orphaned.
+- **`detectSubscriptions()`** (fired from `LaunchedEffect(Unit)` in both
+  `ZadIntelligenceScreen` and `SubscriptionsScreen`) **auto-writes new subscription rows
+  with zero user confirmation** whenever AI confidence exceeds 0.8 — a write as a side
+  effect of navigation, not a deliberate action. Highest-severity single finding.
+- `HomeScreen` fires 4 AI/edge calls on every open; `ZadIntelligenceScreen` fires 3 (plus
+  the auto-write above); `WeeklyReportScreen`, `ShoppingListScreen`, and
+  `NearbyDealsScreen` each fire one AI call uncontrolled by a user tap.
+- `AssistantScreen.kt` and `ZadScreens.kt`'s `ChatScreen`/`MainContent` are dead code —
+  verified via `MainScreen.kt`'s nav graph (live "Assistant" route renders
+  `ZadIntelligenceScreen`) and `MainActivity.kt`'s "chat" route (renders a literal
+  placeholder `Text`, not `ChatScreen`).
+- The two specifically-called-out checks: price radar's `groq` call confirmed to
+  originate server-side only (`ZadAiRepository.callAction` → `SupabaseRepo.callEdgeFunction`
+  → `zad-core-intelligence`), button-gated, no client-side key — this previously-flagged
+  gap is now confirmed fixed. `compileDebugKotlin`/`assembleDebug` both ran clean this
+  session (no missing-import-class failure); `lintDebug` still unverified (see above).
+- **Found and fixed live during the audit**: `sent_budget_alerts` had RLS disabled
+  entirely (same class of gap as the `affiliate_*` tables fixed earlier this epic) —
+  enabled + `auth.uid() = user_id` policy added, verified via direct query
+  (migration `20260726110000_sent_budget_alerts_rls.sql`).
+- Two `CurrencyFormatter` literals (`StatementImportScreen`, `HomeScreen`'s
+  all-transactions dialog); five screens independently re-derive the same
+  income/expense sums instead of sharing one source; `InventoryScreen`'s shortage
+  banner uses a hardcoded local price table.
+
+Full per-screen table and a prioritized summary for next session are in
+`docs/agent/AUDIT.md` itself — it's a living document, re-run each epic. Commit `a6f2f93`.
+
+**Epic 1+4 (Tasks 19–24) is now complete.** Remaining open items: the `lintDebug`
+verification above, and Task 22's deliberately-deferred "habit lifetime cost" bonus
+insight. Everything else in `EPIC_1_4.md` is done.

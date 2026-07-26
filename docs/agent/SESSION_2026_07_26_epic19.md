@@ -172,23 +172,57 @@
   متتالية** قبل ما يخلص. أول محاولة لقت خطأ حقيقي (`MissingTranslation` لـ
   `items_stagnant_hint`) اتصلح فعلاً. `compileDebugKotlin`/`compileDebugUnitTestKotlin`
   نجحوا، و`testDebugUnitTest` اتأكد لوحده مرتين منفصلتين (94/94، 0 فشل) — بس
-  `lintDebug`/`assembleDebug` الكاملين لسه معلقين. **المستخدم وافق صراحة على الكوميت من
-  غيرهم** بسبب القيد ده — التحقق ده لسه واجب، لازم يكون أول حاجة تتعمل الجلسة الجاية
-  قبل أي تعديل فوق شغل Task 23.
+  `lintDebug`/`assembleDebug` الكاملين لسه معلقين وقت الكوميت. **المستخدم وافق صراحة
+  على الكوميت من غيرهم** بسبب القيد ده.
+  **تحديث:** `assembleDebug` نجح بعد كده لما ضغط الذاكرة قل شوية (تفاصيل تحت Task 24).
+  `lintDebug` لسه بيتحاول (كذا محاولة، الـ daemon بيتقتل صامت قبل ما يخلص lint analysis
+  تحديداً — ده أثقل تاسك من ناحية الذاكرة في الـ pipeline كله).
 - Commit: `76f488d`
 
-## اللي لسه فاضل — بالترتيب المتفق عليه في EPIC_1_4.md
+### Task 24 — Full-app consistency audit (`docs/agent/AUDIT.md`)
+- 3 قراءات كود متوازية (Explore agents) غطت كل الشاشات الحية (~24)، وتحقق مستقل مني
+  شخصياً لأهم اللقايات (مش تصديق أعمى للـ subagents).
+- **أكبر اكتشاف**: `ZadAlertRouter` (المفروض نقطة العبور الوحيدة للإشعارات) **مفيش نداء
+  واحد ليه في كل الكود خالص** — اتأكد بـ `grep`. كل إشعار حقيقي بيتبعت من ١٤ ملف مختلف
+  مباشرة (`NotificationCompat.Builder`/`sendAppNotification`). مش تجاوز جزئي — الراوتر
+  كله معزول عن الكود.
+- **اكتشاف تاني خطير**: `detectSubscriptions()` (بتتنادى من `LaunchedEffect(Unit)` في
+  شاشتين) بتسجل اشتراكات جديدة تلقائي بلا أي تأكيد من المستخدم لو الثقة > 0.8 — كتابة
+  بيانات كأثر جانبي لمجرد فتح شاشة.
+  `HomeScreen` (٤ نداءات AI عند الفتح) و`ZadIntelligenceScreen` (٣ + الكتابة التلقائية)
+  هم الأسوأ.
+- **`AssistantScreen.kt` و`ChatScreen`/`MainContent` في `ZadScreens.kt` كود ميت** — اتأكد
+  مستقل عن طريق `MainScreen.kt`/`MainActivity.kt`: مسار "Assistant" الفعلي بيعرض
+  `ZadIntelligenceScreen`، ومسار "chat" بيعرض نص placeholder ثابت بس.
+- **الفحصين المطلوبين تحديداً**: نداء price radar (`groq`) اتأكد إنه سيرفر-سايد بس
+  (زاد-core-intelligence Edge Function، مفعّل بزرار مش عند الفتح، مفيش مفتاح في الكلاينت)
+  — الفجوة القديمة دي **اتقفلت**. البناء بعد كل تعديلات Epic 1+4: `compileDebugKotlin`
+  و`assembleDebug` نجحوا نظيف (0 أخطاء)، `testDebugUnitTest` 94/94. `lintDebug` لسه
+  معلق (ضغط ذاكرة، مش عيب كود).
+- **اتصلح فعلياً أثناء الأودت**: جدول `sent_budget_alerts` كان من غير RLS خالص — نفس
+  فئة الفجوة اللي كانت في `affiliate_*` قبل كده. اتصلح حي واتأكد بالاستعلام المباشر
+  (migration `20260726110000_sent_budget_alerts_rls.sql`).
+- لقايات تانية: ليترالين عملة (`StatementImportScreen`، حوار كل المعاملات في `HomeScreen`)،
+  ٥ شاشات بتعيد حساب دخل/مصروف بنفسها بدل مصدر واحد مشترك، `InventoryScreen` بيستخدم
+  جدول أسعار محلي مُدخل يدوي.
+- التفاصيل الكاملة + جدول كل شاشة + ملخص أولويات الجلسة الجاية في `docs/agent/AUDIT.md`.
+- Commit: `a6f2f93`
+
+**🎉 Epic 1+4 (Tasks 19–24) خلص بالكامل** — الباقي الوحيد: تأكيد `lintDebug` نظيف
+(بيئة، مش كود)، وبونص Task 22 المؤجل عمداً.
+
+## اللي لسه فاضل
 
 ```
-19.1 ✅ → 19.0 ✅ (إضافي) → 19.2 ✅ → 19.3 ✅ → 20 ✅ → 21 ✅ → 22 ✅ → 19.4 ✅ → 19.5 ✅ → 23 ✅ (⚠️ lint/assemble مش متأكدين) → 24
+19.1 ✅ → 19.0 ✅ → 19.2 ✅ → 19.3 ✅ → 20 ✅ → 21 ✅ → 22 ✅ → 19.4 ✅ → 19.5 ✅ → 23 ✅ → 24 ✅
 ```
 
 | # | الموضوع | الحالة |
 |---|---|---|
 | **habit lifetime cost** | بونص Task 22 (تكلفة سنوية، cap ربع-سنوي) | ❌ مؤجل عمداً |
-| ~~**ZAD_BASE_URL**~~ | secret كان فيه Markdown-wrapped URL | ✅ اتصلح من المستخدم — smoke test اتأكد (`ok:true`) |
-| **⚠️ Task 23 verification** | `lintDebug`/`assembleDebug` لسه مش اتأكدوا (ضغط ذاكرة الجلسة دي) | أول حاجة تتعمل الجلسة الجاية |
-| **24** | Full-app consistency audit (`AUDIT.md`) | ❌ مبدأش |
+| ~~**ZAD_BASE_URL**~~ | secret كان فيه Markdown-wrapped URL | ✅ اتصلح من المستخدم |
+| **⚠️ lintDebug** | لسه مش اتأكد نظيف (ضغط ذاكرة السيشن دي، `compileDebugKotlin`/`assembleDebug`/`testDebugUnitTest` كلهم نجحوا) | أول حاجة تتعمل الجلسة الجاية |
+| **AUDIT.md findings** | ZadAlertRouter معزول، detectSubscriptions بتكتب من غير تأكيد، كود ميت، ليترالين عملة | 📋 موثّقة في `docs/agent/AUDIT.md`، محتاجة قرار أولوية من `PRODUCT_PLAN.md` أو تاسك جديد |
 
 **ملاحظة ترتيب:** Task 21 محجوز (blocked) لحد ما المستخدم يبعت رسائل SMS حقيقية من بنوك
 مصرية. Task 22 (habit chips) مفيش له dependency زي كده، ممكن يتعمل قبل 21 من غير ما
