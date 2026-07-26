@@ -47,8 +47,17 @@ used in conversation (Task 9, Task 17.2, etc.) refer to that file.
 - `docs/agent/NEXT_visible_progress.md` — current task order (supersedes the order in
   ZAD_MASTER; task contents unchanged). **Incomplete as of 2026-07-25** — truncated
   mid TASK 17.3, tail was never received.
-- `docs/agent/15_dedup_tolerance_fix.md` — Task 15 (dedup window 10min→36h, match tolerance +5%)
-- `docs/agent/16_cash_wallet.md` — Task 16 (passive cash tracking UX, ATM teaching, weekly reconciliation)
+- `docs/agent/PRODUCT_PLAN.md` — **the why and the order.** Phases A–D, tasks 25–28
+  (salary cycle, committed obligations/"available", visible confidence, informative
+  dismissal). Read this before picking up any task — it sets priority across all the
+  files below.
+- `docs/agent/EPIC_1_4.md` — tasks 19–24 (cash ledger + ATM transfer bug, dedupe config,
+  Egypt SMS, habit chips, inventory stagnation, consistency audit). Includes an explicit
+  **rejected-proposals** section (knowledge graph, multi-agent endpoint split) — do not
+  reimplement those under another name.
+- `docs/agent/15_family_alerts.md` — Task 15 (**not yet in the repo** — referenced but
+  never pasted; ask the user for it before assuming Task 15 content)
+- `docs/agent/16_validation_and_recovery.md` — Task 16 (**not yet in the repo**, same as above)
 - `docs/agent/17_2_pharmacy_fix.md` — Task 17.2 (**not yet in the repo**, same as above —
   Task 17.2's actual pharmacy-dosage fix already landed in code per
   `docs/agent/PROGRESS.md`; this file would only be the written spec for it)
