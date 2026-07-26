@@ -133,7 +133,15 @@ data class ZadTransaction(
     @SerialName("bank_name") val bankName: String? = null,
     @SerialName("merchant_name") val merchantName: String? = null,
     @SerialName("source_type") val sourceType: String? = null,
-    @SerialName("is_verified") val isVerified: Boolean = false
+    @SerialName("is_verified") val isVerified: Boolean = false,
+    // Task 19.2 — wallet/txn_kind/transfer_to. txnKind defaults off isExpense (Kotlin
+    // allows referencing an earlier param in a default expression) so every existing
+    // construction site across the app gets a correct classification for free, with
+    // zero changes needed there. Only BankTransactionApplier overrides this explicitly,
+    // for the one case that actually needs to differ: ATM withdrawal -> transfer/cash.
+    @SerialName("wallet") val wallet: String = "card",
+    @SerialName("txn_kind") val txnKind: String = if (isExpense) "expense" else "income",
+    @SerialName("transfer_to") val transferTo: String? = null
 )
 
 @Serializable

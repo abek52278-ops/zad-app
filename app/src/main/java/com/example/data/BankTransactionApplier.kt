@@ -16,23 +16,33 @@ object BankTransactionApplier {
     /**
      * [txType] اختياري — لازم بس لو المعاملة ممكن تكون REFUND (بتترد للبادجت بدل ما تتخصم
      * منه). المسارات اللي مفيهاش نوع صريح (AI fallback) سايباه null، فبيتعامل كمصروف/دخل عادي.
+     *
+     * Task 19.2 — هنا التصنيف الوحيد لسحب ATM كـ transfer/cash بدل expense (بق السحب
+     * النقدي من 19.1). كل نوع تاني (بما فيهم AI fallback) بيسيب txn_kind على الـ default
+     * المشتق من isExpense في ZadTransaction نفسها — مالوش داعي يتصلح هنا.
      */
     suspend fun apply(context: Context, transaction: ZadTransaction, txType: TxType? = null) {
+        val classified = if (txType == TxType.WITHDRAWAL) {
+            transaction.copy(txnKind = "transfer", transferTo = "cash")
+        } else {
+            transaction
+        }
+
         val dao = ZadDatabase.getDatabase(context).zadDao()
-        dao.insertTransaction(transaction)
+        dao.insertTransaction(classified)
         BankReadingStatus.recordParsed(context)
 
-        if (!SupabaseRepo.addTransaction(transaction)) {
+        if (!SupabaseRepo.addTransaction(classified)) {
             Log.w(TAG, "Supabase sync failed (offline?) — queued for retry")
-            SyncOutbox.enqueueTransaction(context, transaction)
+            SyncOutbox.enqueueTransaction(context, classified)
         }
 
         when (txType) {
-            TxType.REFUND -> BudgetTracker.applyRefund(context, transaction.amount, transaction.title, transaction.category ?: "أخرى")
-            else -> if (transaction.isExpense) {
-                BudgetTracker.deductExpense(context, transaction.amount, transaction.title, transaction.category ?: "أخرى")
+            TxType.REFUND -> BudgetTracker.applyRefund(context, classified.amount, classified.title, classified.category ?: "أخرى")
+            else -> if (classified.isExpense) {
+                BudgetTracker.deductExpense(context, classified.amount, classified.title, classified.category ?: "أخرى")
             } else {
-                BudgetTracker.addIncome(context, transaction.amount, transaction.title)
+                BudgetTracker.addIncome(context, classified.amount, classified.title)
             }
         }
         // Task 19.0 — تنبيه تخطي 75/90/100% من الإجمالي، محسوب لحظياً بعد إدراج المعاملة
