@@ -37,6 +37,16 @@ sealed class FamilyState {
     data class Error(val message: String) : FamilyState()
 }
 
+/**
+ * مصروف حقيقي مستخرج من zad_transactions (بنكي فعلي)، مش المصروف المعتمد من الشات
+ * (approvedSpendSince — نظام مصروف/مهام منفصل تماماً). مفتاحة FamilyMember.id.
+ */
+data class ChildSpending(
+    val monthlyTotal: Double,
+    val budgetCeiling: Double,
+    val categoryBreakdown: Map<String, Double>
+)
+
 class FamilyViewModel : ViewModel() {
     private val _state = MutableStateFlow<FamilyState>(FamilyState.Loading)
     val state: StateFlow<FamilyState> = _state.asStateFlow()
@@ -45,6 +55,9 @@ class FamilyViewModel : ViewModel() {
     val toastMessage = _toastMessage.asSharedFlow()
     
     private var currentFamilyId: String? = null
+
+    private val _childrenSpending = MutableStateFlow<Map<String, ChildSpending>>(emptyMap())
+    val childrenSpending: StateFlow<Map<String, ChildSpending>> = _childrenSpending.asStateFlow()
 
     // MainScreen يظبطه من manualKidsModeActive (زر "Switch to Kids Mode" اليدوي للأدمن) —
     // قبل كده sendMessage كان بيقرأ myMemberInfo.role الحقيقي بس، فالأدمن في وضع المعاينة
@@ -78,6 +91,10 @@ class FamilyViewModel : ViewModel() {
                 currentFamilyId = myMember.familyId
                 fetchFamilyDetails(myMember)
                 startRealtimeChat(myMember.familyId)
+                if (myMember.role == "admin") {
+                    loadChildrenSpending()
+                    startRealtimeFamilySpending(myMember.familyId)
+                }
             } else {
                 _state.value = FamilyState.NoFamily
             }
@@ -149,6 +166,52 @@ class FamilyViewModel : ViewModel() {
                     val updatedMsgs = curr.messages + newMsg
                     _state.value = curr.copy(messages = updatedMsgs)
                 }
+            }
+        }
+    }
+
+    private fun startRealtimeFamilySpending(familyId: String) {
+        viewModelScope.launch {
+            RealtimeFamilySpendingRepo.subscribeToFamilyTransactions(familyId).collectLatest {
+                loadChildrenSpending()
+            }
+        }
+    }
+
+    /**
+     * مصروف حقيقي (بنكي) شهري لكل ابن مقابل سقف ميزانيته الخاص — أدمن بس (RLS بيمنع
+     * غير كده أصلاً). منفصل تماماً عن approvedSpendSince (نظام مصروف/مهام الشات).
+     */
+    fun loadChildrenSpending() {
+        viewModelScope.launch {
+            val curr = _state.value
+            if (curr !is FamilyState.Active || curr.myMemberInfo.role != "admin") return@launch
+            val children = curr.members.filter { it.role == "child" }
+            if (children.isEmpty()) {
+                _childrenSpending.value = emptyMap()
+                return@launch
+            }
+
+            val transactions = SupabaseRepo.getFamilyMemberTransactions(curr.familyGroup.id)
+            val budgets = SupabaseRepo.getUsersBudgets(children.mapNotNull { it.userId })
+            val currentMonth = java.time.LocalDate.now().monthValue
+            val currentYear = java.time.LocalDate.now().year
+
+            _childrenSpending.value = children.associate { child ->
+                val childExpensesThisMonth = transactions.filter { tx ->
+                    tx.userId == child.userId && tx.isExpense && tx.createdAt?.let { raw ->
+                        try {
+                            val d = java.time.Instant.parse(raw).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                            d.monthValue == currentMonth && d.year == currentYear
+                        } catch (e: Exception) { false }
+                    } == true
+                }
+                child.id to ChildSpending(
+                    monthlyTotal = childExpensesThisMonth.sumOf { it.amount },
+                    budgetCeiling = budgets[child.userId] ?: 3500.0,
+                    categoryBreakdown = childExpensesThisMonth.groupBy { it.category ?: "أخرى" }
+                        .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+                )
             }
         }
     }

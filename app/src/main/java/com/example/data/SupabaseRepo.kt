@@ -121,6 +121,35 @@ object SupabaseRepo {
         }
     }
 
+    /**
+     * كل معاملات العيلة (المستخدم نفسه + أبناؤه لو أدمن) — يعتمد على RLS بس، مش فلترة
+     * إضافية هنا: سياسة "family_admin_read_child_transactions" هي اللي بتحدد فعلياً مين
+     * يشوف إيه (عضو عادي يرجعله صفوفه بس حتى لو طلب family_id العيلة كلها).
+     */
+    suspend fun getFamilyMemberTransactions(familyId: String): List<ZadTransaction> {
+        return try {
+            client.postgrest["zad_transactions"].select {
+                filter { eq("family_id", familyId) }
+            }.decodeList<ZadTransaction>()
+        } catch (e: Exception) {
+            Log.e(TAG, "getFamilyMemberTransactions() FAILED: ${e.message}")
+            emptyList()
+        }
+    }
+
+    /** سقف ميزانية كل مستخدم في القائمة — نفس منطق get_family_admin_read_child_budget RLS */
+    suspend fun getUsersBudgets(userIds: List<String>): Map<String, Double> {
+        if (userIds.isEmpty()) return emptyMap()
+        return try {
+            client.postgrest["zad_users"].select {
+                filter { isIn("id", userIds) }
+            }.decodeList<ZadUser>().associate { it.id to it.budget }
+        } catch (e: Exception) {
+            Log.e(TAG, "getUsersBudgets() FAILED: ${e.message}")
+            emptyMap()
+        }
+    }
+
     // ─── Inventory ─────────────────────────────────────────────────────────
     suspend fun getInventory(): List<ZadInventory> {
         return try {

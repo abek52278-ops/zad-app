@@ -369,6 +369,7 @@
     <string name="edit_limits_action">تعديل</string>
     <string name="daily_limit_label">اليومي</string>
     <string name="weekly_limit_label">الأسبوعي</string>
+    <string name="real_monthly_spend_label">المصروف الشهري</string>
     <string name="no_limit_set">بدون حد</string>
     <string name="spend_limits_hint">حدد أقصى مبلغ يقدر %1$s يصرفه يومياً/أسبوعياً. اتركه فارغاً لإلغاء الحد.</string>
     <string name="daily_limit_with_currency">الحد اليومي (%1$s)</string>

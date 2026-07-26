@@ -304,7 +304,7 @@ fun ActiveFamilyScreen(
                 1 -> TasksTab(state.chores, state.members, state.myMemberInfo.role == "admin", onToggleChore, onAddChore, showFinancials = showFinancials)
                 2 -> MembersTab(state = state, viewModel = viewModel, showFinancials = showFinancials)
                 3 -> GroceriesTab(state.groceries, onToggleGrocery)
-                4 -> if (isParent && showFinancials) KidsSpendingTab(state = state, onUpdateRequestStatus = onUpdateRequestStatus)
+                4 -> if (isParent && showFinancials) KidsSpendingTab(state = state, viewModel = viewModel, onUpdateRequestStatus = onUpdateRequestStatus)
                 5 -> if (isParent && showFinancials) BudgetGoalsTab(state.goals, state.members, state.chores, viewModel)
             }
         }
@@ -392,6 +392,7 @@ private fun GroceriesTab(
 @Composable
 private fun KidsSpendingTab(
     state: FamilyState.Active,
+    viewModel: FamilyViewModel,
     onUpdateRequestStatus: (String, String, String) -> Unit
 ) {
     val children = state.members.filter { it.role == "child" }
@@ -399,6 +400,9 @@ private fun KidsSpendingTab(
     val currencyContext = LocalContext.current
     val approvedEmojiText = stringResource(R.string.approved_emoji)
     val rejectedEmojiText = stringResource(R.string.rejected_emoji)
+    val realSpending by viewModel.childrenSpending.collectAsState()
+
+    LaunchedEffect(Unit) { viewModel.loadChildrenSpending() }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)
@@ -445,6 +449,17 @@ private fun KidsSpendingTab(
                         Spacer(Modifier.height(8.dp))
                         val spentToday = com.example.data.approvedSpendSince(state.messages, child.id, java.time.Instant.now().minus(1, java.time.temporal.ChronoUnit.DAYS))
                         SpendLimitBar(stringResource(R.string.daily_limit_label), spentToday, child.dailyLimit, currencyContext)
+                    }
+                    // مصروف بنكي حقيقي (zad_transactions) مقابل سقف ميزانية الابن — منفصل
+                    // تماماً عن المصروف المعتمد من الشات فوق (نظام مصروف/مهام مختلف)
+                    realSpending[child.id]?.let { spending ->
+                        Spacer(Modifier.height(8.dp))
+                        SpendLimitBar(
+                            stringResource(R.string.real_monthly_spend_label),
+                            spending.monthlyTotal,
+                            spending.budgetCeiling,
+                            currencyContext
+                        )
                     }
                     if (childRequests.isNotEmpty()) {
                         Spacer(Modifier.height(8.dp))
