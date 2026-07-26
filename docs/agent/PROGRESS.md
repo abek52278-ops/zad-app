@@ -77,6 +77,23 @@ Not done, flagged in EPIC_1_4.md itself: Task 21 (Egypt SMS regex accuracy — n
 SMS samples this session doesn't have) and StatementCsvImporter's own database-query
 matching for rows older than the dedupe window (Task 6, separate mechanism).
 
+## Task 21 — Egypt SMS tuning, country-keyed — DONE
+User supplied constructed (not device-captured) SA/EG samples and asked for a universal
+multi-country parsing architecture; scoped down to EPIC_1_4.md's actual Task 21 (Egypt
+tuning + country-keyed rule loading), since the requested "global fallback engine"
+already exists as `ZadAiRepository.analyzeBankNotification` (AI-based, any country/
+currency) — a second regex-based universal layer would duplicate it.
+`BankRulesEngine.tryParse` now filters `bank_rules.json` rules by the active market's
+country (`MarketPrefs.currentMarket`) plus an "ALL" generic slot. Found and fixed a real
+bug: all 9 Egypt debit rules required currency immediately *after* the amount, so the
+common real-world shape "Purchase of EGP 450.00" (currency before amount) never matched
+— made the trailing currency group optional. Added `eg_atm_withdrawal` (→
+`TxType.WITHDRAWAL` → `txn_kind='transfer'`, matching the 19.2 wallet fix) and
+`eg_instapay_credit` (incoming, alongside the existing outgoing-only rule). Minor
+`SaBankParser` keyword additions: "كود التفعيل" (OTP noise), "مدفوعة" (Saudi purchase).
+83 tests total (7 new), 0 failures; `lintDebug` and `assembleDebug` both green
+(`./gradlew --no-daemon`). Commit `df46bf3`.
+
 ## Task 19.1 — audit: ATM withdrawal double-counted as spending — DONE
 Confirmed the bug: `SaBankParser.kt` classified WITHDRAWAL as `is_expense=true`, so
 withdrawing then spending double-counted. No cash/wallet concept existed. See

@@ -58,15 +58,34 @@
 - قفل صلب عند ٥٪ في الكود نفسه (مش توثيق بس) — لو صف على السيرفر طلب نسبة أعلى، بيتقفل.
 - Commit: `8dfe84a`
 
+### Task 21 — Egypt SMS tuning, country-keyed
+- المستخدم بعت عينات SMS تركيبية (مش نسخ حقيقي من الجهاز) للسعودية ومصر، وطلب معمارية
+  عالمية جديدة لكل الدول المستقبلية. اتوضح إن ده "Global Fallback Engine" موجود فعلاً
+  (`ZadAiRepository.analyzeBankNotification` — AI fallback شغال لأي بلد/عملة أصلاً)،
+  فاتنفذ نطاق Task 21 الموثّق فقط (Egypt tuning + country-keyed rule loading)، من غير
+  طبقة regex عالمية جديدة — نفس انضباط قسم "rejected proposals" في EPIC_1_4.md.
+- `BankRulesEngine.tryParse` بقى يفلتر بـ `country` النشط (`MarketPrefs.currentMarket`)
+  + fallback عام "ALL" (مفيش قواعد عامة لسه). قبل كده كان بيجرب كل قواعد bank_rules.json
+  بغض النظر عن البلد.
+- بق حقيقي اتلقى وانصلح: صيغة "Purchase of EGP 450.00" (العملة قبل الرقم) ماكانتش
+  بتتطابق — الـ regex كان بيطلب العملة بعد الرقم إجباري. العملة بقت اختيارية في كل الـ 9
+  قواعد المصرية.
+- قاعدة سحب ATM مصرية جديدة (`eg_atm_withdrawal`) → `TxType.WITHDRAWAL` →
+  `txn_kind='transfer'` (نفس فكرة 19.2)، و`typeToTxType` بقى يفهم `"withdrawal"`.
+- InstaPay: قاعدة واردة جديدة (`eg_instapay_credit`) جنب الصادرة الموجودة.
+- `SaBankParser`: أضيف "كود التفعيل" (ضجيج OTP) و"مدفوعة" (شراء سعودي).
+- 7 اختبارات جديدة في `BankRulesEngineTest`. Suite كامل: 83 اختبار، 0 فشل.
+  `lintDebug` و`assembleDebug` نجحوا (`./gradlew --no-daemon`).
+- Commit: `df46bf3`
+
 ## اللي لسه فاضل — بالترتيب المتفق عليه في EPIC_1_4.md
 
 ```
-19.1 ✅ → 19.0 ✅ (إضافي) → 19.2 ✅ → 19.3 ✅ → 20 ✅ → 21 → 22 → 19.4/19.5 → 23 → 24
+19.1 ✅ → 19.0 ✅ (إضافي) → 19.2 ✅ → 19.3 ✅ → 20 ✅ → 21 ✅ → 22 → 19.4/19.5 → 23 → 24
 ```
 
 | # | الموضوع | الحالة |
 |---|---|---|
-| **21** | Egypt SMS tuning (بنوك حقيقية، مش best-guess) | ❌ مبدأش — محتاج رسائل SMS حقيقية من المستخدم (blocked) |
 | **22** | Habit chips (SQL function واحدة، بلا graph) | ❌ مبدأش — مفيش dependency خارجي، جاهز يتعمل |
 | **19.4** | كارت الكاش على الشاشة الرئيسية (`زر "صرفت منهم"` + habit chips) | ❌ مبدأش. `zad_cash_balance()` جاهزة على السيرفر، محتاجة UI |
 | **19.5** | تسوية أسبوعية ("فاضل معاك كام كاش؟") عبر `ask_user` | ❌ مبدأش |
