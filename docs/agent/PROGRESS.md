@@ -385,3 +385,30 @@ its own disclosure requirements), a foreground service or geofencing API integra
 (battery tradeoffs), and a notification-cooldown policy (AUDIT.md already flagged 14
 uncoordinated notification call sites — a 15th needs to not repeat that). Asked the user
 for design decisions before building (see chat) rather than picking silently.
+
+**4b. Location alert service — simplified MVP DONE (2026-07-30, commit `35cff38`).**
+User chose the simplified option: real geofencing for known stores (reusing
+`OverpassRepo`, the same lookup `NearbyDealsScreen` already used for its manual search)
++ periodic `WorkManager` refresh, missing-items notification only — no store price/
+"expensive" classification (no data source for that exists in this project). New:
+`GroceryGeofenceManager` (opt-in flag off by default, registers up to 20 nearest-store
+geofences via Play Services `GeofencingClient`, 200m radius, ENTER transition — the
+`play-services-location` dependency was already sitting commented-out in
+`libs.versions.toml`/`build.gradle.kts`, just uncommented it), `GeofenceBroadcastReceiver`
+(notifies with the user's real unpurchased shopping-list items, max once per 24h per
+store, **skips the notification entirely if there's nothing to buy** — deliberate, so
+this doesn't become AUDIT.md's 15th uncoordinated notification source), `GeofenceRefreshWorker`
+(12h periodic re-registration, self-gates on opt-in+permission so it's safe to
+unconditionally schedule like every other worker). `NearbyDealsScreen` got a new toggle
+with a chained permission flow (foreground `ACCESS_FINE_LOCATION` first, then
+`ACCESS_BACKGROUND_LOCATION` on API 29+) — explicit opt-in only. New
+`ACCESS_BACKGROUND_LOCATION` manifest permission — **Play Store requires its own
+disclosure/justification for this permission category at submission time, not handled
+by this commit**. `compileDebugKotlin`/`assembleDebug`/`testDebugUnitTest`(94/94)/
+`lintDebug` all clean; this is framework glue (BroadcastReceiver/GeofencingClient/
+WorkManager) that Robolectric can't meaningfully exercise and this container has no
+device/emulator to test on — verified by compilation + manual review only, same
+untested-by-design status as this codebase's existing `BootReceiver`/
+`ChatNotificationService`. **Not yet done**: real-device verification, and the
+deliberately-deferred store price/expensive classification (would need either a new
+price-data source or an AI-estimate call — separate task if wanted later).
