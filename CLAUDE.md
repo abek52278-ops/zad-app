@@ -43,11 +43,14 @@ The full plan lives in `docs/agent/`. Read `ZAD_MASTER.md` first — it is the s
 source of truth for architecture, settled decisions, and task numbering. Task numbers
 used in conversation (Task 9, Task 17.2, etc.) refer to that file.
 
-**Read `docs/agent/SESSION_2026_07_26_epic19.md` before picking up any Task 19+ work** —
-it's the running status file for the current epic (what's done, what's left, in what
-order). Update it (don't just append to PROGRESS.md) whenever a Task 19+ item lands, so
-a fresh session — this file is auto-loaded every time, no manual paste needed — starts
-already knowing where things stand instead of re-deriving it from commit history.
+**Read `docs/agent/SESSION_2026_07_30_phaseA.md` before picking up any Task 25+ work** —
+it's the running status file for the current phase (PRODUCT_PLAN.md Phase A, tasks
+25-28; what's done, what's left, in what order, and a critical note on what's committed
+to git vs. actually deployed to Supabase). Update it (don't just append to PROGRESS.md)
+whenever a Task 25+ item lands, so a fresh session — this file is auto-loaded every
+time, no manual paste needed — starts already knowing where things stand instead of
+re-deriving it from commit history. `SESSION_2026_07_26_epic19.md` is archived (Epic
+1+4, tasks 19-24, closed); Epic 2 (`EPIC_2_ai_screen.md`) closed 2026-07-30.
 
 - `docs/agent/ZAD_MASTER.md` — architecture, repo facts, settled decisions, tasks 1–14
 - `docs/agent/NEXT_visible_progress.md` — current task order (supersedes the order in
