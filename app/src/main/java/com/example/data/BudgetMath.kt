@@ -45,6 +45,19 @@ object BudgetMath {
             .sumOf { it.amount }
     }
 
+    /**
+     * إجمالي الدخل/المصروف لكل الوقت — كان بيتحسب بشكل منفصل ومكرر في 5 شاشات
+     * (Home/Transactions/Budget/ZadIntelligence's OverviewTab) كل واحدة بمنطق فلترة
+     * isExpense خاص بيها (AUDIT.md، "Rule 1"). نفس مبدأ 19.0: رقم واحد مشتق، مش خمس
+     * نسخ ممكن تنحرف عن بعض. بيستخدم txnKind زي باقي الدوال هنا (مش isExpense) —
+     * نفس تصحيح 19.3، عشان سحب ATM (transfer) ميتحسبش مصروف هنا كمان.
+     */
+    fun totalIncome(transactions: List<ZadTransaction>): Double =
+        transactions.filter { it.txnKind == "income" }.sumOf { it.amount }
+
+    fun totalExpense(transactions: List<ZadTransaction>): Double =
+        transactions.filter { it.txnKind == "expense" }.sumOf { it.amount }
+
     /** monthlyLimit من zad_users.monthly_limit — الصفر أو الأقل بيرجع 0.0، مفيش "متبقي" لسقف مش معروف */
     fun remaining(monthlyLimit: Double, transactions: List<ZadTransaction>, asOf: LocalDate = LocalDate.now()): Double {
         if (monthlyLimit <= 0.0) return 0.0

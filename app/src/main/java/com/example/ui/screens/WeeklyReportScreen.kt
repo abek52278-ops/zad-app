@@ -154,7 +154,8 @@ private fun WeeklyReportContent(
     val weeklyTx = remember(transactions, weekAgo) {
         transactions.filter { tx ->
             val d = tx.createdAt?.let { runCatching { java.time.Instant.parse(it) }.getOrNull() }
-            tx.isExpense && d != null && d >= weekAgo
+            // txnKind مش isExpense — سحب ATM (transfer) ميتحسبش مصروف هنا (نفس تصحيح 19.3)
+            tx.txnKind == "expense" && d != null && d >= weekAgo
         }
     }
     val categoryTotals = remember(weeklyTx) {

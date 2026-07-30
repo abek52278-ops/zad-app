@@ -68,4 +68,45 @@ class BudgetMathTest {
         )
         assertEquals(-50.0, BudgetMath.cashOnHand(txs), 0.001)
     }
+
+    // totalIncome/totalExpense — 5 شاشات كانت بتعيد نفس المنطق ده بـ isExpense بدل txnKind
+    // (AUDIT.md "Rule 1"). التوحيد ده هو اللي بيثبت إن سحب ATM (transfer) مابيتحسبش
+    // مصروف/دخل في أي منهم، مش بس في spentThisMonth.
+
+    @Test
+    fun `totalExpense sums only expense-kind transactions`() {
+        val txs = listOf(
+            tx(amount = 200.0, txnKind = "expense"),
+            tx(amount = 50.0, txnKind = "expense"),
+            tx(amount = 1000.0, txnKind = "income")
+        )
+        assertEquals(250.0, BudgetMath.totalExpense(txs), 0.001)
+    }
+
+    @Test
+    fun `totalIncome sums only income-kind transactions`() {
+        val txs = listOf(
+            tx(amount = 1000.0, txnKind = "income"),
+            tx(amount = 200.0, txnKind = "expense")
+        )
+        assertEquals(1000.0, BudgetMath.totalIncome(txs), 0.001)
+    }
+
+    @Test
+    fun `ATM withdrawal is excluded from both totalExpense and totalIncome`() {
+        // ده بالظبط بق 19.1: سحب ATM isExpense=true قديماً كان بيتحسب مصروف زيادة عن
+        // صرف الكاش الفعلي بعد كده. txnKind=transfer بيستبعده من الاتنين خالص.
+        val txs = listOf(
+            tx(amount = 500.0, txnKind = "transfer", transferTo = "cash"),
+            tx(amount = 100.0, txnKind = "expense", wallet = "cash")
+        )
+        assertEquals(100.0, BudgetMath.totalExpense(txs), 0.001)
+        assertEquals(0.0, BudgetMath.totalIncome(txs), 0.001)
+    }
+
+    @Test
+    fun `totalIncome and totalExpense are zero with no transactions`() {
+        assertEquals(0.0, BudgetMath.totalIncome(emptyList()), 0.001)
+        assertEquals(0.0, BudgetMath.totalExpense(emptyList()), 0.001)
+    }
 }

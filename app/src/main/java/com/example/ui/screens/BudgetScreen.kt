@@ -83,8 +83,8 @@ fun BudgetScreen(
             .sortedByDescending { it.third }
     }
 
-    val totalIncome = transactions.filter { !it.isExpense }.sumOf { it.amount }
-    val totalSpent = transactions.filter { it.isExpense }.sumOf { it.amount }
+    val totalIncome = com.example.data.BudgetMath.totalIncome(transactions)
+    val totalSpent = com.example.data.BudgetMath.totalExpense(transactions)
     val currentBalance = remainingBalance
 
     // Animate balance changes

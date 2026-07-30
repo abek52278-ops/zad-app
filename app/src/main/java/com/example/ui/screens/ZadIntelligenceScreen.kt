@@ -204,8 +204,8 @@ fun OverviewTab(
     val emergencyFund by viewModel.emergencyFund.collectAsState()
     val expenses = transactions.filter { it.isExpense }
     val income = transactions.filter { !it.isExpense }
-    val totalExpense = expenses.sumOf { it.amount }
-    val totalIncome = income.sumOf { it.amount }
+    val totalExpense = com.example.data.BudgetMath.totalExpense(transactions)
+    val totalIncome = com.example.data.BudgetMath.totalIncome(transactions)
 
     val categoryMap = expenses
         .groupBy { it.category ?: otherCategoryLabel }

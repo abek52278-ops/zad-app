@@ -115,8 +115,8 @@ fun HomeScreen(
     val cashOnHand by viewModel.cashOnHand.collectAsState()
     val habitChips by viewModel.habitChips.collectAsState()
 
-    val totalIncome = transactions.filter { !it.isExpense }.sumOf { it.amount }
-    val totalSpent = transactions.filter { it.isExpense }.sumOf { it.amount }
+    val totalIncome = com.example.data.BudgetMath.totalIncome(transactions)
+    val totalSpent = com.example.data.BudgetMath.totalExpense(transactions)
     val currentBudget = remainingBalance
 
     val shortageCount = remember(inventory) {

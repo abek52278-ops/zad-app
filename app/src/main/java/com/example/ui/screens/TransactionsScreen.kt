@@ -69,8 +69,8 @@ fun TransactionsScreen(
     var showDeleteConfirm by remember { mutableStateOf<ZadTransaction?>(null) }
     var showEditCategory by remember { mutableStateOf<ZadTransaction?>(null) }
 
-    val totalIncome = transactions.filter { !it.isExpense }.sumOf { it.amount }
-    val totalSpent = transactions.filter { it.isExpense }.sumOf { it.amount }
+    val totalIncome = com.example.data.BudgetMath.totalIncome(transactions)
+    val totalSpent = com.example.data.BudgetMath.totalExpense(transactions)
     val balance = totalIncome - totalSpent
 
     val filteredTx = remember(transactions, selectedFilter, searchQuery) {
