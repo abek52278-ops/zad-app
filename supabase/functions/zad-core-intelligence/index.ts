@@ -406,7 +406,7 @@ Deno.serve(async (req: Request) => {
       // ──────────────────────────────────────────────
       case "spending_insights": {
         const { transactions, budget } = payload || {};
-        const systemPrompt = dialectPrefix + "أنت محلل مالي. حلل المعاملات المالية وقدم رؤى وتوصيات. أجب بصيغة JSON: {\"insights\":[{\"title\":\"\",\"description\":\"\",\"type\":\"Tip|Prediction|Alert\"}]}";
+        const systemPrompt = dialectPrefix + "أنت محلل مالي. حلل المعاملات المالية وقدم رؤى وتوصيات. لا تقترح أبداً إلغاء أو تقليل التزامات ثابتة (إيجار، أقساط قروض، فواتير أساسية) — دي مش اختيارية. اقتراحات التقليل/الإلغاء لازم تكون بس عن إنفاق اختياري فعلاً (اشتراكات ترفيهية، مطاعم، تسوق كمالي). أجب بصيغة JSON: {\"insights\":[{\"title\":\"\",\"description\":\"\",\"type\":\"Tip|Prediction|Alert\"}]}";
         const userPrompt = "المعاملات: " + (transactions || "لا توجد") + ", الميزانية: " + (budget || 3500);
         const result = await callJsonModel(systemPrompt, userPrompt, 2000);
         return jsonResponse({ insights: result?.insights || [] });
@@ -417,7 +417,7 @@ Deno.serve(async (req: Request) => {
       // ──────────────────────────────────────────────
       case "agent_summary": {
         const data = payload || {};
-        const systemPrompt = dialectPrefix + "أنت وكيل زاد الذكي. حلل بيانات المستخدم بالكامل وقدّم ملخصاً شاملاً. أجب بصيغة JSON: {\"summary\":\"\",\"alerts\":[{\"type\":\"\",\"title\":\"\",\"description\":\"\"}],\"suggestions\":[{\"action\":\"\",\"item\":\"\",\"reason\":\"\"}],\"stats\":{\"inventory_count\":0,\"expiring_soon\":0,\"subscriptions_active\":0,\"days_until_budget_end\":30}}";
+        const systemPrompt = dialectPrefix + "أنت وكيل زاد الذكي. حلل بيانات المستخدم بالكامل وقدّم ملخصاً شاملاً. لا تقترح أبداً إلغاء أو تقليل التزامات ثابتة (إيجار، أقساط قروض، فواتير أساسية) — دي مش اختيارية، اقتراحات التوفير لازم تستهدف إنفاق اختياري فعلاً. أجب بصيغة JSON: {\"summary\":\"\",\"alerts\":[{\"type\":\"\",\"title\":\"\",\"description\":\"\"}],\"suggestions\":[{\"action\":\"\",\"item\":\"\",\"reason\":\"\"}],\"stats\":{\"inventory_count\":0,\"expiring_soon\":0,\"subscriptions_active\":0,\"days_until_budget_end\":30}}";
         const userPrompt = "المخزون: " + (data.inventory || "") + " | المعاملات: " + (data.transactions || "") + " | الاشتراكات: " + (data.subscriptions || "") + " | الميزانية: " + (data.budget || 0) + " | التسوق: " + (data.shopping || "") + " | الأنماط: " + (data.patterns || "");
         const result = await callJsonModel(systemPrompt, userPrompt, 2500);
         return jsonResponse({
@@ -562,7 +562,7 @@ Deno.serve(async (req: Request) => {
       case "detect_subscriptions": {
         const { transactions } = payload || {};
         if (!transactions || transactions.length === 0) return jsonResponse({ subscriptions: [] });
-        const systemPrompt = "أنت محلل اشتراكات. حلل قائمة المعاملات وحدد أي منها قد يكون اشتراكاً شهرياً أو سنوياً. أجب بصيغة JSON: {\"subscriptions\":[{\"name\":\"\",\"amount\":0.0,\"frequency\":\"monthly\",\"confidence\":0.0,\"next_billing_date\":\"\"}]}";
+        const systemPrompt = "أنت محلل اشتراكات. حلل قائمة المعاملات وحدد أي منها قد يكون اشتراكاً شهرياً أو سنوياً (خدمات ترفيه/برمجيات/عضويات وما شابه). لا تصنف الإيجار أو سداد قروض/أقساط أو الفواتير الأساسية (كهرباء/مياه/غاز) كاشتراك — دي التزامات ثابتة مش اشتراكات اختيارية. أجب بصيغة JSON: {\"subscriptions\":[{\"name\":\"\",\"amount\":0.0,\"frequency\":\"monthly\",\"confidence\":0.0,\"next_billing_date\":\"\"}]}";
         const userPrompt = "المعاملات: " + JSON.stringify(transactions);
         const result = await callJsonModel(systemPrompt, userPrompt, 2000);
         return jsonResponse({ subscriptions: result?.subscriptions || [] });

@@ -684,6 +684,22 @@ object ZadCentralBrain {
     )
 
     /**
+     * التزام ثابت (إيجار/قسط/فاتورة) مقابل اشتراك اختياري (نتفلكس، جيم، إلخ) —
+     * الأول مينفعش يتقال عليه "إلغيه لو مش مستخدمه"، التاني ممكن فعلاً.
+     * `type` مش موثوق بيه لوحده (AddSubscriptionDialog كان بيسيب type="subscription"
+     * الافتراضي حتى للإيجار/الأقساط قبل التصحيح)، فبنشيك على category والاسم كمان —
+     * نفس أسلوب كشف خدمات البث المكرر تحت (keyword matching).
+     */
+    private val fixedObligationKeywords = listOf(
+        "إيجار", "ايجار", "قسط", "أقساط", "اقساط", "rent", "installment", "mortgage", "loan"
+    )
+    private fun isFixedObligation(sub: ZadSubscription): Boolean {
+        if (sub.type == "bill" || sub.type == "installment" || sub.type == "rent") return true
+        val haystack = "${sub.category.orEmpty()} ${sub.title}".lowercase()
+        return fixedObligationKeywords.any { haystack.contains(it) }
+    }
+
+    /**
      * التقرير الشامل — يجمع كل المحركات في مخرج واحد مهيكل:
      * BudgetTracker (كروت الفئات) + ConsumptionLearner (تنبؤ النفاد) + المعاملات + المخزون
      */
@@ -794,9 +810,12 @@ object ZadCentralBrain {
         if (subsMonthlyCost > 0) {
             insights.add("اشتراكاتك النشطة تكلفك ${CurrencyFormatter.format(context, subsMonthlyCost)} شهرياً (${CurrencyFormatter.format(context, subsMonthlyCost * 12)} سنوياً)")
 
-            // اقتراح إلغاء: نسبة الاشتراكات من الميزانية مرتفعة
+            // اقتراح إلغاء: نسبة الاشتراكات من الميزانية مرتفعة — بس من الاشتراكات
+            // الاختيارية فعلاً. الإيجار والأقساط والفواتير التزامات ثابتة، مينفعش
+            // الاقتراح يقول "راجعه لو مش مستخدمه" عن حاجة زي الإيجار.
+            val discretionarySubs = subscriptions.filter { it.isActive && !isFixedObligation(it) }
             if (budget > 0 && subsMonthlyCost > budget * 0.2) {
-                val mostExpensive = subscriptions.filter { it.isActive }.maxByOrNull { it.amount }
+                val mostExpensive = discretionarySubs.maxByOrNull { it.amount }
                 if (mostExpensive != null) {
                     insights.add("💡 اشتراكاتك ${(subsMonthlyCost / budget * 100).toInt()}% من ميزانيتك — راجع ${mostExpensive.title} (${CurrencyFormatter.format(context, mostExpensive.amount)}) لو مش مستخدمه")
                 }
