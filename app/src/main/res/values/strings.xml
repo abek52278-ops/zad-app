@@ -843,7 +843,7 @@
 
     <!-- Location Alerts (opt-in real background geofencing — separate from the manual search above) -->
     <string name="location_alerts_toggle_label">تنبيهات ذكية وأنت قريب من متجر</string>
-    <string name="location_alerts_toggle_hint">زاد يفكّرك بنواقصك تلقائياً لما تكون قريب من سوبرماركت — يحتاج إذن الموقع في الخلفية، وممكن توقفه في أي وقت.</string>
+    <string name="location_alerts_toggle_hint">زاد يفكّرك بنواقصك من المؤن أو الدواء تلقائياً لما تكون قريب من سوبرماركت أو صيدلية — يحتاج إذن الموقع في الخلفية، وممكن توقفه في أي وقت.</string>
     <string name="background_location_permission_rationale">عشان زاد يقدر ينبهك وأنت قريب من سوبرماركت حتى لو التطبيق مقفول، محتاج إذن "الموقع طول الوقت" من إعدادات الجهاز.</string>
     <string name="location_alerts_channel_name">زاد — تنبيهات قرب المتجر</string>
     <string name="location_alert_notification_title">أنت قريب من %1$s</string>

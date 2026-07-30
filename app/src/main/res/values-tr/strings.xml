@@ -841,7 +841,7 @@
 
     <!-- Location Alerts (opt-in real background geofencing — separate from the manual search above) -->
     <string name="location_alerts_toggle_label">Markete yaklaşınca akıllı bildirim</string>
-    <string name="location_alerts_toggle_hint">Zad, bir markete yaklaştığınızda eksiklerinizi otomatik hatırlatır — arka plan konum izni gerekir, istediğiniz zaman kapatabilirsiniz.</string>
+    <string name="location_alerts_toggle_hint">Zad, bir markete veya eczaneye yaklaştığınızda eksik ürün veya ilaçlarınızı otomatik hatırlatır — arka plan konum izni gerekir, istediğiniz zaman kapatabilirsiniz.</string>
     <string name="background_location_permission_rationale">Zad\'ın uygulama kapalıyken bile markete yaklaştığınızda sizi uyarabilmesi için cihaz ayarlarından "Her zaman izin ver" konum izni gerekir.</string>
     <string name="location_alerts_channel_name">Zad — Markete yakınlık bildirimleri</string>
     <string name="location_alert_notification_title">%1$s\'e yakınsınız</string>

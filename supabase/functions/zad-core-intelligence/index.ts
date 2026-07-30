@@ -47,6 +47,13 @@ function nextGroqKeyIndex(): number {
 // file previously) specifically so it can share callOpenAICompatibleChat() with the Groq
 // pool instead of a third near-duplicate fetch/parse implementation.
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+
+// LOCATIONIQ_API_KEY — server-side only, deliberately NOT a client BuildConfig secret like
+// AMAZON_ASSOCIATE_TAG. A LocationIQ key is a real rate-limited credential (unlike the
+// Amazon tag, which is meant to be public in URLs) — embedding it in the APK would let
+// anyone decompile it and burn the free-tier quota. nearby_pois below proxies it the same
+// way every other third-party AI/data call in this file already goes through the server.
+const LOCATIONIQ_API_KEY = Deno.env.get("LOCATIONIQ_API_KEY");
 const GEMINI_OPENAI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
 const GEMINI_FALLBACK_MODEL = Deno.env.get("ZAD_GEMINI_FALLBACK_MODEL") || "gemini-2.0-flash";
 
@@ -566,6 +573,54 @@ Deno.serve(async (req: Request) => {
         const userPrompt = "المعاملات: " + JSON.stringify(transactions);
         const result = await callJsonModel(systemPrompt, userPrompt, 2000);
         return jsonResponse({ subscriptions: result?.subscriptions || [] });
+      }
+
+      // ──────────────────────────────────────────────
+      // NEARBY_POIS — LocationIQ nearby search (supermarkets/pharmacies), server-side
+      // proxy so the LocationIQ key never ships in the client APK. No LLM involved.
+      // ──────────────────────────────────────────────
+      case "nearby_pois": {
+        const { lat, lon, tag, radius_meters } = payload || {};
+        if (typeof lat !== "number" || typeof lon !== "number" || !tag) {
+          return jsonResponse({ stores: [], error: "missing lat/lon/tag" });
+        }
+        if (!LOCATIONIQ_API_KEY) {
+          // مفتاح مش متظبط — الكلاينت (GroceryGeofenceManager) بيرجع لـ Overpass تلقائي
+          // لو stores فاضية، فمفيش داعي نرمي error هنا، نفس نمط callGeminiFallback.
+          return jsonResponse({ stores: [] });
+        }
+
+        // شبكة تقريبية (٣ خانات عشرية ≈ ١١٠م) عشان طلبات قريبة من بعض تستخدم نفس الكاش
+        // بدل ما كل تحديث موقع دقيق يستهلك من حصة LocationIQ المجانية
+        const latGrid = Math.round(lat * 1000) / 1000;
+        const lonGrid = Math.round(lon * 1000) / 1000;
+        const cacheKey = `nearby_pois:${tag}:${latGrid}:${lonGrid}:${radius_meters || 3000}`;
+        const cached = await getCachedAiResponse(cacheKey);
+        if (cached) return jsonResponse(cached);
+
+        try {
+          const url = `https://us1.locationiq.com/v1/nearby?key=${LOCATIONIQ_API_KEY}&lat=${lat}&lon=${lon}&tag=${encodeURIComponent(tag)}&radius=${radius_meters || 3000}&format=json`;
+          const resp = await fetch(url);
+          if (!resp.ok) {
+            console.error(`[CoreIntel] nearby_pois LocationIQ HTTP ${resp.status}`);
+            return jsonResponse({ stores: [] });
+          }
+          const raw = await resp.json();
+          const stores = (Array.isArray(raw) ? raw : [])
+            .filter((p: Record<string, unknown>) => typeof p.name === "string" && p.name.length > 0)
+            .map((p: Record<string, unknown>) => ({
+              name: p.name,
+              lat: parseFloat(String(p.lat)),
+              lon: parseFloat(String(p.lon)),
+              distance_meters: typeof p.distance === "number" ? p.distance : 0,
+            }));
+          const response = { stores };
+          await setCachedAiResponse(cacheKey, "nearby_pois", response);
+          return jsonResponse(response);
+        } catch (e) {
+          console.error("[CoreIntel] nearby_pois FAILED:", e.message);
+          return jsonResponse({ stores: [] });
+        }
       }
 
       // ──────────────────────────────────────────────

@@ -10,6 +10,7 @@ import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.R
+import com.example.data.GeofenceCategory
 import com.example.data.GroceryGeofenceManager
 import com.example.data.local.ZadDatabase
 import com.google.android.gms.location.Geofence
@@ -57,9 +58,18 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         // إشعار واحد كفاية، مش نبعت كذا إشعار في نفس اللحظة.
         val geofenceId = geofenceIds.firstOrNull { GroceryGeofenceManager.shouldNotify(context, it) } ?: return
         val storeName = GroceryGeofenceManager.storeNameForGeofenceId(context, geofenceId) ?: return
+        val category = GroceryGeofenceManager.categoryOf(geofenceId) ?: return
 
+        // استعلام لحظي وقت الدخول فعلياً، مش قايمة مخزّنة وقت تسجيل الـ geofence —
+        // عشان الإشعار يعكس النواقص الحقيقية دلوقتي بالظبط (طلب المستخدم صراحة).
         val dao = ZadDatabase.getDatabase(context).zadDao()
-        val missingItems = dao.getAllShoppingItems().first().filter { !it.isPurchased }.map { it.itemName }
+        val missingItems = when (category) {
+            GeofenceCategory.SUPERMARKET ->
+                dao.getAllShoppingItems().first().filter { !it.isPurchased }.map { it.itemName }
+            GeofenceCategory.PHARMACY ->
+                // نفس عتبة "قرب يخلص" اللي NearbyDealsScreen بيستخدمها (٥ أيام أو أقل)
+                dao.getAllPharmacyItemsOnce().filter { val d = it.daysOfSupplyLeft(); d != null && d <= 5 }.map { it.name }
+        }
         if (missingItems.isEmpty()) {
             // مفيش نواقص فعلياً — إشعار بلا فايدة أسوأ من مفيش إشعار (AUDIT.md)
             Log.d(TAG, "handleEnteredGeofences() → near $storeName but no missing items, skipping notification")
