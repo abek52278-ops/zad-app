@@ -106,7 +106,19 @@ same `isExpense`→`txnKind` predicate fix inline (kept local — different shap
 left `isExpense`-based, same scoping boundary Task 19.3 already established for
 `ZadCentralBrain`'s 13 other sites. Full detail in `PROGRESS.md`.
 
-## What's next in Epic 2 (not started)
+## HomeScreen AI-cards-on-open — resolved, decided DELIBERATE (2026-07-30)
 
-- Not yet scoped: whether Epic 2 also touches `HomeScreen`'s AI-cards-on-open problem or stays
-  scoped to `ZadIntelligenceScreen` only — ask the user before assuming either way.
+Asked the user whether Epic 2 should also touch `HomeScreen`'s on-open AI calls
+(`AUDIT.md`'s highest-*frequency* Rule 3 violation — 4 calls every open). User's answer:
+keep it — instant/live AI cards on open is the intended UX for the app's most-visited
+screen, not a bug to fix. **No code change** (this is already `HomeScreen`'s current,
+unmodified behavior; the decision was to leave it alone, not to build anything new).
+Recorded as an explicit exception in `CLAUDE.md`'s standing rules so a future session
+doesn't "fix" it without checking first.
+
+**🎉 Epic 2 is now complete.** Task 29.1 (4-tab restructure, build-confirmed),
+`detectSubscriptions()` auto-write fix, nav drawer clarity, income/expense
+consolidation, and the HomeScreen decision above closes out everything scoped to this
+epic. Location alerts (geofencing + LocationIQ + pharmacy coverage) landed alongside
+this epic's work but was its own separate scope, not an Epic 2 line item — see the
+`PROGRESS.md` entries under "Location alert service" for that thread instead.

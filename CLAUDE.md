@@ -74,7 +74,18 @@ Standing rules:
 - **Never report a task complete without build output from a run that happened AFTER
   the changes.** This has already failed once: Task 9 and 17.2 were reported complete
   while the build was broken by three missing imports.
-- No LLM call on the UI thread or on screen open.
+- No LLM call on the UI thread or on screen open. **Explicit exception: `HomeScreen`**
+  (`LaunchedEffect(Unit)` firing `refreshAgentSummary`/`refreshAutoSuggestions`/
+  `predictNextMonthExpenses`/`refreshLiveMarketPrices` on every open) — flagged in
+  `docs/agent/AUDIT.md` as this rule's worst violation by call frequency, but the user
+  explicitly decided (2026-07-30, closing Epic 2) to keep it: instant/live AI cards on
+  the app's most-visited screen are the intended UX, not an oversight. Don't "fix" this
+  without asking first. The other five screens AUDIT.md flagged for the same rule
+  (`ZadIntelligenceScreen`, `ShoppingListScreen`, `WeeklyReportScreen`,
+  `NearbyDealsScreen`, and `SubscriptionsScreen`'s/`ZadIntelligenceScreen`'s
+  `detectSubscriptions()`) are unaffected by this exception — `detectSubscriptions()`
+  specifically got its own confirm-before-write fix (2026-07-30) and still shouldn't
+  auto-fire destructively even though it may still fire the read-only detection call.
 - Money stays `Double` with `asMoney()` rounding — no minor-units migration.
 - No DI framework. Follow the existing `object SupabaseRepo` pattern.
 - If a premise in the docs contradicts the code, stop and ask.

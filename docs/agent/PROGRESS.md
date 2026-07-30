@@ -439,3 +439,16 @@ geofencing feature, plus pharmacy coverage and a real-time-query guarantee.
   DAO read at the moment of entry, same threshold `NearbyDealsScreen` already uses.
 - `compileDebugKotlin`/`assembleDebug`/`testDebugUnitTest`(98/98)/`lintDebug` all clean.
   TypeScript changes not `deno check`-ed or deployed (no `deno`/deploy access here).
+- **User confirmed (2026-07-30)**: `LOCATIONIQ_API_KEY` set as a Supabase secret and
+  `zad-core-intelligence` redeployed. Not independently verified from this session (no
+  Supabase MCP auth here) — taken on the user's word, not a claim this session tested it.
+
+## Epic 2 — CLOSED (2026-07-30)
+
+Last open question: whether `HomeScreen`'s on-open AI calls (`AUDIT.md`'s highest-
+frequency Rule 3 finding) should be fixed as part of Epic 2. User's explicit decision:
+leave it — instant/live AI cards on open is the intended UX for the app's most-visited
+screen, not a bug. No code change (this was already the screen's existing behavior);
+recorded as a deliberate exception in `CLAUDE.md`'s standing rules so it doesn't get
+"fixed" by a future session without checking first. See `docs/agent/EPIC_2_ai_screen.md`
+for Epic 2's full closing summary.
