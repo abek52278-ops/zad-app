@@ -224,7 +224,7 @@ fun TransactionsScreen(
         AddTransactionDialog(
             onDismiss = { showAddDialog = false },
             onSave = { amount, title, isExpense, category ->
-                viewModel.addTransaction(amount, title, isExpense, category)
+                viewModel.addTransaction(amount, title, isExpense, category, isVerified = true)
                 showAddDialog = false
             }
         )

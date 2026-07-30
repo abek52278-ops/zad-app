@@ -5,6 +5,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -44,7 +45,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 // ─── Transactions Screen (STC Pay style) ──────────────────────────────────────
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun BudgetScreen(
     viewModel: ZadViewModel,
@@ -56,12 +57,13 @@ fun BudgetScreen(
     val behaviorPatterns by viewModel.behaviorPatterns.collectAsState()
     val budget by viewModel.budget.collectAsState()
     val remainingBalance by viewModel.remainingBalance.collectAsState()
-    val available by viewModel.available.collectAsState()
+    val availableFigure by viewModel.availableFigure.collectAsState()
     val committed by viewModel.committed.collectAsState()
     val nextObligationDue by viewModel.nextObligationDue.collectAsState()
     val showBudgetDialog by viewModel.showBudgetDialog.collectAsState()
     val suggestedBudget by viewModel.suggestedBudget.collectAsState()
     var showAddTransactionDialog by remember { mutableStateOf(false) }
+    var showWhySheet by remember { mutableStateOf(false) } // Task 27.2 — طول الضغط على "متاح"
     var selectedFilter by remember { mutableStateOf("الكل") }
     val context = LocalContext.current
     var categoryCardsRefresh by remember { mutableIntStateOf(0) }
@@ -91,7 +93,7 @@ fun BudgetScreen(
     // Task 26 — "متاح" (available) بقى الرقم الأساسي، مش remainingBalance الخام —
     // available بيخصم الالتزامات الثابتة المؤكدة (إيجار/قسط/اشتراكات) القادمة قبل نهاية
     // الدورة. لمستخدم من غير التزامات مسجلة available == remainingBalance بالظبط.
-    val currentBalance = available
+    val currentBalance = availableFigure.value
 
     // Animate balance changes
     val animatedBalance by animateFloatAsState(
@@ -174,14 +176,31 @@ fun BudgetScreen(
                             textAlign = TextAlign.Center
                         )
                         Spacer(modifier = Modifier.height(6.dp))
+                        // Task 27.1(a) — "≈" لو فيه معاملة مش متأكدة داخلة في الرقم، تاب
+                        // يشرح السبب. طول الضغط (27.2) يفتح شيت "آخر التغييرات".
+                        var showAvailableReason by remember { mutableStateOf(false) }
                         Text(
-                            com.example.data.CurrencyFormatter.format(context, animatedBalance.toDouble()),
+                            (if (!availableFigure.confident) "≈ " else "") +
+                                com.example.data.CurrencyFormatter.format(context, animatedBalance.toDouble()),
                             style = Typography.displayLarge.copy(fontSize = 40.sp),
                             fontWeight = FontWeight.Bold,
                             color = if (currentBalance < 0) dangerColor else Color.White,
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .combinedClickable(
+                                    onClick = { if (!availableFigure.confident) showAvailableReason = true },
+                                    onLongClick = { showWhySheet = true }
+                                ),
                             textAlign = TextAlign.Center
                         )
+                        if (showAvailableReason && availableFigure.reason != null) {
+                            AlertDialog(
+                                onDismissRequest = { showAvailableReason = false },
+                                confirmButton = { TextButton(onClick = { showAvailableReason = false }) { Text(stringResource(R.string.close_action)) } },
+                                title = { Text(stringResource(R.string.available_label) + " ≈") },
+                                text = { Text(availableFigure.reason!!) }
+                            )
+                        }
                         if (committed > 0) {
                             Spacer(modifier = Modifier.height(4.dp))
                             val nextText = nextObligationDue?.let { (ob, due) ->
@@ -581,12 +600,16 @@ fun BudgetScreen(
                 viewModel.addTransaction(
                     com.example.data.ZadTransaction(
                         amount = amount, title = title,
-                        isExpense = isExpense, category = category
+                        isExpense = isExpense, category = category, isVerified = true
                     )
                 )
                 showAddTransactionDialog = false
             }
         )
+    }
+
+    if (showWhySheet) {
+        com.example.ui.components.WhyChangedSheet(onDismiss = { showWhySheet = false })
     }
 
     if (showBudgetDialog) {

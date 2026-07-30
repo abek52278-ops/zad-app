@@ -571,3 +571,74 @@ Task 26's job").
   `supabase db push` (or dashboard apply) and `zad-brain` needs redeploying — the user
   said they'd handle both this session. Until then `available` == `remaining` for every
   real user (no `zad_obligations` rows exist), so the client change is inert but safe.
+
+## Task 27 — Visible confidence (`≈`) + "why did this change" (2026-07-30, staged scope)
+
+`PRODUCT_PLAN.md` Phase A, third of tasks 25-28. Research pass first (Explore agent)
+found the spec assumes infrastructure that doesn't exist yet: no cash-reconciliation
+timestamp anywhere, client never read `zad_consumption`'s `rate_known`/`sample_count`,
+bank-SMS raw text/timestamp computed by `SaBankParser` but discarded before reaching
+`ZadTransaction`, and `ZadIngest` (cited as a "why" data source) is still an unbuilt
+Task 12 plan. Flagged this to the user before building — **staged scope, confirmed by
+user**: ship 27.1(a) `is_verified` + 27.1(b) pharmacy fix + 27.2 why-sheet using only
+data that exists today; defer 27.1(c) stock-sample confidence and 27.1(d)
+cash-reconciliation-age (both need new schema) to a follow-up. Also confirmed: keep
+`TransactionsScreen`'s existing long-press-to-delete on transaction rows; the why-trail
+long-press only applies to budget-card figures (no gesture collision there).
+
+- **`Figure` type** (`app/src/main/java/com/example/data/Figure.kt`):
+  `data class Figure(val value: Double, val confident: Boolean, val reason: String? = null)`,
+  per spec. `ZadViewModel.availableFigure` replaces the old plain-`Double` `available`
+  StateFlow entirely (single source of truth, not two overlapping ones).
+- **27.1(a) `is_verified`**: found via research that this field was already dead for
+  confidence purposes — `SubscriptionAutoDeductWorker` is the *only* place that ever set
+  it `true`, so a literal "any unverified transaction in the sum → ≈" would show ≈ nearly
+  always for nearly everyone, which is a real design conflict with the spec's own
+  intent (an ambient indicator that's always on carries no information). Fix: gave the
+  field real meaning at its three genuinely-manual `AddTransactionDialog` call sites
+  (`HomeScreen.kt`, `TransactionsScreen.kt`, `BudgetScreen.kt` — a human typed the amount
+  and hit save) by passing `isVerified = true` there specifically; left it `false`
+  (unchanged) for `CameraScreen`'s OCR receipt-total insert, `ZadVoiceFab`'s
+  voice-parsed entries, and both habit-chip tap paths (`CashCard`/`HabitChipsRow`) —
+  none of those are a human confirming a specific number. New pure function
+  `BudgetMath.unverifiedCountInCycle(transactions, cycleStart, cycleEnd): Int`, used by
+  `ZadViewModel.recalculateRemainingBalance` to set `availableFigure.confident` and a
+  one-line Arabic `reason`. 4 new unit tests.
+- **27.1(b) pharmacy**: the null-`unitsPerDose` → "not a number, needs confirmation"
+  behavior from Task 17.2.1 was already correctly built in `PharmacyItemCard` (list
+  view) — but **`PharmacyItemGridCard` (grid view) was missing it entirely**, silently
+  falling through to `remaining_quantity_label` always. Added the same tappable
+  "الكمية محتاجة تأكيد" chip + `ConfirmQuantityDialog` wiring to the grid card
+  (`PharmacyScreen.kt`), now consistent with the list view.
+- **27.2 why-sheet**: first-ever client read of `zad_brain_runs` (previously
+  write-only from Kotlin's perspective). `SupabaseRepo.getRecentBrainMutations()`
+  fetches the last 20 runs' `mutations` jsonb arrays and flattens them into
+  `BrainMutationEntry` (tool label in Arabic, old→new, relative time). New
+  `WhyChangedSheet` composable (`ui/components/WhyChangedSheet.kt`) — `ModalBottomSheet`
+  matching `FamilyScreen`'s `MemberDetailSheet` convention (the only prior bottom-sheet
+  usage in the app). Opens on long-press of the "available" figure in `ZadCardHero`
+  (Home) and `BudgetScreen`'s header; a plain tap on a non-confident figure instead
+  opens a small explanation dialog with `Figure.reason` (matches spec: "tapping explains
+  ... tapping" is the uncertainty explanation, long-press is the change history — two
+  different gestures, `combinedClickable`).
+- Verification: `compileDebugUnitTestKotlin`/`testDebugUnitTest` clean, 122/122 (4 new).
+  No Android SDK emulator in this container — new UI not visually screenshotted, verified
+  by compile + unit test only, same caveat as Task 26.
+
+**Deliberately deferred, disclosed not silently skipped (staged-scope decision above):**
+- 27.1(c) stock days-left with <3 samples — needs a new client read path for
+  `zad_consumption.rate_known`/`sample_count` (currently server-only).
+- 27.1(d) cash balance not reconciled in >14 days — needs a new `reconciled_at` column;
+  no such timestamp exists anywhere today, client or server.
+- The why-sheet shows **all** recent mutations, not filtered to the specific figure that
+  was long-pressed — the `mutations` jsonb doesn't attribute a change to a specific UI
+  number, so this is a real (small) precision gap, not an oversight.
+- The spec's literal "رسالة من CIB الساعة ٣:١٢" example isn't reconstructable — would
+  need `bankName`/raw SMS text persisted onto `ZadTransaction` (computed by
+  `SaBankParser`, currently discarded before the insert) — a privacy-relevant decision
+  (storing raw bank SMS text) intentionally left to a separate discussion, not decided
+  unilaterally here.
+- Habit-chip tap paths (`CashCard.onChipTap`/`onSpentFromCash`, `HabitChipsRow`) were
+  left `isVerified=false` — a judgment call (system-suggested + one tap ≠ typed
+  confirmation), not obviously wrong either way; flagging in case a future session
+  wants to reconsider.

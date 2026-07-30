@@ -131,9 +131,15 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val _committed = MutableStateFlow(0.0)
     val committed: StateFlow<Double> = _committed.asStateFlow()
 
-    /** "متاح" — remaining ناقص الالتزامات المستحقة قبل نهاية الدورة. ممكن يبقى سالب، مقصود. */
-    private val _available = MutableStateFlow<Double>(3500.0)
-    val available: StateFlow<Double> = _available.asStateFlow()
+    /**
+     * "متاح" — remaining ناقص الالتزامات المستحقة قبل نهاية الدورة. ممكن يبقى سالب، مقصود.
+     * Task 27 — بقى Figure بدل Double خام: confident=false لو أي معاملة في الدورة الحالية
+     * is_verified=false (معاملة من رسالة بنك لسه ما اتراجعتش، أو مصدر تاني مش مباشر من
+     * المستخدم — انظر ZadTransaction.isVerified وتعليق addTransaction overload). ده مش
+     * "بيصيح دايماً" — العرض السلبي (≈) مفيهوش مقاطعة زي سؤال، فمفيش تكلفة تكرار.
+     */
+    private val _availableFigure = MutableStateFlow(Figure(3500.0, confident = true))
+    val availableFigure: StateFlow<Figure> = _availableFigure.asStateFlow()
 
     /** أقرب التزام مؤكد مستحق جوه الدورة الحالية — null لو مفيش، للعرض ("محجوز ٣٠٠ (إيجار بعد ٤ أيام)") */
     private val _nextObligationDue = MutableStateFlow<Pair<ZadObligation, LocalDate>?>(null)
@@ -1167,7 +1173,15 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
         val committed = BudgetMath.committedInCycle(_obligations.value, _subscriptions.value, cycleEnd, asOf)
         _committed.value = committed
-        _available.value = BudgetMath.availableInCycle(remaining, committed)
+        val available = BudgetMath.availableInCycle(remaining, committed)
+        // Task 27.1(a) — أي معاملة في الدورة الحالية is_verified=false (معاملة بنكية لسه
+        // ما اتراجعتش، مش معاملة كتبها المستخدم بنفسه) تخلي "متاح" ≈ مش رقم قاطع.
+        val unverifiedCount = BudgetMath.unverifiedCountInCycle(txs, cycleStart, cycleEnd)
+        _availableFigure.value = Figure(
+            value = available,
+            confident = unverifiedCount == 0,
+            reason = if (unverifiedCount > 0) "فيه $unverifiedCount معاملة من الدورة دي لسه ما اتأكدتش (رسايل بنكية أو مصادر تانية غير مباشرة)" else null
+        )
         _nextObligationDue.value = _obligations.value
             .filter { it.active && it.confirmed }
             .mapNotNull { ob -> BudgetMath.nextDueDate(ob, asOf)?.let { ob to it } }
@@ -1175,7 +1189,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             .minByOrNull { it.second.toEpochDay() }
         _daysLeftInCycle.value = CycleMath.daysLeft(asOf, cycleEnd)
 
-        Log.d(TAG, "recalculateRemainingBalance → Budget: $currentBudget, Spent: $spent, Remaining: $remaining, Committed: $committed, Available: ${_available.value}, Cash: ${_cashOnHand.value}")
+        Log.d(TAG, "recalculateRemainingBalance → Budget: $currentBudget, Spent: $spent, Remaining: $remaining, Committed: $committed, Available: $available, Cash: ${_cashOnHand.value}")
     }
 
     /** نسبة الجرعات اللي اتاخدت من إجمالي الجرعات المجدولة آخر 7 أيام — null لو مفيش بيانات كفاية */
@@ -1691,9 +1705,12 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // Convenience overloads
-    fun addTransaction(amount: Double, title: String, isExpense: Boolean, category: String = "Other") {
-        Log.d(TAG, "addTransaction(overload) → amount=$amount, title=$title, isExpense=$isExpense, category=$category")
-        val t = ZadTransaction(amount = amount.asMoney(), title = title, isExpense = isExpense, category = category)
+    // Task 27 — isVerified defaults false (voice/chip-tap callers keep today's behavior);
+    // only the direct "type an amount into AddTransactionDialog and save" call sites pass
+    // true, since that's the one path where a human actually confirmed the number by hand.
+    fun addTransaction(amount: Double, title: String, isExpense: Boolean, category: String = "Other", isVerified: Boolean = false) {
+        Log.d(TAG, "addTransaction(overload) → amount=$amount, title=$title, isExpense=$isExpense, category=$category, isVerified=$isVerified")
+        val t = ZadTransaction(amount = amount.asMoney(), title = title, isExpense = isExpense, category = category, isVerified = isVerified)
         addTransaction(t)
     }
 

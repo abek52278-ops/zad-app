@@ -5,6 +5,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -141,6 +142,7 @@ fun PremiumTopBar(
  * balance + usage bar like a card's magnetic stripe) instead of the
  * circular gauge — replaces ZadBudgetGauge.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ZadCardHero(
     budget: Double,
@@ -151,9 +153,11 @@ fun ZadCardHero(
     // Task 26 — "متاح" (available) هو الرقم الأساسي دلوقتي، remaining بقى تفصيل ثانوي.
     // available == remaining لحد ما فيه التزامات مؤكدة (committed > 0)، فمفيش تغيير مرئي
     // لمستخدم لسه ما سجلش/أكدش أي التزام.
-    available: Double = remaining,
+    available: com.example.data.Figure = com.example.data.Figure(remaining, confident = true),
     committed: Double = 0.0,
-    nextObligationText: String? = null
+    nextObligationText: String? = null,
+    // Task 27.2 — طول الضغط على الرقم بيفتح شيت "آخر التغييرات" (zad_brain_runs.mutations)
+    onAvailableLongPress: () -> Unit = {}
 ) {
     val currencyContext = LocalContext.current
     val spentPct = if (budget > 0) (spent / budget * 100).toInt() else 0
@@ -213,11 +217,27 @@ fun ZadCardHero(
                 style = Typography.labelSmall,
                 color = Color.White.copy(alpha = 0.7f)
             )
+            // Task 27.1(a) — "≈" لو فيه معاملة مش متأكدة، تاب يشرح السبب. طول الضغط (27.2)
+            // يفتح شيت "آخر التغييرات" عن طريق onAvailableLongPress.
+            var showAvailableReason by remember { mutableStateOf(false) }
             Text(
-                com.example.data.CurrencyFormatter.formatNumber(currencyContext, available),
+                (if (!available.confident) "≈ " else "") +
+                    com.example.data.CurrencyFormatter.formatNumber(currencyContext, available.value),
                 style = Typography.displayLarge.copy(fontSize = 36.sp, letterSpacing = 1.5.sp),
-                color = if (available < 0) dangerColor else Color.White
+                color = if (available.value < 0) dangerColor else Color.White,
+                modifier = Modifier.combinedClickable(
+                    onClick = { if (!available.confident) showAvailableReason = true },
+                    onLongClick = onAvailableLongPress
+                )
             )
+            if (showAvailableReason && available.reason != null) {
+                AlertDialog(
+                    onDismissRequest = { showAvailableReason = false },
+                    confirmButton = { TextButton(onClick = { showAvailableReason = false }) { Text(stringResource(R.string.close_action)) } },
+                    title = { Text(stringResource(R.string.available_label) + " ≈") },
+                    text = { Text(available.reason!!) }
+                )
+            }
             // Task 26 — تفصيل "متبقي X · محجوز Y" تحت الرقم الأساسي. بيظهر بس لو فيه
             // التزامات فعلاً (committed > 0)، عشان مستخدم من غير التزامات مسجلة يشوف نفس
             // الشاشة القديمة بالظبط.

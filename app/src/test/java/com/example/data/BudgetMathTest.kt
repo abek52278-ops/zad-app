@@ -16,14 +16,16 @@ class BudgetMathTest {
         txnKind: String,
         wallet: String = "card",
         transferTo: String? = null,
-        createdAt: String? = null
+        createdAt: String? = null,
+        isVerified: Boolean = false
     ) = ZadTransaction(
         amount = amount,
         title = "test",
         txnKind = txnKind,
         wallet = wallet,
         transferTo = transferTo,
-        createdAt = createdAt
+        createdAt = createdAt,
+        isVerified = isVerified
     )
 
     @Test
@@ -242,5 +244,51 @@ class BudgetMathTest {
         // PRODUCT_PLAN Task 26 — "Hiding it behind a floor of zero is the single most
         // harmful thing this feature could do."
         assertEquals(-180.0, BudgetMath.availableInCycle(remaining = 120.0, committed = 300.0), 0.001)
+    }
+
+    // ── Task 27.1(a) — is_verified feeds the "available" Figure's confidence ──────────
+
+    @Test
+    fun `unverifiedCountInCycle is zero when every cycle transaction is verified`() {
+        val cycleStart = LocalDate.of(2026, 7, 1)
+        val cycleEnd = LocalDate.of(2026, 8, 1)
+        val txs = listOf(
+            tx(amount = 100.0, txnKind = "expense", createdAt = "2026-07-05", isVerified = true),
+            tx(amount = 1000.0, txnKind = "income", createdAt = "2026-07-01", isVerified = true)
+        )
+        assertEquals(0, BudgetMath.unverifiedCountInCycle(txs, cycleStart, cycleEnd))
+    }
+
+    @Test
+    fun `unverifiedCountInCycle counts unverified expense and income transactions inside the cycle`() {
+        val cycleStart = LocalDate.of(2026, 7, 1)
+        val cycleEnd = LocalDate.of(2026, 8, 1)
+        val txs = listOf(
+            tx(amount = 100.0, txnKind = "expense", createdAt = "2026-07-05", isVerified = false),
+            tx(amount = 1000.0, txnKind = "income", createdAt = "2026-07-10", isVerified = false),
+            tx(amount = 50.0, txnKind = "expense", createdAt = "2026-07-15", isVerified = true)
+        )
+        assertEquals(2, BudgetMath.unverifiedCountInCycle(txs, cycleStart, cycleEnd))
+    }
+
+    @Test
+    fun `unverifiedCountInCycle ignores unverified transactions outside the cycle window`() {
+        val cycleStart = LocalDate.of(2026, 7, 28)
+        val cycleEnd = LocalDate.of(2026, 8, 28)
+        val txs = listOf(
+            tx(amount = 100.0, txnKind = "expense", createdAt = "2026-07-20", isVerified = false), // قبل الدورة
+            tx(amount = 200.0, txnKind = "expense", createdAt = "2026-08-30", isVerified = false)  // بعد الدورة
+        )
+        assertEquals(0, BudgetMath.unverifiedCountInCycle(txs, cycleStart, cycleEnd))
+    }
+
+    @Test
+    fun `unverifiedCountInCycle ignores transfers even if unverified`() {
+        // ATM withdrawals/transfers aren't spend/income, so they shouldn't affect the
+        // available figure's confidence at all — same txnKind exclusion as spentInCycle.
+        val cycleStart = LocalDate.of(2026, 7, 1)
+        val cycleEnd = LocalDate.of(2026, 8, 1)
+        val txs = listOf(tx(amount = 500.0, txnKind = "transfer", transferTo = "cash", createdAt = "2026-07-05", isVerified = false))
+        assertEquals(0, BudgetMath.unverifiedCountInCycle(txs, cycleStart, cycleEnd))
     }
 }

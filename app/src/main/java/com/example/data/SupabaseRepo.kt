@@ -21,8 +21,13 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 private const val TAG = "SupabaseRepo"
 
@@ -775,6 +780,70 @@ object SupabaseRepo {
             result
         } catch (e: Exception) {
             Log.e(TAG, "getObligations() FAILED: ${e.message}")
+            emptyList()
+        }
+    }
+
+    // ─── Task 27.2 — "why did this number change" ────────────────────────────────
+    // zad_brain_runs.mutations already records every automated write (Task 16/18) with
+    // old/new values; this is the first client read of that table (was write-only from
+    // the Kotlin side before Task 27). No LLM call here — just reading history the
+    // server already wrote, same as any other GET.
+
+    @Serializable
+    private data class BrainRunRow(
+        @SerialName("started_at") val startedAt: String,
+        val trigger: String,
+        val mutations: List<JsonObject> = emptyList()
+    )
+
+    private fun jsonElementToDisplay(el: JsonElement): String {
+        val prim = el as? JsonPrimitive ?: return el.toString()
+        return prim.contentOrNull ?: prim.toString()
+    }
+
+    /** اسم عربي مفهوم بدل اسم الأداة التقني — بيغطي بس الأدوات اللي فعلاً بتظهر في mutations (executeTool في zad-brain) */
+    private fun toolLabel(tool: String): String = when (tool) {
+        "update_inventory_qty" -> "تعديل كمية مخزون"
+        "set_transaction_category" -> "تصنيف معاملة"
+        "merge_duplicate_expense" -> "دمج معاملة مكررة"
+        "reconcile_cash_balance" -> "تسوية الكاش"
+        "confirm_cycle_start" -> "تأكيد دورة الراتب"
+        "confirm_obligation" -> "تسجيل التزام"
+        else -> tool
+    }
+
+    data class BrainMutationEntry(
+        val toolLabel: String,
+        val old: String?,
+        val new: String?,
+        val trigger: String,
+        val at: String
+    )
+
+    suspend fun getRecentBrainMutations(limit: Int = 15): List<BrainMutationEntry> {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id ?: return emptyList()
+            val rows = client.postgrest["zad_brain_runs"]
+                .select(Columns.list("started_at", "trigger", "mutations")) {
+                    filter { eq("user_id", userId) }
+                    order("started_at", Order.DESCENDING)
+                    limit(20L)
+                }
+                .decodeList<BrainRunRow>()
+            rows.flatMap { row ->
+                row.mutations.map { m ->
+                    BrainMutationEntry(
+                        toolLabel = toolLabel(m["tool"]?.jsonPrimitive?.contentOrNull ?: "?"),
+                        old = m["old"]?.let { jsonElementToDisplay(it) },
+                        new = m["new"]?.let { jsonElementToDisplay(it) },
+                        trigger = row.trigger,
+                        at = row.startedAt
+                    )
+                }
+            }.take(limit)
+        } catch (e: Exception) {
+            Log.e(TAG, "getRecentBrainMutations() FAILED: ${e.message}")
             emptyList()
         }
     }

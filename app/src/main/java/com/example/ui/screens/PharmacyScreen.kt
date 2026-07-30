@@ -288,7 +288,8 @@ fun PharmacyScreen(
                             item = item,
                             daysUntilExpiry = daysUntilExpiry(item),
                             familyMemberName = familyMembers.find { it.id == item.familyMemberId }?.alias,
-                            onDelete = { viewModel.deletePharmacyItem(item.id) }
+                            onDelete = { viewModel.deletePharmacyItem(item.id) },
+                            onConfirmQuantity = { qty -> viewModel.confirmPharmacyQuantity(item.id, qty) }
                         )
                     }
                 }
@@ -589,8 +590,10 @@ private fun PharmacyItemGridCard(
     item: ZadPharmacyItem,
     daysUntilExpiry: Int?,
     familyMemberName: String?,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onConfirmQuantity: (Int) -> Unit
 ) {
+    var showConfirmDialog by remember { mutableStateOf(false) }
     val supplyDays = item.daysOfSupplyLeft()
     val isExpired = daysUntilExpiry != null && daysUntilExpiry < 0
     val isExpiringSoon = daysUntilExpiry != null && daysUntilExpiry in 0..30
@@ -634,6 +637,27 @@ private fun PharmacyItemGridCard(
                 style = Typography.labelSmall, color = statusColor, fontSize = 10.sp
             )
         }
+        // Task 27.1(b) — نفس فولباك PharmacyItemCard (list view): units_per_dose مش معروف
+        // فـ"أيام متبقية" رقم مخمّن مالوش معنى، أهون نقول "محتاجة تأكيد" قابلة للضغط بدل
+        // ما نسكت. الجريد كارت كان ناقصه ده (سيناريو 17.2.1 كان مغطى في list view بس).
+        if (!isExpired && supplyDays == null && !item.dosage.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Box(
+                modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(warningColor.copy(alpha = 0.14f))
+                    .clickable { showConfirmDialog = true }
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                Text("الكمية محتاجة تأكيد", style = Typography.labelSmall, color = warningColor, fontWeight = FontWeight.SemiBold, fontSize = 10.sp)
+            }
+        }
+    }
+
+    if (showConfirmDialog) {
+        ConfirmQuantityDialog(
+            item = item,
+            onDismiss = { showConfirmDialog = false },
+            onConfirm = { qty -> onConfirmQuantity(qty); showConfirmDialog = false }
+        )
     }
 }
 

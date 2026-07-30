@@ -82,6 +82,19 @@ object BudgetMath {
         return monthlyLimit - spentInCycle(transactions, cycleStart, cycleEnd) + incomeInCycle(transactions, cycleStart, cycleEnd)
     }
 
+    /**
+     * Task 27.1(a) — عدد معاملات الدورة الحالية (دخل/مصروف) اللي is_verified=false، أي
+     * معاملة مش مؤكدة بشرياً (رسالة بنك اتحللت آليًا ولسه ما اتراجعتش، أو مصدر تاني غير
+     * مباشر — انظر ZadViewModel.addTransaction overload لمين بيبقى isVerified=true). صفر
+     * يعني الرقم قاطع، أي رقم تاني يعني الـ Figure اللي بيتبني على الدالة دي confident=false.
+     */
+    fun unverifiedCountInCycle(transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate): Int =
+        transactions.count { tx ->
+            (tx.txnKind == "expense" || tx.txnKind == "income") &&
+                txDate(tx)?.let { d -> !d.isBefore(cycleStart) && d.isBefore(cycleEnd) } == true &&
+                !tx.isVerified
+        }
+
     /** budget * (daysElapsed/cycleLength) هو المتوقع صرفه لحد دلوقتي — النسبة دي أعلى من ١ يعني بيصرف أسرع من المفروض */
     fun velocityInCycle(monthlyLimit: Double, transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate, asOf: LocalDate = LocalDate.now()): Double {
         if (monthlyLimit <= 0.0) return 0.0

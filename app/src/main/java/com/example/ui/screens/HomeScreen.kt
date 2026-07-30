@@ -98,7 +98,7 @@ fun HomeScreen(
     val budget by viewModel.budget.collectAsState()
     val budgetConfirmed by viewModel.budgetConfirmed.collectAsState()
     val remainingBalance by viewModel.remainingBalance.collectAsState()
-    val available by viewModel.available.collectAsState()
+    val availableFigure by viewModel.availableFigure.collectAsState()
     val committed by viewModel.committed.collectAsState()
     val nextObligationDue by viewModel.nextObligationDue.collectAsState()
     val daysLeftInCycle by viewModel.daysLeftInCycle.collectAsState()
@@ -179,6 +179,7 @@ fun HomeScreen(
 
     var showAddTransactionDialog by remember { mutableStateOf(false) }
     var showAllTransactionsDialog by remember { mutableStateOf(false) }
+    var showWhySheet by remember { mutableStateOf(false) } // Task 27.2 — طول الضغط على "متاح"
     var selectedRecipeTitle by remember { mutableStateOf<String?>(null) }
     var showRecipeDialog by remember { mutableStateOf(false) }
     var showTasbihaReminder by remember { mutableStateOf(false) }
@@ -323,9 +324,10 @@ fun HomeScreen(
                             remaining = currentBudget,
                             daysLeft = daysLeft,
                             onDepositClick = { showAddTransactionDialog = true },
-                            available = available,
+                            available = availableFigure,
                             committed = committed,
-                            nextObligationText = nextObligationText
+                            nextObligationText = nextObligationText,
+                            onAvailableLongPress = { showWhySheet = true }
                         )
                     } else {
                         // Task 19.0 معيار قبول ٦ — سقف مش مؤكد، نسأل بدل ما نعرض رقم
@@ -648,10 +650,14 @@ fun HomeScreen(
             onDismiss = { showAddTransactionDialog = false },
             onSave = { amount, title, isExpense, category ->
                 Log.d(TAG_HOME, "AddTransactionDialog SAVE → amount=$amount, title=$title, isExpense=$isExpense, category=$category")
-                viewModel.addTransaction(amount, title, isExpense, category)
+                viewModel.addTransaction(amount, title, isExpense, category, isVerified = true)
                 showAddTransactionDialog = false
             }
         )
+    }
+
+    if (showWhySheet) {
+        com.example.ui.components.WhyChangedSheet(onDismiss = { showWhySheet = false })
     }
 
     if (showBudgetDialog) {
