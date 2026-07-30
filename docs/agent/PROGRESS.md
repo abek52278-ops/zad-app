@@ -574,7 +574,10 @@ Task 26's job").
 
 ## Task 27 — Visible confidence (`≈`) + "why did this change" (2026-07-30, staged scope)
 
-`PRODUCT_PLAN.md` Phase A, third of tasks 25-28. Research pass first (Explore agent)
+`PRODUCT_PLAN.md` **Phase C** (C2/C3 — mislabeled "Phase A" in this session's docs until
+caught while writing Phase A closure notes; tasks 25-28 span two different phases, not
+one — see the Task 28 entry below and `SESSION_2026_07_30_phaseA.md` for the correction).
+Research pass first (Explore agent)
 found the spec assumes infrastructure that doesn't exist yet: no cash-reconciliation
 timestamp anywhere, client never read `zad_consumption`'s `rate_known`/`sample_count`,
 bank-SMS raw text/timestamp computed by `SaBankParser` but discarded before reaching
@@ -645,10 +648,16 @@ long-press only applies to budget-card figures (no gesture collision there).
 
 ## Task 28 — Informative dismissal (2026-07-30)
 
-`PRODUCT_PLAN.md` Phase A, last of tasks 25-28 (28 comes before 27 in the doc's own
-logical order, but done last per the user's explicit 25→26→27→28 request — see
-Task 26's session-doc note). Replaces the single silent dismiss action with three
-reasoned ones.
+`PRODUCT_PLAN.md` **Phase C** (C1 — 28 is C1, ahead of C2/C3 in the doc's own phase
+table §3, done last here per the user's explicit 25→26→27→28 numeric request; see
+Task 26's and Task 27's entries above — **correction**: tasks 25-28 were mislabeled
+"Phase A" throughout this session's docs until caught while writing Phase A's actual
+closure notes. Real mapping: Task 25 = A2, Task 26 = A3 (Phase A), Task 27 = C2+C3,
+Task 28 = C1 (Phase C). Phase A itself is **not** closed by these four tasks — A1/A4/A5
+were already done in prior sessions, A2/A3 landed today, but **A6 (drop `RECEIVE_SMS`)
+is still open** and unaffected by anything in tasks 25-28. See
+`SESSION_2026_07_30_phaseA.md` for the full phase-status writeup.) Replaces the single
+silent dismiss action with three reasoned ones.
 
 - Migration `20260730140000_informative_dismissal.sql`: `zad_insights.dismiss_reason`
   (`not_relevant` | `wrong_data` | `timing`), nullable, CHECK-constrained.

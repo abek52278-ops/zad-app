@@ -43,23 +43,33 @@ The full plan lives in `docs/agent/`. Read `ZAD_MASTER.md` first — it is the s
 source of truth for architecture, settled decisions, and task numbering. Task numbers
 used in conversation (Task 9, Task 17.2, etc.) refer to that file.
 
-**Read `docs/agent/SESSION_2026_07_30_phaseA.md` before picking up any Task 25+ work** —
-it's the running status file for the current phase (PRODUCT_PLAN.md Phase A, tasks
-25-28; what's done, what's left, in what order, and a critical note on what's committed
-to git vs. actually deployed to Supabase). Update it (don't just append to PROGRESS.md)
-whenever a Task 25+ item lands, so a fresh session — this file is auto-loaded every
-time, no manual paste needed — starts already knowing where things stand instead of
-re-deriving it from commit history. `SESSION_2026_07_26_epic19.md` is archived (Epic
-1+4, tasks 19-24, closed); Epic 2 (`EPIC_2_ai_screen.md`) closed 2026-07-30.
+**Read `docs/agent/SESSION_2026_07_30_phaseA.md` before picking up any Task 25+ work,
+or any Phase A/C item** — it's the running status file for tasks 25-28 and for
+PRODUCT_PLAN.md's Phase A/C generally (what's done, what's left, in what order, and a
+critical note on what's committed to git vs. actually deployed to Supabase). **Tasks
+25-28 span two phases, not one** — despite the filename, Task 25/26 = Phase A (A2/A3),
+Task 27/28 = Phase C (C2+C3/C1); the file itself documents and corrects this mislabel.
+**Phase A is not closed**: A1/A2/A3/A4/A5 are done, but **A6 (drop `RECEIVE_SMS`,
+PRODUCT_PLAN.md §5's Play Store compliance risk) is still open** — verified live in
+`AndroidManifest.xml`/`UnifiedSmsReceiver.kt` as of 2026-07-30, not carried forward from
+an old note. Don't describe Phase A as done until A6 lands. Update the session file
+(don't just append to PROGRESS.md) whenever a Task 25+ item or Phase A/C item lands, so
+a fresh session — this file is auto-loaded every time, no manual paste needed — starts
+already knowing where things stand instead of re-deriving it from commit history.
+`SESSION_2026_07_26_epic19.md` is archived (Epic 1+4, tasks 19-24, closed); Epic 2
+(`EPIC_2_ai_screen.md`) closed 2026-07-30.
 
 - `docs/agent/ZAD_MASTER.md` — architecture, repo facts, settled decisions, tasks 1–14
 - `docs/agent/NEXT_visible_progress.md` — current task order (supersedes the order in
   ZAD_MASTER; task contents unchanged). **Incomplete as of 2026-07-25** — truncated
   mid TASK 17.3, tail was never received.
-- `docs/agent/PRODUCT_PLAN.md` — **the why and the order.** Phases A–D, tasks 25–28
-  (salary cycle, committed obligations/"available", visible confidence, informative
-  dismissal). Read this before picking up any task — it sets priority across all the
-  files below.
+- `docs/agent/PRODUCT_PLAN.md` — **the why and the order.** Phases A–D; §3's own table is
+  the authority on which task belongs to which phase — don't infer it from task numbers
+  or from other docs' labels (this file's own Phase A/B/C labeling was wrong for tasks
+  27-28 until 2026-07-30, see the correction above). Tasks 25/26 = Phase A (A2/A3,
+  salary cycle / committed obligations-"available"); tasks 27/28 = Phase C (C2+C3/C1,
+  visible confidence / informative dismissal). Read this before picking up any task — it
+  sets priority across all the files below.
 - `docs/agent/EPIC_1_4.md` — tasks 19–24 (cash ledger + ATM transfer bug, dedupe config,
   Egypt SMS, habit chips, inventory stagnation, consistency audit). Includes an explicit
   **rejected-proposals** section (knowledge graph, multi-agent endpoint split) — do not
