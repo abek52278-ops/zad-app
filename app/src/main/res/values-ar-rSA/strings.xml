@@ -692,6 +692,7 @@
     <string name="detected_subscription_title">زاد لاحظ اشتراك محتمل</string>
     <string name="detected_subscription_confirm">تأكيد الإضافة</string>
     <string name="detected_subscription_dismiss">مو اشتراك</string>
+    <string name="nav_subscriptions_installments">الاشتراكات والأقساط</string>
     <string name="no_items_in_category">ما فيه عناصر في هذا التصنيف</string>
     <string name="expired_days_ago">منتهي من %1$d يوم</string>
     <string name="disable">تعطيل</string>

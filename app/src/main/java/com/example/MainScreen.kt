@@ -199,10 +199,13 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
 
                 drawerScreens.forEach { screen ->
                     val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
+                    // Subscriptions هي نفسها الشاشة اللي فيها تبويبات فواتير/أقساط (SubscriptionsScreen)،
+                    // بس اسمها في القائمة الجانبية "اشتراكات" بس — مش واضح إن الأقساط موجودة هناك برضو.
+                    val drawerLabelRes = if (screen == Screen.Subscriptions) R.string.nav_subscriptions_installments else screen.titleRes
                     NavigationDrawerItem(
                         label = {
                             Text(
-                                stringResource(id = screen.titleRes),
+                                stringResource(id = drawerLabelRes),
                                 style = Typography.titleMedium.copy(fontSize = 15.sp),
                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
                             )

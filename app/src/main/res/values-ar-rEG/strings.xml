@@ -786,6 +786,7 @@
 
     <!-- Home Maintenance -->
     <string name="nav_maintenance">صيانة البيت</string>
+    <string name="nav_subscriptions_installments">الاشتراكات والأقساط</string>
     <string name="maintenance_title">صيانة البيت</string>
     <string name="total_appliances_label">الأجهزة</string>
     <string name="due_soon_label">صيانة قربت</string>

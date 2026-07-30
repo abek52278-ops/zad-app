@@ -697,6 +697,7 @@
     <string name="detected_subscription_title">Zad olası bir abonelik fark etti</string>
     <string name="detected_subscription_confirm">Eklemeyi onayla</string>
     <string name="detected_subscription_dismiss">Abonelik değil</string>
+    <string name="nav_subscriptions_installments">Abonelikler ve taksitler</string>
     <string name="no_items_in_category">Bu kategoride öğe yok</string>
     <string name="expired_days_ago">%1$d gün önce sona erdi</string>
     <string name="disable">Devre dışı bırak</string>
