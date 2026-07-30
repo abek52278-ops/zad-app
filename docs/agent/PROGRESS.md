@@ -452,3 +452,45 @@ screen, not a bug. No code change (this was already the screen's existing behavi
 recorded as a deliberate exception in `CLAUDE.md`'s standing rules so it doesn't get
 "fixed" by a future session without checking first. See `docs/agent/EPIC_2_ai_screen.md`
 for Epic 2's full closing summary.
+
+## Task 25 — Salary cycle replaces calendar month (2026-07-30, commit `cdd62d7`)
+
+`PRODUCT_PLAN.md` Phase A, first of tasks 25-28. Every budget calculation used calendar-
+month boundaries; households here live on salary cycles (25th/28th/last working day), so
+every warning fired at the wrong time for most users.
+
+- Migration `20260730120000_salary_cycle.sql`: `zad_users.cycle_start_day` (nullable —
+  null means calendar-month fallback, never defaulted to 1) + `cycle_anchor`
+  (`day_of_month`/`last_working_day`). **Not applied to the live DB this session** (no
+  Supabase CLI/MCP auth) — needs `supabase db push` or a dashboard apply.
+- Client: new `CycleMath.kt` (pure date-boundary math, market-aware weekend handling for
+  `last_working_day`) and `BudgetMath.spentInCycle/incomeInCycle/remainingInCycle/
+  velocityInCycle/dailyAllowanceInCycle` alongside the existing calendar-month functions
+  (kept, not replaced). `SupabaseRepo.getCycleSettings()` mirrors `getMonthlyLimit()`'s
+  pattern.
+- Server (`zad-brain`): `buildSnapshot` computes spent/remaining/velocity/threat/
+  byCategory over the cycle window instead of the calendar month. Detection: income
+  transactions clustered within ±3 days over the last 4 months → `cycle_detection` in
+  the snapshot. New `confirm_cycle_start` tool + `ask_user` integration, same
+  hard-validated dedupe_key pattern as Task 19.5's cash reconciliation.
+- **Installed a `deno` binary this session specifically to verify these changes** —
+  `deno check` and `deno test` both clean on the full `zad-brain` source (34/34 tests,
+  7 new), not just reviewed by eye. 12 new client tests (`CycleMathTest` + `BudgetMath`
+  cycle cases), 110 total, 0 failures.
+  `compileDebugKotlin`/`assembleDebug`/`testDebugUnitTest`/`lintDebug` all clean.
+
+**Deliberately not touched, disclosed not silently skipped:**
+- `zad_brain_self_review()`'s velocity-warning accuracy check still uses
+  `date_trunc('month', ...)` — historical warnings predate cycle tracking, no coherent
+  way to retroactively re-evaluate them against a cycle that didn't exist yet at the
+  time. Needs its own follow-up once `cycle_start_day` has been live long enough.
+- Server-side `last_working_day` is NOT market-aware (unlike the client) — treated
+  identically to `day_of_month` for now, since the server doesn't know the user's market.
+- No client UI wired to the cycle numbers yet (`HomeScreen` still shows calendar-month
+  figures) — that's Task 26's "available" card display.
+- The spec's "report old vs new daysLeft/velocity for three real users" impact check
+  needs live DB access this session doesn't have.
+
+**Blocking Task 26 and beyond until applied**: the migration above needs to be pushed to
+the live DB and `zad-brain` redeployed before any of this actually takes effect — right
+now it's all correct code sitting inert, the system still computes on calendar months.
