@@ -188,6 +188,29 @@ data class ZadSubscription(
     @SerialName("billing_cycle") val billingCycle: String? = "MONTHLY"
 )
 
+/**
+ * Task 26 (PRODUCT_PLAN.md) — التزامات ثابتة (إيجار/قسط/دين...) بتتحسب في "المتاح"
+ * (BudgetMath.availableInCycle) جنب الاشتراكات (zad_subscriptions، مش مكررة هنا).
+ * confirmed=false يعني اكتشاف تلقائي لسه محتاج تأكيد المستخدم — مايدخلش في "محجوز"
+ * قبل كده (نفس مبدأ zad-brain's confirm_obligation). مش مخزّنة في Room — نفس نمط
+ * ZadDebt (تُحمّل من Supabase مباشرة)، مفيش داعي لعمل Room migration لجدول بيتغير نادراً.
+ */
+@Serializable
+data class ZadObligation(
+    val id: String = UUID.randomUUID().toString(),
+    @SerialName("user_id") val userId: String? = null,
+    val title: String,
+    val amount: Double,
+    val kind: String, // rent | installment | debt | tuition | utility | other
+    @SerialName("due_day") val dueDay: Int? = null,
+    @SerialName("due_date") val dueDate: String? = null, // one-off obligations only
+    val recurrence: String = "monthly", // monthly | quarterly | yearly | once
+    @SerialName("auto_detected") val autoDetected: Boolean = false,
+    val confirmed: Boolean = false,
+    val active: Boolean = true,
+    @SerialName("created_at") val createdAt: String? = null
+)
+
 @Entity(tableName = "zad_pharmacy_items")
 @Serializable
 data class ZadPharmacyItem(

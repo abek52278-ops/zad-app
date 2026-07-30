@@ -494,3 +494,80 @@ every warning fired at the wrong time for most users.
 **Blocking Task 26 and beyond until applied**: the migration above needs to be pushed to
 the live DB and `zad-brain` redeployed before any of this actually takes effect — right
 now it's all correct code sitting inert, the system still computes on calendar months.
+
+## Task 26 — Committed obligations and the "available" number (2026-07-30)
+
+`PRODUCT_PLAN.md` Phase A, second of tasks 25-28. Also does the client-side cycle-number
+wiring Task 25 explicitly deferred ("No client UI wired to the cycle numbers yet — that's
+Task 26's job").
+
+- Migration `20260730130000_zad_obligations.sql`: `zad_obligations` table exactly per
+  spec (title/amount/kind/due_day/due_date/recurrence/auto_detected/confirmed/active),
+  RLS `auth.uid() = user_id` (same pattern as `zad_subscriptions`). **Not applied to the
+  live DB this session** — user said they'll run the migration and redeploy `zad-brain`
+  themselves this time.
+- Server (`zad-brain`): `buildSnapshot` now fetches `zad_obligations`, computes
+  `committed` (confirmed+active obligations due before `cycleEnd` + active subscriptions
+  due before it) and `available = remaining - committed` — **not floored at zero**, per
+  the spec's explicit warning that hiding a negative available is the most harmful thing
+  this feature could do. Auto-detection (`detectObligationCandidate`): expense
+  transactions clustered by (merchant, amount) across ≥3 distinct months in the last 4
+  months → one candidate per run (same "one ask per run" budget as everything else),
+  excluding anything already in `zad_obligations` or `zad_subscriptions` (no duplicate
+  subscription detection, per spec). New `confirm_obligation` tool + validator: model
+  only supplies `kind` (its one judgment call); title/amount/due_day come from the
+  snapshot's `obligation_detection`, not retyped by the model. Row is written
+  `confirmed=true` directly on confirmation — no separate silent pending-insert step
+  (a deliberate simplification from the spec's literal two-phase sketch, documented at
+  the `detectObligationCandidate`/`confirm_obligation` call sites: the dedupe-key +
+  dismissed-keys mechanism already prevents re-asking, so no DB row is needed before
+  confirmation to get that guarantee). `validateEmitInsight`'s critical-priority check
+  now reads `available` instead of `remaining` (falls back to `remaining` only if
+  `available` is absent, e.g. an old test snapshot) — matches the spec's "warnings cite
+  available, not remaining" instruction, also updated in the system prompt text.
+  `executeTool` picked up a `snap` parameter it didn't need before (only
+  `confirm_obligation` reads the snapshot at execution time).
+- Client: `ZadObligation` model added **without** a Room entity — mirrors the existing
+  `ZadDebt` precedent (`SupabaseRepo.getObligations()`, no local cache), not the
+  Room+DAO+migration path `ZadSubscription`/`ZadTransaction` use. Chose this deliberately
+  after checking Room's migration-validation risk: a hand-written `CREATE TABLE` for a
+  version bump can't be verified against Room's actual expected schema in this
+  environment (no instrumented-test/device access), and `zad_debts` already establishes
+  that not every Supabase table needs local caching. `BudgetMath` gained
+  `nextDueDate`/`committedInCycle`/`availableInCycle`, mirroring zad-brain's calculation
+  exactly (same quarterly/yearly simplification, documented at both call sites).
+  `ZadViewModel.recalculateRemainingBalance` now computes `spent`/`remaining` inside the
+  salary cycle (`CycleMath`, via new `loadCycleSettings()`) instead of the calendar month
+  — this is the Task 25 UI-wiring debt closing — plus `committed`/`available`/
+  `nextObligationDue`/`daysLeftInCycle`, recalculated whenever transactions, budget,
+  subscriptions, or obligations change.
+- UI: `ZadCardHero` (the Home screen's Visa-style budget card) now shows **available**
+  as the primary figure (colored `dangerColor` when negative, never hidden) with a
+  `متبقي X · محجوز Y (إيجار بعد ٤ أيام)`-style subtitle that only appears once
+  `committed > 0` — a user with no obligations registered sees the exact same card as
+  before. `BudgetScreen`'s header hero got the identical treatment. `daysLeft` on
+  `HomeScreen`'s card switched from a raw `Calendar` calendar-month calculation to
+  `viewModel.daysLeftInCycle`. 4 new string resources
+  (`available_label`/`available_breakdown`/`available_breakdown_with_next`/
+  `obligation_due_in_days`) added to all four locale files (`values`, `values-ar-rSA`,
+  `values-ar-rEG`, `values-tr`).
+- Verification: `deno check` + `deno test` clean on the full `zad-brain` source (42/42,
+  8 new). `compileDebugUnitTestKotlin`/`testDebugUnitTest` clean (118/118, 8 new in
+  `BudgetMathTest`). No Android SDK emulator in this container, so the new UI was not
+  visually screenshotted — verified by type-check + unit test only, not a real render.
+
+**Deliberately not built, disclosed not silently skipped:**
+- No manual "add/edit/delete obligation" screen — out of scope for this task (spec is
+  auto-detection + calculation + display); `SupabaseRepo.getObligations()` is read-only
+  from the client today, writes only happen server-side via `confirm_obligation`.
+- `next_obligation`'s "بعد ٤ أيام" phrasing only covers the single nearest confirmed
+  obligation — no UI list of all committed obligations yet (would be natural for a future
+  obligations-management screen, not requested here).
+- Quarterly/yearly obligations use the same due-day monthly-stepping approximation as
+  zad-brain (no `due_month` column in the schema) — auto-detection only ever produces
+  `monthly` rows in practice, so this path is exercised by unit tests but not by any real
+  detected data yet.
+- **Blocking this task's server-side effect until applied**: the migration needs
+  `supabase db push` (or dashboard apply) and `zad-brain` needs redeploying — the user
+  said they'd handle both this session. Until then `available` == `remaining` for every
+  real user (no `zad_obligations` rows exist), so the client change is inert but safe.

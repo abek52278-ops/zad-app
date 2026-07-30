@@ -98,6 +98,55 @@ object BudgetMath {
         return if (daysLeft > 0) available / daysLeft else available
     }
 
+    // ─── Task 26 — الالتزامات الثابتة ورقم "متاح" ───────────────────────────────
+    // نفس القاعدة اللي zad-brain (index.ts) بتحسبها سيرفر-سايد، متكررة هنا للعرض
+    // الفوري offline-first — لازم الاتنين يفضلوا متطابقين لو اتغيرت القاعدة في مكان.
+
+    /**
+     * الاستحقاق الجاي لالتزام — null لو 'once' فات معاده (افتراض إنه اتدفع)، أو due_day
+     * مش موجود لالتزام دوري. quarterly/yearly بيتعاملوا بخطوة ٣/١٢ شهر من due_day نفسه —
+     * تبسيط متعمد (نفس تعليق nextDueDate في zad-brain/index.ts)، الجدول مفيهوش due_month.
+     */
+    fun nextDueDate(obligation: ZadObligation, asOf: LocalDate = LocalDate.now()): LocalDate? {
+        if (obligation.recurrence == "once") {
+            val due = obligation.dueDate?.let { try { LocalDate.parse(it.take(10)) } catch (e: Exception) { null } } ?: return null
+            return if (due.isBefore(asOf)) null else due
+        }
+        val day = obligation.dueDay ?: return null
+        val stepMonths = when (obligation.recurrence) { "quarterly" -> 3L; "yearly" -> 12L; else -> 1L }
+        var next = LocalDate.of(asOf.year, asOf.month, day.coerceAtMost(asOf.lengthOfMonth()))
+        while (next.isBefore(asOf)) {
+            next = next.plusMonths(stepMonths)
+            next = next.withDayOfMonth(day.coerceAtMost(next.lengthOfMonth()))
+        }
+        return next
+    }
+
+    /** إجمالي المحجوز: التزامات مؤكدة+نشطة مستحقة قبل نهاية الدورة + اشتراكات نشطة كذلك */
+    fun committedInCycle(
+        obligations: List<ZadObligation>,
+        subscriptions: List<ZadSubscription>,
+        cycleEnd: LocalDate,
+        asOf: LocalDate = LocalDate.now()
+    ): Double {
+        val fromObligations = obligations
+            .filter { it.active && it.confirmed }
+            .sumOf { ob -> nextDueDate(ob, asOf)?.let { if (!it.isAfter(cycleEnd)) ob.amount else 0.0 } ?: 0.0 }
+        val fromSubscriptions = subscriptions
+            .filter { it.isActive && !it.renewalDate.isNullOrBlank() }
+            .sumOf { sub ->
+                val renewal = try { LocalDate.parse(sub.renewalDate!!.take(10)) } catch (e: Exception) { null }
+                if (renewal != null && !renewal.isAfter(cycleEnd)) sub.amount else 0.0
+            }
+        return fromObligations + fromSubscriptions
+    }
+
+    /**
+     * "متاح" — الرقم الأساسي اللي المفروض المستخدم يشوفه، مش "متبقي". ممكن يبقى سالب،
+     * وده مقصود (PRODUCT_PLAN Task 26): إخفاؤه وراء صفر أخطر حاجة ممكن الميزة دي تعملها.
+     */
+    fun availableInCycle(remaining: Double, committed: Double): Double = remaining - committed
+
     /**
      * Task 19.4 — فلوس الكاش تحت اليد. مطابق تماماً لمنطق zad_cash_balance() SQL (migration
      * 20260726060000): سحب ATM (transfer→cash) بيزود، صرف من الكاش (expense مع wallet=cash)

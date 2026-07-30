@@ -161,4 +161,86 @@ class BudgetMathTest {
         val allowance = BudgetMath.dailyAllowanceInCycle(1000.0, txs, cycleStart, cycleEnd, LocalDate.of(2026, 7, 1))
         assertEquals(100.0, allowance, 0.001)
     }
+
+    // ── Task 26 — الالتزامات الثابتة ورقم "متاح" ────────────────────────────────
+
+    private fun obligation(
+        amount: Double,
+        kind: String = "rent",
+        dueDay: Int? = null,
+        dueDate: String? = null,
+        recurrence: String = "monthly",
+        confirmed: Boolean = true,
+        active: Boolean = true
+    ) = ZadObligation(
+        title = "test", amount = amount, kind = kind, dueDay = dueDay, dueDate = dueDate,
+        recurrence = recurrence, confirmed = confirmed, active = active
+    )
+
+    private fun sub(amount: Double, renewalDate: String?, isActive: Boolean = true) = ZadSubscription(
+        title = "test", amount = amount, renewalDate = renewalDate, isActive = isActive
+    )
+
+    @Test
+    fun `nextDueDate for a monthly obligation rolls to next month once this month's day has passed`() {
+        val ob = obligation(amount = 100.0, dueDay = 5)
+        val next = BudgetMath.nextDueDate(ob, LocalDate.of(2026, 7, 10))
+        assertEquals(LocalDate.of(2026, 8, 5), next)
+    }
+
+    @Test
+    fun `nextDueDate for a monthly obligation stays this month if the day hasn't passed yet`() {
+        val ob = obligation(amount = 100.0, dueDay = 20)
+        val next = BudgetMath.nextDueDate(ob, LocalDate.of(2026, 7, 10))
+        assertEquals(LocalDate.of(2026, 7, 20), next)
+    }
+
+    @Test
+    fun `nextDueDate for a one-off obligation returns null once its due date has passed`() {
+        val ob = obligation(amount = 100.0, recurrence = "once", dueDate = "2026-07-01")
+        assertEquals(null, BudgetMath.nextDueDate(ob, LocalDate.of(2026, 7, 10)))
+    }
+
+    @Test
+    fun `nextDueDate for a one-off obligation returns the date while still upcoming`() {
+        val ob = obligation(amount = 100.0, recurrence = "once", dueDate = "2026-07-20")
+        assertEquals(LocalDate.of(2026, 7, 20), BudgetMath.nextDueDate(ob, LocalDate.of(2026, 7, 10)))
+    }
+
+    @Test
+    fun `committedInCycle ignores unconfirmed auto-detected obligations`() {
+        // PRODUCT_PLAN Task 26 — "an unconfirmed guess must never silently reduce a user's spending power"
+        val obligations = listOf(obligation(amount = 3500.0, dueDay = 5, confirmed = false))
+        val committed = BudgetMath.committedInCycle(
+            obligations, emptyList(), LocalDate.of(2026, 8, 10), LocalDate.of(2026, 7, 10)
+        )
+        assertEquals(0.0, committed, 0.001)
+    }
+
+    @Test
+    fun `committedInCycle sums confirmed obligations and active subscriptions due before cycle end`() {
+        val obligations = listOf(obligation(amount = 3500.0, dueDay = 5))
+        val subs = listOf(sub(amount = 150.0, renewalDate = "2026-07-25"))
+        val committed = BudgetMath.committedInCycle(
+            obligations, subs, LocalDate.of(2026, 8, 10), LocalDate.of(2026, 7, 10)
+        )
+        assertEquals(3650.0, committed, 0.001)
+    }
+
+    @Test
+    fun `committedInCycle excludes obligations and subscriptions due after cycle end`() {
+        val obligations = listOf(obligation(amount = 3500.0, dueDay = 28))
+        val subs = listOf(sub(amount = 150.0, renewalDate = "2026-09-01"))
+        val committed = BudgetMath.committedInCycle(
+            obligations, subs, LocalDate.of(2026, 7, 15), LocalDate.of(2026, 7, 10)
+        )
+        assertEquals(0.0, committed, 0.001)
+    }
+
+    @Test
+    fun `availableInCycle can go negative and is not floored at zero`() {
+        // PRODUCT_PLAN Task 26 — "Hiding it behind a floor of zero is the single most
+        // harmful thing this feature could do."
+        assertEquals(-180.0, BudgetMath.availableInCycle(remaining = 120.0, committed = 300.0), 0.001)
+    }
 }

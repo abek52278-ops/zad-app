@@ -16,6 +16,7 @@ import {
   validateAddShoppingItem,
   validateAskUser,
   validateConfirmCycleStart,
+  validateConfirmObligation,
   validateEmitInsight,
   validateReconcileCashBalance,
   validateRemember,
@@ -349,4 +350,74 @@ Deno.test("confirm_cycle_start rejects a second call in the same run", async () 
   ctx.counts["confirm_cycle_start"] = 1;
   const v = await validateConfirmCycleStart({ cycle_start_day: 28 }, cycleSnapshot, ctx);
   assertRejected(v);
+});
+
+// ── Task 26: committed obligations / "available" ────────────────────────────────
+
+const obligationSnapshot = {
+  ...healthySnapshot,
+  available: 1500,
+  obligation_detection: {
+    needs_ask: true, title: "مالك العقار", amount: 3500, due_day: 5,
+    dedupe_key: "obligation_confirm_abc123",
+  },
+};
+
+Deno.test("ask_user allows the obligation question with the exact snapshot key", async () => {
+  const v = await validateAskUser(
+    { title: "التزام", body: "٣٥٠٠ كل شهر لمالك العقار — إيجار؟", dedupe_key: "obligation_confirm_abc123", answer_type: "yes_no" },
+    obligationSnapshot, freshContext("u1"),
+  );
+  assertEquals(v.ok, true);
+});
+
+Deno.test("ask_user rejects an invented obligation_confirm key not matching the snapshot", async () => {
+  const v = await validateAskUser(
+    { title: "التزام", body: "٣٥٠٠ كل شهر — إيجار؟", dedupe_key: "obligation_confirm_madeup", answer_type: "yes_no" },
+    obligationSnapshot, freshContext("u1"),
+  );
+  assertRejected(v);
+  assertStringIncludes(v.reason, "متخترعش");
+});
+
+Deno.test("ask_user rejects obligation question once already asked/confirmed", async () => {
+  const snap = { ...obligationSnapshot, obligation_detection: { ...obligationSnapshot.obligation_detection, needs_ask: false } };
+  const v = await validateAskUser(
+    { title: "التزام", body: "٣٥٠٠ كل شهر — إيجار؟", dedupe_key: "obligation_confirm_abc123", answer_type: "yes_no" },
+    snap, freshContext("u1"),
+  );
+  assertRejected(v);
+});
+
+Deno.test("confirm_obligation rejects an invalid kind", async () => {
+  const v = await validateConfirmObligation({ kind: "vacation" }, obligationSnapshot, freshContext("u1"));
+  assertRejected(v);
+  assertStringIncludes(v.reason, "kind");
+});
+
+Deno.test("confirm_obligation rejects when nothing is pending detection in the snapshot", async () => {
+  const snap = { ...healthySnapshot, obligation_detection: { needs_ask: false, title: null, amount: null, due_day: null, dedupe_key: null } };
+  const v = await validateConfirmObligation({ kind: "rent" }, snap, freshContext("u1"));
+  assertRejected(v);
+});
+
+Deno.test("confirm_obligation allows a valid kind while detection is pending", async () => {
+  const v = await validateConfirmObligation({ kind: "rent" }, obligationSnapshot, freshContext("u1"));
+  assertEquals(v.ok, true);
+});
+
+Deno.test("confirm_obligation rejects a second call in the same run", async () => {
+  const ctx = freshContext("u1");
+  ctx.counts["confirm_obligation"] = 1;
+  const v = await validateConfirmObligation({ kind: "rent" }, obligationSnapshot, ctx);
+  assertRejected(v);
+});
+
+Deno.test("emit_insight allows critical priority when available is zero even if remaining is still positive", async () => {
+  const snap = { ...healthySnapshot, remaining: 500, available: 0 };
+  const v = await validateEmitInsight(
+    { title: "خطر!", body: "المتاح وصل لـ 0 جنيه", dedupe_key: "test_available_critical", priority: "critical", surface: "home_card" },
+    snap, freshContext("u1"),
+  );
+  assertEquals(v.ok, true);
 });

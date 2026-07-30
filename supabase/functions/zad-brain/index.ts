@@ -96,6 +96,90 @@ function cycleBoundaries(now: Date, cycleStartDay: number | null): { start: Date
   return { start, end };
 }
 
+// Task 26 (PRODUCT_PLAN.md) — dedupe_key محسوب هنا (مش من الموديل) نفس مبدأ isoWeekKey/
+// cycle_start_confirm_ فوق: مفتاح ثابت لكل (تاجر، مبلغ)، مش hash عشوائي، عشان upsert/رفض
+// يبقى idempotent. FNV-1a-ish بسيط، مش لأمان — بس عشان ascii ثابت من نص عربي حر.
+function hashKey(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+
+interface ObligationRow {
+  id: string; title: string; amount: number; kind: string;
+  due_day: number | null; due_date: string | null; recurrence: string;
+  confirmed: boolean; active: boolean;
+}
+
+/**
+ * الاستحقاق الجاي لالتزام — 'once' بيرجع due_date نفسه (لو فات، مش محسوب محجوز، افتراض
+ * إنه اتدفع فعلاً). monthly/quarterly/yearly بتتحسب من due_day مع تقديم للشهر الجاي لو
+ * فات، وبعدين خطوة الدورية (٣/١٢ شهر) لو لسه فات حتى بعد كده — تبسيط متعمد: مفيش
+ * due_month في الجدول، فـ quarterly/yearly بيتعاملوا كـ"كل ما يجيله الشهر ده تاني" مش
+ * ربع/سنة فلكية دقيقة. الحالة العملية الوحيدة اللي الاكتشاف التلقائي بينتجها هي monthly.
+ */
+function nextDueDate(ob: ObligationRow, now: Date): Date | null {
+  if (ob.recurrence === "once") {
+    if (!ob.due_date) return null;
+    const d = new Date(ob.due_date);
+    return d < now ? null : d;
+  }
+  if (ob.due_day == null) return null;
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  let next = new Date(now.getFullYear(), now.getMonth(), Math.min(ob.due_day, lastDay));
+  const stepMonths = ob.recurrence === "quarterly" ? 3 : ob.recurrence === "yearly" ? 12 : 1;
+  while (next < now) {
+    const y = next.getFullYear(), m = next.getMonth() + stepMonths;
+    const ld = new Date(y, m + 1, 0).getDate();
+    next = new Date(y, m, Math.min(ob.due_day, ld));
+  }
+  return next;
+}
+
+/**
+ * تجميع مصاريف بنفس (تاجر، مبلغ) على ٣ شهور مختلفة على الأقل خلال آخر ٤ شهور = مرشح
+ * التزام ثابت (إيجار/قسط). بيرجع أقوى مرشح واحد بس (نفس قيد "سؤال واحد في المرة" اللي
+ * validateAskUser بيفرضه أصلاً)، ومستبعد أي حاجة مسجلة كـ zad_obligations أو
+ * zad_subscriptions فعلاً — مش هيكرر التزام موجود ولا يبلّغ عن اشتراك.
+ */
+function detectObligationCandidate(
+  expenseTx: Array<{ title: string; merchant_name: string | null; amount: number; created_at: string }>,
+  existingObligations: ObligationRow[],
+  activeSubscriptions: Array<{ title: string; amount: number }>,
+  now: Date,
+): { title: string; amount: number; due_day: number; dedupe_key: string } | null {
+  const fourMonthsAgo = new Date(now.getTime() - 120 * 86400000);
+  const known = new Set([
+    ...existingObligations.map((o) => `${o.title}_${o.amount}`),
+    ...activeSubscriptions.map((s) => `${s.title}_${s.amount}`),
+  ]);
+  const groups = new Map<string, { title: string; amount: number; dates: Date[] }>();
+  for (const t of expenseTx) {
+    const merchant = (t.merchant_name ?? t.title ?? "").trim();
+    if (!merchant) continue;
+    const d = new Date(t.created_at);
+    if (d < fourMonthsAgo) continue;
+    const key = `${merchant}_${t.amount}`;
+    if (known.has(key)) continue;
+    if (!groups.has(key)) groups.set(key, { title: merchant, amount: t.amount, dates: [] });
+    groups.get(key)!.dates.push(d);
+  }
+  let best: { title: string; amount: number; dates: Date[] } | null = null;
+  for (const g of groups.values()) {
+    const distinctMonths = new Set(g.dates.map((d) => `${d.getFullYear()}_${d.getMonth()}`));
+    if (distinctMonths.size < 3) continue;
+    if (!best || g.dates.length > best.dates.length) best = g;
+  }
+  if (!best) return null;
+  const mostRecent = best.dates.reduce((a, b) => (b > a ? b : a));
+  return {
+    title: best.title,
+    amount: best.amount,
+    due_day: mostRecent.getDate(),
+    dedupe_key: `obligation_confirm_${hashKey(`${best.title}_${best.amount}`)}`,
+  };
+}
+
 /**
  * راتب متجمّع على يوم معين ± ٣ أيام على مدار آخر ٤ شهور = مرشح قوي لدورة راتب. بيرجع null
  * لو مفيش تجمّع واضح (أقل من نصف معاملات الدخل المرصودة، أو أقل من معاملتين) — بلا تخمين
@@ -120,7 +204,7 @@ function detectCycleStartDay(incomeTx: Array<{ created_at: string }>): number | 
 
 async function buildSnapshot(sb: SupabaseClient, userId: string) {
   const cashKey = isoWeekKey(new Date());
-  const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes, askedRes, selfMemRes, cashBalRes, cashAskedRes] =
+  const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes, askedRes, selfMemRes, cashBalRes, cashAskedRes, obligRes] =
     await Promise.all([
       sb.from("zad_users").select("monthly_limit,cycle_start_day,cycle_anchor").eq("id", userId).maybeSingle(),
       sb.from("zad_transactions").select("amount,title,category,is_expense,txn_kind,created_at,merchant_name")
@@ -154,6 +238,10 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
       // "already asked this exact week's key?" — one cheap query so the model doesn't burn
       // its one-question-per-run budget re-proposing an already-pending/answered ask.
       sb.from("zad_insights").select("id").eq("user_id", userId).eq("dedupe_key", cashKey).limit(1),
+      // Task 26 — committed obligations feeding "available". Fetches ALL rows (not just
+      // confirmed) so detectObligationCandidate can see already-known/pending ones too.
+      sb.from("zad_obligations").select("id,title,amount,kind,due_day,due_date,recurrence,confirmed,active")
+        .eq("user_id", userId).eq("active", true),
     ]);
 
   // Task 19.0 — zad_users.budget كان بيتنقّص بمعاملة معاملة، فبيتقرا هنا وبيتطرح منه
@@ -199,6 +287,38 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
         dedupe_key: dedupeKey,
       };
     }
+  }
+
+  // Task 26 — الالتزامات الثابتة ورقم "متاح". committed بيجمع التزامات مؤكدة+نشطة
+  // مستحقة قبل نهاية الدورة + اشتراكات نشطة كذلك. available ممكن يبقى سالب —
+  // مقصود، إخفاؤه وراء صفر هو بالظبط أخطر حاجة ممكن الميزة دي تعملها (PRODUCT_PLAN).
+  const obligationRows: ObligationRow[] = (obligRes.data ?? []) as ObligationRow[];
+  const obligationsCommitted = obligationRows
+    .filter((o) => o.confirmed)
+    .map((o) => ({ ...o, next_due: nextDueDate(o, now) }))
+    .filter((o): o is ObligationRow & { next_due: Date } => o.next_due !== null && o.next_due <= cycleEnd);
+  const subscriptionsCommitted = (subRes.data ?? [])
+    .filter((s) => s.renewal_date && new Date(s.renewal_date) <= cycleEnd);
+  const committed = obligationsCommitted.reduce((s, o) => s + o.amount, 0) +
+    subscriptionsCommitted.reduce((s, sub) => s + sub.amount, 0);
+  const available = remaining - committed;
+  const nextObligationDue = [...obligationsCommitted].sort((a, b) => a.next_due.getTime() - b.next_due.getTime())[0] ?? null;
+
+  // اكتشاف التزام جديد (إيجار/قسط) — مرشح واحد بس في المرة، نفس مبدأ cycle_detection فوق.
+  let obligationDetection: { needs_ask: boolean; title: string | null; amount: number | null; due_day: number | null; dedupe_key: string | null } = {
+    needs_ask: false, title: null, amount: null, due_day: null, dedupe_key: null,
+  };
+  const candidate = detectObligationCandidate(
+    transactions.filter((t) => t.txn_kind === "expense"),
+    obligationRows,
+    subRes.data ?? [],
+    now,
+  );
+  if (candidate) {
+    obligationDetection = {
+      needs_ask: !(dismissedRes.data ?? []).some((d: any) => d.dedupe_key === candidate.dedupe_key),
+      title: candidate.title, amount: candidate.amount, due_day: candidate.due_day, dedupe_key: candidate.dedupe_key,
+    };
   }
 
   const byCategory: Record<string, number> = {};
@@ -249,6 +369,18 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
   return {
     currency: "auto", // العملة الفعلية تتحدد من MarketPrefs على الجهاز، مش هنا
     budget, spent, remaining, dailyAllowanceLeft, velocity, threat,
+    // Task 26 — رقم "متاح" (available). كل تحذير/رؤية عن الميزانية لازم يبني على ده مش
+    // على remaining — remaining بيتجاهل الالتزامات الثابتة (إيجار/قسط/اشتراكات) القادمة
+    // قبل نهاية الدورة، فبيدي إحساس أمان كاذب.
+    available, committed,
+    obligations: obligationsCommitted.map((o) => ({
+      title: o.title, amount: o.amount, kind: o.kind, next_due: o.next_due.toISOString().slice(0, 10),
+    })),
+    next_obligation: nextObligationDue
+      ? { title: nextObligationDue.title, amount: nextObligationDue.amount, next_due: nextObligationDue.next_due.toISOString().slice(0, 10) }
+      : null,
+    // اكتشاف التزام جديد لسه محتاج تأكيد — انظر تعليمات confirm_obligation تحت.
+    obligation_detection: obligationDetection,
     // Task 25 — دورة الراتب. cycle_start_day=null يعني cycle_start/cycle_end دول حدود شهر
     // تقويمي عادي (fallback)، مش دورة راتب حقيقية بعد.
     cycle: {
@@ -292,7 +424,7 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
 // Tool execution — actual DB writes, only reached after validation passes
 // ═══════════════════════════════════════════════════════════
 
-async function executeTool(sb: SupabaseClient, userId: string, name: string, input: any, ctx: RunContext): Promise<string> {
+async function executeTool(sb: SupabaseClient, userId: string, name: string, input: any, snap: any, ctx: RunContext): Promise<string> {
   switch (name) {
     case "emit_insight": {
       const { error } = await sb.from("zad_insights").upsert({
@@ -423,6 +555,21 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       ctx.mutations.push({ tool: name, old: null, new: input.cycle_start_day });
       return `اتظبطت دورة الراتب على يوم ${input.cycle_start_day} — كل حساب "متبقي"/"متاح" هيبقى على أساسها من دلوقتي`;
     }
+    case "confirm_obligation": {
+      // Task 26 — title/amount مش جايين من الموديل، جايين من snap.obligation_detection
+      // نفسها (اتحققوا في validateConfirmObligation) عشان الموديل يفضل بس يصنّف kind،
+      // مش يعيد كتابة رقم/اسم ممكن يغلط فيه. الصف بيتسجل confirmed=true من الأول —
+      // مفيش صف pending وسيط، الاكتشاف والتأكيد بيحصلوا في نداء واحد.
+      const det = snap.obligation_detection;
+      const { error } = await sb.from("zad_obligations").insert({
+        user_id: userId, title: det.title, amount: det.amount, kind: input.kind,
+        due_day: det.due_day, recurrence: "monthly", auto_detected: true, confirmed: true, active: true,
+      });
+      if (error) return `فشل حفظ الالتزام: ${error.message}`;
+      ctx.mutationCount++;
+      ctx.mutations.push({ tool: name, old: null, new: { title: det.title, amount: det.amount, kind: input.kind } });
+      return `اتسجل الالتزام "${det.title}" (${det.amount}) كـ${input.kind} — هيتحسب في "المتاح" من دلوقتي`;
+    }
     default:
       return `أداة غير معروفة: ${name}`;
   }
@@ -432,7 +579,7 @@ async function runTool(sb: SupabaseClient, userId: string, name: string, input: 
   const v = await validateTool(name, input, snap, ctx);
   if (!v.ok) return `مرفوض: ${v.reason} — عدّل وحاول تاني.`;
   ctx.counts[name] = (ctx.counts[name] ?? 0) + 1;
-  return await executeTool(sb, userId, name, input, ctx);
+  return await executeTool(sb, userId, name, input, snap, ctx);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -572,6 +719,17 @@ const TOOLS: ToolDef[] = [
       required: ["cycle_start_day"],
     },
   },
+  {
+    name: "confirm_obligation",
+    description: "بعد ما العميل يأكد بـ(أيوة) على سؤال التزام ثابت (obligation_detection) — سجّل الالتزام (إيجار/قسط/دين...) عشان يتحسب في رقم \"متاح\".",
+    input_schema: {
+      type: "object",
+      properties: {
+        kind: { type: "string", enum: ["rent", "installment", "debt", "tuition", "utility", "other"], description: "صنّف الالتزام حسب اسم التاجر ونص السؤال" },
+      },
+      required: ["kind"],
+    },
+  },
 ];
 
 function buildSystemPrompt(snap: any): string {
@@ -583,6 +741,7 @@ function buildSystemPrompt(snap: any): string {
 - الميزانية بتتقترح بس، العميل هو اللي يأكد. مينفعش تغيرها مباشرة.
 - self_review جوه الـ snapshot هو حكمك انت على كلامك القديم — لو نمط معين طلع غلط ٣ مرات، سجله بـ remember() كدرس بدل ما تكرره.
 - كل حاجة تقولها في ردك النصي إنك عملتها لازم يكون فعلاً نداء أداة حقيقي في نفس الرد — مينفعش تقول "سجلت/عدّلت/ضفت" من غير ما تنادي الأداة المقابلة فعلاً.
+- أي تحذير أو رؤية عن الميزانية لازم يبني على available (رقم "متاح")، مش remaining — remaining بيتجاهل الالتزامات الثابتة القادمة (إيجار/قسط/اشتراكات)، available هو اللي بيحسبها.
 
 لما العميل يرد على سؤال:
 - الرد بيتسجل تلقائياً في النظام، متقلقش على الرقم نفسه.
@@ -617,6 +776,17 @@ remember مش للأرقام. للأنماط:
   ثابت لكل يوم مقترح)، ولو الاكتشاف اقترح يوم مختلف مرة جاية هيبقى مفتاح جديد فعلاً.
 - لو cycle_detection.suggested_day=null، معناها لسه مفيش تجمّع دخل واضح في بيانات العميل —
   متسألش خالص، متخترعش يوم.
+
+الالتزامات الثابتة (obligation_detection جوه الـ snapshot):
+- لو needs_ask=true، اسأل مرة واحدة بس عن طريق ask_user، answer_type="yes_no"، dedupe_key =
+  obligation_detection.dedupe_key بالظبط زي ما هو — متخترعش مفتاح تاني، واذكر
+  obligation_detection.title وobligation_detection.amount في نص السؤال، مثلاً: "بشوف
+  [amount] بتتدفع كل شهر لـ[title] — ده إيجار ولا قسط ولا حاجة تانية؟"
+- لو الرد جالك "أيوة" أو صنّف نوعه، نادِ confirm_obligation فوراً بـ kind المناسب من
+  (rent/installment/debt/tuition/utility/other) حسب اسم التاجر ونص الرد — الاسم والمبلغ
+  والتاريخ بياخدهم النظام من obligation_detection نفسها، انت بس بتصنّف النوع.
+- لو الرد "لأ"، متعملش حاجة — السؤال ده مش هيتكرر بنفس المفتاح.
+- لو obligation_detection.needs_ask=false أو title=null، متسألش خالص.
 
 === SNAPSHOT ===
 ${JSON.stringify(snap)}

@@ -294,6 +294,10 @@
 
     <!-- HomeScreen: hero card / quick stats / shortages summary (Phase 4 visual pass) -->
     <string name="monthly_budget_hero_label">Aylık bütçe</string>
+    <string name="available_label">Kullanılabilir</string>
+    <string name="available_breakdown">Kalan %1$s · Taahhüt edilen %2$s</string>
+    <string name="available_breakdown_with_next">Kalan %1$s · Taahhüt edilen %2$s (%3$s)</string>
+    <string name="obligation_due_in_days">%1$s, %2$d gün sonra</string>
     <string name="spent_label">Harcanan</string>
     <string name="days_label">Gün</string>
     <string name="budget_percent_used">Bütçenin %%%1$d\'si</string>

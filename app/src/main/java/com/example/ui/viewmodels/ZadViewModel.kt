@@ -119,6 +119,49 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val _suggestedBudget = MutableStateFlow<Double?>(null)
     val suggestedBudget: StateFlow<Double?> = _suggestedBudget.asStateFlow()
 
+    // ─── Task 26 — دورة الراتب (wiring مؤجل من Task 25) + الالتزامات الثابتة/"المتاح" ───
+    // cycleStartDay=null فبيرجع remainingBalance لنفس سلوك الشهر التقويمي القديم بالظبط
+    // لحد ما زاد-برين يكتشف ويأكد دورة راتب المستخدم (getCycleSettings من zad_users).
+    private var cycleStartDay: Int? = null
+    private var cycleAnchor: String = "day_of_month"
+
+    private val _obligations = MutableStateFlow<List<ZadObligation>>(emptyList())
+    val obligations: StateFlow<List<ZadObligation>> = _obligations.asStateFlow()
+
+    private val _committed = MutableStateFlow(0.0)
+    val committed: StateFlow<Double> = _committed.asStateFlow()
+
+    /** "متاح" — remaining ناقص الالتزامات المستحقة قبل نهاية الدورة. ممكن يبقى سالب، مقصود. */
+    private val _available = MutableStateFlow<Double>(3500.0)
+    val available: StateFlow<Double> = _available.asStateFlow()
+
+    /** أقرب التزام مؤكد مستحق جوه الدورة الحالية — null لو مفيش، للعرض ("محجوز ٣٠٠ (إيجار بعد ٤ أيام)") */
+    private val _nextObligationDue = MutableStateFlow<Pair<ZadObligation, LocalDate>?>(null)
+    val nextObligationDue: StateFlow<Pair<ZadObligation, LocalDate>?> = _nextObligationDue.asStateFlow()
+
+    /** أيام متبقية في الدورة الحالية — بديل حساب Calendar التقويمي القديم في HomeScreen (Task 26) */
+    private val _daysLeftInCycle = MutableStateFlow(30)
+    val daysLeftInCycle: StateFlow<Int> = _daysLeftInCycle.asStateFlow()
+
+    fun loadCycleSettings() {
+        viewModelScope.launch {
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return@launch
+            val (startDay, anchor) = SupabaseRepo.getCycleSettings(userId)
+            cycleStartDay = startDay
+            cycleAnchor = anchor
+            recalculateRemainingBalance(_transactions.value, _budget.value)
+            Log.d(TAG, "loadCycleSettings() → cycleStartDay=$startDay, cycleAnchor=$anchor")
+        }
+    }
+
+    fun loadObligations() {
+        viewModelScope.launch {
+            _obligations.value = SupabaseRepo.getObligations()
+            recalculateRemainingBalance(_transactions.value, _budget.value)
+            Log.d(TAG, "loadObligations() → count=${_obligations.value.size}")
+        }
+    }
+
     // Search query for inventory
     private val _inventorySearchQuery = MutableStateFlow("")
     val inventorySearchQuery: StateFlow<String> = _inventorySearchQuery.asStateFlow()
@@ -248,6 +291,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 _subscriptions.value = subs
                 analyzeSubscriptionUsage(subs)
                 recalculateBudgetSuggestion(_transactions.value, _budget.value)
+                recalculateRemainingBalance(_transactions.value, _budget.value) // committed يعتمد على subs
             }
         }
         viewModelScope.launch {
@@ -303,6 +347,8 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         loadUserProfile()
         loadAffiliateProducts()
         loadHabitChips()
+        loadCycleSettings()
+        loadObligations()
         // Task 20 — تحميل نافذة/تسامح الـ dedupe الخاصين ببلد المستخدم. بيكاش محلياً، فمسار
         // الخلفية (bank listener) بيلاقيه جاهز حتى لو التطبيق مقفول وقت وصول المعاملة.
         viewModelScope.launch {
@@ -1102,13 +1148,34 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      * BudgetTracker (كان بياخد الأقل بين الاتنين، يعني رصيد BudgetTracker المتراكم كان
      * ممكن يغلب الحساب الصح — بالظبط ثنائية المرجع اللي 19.0 جاي يقفلها). كل تغيير في
      * txs أو currentBudget بيعيد الحساب من الصفر، مش يعدّل قيمة قديمة.
+     *
+     * Task 26 — بقى بيحسب بحدود دورة الراتب (CycleMath) مش الشهر التقويمي (كان مؤجل من
+     * Task 25)، وبيضيف committed/available جنب remaining. cycleStartDay=null بيرجع
+     * CycleMath لحدود شهر تقويمي عادية — نفس سلوك قبل Task 26 بالظبط لحد ما الدورة تتأكد.
      */
     private fun recalculateRemainingBalance(txs: List<ZadTransaction>, currentBudget: Double) {
-        val spent = BudgetMath.spentThisMonth(txs)
+        val market = MarketPrefs.getMarket(getApplication())
+        val asOf = LocalDate.now()
+        val cycleStart = CycleMath.cycleStart(asOf, cycleStartDay, cycleAnchor, market)
+        val cycleEnd = CycleMath.cycleEnd(asOf, cycleStartDay, cycleAnchor, market)
+
+        val spent = BudgetMath.spentInCycle(txs, cycleStart, cycleEnd)
         _spentThisMonth.value = spent
-        _remainingBalance.value = BudgetMath.remaining(currentBudget, txs)
+        val remaining = BudgetMath.remainingInCycle(currentBudget, txs, cycleStart, cycleEnd)
+        _remainingBalance.value = remaining
         _cashOnHand.value = BudgetMath.cashOnHand(txs)
-        Log.d(TAG, "recalculateRemainingBalance → Budget: $currentBudget, Spent: $spent, Remaining: ${_remainingBalance.value}, Cash: ${_cashOnHand.value}")
+
+        val committed = BudgetMath.committedInCycle(_obligations.value, _subscriptions.value, cycleEnd, asOf)
+        _committed.value = committed
+        _available.value = BudgetMath.availableInCycle(remaining, committed)
+        _nextObligationDue.value = _obligations.value
+            .filter { it.active && it.confirmed }
+            .mapNotNull { ob -> BudgetMath.nextDueDate(ob, asOf)?.let { ob to it } }
+            .filter { !it.second.isAfter(cycleEnd) }
+            .minByOrNull { it.second.toEpochDay() }
+        _daysLeftInCycle.value = CycleMath.daysLeft(asOf, cycleEnd)
+
+        Log.d(TAG, "recalculateRemainingBalance → Budget: $currentBudget, Spent: $spent, Remaining: $remaining, Committed: $committed, Available: ${_available.value}, Cash: ${_cashOnHand.value}")
     }
 
     /** نسبة الجرعات اللي اتاخدت من إجمالي الجرعات المجدولة آخر 7 أيام — null لو مفيش بيانات كفاية */

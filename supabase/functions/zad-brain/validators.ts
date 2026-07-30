@@ -35,8 +35,11 @@ export const validateEmitInsight: Validator = (input, snap, ctx) => {
   if (snap.dismissed_keys?.includes(input.dedupe_key)) return { ok: false, reason: "العميل رفض ده قبل كده" };
   if (input.priority === "critical") {
     const overdueDose = (snap.upcoming ?? []).some((u: any) => u.type === "medication_low");
-    const outOfStock = (snap.remaining ?? 0) <= 0;
-    if (!overdueDose && !outOfStock) return { ok: false, reason: "مفيش في البيانات حاجة تبرر critical" };
+    // Task 26 — available (بعد خصم الالتزامات الثابتة) مش remaining، عشان "المتاح صفر أو
+    // سالب" هو التهديد الحقيقي حتى لو remaining لسه موجب. snap.available قد يبقى
+    // undefined في سنابشوت قديم/اختبار — يرجع remaining كـ fallback فقط في الحالة دي.
+    const outOfMoney = (snap.available ?? snap.remaining ?? 0) <= 0;
+    if (!overdueDose && !outOfMoney) return { ok: false, reason: "مفيش في البيانات حاجة تبرر critical" };
   }
   if (input.surface === "voice" && input.priority !== "critical") {
     return { ok: false, reason: "الصوت للحرج بس" };
@@ -87,6 +90,16 @@ export const validateAskUser: Validator = (input, snap, ctx) => {
       return { ok: false, reason: "السؤال ده اتسأل بالفعل أو دورة الراتب متسجلة أصلاً" };
     }
   }
+  // Task 26 — نفس المبدأ: dedupe_key محسوب في buildSnapshot (hashKey على تاجر+مبلغ)، مش
+  // من الموديل.
+  if ((input.dedupe_key ?? "").startsWith("obligation_confirm_")) {
+    if (input.dedupe_key !== snap.obligation_detection?.dedupe_key) {
+      return { ok: false, reason: "استخدم obligation_detection.dedupe_key من الـ snapshot بالظبط، متخترعش مفتاح تاني" };
+    }
+    if (snap.obligation_detection?.needs_ask === false) {
+      return { ok: false, reason: "السؤال ده اتسأل بالفعل أو الالتزام ده متسجل أصلاً" };
+    }
+  }
   return { ok: true };
 };
 
@@ -97,6 +110,19 @@ export const validateConfirmCycleStart: Validator = (input, snap, ctx) => {
   }
   if (input.cycle_start_day !== snap.cycle_detection?.suggested_day) {
     return { ok: false, reason: "استخدم cycle_detection.suggested_day من الـ snapshot بالظبط، متخترعش رقم تاني" };
+  }
+  return { ok: true };
+};
+
+const OBLIGATION_KINDS = ["rent", "installment", "debt", "tuition", "utility", "other"];
+
+export const validateConfirmObligation: Validator = (input, snap, ctx) => {
+  if ((ctx.counts["confirm_obligation"] ?? 0) >= 1) return { ok: false, reason: "تأكيد التزام واحد بس في المرة" };
+  if (!OBLIGATION_KINDS.includes(input.kind)) {
+    return { ok: false, reason: `kind لازم يكون واحد من: ${OBLIGATION_KINDS.join(", ")}` };
+  }
+  if (!snap.obligation_detection?.title || snap.obligation_detection?.needs_ask === false) {
+    return { ok: false, reason: "مفيش التزام مكتشف محتاج تأكيد دلوقتي في الـ snapshot" };
   }
   return { ok: true };
 };
@@ -174,6 +200,7 @@ export const VALIDATORS: Record<string, Validator> = {
   merge_duplicate_expense: () => ({ ok: true }),
   reconcile_cash_balance: validateReconcileCashBalance,
   confirm_cycle_start: validateConfirmCycleStart,
+  confirm_obligation: validateConfirmObligation,
 };
 
 /** بوابة الفحص العامة — الحدود المشتركة (mutation cap, 3-strikes abort) قبل ما توصل للـ validator المتخصص */
@@ -181,7 +208,7 @@ export async function validateTool(name: string, input: any, snap: any, ctx: Run
   if (ctx.abortedTools.has(name)) {
     return { ok: false, reason: "الأداة دي اتوقفت الجلسة دي بعد ٣ محاولات فاشلة" };
   }
-  if (ctx.mutationCount >= 5 && ["update_inventory_qty", "set_transaction_category", "merge_duplicate_expense", "reconcile_cash_balance", "confirm_cycle_start"].includes(name)) {
+  if (ctx.mutationCount >= 5 && ["update_inventory_qty", "set_transaction_category", "merge_duplicate_expense", "reconcile_cash_balance", "confirm_cycle_start", "confirm_obligation"].includes(name)) {
     return { ok: false, reason: "وصلت الحد الأقصى للتعديلات في الجلسة دي" };
   }
   const validator = VALIDATORS[name];

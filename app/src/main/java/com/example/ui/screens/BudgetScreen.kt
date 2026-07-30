@@ -56,6 +56,9 @@ fun BudgetScreen(
     val behaviorPatterns by viewModel.behaviorPatterns.collectAsState()
     val budget by viewModel.budget.collectAsState()
     val remainingBalance by viewModel.remainingBalance.collectAsState()
+    val available by viewModel.available.collectAsState()
+    val committed by viewModel.committed.collectAsState()
+    val nextObligationDue by viewModel.nextObligationDue.collectAsState()
     val showBudgetDialog by viewModel.showBudgetDialog.collectAsState()
     val suggestedBudget by viewModel.suggestedBudget.collectAsState()
     var showAddTransactionDialog by remember { mutableStateOf(false) }
@@ -85,7 +88,10 @@ fun BudgetScreen(
 
     val totalIncome = com.example.data.BudgetMath.totalIncome(transactions)
     val totalSpent = com.example.data.BudgetMath.totalExpense(transactions)
-    val currentBalance = remainingBalance
+    // Task 26 — "متاح" (available) بقى الرقم الأساسي، مش remainingBalance الخام —
+    // available بيخصم الالتزامات الثابتة المؤكدة (إيجار/قسط/اشتراكات) القادمة قبل نهاية
+    // الدورة. لمستخدم من غير التزامات مسجلة available == remainingBalance بالظبط.
+    val currentBalance = available
 
     // Animate balance changes
     val animatedBalance by animateFloatAsState(
@@ -159,9 +165,9 @@ fun BudgetScreen(
 
                         Spacer(modifier = Modifier.height(24.dp))
 
-                        // Balance display (animated)
+                        // Balance display (animated) — Task 26: "متاح" (available) بقى الأساسي
                         Text(
-                            stringResource(R.string.remaining_balance_label),
+                            stringResource(R.string.available_label),
                             style = Typography.labelMedium,
                             color = Color.White.copy(alpha = 0.75f),
                             modifier = Modifier.fillMaxWidth(),
@@ -172,10 +178,37 @@ fun BudgetScreen(
                             com.example.data.CurrencyFormatter.format(context, animatedBalance.toDouble()),
                             style = Typography.displayLarge.copy(fontSize = 40.sp),
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = if (currentBalance < 0) dangerColor else Color.White,
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = TextAlign.Center
                         )
+                        if (committed > 0) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            val nextText = nextObligationDue?.let { (ob, due) ->
+                                val days = java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), due).toInt()
+                                stringResource(R.string.obligation_due_in_days, ob.title, days)
+                            }
+                            Text(
+                                if (nextText != null) {
+                                    stringResource(
+                                        R.string.available_breakdown_with_next,
+                                        com.example.data.CurrencyFormatter.format(context, remainingBalance),
+                                        com.example.data.CurrencyFormatter.format(context, committed),
+                                        nextText
+                                    )
+                                } else {
+                                    stringResource(
+                                        R.string.available_breakdown,
+                                        com.example.data.CurrencyFormatter.format(context, remainingBalance),
+                                        com.example.data.CurrencyFormatter.format(context, committed)
+                                    )
+                                },
+                                style = Typography.labelSmall,
+                                color = Color.White.copy(alpha = 0.7f),
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center
+                            )
+                        }
 
                         Spacer(modifier = Modifier.height(24.dp))
 

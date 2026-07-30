@@ -147,7 +147,13 @@ fun ZadCardHero(
     spent: Double,
     remaining: Double,
     daysLeft: Int,
-    onDepositClick: () -> Unit
+    onDepositClick: () -> Unit,
+    // Task 26 — "متاح" (available) هو الرقم الأساسي دلوقتي، remaining بقى تفصيل ثانوي.
+    // available == remaining لحد ما فيه التزامات مؤكدة (committed > 0)، فمفيش تغيير مرئي
+    // لمستخدم لسه ما سجلش/أكدش أي التزام.
+    available: Double = remaining,
+    committed: Double = 0.0,
+    nextObligationText: String? = null
 ) {
     val currencyContext = LocalContext.current
     val spentPct = if (budget > 0) (spent / budget * 100).toInt() else 0
@@ -203,15 +209,39 @@ fun ZadCardHero(
             Spacer(modifier = Modifier.weight(1f))
 
             Text(
-                stringResource(R.string.monthly_budget_hero_label),
+                stringResource(R.string.available_label),
                 style = Typography.labelSmall,
                 color = Color.White.copy(alpha = 0.7f)
             )
             Text(
-                com.example.data.CurrencyFormatter.formatNumber(currencyContext, remaining),
+                com.example.data.CurrencyFormatter.formatNumber(currencyContext, available),
                 style = Typography.displayLarge.copy(fontSize = 36.sp, letterSpacing = 1.5.sp),
-                color = Color.White
+                color = if (available < 0) dangerColor else Color.White
             )
+            // Task 26 — تفصيل "متبقي X · محجوز Y" تحت الرقم الأساسي. بيظهر بس لو فيه
+            // التزامات فعلاً (committed > 0)، عشان مستخدم من غير التزامات مسجلة يشوف نفس
+            // الشاشة القديمة بالظبط.
+            if (committed > 0) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    if (nextObligationText != null) {
+                        stringResource(
+                            R.string.available_breakdown_with_next,
+                            com.example.data.CurrencyFormatter.format(currencyContext, remaining),
+                            com.example.data.CurrencyFormatter.format(currencyContext, committed),
+                            nextObligationText
+                        )
+                    } else {
+                        stringResource(
+                            R.string.available_breakdown,
+                            com.example.data.CurrencyFormatter.format(currencyContext, remaining),
+                            com.example.data.CurrencyFormatter.format(currencyContext, committed)
+                        )
+                    },
+                    style = Typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.65f)
+                )
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 

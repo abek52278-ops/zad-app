@@ -11,11 +11,13 @@
 بس Supabase (migrations + Edge Functions) مختلفة تماماً عن git: السيشن دي **مفيش
 عندها Supabase MCP auth ولا CLI access خالص** طول الوقت. يعني:
 
-- كل الـ migrations اللي اتكتبت النهارده (schema جديد) **مش مطبّقة على قاعدة
-  البيانات الحية** — لازم المستخدم يعمل `supabase db push` أو يطبّقها يدوي من
-  الداشبورد.
-- `zad-brain` فيه تعديلات جوهرية (Task 25: دورة الراتب) **مش منشورة** — لازم
-  redeploy.
+- كل الـ migrations اللي اتكتبت النهارده (schema جديد، شامل Task 25's `salary_cycle`
+  و Task 26's `zad_obligations`) **مش مطبّقة على قاعدة البيانات الحية** — لازم المستخدم
+  يعمل `supabase db push` أو يطبّقها يدوي من الداشبورد. المستخدم قال هيطبقها بنفسه بعد
+  Task 26 — لو جلسة جاية لقت `zad_obligations`/`cycle_start_day` موجودين فعلاً في
+  `list_tables`، ده معناه اتطبقوا، حدّث الملاحظة دي بدل ما تفترض.
+- `zad-brain` فيه تعديلات جوهرية (Task 25: دورة الراتب، Task 26: الالتزامات/committed/
+  available) **مش منشورة** — لازم redeploy (نفس ملاحظة الـ migrations فوق).
 - `zad-core-intelligence` **كان اتنشر** أثناء الجلسة (المستخدم أكّد بنفسه بعد ما
   طلبنا) — ده شامل تصحيح prompts الإيجار/الاشتراكات وأكشن nearby_pois الجديد.
   بس أي تعديل زاد-core-intelligence بعد كده (مفيش لسه) لازم إعادة نشر تانية.
@@ -55,19 +57,21 @@
 
 **Deliberately deferred من Task 25**: دقة `zad_brain_self_review()` التاريخية
 (مفيش طريقة صح تعيد تفسير تحذيرات قديمة بأثر رجعي على دورة متكانتش موجودة وقتها)،
-`last_working_day` سيرفر-سايد مش واعي بالسوق، UI الكلاينت لسه بيعرض أرقام الشهر
-التقويمي (مش الدورة) — ده جزء من Task 26.
+`last_working_day` سيرفر-سايد مش واعي بالسوق. UI الكلاينت اللي كان بيعرض أرقام الشهر
+التقويمي بدل الدورة — ده اتقفل في Task 26 تحت.
 
-## اللي فاضل — PRODUCT_PLAN.md Phase A (تاسكات 26-28)
+## Task 26 — الالتزامات الثابتة ورقم "متاح" (2026-07-30, كوميت لاحق لـ 3e35693)
 
-بالترتيب اللي الدوك نفسه بيحدده (كل تاسك لازم يخلص قبل اللي بعده منطقيًا،
-26 محتاج cycleEnd من 25):
+جدول `zad_obligations` (migration `20260730130000`) + zad-brain (`committed`/`available`
+في buildSnapshot، اكتشاف تلقائي + `confirm_obligation` tool، 42/42 deno tests) + كلاينت
+(`BudgetMath.committedInCycle/availableInCycle`، `ZadViewModel` بقى يحسب على الدورة مش
+الشهر التقويمي — ده كان دين Task 25 المؤجل — `ZadCardHero`/`BudgetScreen` بيعرضوا "متاح"
+كرقم أساسي). تفاصيل كاملة في `PROGRESS.md`. **مهم**: المستخدم قال هيطبق الـ migration
+وهيعمل redeploy لـ zad-brain بنفسه الجلسة دي — لو لقيت `zad_obligations` موجودة فعلاً
+في `list_tables`، متفترضش إن ده لسه معلق زي باقي الملاحظات في الملف ده، تأكد أول.
 
-- **Task 26 — الالتزامات الثابتة ورقم "متاح"** (لسه مبدأش): جدول `zad_obligations`
-  جديد (إيجار/قسط/دين/فاتورة)، حساب `available = remaining - committed` (المتاح ممكن
-  يبقى سالب، يتعرض سالب مش يتخبى وراء صفر)، اكتشاف تلقائي للالتزامات المتكررة
-  (٣ شهور نفس المبلغ/التاجر)، عرض على كارت الميزانية ("متاح: ١٢٠ / متبقي ٤٢٠ ·
-  محجوز ٣٠٠"). التفاصيل الكاملة في `PRODUCT_PLAN.md` TASK 26.
+## اللي فاضل — PRODUCT_PLAN.md Phase A (تاسكات 27-28)
+
 - **Task 27 — الثقة المرئية (`≈`) + "ليه الرقم اتغيّر؟"**: `Figure(value, confident,
   reason)` على `ZadFacts`، long-press على أي رقم يعرض `zad_brain_runs.mutations`.
 - **Task 28 — رفض بمعنى** (قبل 27 في ترتيب الدوك الأصلي، بس المستخدم طلب 25-28

@@ -755,6 +755,30 @@ object SupabaseRepo {
         }
     }
 
+    // ─── Obligations (Task 26) ──────────────────────────────────────────────────
+    // نفس نمط getDebts() — مش مخزّنة في Room، بتُحمّل من Supabase مباشرة. بس الصفوف
+    // confirmed=true بتدخل في committed/available (BudgetMath.availableInCycle) — صفوف
+    // auto_detected=false confirmed اتسجلت مباشرة برضو، confirmed=false لسه مستني تأكيد
+    // العميل عن طريق زاد-برين، فبيتقروا هنا بس مايتحسبوش في "محجوز".
+    suspend fun getObligations(): List<ZadObligation> {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id
+            Log.d(TAG, "getObligations() → userId=$userId, table=zad_obligations")
+            val result = if (userId != null) {
+                client.postgrest["zad_obligations"].select {
+                    filter { eq("user_id", userId); eq("active", true) }
+                }.decodeList<ZadObligation>()
+            } else {
+                client.postgrest["zad_obligations"].select().decodeList<ZadObligation>()
+            }
+            Log.d(TAG, "getObligations() → returned ${result.size} obligations")
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "getObligations() FAILED: ${e.message}")
+            emptyList()
+        }
+    }
+
     // ─── Family ─────────────────────────────────────────────────────────
     suspend fun createFamilyGroup(): FamilyGroup? {
         return try {

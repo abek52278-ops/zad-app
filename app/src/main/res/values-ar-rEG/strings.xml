@@ -294,6 +294,10 @@
 
     <!-- HomeScreen: hero card / quick stats / shortages summary (Phase 4 visual pass) -->
     <string name="monthly_budget_hero_label">الميزانية الشهرية</string>
+    <string name="available_label">متاح</string>
+    <string name="available_breakdown">متبقي %1$s · محجوز %2$s</string>
+    <string name="available_breakdown_with_next">متبقي %1$s · محجوز %2$s (%3$s)</string>
+    <string name="obligation_due_in_days">%1$s بعد %2$d يوم</string>
     <string name="spent_label">المصروف</string>
     <string name="days_label">الأيام</string>
     <string name="budget_percent_used">%1$d٪ من ميزانيتك</string>

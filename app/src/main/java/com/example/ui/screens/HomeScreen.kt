@@ -66,7 +66,6 @@ import com.example.ui.widgets.ZadVoiceFab
 import com.example.ui.widgets.AffiliateProductCard
 
 import com.example.ui.components.*
-import java.util.Calendar
 
 private const val TAG_HOME = "HomeScreen"
 
@@ -99,6 +98,10 @@ fun HomeScreen(
     val budget by viewModel.budget.collectAsState()
     val budgetConfirmed by viewModel.budgetConfirmed.collectAsState()
     val remainingBalance by viewModel.remainingBalance.collectAsState()
+    val available by viewModel.available.collectAsState()
+    val committed by viewModel.committed.collectAsState()
+    val nextObligationDue by viewModel.nextObligationDue.collectAsState()
+    val daysLeftInCycle by viewModel.daysLeftInCycle.collectAsState()
     val showBudgetDialog by viewModel.showBudgetDialog.collectAsState()
     val shoppingList by viewModel.shoppingList.collectAsState()
     val globalAvatarUri by viewModel.avatarUri.collectAsState()
@@ -304,10 +307,13 @@ fun HomeScreen(
                 }
 
                 // 1. Signature Visa-card style budget hero (orchestrated entrance: card, then circles, then stats, then banner)
-                val calendar = Calendar.getInstance()
-                val lastDay = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
-                val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
-                val daysLeft = lastDay - currentDay
+                // Task 26 — daysLeft بقى بحدود دورة الراتب (ZadViewModel.daysLeftInCycle)
+                // مش الشهر التقويمي كان مؤجل من Task 25.
+                val daysLeft = daysLeftInCycle
+                val nextObligationText = nextObligationDue?.let { (ob, due) ->
+                    val days = java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), due).toInt()
+                    stringResource(R.string.obligation_due_in_days, ob.title, days)
+                }
 
                 com.example.ui.components.AppearOnEntry {
                     if (budgetConfirmed) {
@@ -316,7 +322,10 @@ fun HomeScreen(
                             spent = totalSpent,
                             remaining = currentBudget,
                             daysLeft = daysLeft,
-                            onDepositClick = { showAddTransactionDialog = true }
+                            onDepositClick = { showAddTransactionDialog = true },
+                            available = available,
+                            committed = committed,
+                            nextObligationText = nextObligationText
                         )
                     } else {
                         // Task 19.0 معيار قبول ٦ — سقف مش مؤكد، نسأل بدل ما نعرض رقم
