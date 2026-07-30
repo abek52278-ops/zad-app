@@ -1261,6 +1261,32 @@ object SupabaseRepo {
     }
 
     @Serializable
+    private data class CycleSettingsRow(
+        @SerialName("cycle_start_day") val cycleStartDay: Int? = null,
+        @SerialName("cycle_anchor") val cycleAnchor: String = "day_of_month"
+    )
+
+    /**
+     * Task 25 — cycleStartDay=null معناها زاد-برين لسه ماكتشفش دورة راتب المستخدم (أو
+     * اكتشفها ومحتاجة تأكيد لسه، الأداة confirm_cycle_start في zad-brain هي اللي بتكتب هنا
+     * بعد التأكيد). الكلاينت بيرجع لشهر تقويمي عادي في الحالة دي — CycleMath نفسها بتعمل
+     * الـ fallback ده، مش لازم شرط هنا.
+     */
+    suspend fun getCycleSettings(userId: String): Pair<Int?, String> {
+        return try {
+            val row = client.postgrest["zad_users"]
+                .select(Columns.list("cycle_start_day", "cycle_anchor")) {
+                    filter { eq("id", userId) }
+                }
+                .decodeSingleOrNull<CycleSettingsRow>()
+            Pair(row?.cycleStartDay, row?.cycleAnchor ?: "day_of_month")
+        } catch (e: Exception) {
+            Log.e(TAG, "getCycleSettings() FAILED: ${e.message}")
+            Pair(null, "day_of_month")
+        }
+    }
+
+    @Serializable
     private data class LocaleConfigRow(
         @SerialName("dedupe_window_hours") val dedupeWindowHours: Int = 36,
         @SerialName("amount_tolerance_pct") val amountTolerancePct: Double = 5.0

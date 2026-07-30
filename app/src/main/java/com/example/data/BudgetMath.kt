@@ -64,6 +64,40 @@ object BudgetMath {
         return monthlyLimit - spentThisMonth(transactions, asOf) + incomeThisMonth(transactions, asOf)
     }
 
+    // ─── Task 25 — نفس الحسابات فوق، بس بحدود دورة الراتب (CycleMath) مش الشهر التقويمي ───
+    // الفرق الوحيد عن spentThisMonth/incomeThisMonth: النطاق [cycleStart, cycleEnd) بدل
+    // [أول الشهر, أول الشهر الجاي). لو cycleStartDay=null، CycleMath.cycleStart/cycleEnd
+    // نفسها بترجع حدود شهر تقويمي عادي — يعني الاستدعاء هنا آمن حتى قبل ما يتحدد للمستخدم.
+
+    fun spentInCycle(transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate): Double =
+        transactions.filter { it.txnKind == "expense" && txDate(it)?.let { d -> !d.isBefore(cycleStart) && d.isBefore(cycleEnd) } == true }
+            .sumOf { it.amount }
+
+    fun incomeInCycle(transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate): Double =
+        transactions.filter { it.txnKind == "income" && txDate(it)?.let { d -> !d.isBefore(cycleStart) && d.isBefore(cycleEnd) } == true }
+            .sumOf { it.amount }
+
+    fun remainingInCycle(monthlyLimit: Double, transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate): Double {
+        if (monthlyLimit <= 0.0) return 0.0
+        return monthlyLimit - spentInCycle(transactions, cycleStart, cycleEnd) + incomeInCycle(transactions, cycleStart, cycleEnd)
+    }
+
+    /** budget * (daysElapsed/cycleLength) هو المتوقع صرفه لحد دلوقتي — النسبة دي أعلى من ١ يعني بيصرف أسرع من المفروض */
+    fun velocityInCycle(monthlyLimit: Double, transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate, asOf: LocalDate = LocalDate.now()): Double {
+        if (monthlyLimit <= 0.0) return 0.0
+        val cycleLength = CycleMath.cycleLengthDays(cycleStart, cycleEnd).coerceAtLeast(1)
+        val daysElapsed = CycleMath.daysElapsed(asOf, cycleStart).coerceAtLeast(1)
+        val expected = monthlyLimit * daysElapsed / cycleLength
+        if (expected <= 0.0) return 0.0
+        return spentInCycle(transactions, cycleStart, cycleEnd) / expected
+    }
+
+    fun dailyAllowanceInCycle(monthlyLimit: Double, transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate, asOf: LocalDate = LocalDate.now()): Double {
+        val available = remainingInCycle(monthlyLimit, transactions, cycleStart, cycleEnd)
+        val daysLeft = CycleMath.daysLeft(asOf, cycleEnd)
+        return if (daysLeft > 0) available / daysLeft else available
+    }
+
     /**
      * Task 19.4 — فلوس الكاش تحت اليد. مطابق تماماً لمنطق zad_cash_balance() SQL (migration
      * 20260726060000): سحب ATM (transfer→cash) بيزود، صرف من الكاش (expense مع wallet=cash)

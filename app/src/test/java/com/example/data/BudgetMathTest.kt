@@ -2,6 +2,7 @@ package com.example.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.time.LocalDate
 
 /**
  * Task 19.4 — BudgetMath.cashOnHand يعكس منطق zad_cash_balance() (migration
@@ -14,13 +15,15 @@ class BudgetMathTest {
         amount: Double,
         txnKind: String,
         wallet: String = "card",
-        transferTo: String? = null
+        transferTo: String? = null,
+        createdAt: String? = null
     ) = ZadTransaction(
         amount = amount,
         title = "test",
         txnKind = txnKind,
         wallet = wallet,
-        transferTo = transferTo
+        transferTo = transferTo,
+        createdAt = createdAt
     )
 
     @Test
@@ -108,5 +111,54 @@ class BudgetMathTest {
     fun `totalIncome and totalExpense are zero with no transactions`() {
         assertEquals(0.0, BudgetMath.totalIncome(emptyList()), 0.001)
         assertEquals(0.0, BudgetMath.totalExpense(emptyList()), 0.001)
+    }
+
+    // Task 25 — نفس منطق spentThisMonth/incomeThisMonth بس بحدود دورة الراتب بدل الشهر
+    // التقويمي. cycleStart/cycleEnd هنا محسوبين يدوي (مش عن طريق CycleMath) عشان الاختبار
+    // يفحص BudgetMath وحدها، منفصل عن CycleMathTest اللي بيفحص حساب الحدود نفسه.
+
+    @Test
+    fun `spentInCycle only counts expenses inside the cycle window`() {
+        val cycleStart = LocalDate.of(2026, 7, 28)
+        val cycleEnd = LocalDate.of(2026, 8, 28)
+        val txs = listOf(
+            tx(amount = 100.0, txnKind = "expense", createdAt = "2026-07-27"), // قبل الدورة
+            tx(amount = 200.0, txnKind = "expense", createdAt = "2026-07-28"), // أول يوم فيها
+            tx(amount = 50.0, txnKind = "expense", createdAt = "2026-08-15"),  // جوه الدورة
+            tx(amount = 300.0, txnKind = "expense", createdAt = "2026-08-28")  // أول يوم الدورة الجاية، برّه
+        )
+        assertEquals(250.0, BudgetMath.spentInCycle(txs, cycleStart, cycleEnd), 0.001)
+    }
+
+    @Test
+    fun `remainingInCycle matches remaining when cycle equals a calendar month`() {
+        val cycleStart = LocalDate.of(2026, 7, 1)
+        val cycleEnd = LocalDate.of(2026, 8, 1)
+        val txs = listOf(
+            tx(amount = 1000.0, txnKind = "income", createdAt = "2026-07-05"),
+            tx(amount = 300.0, txnKind = "expense", createdAt = "2026-07-10")
+        )
+        assertEquals(BudgetMath.remaining(2000.0, txs, LocalDate.of(2026, 7, 15)),
+            BudgetMath.remainingInCycle(2000.0, txs, cycleStart, cycleEnd), 0.001)
+    }
+
+    @Test
+    fun `velocityInCycle above 1 means spending faster than the cycle allows`() {
+        // نص الدورة (يوم ١٥ من ٣٠) وصرف أوعى نص الميزانية بالظبط — ده متوقع، سرعة = ١
+        val cycleStart = LocalDate.of(2026, 7, 1)
+        val cycleEnd = LocalDate.of(2026, 7, 31)
+        val txs = listOf(tx(amount = 500.0, txnKind = "expense", createdAt = "2026-07-14"))
+        val velocity = BudgetMath.velocityInCycle(1000.0, txs, cycleStart, cycleEnd, LocalDate.of(2026, 7, 15))
+        assertEquals(1.0, velocity, 0.05)
+    }
+
+    @Test
+    fun `dailyAllowanceInCycle splits remaining across days left in the cycle`() {
+        val cycleStart = LocalDate.of(2026, 7, 1)
+        val cycleEnd = LocalDate.of(2026, 7, 11) // ١٠ أيام بالظبط
+        val txs = emptyList<ZadTransaction>()
+        // متبقي = ١٠٠٠ (مفيش صرف)، ١٠ أيام باقيين من يوم ١ — ١٠٠ في اليوم
+        val allowance = BudgetMath.dailyAllowanceInCycle(1000.0, txs, cycleStart, cycleEnd, LocalDate.of(2026, 7, 1))
+        assertEquals(100.0, allowance, 0.001)
     }
 }

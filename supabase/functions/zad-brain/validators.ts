@@ -77,6 +77,27 @@ export const validateAskUser: Validator = (input, snap, ctx) => {
       return { ok: false, reason: "سؤال الأسبوع ده اتسأل بالفعل" };
     }
   }
+  // Task 25 — نفس مبدأ cash_reconciliation فوق: dedupe_key محسوب في buildSnapshot، مش
+  // من الموديل، عشان مفيش مفتاح مخترع أو يوم مقترح مختلف عن اللي فعلاً في الـ snapshot.
+  if ((input.dedupe_key ?? "").startsWith("cycle_start_confirm_")) {
+    if (input.dedupe_key !== snap.cycle_detection?.dedupe_key) {
+      return { ok: false, reason: "استخدم cycle_detection.dedupe_key من الـ snapshot بالظبط، متخترعش مفتاح تاني" };
+    }
+    if (snap.cycle_detection?.needs_ask === false) {
+      return { ok: false, reason: "السؤال ده اتسأل بالفعل أو دورة الراتب متسجلة أصلاً" };
+    }
+  }
+  return { ok: true };
+};
+
+export const validateConfirmCycleStart: Validator = (input, snap, ctx) => {
+  if ((ctx.counts["confirm_cycle_start"] ?? 0) >= 1) return { ok: false, reason: "تأكيد واحد بس في المرة" };
+  if (typeof input.cycle_start_day !== "number" || input.cycle_start_day < 1 || input.cycle_start_day > 31) {
+    return { ok: false, reason: "cycle_start_day لازم يكون بين ١ و٣١" };
+  }
+  if (input.cycle_start_day !== snap.cycle_detection?.suggested_day) {
+    return { ok: false, reason: "استخدم cycle_detection.suggested_day من الـ snapshot بالظبط، متخترعش رقم تاني" };
+  }
   return { ok: true };
 };
 
@@ -152,6 +173,7 @@ export const VALIDATORS: Record<string, Validator> = {
   remember: validateRemember,
   merge_duplicate_expense: () => ({ ok: true }),
   reconcile_cash_balance: validateReconcileCashBalance,
+  confirm_cycle_start: validateConfirmCycleStart,
 };
 
 /** بوابة الفحص العامة — الحدود المشتركة (mutation cap, 3-strikes abort) قبل ما توصل للـ validator المتخصص */
@@ -159,7 +181,7 @@ export async function validateTool(name: string, input: any, snap: any, ctx: Run
   if (ctx.abortedTools.has(name)) {
     return { ok: false, reason: "الأداة دي اتوقفت الجلسة دي بعد ٣ محاولات فاشلة" };
   }
-  if (ctx.mutationCount >= 5 && ["update_inventory_qty", "set_transaction_category", "merge_duplicate_expense", "reconcile_cash_balance"].includes(name)) {
+  if (ctx.mutationCount >= 5 && ["update_inventory_qty", "set_transaction_category", "merge_duplicate_expense", "reconcile_cash_balance", "confirm_cycle_start"].includes(name)) {
     return { ok: false, reason: "وصلت الحد الأقصى للتعديلات في الجلسة دي" };
   }
   const validator = VALIDATORS[name];

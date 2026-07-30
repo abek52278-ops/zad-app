@@ -15,6 +15,7 @@ import {
   freshContext,
   validateAddShoppingItem,
   validateAskUser,
+  validateConfirmCycleStart,
   validateEmitInsight,
   validateReconcileCashBalance,
   validateRemember,
@@ -292,4 +293,60 @@ Deno.test("reconcile_cash_balance rejects a second call in the same run", async 
 Deno.test("reconcile_cash_balance allows a plain non-negative number", async () => {
   const v = await validateReconcileCashBalance({ reported_amount: 500 }, cashSnapshot, freshContext("u1"));
   assertEquals(v.ok, true);
+});
+
+// ── Task 25: salary cycle detection/confirmation ────────────────────────────────
+
+const cycleSnapshot = {
+  ...healthySnapshot,
+  cycle_detection: { needs_ask: true, suggested_day: 28, dedupe_key: "cycle_start_confirm_28" },
+};
+
+Deno.test("ask_user allows the cycle-start question with the exact snapshot key", async () => {
+  const v = await validateAskUser(
+    { title: "دورة الراتب", body: "راتبك بيجي يوم ٢٨؟", dedupe_key: "cycle_start_confirm_28", answer_type: "yes_no" },
+    cycleSnapshot, freshContext("u1"),
+  );
+  assertEquals(v.ok, true);
+});
+
+Deno.test("ask_user rejects an invented cycle_start_confirm key not matching the snapshot", async () => {
+  const v = await validateAskUser(
+    { title: "دورة الراتب", body: "راتبك بيجي يوم ١؟", dedupe_key: "cycle_start_confirm_1", answer_type: "yes_no" },
+    cycleSnapshot, freshContext("u1"),
+  );
+  assertRejected(v);
+  assertStringIncludes(v.reason, "متخترعش");
+});
+
+Deno.test("ask_user rejects cycle-start question once already confirmed/asked", async () => {
+  const snap = { ...cycleSnapshot, cycle_detection: { ...cycleSnapshot.cycle_detection, needs_ask: false } };
+  const v = await validateAskUser(
+    { title: "دورة الراتب", body: "راتبك بيجي يوم ٢٨؟", dedupe_key: "cycle_start_confirm_28", answer_type: "yes_no" },
+    snap, freshContext("u1"),
+  );
+  assertRejected(v);
+});
+
+Deno.test("confirm_cycle_start rejects a day that doesn't match the snapshot's suggested_day", async () => {
+  const v = await validateConfirmCycleStart({ cycle_start_day: 15 }, cycleSnapshot, freshContext("u1"));
+  assertRejected(v);
+  assertStringIncludes(v.reason, "متخترعش");
+});
+
+Deno.test("confirm_cycle_start rejects an out-of-range day", async () => {
+  const v = await validateConfirmCycleStart({ cycle_start_day: 45 }, cycleSnapshot, freshContext("u1"));
+  assertRejected(v);
+});
+
+Deno.test("confirm_cycle_start allows the exact suggested_day from the snapshot", async () => {
+  const v = await validateConfirmCycleStart({ cycle_start_day: 28 }, cycleSnapshot, freshContext("u1"));
+  assertEquals(v.ok, true);
+});
+
+Deno.test("confirm_cycle_start rejects a second call in the same run", async () => {
+  const ctx = freshContext("u1");
+  ctx.counts["confirm_cycle_start"] = 1;
+  const v = await validateConfirmCycleStart({ cycle_start_day: 28 }, cycleSnapshot, ctx);
+  assertRejected(v);
 });

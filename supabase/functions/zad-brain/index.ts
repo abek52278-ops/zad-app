@@ -71,11 +71,58 @@ function isoWeekKey(d: Date): string {
   return `cash_reconciliation_${date.getUTCFullYear()}_w${weekNo}`;
 }
 
+// Task 25 (PRODUCT_PLAN.md) — دورة الراتب بدل الشهر التقويمي. مرآة مبسّطة لـ CycleMath.kt
+// (الكلاينت): نفس منطق anchoredDay/cycleStart/cycleEnd، لكن **من غير last_working_day
+// الفعلي** — هنا بيتعامل مع cycle_anchor='last_working_day' زي day_of_month بالظبط
+// (تبسيط متعمّد، السيرفر مش عارف سوق/عطلة نهاية أسبوع المستخدم زي ما الكلاينت عارف عن
+// طريق MarketPrefs). موثّق كفجوة معروفة، مش سهو — انظر PROGRESS.md.
+function anchoredDate(year: number, monthIndex: number, day: number): Date {
+  const lastDay = new Date(year, monthIndex + 1, 0).getDate();
+  return new Date(year, monthIndex, Math.min(day, lastDay));
+}
+
+function cycleBoundaries(now: Date, cycleStartDay: number | null): { start: Date; end: Date } {
+  if (cycleStartDay === null) {
+    return {
+      start: new Date(now.getFullYear(), now.getMonth(), 1),
+      end: new Date(now.getFullYear(), now.getMonth() + 1, 1),
+    };
+  }
+  const thisMonthAnchor = anchoredDate(now.getFullYear(), now.getMonth(), cycleStartDay);
+  const start = now < thisMonthAnchor
+    ? anchoredDate(now.getFullYear(), now.getMonth() - 1, cycleStartDay)
+    : thisMonthAnchor;
+  const end = anchoredDate(start.getFullYear(), start.getMonth() + 1, cycleStartDay);
+  return { start, end };
+}
+
+/**
+ * راتب متجمّع على يوم معين ± ٣ أيام على مدار آخر ٤ شهور = مرشح قوي لدورة راتب. بيرجع null
+ * لو مفيش تجمّع واضح (أقل من نصف معاملات الدخل المرصودة، أو أقل من معاملتين) — بلا تخمين
+ * ضعيف. الاختيار هنا بسيط عمداً (mode-like clustering)، مش إحصاء متقدم — العميل بيأكد
+ * بنفسه قبل ما الرقم يتسجل، فمفيش داعي لدقة زايدة هنا.
+ */
+function detectCycleStartDay(incomeTx: Array<{ created_at: string }>): number | null {
+  if (incomeTx.length < 2) return null;
+  const days = incomeTx.map((t) => new Date(t.created_at).getDate());
+  let bestDay: number | null = null;
+  let bestCount = 0;
+  for (const candidate of days) {
+    const count = days.filter((d) => Math.abs(d - candidate) <= 3).length;
+    if (count > bestCount) {
+      bestCount = count;
+      bestDay = candidate;
+    }
+  }
+  if (bestDay === null || bestCount < 2 || bestCount < days.length / 2) return null;
+  return bestDay;
+}
+
 async function buildSnapshot(sb: SupabaseClient, userId: string) {
   const cashKey = isoWeekKey(new Date());
   const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes, askedRes, selfMemRes, cashBalRes, cashAskedRes] =
     await Promise.all([
-      sb.from("zad_users").select("monthly_limit").eq("id", userId).maybeSingle(),
+      sb.from("zad_users").select("monthly_limit,cycle_start_day,cycle_anchor").eq("id", userId).maybeSingle(),
       sb.from("zad_transactions").select("amount,title,category,is_expense,txn_kind,created_at,merchant_name")
         .eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
       sb.from("zad_inventory").select("item_name,category,quantity,unit,expiry_date,low_stock_threshold,created_at")
@@ -115,22 +162,47 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
   const budget = userRes.data?.monthly_limit ?? 0;
   const transactions = txRes.data ?? [];
   const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthTx = transactions.filter((t) => new Date(t.created_at) >= monthStart);
+
+  // Task 25 — دورة الراتب بدل الشهر التقويمي. cycle_start_day=null يرجّع cycleBoundaries
+  // نفسها لحدود شهر تقويمي عادي (نفس السلوك القديم بالظبط)، فمفيش تغيير سلوك لمستخدم
+  // لسه ما اتكشفلوش دورة راتب.
+  const cycleStartDay: number | null = userRes.data?.cycle_start_day ?? null;
+  const { start: cycleStart, end: cycleEnd } = cycleBoundaries(now, cycleStartDay);
+  const cycleTx = transactions.filter((t) => new Date(t.created_at) >= cycleStart && new Date(t.created_at) < cycleEnd);
   // Task 19.3 — txn_kind، مش is_expense. سحب ATM كان is_expense=true بس دلوقتي
   // txn_kind="transfer" بعد الـ backfill، فمينفعش يتحسب مصروف تاني (نفس بق 19.1).
-  const spent = monthTx.filter((t) => t.txn_kind === "expense").reduce((s, t) => s + t.amount, 0);
+  const spent = cycleTx.filter((t) => t.txn_kind === "expense").reduce((s, t) => s + t.amount, 0);
   const remaining = budget - spent;
 
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const dayOfMonth = now.getDate();
-  const daysLeftInMonth = daysInMonth - dayOfMonth;
-  const dailyAllowanceLeft = daysLeftInMonth > 0 ? remaining / daysLeftInMonth : remaining;
-  const velocity = budget > 0 ? spent / (budget * (dayOfMonth / daysInMonth)) : 0;
+  const cycleLengthDays = Math.round((cycleEnd.getTime() - cycleStart.getTime()) / 86400000);
+  const daysElapsedInCycle = Math.floor((now.getTime() - cycleStart.getTime()) / 86400000) + 1;
+  const daysLeftInCycle = Math.max(0, Math.round((cycleEnd.getTime() - now.getTime()) / 86400000));
+  const dailyAllowanceLeft = daysLeftInCycle > 0 ? remaining / daysLeftInCycle : remaining;
+  const velocity = budget > 0 ? spent / (budget * (daysElapsedInCycle / cycleLengthDays)) : 0;
   const threat = remaining < 0 ? "OVER" : velocity > 1.3 ? "DANGER" : velocity > 1.05 ? "WATCH" : "SAFE";
 
+  // لسه محتاج يتكتشف؟ بس لو مفيش cycle_start_day متسجل أصلاً — لو موجود بالفعل مفيش داعي
+  // نقترح تاني (حتى لو معاملات الدخل الحديثة بتقترح يوم مختلف شوية، ده حساسية عادية
+  // للراتب مش سبب كافي يعيد يسأل تاني).
+  let cycleDetection: { needs_ask: boolean; suggested_day: number | null; dedupe_key: string | null } = {
+    needs_ask: false, suggested_day: null, dedupe_key: null,
+  };
+  if (cycleStartDay === null) {
+    const fourMonthsAgo = new Date(now.getTime() - 120 * 86400000);
+    const incomeTx = transactions.filter((t) => t.txn_kind === "income" && new Date(t.created_at) >= fourMonthsAgo);
+    const suggested = detectCycleStartDay(incomeTx);
+    if (suggested !== null) {
+      const dedupeKey = `cycle_start_confirm_${suggested}`;
+      cycleDetection = {
+        needs_ask: !(dismissedRes.data ?? []).some((d: any) => d.dedupe_key === dedupeKey),
+        suggested_day: suggested,
+        dedupe_key: dedupeKey,
+      };
+    }
+  }
+
   const byCategory: Record<string, number> = {};
-  for (const t of monthTx) {
+  for (const t of cycleTx) {
     if (!t.is_expense) continue;
     byCategory[t.category ?? "أخرى"] = (byCategory[t.category ?? "أخرى"] ?? 0) + t.amount;
   }
@@ -176,7 +248,20 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
 
   return {
     currency: "auto", // العملة الفعلية تتحدد من MarketPrefs على الجهاز، مش هنا
-    budget, spent, remaining, daysLeftInMonth, dailyAllowanceLeft, velocity, threat,
+    budget, spent, remaining, dailyAllowanceLeft, velocity, threat,
+    // Task 25 — دورة الراتب. cycle_start_day=null يعني cycle_start/cycle_end دول حدود شهر
+    // تقويمي عادي (fallback)، مش دورة راتب حقيقية بعد.
+    cycle: {
+      start_day: cycleStartDay,
+      anchor: userRes.data?.cycle_anchor ?? "day_of_month",
+      cycle_start: cycleStart.toISOString().slice(0, 10),
+      cycle_end: cycleEnd.toISOString().slice(0, 10),
+      days_elapsed: daysElapsedInCycle,
+      days_left: daysLeftInCycle,
+    },
+    // اقتراح دورة راتب لسه محتاج تأكيد العميل — انظر تعليمات confirm_cycle_start تحت.
+    // suggested_day=null يعني مفيش تجمّع دخل واضح لسه (بيانات مش كفاية، أو دخل غير منتظم).
+    cycle_detection: cycleDetection,
     byCategory, stock, stock_unknown: stockUnknownNames, anomalies, upcoming,
     shopping_list_pending: (shopRes.data ?? []).map((s) => s.item_name),
     memory: (memRes.data ?? []).map((m) => ({ scope: m.scope, note: m.note, confidence: m.confidence })),
@@ -328,6 +413,16 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       ctx.mutations.push({ tool: name, old: current, new: input.reported_amount });
       return `اتسجل تصحيح ${Math.abs(delta).toFixed(2)} (${isIncrease ? "زيادة" : "نقصان"}) عشان الكاش يطابق كلام العميل`;
     }
+    case "confirm_cycle_start": {
+      // Task 25 — بعد ما العميل يأكد "أيوة" على سؤال cycle_start_confirm. cycle_anchor
+      // بيفضل 'day_of_month' (الافتراضي) دايماً هنا — الاكتشاف هنا بيقترح يوم بس، مش نوع
+      // anchor، وده مقصود يفضل بسيط (انظر تعليق cycleBoundaries فوق).
+      const { error } = await sb.from("zad_users").update({ cycle_start_day: input.cycle_start_day }).eq("id", userId);
+      if (error) return `فشل حفظ دورة الراتب: ${error.message}`;
+      ctx.mutationCount++;
+      ctx.mutations.push({ tool: name, old: null, new: input.cycle_start_day });
+      return `اتظبطت دورة الراتب على يوم ${input.cycle_start_day} — كل حساب "متبقي"/"متاح" هيبقى على أساسها من دلوقتي`;
+    }
     default:
       return `أداة غير معروفة: ${name}`;
   }
@@ -466,6 +561,17 @@ const TOOLS: ToolDef[] = [
       required: ["reported_amount"],
     },
   },
+  {
+    name: "confirm_cycle_start",
+    description: "بعد ما العميل يأكد بـ(أيوة) على سؤال دورة الراتب (cycle_start_confirm) — سجّل يوم بداية الدورة عشان كل حساب مالي يعتمد عليه بدل الشهر التقويمي.",
+    input_schema: {
+      type: "object",
+      properties: {
+        cycle_start_day: { type: "number", description: "لازم يكون بالظبط cycle_detection.suggested_day من الـ snapshot" },
+      },
+      required: ["cycle_start_day"],
+    },
+  },
 ];
 
 function buildSystemPrompt(snap: any): string {
@@ -498,6 +604,19 @@ remember مش للأرقام. للأنماط:
   "مش بيرد على أسئلة الكاش — اكتفي بالمجموع من السحب" (مرة واحدة بس، دور في memory الأول).
 - لو الرد على السؤال ده جالك (رقم)، نادِ reconcile_cash_balance فوراً بنفس الرقم — الأداة
   بتحسب الفرق مع cash_on_hand وتسجله تصحيح، مفيش تفصيل مطلوب منك ولا حساب يدوي.
+
+دورة الراتب (cycle_detection جوه الـ snapshot):
+- لو cycle_detection.needs_ask=true، اسأل مرة واحدة بس عن طريق ask_user، answer_type="yes_no"،
+  dedupe_key = cycle_detection.dedupe_key بالظبط زي ما هو — متخترعش مفتاح تاني، واذكر
+  cycle_detection.suggested_day (اليوم نفسه من الـ snapshot) في نص السؤال، مثلاً: "راتبك
+  بيجي حوالي يوم [suggested_day] من كل شهر — أظبط الشهر عندك على كده؟"
+- لو الرد جالك "أيوة"، نادِ confirm_cycle_start فوراً بـ cycle_start_day =
+  cycle_detection.suggested_day بالظبط — بعدها هتلاقي cycle.start_day في الـ snapshot
+  مبقاش null من الجري الجاي.
+- لو الرد "لأ"، متعملش حاجة تانية — السؤال مش هيتكرر بنفس المفتاح ده أصلاً (dedupe_key
+  ثابت لكل يوم مقترح)، ولو الاكتشاف اقترح يوم مختلف مرة جاية هيبقى مفتاح جديد فعلاً.
+- لو cycle_detection.suggested_day=null، معناها لسه مفيش تجمّع دخل واضح في بيانات العميل —
+  متسألش خالص، متخترعش يوم.
 
 === SNAPSHOT ===
 ${JSON.stringify(snap)}
