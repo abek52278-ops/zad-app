@@ -290,9 +290,16 @@ fun HomeScreen(
                                     Text(insight.title, style = Typography.labelLarge, fontWeight = FontWeight.Bold, color = onSurface)
                                     Text(insight.body, style = Typography.bodySmall, color = onSurfaceVariant, maxLines = 2)
                                 }
-                                IconButton(onClick = { viewModel.dismissInsight(insight.id) }, modifier = Modifier.size(28.dp)) {
+                                // Task 28 — "رفض بمعنى": بدل رفض صامت، ٣ خيارات بسبب فعلي
+                                var showDismissMenu by remember(insight.id) { mutableStateOf(false) }
+                                IconButton(onClick = { showDismissMenu = true }, modifier = Modifier.size(28.dp)) {
                                     Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp), tint = onSurfaceVariant)
                                 }
+                                com.example.ui.components.DismissReasonMenu(
+                                    expanded = showDismissMenu,
+                                    onDismissRequest = { showDismissMenu = false },
+                                    onReasonSelected = { reason -> viewModel.dismissInsightWithReason(insight, reason) }
+                                )
                             }
                         }
                     }

@@ -152,13 +152,21 @@ fun NotificationCenterScreen(
                             onDismiss = { viewModel.dismissInsight(alert.id) }
                         )
                     } else {
+                        // Task 28 — "رفض بمعنى": التاب على كارت التنبيه بيفتح خيارات الرفض
+                        // الثلاثة بدل ما يرفض صامت فورًا.
+                        var showDismissMenu by remember(alert.id) { mutableStateOf(false) }
                         NotificationCard(
                             title = alert.title,
                             message = alert.body,
                             icon = if (alert.priority == "critical") Icons.Default.Warning else Icons.Default.AutoAwesome,
                             color = if (alert.priority == "critical") dangerColor else primary,
                             isRead = false,
-                            onClick = { viewModel.dismissInsight(alert.id) }
+                            onClick = { showDismissMenu = true }
+                        )
+                        com.example.ui.components.DismissReasonMenu(
+                            expanded = showDismissMenu,
+                            onDismissRequest = { showDismissMenu = false },
+                            onReasonSelected = { reason -> viewModel.dismissInsightWithReason(alert, reason) }
                         )
                     }
                 }

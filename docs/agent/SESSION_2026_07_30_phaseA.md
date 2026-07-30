@@ -11,15 +11,17 @@
 بس Supabase (migrations + Edge Functions) مختلفة تماماً عن git: السيشن دي **مفيش
 عندها Supabase MCP auth ولا CLI access خالص** طول الوقت. يعني:
 
-- كل الـ migrations اللي اتكتبت النهارده (schema جديد، شامل Task 25's `salary_cycle`
-  و Task 26's `zad_obligations`) **مش مطبّقة على قاعدة البيانات الحية** — لازم المستخدم
-  يعمل `supabase db push` أو يطبّقها يدوي من الداشبورد. المستخدم قال هيطبقها بنفسه بعد
-  Task 26 — لو جلسة جاية لقت `zad_obligations`/`cycle_start_day` موجودين فعلاً في
-  `list_tables`، ده معناه اتطبقوا، حدّث الملاحظة دي بدل ما تفترض.
+- كل الـ migrations اللي اتكتبت النهارده (schema جديد، شامل Task 25's `salary_cycle`،
+  Task 26's `zad_obligations`، و Task 28's `dismiss_reason`) **مش مطبّقة على قاعدة
+  البيانات الحية** — لازم المستخدم يعمل `supabase db push` أو يطبّقها يدوي من
+  الداشبورد. المستخدم قال هيطبقها بنفسه — لو جلسة جاية لقت `zad_obligations`/
+  `cycle_start_day`/`dismiss_reason` موجودين فعلاً في `list_tables`، ده معناه اتطبقوا،
+  حدّث الملاحظة دي بدل ما تفترض.
 - `zad-brain` فيه تعديلات جوهرية (Task 25: دورة الراتب، Task 26: الالتزامات/committed/
-  available) **مش منشورة** — لازم redeploy (نفس ملاحظة الـ migrations فوق). **Task 27
-  مفيهاش أي migration أو تعديل zad-brain خالص** (كلاينت-سايد بالكامل + قراءة
-  `zad_brain_runs` الموجود أصلاً) — متضيفهاش لقايمة اللي محتاجة نشر.
+  available، Task 28: dismissed_keys بتستبعد timing + dismissal_reasons) **مش منشورة**
+  — لازم redeploy (نفس ملاحظة الـ migrations فوق). **Task 27 مفيهاش أي migration أو
+  تعديل zad-brain خالص** (كلاينت-سايد بالكامل + قراءة `zad_brain_runs` الموجود أصلاً)
+  — متضيفهاش لقايمة اللي محتاجة نشر.
 - `zad-core-intelligence` **كان اتنشر** أثناء الجلسة (المستخدم أكّد بنفسه بعد ما
   طلبنا) — ده شامل تصحيح prompts الإيجار/الاشتراكات وأكشن nearby_pois الجديد.
   بس أي تعديل زاد-core-intelligence بعد كده (مفيش لسه) لازم إعادة نشر تانية.
@@ -84,13 +86,27 @@
 `PROGRESS.md`، شامل اكتشاف إن `is_verified` كان ميت فعليًا (بس `SubscriptionAutoDeductWorker`
 بيحطه true) وإزاي اتصلح بمعنى حقيقي (تأكيد يدوي فعلي بس، مش صوت/كاميرا/چيب).
 
-## اللي فاضل — PRODUCT_PLAN.md Phase A (تاسك 28 + follow-up من Task 27)
+## Task 28 — رفض بمعنى (2026-07-30)
 
-- **Task 28 — رفض بمعنى**: استبدال "تجاهل" بـ٣ خيارات (مش مهم/الرقم غلط/عرفت خلاص)،
-  كل واحد بيسجل `zad_memory` بالسبب.
-- **مؤجل من Task 27**: 27.1(c) (محتاج قراءة `zad_consumption` من الكلاينت)، 27.1(d)
-  (محتاج عمود `reconciled_at` جديد — مفيش أصلاً)، ومثال "رسالة من CIB" الحرفي في 27.2
-  (محتاج تخزين نص SMS خام على `ZadTransaction` — قرار خصوصية اتسيب عمدًا مش مقرر لوحدي).
+استبدال زرار الرفض الوحيد بـ٣ خيارات (مش مهم=not_relevant/الرقم غلط=wrong_data/عرفت
+خلاص=timing). migration جديدة `20260730140000_informative_dismissal.sql`
+(`zad_insights.dismiss_reason`). zad-brain: `dismissed_keys` بتستبعد `timing` عمدًا
+(نفس dedupe_key يرجع pending تلقائي أول ما يتكتب تاني — مش block دائم)، `dismissal_reasons`
+جديدة في الـ snapshot. كلاينت: `DismissalMemory.noteFor()` (pure، مختبرة) +
+`SupabaseRepo.dismissInsightWithReason()` (بينادي `zad_memory_upsert` مباشرة، مش عن
+طريق العقل) + `DismissReasonMenu` (DropdownMenu) متوصلة في `HomeScreen` و
+`NotificationCenterScreen`. `ZadQuestionCard`'s dismiss (رفض سؤال، مش رؤية) اتسيب عمدًا
+زي ما هو — تفاصيل كاملة في `PROGRESS.md`. deno 42/42 (زي ما هي)، Android 127/127 (5 جداد).
+
+**مؤجل من Task 27** (لسه فاضل): 27.1(c) (محتاج قراءة `zad_consumption` من الكلاينت)،
+27.1(d) (محتاج عمود `reconciled_at` جديد — مفيش أصلاً)، ومثال "رسالة من CIB" الحرفي في
+27.2 (محتاج تخزين نص SMS خام على `ZadTransaction` — قرار خصوصية اتسيب عمدًا مش مقرر لوحدي).
+
+## اللي فاضل — PRODUCT_PLAN.md Phase A
+
+**تاسكات 25-28 كلها خلصت (كود).** فاضل بس: تطبيق الـ migrations + redeploy zad-brain
+(انظر "أهم حاجة" فوق)، والـ follow-ups المؤجلة من Task 27 فوق. Phase B مش مكتوبة في
+`PRODUCT_PLAN.md` لسه — لو الجلسة الجاية عايزة تكمل، اسأل الأول قبل ما تخترع تاسكات جديدة.
 
 **ملاحظة ترتيب من الدوك نفسه**: "Task 28 moved ahead of Task 27 deliberately" —
 الدوك بيفضّل 28 قبل 27 منطقيًا (قناة "الرقم غلط" أهم من عرض الثقة اللي بيعتمد

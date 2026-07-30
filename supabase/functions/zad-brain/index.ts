@@ -219,7 +219,7 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
       sb.from("zad_consumption").select("item_name,avg_daily_qty,rate_known").eq("user_id", userId),
       sb.from("zad_memory").select("scope,note,confidence,evidence_count")
         .eq("user_id", userId).order("confidence", { ascending: false }).limit(20),
-      sb.from("zad_insights").select("dedupe_key").eq("user_id", userId).eq("status", "dismissed"),
+      sb.from("zad_insights").select("dedupe_key,dismiss_reason").eq("user_id", userId).eq("status", "dismissed"),
       sb.rpc("zad_brain_self_review", { p_user: userId }),
       // Task 18 cooldown data. Deliberately NOT filtered by status: an answered ("acted")
       // question must still block a re-ask, which is the bug that made the brain re-ask
@@ -397,7 +397,17 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     byCategory, stock, stock_unknown: stockUnknownNames, anomalies, upcoming,
     shopping_list_pending: (shopRes.data ?? []).map((s) => s.item_name),
     memory: (memRes.data ?? []).map((m) => ({ scope: m.scope, note: m.note, confidence: m.confidence })),
-    dismissed_keys: (dismissedRes.data ?? []).map((d) => d.dedupe_key),
+    // Task 28 — "timing" (عرفت خلاص) دايماً مؤقت بالتصميم: مقصود متستبعدش من
+    // dismissed_keys، عشان upsert لاحق بنفس dedupe_key (مناسبة الشهر الجاي مثلاً) يرجّع
+    // الصف pending تلقائي بدل ما يفضل محظور للأبد زي not_relevant/wrong_data.
+    dismissed_keys: (dismissedRes.data ?? [])
+      .filter((d: any) => d.dismiss_reason !== "timing")
+      .map((d: any) => d.dedupe_key),
+    // نفس المصدر، بس بالسبب مرفق — عشان العقل يفرّق "مش مهتم بالفئة دي" عن "أرقامي غلط
+    // في الموضوع ده" (PRODUCT_PLAN Task 28).
+    dismissal_reasons: (dismissedRes.data ?? [])
+      .filter((d: any) => d.dismiss_reason)
+      .map((d: any) => ({ dedupe_key: d.dedupe_key, reason: d.dismiss_reason })),
     distinct_categories: [...new Set(transactions.map((t) => t.category).filter(Boolean))],
     // Task 18: items asked about in the last 72h (any status) and items whose rate is already
     // trusted — both are hard "don't ask again" signals enforced in validateAskUser.
@@ -742,6 +752,7 @@ function buildSystemPrompt(snap: any): string {
 - self_review جوه الـ snapshot هو حكمك انت على كلامك القديم — لو نمط معين طلع غلط ٣ مرات، سجله بـ remember() كدرس بدل ما تكرره.
 - كل حاجة تقولها في ردك النصي إنك عملتها لازم يكون فعلاً نداء أداة حقيقي في نفس الرد — مينفعش تقول "سجلت/عدّلت/ضفت" من غير ما تنادي الأداة المقابلة فعلاً.
 - أي تحذير أو رؤية عن الميزانية لازم يبني على available (رقم "متاح")، مش remaining — remaining بيتجاهل الالتزامات الثابتة القادمة (إيجار/قسط/اشتراكات)، available هو اللي بيحسبها.
+- dismissal_reasons جوه الـ snapshot بيقولك ليه العميل رفض حاجة قبل كده: wrong_data معناها الرقم/البيانات غلط فعلاً — لو شايف نفس الموضوع تاني، ماتفترضش إنه صح من غير سبب جديد. not_relevant معناها الموضوع مش مهم له، مش إن البيانات غلط — منفعش تتوقف عن رصد نفس النوع في مواضيع تانية بس عشان ده اتقفل.
 
 لما العميل يرد على سؤال:
 - الرد بيتسجل تلقائياً في النظام، متقلقش على الرقم نفسه.

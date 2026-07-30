@@ -108,6 +108,8 @@ data class ZadInsight(
     val body: String = "",
     @SerialName("dedupe_key") val dedupeKey: String? = null,
     val status: String = "pending", // pending | seen | acted | dismissed
+    // Task 28 — لماذا رُفضت: not_relevant (مش مهم) | wrong_data (الرقم غلط) | timing (عرفت خلاص)
+    @SerialName("dismiss_reason") val dismissReason: String? = null,
     @SerialName("action_type") val actionType: String? = null,
     @SerialName("about_item") val aboutItem: String? = null,
     @SerialName("created_at") val createdAt: String? = null,

@@ -841,6 +841,14 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Task 28 — "رفض بمعنى" لرؤى/تنبيهات (kind != "question"، دي لسه بتستخدم dismissInsight العادية) */
+    fun dismissInsightWithReason(insight: com.example.data.ZadInsight, reason: String) {
+        viewModelScope.launch {
+            SupabaseRepo.dismissInsightWithReason(insight, reason)
+            _zadInsights.value = _zadInsights.value.filterNot { it.id == insight.id }
+        }
+    }
+
     /**
      * Closes the loop the brain's own ask_user tool opens: zad-brain could already ask
      * "فاضل قد إيه من الدوا؟" (Task 17.2.4) but nothing in the app could answer it — the

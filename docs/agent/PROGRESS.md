@@ -642,3 +642,61 @@ long-press only applies to budget-card figures (no gesture collision there).
   left `isVerified=false` — a judgment call (system-suggested + one tap ≠ typed
   confirmation), not obviously wrong either way; flagging in case a future session
   wants to reconsider.
+
+## Task 28 — Informative dismissal (2026-07-30)
+
+`PRODUCT_PLAN.md` Phase A, last of tasks 25-28 (28 comes before 27 in the doc's own
+logical order, but done last per the user's explicit 25→26→27→28 request — see
+Task 26's session-doc note). Replaces the single silent dismiss action with three
+reasoned ones.
+
+- Migration `20260730140000_informative_dismissal.sql`: `zad_insights.dismiss_reason`
+  (`not_relevant` | `wrong_data` | `timing`), nullable, CHECK-constrained.
+- Server (`zad-brain` `buildSnapshot`): `dismissedRes` now also selects
+  `dismiss_reason`. `dismissed_keys` **excludes** rows with `reason='timing'** — this is
+  the mechanism behind "suppress this instance only, may recur later": the row stays
+  `status='dismissed'` in the DB (hidden from the client's pending list) but isn't a
+  permanent block, so a later `emit_insight` upsert with the same `dedupe_key` flips it
+  back to `pending` and the client sees it fresh again. `not_relevant`/`wrong_data` stay
+  in `dismissed_keys` forever, same as today's behavior. New `dismissal_reasons` array
+  (`{dedupe_key, reason}[]`) added to the snapshot alongside `dismissed_keys`, plus a
+  short system-prompt note telling the model `wrong_data` means don't assume the same
+  figure is right next time without new evidence, `not_relevant` doesn't mean the
+  category itself is untrustworthy.
+- Client: `ZadInsight.dismissReason` field. New pure function
+  `DismissalMemory.noteFor(reason, insight): Note?` (scope/note/confidence per reason —
+  `wrong_data` gets its own `data_quality` scope and the highest confidence of the
+  three, deliberately distinct from `not_relevant`/`timing` so the signal survives
+  rather than blending into generic dismissal noise per the spec's explicit "this
+  signal is being thrown away" complaint). `SupabaseRepo.dismissInsightWithReason()`
+  writes `status='dismissed'` + `dismiss_reason`, then calls `zad_memory_upsert`
+  directly (same RPC zad-brain's own `remember()` tool uses) — a deterministic
+  client-driven write, not an LLM decision, so it bypasses the brain entirely by
+  design. `ZadViewModel.dismissInsightWithReason()` added alongside (not replacing)
+  the existing `dismissInsight(id)`, which still backs `ZadQuestionCard`'s dismiss —
+  deliberately out of scope, see below.
+- UI: new `DismissReasonMenu` (`ui/components/DismissReasonMenu.kt`) — a 3-item
+  `DropdownMenu` (matching this app's existing dropdown convention, e.g.
+  `InventoryScreen.kt`'s unit/category pickers), "الرقم غلط" rendered in `dangerColor`
+  so the most valuable option doesn't visually blend in. Wired at both existing
+  insight-dismiss call sites: `HomeScreen`'s home-card insight row (was a bare `X`
+  `IconButton`) and `NotificationCenterScreen`'s brain-alert `NotificationCard` (was
+  `onClick` = instant dismiss with zero feedback).
+- Verification: `deno check`/`deno test` clean (42/42, unchanged — no validator logic
+  touched). `compileDebugUnitTestKotlin`/`testDebugUnitTest` clean, 127/127 (5 new in
+  `DismissalMemoryTest`).
+
+**Deliberately out of scope, disclosed not silently skipped:**
+- `ZadQuestionCard`'s dismiss (declining to answer a brain-asked question) was left on
+  the old plain `dismissInsight(id)` path — "مش مهم/الرقم غلط/عرفت خلاص" fit an
+  *informational* insight/alert being wrong or unwanted; declining to answer a direct
+  question is a different action with different semantics, and forcing it into the same
+  3-option frame would be a stretch, not a natural fit.
+- "flag the underlying data for review" (the spec's `wrong_data` effect) is implemented
+  as the `data_quality`-scoped memory note itself — the brain reads `memory` every run
+  already, so this note *is* the flag. No separate review queue/table was built; the
+  spec's own wording ("each writes a zad_memory note with the reason") supports this
+  being the whole mechanism, not an addition to it.
+- No UI surfaces `dismissal_reasons` or `data_quality`-scope memory notes back to the
+  user anywhere (e.g. no "you told us your budget was wrong 3 times" screen) — the spec
+  only requires the brain to see it, not the user.

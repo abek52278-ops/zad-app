@@ -1459,6 +1459,47 @@ object SupabaseRepo {
         }
     }
 
+    @Serializable
+    private data class MemoryUpsertParams(
+        @SerialName("p_user") val user: String,
+        @SerialName("p_scope") val scope: String,
+        @SerialName("p_note") val note: String,
+        @SerialName("p_conf") val conf: Double
+    )
+
+    /**
+     * Task 28 — "رفض بمعنى". status='dismissed' زي قبل كده، بس معاه dismiss_reason —
+     * not_relevant/wrong_data يدخلوا dismissed_keys الدائمة في buildSnapshot (زاد-برين)،
+     * timing يتستبعد منها عمداً فيرجع pending تاني أول ما نفس dedupe_key يتكتب تاني.
+     * الملاحظة في zad_memory نفس آلية remember() اللي زاد-برين بيستخدمها، بس هنا استدعاء
+     * مباشر لـ zad_memory_upsert — قرار حتمي من فعل مستخدم مباشر، مش قرار LLM.
+     */
+    suspend fun dismissInsightWithReason(insight: ZadInsight, reason: String) {
+        try {
+            client.postgrest["zad_insights"].update(
+                mapOf(
+                    "status" to "dismissed",
+                    "dismiss_reason" to reason,
+                    "updated_at" to java.time.Instant.now().toString()
+                )
+            ) { filter { eq("id", insight.id) } }
+        } catch (e: Exception) {
+            Log.e(TAG, "dismissInsightWithReason() status update FAILED: ${e.message}")
+        }
+        val userId = client.auth.currentUserOrNull()?.id ?: return
+        val note = DismissalMemory.noteFor(reason, insight) ?: return
+        try {
+            client.postgrest.rpc(
+                "zad_memory_upsert",
+                Json.encodeToJsonElement(
+                    MemoryUpsertParams(user = userId, scope = note.scope, note = note.note, conf = note.confidence)
+                ).jsonObject
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "dismissInsightWithReason() memory upsert FAILED: ${e.message}")
+        }
+    }
+
     // ── Tasbiha ──
 
     suspend fun getMyTasbiha(): TasbihaTree? {
