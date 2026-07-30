@@ -716,6 +716,9 @@
     <string name="installments_category">أقساط</string>
     <string name="active_subs_count_label">اشتراكات نشطة</string>
     <string name="ai_detecting_subscriptions">زاد يبحث عن اشتراكاتك من المعاملات المالية...</string>
+    <string name="detected_subscription_title">زاد لاحظ اشتراك محتمل</string>
+    <string name="detected_subscription_confirm">تأكيد الإضافة</string>
+    <string name="detected_subscription_dismiss">مش اشتراك</string>
     <string name="no_items_in_category">لا توجد عناصر في هذا التصنيف</string>
     <string name="expired_days_ago">منتهي منذ %1$d يوم</string>
     <string name="disable">تعطيل</string>

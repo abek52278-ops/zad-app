@@ -694,6 +694,9 @@
     <string name="installments_category">أقساط</string>
     <string name="active_subs_count_label">اشتراكات شغالة</string>
     <string name="ai_detecting_subscriptions">زاد بيدوّر على اشتراكاتك من المعاملات المالية...</string>
+    <string name="detected_subscription_title">زاد لاحظ اشتراك محتمل</string>
+    <string name="detected_subscription_confirm">تأكيد الإضافة</string>
+    <string name="detected_subscription_dismiss">مش اشتراك</string>
     <string name="no_items_in_category">مفيش عناصر في التصنيف ده</string>
     <string name="expired_days_ago">خلص من %1$d يوم</string>
     <string name="disable">توقيف</string>

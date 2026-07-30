@@ -44,6 +44,7 @@ fun SubscriptionsScreen(
     onOpenDrawer: () -> Unit = {}
 ) {
     val subscriptions by viewModel.subscriptions.collectAsState()
+    val pendingSubscriptions by viewModel.pendingSubscriptions.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
     var showInactive by remember { mutableStateOf(false) }
@@ -168,6 +169,17 @@ fun SubscriptionsScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(stringResource(R.string.ai_detecting_subscriptions), style = Typography.bodySmall, color = primary)
                     }
+                }
+            }
+
+            // اشتراكات اكتشفها الذكاء الاصطناعي، لسه محتاجة تأكيد المستخدم قبل ما تتسجل (AUDIT.md)
+            if (pendingSubscriptions.isNotEmpty()) {
+                Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    com.example.ui.components.DetectedSubscriptionsSection(
+                        pending = pendingSubscriptions,
+                        onConfirm = { viewModel.confirmDetectedSubscription(it) },
+                        onDismiss = { viewModel.dismissDetectedSubscription(it) }
+                    )
                 }
             }
 

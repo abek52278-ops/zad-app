@@ -313,3 +313,19 @@ not the same OOM-under-load constraint as prior sessions. Installed cmdline-tool
 memory pressure this time: `compileDebugKotlin` BUILD SUCCESSFUL, `assembleDebug` BUILD
 SUCCESSFUL, `testDebugUnitTest` 94 tests / 0 failures / 3 skipped. **Task 29.1 is now
 actually DONE**, not just code-complete.
+
+## `detectSubscriptions()` auto-write fix — DONE (2026-07-30)
+
+`AUDIT.md`'s highest-severity finding: opening `ZadIntelligenceScreen` or
+`SubscriptionsScreen` silently wrote new subscription rows for any AI detection above
+`confidence > 0.8`, no user confirmation. `ZadViewModel.detectSubscriptions()` now
+populates a new `pendingSubscriptions` StateFlow instead of calling `addSubscription()`
+directly; a new shared `DetectedSubscriptionsSection` composable
+(`ui/components/PendingSubscriptionsCard.kt`) renders each pending detection with
+confirm/dismiss buttons in both screens that trigger detection. Confirm calls the
+existing `addSubscription()` write path; dismiss clears it with no write and blocks that
+name from re-prompting for the rest of the app session (in-memory only, not persisted —
+kept deliberately minimal for this fix's scope). New strings in all 4 locale files.
+`compileDebugKotlin`/`assembleDebug`/`testDebugUnitTest` (94/94)/`lintDebug` all green —
+first clean `lintDebug` run this epic, prior sessions couldn't complete it under memory
+pressure. See `docs/agent/EPIC_2_ai_screen.md` for the full writeup.

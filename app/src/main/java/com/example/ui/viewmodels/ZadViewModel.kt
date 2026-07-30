@@ -51,6 +51,11 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val _subscriptions = MutableStateFlow<List<ZadSubscription>>(emptyList())
     val subscriptions: StateFlow<List<ZadSubscription>> = _subscriptions.asStateFlow()
 
+    // اشتراكات اكتشفها الذكاء الاصطناعي ومحتاجة تأكيد المستخدم قبل ما تتسجل — لا كتابة صامتة
+    private val _pendingSubscriptions = MutableStateFlow<List<DetectedSubscription>>(emptyList())
+    val pendingSubscriptions: StateFlow<List<DetectedSubscription>> = _pendingSubscriptions.asStateFlow()
+    private val dismissedDetectedSubscriptionNames = mutableSetOf<String>()
+
     private val _pharmacyItems = MutableStateFlow<List<ZadPharmacyItem>>(emptyList())
     val pharmacyItems: StateFlow<List<ZadPharmacyItem>> = _pharmacyItems.asStateFlow()
 
@@ -1637,26 +1642,47 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val detected = ZadAiRepository.detectSubscriptions(_transactions.value)
                 Log.d(TAG, "detectSubscriptions() → Found ${detected.size} subscriptions")
-                
-                // For each detected subscription, add it if not already exists by title
+
+                // ماكانش فيه تأكيد من المستخدم هنا خالص — أي اشتراك بثقة > 0.8 كان بيتسجل
+                // تلقائي بمجرد فتح الشاشة (AUDIT.md). دلوقتي: نعرضها كمعلقة، والكتابة الفعلية
+                // (addSubscription) بتحصل بس لما المستخدم يضغط تأكيد في confirmDetectedSubscription().
                 val currentTitles = _subscriptions.value.map { it.title.lowercase() }
-                for (sub in detected) {
-                    if (sub.name.lowercase() !in currentTitles && sub.confidence > 0.8) {
-                        Log.d(TAG, "Auto-adding detected subscription: ${sub.name}")
-                        addSubscription(
-                            ZadSubscription(
-                                title = sub.name,
-                                amount = sub.amount,
-                                renewalDate = sub.nextBillingDate,
-                                category = "Auto-detected"
-                            )
-                        )
-                    }
+                val pendingNames = _pendingSubscriptions.value.map { it.name.lowercase() }
+                val newlyPending = detected.filter { sub ->
+                    sub.confidence > 0.8 &&
+                        sub.name.lowercase() !in currentTitles &&
+                        sub.name.lowercase() !in pendingNames &&
+                        sub.name.lowercase() !in dismissedDetectedSubscriptionNames
+                }
+                if (newlyPending.isNotEmpty()) {
+                    Log.d(TAG, "detectSubscriptions() → ${newlyPending.size} awaiting user confirmation")
+                    _pendingSubscriptions.value = _pendingSubscriptions.value + newlyPending
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "detectSubscriptions() FAILED: ${e.message}")
             }
         }
+    }
+
+    /** المستخدم أكّد اشتراك مكتشف — دلوقتي بس بيتسجل فعليًا */
+    fun confirmDetectedSubscription(sub: DetectedSubscription) {
+        Log.d(TAG, "confirmDetectedSubscription() → title=${sub.name}")
+        addSubscription(
+            ZadSubscription(
+                title = sub.name,
+                amount = sub.amount,
+                renewalDate = sub.nextBillingDate,
+                category = "Auto-detected"
+            )
+        )
+        _pendingSubscriptions.value = _pendingSubscriptions.value.filterNot { it.name == sub.name }
+    }
+
+    /** المستخدم رفض اشتراك مكتشف — بلا كتابة، ومتفضلش تتقترح تاني نفس الجلسة */
+    fun dismissDetectedSubscription(sub: DetectedSubscription) {
+        Log.d(TAG, "dismissDetectedSubscription() → title=${sub.name}")
+        dismissedDetectedSubscriptionNames.add(sub.name.lowercase())
+        _pendingSubscriptions.value = _pendingSubscriptions.value.filterNot { it.name == sub.name }
     }
 
     fun logout() {

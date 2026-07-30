@@ -688,6 +688,7 @@ fun SubscriptionsTab(
     var showInactive by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
     val debts by viewModel.debts.collectAsState()
+    val pendingSubscriptions by viewModel.pendingSubscriptions.collectAsState()
 
     val filteredSubs = if (showInactive) subscriptions else subscriptions.filter { it.isActive }
     val totalMonthly = filteredSubs.sumOf { it.amount }
@@ -707,6 +708,17 @@ fun SubscriptionsTab(
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(com.example.data.CurrencyFormatter.format(context, totalMonthly), style = Typography.displaySmall, color = Color.White, fontWeight = FontWeight.Bold)
                 }
+            }
+        }
+
+        // اشتراكات اكتشفها الذكاء الاصطناعي، لسه محتاجة تأكيد المستخدم قبل ما تتسجل (AUDIT.md)
+        if (pendingSubscriptions.isNotEmpty()) {
+            item {
+                com.example.ui.components.DetectedSubscriptionsSection(
+                    pending = pendingSubscriptions,
+                    onConfirm = { viewModel.confirmDetectedSubscription(it) },
+                    onDismiss = { viewModel.dismissDetectedSubscription(it) }
+                )
             }
         }
 

@@ -70,10 +70,32 @@ This session's container had no Android SDK at all (not an OOM issue this time �
 `assembleDebug` BUILD SUCCESSFUL, `testDebugUnitTest` 94/94 passing (3 skipped). Task
 29.1 is done — see `PROGRESS.md`.
 
+## `detectSubscriptions()` auto-write fix — DONE (2026-07-30)
+
+`ZadViewModel.detectSubscriptions()` used to call `addSubscription()` directly for any
+AI detection with `confidence > 0.8` — a silent write on screen open, zero user
+confirmation (`AUDIT.md`'s highest-severity finding). Fixed with a confirm/dismiss
+pattern instead of piggybacking on `zad-brain`'s server-side `ask_user`/`emit_insight`
+tool machinery (that's a different system — tool-calling loop against `zad_insights`,
+not reachable from this purely client → `zad-core-intelligence` Edge Function call).
+
+- New `ZadViewModel.pendingSubscriptions: StateFlow<List<DetectedSubscription>>`.
+  `detectSubscriptions()` now populates it instead of writing; `confirmDetectedSubscription()`
+  writes (existing `addSubscription()` path) and clears the pending entry;
+  `dismissDetectedSubscription()` clears it with no write and remembers the name
+  in-memory so the same detection doesn't reappear every time the screen reopens
+  (not persisted across app restarts — deliberately minimal, matches this fix's scope).
+- New shared composable `ui/components/PendingSubscriptionsCard.kt`
+  (`DetectedSubscriptionsSection`) — confirm/dismiss card, used in both places
+  `detectSubscriptions()` is triggered: `SubscriptionsScreen.kt` and
+  `ZadIntelligenceScreen.kt`'s `SubscriptionsTab`.
+- New strings (`detected_subscription_title/confirm/dismiss`) in all 4 locale files.
+- `compileDebugKotlin` / `assembleDebug` / `testDebugUnitTest` (94/94) / `lintDebug` all
+  ran clean in one pass — first clean `lintDebug` in this epic (previously blocked by
+  container memory pressure across ~10 attempts in prior sessions).
+
 ## What's next in Epic 2 (not started)
 
-- Separate task: fix `detectSubscriptions()` auto-write (emit_insight/confirmation-card pattern,
-  per `AUDIT.md`'s recommendation).
 - Separate task: consolidate the 5 screen-local income/expense recomputations.
 - Not yet scoped: whether Epic 2 also touches `HomeScreen`'s AI-cards-on-open problem or stays
   scoped to `ZadIntelligenceScreen` only — ask the user before assuming either way.
