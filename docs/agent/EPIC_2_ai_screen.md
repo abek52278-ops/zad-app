@@ -59,13 +59,19 @@ contended session and confirm clean before treating this task as done.**
 User explicitly signed off on closing the session with Task 29.1 in this state: code
 committed (`70ba336`), build **not** re-verified — `compileDebugKotlin` still OOM-killed
 by the container after 4 attempts, no clean run happened. This is a recorded user
-decision to accept that risk and stop here, not a claim that the build passed. **Next
-session must still run `compileDebugKotlin`/`assembleDebug`/`testDebugUnitTest` before
-Task 29.1 is marked done in `PROGRESS.md`.**
+decision to accept that risk and stop here, not a claim that the build passed.
+
+## Build confirmed — 2026-07-30
+
+This session's container had no Android SDK at all (not an OOM issue this time —
+`ANDROID_HOME` unset, no `local.properties`). Installed `platforms;android-36` +
+`build-tools;36.0.0` + `platform-tools` via `sdkmanager`, added `local.properties`
+(gitignored). All three gates ran clean: `compileDebugKotlin` BUILD SUCCESSFUL,
+`assembleDebug` BUILD SUCCESSFUL, `testDebugUnitTest` 94/94 passing (3 skipped). Task
+29.1 is done — see `PROGRESS.md`.
 
 ## What's next in Epic 2 (not started)
 
-- Confirm the build (see above).
 - Separate task: fix `detectSubscriptions()` auto-write (emit_insight/confirmation-card pattern,
   per `AUDIT.md`'s recommendation).
 - Separate task: consolidate the 5 screen-local income/expense recomputations.

@@ -282,7 +282,7 @@ Full per-screen table and a prioritized summary for next session are in
 verification above, and Task 22's deliberately-deferred "habit lifetime cost" bonus
 insight. Everything else in `EPIC_1_4.md` is done.
 
-## Task 29.1 — Epic 2: Zad AI screen restructure (4-tab regroup) — CODE COMPLETE, BUILD UNVERIFIED
+## Task 29.1 — Epic 2: Zad AI screen restructure (4-tab regroup) — DONE
 
 Scope agreed with user, documented in `docs/agent/EPIC_2_ai_screen.md`. Split the old
 3-tab `ZadIntelligenceScreen` (Analytics/Subscriptions/Chat, with Analytics alone
@@ -304,3 +304,12 @@ session** — first thing to do.
 
 Deliberately deferred (user's explicit call): `detectSubscriptions()` auto-write bug and
 the rule-1 screen-local income/expense duplication, both still open per `AUDIT.md`.
+
+**Build confirmed next session (2026-07-30).** This container had no Android SDK at all
+(`ANDROID_HOME` unset, no `local.properties`, no `platform-tools`) — a fresh environment,
+not the same OOM-under-load constraint as prior sessions. Installed cmdline-tools +
+`platforms;android-36` + `build-tools;36.0.0` + `platform-tools` via `sdkmanager`, wrote
+`local.properties` (gitignored). With that, all three gates ran clean in one pass, no
+memory pressure this time: `compileDebugKotlin` BUILD SUCCESSFUL, `assembleDebug` BUILD
+SUCCESSFUL, `testDebugUnitTest` 94 tests / 0 failures / 3 skipped. **Task 29.1 is now
+actually DONE**, not just code-complete.
