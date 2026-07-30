@@ -329,3 +329,59 @@ kept deliberately minimal for this fix's scope). New strings in all 4 locale fil
 `compileDebugKotlin`/`assembleDebug`/`testDebugUnitTest` (94/94)/`lintDebug` all green —
 first clean `lintDebug` run this epic, prior sessions couldn't complete it under memory
 pressure. See `docs/agent/EPIC_2_ai_screen.md` for the full writeup.
+
+## User follow-up batch (2026-07-30): rent/subscriptions, Amazon link, nav drawer, location alerts
+
+User sent four items in one message. Three were quick, scoped fixes; the fourth
+(background location alert service) needed investigation + a design decision, so it
+was not built blind. Commits `0678d3b` (rent/subscriptions) and `50fc73b` (nav drawer).
+
+**1. Never suggest cancelling rent/installments — DONE.** Two real bugs found:
+`ZadCentralBrain`'s local "review this if unused" insight picked the single most
+expensive *active* `zad_subscriptions` row with zero regard for what it actually was —
+if a user's rent/installment happened to be the biggest recurring line item (likely),
+it would get suggested for cancellation. Added `isFixedObligation()` (checks `type` plus
+a category/title keyword match for إيجار/قسط/rent/installment/mortgage/loan, same
+keyword-matching style already used for the existing streaming-duplicate detector in
+this file) and excluded those rows from the pool that insight draws from. Also hardened
+the three `zad-core-intelligence` prompts that touch this (`spending_insights`,
+`agent_summary`, `detect_subscriptions`): explicit instruction never to suggest
+cancelling/reducing fixed obligations, and not to classify rent/loan repayments as
+"subscriptions" at all. **Not done, deliberately out of scope**: `AddSubscriptionDialog`
+already gets a `type` back from `classifyBill()` but discards it, always saving
+`type="subscription"` — the keyword check on category/title is a safety net that covers
+this without needing that separate fix. Deno edge function prompt-string changes were
+not deployed or `deno check`-ed this session (no `deno` binary in this container) —
+deploy and smoke-test before relying on this in production.
+
+**2. Amazon affiliate link — investigated, already correct, no change made.**
+`AffiliateHelper.productUrl()` already builds `amazon.sa/dp/$ASIN$/?tag=...` directly
+when a valid 10-char ASIN is present, falling back to a tagged search link only when it
+isn't. All 3 real product-purchase call sites (`HomeScreen.kt` x2, `ShoppingListScreen.kt`)
+pass the real `product.asin` through. The one `asin = null` call site
+(`AmazonAffiliateWidget.kt`'s `AffiliateEmptyState`) is intentional — it only fires when
+no catalog product matched at all, so there's no ASIN to use; a code comment there
+already documents why. If users are still landing on search results instead of product
+pages, the likely cause is the live `affiliate_products.asin` column having invalid/
+placeholder values, not app code — this needs a direct DB check, which this session
+couldn't do (Supabase MCP requires interactive auth, unavailable here).
+
+**3. Nav drawer clarity — DONE.** Subscriptions screen (bills/installments tabs included)
+was already in the side drawer, just labeled plain "اشتراكات". Added a drawer-specific
+label override (`nav_subscriptions_installments` = "الاشتراكات والأقساط") in all 4
+locale files, applied only in `MainScreen.kt`'s drawer item — left the shared
+`R.string.subscriptions` (bottom bar pill, `ProfileScreen`, `HomeScreen` stat chip)
+untouched since those are tighter-space/different contexts.
+
+**4. Location alert service (proactive supermarket/mall push notifications) — NOT
+STARTED, needs a design decision first.** Investigated `NearbyDealsScreen.kt`: today
+it's a one-shot, user-triggered, foreground-only query (`ACCESS_FINE_LOCATION`,
+`getLastKnownLocation()` on tap) — no background service, no geofencing, no push
+notifications, no `WorkManager`. What the user described (always-on background
+monitoring, detect proximity to a specific supermarket/mall, push a smart notification
+with missing-items/price-comparison content) is a genuinely new feature, not a fix, and
+touches: `ACCESS_BACKGROUND_LOCATION` (a Play Store sensitive-permission category with
+its own disclosure requirements), a foreground service or geofencing API integration
+(battery tradeoffs), and a notification-cooldown policy (AUDIT.md already flagged 14
+uncoordinated notification call sites — a 15th needs to not repeat that). Asked the user
+for design decisions before building (see chat) rather than picking silently.
