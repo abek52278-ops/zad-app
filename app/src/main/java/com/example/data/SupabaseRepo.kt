@@ -1500,6 +1500,57 @@ object SupabaseRepo {
         }
     }
 
+    // ── Telegram binding (Phase B4, PRODUCT_PLAN.md) ──────────────────────────────
+    @Serializable
+    private data class TelegramBindingRow(@SerialName("bound_at") val boundAt: String? = null)
+
+    // بدون 0/O/1/I عشان يتكتب يدوي في تليجرام من غير لبس
+    private val BINDING_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+    /**
+     * كود ربط تليجرام لمرة واحدة، صالح ١٠ دقايق. الصف ده لوحده مايربطش حاجة — EPIC_1_4.md:
+     * "a chat_id is never an identity". الربط الفعلي (chat_id + bound_at) بيحصل من
+     * zad-telegram-bot (edge function) لما العميل يبعت /start <code> في تليجرام.
+     */
+    suspend fun generateTelegramBindingCode(): String? {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id ?: return null
+            val code = (1..8).map { BINDING_CODE_CHARS.random() }.joinToString("")
+            val expiresAt = java.time.Instant.now().plusSeconds(600).toString()
+            Log.d(TAG, "generateTelegramBindingCode() → userId=$userId")
+            client.postgrest["telegram_bindings"].insert(
+                mapOf("user_id" to userId, "binding_code" to code, "code_expires_at" to expiresAt)
+            )
+            code
+        } catch (e: Exception) {
+            Log.e(TAG, "generateTelegramBindingCode() FAILED: ${e.message}")
+            null
+        }
+    }
+
+    /** true لو المستخدم عنده تليجرام مربوط فعلاً (فيه صف bound_at مش null) */
+    suspend fun isTelegramLinked(): Boolean {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id ?: return false
+            client.postgrest["telegram_bindings"].select(Columns.list("bound_at")) {
+                filter { eq("user_id", userId) }
+            }.decodeList<TelegramBindingRow>().any { it.boundAt != null }
+        } catch (e: Exception) {
+            Log.e(TAG, "isTelegramLinked() FAILED: ${e.message}")
+            false
+        }
+    }
+
+    suspend fun unlinkTelegram() {
+        try {
+            val userId = client.auth.currentUserOrNull()?.id ?: return
+            Log.d(TAG, "unlinkTelegram() → userId=$userId")
+            client.postgrest["telegram_bindings"].delete { filter { eq("user_id", userId) } }
+        } catch (e: Exception) {
+            Log.e(TAG, "unlinkTelegram() FAILED: ${e.message}")
+        }
+    }
+
     // ── Tasbiha ──
 
     suspend fun getMyTasbiha(): TasbihaTree? {

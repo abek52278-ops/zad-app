@@ -147,6 +147,7 @@ fun ProfileScreen(
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
     var showHelpSupport by remember { mutableStateOf(false) }
     var showBehaviorConsentDialog by remember { mutableStateOf(false) }
+    var showTelegramDialog by remember { mutableStateOf(false) } // Phase B4 — ربط تليجرام
 
     LaunchedEffect(showSaveSuccess) {
         if (showSaveSuccess) {
@@ -223,6 +224,10 @@ fun ProfileScreen(
                 }
             }
         )
+    }
+
+    if (showTelegramDialog) {
+        TelegramLinkDialog(onDismiss = { showTelegramDialog = false })
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -483,6 +488,17 @@ fun ProfileScreen(
                 }
                 Spacer(Modifier.height(10.dp))
 
+                AppearOnEntry(delayMs = 190) {
+                    ProfileMenuItem(
+                        icon = Icons.Default.Send,
+                        title = stringResource(R.string.telegram_link_title),
+                        subtitle = stringResource(R.string.telegram_link_subtitle),
+                        gradient = listOf(Color(0xFF229ED9), Color(0xFF6FC6EE)),
+                        onClick = { showTelegramDialog = true }
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+
                 AppearOnEntry(delayMs = 200) {
                     ProfileMenuItem(
                         icon = Icons.Default.SupportAgent,
@@ -583,6 +599,78 @@ fun ProfileScreen(
             Text(stringResource(R.string.changes_saved), style = Typography.bodyMedium, color = onSurface, fontWeight = FontWeight.Bold)
         }
     }
+    }
+}
+
+/**
+ * Phase B4 (PRODUCT_PLAN.md) — كود ربط تليجرام لمرة واحدة. EPIC_1_4.md: "a chat_id is
+ * never an identity" — الكود ده هو إثبات الهوية الوحيد، مش أي حاجة تانية. الربط
+ * الفعلي بيحصل من zad-telegram-bot لما العميل يبعت /start <code> في تليجرام.
+ */
+@Composable
+private fun TelegramLinkDialog(onDismiss: () -> Unit) {
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    var linked by remember { mutableStateOf<Boolean?>(null) }
+    var code by remember { mutableStateOf<String?>(null) }
+    var isUnlinking by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        val alreadyLinked = SupabaseRepo.isTelegramLinked()
+        linked = alreadyLinked
+        if (!alreadyLinked) code = SupabaseRepo.generateTelegramBindingCode()
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.telegram_link_title)) },
+        text = {
+            when {
+                linked == null -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(modifier = Modifier.size(28.dp))
+                }
+                linked == true -> Text(stringResource(R.string.telegram_already_linked))
+                code == null -> Text(stringResource(R.string.telegram_code_failed))
+                else -> Column {
+                    Text(stringResource(R.string.telegram_link_instructions, "@ZadSmartBot"))
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(background)
+                            .clickable { clipboard.setText(androidx.compose.ui.text.AnnotatedString(code!!)) }
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(code!!, style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
+                        Icon(Icons.Default.ContentCopy, contentDescription = null, tint = onSurfaceVariant, modifier = Modifier.size(18.dp))
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(stringResource(R.string.telegram_code_expiry_note), style = Typography.labelSmall, color = onSurfaceVariant)
+                }
+            }
+        },
+        confirmButton = {
+            if (linked == true) {
+                TextButton(
+                    onClick = {
+                        isUnlinking = true
+                    }
+                ) { Text(stringResource(R.string.telegram_unlink_action), color = dangerColor) }
+            } else {
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.close_action)) }
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
+    )
+
+    if (isUnlinking) {
+        LaunchedEffect(Unit) {
+            SupabaseRepo.unlinkTelegram()
+            isUnlinking = false
+            onDismiss()
+        }
     }
 }
 

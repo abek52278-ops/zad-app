@@ -1,4 +1,4 @@
-# جلسة 2026-07-30 — إقفال Epic 2 + تاسكات 25-28 (Phase A جزئي + Phase C)
+# جلسة 2026-07-30 — إقفال Epic 2 + تاسكات 25-28 (Phase A جزئي + Phase C) + بداية B4
 
 > **الجلسة دي لسه مفتوحة.** ده ملف الحالة الجاري لتاسكات 25-28 — اقرأه ده قبل أي شغل
 > تاني عليهم أو على Phase A/C. `SESSION_2026_07_26_epic19.md` بقى أرشيف (Epic 1+4 خلص
@@ -19,16 +19,21 @@
 عندها Supabase MCP auth ولا CLI access خالص** طول الوقت. يعني:
 
 - كل الـ migrations اللي اتكتبت النهارده (schema جديد، شامل Task 25's `salary_cycle`،
-  Task 26's `zad_obligations`، و Task 28's `dismiss_reason`) **مش مطبّقة على قاعدة
-  البيانات الحية** — لازم المستخدم يعمل `supabase db push` أو يطبّقها يدوي من
-  الداشبورد. المستخدم قال هيطبقها بنفسه — لو جلسة جاية لقت `zad_obligations`/
-  `cycle_start_day`/`dismiss_reason` موجودين فعلاً في `list_tables`، ده معناه اتطبقوا،
-  حدّث الملاحظة دي بدل ما تفترض.
+  Task 26's `zad_obligations`، Task 28's `dismiss_reason`، و**B4's `telegram_bindings`**)
+  **مش مطبّقة على قاعدة البيانات الحية** — لازم المستخدم يعمل `supabase db push` أو
+  يطبّقها يدوي من الداشبورد. المستخدم قال هيطبقها بنفسه — لو جلسة جاية لقت
+  `zad_obligations`/`cycle_start_day`/`dismiss_reason`/`telegram_bindings` موجودين
+  فعلاً في `list_tables`، ده معناه اتطبقوا، حدّث الملاحظة دي بدل ما تفترض.
 - `zad-brain` فيه تعديلات جوهرية (Task 25: دورة الراتب، Task 26: الالتزامات/committed/
   available، Task 28: dismissed_keys بتستبعد timing + dismissal_reasons) **مش منشورة**
   — لازم redeploy (نفس ملاحظة الـ migrations فوق). **Task 27 مفيهاش أي migration أو
   تعديل zad-brain خالص** (كلاينت-سايد بالكامل + قراءة `zad_brain_runs` الموجود أصلاً)
   — متضيفهاش لقايمة اللي محتاجة نشر.
+- **`zad-telegram-bot` دالة جديدة بالكامل، لسه متعملهاش deploy خالص** — والأهم:
+  `TELEGRAM_WEBHOOK_SECRET` لسه مش متسجل (بس `TELEGRAM_BOT_TOKEN` اتسجل الجلسة دي)،
+  يعني حتى بعد الـ deploy الدالة هتقبل أي حد يبعتلها POST من غير أي تحقق. خطوات كاملة
+  في `PROGRESS.md` (قسم Phase B4) — الجلسة دي معندهاش وصول Supabase CLI/MCP، فمتعرفش
+  تعمل deploy ولا تنادي `setWebhook` بنفسها.
 - `zad-core-intelligence` **كان اتنشر** أثناء الجلسة (المستخدم أكّد بنفسه بعد ما
   طلبنا) — ده شامل تصحيح prompts الإيجار/الاشتراكات وأكشن nearby_pois الجديد.
   بس أي تعديل زاد-core-intelligence بعد كده (مفيش لسه) لازم إعادة نشر تانية.
@@ -139,6 +144,35 @@ A6 دلوقتي، ابدأه كتاسك منفصل بعدين لو طلب.
 Phase C اتقفلت فعليًا (C1 كامل، C3 كامل، C2 معظمه) — الباقي في C2 موثّق كمؤجل
 مش سهو، انظر تفاصيل Task 27 فوق.
 
+## Phase B4 — بوت تليجرام (2026-07-30، بدأ النهارده)
+
+Phase B (`PRODUCT_PLAN.md` §3): B1 (habit chips)/B2 (كارت الكاش)/B3 (تسوية كاش
+أسبوعية) خلصوا من جلسات سابقة (Task 22/19.4/19.5). B4 (بوت تليجرام) كان "after
+Phase C" — Phase C اتقفلت النهارده فبقى مش محظور. مفيش سبيك تفصيلي لـ B4 في
+`PRODUCT_PLAN.md` (سطر واحد بس: "text and buttons only, no voice") — السبيك الحقيقي
+الوحيد كان في `EPIC_1_4.md`: اسم الدالة `zad-telegram-bot`، كود ربط لمرة واحدة،
+أزرار inline، وتحذير صريح "a chat_id is never an identity". اتقال للمستخدم قبل
+البناء، قرار صريح: **read-only v1** (رصيد/آخر معاملات/تنبيهات معلقة + رفض Task 28)،
+البنية التحتية دلوقتي، التوكن بعدين. المستخدم بعت التوكن وسجله كـ Supabase secret
+أثناء الشغل، وصحّح قرارين: **grammY** بدل تنفيذ يدوي، والجدول اسمه **`telegram_bindings`**
+(مش بادئة `zad_` زي كل جدول تاني في الـ schema — اتوثقت المخالفة في تعليق الـ migration).
+
+Migration `20260730150000_telegram_bindings.sql` + دالة `zad-telegram-bot` (grammY،
+`telegram.ts` منطق pure مختبر بالكامل بدون Supabase/شبكة، `index.ts` webhook thin
+layer) + كلاينت (`SupabaseRepo.generateTelegramBindingCode/isTelegramLinked/
+unlinkTelegram` + `TelegramLinkDialog` في `ProfileScreen`). deno 17/17 (كل شيء pure،
+مفيش استدعاء تليجرام/Supabase حقيقي اتعمل أو أمكن اختباره). Android 127/127 (زي ما
+هي). تفاصيل كاملة + خطوات الـ deploy/setWebhook المطلوبة من المستخدم في `PROGRESS.md`
+تحت "Phase B4".
+
+**فجوة أمان حقيقية موثّقة**: `TELEGRAM_WEBHOOK_SECRET` لسه مش متسجل، يعني حتى بعد
+الـ deploy الدالة هتقبل أي POST بدون تحقق لحد ما يتسجل ويتعمل `setWebhook` بيه.
+
+**مؤجل عمدًا من B4**: رقم "الرصيد المتبقي" في البوت شهر تقويمي بسيط، مش "متاح"
+الحقيقي (دورة راتب + التزامات، `BudgetMath.availableInCycle`) — دمجهم محتاج موديول
+مشترك بين الكلاينت (Kotlin) ودالتين Deno منفصلتين، مؤجل عمدًا. مفيش تسجيل مصروفات
+من البوت (read-only بس).
+
 ## فاضل عمومًا
 
 - **Phase A**: بس A6 (شيل `RECEIVE_SMS`) — compliance risk موثّق، القرار كان
@@ -146,9 +180,10 @@ Phase C اتقفلت فعليًا (C1 كامل، C3 كامل، C2 معظمه) �
 - **Phase C follow-ups**: 27.1(c) (قراءة `zad_consumption` من الكلاينت)، 27.1(d)
   (عمود `reconciled_at` جديد — مفيش أصلاً)، مثال "رسالة من CIB" الحرفي (نص SMS خام
   على `ZadTransaction` — قرار خصوصية اتسيب عمدًا مش مقرر لوحدي).
-- **تطبيق الـ migrations + redeploy zad-brain** — انظر "أهم حاجة" فوق.
-- Phase B مش مكتوبة تفصيليًا في `PRODUCT_PLAN.md` لسه — لو الجلسة الجاية عايزة تكمل
-  عليها أو تبدأ A6، اسأل الأول قبل ما تخترع تفاصيل مش موجودة في الدوك.
+- **Phase B4**: `TELEGRAM_WEBHOOK_SECRET` + deploy + `setWebhook` (فوق)، توسيع البوت
+  لأكتر من read-only (لو المستخدم طلب)، دمج حساب "الرصيد" مع "متاح" الحقيقي.
+- **تطبيق الـ migrations + redeploy zad-brain + deploy zad-telegram-bot** — انظر
+  "أهم حاجة" فوق.
 
 **ملاحظة ترتيب من الدوك نفسه**: "Task 28 moved ahead of Task 27 deliberately" —
 الدوك بيفضّل 28 قبل 27 منطقيًا (قناة "الرقم غلط" أهم من عرض الثقة اللي بيعتمد

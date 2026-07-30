@@ -611,6 +611,13 @@
     <string name="choose_your_avatar">اختر شخصيتك</string>
     <string name="confirm_delete_account">إي، احذف الحساب</string>
     <string name="contact_us">تواصل معنا</string>
+    <string name="telegram_link_title">ربط تليجرام</string>
+    <string name="telegram_link_subtitle">شوف رصيدك ومعاملاتك من بوت زاد</string>
+    <string name="telegram_already_linked">حسابك مربوط بتليجرام بالفعل ✅</string>
+    <string name="telegram_code_failed">معرفناش نولّد كود — جرب تاني</string>
+    <string name="telegram_link_instructions">افتح %1$s في تليجرام وابعت /start ثم الكود ده:</string>
+    <string name="telegram_code_expiry_note">الكود صالح ١٠ دقايق بس — دوس عليه عشان تنسخه</string>
+    <string name="telegram_unlink_action">فصل الربط</string>
     <string name="control_smart_alerts">التحكم في التنبيهات الذكية</string>
     <string name="deactivate">إلغاء التفعيل</string>
     <string name="delete_account">حذف الحساب</string>

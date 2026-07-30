@@ -709,3 +709,88 @@ silent dismiss action with three reasoned ones.
 - No UI surfaces `dismissal_reasons` or `data_quality`-scope memory notes back to the
   user anywhere (e.g. no "you told us your budget was wrong 3 times" screen) — the spec
   only requires the brain to see it, not the user.
+
+## Phase B4 — Telegram bot infrastructure (2026-07-30)
+
+`PRODUCT_PLAN.md` Phase B (B4 — "after Phase C", now unblocked since Phase C closed
+today). Only real spec fragment was in `EPIC_1_4.md`: function name `zad-telegram-bot`,
+one-time binding code, inline buttons, and the explicit warning **"a chat_id is never an
+identity."** No functional spec existed for what the bot lets a user *do* — confirmed via
+repo-wide grep before starting, PRODUCT_PLAN.md's B4 row is one line
+("text and buttons only, no voice"). Scope agreed with the user before writing code:
+**read-only v1** (balance, recent transactions, pending insights + Task 28 dismissal),
+infra built now, bot token supplied by the user afterward. Mid-build, the user corrected
+two choices — using **grammY** (not a hand-rolled fetch wrapper) and naming the table
+**`telegram_bindings`** (not `zad_`-prefixed) — both applied; the table-naming deviation
+from this schema's otherwise-universal `zad_` prefix is flagged in the migration's own
+comment, not silently followed.
+
+- Migration `20260730150000_telegram_bindings.sql`: `telegram_bindings` (`user_id`,
+  `chat_id` nullable, `binding_code`, `code_expires_at`, `bound_at` nullable). Partial
+  unique indexes enforce **one bound chat per user and one bound user per chat** — a
+  user can generate multiple codes (old ones just go stale) but can't bind two Telegram
+  accounts, and a chat can't be bound to two zad accounts. RLS restricts a user to their
+  own rows; the edge function (service role) bypasses it by design, same as `zad-brain`
+  — it has to look up a row by `binding_code`/`chat_id` before it knows a `user_id` at
+  all.
+- Edge function `zad-telegram-bot`, built on **grammY** (`npm:grammy@1` — resolves fine
+  in this sandboxed container, confirmed live before committing to the rewrite).
+  `telegram.ts` holds every pure function (keyboard layouts, message formatting,
+  binding-code/callback-data parsing, the dismissal→`zad_memory` note mapping) with zero
+  grammY/Supabase imports, so it's fully unit-testable without a live bot or database —
+  `index.ts` is a thin `Bot` + `webhookCallback(bot, "std/http", { secretToken })` shell
+  that wires those functions to Supabase queries. Flow: `/start <code>` binds
+  `chat_id`↔`user_id` (rejects expired/wrong codes, rejects if the chat or user is
+  already bound elsewhere); the 3-button main menu reads balance/transactions/insights
+  scoped to that `user_id`; each pending insight gets its own message with the Task 28
+  three-reason dismiss keyboard, wired to the exact same `zad_insights` update +
+  `zad_memory_upsert` RPC call the Kotlin client uses (`memoryNoteForDismissal` in
+  `telegram.ts` is a deliberate small duplicate of `DismissalMemory.kt`, documented at
+  both — third instance of this app's established "duplicate math across runtimes,
+  document it" pattern alongside `BudgetMath.kt`/`buildSnapshot`).
+- Client: `SupabaseRepo.generateTelegramBindingCode()` (8-char code, charset excludes
+  `0/O/1/I` to avoid manual-entry ambiguity, 10-minute expiry) / `isTelegramLinked()` /
+  `unlinkTelegram()`. New `TelegramLinkDialog` in `ProfileScreen.kt` — generates and
+  displays a tap-to-copy code with instructions, or shows "already linked" + an unlink
+  action if a bound row already exists. New `ProfileMenuItem` entry ("ربط تليجرام")
+  above the existing help-support row.
+- Verification: `deno check`/`deno test` clean (17/17, all pure-function — no live
+  Telegram/Supabase calls were possible or attempted, no token available in this
+  environment beyond what's now a Supabase secret). `compileDebugUnitTestKotlin`/
+  `testDebugUnitTest` clean, 127/127 (unchanged — the new client functions are
+  network-bound Supabase calls, consistent with this codebase's existing convention of
+  not unit-testing `SupabaseRepo` functions directly).
+
+**What's genuinely still needed before this works end-to-end (none of it possible from
+this session — no Supabase CLI/MCP auth, no way to reach the live bot):**
+1. Apply `20260730150000_telegram_bindings.sql` (same pending-migrations situation as
+   everything else this session).
+2. Deploy the `zad-telegram-bot` function (`supabase functions deploy zad-telegram-bot`).
+3. Set the webhook — the user has the token, this session does not and should not:
+   ```
+   curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
+     -d "url=https://<project-ref>.supabase.co/functions/v1/zad-telegram-bot" \
+     -d "secret_token=<a-random-string-you-also-set-as-TELEGRAM_WEBHOOK_SECRET>"
+   ```
+   `TELEGRAM_WEBHOOK_SECRET` isn't set yet (only `TELEGRAM_BOT_TOKEN` was, per the
+   `supabase secrets set` command run this session) — **the function currently accepts
+   any webhook call with no secret verification** (`WEBHOOK_SECRET` falls through to
+   `undefined`, grammY's `secretToken` check is skipped entirely) until this is set and
+   deployed. Flagging as a real gap, not a "nice to have": anyone who discovers the
+   function URL could currently POST fake Telegram updates to it.
+4. Confirm the bot's actual Telegram username matches `@ZadSmartBot` hardcoded into
+   `ProfileScreen.kt`'s instructions string — not verified against the live bot from
+   here.
+
+**Deliberately deferred, disclosed not silently skipped:**
+- **Read-only v1 only** — no expense logging, no budget edits, nothing beyond dismissing
+  an insight. Per the user's explicit scope decision.
+- The "الرصيد المتبقي" (balance) button computes a plain calendar-month
+  `budget - spent + income`, **not** the app's actual "متاح" (`BudgetMath.availableInCycle`
+  / `buildSnapshot`'s `available` — salary cycle + committed obligations). Reusing that
+  exact logic here would need extracting it into a module shared across the Kotlin app
+  and two independent Deno functions, which is real refactor work, not a quick win —
+  documented in `telegram.ts` itself, not silently approximated.
+- No rate limiting / abuse protection on the webhook beyond (once set up) the secret
+  token check — fine for a single-user-per-account bot with no write actions, would need
+  revisiting before any write capability is added.

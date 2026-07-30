@@ -614,6 +614,13 @@
     <string name="choose_your_avatar">Karakterini seç</string>
     <string name="confirm_delete_account">Evet, hesabı sil</string>
     <string name="contact_us">Bize ulaşın</string>
+    <string name="telegram_link_title">Telegram\'ı bağla</string>
+    <string name="telegram_link_subtitle">Zad botundan bakiyeni ve işlemlerini gör</string>
+    <string name="telegram_already_linked">Hesabın zaten Telegram\'a bağlı ✅</string>
+    <string name="telegram_code_failed">Kod oluşturulamadı — tekrar dene</string>
+    <string name="telegram_link_instructions">Telegram\'da %1$s açıp şunu gönder: /start ve ardından kod:</string>
+    <string name="telegram_code_expiry_note">Kod sadece 10 dakika geçerli — kopyalamak için dokun</string>
+    <string name="telegram_unlink_action">Bağlantıyı kaldır</string>
     <string name="terms_of_service_menu_title">Şartlar ve Koşullar</string>
     <string name="terms_of_service_menu_subtitle">Kullanım ve gizlilik politikası</string>
     <string name="control_smart_alerts">Akıllı bildirimleri yönet</string>
