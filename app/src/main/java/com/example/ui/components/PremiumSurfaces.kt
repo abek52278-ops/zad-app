@@ -92,6 +92,16 @@ fun ZadCanvasBackground(modifier: Modifier = Modifier) {
  * layered in automatically on API 31+. Replaces the ad hoc
  * `Card(shape = RoundedCornerShape(16.dp), elevation = 2.dp)` boilerplate
  * repeated across the AI/finance cards.
+ *
+ * Bug fix (found via an actual Roborazzi screenshot, not by inspection —
+ * `ZadCardHero`'s glassmorphism pass rendered its stats panel nearly blank):
+ * `zadGlassBlur()` used to sit on the same `Column` that laid out `content`,
+ * so `Modifier.blur()`'s RenderEffect blurred the card's own children (text,
+ * icons) along with the background — on API 31+ that's a 20dp blur radius
+ * smearing the very content the card exists to show. Blur now lives on a
+ * separate background-only `Box` behind an unblurred content `Column`, which
+ * is also the technically correct way to do this (blur belongs on what's
+ * behind the glass, never on the glass's own foreground content).
  */
 @Composable
 fun GlassCard(
@@ -102,16 +112,21 @@ fun GlassCard(
     contentPadding: Dp = 16.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .zadGlassBlur()
-            .background(containerColor)
-            .border(1.dp, borderColor, shape)
-            .padding(contentPadding),
-        content = content,
-    )
+    Box(modifier = modifier.fillMaxWidth().clip(shape)) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .zadGlassBlur()
+                .background(containerColor)
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, borderColor, shape)
+                .padding(contentPadding),
+            content = content,
+        )
+    }
 }
 
 /**

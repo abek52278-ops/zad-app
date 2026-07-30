@@ -116,17 +116,23 @@ fun BudgetScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 100.dp)
         ) {
-            // ── Header card ──────────────────────────────────────────────────
+            // ── Header card (glassmorphism pass — HeroGradientCard + nested GlassCard,
+            // same primitives ZadCardHero/ZadIntelligenceScreen/PharmacyScreen use, 24dp
+            // corners, floating with margin instead of the old edge-to-edge banner) ──
             item {
+                val headerShape = RoundedCornerShape(24.dp)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(primary, primaryDark)
-                            )
-                        )
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .shadow(elevation = 22.dp, shape = headerShape, spotColor = primary.copy(alpha = 0.4f))
                 ) {
+                com.example.ui.components.HeroGradientCard(
+                    colors = listOf(primary, primaryDark),
+                    shape = headerShape,
+                    contentPadding = 20.dp
+                ) {
+                Box(modifier = Modifier.fillMaxWidth()) {
                     // Decorative circles
                     Box(
                         modifier = Modifier
@@ -144,7 +150,7 @@ fun BudgetScreen(
                             .background(Color.White.copy(alpha = 0.04f))
                     )
 
-                    Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
                         // TopBar row
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -231,50 +237,53 @@ fun BudgetScreen(
 
                         Spacer(modifier = Modifier.height(24.dp))
 
-                        // Income / Spent summary row
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(Color.White.copy(alpha = 0.12f))
-                                .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(20.dp))
-                                .padding(20.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly
+                        // Income / Spent summary row — نفس GlassCard المستخدم في باقي
+                        // التطبيق بدل اللوح الشفاف اليدوي القديم
+                        com.example.ui.components.GlassCard(
+                            shape = RoundedCornerShape(18.dp),
+                            containerColor = Color.White.copy(alpha = 0.12f),
+                            borderColor = Color.White.copy(alpha = 0.2f),
+                            contentPadding = 20.dp
                         ) {
-                            TxSummaryItem(
-                                label = stringResource(R.string.income_label),
-                                amount = totalIncome,
-                                icon = Icons.Default.TrendingUp,
-                                color = successColor
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .height(50.dp)
-                                    .width(1.dp)
-                                    .background(Color.White.copy(alpha = 0.2f))
-                            )
-                            TxSummaryItem(
-                                label = stringResource(R.string.expense_label),
-                                amount = totalSpent,
-                                icon = Icons.Default.TrendingDown,
-                                color = dangerColor
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .height(50.dp)
-                                    .width(1.dp)
-                                    .background(Color.White.copy(alpha = 0.2f))
-                            )
-                            TxSummaryItem(
-                                label = stringResource(R.string.budget_label),
-                                amount = budget,
-                                icon = Icons.Default.AccountBalanceWallet,
-                                color = secondaryLight
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly
+                            ) {
+                                TxSummaryItem(
+                                    label = stringResource(R.string.income_label),
+                                    amount = totalIncome,
+                                    icon = Icons.Default.TrendingUp,
+                                    color = successColor
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .height(50.dp)
+                                        .width(1.dp)
+                                        .background(Color.White.copy(alpha = 0.2f))
+                                )
+                                TxSummaryItem(
+                                    label = stringResource(R.string.expense_label),
+                                    amount = totalSpent,
+                                    icon = Icons.Default.TrendingDown,
+                                    color = dangerColor
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .height(50.dp)
+                                        .width(1.dp)
+                                        .background(Color.White.copy(alpha = 0.2f))
+                                )
+                                TxSummaryItem(
+                                    label = stringResource(R.string.budget_label),
+                                    amount = budget,
+                                    icon = Icons.Default.AccountBalanceWallet,
+                                    color = secondaryLight
+                                )
+                            }
                         }
-
-                        Spacer(modifier = Modifier.height(16.dp))
                     }
+                }
+                }
                 }
             }
 

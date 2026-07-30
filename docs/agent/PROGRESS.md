@@ -794,3 +794,76 @@ this session — no Supabase CLI/MCP auth, no way to reach the live bot):**
 - No rate limiting / abuse protection on the webhook beyond (once set up) the secret
   token check — fine for a single-user-per-account bot with no write actions, would need
   revisiting before any write capability is added.
+
+## Budget UI glassmorphism pass (2026-07-30)
+
+User request: bring the budget Hero Card + `BudgetScreen` header in line with a "new iOS
+design" (glassmorphism, 24dp corners, "متاح" shown prominently) — no design file/Figma
+was available, so scope was the concrete attributes given plus reusing whatever glass
+design-system pieces already existed in the codebase.
+
+- **Found existing, partially-adopted infrastructure before writing anything new**:
+  `PremiumSurfaces.kt` already had `GlassCard` (translucent + blurred panel), a
+  `zadGlassBlur()` gate (real `Modifier.blur()` on API 31+, safe no-op below — matters
+  since `minSdk 24`), `ZadCanvasBackground` (blurred pastel-blob screen background,
+  already wired into `HomeScreen`), and `HeroGradientCard` — its own doc comment said it
+  was meant to unify "the budget header and the Kids candy balance card" onto one
+  primitive, but neither `ZadCardHero` (the live Home hero) nor `BudgetScreen`'s header
+  had actually been migrated onto it. There was also a **dead, never-called
+  `BudgetCardSection`** composable in `HomeScreen.kt` that had already prototyped the
+  `HeroGradientCard` + nested `GlassCard` pattern, but predated Task 26/27 (no
+  available/committed/confidence) — deleted rather than left as a second, stale "budget
+  hero" alongside the real one, per "delete rather than fake."
+- **`ZadCardHero`** (`PremiumHomeComponents.kt`): now built on `HeroGradientCard` (outer,
+  24dp, unchanged gradient colors) with the secondary stats (days left / spent / deposit
+  button + progress bar) moved into a nested `GlassCard` panel instead of sitting
+  directly on the gradient. Dropped the fixed `aspectRatio(1.62f)` credit-card
+  silhouette for content-sized height — the nested glass panel needs room the rigid
+  ratio didn't leave. All Task 26/27 behavior preserved exactly: `available: Figure`
+  with `≈`/tap-to-explain/long-press-why, the `متبقي X · محجوز Y` breakdown line.
+- **`BudgetScreen` header**: same treatment — was a full-bleed, non-rounded, edge-to-edge
+  gradient banner (no card shape at all); now a floating `HeroGradientCard` with 16dp
+  horizontal margin and 24dp corners, and the manual translucent income/spent/budget row
+  (`Color.White.copy(alpha=0.12f)` + hand-rolled border) replaced with the same
+  `GlassCard` component.
+- **Real bug found and fixed via actual screenshot verification, not by inspection**:
+  first Roborazzi capture of the new `ZadCardHero` (added `captureZadCardHero_glassmorphism`
+  to `PreviewTest.kt` — it's a stateless composable, no ViewModel needed) showed the
+  nested `GlassCard`'s stats panel rendering **nearly blank** — progress bar and all
+  text/icons gone. Root cause: `GlassCard`'s `zadGlassBlur()` sat on the *same* `Column`
+  that laid out its `content` children, so `Modifier.blur()`'s RenderEffect blurred the
+  card's own foreground (text, icons) along with its background — on API 31+ (this
+  test's Robolectric config is `sdk=33`) that's a 20dp blur smearing the very content
+  the card exists to show. This is a **pre-existing bug in `GlassCard` itself**, used
+  as-is in `ZadIntelligenceScreen`/`HomeScreen`/`ShoppingListScreen`/`PharmacyScreen`
+  already — never caught because none of those usages had been screenshot-verified
+  before (all are behind a `ZadViewModel`, out of this session's Roborazzi driver's
+  reach). Fixed at the source in `PremiumSurfaces.kt`: blur now lives on a separate
+  background-only `Box` behind an unblurred content `Column` — the technically correct
+  technique (blur belongs on what's behind glass, never on the glass's own foreground)
+  and it benefits all five call sites, not just the two touched here. Re-screenshotted
+  after the fix — confirmed the stats panel (progress bar, "الأيام: 12",
+  "المصروف: 1,200 ر.س", "إيداع" button) now renders correctly through the glass.
+- Verification: `compileDebugUnitTestKotlin`/`testDebugUnitTest` clean, 128/128 (1 new —
+  the Roborazzi capture test; a pixel-diff regression baseline, not a pass/fail
+  assertion on visual correctness beyond "it rendered without crashing," which is why
+  actually viewing the PNG mattered here, not just a green test run).
+
+**Deliberately not done, disclosed not silently skipped:**
+- `BudgetScreen`'s header was **not** visually screenshotted — it needs a real/fake
+  `ZadViewModel`, out of this session's Roborazzi driver's stated scope. Confidence is
+  reasonably high since it reuses the exact same now-fixed `HeroGradientCard`/`GlassCard`
+  primitives just proven correct on `ZadCardHero`, but this is inference, not direct
+  visual proof — flagging the difference honestly.
+- No literal iOS reference (screenshot/Figma) was available or requested from the user
+  beyond the three named attributes (glassmorphism, 24dp, "available" shown) — this pass
+  interprets those attributes using this app's own existing (now-fixed) glass design
+  system, not a pixel-matched port of an actual iOS screen.
+- Other budget-adjacent cards (category cards, transaction rows, the stats sub-row
+  corner radii ranging 14–20dp across `BudgetScreen.kt`) were **not** touched — scope
+  was explicitly "Hero Card" + the header, not a full corner-radius consistency sweep
+  across every card in the budget screens.
+- The other four existing `GlassCard` call sites (`ZadIntelligenceScreen`, `HomeScreen`,
+  `ShoppingListScreen`, `PharmacyScreen`) automatically get the blur fix for free since
+  it's fixed at the shared component, but none of them were individually re-verified
+  visually this session — only `ZadCardHero` was actually screenshotted before and after.

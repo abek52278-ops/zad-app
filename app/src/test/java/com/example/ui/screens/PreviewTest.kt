@@ -1,9 +1,14 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.example.data.Figure
 import com.example.data.ZadInsight
+import com.example.ui.components.ZadCardHero
 import com.example.ui.screens.auth.OnboardingScreen
 import com.example.ui.theme.AppTheme
 import com.example.ui.widgets.ZadQuestionCard
@@ -109,6 +114,32 @@ class PreviewTest {
 
         composeTestRule.onRoot().captureRoboImage(
             filePath = "build/outputs/roborazzi/zad_question_card_live_eggs.png"
+        )
+    }
+
+    // Glassmorphism pass (iOS-design alignment task) — ZadCardHero is stateless (plain
+    // params, no ViewModel), so it captures directly like the cards above.
+    @Test
+    fun captureZadCardHero_glassmorphism() {
+        composeTestRule.setContent {
+            AppTheme {
+                androidx.compose.foundation.layout.Box(modifier = Modifier.padding(16.dp)) {
+                    ZadCardHero(
+                        budget = 3500.0,
+                        spent = 1200.0,
+                        remaining = 2300.0,
+                        daysLeft = 12,
+                        onDepositClick = {},
+                        available = Figure(value = 2000.0, confident = true),
+                        committed = 300.0,
+                        nextObligationText = "إيجار بعد 4 أيام"
+                    )
+                }
+            }
+        }
+
+        composeTestRule.onRoot().captureRoboImage(
+            filePath = "build/outputs/roborazzi/zad_card_hero_glass.png"
         )
     }
 }

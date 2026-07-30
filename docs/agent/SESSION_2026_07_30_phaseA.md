@@ -191,6 +191,22 @@ unlinkTelegram` + `TelegramLinkDialog` في `ProfileScreen`). deno 17/17 (كل �
 وزر 'الرقم غلط'" بترتيب 25→26→27→28 الرقمي — لو الجلسة الجاية عايزة تراجع
 الترتيب، اسأل الأول، الاتنين قرارات صريحة من طرفين مختلفين.
 
+## تحديث UI الميزانية — glassmorphism (2026-07-30، مش من PRODUCT_PLAN.md)
+
+طلب مستخدم مباشر (مش تاسك مرقّم في الدوك): مواءمة Hero Card + هيدر `BudgetScreen` مع
+"تصميم iOS جديد" — glassmorphism، حواف 24dp، إظهار "متاح". مفيش Figma/screenshot
+مرجعي، فالتنفيذ اعتمد على الصفات التلاتة المذكورة + إعادة استخدام نظام الزجاج
+الموجود فعلاً في الكود (`GlassCard`/`HeroGradientCard`/`ZadCanvasBackground` في
+`PremiumSurfaces.kt`) بدل اختراع نمط جديد. `ZadCardHero` و`BudgetScreen` بقوا
+يستخدموا نفس المكونات. **لقيت وصلحت bug حقيقي عن طريق screenshot فعلي** (مش تخمين):
+`GlassCard` كان بيعمل blur على نفس الـ Column اللي فيها النص/الأيقونات، يعني أي محتوى
+جواه بيتمسح بصريًا على API 31+ — bug موجود من قبل في ٤ شاشات تانية بتستخدم `GlassCard`،
+مصلّح دلوقتي في المصدر. اتحذف كمان composable ميت (`BudgetCardSection` في
+`HomeScreen.kt`) كان بروتوتايب قديم لنفس الفكرة من غير available/committed. تفاصيل
+كاملة في `PROGRESS.md`. Android 128/128 (1 جديد — Roborazzi capture test).
+`BudgetScreen`'s header متتأكدش بصريًا (محتاج ViewModel، خارج نطاق الـ driver) —
+ثقة عالية بس مش إثبات بصري مباشر، موثّق الفرق صراحة.
+
 ## حقائق تشغيلية للجلسة الجاية
 
 - **الـ container ده مفيش فيه Android SDK افتراضيًا** — لازم تتأكد/تنصّبه الأول
