@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.R
+import com.example.data.GroceryGeofenceManager
 import com.example.data.NearbyStore
 import com.example.data.OverpassRepo
 import com.example.ui.components.AppearOnEntry
@@ -38,10 +39,13 @@ import kotlinx.coroutines.launch
 /**
  * زاد القريب: يفحص السوبرماركتس القريبة (OpenStreetMap/Overpass، مجاني)
  * ويقارنها بالمخزون الناقص عندك — فحص لحظي وقت فتح الشاشة (foreground only)،
- * مفيش مراقبة موقع في الخلفية ومفيش إذن ACCESS_BACKGROUND_LOCATION.
+ * مفيش مراقبة موقع في الخلفية ومفيش إذن ACCESS_BACKGROUND_LOCATION لهذا الجزء تحديداً.
  *
  * ملاحظة صدق: مفيش عروض/أسعار حقيقية هنا — لا يوجد API أسعار متاجر متاح
  * في المشروع، فالميزة بتقارن القرب الجغرافي بس بنواقص مخزونك.
+ *
+ * الـ toggle تحت ("تنبيهات ذكية") ميزة منفصلة تماماً: geofencing حقيقي وopt-in،
+ * محتاج ACCESS_BACKGROUND_LOCATION — انظر GroceryGeofenceManager.kt.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -115,6 +119,54 @@ fun NearbyDealsScreen(
         if (hasLocationPermission) searchNearby()
     }
 
+    // تنبيهات قرب السوبرماركت (opt-in، geofencing حقيقي) — منفصلة عن البحث اليدوي فوق
+    var locationAlertsEnabled by remember { mutableStateOf(GroceryGeofenceManager.isEnabled(context)) }
+    val backgroundLocationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            GroceryGeofenceManager.setEnabled(context, true)
+            locationAlertsEnabled = true
+            androidx.work.WorkManager.getInstance(context).enqueue(
+                androidx.work.OneTimeWorkRequestBuilder<com.example.workers.GeofenceRefreshWorker>().build()
+            )
+        } else {
+            locationAlertsEnabled = false
+        }
+    }
+    val foregroundForAlertsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        hasLocationPermission = granted
+        if (granted) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            } else {
+                GroceryGeofenceManager.setEnabled(context, true)
+                locationAlertsEnabled = true
+                androidx.work.WorkManager.getInstance(context).enqueue(
+                    androidx.work.OneTimeWorkRequestBuilder<com.example.workers.GeofenceRefreshWorker>().build()
+                )
+            }
+        } else {
+            locationAlertsEnabled = false
+        }
+    }
+    fun onLocationAlertsToggle(wantEnabled: Boolean) {
+        if (!wantEnabled) {
+            GroceryGeofenceManager.setEnabled(context, false)
+            locationAlertsEnabled = false
+            return
+        }
+        if (!hasLocationPermission) {
+            foregroundForAlertsLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q && !GroceryGeofenceManager.hasBackgroundLocationPermission(context)) {
+            backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        } else {
+            GroceryGeofenceManager.setEnabled(context, true)
+            locationAlertsEnabled = true
+            androidx.work.WorkManager.getInstance(context).enqueue(
+                androidx.work.OneTimeWorkRequestBuilder<com.example.workers.GeofenceRefreshWorker>().build()
+            )
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(background)) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
@@ -126,6 +178,19 @@ fun NearbyDealsScreen(
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(stringResource(R.string.nearby_deals_title), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = primary)
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                    .clip(RoundedCornerShape(12.dp)).background(surfaceContainerLow).padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.location_alerts_toggle_label), style = Typography.labelLarge, fontWeight = FontWeight.SemiBold, color = onSurface)
+                    Text(stringResource(R.string.location_alerts_toggle_hint), style = Typography.labelSmall, color = onSurfaceVariant)
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Switch(checked = locationAlertsEnabled, onCheckedChange = { onLocationAlertsToggle(it) })
             }
 
             if (!hasLocationPermission) {

@@ -11,6 +11,8 @@
     <uses-permission android:name="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- تنبيهات قرب السوبرماركت (اختياري، opt-in من NearbyDealsScreen) — مش مطلوبة لباقي التطبيق -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
@@ -85,6 +87,11 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <!-- تنبيهات قرب السوبرماركت: geofence transitions (GroceryGeofenceManager بيسجلها) -->
+        <receiver
+            android:name=".receivers.GeofenceBroadcastReceiver"
+            android:exported="false" />
 
         <!-- Transaction Widget -->
         <receiver

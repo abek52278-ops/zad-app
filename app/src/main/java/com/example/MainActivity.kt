@@ -154,6 +154,15 @@ class MainActivity : ComponentActivity() {
             txSyncRequest
         )
 
+        // تنبيهات قرب السوبرماركت (opt-in) — الـ worker نفسه بيتشيك enabled/permission
+        // ومايعملش حاجة لو مفعّلهاش المستخدم، فمأمون نجدولها دايماً زي باقي الـ workers
+        val geofenceRefreshRequest = PeriodicWorkRequestBuilder<com.example.workers.GeofenceRefreshWorker>(12, TimeUnit.HOURS).build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "ZadGeofenceRefreshWorker",
+            ExistingPeriodicWorkPolicy.KEEP,
+            geofenceRefreshRequest
+        )
+
         // Start real-time chat notification service
         try {
             startService(Intent(this, com.example.services.ChatNotificationService::class.java))

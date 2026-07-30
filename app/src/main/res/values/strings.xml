@@ -829,7 +829,7 @@
     <string name="auto_deduct_badge">خصم تلقائي</string>
     <string name="auto_deduct_toggle_action">تفعيل/إيقاف الخصم التلقائي</string>
 
-    <!-- Nearby Deals (foreground-only geofencing) -->
+    <!-- Nearby Deals (manual, foreground-only search — one-shot tap, no background monitoring) -->
     <string name="nearby_deals_title">زاد القريب</string>
     <string name="location_permission_rationale">زاد يحتاج إذن الموقع عشان يوريك السوبرماركتس القريبة منك — يُستخدم فقط وقت فتح هذه الشاشة، لا مراقبة في الخلفية.</string>
     <string name="allow_location_action">السماح بالوصول للموقع</string>
@@ -840,6 +840,14 @@
     <string name="nearby_pharmacies_section_title">صيدليات قريبة</string>
     <string name="nearby_supermarkets_section_title">سوبرماركتس قريبة</string>
     <string name="refill_needed_reminder_hint">دواء قرب يخلص: %1$s</string>
+
+    <!-- Location Alerts (opt-in real background geofencing — separate from the manual search above) -->
+    <string name="location_alerts_toggle_label">تنبيهات ذكية وأنت قريب من متجر</string>
+    <string name="location_alerts_toggle_hint">زاد يفكّرك بنواقصك تلقائياً لما تكون قريب من سوبرماركت — يحتاج إذن الموقع في الخلفية، وممكن توقفه في أي وقت.</string>
+    <string name="background_location_permission_rationale">عشان زاد يقدر ينبهك وأنت قريب من سوبرماركت حتى لو التطبيق مقفول، محتاج إذن "الموقع طول الوقت" من إعدادات الجهاز.</string>
+    <string name="location_alerts_channel_name">زاد — تنبيهات قرب المتجر</string>
+    <string name="location_alert_notification_title">أنت قريب من %1$s</string>
+    <string name="location_alert_notification_body">افتكر تشتري النواقص دي عشان توفر: %1$s</string>
 
     <!-- Budget suggestion (advisory, needs user approval) -->
     <string name="budget_suggestion_text">زاد يقترح تعديل ميزانيتك إلى %1$s بناءً على متوسط آخر شهرين</string>

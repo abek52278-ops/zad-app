@@ -839,6 +839,14 @@
     <string name="nearby_supermarkets_section_title">Yakındaki marketler</string>
     <string name="refill_needed_reminder_hint">Bitmek üzere: %1$s</string>
 
+    <!-- Location Alerts (opt-in real background geofencing — separate from the manual search above) -->
+    <string name="location_alerts_toggle_label">Markete yaklaşınca akıllı bildirim</string>
+    <string name="location_alerts_toggle_hint">Zad, bir markete yaklaştığınızda eksiklerinizi otomatik hatırlatır — arka plan konum izni gerekir, istediğiniz zaman kapatabilirsiniz.</string>
+    <string name="background_location_permission_rationale">Zad\'ın uygulama kapalıyken bile markete yaklaştığınızda sizi uyarabilmesi için cihaz ayarlarından "Her zaman izin ver" konum izni gerekir.</string>
+    <string name="location_alerts_channel_name">Zad — Markete yakınlık bildirimleri</string>
+    <string name="location_alert_notification_title">%1$s\'e yakınsınız</string>
+    <string name="location_alert_notification_body">Tasarruf etmek için şunları almayı unutmayın: %1$s</string>
+
     <!-- Budget suggestion (advisory, needs user approval) -->
     <string name="budget_suggestion_text">Zad, son iki ayın ortalamasına göre bütçenizi %1$s olarak güncellemenizi öneriyor</string>
     <string name="apply_suggestion_action">Uygula</string>

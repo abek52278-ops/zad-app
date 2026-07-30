@@ -693,6 +693,14 @@
     <string name="detected_subscription_confirm">تأكيد الإضافة</string>
     <string name="detected_subscription_dismiss">مو اشتراك</string>
     <string name="nav_subscriptions_installments">الاشتراكات والأقساط</string>
+
+    <!-- Location Alerts (opt-in real background geofencing — separate from the manual search above) -->
+    <string name="location_alerts_toggle_label">تنبيهات ذكية وأنت قريب من متجر</string>
+    <string name="location_alerts_toggle_hint">زاد يذكرك بنواقصك تلقائياً لما تكون قريب من سوبرماركت — يحتاج إذن الموقع في الخلفية، وتقدر توقفه في أي وقت.</string>
+    <string name="background_location_permission_rationale">عشان زاد يقدر ينبهك وأنت قريب من سوبرماركت حتى لو التطبيق مقفول، محتاج إذن "الموقع طول الوقت" من إعدادات الجهاز.</string>
+    <string name="location_alerts_channel_name">زاد — تنبيهات قرب المتجر</string>
+    <string name="location_alert_notification_title">أنت قريب من %1$s</string>
+    <string name="location_alert_notification_body">لا تنسَ تشتري النواقص دي عشان توفر: %1$s</string>
     <string name="no_items_in_category">ما فيه عناصر في هذا التصنيف</string>
     <string name="expired_days_ago">منتهي من %1$d يوم</string>
     <string name="disable">تعطيل</string>
