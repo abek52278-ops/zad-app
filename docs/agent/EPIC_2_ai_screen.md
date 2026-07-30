@@ -94,8 +94,19 @@ not reachable from this purely client → `zad-core-intelligence` Edge Function 
   ran clean in one pass — first clean `lintDebug` in this epic (previously blocked by
   container memory pressure across ~10 attempts in prior sessions).
 
+## Income/expense consolidation — DONE (2026-07-30, commit `468da96`)
+
+`BudgetMath.totalIncome()`/`totalExpense()` (all-time, txnKind-based) added alongside
+the existing month-scoped `spentThisMonth()`/`incomeThisMonth()`; `HomeScreen`,
+`TransactionsScreen`, `BudgetScreen`, and `ZadIntelligenceScreen`'s `OverviewTab` now all
+call into them instead of each re-deriving the same `isExpense`-filtered sum
+(`AUDIT.md` "Rule 1"). `WeeklyReportScreen`'s category-grouped weekly breakdown got the
+same `isExpense`→`txnKind` predicate fix inline (kept local — different shape, windowed
++ grouped, not a plain total). Category/merchant breakdowns elsewhere were deliberately
+left `isExpense`-based, same scoping boundary Task 19.3 already established for
+`ZadCentralBrain`'s 13 other sites. Full detail in `PROGRESS.md`.
+
 ## What's next in Epic 2 (not started)
 
-- Separate task: consolidate the 5 screen-local income/expense recomputations.
 - Not yet scoped: whether Epic 2 also touches `HomeScreen`'s AI-cards-on-open problem or stays
   scoped to `ZadIntelligenceScreen` only — ask the user before assuming either way.

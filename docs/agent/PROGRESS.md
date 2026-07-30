@@ -412,3 +412,30 @@ untested-by-design status as this codebase's existing `BootReceiver`/
 `ChatNotificationService`. **Not yet done**: real-device verification, and the
 deliberately-deferred store price/expensive classification (would need either a new
 price-data source or an AI-estimate call — separate task if wanted later).
+
+## Location alerts follow-up: LocationIQ + pharmacy geofencing (2026-07-30, commit `3ef5849`)
+
+User shared a LocationIQ API key in chat mid-session and asked for it wired into the
+geofencing feature, plus pharmacy coverage and a real-time-query guarantee.
+
+- **Key handling**: did not embed the key client-side. `AMAZON_ASSOCIATE_TAG` (the
+  existing precedent for a `BuildConfig` secret) is a *public* affiliate tag meant to
+  appear in URLs — a LocationIQ key is a real rate-limited credential that would get
+  extracted from the APK and have its free-tier quota burned. New `nearby_pois` action
+  on `zad-core-intelligence` (plain server-side proxy, no LLM, 6h cache on a ~110m
+  lat/lon grid) reads `LOCATIONIQ_API_KEY` as a Supabase secret instead. **Not deployed
+  this session** (no Supabase CLI/MCP auth available) — user still needs to run
+  `supabase secrets set LOCATIONIQ_API_KEY=<key>` and redeploy
+  `zad-core-intelligence`. Falls back to `OverpassRepo` silently until then, so nothing
+  is broken in the meantime.
+- New `LocationIqRepo.kt` (client), mirrors `OverpassRepo`'s exact function signatures.
+  `GroceryGeofenceManager` tries LocationIQ first per category, Overpass fallback.
+- **Pharmacy geofencing added**: `GeofenceCategory` enum (`SUPERMARKET`/`PHARMACY`),
+  id-prefixed so `GeofenceBroadcastReceiver` knows which table to query on entry — up to
+  15 geofences per category (30 total, well under Android's 100-per-app cap).
+- **Real-time query confirmed/extended**: the receiver already read Room fresh at
+  ENTER-event time (not a cached list from registration time) for the supermarket case;
+  now the pharmacy case does the same — `daysOfSupplyLeft() <= 5` computed from a live
+  DAO read at the moment of entry, same threshold `NearbyDealsScreen` already uses.
+- `compileDebugKotlin`/`assembleDebug`/`testDebugUnitTest`(98/98)/`lintDebug` all clean.
+  TypeScript changes not `deno check`-ed or deployed (no `deno`/deploy access here).
