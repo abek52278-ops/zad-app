@@ -109,8 +109,9 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
         viewModel.updateTasbihaContext(familyViewModel.myTasbiha, familyViewModel.familyTasbiha)
     }
 
-    // كتالوچ ترشيحات أمازون — مرة واحدة، عشان زاد يقدر يرشح منتج للناقص في المخزون
-    LaunchedEffect(Unit) { viewModel.refreshAffiliateContext() }
+    // كتالوچ ترشيحات أمازون — مرة واحدة، عشان زاد يقدر يرشح منتج للناقص في المخزون.
+    // نفس الـ StateFlow اللي الشاشات بتقرأ منه، مش جلب منفصل.
+    LaunchedEffect(Unit) { viewModel.loadAffiliateProducts() }
 
     // ─── وضع الأطفال: قفل تنقّل على مستوى الشاشة كلها، مش بس محتوى الرئيسية ───
     val context = LocalContext.current

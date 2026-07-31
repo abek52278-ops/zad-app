@@ -300,6 +300,11 @@
     <string name="obligation_due_in_days">%1$s بعد %2$d يوم</string>
     <string name="spent_label">المصروف</string>
     <string name="committed_label">محجوز</string>
+    <string name="tasbiha_garden_title">بستان التسبيح</string>
+    <string name="tasbiha_level_of">مستوى %1$d من ٥</string>
+    <string name="tasbiha_total_count">%1$d تسبيحة</string>
+    <string name="tasbiha_streak_days">%1$d يوم متتالي</string>
+    <string name="amazon_picks_title">ترشيحات أمازون</string>
     <string name="days_label">الأيام</string>
     <string name="budget_percent_used">%1$d٪ من الميزانية</string>
     <string name="budget_status_excellent">وضع ممتاز</string>

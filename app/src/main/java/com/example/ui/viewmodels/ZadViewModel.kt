@@ -503,20 +503,18 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ترشيحات أمازون — كتالوچ الأفلييت النشط، بيتحمّل مرة عند فتح الشات/التقرير.
+    // ترشيحات أمازون — مشتقة من _affiliateProducts اللي loadAffiliateProducts()
+    // بيملاها (ومعاها كاش Room)، مش جلب تاني مستقل: مصدر واحد للكتالوچ، عشان اللي
+    // الشات بيتكلم عنه هو بالظبط اللي الشاشات بتعرضه.
     // مش محرك ترشيح شخصي: دي منتجات الكتالوچ المتاحة، والربط بالمخزون بيحصل في
     // الرد نفسه (زاد بيقارن الناقص عنده بالكتالوچ ده) مش هنا.
-    private val _affiliateContext = MutableStateFlow<String?>(null)
-
-    fun refreshAffiliateContext() {
-        viewModelScope.launch {
-            val products = runCatching { SupabaseRepo.getAffiliateProducts() }.getOrNull()
-                .orEmpty().filter { it.isActive }
-            _affiliateContext.value = if (products.isEmpty()) null else products.take(12).joinToString("\n") { p ->
-                "- ${p.productNameAr}" +
-                    (if (p.averagePriceSar > 0) " — ${com.example.data.CurrencyFormatter.format(getApplication(), p.averagePriceSar)}" else "") +
-                    (p.category?.takeIf { it.isNotBlank() }?.let { " [$it]" } ?: "")
-            }
+    private fun affiliateContextText(): String? {
+        val products = _affiliateProducts.value.filter { it.isActive }
+        if (products.isEmpty()) return null
+        return products.take(12).joinToString("\n") { p ->
+            "- ${p.productNameAr}" +
+                (if (p.averagePriceSar > 0) " — ${com.example.data.CurrencyFormatter.format(getApplication(), p.averagePriceSar)}" else "") +
+                (p.category?.takeIf { it.isNotBlank() }?.let { " [$it]" } ?: "")
         }
     }
 
@@ -648,7 +646,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             ${_tasbihaContext.value ?: "لا توجد بيانات بستان بعد."}
 
             === ترشيحات أمازون المتاحة ===
-            ${_affiliateContext.value ?: "لا يوجد كتالوچ ترشيحات متاح حالياً."}
+            ${affiliateContextText() ?: "لا يوجد كتالوچ ترشيحات متاح حالياً."}
         """.trimIndent()
     }
 

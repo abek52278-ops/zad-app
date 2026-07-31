@@ -37,6 +37,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.ui.components.GlassCard
 import com.example.ui.components.pressableScale
 import com.example.ui.components.ZadLottieAsset
 import com.airbnb.lottie.compose.LottieConstants
@@ -146,7 +147,8 @@ fun ZadIntelligenceScreen(
                     inventory = inventory,
                     subscriptions = subscriptions,
                     report = brainReport,
-                    viewModel = viewModel
+                    viewModel = viewModel,
+                    familyViewModel = familyViewModel
                 )
                 1 -> BehaviorPredictionsTab(
                     transactions = transactions,
@@ -197,7 +199,8 @@ fun OverviewTab(
     inventory: List<ZadInventory>,
     subscriptions: List<ZadSubscription>,
     report: com.example.data.ZadCentralBrain.BrainReport? = null,
-    viewModel: ZadViewModel
+    viewModel: ZadViewModel,
+    familyViewModel: com.example.ui.viewmodels.FamilyViewModel
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val otherCategoryLabel = stringResource(R.string.other_category)
@@ -234,6 +237,11 @@ fun OverviewTab(
             }
             item { ExportReportButton(report) }
         }
+
+        // بستان التسبيح وترشيحات أمازون — الاتنين بيانات حقيقية موجودة من زمان بس
+        // شاشة عقل زاد ماكانتش بتعرض أي منهم خالص.
+        item { TasbihaSummaryCard(familyViewModel) }
+        item { AmazonPicksSummaryCard(viewModel) }
 
         // إحصائيات سريعة
         item {
@@ -1888,6 +1896,120 @@ fun SmartBuyingTimingCard(inventory: List<ZadInventory>, serverBehaviorProfile: 
                 if (narratingItem != null) {
                     Spacer(modifier = Modifier.height(8.dp))
                     AiNarrativeSection(narrative = aiNarrative, isLoading = isLoadingNarrative, onExplain = null)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * بستان التسبيح جوه عقل زاد. النموذج الحقيقي تراكمي مدى الحياة (٥ مراحل × ٩٩ نقطة)
+ * مش هدف يومي بيتصفّر — فالكارت بيعرض المستوى والتقدم للمستوى الجاي والسلسلة زي ما
+ * family_tasbiha مخزّنة بالظبط، مش نسبة يومية متخترعة.
+ */
+@Composable
+fun TasbihaSummaryCard(familyViewModel: com.example.ui.viewmodels.FamilyViewModel) {
+    LaunchedEffect(Unit) { familyViewModel.loadTasbiha() }
+    val tree = familyViewModel.myTasbiha ?: return
+
+    GlassCard(shape = RoundedCornerShape(18.dp), contentPadding = 16.dp) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                stringResource(R.string.tasbiha_garden_title),
+                style = Typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = onSurface
+            )
+            Text(tree.stageEmoji(), fontSize = 28.sp)
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            "${tree.stageName()} · ${stringResource(R.string.tasbiha_level_of, tree.level)}",
+            style = Typography.bodyMedium,
+            color = onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        LinearProgressIndicator(
+            progress = { tree.progressToNext().coerceIn(0f, 1f) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(RoundedCornerShape(50)),
+            color = kidsPrimary,
+            trackColor = kidsPrimary.copy(alpha = 0.15f)
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                stringResource(R.string.tasbiha_total_count, tree.totalClicks),
+                style = Typography.labelMedium,
+                color = textSecondary
+            )
+            if (tree.streakDays > 0) {
+                Text(
+                    "🔥 " + stringResource(R.string.tasbiha_streak_days, tree.streakDays),
+                    style = Typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = secondaryDark
+                )
+            }
+        }
+    }
+}
+
+/**
+ * ترشيحات أمازون جوه عقل زاد. بيقرأ نفس affiliateProducts اللي الرئيسية وقائمة
+ * التسوق بيعرضوا منه — مصدر واحد، عشان الشاشة والشات ما يقولوش حاجتين مختلفتين.
+ */
+@Composable
+fun AmazonPicksSummaryCard(viewModel: ZadViewModel) {
+    val products by viewModel.affiliateProducts.collectAsState()
+    val active = products.filter { it.isActive }
+    if (active.isEmpty()) return
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    GlassCard(shape = RoundedCornerShape(18.dp), contentPadding = 16.dp) {
+        Text(
+            stringResource(R.string.amazon_picks_title),
+            style = Typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = onSurface
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        active.take(3).forEach { product ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        product.productNameAr,
+                        style = Typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = onSurface,
+                        maxLines = 1
+                    )
+                    product.category?.takeIf { it.isNotBlank() }?.let {
+                        Text(it, style = Typography.labelSmall, color = textTertiary)
+                    }
+                }
+                if (product.averagePriceSar > 0) {
+                    Text(
+                        com.example.data.CurrencyFormatter.format(context, product.averagePriceSar),
+                        style = Typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = secondaryDark
+                    )
                 }
             }
         }
