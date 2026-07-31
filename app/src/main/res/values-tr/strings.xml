@@ -299,6 +299,12 @@
     <string name="available_breakdown_with_next">Kalan %1$s · Taahhüt edilen %2$s (%3$s)</string>
     <string name="obligation_due_in_days">%1$s, %2$d gün sonra</string>
     <string name="spent_label">Harcanan</string>
+    <string name="committed_label">Ayrılan</string>
+    <string name="tasbiha_garden_title">Tesbih Bahçesi</string>
+    <string name="tasbiha_level_of">Seviye %1$d / 5</string>
+    <string name="tasbiha_total_count">%1$d tesbih</string>
+    <string name="tasbiha_streak_days">%1$d gün üst üste</string>
+    <string name="amazon_picks_title">Amazon önerileri</string>
     <string name="days_label">Gün</string>
     <string name="budget_percent_used">Bütçenin %%%1$d\'si</string>
     <string name="budget_status_excellent">Harika durumdasın</string>
