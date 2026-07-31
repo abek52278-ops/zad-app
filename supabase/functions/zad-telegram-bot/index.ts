@@ -30,10 +30,15 @@ import {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
+// NOT `!`-asserted, deliberately. A missing token blew up at module load — new Bot("")
+// throws — which the platform surfaces as an opaque WORKER_ERROR/500 on every request
+// with nothing useful in the logs, so the function couldn't tell you what was wrong.
+// It now boots regardless and the GET probe reports which config is actually present.
+const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
+const BOT_CONFIGURED = BOT_TOKEN.length > 0;
 // Telegram's setWebhook secret_token, verified by grammY itself when passed to
-// webhookCallback below. Empty means "not configured yet" — see PROGRESS.md caveat:
-// unset in production would accept spoofed webhook calls.
+// webhookCallback below. If unset we derive one from the bot token rather than leaving
+// verification off entirely — see deriveWebhookSecret in context.ts.
 const WEBHOOK_SECRET_ENV = Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ?? undefined;
 
 function toGrammyKeyboard(rows: InlineKeyboardButton[][]): InlineKeyboard {
@@ -119,7 +124,10 @@ async function askZad(systemPrompt: string, userPrompt: string): Promise<string 
   }
 }
 
-const bot = new Bot(BOT_TOKEN);
+// Constructed with a syntactically-valid placeholder when the token is missing so the
+// module still loads and the GET probe can explain the misconfiguration. No request is
+// ever routed to this bot in that state — Deno.serve short-circuits below.
+const bot = new Bot(BOT_CONFIGURED ? BOT_TOKEN : "0:placeholder");
 
 bot.command("start", async (ctx) => {
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
@@ -395,7 +403,9 @@ bot.on("callback_query:data", async (ctx) => {
 // An explicitly-set project secret always wins; otherwise derive one (see context.ts for
 // why). Either way WEBHOOK_SECRET is now always a real value, so grammY's secretToken
 // check is genuinely enforced — previously it fell through to undefined and was skipped.
-const WEBHOOK_SECRET = WEBHOOK_SECRET_ENV ?? await deriveWebhookSecret(BOT_TOKEN);
+const WEBHOOK_SECRET = BOT_CONFIGURED
+  ? (WEBHOOK_SECRET_ENV ?? await deriveWebhookSecret(BOT_TOKEN))
+  : "";
 const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/zad-telegram-bot`;
 
 /** Self-registration. setWebhook can't be run from the deploy path used here (it needs
@@ -403,6 +413,9 @@ const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/zad-telegram-bot`;
  * already has the token at runtime. Idempotent — checks getWebhookInfo first and only
  * calls setWebhook when the registered URL differs from this deployment's. */
 async function ensureWebhook(force = false): Promise<Record<string, unknown>> {
+  if (!BOT_CONFIGURED) {
+    return { ok: false, reason: "TELEGRAM_BOT_TOKEN is not set on this project" };
+  }
   try {
     const infoRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getWebhookInfo`);
     const info = await infoRes.json();
@@ -432,7 +445,11 @@ async function ensureWebhook(force = false): Promise<Record<string, unknown>> {
 // Register on cold start too, so a redeploy re-asserts the webhook without anyone
 // having to poke it. Fire-and-forget: a Telegram outage must not stop the function
 // from booting and serving updates it may already be receiving.
-ensureWebhook().catch((e) => console.error("boot ensureWebhook:", e));
+if (BOT_CONFIGURED) {
+  ensureWebhook().catch((e) => console.error("boot ensureWebhook:", e));
+} else {
+  console.error("zad-telegram-bot: TELEGRAM_BOT_TOKEN is not set — bot is inert.");
+}
 
 const handleUpdate = webhookCallback(bot, "std/http", { secretToken: WEBHOOK_SECRET });
 
@@ -441,9 +458,26 @@ Deno.serve(async (req: Request) => {
   // the webhook is wired up, without ever echoing the token or the secret itself.
   if (req.method === "GET") {
     const status = await ensureWebhook(new URL(req.url).searchParams.get("force") === "1");
-    return new Response(JSON.stringify({ function: "zad-telegram-bot", webhook: status }, null, 2), {
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        function: "zad-telegram-bot",
+        // Presence only — never the values themselves.
+        config: {
+          bot_token: BOT_CONFIGURED,
+          webhook_secret: WEBHOOK_SECRET.length > 0,
+          webhook_secret_source: WEBHOOK_SECRET_ENV ? "env" : (BOT_CONFIGURED ? "derived" : "none"),
+          supabase_url: Boolean(SUPABASE_URL),
+          service_role_key: Boolean(SERVICE_ROLE_KEY),
+        },
+        webhook: status,
+      }, null, 2),
+      { headers: { "Content-Type": "application/json" } },
+    );
+  }
+  if (!BOT_CONFIGURED) {
+    // Fail loudly rather than 500-ing opaquely: Telegram retries on 5xx, and a retry
+    // loop against a misconfigured project helps nobody.
+    return new Response("bot not configured", { status: 503 });
   }
   try {
     return await handleUpdate(req);
