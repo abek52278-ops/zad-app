@@ -1,7 +1,14 @@
 // zad-telegram-bot — Phase B4 (PRODUCT_PLAN.md), built on grammY per explicit user
-// instruction (2026-07-30). Read-only v1: view balance/recent transactions/pending
-// insights, and act on Task 28's dismiss-with-reason from a Telegram button. No writes
-// beyond dismissal — no expense logging yet (deliberately staged, see PROGRESS.md).
+// instruction (2026-07-30). Read-only: view balance/recent transactions/pending
+// insights, act on Task 28's dismiss-with-reason from a Telegram button, and — as of
+// v2 — hold a real conversation. No writes beyond dismissal; the agent is explicitly
+// told (context.ts rule 5) not to claim it logged anything, because it can't.
+//
+// v2 (conversational): free text goes to Zad itself instead of bouncing back a button
+// menu. The customer's full picture is assembled server-side by context.ts using the
+// same === SECTION === contract as the Kotlin client's buildFullChatContext(), and the
+// model call routes through zad-core-intelligence's `ai_text` action so the bot
+// inherits the app's Groq-pool-primary/Gemini-fallback policy instead of forking it.
 //
 // Identity: EPIC_1_4.md's own warning — "a chat_id is never an identity". A user
 // generates a one-time binding code in the app (telegram_bindings row, user_id set,
@@ -15,6 +22,7 @@ import {
   reasonForCode, parseDismissCallback, normalizeBindingCode, memoryNoteForDismissal,
   formatBalanceMessage, formatTransactionsMessage, formatInsightTitle,
 } from "./telegram.ts";
+import { AgentContextInput, agentSystemPrompt, buildAgentContext, clampForTelegram } from "./context.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -43,6 +51,68 @@ async function resolveUserId(sb: SupabaseClient, chatId: number): Promise<string
     .not("bound_at", "is", null)
     .maybeSingle();
   return (data as { user_id: string } | null)?.user_id ?? null;
+}
+
+/** Pulls the same picture of the customer the in-app chat gets. Every query is
+ * user-scoped explicitly — this runs on the service-role key, so RLS is NOT the
+ * guard here; the .eq("user_id", userId) on each query is. */
+async function fetchAgentContext(sb: SupabaseClient, userId: string): Promise<AgentContextInput> {
+  const today = new Date().toISOString().slice(0, 10);
+  const monthStart = `${today.slice(0, 7)}-01T00:00:00.000Z`;
+
+  const [user, txs, inv, subs, obligations, pharmacy, shopping, insights, tasbiha, memory] = await Promise.all([
+    sb.from("zad_users").select("full_name,monthly_limit,currency").eq("id", userId).maybeSingle(),
+    // 30 most recent overall, plus anything this month, so month totals stay correct
+    // even for a heavy-spending month with more than 30 transactions in it.
+    sb.from("zad_transactions").select("title,amount,txn_kind,category,created_at")
+      .eq("user_id", userId).or(`created_at.gte.${monthStart}`).order("created_at", { ascending: false }).limit(200),
+    sb.from("zad_inventory").select("item_name,quantity,unit,expiry_date").eq("user_id", userId).limit(60),
+    sb.from("zad_subscriptions").select("title,amount,renewal_date,is_active").eq("user_id", userId).limit(30),
+    sb.from("zad_obligations").select("title,amount,due_date,status").eq("user_id", userId).limit(30),
+    sb.from("zad_pharmacy_items").select("name,remaining_quantity,unit,dosage").eq("user_id", userId).limit(30),
+    sb.from("zad_shopping_list").select("item_name,is_purchased").eq("user_id", userId).limit(40),
+    sb.from("zad_insights").select("title,body").eq("user_id", userId).eq("status", "pending").limit(8),
+    sb.from("family_tasbiha").select("garden_name,tree_emoji,level,score,total_clicks,streak_days").eq("user_id", userId).limit(10),
+    sb.from("zad_memory").select("scope,note").eq("user_id", userId).limit(20),
+  ]);
+
+  return {
+    userName: (user.data as any)?.full_name ?? null,
+    monthlyLimit: Number((user.data as any)?.monthly_limit) || 0,
+    currency: (user.data as any)?.currency || "ر.س",
+    today,
+    transactions: (txs.data ?? []) as any,
+    inventory: (inv.data ?? []) as any,
+    subscriptions: (subs.data ?? []) as any,
+    obligations: (obligations.data ?? []) as any,
+    pharmacy: (pharmacy.data ?? []) as any,
+    shopping: (shopping.data ?? []) as any,
+    insights: (insights.data ?? []) as any,
+    tasbiha: (tasbiha.data ?? []) as any,
+    memory: (memory.data ?? []) as any,
+  };
+}
+
+/** Routes through zad-core-intelligence's `ai_text` rather than calling Groq directly,
+ * so the bot inherits the exact same multi-key Groq pool + Gemini fallback the app uses
+ * — one provider policy, not a second one drifting out of sync here. */
+async function askZad(systemPrompt: string, userPrompt: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/zad-core-intelligence`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
+      body: JSON.stringify({ action: "ai_text", payload: { system_prompt: systemPrompt, user_prompt: userPrompt } }),
+    });
+    if (!res.ok) {
+      console.error("askZad: core-intelligence returned", res.status);
+      return null;
+    }
+    const json = await res.json();
+    return json?.ok === false ? null : (json?.text ?? null);
+  } catch (e) {
+    console.error("askZad failed:", e);
+    return null;
+  }
 }
 
 const bot = new Bot(BOT_TOKEN);
@@ -84,14 +154,60 @@ bot.command("start", async (ctx) => {
   }
 });
 
-bot.on("message:text", async (ctx) => {
-  if (ctx.message.text.startsWith("/")) return; // أوامر تانية غير /start — تجاهل
+bot.command("menu", async (ctx) => {
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
   const userId = await resolveUserId(sb, ctx.chat.id);
   if (!userId) {
     await ctx.reply("أهلاً! لو عندك كود ربط من تطبيق زاد ابعته كده: /start الكود");
+    return;
+  }
+  await ctx.reply("اختار من تحت، أو اسألني أي حاجة بالكلام العادي:", {
+    reply_markup: toGrammyKeyboard(mainMenuKeyboard()),
+  });
+});
+
+/** التحليل الكامل — نفس بيانات الشات، بس السؤال جاهز، عشان العميل ياخد قراءة شاملة
+ * من غير ما يكتب سؤال. */
+bot.command("tahlil", async (ctx) => {
+  const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  const userId = await resolveUserId(sb, ctx.chat.id);
+  if (!userId) {
+    await ctx.reply("الحساب ده مش مربوط — افتح تطبيق زاد واعمل كود ربط.");
+    return;
+  }
+  await ctx.replyWithChatAction("typing");
+  const context = buildAgentContext(await fetchAgentContext(sb, userId));
+  const answer = await askZad(
+    agentSystemPrompt(),
+    `${context}\n\n=== سؤال العميل ===\nاعملي تحليل سريع لوضعي المالي وحالة البيت: أهم ٣ ملاحظات، وأهم حاجة أعملها دلوقتي.`,
+  );
+  await ctx.reply(answer ? clampForTelegram(answer) : "معلش، التحليل مش متاح دلوقتي — جرب كمان شوية.");
+});
+
+// المحادثة الحقيقية — أي كلام عادي بيروح لزاد بنفس السياق والشخصية بتوع الشات
+// اللي جوه التطبيق، مش رد ثابت بقائمة أزرار زي النسخة الأولى.
+bot.on("message:text", async (ctx) => {
+  if (ctx.message.text.startsWith("/")) return; // أوامر متسجلة فوق بتتعامل لوحدها
+  const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  const userId = await resolveUserId(sb, ctx.chat.id);
+  if (!userId) {
+    await ctx.reply("أهلاً! لو عندك كود ربط من تطبيق زاد ابعته كده: /start الكود");
+    return;
+  }
+
+  await ctx.replyWithChatAction("typing");
+  const context = buildAgentContext(await fetchAgentContext(sb, userId));
+  const answer = await askZad(
+    agentSystemPrompt(),
+    `${context}\n\n=== سؤال العميل ===\n${ctx.message.text}`,
+  );
+
+  if (answer) {
+    await ctx.reply(clampForTelegram(answer));
   } else {
-    await ctx.reply("اختار من تحت:", { reply_markup: toGrammyKeyboard(mainMenuKeyboard()) });
+    await ctx.reply("معلش، مش قادر أرد دلوقتي — جرب تاني كمان شوية، أو اختار من القائمة:", {
+      reply_markup: toGrammyKeyboard(mainMenuKeyboard()),
+    });
   }
 });
 
