@@ -801,8 +801,26 @@ this session — no Supabase CLI/MCP auth, no way to reach the live bot):**
    `TELEGRAM_WEBHOOK_SECRET` is unset it is derived from the bot token, so grammY's
    `secretToken` check is always enforced. Setting `TELEGRAM_WEBHOOK_SECRET` explicitly
    still takes precedence if you prefer to manage it yourself.
-4. Confirm the bot's actual Telegram username matches `@ZadSmartBot` hardcoded into
-   `ProfileScreen.kt`'s instructions string — still not verified against the live bot.
+4. ~~Confirm the bot's actual Telegram username~~ — **DONE 2026-07-31, and it was
+   wrong.** `getMe` reports the username is **`@ZadhApp_bot`**; `ZadSmartBot` is only
+   the bot's *display name*. `ProfileScreen.kt` was telling users to open
+   `@ZadSmartBot`, which does not resolve in Telegram search — so even a fully working
+   bot would have looked broken to anyone following the app's own instructions. Fixed.
+
+### 2026-07-31 (later) — bot is live end to end
+
+`TELEGRAM_BOT_TOKEN` was set by the user; the function self-registered its webhook on
+the next cold start, exactly as designed. Verified against the live deployment:
+- config probe: `bot_token: true`, `webhook_secret: true` (source `derived`).
+- `setWebhook` returned `Webhook was set`, with `previous: ""` — confirming it had
+  genuinely never been registered before, which was the standing diagnosis.
+- `getWebhookInfo`: correct URL, `pending_update_count: 0`, no `last_error_message`.
+- Signature enforcement actually tested, not assumed: a forged POST with no
+  `X-Telegram-Bot-Api-Secret-Token`, and one with a wrong token, both return **401**.
+  The pre-existing "accepts any webhook call" exposure is closed.
+
+Still unproven: reply quality. No real customer message has round-tripped through
+`askZad` yet, and the expense-logging confirm flow has not been exercised end to end.
 
 ### 2026-07-31 — Telegram bot v2: conversational agent + deployed
 

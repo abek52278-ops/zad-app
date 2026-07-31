@@ -632,7 +632,10 @@ private fun TelegramLinkDialog(onDismiss: () -> Unit) {
                 linked == true -> Text(stringResource(R.string.telegram_already_linked))
                 code == null -> Text(stringResource(R.string.telegram_code_failed))
                 else -> Column {
-                    Text(stringResource(R.string.telegram_link_instructions, "@ZadSmartBot"))
+                    // اليوزرنيم الحقيقي من getMe (2026-07-31). "ZadSmartBot" هو الاسم
+                    // المعروض للبوت مش اليوزرنيم — اللي كان مكتوب هنا قبل كده، والبحث
+                    // بيه في تليجرام مكانش بيلاقي البوت أصلاً.
+                    Text(stringResource(R.string.telegram_link_instructions, "@ZadhApp_bot"))
                     Spacer(Modifier.height(12.dp))
                     Row(
                         modifier = Modifier
