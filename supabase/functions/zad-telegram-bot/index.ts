@@ -21,8 +21,12 @@ import {
   InlineKeyboardButton, mainMenuKeyboard, dismissKeyboard,
   reasonForCode, parseDismissCallback, normalizeBindingCode, memoryNoteForDismissal,
   formatBalanceMessage, formatTransactionsMessage, formatInsightTitle,
+  confirmSpendKeyboard, parseSpendCallback,
 } from "./telegram.ts";
-import { AgentContextInput, agentSystemPrompt, buildAgentContext, clampForTelegram } from "./context.ts";
+import {
+  AgentContextInput, agentSystemPrompt, buildAgentContext, clampForTelegram,
+  confirmSpendMessage, deriveWebhookSecret, money, parseSpendIntent, spendIntentPrompt,
+} from "./context.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -30,7 +34,7 @@ const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN")!;
 // Telegram's setWebhook secret_token, verified by grammY itself when passed to
 // webhookCallback below. Empty means "not configured yet" — see PROGRESS.md caveat:
 // unset in production would accept spoofed webhook calls.
-const WEBHOOK_SECRET = Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ?? undefined;
+const WEBHOOK_SECRET_ENV = Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ?? undefined;
 
 function toGrammyKeyboard(rows: InlineKeyboardButton[][]): InlineKeyboard {
   const kb = new InlineKeyboard();
@@ -196,6 +200,34 @@ bot.on("message:text", async (ctx) => {
   }
 
   await ctx.replyWithChatAction("typing");
+
+  // أولاً: هل ده تسجيل مصروف/دخل فعلي؟ لو أيوه، نعرض تأكيد الأول — مفيش كتابة في
+  // zad_transactions من غير ضغطة تأكيد صريحة، عشان أي خطأ في الفهم يبان للعميل
+  // قبل ما يتسجل في دفتره الحقيقي.
+  const intent = parseSpendIntent(await askZad(spendIntentPrompt(), ctx.message.text));
+  if (intent) {
+    const currency = (await sb.from("zad_users").select("currency").eq("id", userId).maybeSingle())
+      .data?.currency ?? "ر.س";
+    const { data: pending, error } = await sb.from("telegram_pending_writes").insert({
+      user_id: userId,
+      chat_id: ctx.chat.id,
+      txn_kind: intent.kind,
+      amount: intent.amount,
+      title: intent.title,
+      category: intent.category,
+      confidence: intent.confidence,
+    }).select("id").single();
+
+    if (!error && pending) {
+      await ctx.reply(confirmSpendMessage(intent, currency), {
+        reply_markup: toGrammyKeyboard(confirmSpendKeyboard((pending as { id: string }).id)),
+      });
+      return;
+    }
+    console.error("pending write insert failed:", error);
+    // بيقع على الشات العادي تحت بدل ما يفضل ساكت
+  }
+
   const context = buildAgentContext(await fetchAgentContext(sb, userId));
   const answer = await askZad(
     agentSystemPrompt(),
@@ -268,6 +300,76 @@ bot.on("callback_query:data", async (ctx) => {
     return;
   }
 
+  // تأكيد/إلغاء تسجيل مصروف. الكتابة الوحيدة في zad_transactions بتحصل هنا بس،
+  // بعد ضغطة تأكيد صريحة من العميل.
+  const spend = parseSpendCallback(data);
+  if (spend) {
+    const { data: pendingRow } = await sb.from("telegram_pending_writes")
+      .select("id,user_id,txn_kind,amount,title,category,status,expires_at")
+      .eq("id", spend.pendingId)
+      // إعادة التحقق: الـ chat اللي بيأكد لازم يكون لسه مربوط بنفس اليوزر صاحب الطلب.
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    const row = pendingRow as {
+      id: string; txn_kind: string; amount: number; title: string;
+      category: string | null; status: string; expires_at: string;
+    } | null;
+
+    if (!row) {
+      await ctx.reply("الطلب ده مش موجود أو مش بتاعك.");
+      return;
+    }
+    if (row.status !== "pending") {
+      await ctx.reply("الطلب ده اتعامل معاه قبل كده.");
+      return;
+    }
+    if (new Date(row.expires_at) < new Date()) {
+      await sb.from("telegram_pending_writes").update({ status: "cancelled" }).eq("id", row.id);
+      await ctx.reply("الطلب ده انتهت صلاحيته — ابعت المصروف تاني.");
+      return;
+    }
+
+    if (spend.action === "cancel") {
+      await sb.from("telegram_pending_writes").update({ status: "cancelled" }).eq("id", row.id);
+      await ctx.reply("تمام، ملغي ✖️");
+      return;
+    }
+
+    // اتنقل لـ confirmed الأول: لو الإدخال فشل بعد كده مش هنكرر الكتابة، ولو ضغط
+    // تأكيد مرتين بسرعة التانية هتلاقي status مش pending وتقف.
+    const { error: claimError } = await sb.from("telegram_pending_writes")
+      .update({ status: "confirmed" })
+      .eq("id", row.id)
+      .eq("status", "pending");
+    if (claimError) {
+      await ctx.reply("حصلت مشكلة، جرب تاني.");
+      return;
+    }
+
+    const { error: insertError } = await sb.from("zad_transactions").insert({
+      user_id: userId,
+      amount: row.amount,
+      title: row.title,
+      category: row.category,
+      is_expense: row.txn_kind === "expense",
+      txn_kind: row.txn_kind,
+      wallet: "card",
+    });
+
+    if (insertError) {
+      console.error("telegram expense insert failed:", insertError);
+      await sb.from("telegram_pending_writes").update({ status: "pending" }).eq("id", row.id);
+      await ctx.reply("معلش، التسجيل فشل — جرب تاني.");
+      return;
+    }
+
+    const { data: u } = await sb.from("zad_users").select("currency").eq("id", userId).maybeSingle();
+    const cur = (u as { currency?: string } | null)?.currency ?? "ر.س";
+    await ctx.reply(`اتسجل ✅ ${row.title} — ${money(row.amount, cur)}`);
+    return;
+  }
+
   const dismiss = parseDismissCallback(data);
   if (dismiss) {
     const reason = reasonForCode(dismiss.reasonCode);
@@ -290,9 +392,59 @@ bot.on("callback_query:data", async (ctx) => {
   }
 });
 
+// An explicitly-set project secret always wins; otherwise derive one (see context.ts for
+// why). Either way WEBHOOK_SECRET is now always a real value, so grammY's secretToken
+// check is genuinely enforced — previously it fell through to undefined and was skipped.
+const WEBHOOK_SECRET = WEBHOOK_SECRET_ENV ?? await deriveWebhookSecret(BOT_TOKEN);
+const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/zad-telegram-bot`;
+
+/** Self-registration. setWebhook can't be run from the deploy path used here (it needs
+ * the bot token, which is a write-only secret), so the function registers itself: it
+ * already has the token at runtime. Idempotent — checks getWebhookInfo first and only
+ * calls setWebhook when the registered URL differs from this deployment's. */
+async function ensureWebhook(force = false): Promise<Record<string, unknown>> {
+  try {
+    const infoRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getWebhookInfo`);
+    const info = await infoRes.json();
+    const current = info?.result?.url ?? "";
+    if (!force && current === FUNCTION_URL) {
+      return { ok: true, changed: false, url: current, pending: info?.result?.pending_update_count ?? 0 };
+    }
+    const setRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: FUNCTION_URL,
+        secret_token: WEBHOOK_SECRET,
+        allowed_updates: ["message", "callback_query"],
+        drop_pending_updates: false,
+      }),
+    });
+    const set = await setRes.json();
+    console.log("ensureWebhook: setWebhook ->", JSON.stringify(set));
+    return { ok: set?.ok === true, changed: true, previous: current, url: FUNCTION_URL, telegram: set };
+  } catch (e) {
+    console.error("ensureWebhook failed:", e);
+    return { ok: false, error: String(e) };
+  }
+}
+
+// Register on cold start too, so a redeploy re-asserts the webhook without anyone
+// having to poke it. Fire-and-forget: a Telegram outage must not stop the function
+// from booting and serving updates it may already be receiving.
+ensureWebhook().catch((e) => console.error("boot ensureWebhook:", e));
+
 const handleUpdate = webhookCallback(bot, "std/http", { secretToken: WEBHOOK_SECRET });
 
 Deno.serve(async (req: Request) => {
+  // GET is not a Telegram update — it's the health/registration probe. Reports whether
+  // the webhook is wired up, without ever echoing the token or the secret itself.
+  if (req.method === "GET") {
+    const status = await ensureWebhook(new URL(req.url).searchParams.get("force") === "1");
+    return new Response(JSON.stringify({ function: "zad-telegram-bot", webhook: status }, null, 2), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
   try {
     return await handleUpdate(req);
   } catch (e) {

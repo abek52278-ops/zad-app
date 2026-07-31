@@ -49,6 +49,26 @@ export function normalizeBindingCode(arg: string | undefined): string | null {
   return trimmed.toUpperCase();
 }
 
+/** Confirm/cancel for a parsed spend intent. Only the pending-row id travels in
+ * callback_data — the amount/title/category live in telegram_pending_writes, because
+ * callback_data is capped at 64 bytes and a truncated amount would be a silent
+ * data-corruption bug. */
+export function confirmSpendKeyboard(pendingId: string): InlineKeyboardButton[][] {
+  return [[
+    { text: "✅ أكد التسجيل", callback_data: `x:${pendingId}` },
+    { text: "✖️ إلغاء", callback_data: `c:${pendingId}` },
+  ]];
+}
+
+/** "x:<uuid>" (confirm) / "c:<uuid>" (cancel) */
+export function parseSpendCallback(data: string): { action: "confirm" | "cancel"; pendingId: string } | null {
+  const parts = data.split(":");
+  if (parts.length !== 2) return null;
+  if (parts[0] !== "x" && parts[0] !== "c") return null;
+  if (!/^[0-9a-fA-F-]{36}$/.test(parts[1])) return null;
+  return { action: parts[0] === "x" ? "confirm" : "cancel", pendingId: parts[1] };
+}
+
 /** "d:<insight_id>:<reason_code>" callback_data */
 export function parseDismissCallback(data: string): { insightId: string; reasonCode: string } | null {
   const parts = data.split(":");

@@ -1,7 +1,7 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import {
   AgentContextInput, agentSystemPrompt, buildAgentContext, categoryBreakdown,
-  clampForTelegram, monthTotals,
+  clampForTelegram, confirmSpendMessage, deriveWebhookSecret, monthTotals, parseSpendIntent,
 } from "./context.ts";
 
 function emptyInput(overrides: Partial<AgentContextInput> = {}): AgentContextInput {
@@ -126,6 +126,77 @@ Deno.test("agentSystemPrompt states the data-not-instructions rule outside any d
   // authority as the rules. buildAgentContext is the only thing allowed to emit
   // "=== <title> ===" headers.
   assert(!/^===/m.test(prompt), "system prompt must not open a === section");
+});
+
+// ── spend-intent parsing ─────────────────────────────────────────────────────
+// These guard a write path into the customer's real ledger, so the bias throughout is
+// "refuse when unsure" rather than "log something plausible".
+
+const goodIntent = JSON.stringify({
+  is_spend: true, kind: "expense", amount: 50, title: "بقالة", category: "بقالة", confidence: 0.9,
+});
+
+Deno.test("parseSpendIntent accepts a confident, well-formed expense", () => {
+  const out = parseSpendIntent(goodIntent);
+  assertEquals(out, { is_spend: true, kind: "expense", amount: 50, title: "بقالة", category: "بقالة", confidence: 0.9 });
+});
+
+Deno.test("parseSpendIntent extracts JSON even when the model wraps it in prose", () => {
+  const out = parseSpendIntent("تمام، ده التحليل:\n" + goodIntent + "\nخلاص.");
+  assertEquals(out?.amount, 50);
+});
+
+Deno.test("parseSpendIntent refuses when is_spend is false (a question is not a log)", () => {
+  assertEquals(parseSpendIntent(JSON.stringify({ is_spend: false, amount: 50, confidence: 0.9 })), null);
+});
+
+Deno.test("parseSpendIntent refuses low-confidence parses", () => {
+  const out = parseSpendIntent(JSON.stringify({ ...JSON.parse(goodIntent), confidence: 0.4 }));
+  assertEquals(out, null);
+});
+
+Deno.test("parseSpendIntent refuses non-positive, absurd, or non-numeric amounts", () => {
+  for (const amount of [0, -20, 5_000_000, "خمسين", null]) {
+    assertEquals(parseSpendIntent(JSON.stringify({ ...JSON.parse(goodIntent), amount })), null, `amount=${amount}`);
+  }
+});
+
+Deno.test("parseSpendIntent refuses null, empty, and non-JSON input", () => {
+  assertEquals(parseSpendIntent(null), null);
+  assertEquals(parseSpendIntent(""), null);
+  assertEquals(parseSpendIntent("مش فاهم قصدك"), null);
+  assertEquals(parseSpendIntent("{ broken json"), null);
+});
+
+Deno.test("parseSpendIntent normalises income kind and fills blank title/category", () => {
+  const out = parseSpendIntent(JSON.stringify({
+    is_spend: true, kind: "income", amount: 9000, title: "  ", category: "", confidence: 0.95,
+  }));
+  assertEquals(out?.kind, "income");
+  assertEquals(out?.title, "دخل");
+  assertEquals(out?.category, "أخرى");
+});
+
+Deno.test("parseSpendIntent rounds amounts to two decimals", () => {
+  const out = parseSpendIntent(JSON.stringify({ ...JSON.parse(goodIntent), amount: 12.345 }));
+  assertEquals(out?.amount, 12.35);
+});
+
+Deno.test("confirmSpendMessage shows every field that will be written", () => {
+  const msg = confirmSpendMessage(parseSpendIntent(goodIntent)!, "ر.س");
+  assert(msg.includes("50 ر.س"));
+  assert(msg.includes("بقالة"));
+  assert(msg.includes("تأكيد"));
+});
+
+Deno.test("deriveWebhookSecret is deterministic, token-dependent, and Telegram-safe", async () => {
+  const a = await deriveWebhookSecret("123:ABC");
+  const b = await deriveWebhookSecret("123:ABC");
+  const c = await deriveWebhookSecret("456:XYZ");
+  assertEquals(a, b, "same token must derive the same secret on both sides");
+  assert(a !== c, "different tokens must derive different secrets");
+  assert(/^[A-Za-z0-9_-]{1,256}$/.test(a), `not a legal Telegram secret_token: ${a}`);
+  assert(!a.includes("123:ABC"), "derived secret must not leak the token");
 });
 
 Deno.test("clampForTelegram leaves a short message untouched", () => {
