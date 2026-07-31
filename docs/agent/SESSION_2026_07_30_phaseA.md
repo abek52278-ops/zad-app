@@ -70,6 +70,32 @@
    الدورة، اكتشاف + تأكيد عن طريق `confirm_cycle_start` tool (نفس نمط Task 19.5).
    نصّبت `deno` في الـ container عشان أتأكد فعليًا (`deno check` + `deno test`،
    34/34). (كوميت `cdd62d7`، تفاصيل كاملة في `PROGRESS.md`)
+10. **Task 26 — الالتزامات الثابتة ورقم "متاح"** (Phase A، A3): جدول
+    `zad_obligations`، `committed`/`available` في zad-brain + كلاينت، اكتشاف تلقائي
+    + `confirm_obligation` tool، `ZadCardHero`/`BudgetScreen` عرضوا "متاح" لأول مرة.
+    deno 42/42، Android 118/118. (كوميت `32d2236`)
+11. **Task 27 (staged) — الثقة المرئية (`≈`) + "ليه الرقم اتغيّر؟"** (Phase C،
+    C2+C3): `Figure` type، `is_verified` بقى له معنى حقيقي (تأكيد يدوي بس)،
+    `WhyChangedSheet` بيقرا `zad_brain_runs.mutations` لأول مرة من الكلاينت، تصحيح
+    فجوة `PharmacyItemGridCard`. 27.1(c)/(d) اتأجلوا (schema جديد محتاج). Android
+    122/122. (كوميت `6aa1b42`)
+12. **Task 28 — رفض بمعنى** (Phase C، C1): استبدال زرار الرفض بـ٣ خيارات، عمود
+    `dismiss_reason`، `DismissalMemory.noteFor()` (مختبرة)، `DismissReasonMenu`.
+    Android 127/127. (كوميت `947b731`)
+13. **تصحيح توثيق Phase A/C** — اتكشف إن تاسكات 27/28 كانت متسمّاة "Phase A" غلط
+    (فعليًا Phase C)، وإن Phase A نفسها **مش مقفولة** (A6 — شيل `RECEIVE_SMS` — لسه
+    مفتوحة، اتفحص فعليًا في الكود). `CLAUDE.md`/`PROGRESS.md`/ملف الجلسة ده اتصححوا.
+    (كوميت `9a584c5`)
+14. **Phase B4 — بنية تحتية بوت تليجرام** (read-only v1، grammY): جدول
+    `telegram_bindings`، دالة `zad-telegram-bot` (كود ربط لمرة واحدة، ٣ أزرار: رصيد/
+    معاملات/تنبيهات + رفض Task 28)، `TelegramLinkDialog` في `ProfileScreen`. deno
+    17/17. **`TELEGRAM_WEBHOOK_SECRET` لسه مش متسجل — فجوة أمان حقيقية موثّقة.**
+    (كوميت `6f52c23`)
+15. **UI الميزانية — glassmorphism** (مش تاسك مرقّم، طلب مستخدم مباشر): `ZadCardHero`
+    و`BudgetScreen` بقوا يستخدموا `HeroGradientCard`/`GlassCard` الموجودين فعلاً في
+    الكود، حذف `BudgetCardSection` الميت. **لقيت وصلحت bug حقيقي فعليًا عن طريق
+    screenshot** (`GlassCard` كان بيمسح محتواه بصريًا بالـ blur على API 31+ — بيأثر
+    على ٤ شاشات تانية). Android 128/128. (كوميت `f2296db`)
 
 **Deliberately deferred من Task 25**: دقة `zad_brain_self_review()` التاريخية
 (مفيش طريقة صح تعيد تفسير تحذيرات قديمة بأثر رجعي على دورة متكانتش موجودة وقتها)،
