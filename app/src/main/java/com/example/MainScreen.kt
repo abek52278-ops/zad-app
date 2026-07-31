@@ -50,6 +50,7 @@ import com.example.ui.viewmodels.FamilyViewModel
 import com.example.ui.viewmodels.ZadViewModel
 import com.example.data.KidsModePin
 import com.example.ui.components.PinPromptDialog
+import com.example.ui.components.zadGlassBlur
 import com.example.ui.components.pressableScale
 import kotlinx.coroutines.launch
 
@@ -648,19 +649,34 @@ fun BottomBar(navController: NavHostController, kidsModeEffective: Boolean = fal
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
+    // Liquid-glass floating pill: translucent white over a real blur, hairline
+    // border, soft lift. Blur sits on a background-only layer so it never smears
+    // the icons/labels drawn on top (same two-layer rule as GlassCard).
+    val pillShape = RoundedCornerShape(32.dp)
     Box(
         modifier = Modifier
-            .padding(horizontal = 16.dp, vertical = 12.dp) // Floating pill effect
+            .padding(horizontal = 16.dp, vertical = 12.dp)
             .fillMaxWidth()
             .shadow(
-                elevation = 20.dp,
-                shape = RoundedCornerShape(32.dp),
-                spotColor = Color.Black.copy(alpha = 0.1f)
+                elevation = 24.dp,
+                shape = pillShape,
+                ambientColor = Color(0xFF0F172A).copy(alpha = 0.10f),
+                spotColor = Color(0xFF0F172A).copy(alpha = 0.18f)
             )
-            .clip(RoundedCornerShape(32.dp))
-            .background(surface)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .clip(pillShape)
     ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .zadGlassBlur(16.dp)
+                .background(Color.White.copy(alpha = 0.78f))
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, Color.Black.copy(alpha = 0.06f), pillShape)
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+        ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -671,29 +687,33 @@ fun BottomBar(navController: NavHostController, kidsModeEffective: Boolean = fal
                 else listOf(Screen.Home, Screen.Inventory, Screen.Assistant, Screen.Subscriptions)
             screens.forEachIndexed { index, screen ->
                 if (index == 2 && !kidsModeEffective) {
-                    // Inject Camera button in the middle
+                    // Camera FAB — solid brand green, lifted above the pill's top edge
                     Box(
                         modifier = Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(
-                                brush = Brush.linearGradient(
-                                    colors = listOf(primaryFixed, primary)
-                                )
+                            .offset(y = (-14).dp)
+                            .size(52.dp)
+                            .shadow(
+                                elevation = 16.dp,
+                                shape = CircleShape,
+                                ambientColor = primary.copy(alpha = 0.35f),
+                                spotColor = primary.copy(alpha = 0.45f)
                             )
+                            .clip(CircleShape)
+                            .background(primary)
                             .clickable { navController.navigate(Screen.Camera.route) },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.CameraAlt, contentDescription = "Camera", tint = Color.White, modifier = Modifier.size(28.dp))
+                        Icon(Icons.Default.CameraAlt, contentDescription = "Camera", tint = Color.White, modifier = Modifier.size(24.dp))
                     }
                 }
-                
+
                 AddItemAnimated(screen, currentDestination, navController)
             }
-            
+
             // Drawer Menu Button
             IconButton(onClick = onOpenDrawer) {
-                Icon(Icons.Default.Menu, contentDescription = "المزيد", tint = onSurfaceVariant)
+                Icon(Icons.Default.Menu, contentDescription = "المزيد", tint = textTertiary)
+            }
             }
         }
     }

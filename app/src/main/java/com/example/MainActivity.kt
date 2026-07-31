@@ -41,7 +41,12 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import com.example.ui.theme.AppTheme
 import com.example.ui.theme.primary
+import com.example.ui.theme.primaryLight
+import com.example.ui.theme.textSecondary
+import com.example.ui.theme.textTertiary
 import com.example.ui.theme.background
+import com.example.ui.components.zadGlassBlur
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.ui.screens.auth.OnboardingScreen
 import com.example.ui.screens.auth.LoginScreen
 import com.example.ui.screens.auth.SignUpScreen
@@ -380,16 +385,66 @@ fun SplashScreen(onTimeout: () -> Unit) {
         onTimeout()
     }
 
+    // Warm off-white canvas with two soft ambient blobs (peach top-start, mint
+    // bottom-end), matching the design mockup's radial-gradient splash.
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(background),
+            .background(Color(0xFFFBFAF8)),
         contentAlignment = Alignment.Center
     ) {
         Box(
-            modifier = Modifier.alpha(alphaAnim.value)
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .offset(x = (-80).dp, y = (-60).dp)
+                .size(320.dp)
+                .clip(CircleShape)
+                .zadGlassBlur(80.dp)
+                .background(Color(0xFFFCD3C7).copy(alpha = 0.55f))
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .offset(x = 80.dp, y = 60.dp)
+                .size(320.dp)
+                .clip(CircleShape)
+                .zadGlassBlur(80.dp)
+                .background(Color(0xFFBFE3D1).copy(alpha = 0.55f))
+        )
+
+        Column(
+            modifier = Modifier.alpha(alphaAnim.value),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             com.example.ui.components.ZadLogo()
+            Spacer(Modifier.height(20.dp))
+            Text(
+                text = "زاد",
+                fontSize = 32.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = primaryLight
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = "تدبير ذكي لبيت هادئ",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = textSecondary
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = "خصوصية بياناتك أولوية، دائماً",
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.Medium,
+                color = textTertiary
+            )
+            Spacer(Modifier.height(60.dp))
+            Box(
+                modifier = Modifier
+                    .size(width = 36.dp, height = 4.dp)
+                    .clip(RoundedCornerShape(99.dp))
+                    .background(Color(0xFF0F172A).copy(alpha = 0.12f))
+            )
         }
     }
 }

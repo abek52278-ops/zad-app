@@ -3,20 +3,23 @@ package com.example.ui.theme
 import androidx.compose.ui.graphics.Color
 
 // =====================================================
-// ZAD Design System — Premium Emerald & Gold Identity
+// ZAD Design System — Liquid Glass Deep Green Identity
+// (matches the "ZAD App.dc.html" Claude Design mockup — iOS 26 liquid-glass
+// look, primary action color #064E3B; primaryContainer/primaryFixed already
+// happened to match the mockup exactly and are left unchanged)
 // =====================================================
 
-// --- Primary Brand — Deep Emerald ---
-val primary = Color(0xFF10B981)            // E500 - Emerald Green
-val primaryDark = Color(0xFF047857)        // E700 - Deep Emerald
-val primaryLight = Color(0xFF34D399)       // E400 - Light Emerald
-val primaryContainer = Color(0xFF052E16)   // E900 - Very Deep Emerald
-val primaryFixed = Color(0xFF6EE7B7)       // Fixed primary variant
+// --- Primary Brand — Deep Green ---
+val primary = Color(0xFF064E3B)            // mockup's dominant action/button/icon green
+val primaryDark = Color(0xFF052E16)        // deepest — pressed/emphasis state
+val primaryLight = Color(0xFF0F9B76)       // mockup's mid-bright accent (tab indicator, tags)
+val primaryContainer = Color(0xFF052E16)   // AI summary card bg — already matched the mockup
+val primaryFixed = Color(0xFF6EE7B7)       // AI summary title text — already matched the mockup
 val onPrimary = Color(0xFFFFFFFF)
 
-// --- Secondary — Premium Gold ---
+// --- Secondary — Amber ---
 val secondary = Color(0xFFF59E0B)          // Gold
-val secondaryDark = Color(0xFFD97706)      // Dark Gold
+val secondaryDark = Color(0xFFB45309)      // mockup's amber-700 (prices, cost values, warnings)
 val secondaryLight = Color(0xFFFCD34D)     // Light Gold
 val onSecondary = Color(0xFFFFFFFF)
 
@@ -31,6 +34,9 @@ val coral = Color(0xFFFF6F61)
 val coralLight = Color(0xFFFFA69E)
 val lilac = Color(0xFFC4B5FD)
 val lilacLight = Color(0xFFE0D7FF)
+
+// --- Splash carrot mark (solid, not a pastel blob — distinct from `coral`) ---
+val carrotOrange = Color(0xFFF0703D)
 
 // --- Backgrounds & Surfaces (Light Mode) ---
 // Pure white canvas — Emerald/Gold/Coral/Lilac supply color only as soft,
@@ -83,15 +89,16 @@ val textSecondary = Color(0xFF4B5563)      // Medium gray
 val textTertiary = Color(0xFF9CA3AF)       // Light gray
 
 // --- Semantic Colors ---
-val successColor = Color(0xFF34D399)       // E400
-val dangerColor = Color(0xFFF87171)        // Red
+val successColor = Color(0xFF0F9B76)       // matches new primaryLight
+val dangerColor = Color(0xFFDC5B4B)        // mockup's low-stock/obligation-pending red-orange
 val warningColor = Color(0xFFFBBF24)       // Amber
 val infoColor = Color(0xFF60A5FA)          // Blue
 
 // --- Kids Mode Colors ---
-val kidsPrimary = Color(0xFF7C3AED)        // Purple
+val kidsPrimary = Color(0xFF7C3AED)        // Purple — already matched the mockup's kids gradient start
 val kidsPrimaryDark = Color(0xFF4C1D95)
 val kidsPrimaryLight = Color(0xFFC084FC)
+val kidsAccentPink = Color(0xFFEC4899)     // mockup's kids gradient end (135deg, #7C3AED -> #EC4899)
 val kidsBackground = Color(0xFF0F0A2E)
 val kidsSurface = Color(0xFF1E0A4A)
 

@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -106,9 +107,9 @@ fun ZadCanvasBackground(modifier: Modifier = Modifier) {
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(24.dp),
-    containerColor: Color = surfaceContainerLow.copy(alpha = 0.6f),
-    borderColor: Color = Color.White.copy(alpha = 0.35f),
+    shape: Shape = RoundedCornerShape(18.dp),
+    containerColor: Color = Color.White.copy(alpha = 0.85f),
+    borderColor: Color = Color.Black.copy(alpha = 0.05f),
     contentPadding: Dp = 16.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -116,7 +117,7 @@ fun GlassCard(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .zadGlassBlur()
+                .zadGlassBlur(14.dp)
                 .background(containerColor)
         )
         Column(
@@ -130,6 +131,20 @@ fun GlassCard(
 }
 
 /**
+ * The mockup's two-layer card shadow (`0 1px 2px rgba(15,23,42,0.04),
+ * 0 8px 20px rgba(15,23,42,0.07)`) collapsed to the single ambient/spot pair
+ * Compose actually supports. Applied *before* `.clip()`/`.background()` at the
+ * call site, as `Modifier.shadow` requires.
+ */
+fun Modifier.zadCardShadow(shape: Shape, elevation: Dp = 8.dp): Modifier =
+    this.shadow(
+        elevation = elevation,
+        shape = shape,
+        ambientColor = Color(0xFF0F172A).copy(alpha = 0.10f),
+        spotColor = Color(0xFF0F172A).copy(alpha = 0.14f),
+    )
+
+/**
  * Gradient hero surface — the pattern already hand-rolled for the budget
  * header and the Kids candy balance card, unified into one shape so both
  * refactor onto the same primitive instead of two near-duplicates.
@@ -137,17 +152,32 @@ fun GlassCard(
 @Composable
 fun HeroGradientCard(
     modifier: Modifier = Modifier,
-    colors: List<Color>,
-    shape: Shape = RoundedCornerShape(24.dp),
+    colors: List<Color> = ZadHeroGradient,
+    shape: Shape = RoundedCornerShape(28.dp),
     contentPadding: Dp = 24.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .shadow(
+                elevation = 22.dp,
+                shape = shape,
+                ambientColor = primary.copy(alpha = 0.35f),
+                spotColor = primary.copy(alpha = 0.45f),
+            )
             .clip(shape)
             .background(Brush.linearGradient(colors))
+            .border(1.dp, Color.White.copy(alpha = 0.16f), shape)
             .padding(contentPadding),
         content = content,
     )
 }
+
+/** The mockup's hero mesh gradient (`120deg, #0B6B4E, #0F9B76, #064E3B, #0B6B4E`). */
+val ZadHeroGradient = listOf(
+    Color(0xFF0B6B4E),
+    Color(0xFF0F9B76),
+    Color(0xFF064E3B),
+    Color(0xFF0B6B4E),
+)
