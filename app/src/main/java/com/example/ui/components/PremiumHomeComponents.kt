@@ -452,26 +452,36 @@ data class ZadShortcutItem(
     val onClick: () -> Unit
 )
 
-/** Circular quick-access row — one tappable circle per major screen, so the
- * customer reaches any page from Home in one tap instead of the drawer. */
+/**
+ * Shortcut grid — the mockup's `grid-template-columns:repeat(6,1fr); gap:8px`: six
+ * fixed columns, one screen each, all visible at once.
+ *
+ * Was a nine-item `LazyRow`: on a 402dp-wide phone that left three-and-a-bit items
+ * on screen and the rest behind a scroll nobody discovers, which is what made the
+ * row read as an arbitrary bar of icons rather than as a launcher. A fixed
+ * six-column grid is also why the badge shrank 52dp → 46dp and the label to
+ * `labelSmall` at 10sp: that's what fits six columns inside 20dp page padding.
+ */
 @Composable
-fun ZadPageShortcutsRow(items: List<ZadShortcutItem>) {
-    LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(18.dp),
-        contentPadding = PaddingValues(horizontal = 4.dp)
+fun ZadPageShortcutsGrid(items: List<ZadShortcutItem>) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        itemsIndexed(items) { index, item ->
-            AppearOnEntry(delayMs = (index * 50).coerceAtMost(400)) {
+        items.forEachIndexed { index, item ->
+            AppearOnEntry(
+                delayMs = (index * 50).coerceAtMost(400),
+                modifier = Modifier.weight(1f)
+            ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.width(68.dp)
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    // بادچ مربع بحواف دائرية بخلفية باهتة وأيقونة بلون التصنيف نفسه —
-                    // بدل الدائرة الصلبة القديمة، زي التصميم الجديد.
-                    val badgeShape = RoundedCornerShape(16.dp)
+                    val badgeShape = RoundedCornerShape(15.dp)
                     Box(
                         modifier = Modifier
-                            .size(52.dp)
+                            .size(46.dp)
+                            .zadCardShadow(badgeShape, elevation = 6.dp)
                             .clip(badgeShape)
                             .background(item.color.copy(alpha = 0.12f))
                             .clickable(
@@ -482,14 +492,14 @@ fun ZadPageShortcutsRow(items: List<ZadShortcutItem>) {
                             .pressableScale(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(item.icon, contentDescription = item.label, tint = item.color, modifier = Modifier.size(22.dp))
+                        Icon(item.icon, contentDescription = item.label, tint = item.color, modifier = Modifier.size(20.dp))
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         item.label,
-                        style = Typography.labelSmall,
+                        style = Typography.labelSmall.copy(fontSize = 10.sp, lineHeight = 12.sp),
                         color = textSecondary,
-                        maxLines = 1,
+                        maxLines = 2,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                 }
@@ -498,87 +508,84 @@ fun ZadPageShortcutsRow(items: List<ZadShortcutItem>) {
     }
 }
 
+/**
+ * The mockup's plain stat tile: white, 16dp radius, 14dp padding, a small grey
+ * label over a bold dark value. No icon and no colored fill — the mockup keeps
+ * color for the hero, the category badges and the AI card, and deliberately
+ * leaves these neutral so a 2×2 grid of them doesn't fight the hero above it.
+ */
 @Composable
-fun PremiumQuickStatsRow(
-    inventoryCount: Int,
-    activeSubsCount: Int,
-    familyCount: Int,
-    onInventoryClick: () -> Unit,
-    onSubsClick: () -> Unit,
-    onFamilyClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        QuickStatCard(stringResource(R.string.nav_inventory), "$inventoryCount", stringResource(R.string.quick_stat_inventory_unit), Icons.Default.Inventory2, primary, onInventoryClick, Modifier.weight(1f))
-        QuickStatCard(stringResource(R.string.quick_stat_subscriptions_title), "$activeSubsCount", stringResource(R.string.quick_stat_subscriptions_unit), Icons.Default.Subscriptions, secondaryDark, onSubsClick, Modifier.weight(1f))
-        QuickStatCard(stringResource(R.string.nav_family), "$familyCount", stringResource(R.string.quick_stat_family_unit), Icons.Default.FamilyRestroom, catDailyIcon, onFamilyClick, Modifier.weight(1f))
-    }
-}
-
-/** Bold, distinctly-colored tile per stat — each stat is its own saturated
- * "gadget" instead of 3 uniform white cards, closer to the colorful
- * multi-shape dashboard reference than a faint icon-chip tint. */
-@Composable
-private fun QuickStatCard(
-    title: String,
+fun ZadStatTile(
+    label: String,
     value: String,
-    subtitle: String,
-    icon: ImageVector,
-    color: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
-    val cardShape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(16.dp)
     Column(
         modifier = modifier
-            .shadow(elevation = 8.dp, shape = cardShape, spotColor = color.copy(alpha = 0.35f))
-            .clip(cardShape)
-            .background(Brush.verticalGradient(listOf(color, color.copy(alpha = 0.75f))))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
-            .pressableScale()
-            .padding(15.dp)
+            .zadCardShadow(shape)
+            .clip(shape)
+            .background(surface)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Box(
-            modifier = Modifier.size(36.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.28f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(title, style = Typography.labelSmall, color = Color.White.copy(alpha = 0.85f))
-        Text(value, style = Typography.titleMedium, fontWeight = FontWeight.Black, color = Color.White)
-        Text(subtitle, style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.85f))
+        Text(label, style = Typography.labelSmall, color = textTertiary, maxLines = 1)
+        Text(value, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = textPrimary, maxLines = 1)
     }
 }
 
+/**
+ * The mockup's pair of 18dp cards directly under the hero: days left in the salary
+ * cycle, and the daily safe-spend rate derived from it.
+ *
+ * Safe spend is `available / daysLeft` — the same arithmetic the mockup labels
+ * "معدل الصرف اليومي الآمن". Guarded at `daysLeft <= 0` (cycle boundary day) and at
+ * a negative available balance, both of which would otherwise print a nonsense
+ * number on the busiest card on the screen.
+ */
 @Composable
-fun PremiumInsightBanner(title: String, subtitle: String, onClick: () -> Unit) {
+fun ZadDaysAndSafeSpendRow(daysLeft: Int, available: Double) {
+    val context = LocalContext.current
+    val shape = RoundedCornerShape(18.dp)
+    val safeSpend = if (daysLeft > 0 && available > 0) available / daysLeft else null
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .clip(RoundedCornerShape(19.dp))
-            .background(Brush.linearGradient(listOf(secondary.copy(alpha = 0.13f), primary.copy(alpha = 0.10f))))
-            .clickable { onClick() }
-            .padding(15.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Box(
-            modifier = Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(Brush.linearGradient(listOf(secondary.copy(alpha = 0.27f), primary.copy(alpha = 0.20f)))),
-            contentAlignment = Alignment.Center
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .zadCardShadow(shape)
+                .clip(shape)
+                .background(surface)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Icon(Icons.Default.SmartToy, contentDescription = null, tint = primaryDark, modifier = Modifier.size(21.dp))
+            Text(stringResource(R.string.days_left_label), style = Typography.labelSmall, color = textSecondary)
+            Text(
+                stringResource(R.string.days_left_value, daysLeft),
+                style = Typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = textPrimary
+            )
         }
-        Spacer(modifier = Modifier.width(13.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = Typography.labelLarge, fontWeight = FontWeight.ExtraBold, color = textPrimary)
-            Text(subtitle, style = Typography.labelSmall, color = textSecondary, lineHeight = 16.sp)
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .zadCardShadow(shape)
+                .clip(shape)
+                .background(surface)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(stringResource(R.string.safe_daily_spend_label), style = Typography.labelSmall, color = textSecondary, maxLines = 2)
+            Text(
+                safeSpend?.let { com.example.data.CurrencyFormatter.format(context, it) } ?: "—",
+                style = Typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = textPrimary,
+                maxLines = 1
+            )
         }
     }
 }
@@ -588,7 +595,6 @@ fun ShortagesSummaryCard(shortageCount: Int, onViewShortagesClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
             .clip(RoundedCornerShape(19.dp))
             .background(dangerColor.copy(alpha = 0.10f))
             .clickable { onViewShortagesClick() }
@@ -629,77 +635,12 @@ fun ShortagesSummaryCard(shortageCount: Int, onViewShortagesClick: () -> Unit) {
 }
 
 @Composable
-fun PremiumMealsRow(meals: List<String>, onMealClick: (String) -> Unit) {
-    Column {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(Icons.Default.Restaurant, contentDescription = null, tint = textPrimary, modifier = Modifier.size(16.dp))
-                Text("وجبات من ثلاجتك", fontSize = 15.sp, fontWeight = FontWeight.Black, color = textPrimary)
-            }
-            Text("المزيد", fontSize = 11.sp, color = primaryLight)
-        }
-        Spacer(modifier = Modifier.height(11.dp))
-        if (meals.isEmpty()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(surface)
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Default.Restaurant, contentDescription = null, tint = textTertiary, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("لا توجد اقتراحات وجبات حالياً — ضيف أصناف لمخزونك عشان زاد يقترح لك", fontSize = 11.sp, color = textTertiary)
-            }
-            return@Column
-        }
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(11.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp)
-        ) {
-            items(meals) { meal ->
-                Box(
-                    modifier = Modifier
-                        .width(135.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(surface)
-                        .clickable { onMealClick(meal) }
-                        .padding(13.dp)
-                ) {
-                    Column {
-                        Box(
-                            modifier = Modifier.size(31.dp).clip(CircleShape).background(primaryContainer),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            val mealIcon = when {
-                                meal.contains("كبسة") -> Icons.Default.RiceBowl
-                                meal.contains("سلطة") -> Icons.Default.Grass
-                                else -> Icons.Default.RamenDining
-                            }
-                            Icon(mealIcon, contentDescription = null, tint = catFoodIcon, modifier = Modifier.size(16.dp))
-                        }
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(meal, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textPrimary)
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text("اقتراح — افتح الوصفة للتفاصيل", fontSize = 9.sp, color = textSecondary)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 fun PremiumTransactionsRow(transactions: List<com.example.data.ZadTransaction>, onSeeAllClick: () -> Unit) {
     val txCurrencyContext = LocalContext.current
-    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+    // No inner horizontal padding: Home's content Column already applies the mockup's
+    // 20dp page padding, so the old `padding(horizontal = 16.dp)` here stacked to 36dp
+    // and made this section narrower than every card above it.
+    Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -732,12 +673,14 @@ fun PremiumTransactionsRow(transactions: List<com.example.data.ZadTransaction>, 
             val recent = transactions.take(3)
 
             for (tx in recent) {
+                val rowShape = RoundedCornerShape(14.dp)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
+                        .zadCardShadow(rowShape)
+                        .clip(rowShape)
                         .background(surface)
-                        .padding(13.dp),
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -760,31 +703,58 @@ fun PremiumTransactionsRow(transactions: List<com.example.data.ZadTransaction>, 
     }
 }
 
+/**
+ * Chef Zad — the mockup's single 18dp white row card: a 56dp amber tile with the
+ * chef-hat glyph, the section title, and one line of today's suggestion.
+ *
+ * Replaces a horizontal carousel of 190dp meal cards whose images were three
+ * hardcoded Unsplash food photos with no relationship to the user's inventory, and
+ * which fell back to three hardcoded English placeholder meals whenever the AI
+ * hadn't answered. The mockup has one card here, not a rail.
+ */
 @Composable
-fun PremiumKidsSnippet(onKidsClick: () -> Unit) {
-    Box(
+fun ZadChefCard(suggestion: String?, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(18.dp)
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .clip(RoundedCornerShape(22.dp))
-            .background(Brush.linearGradient(listOf(kidsPrimaryDark, kidsBackground)))
-            .clickable { onKidsClick() }
-            .padding(18.dp)
+            .zadCardShadow(shape)
+            .clip(shape)
+            .background(surface)
+            .clickable { onClick() }
+            .pressableScale(pressedScale = 0.98f, withHaptic = false)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFFFDF3E1)),
+            contentAlignment = Alignment.Center
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Default.SportsEsports, contentDescription = null, tint = kidsPrimaryLight, modifier = Modifier.size(16.dp))
-                    Text("وضع الأطفال", fontSize = 13.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onSurface)
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text("شجع أطفالك على الادخار مع مهام ومكافآت ممتعة", fontSize = 10.sp, color = Color.White.copy(alpha=0.7f), lineHeight = 14.sp)
-            }
-            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = kidsPrimaryLight)
+            Icon(
+                Icons.Default.Restaurant,
+                contentDescription = null,
+                tint = secondaryDark,
+                modifier = Modifier.size(28.dp)
+            )
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                stringResource(R.string.zad_chef_suggestions),
+                style = Typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                color = textPrimary
+            )
+            Text(
+                suggestion?.takeIf { it.isNotBlank() } ?: stringResource(R.string.chef_card_empty_hint),
+                style = Typography.bodyMedium,
+                color = textSecondary,
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
         }
     }
 }

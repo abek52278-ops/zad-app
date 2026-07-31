@@ -39,8 +39,14 @@ val lilacLight = Color(0xFFE0D7FF)
 val carrotOrange = Color(0xFFF0703D)
 
 // --- Backgrounds & Surfaces (Light Mode) ---
-// Pure white canvas — Emerald/Gold/Coral/Lilac supply color only as soft,
-// low-alpha blur blobs (see ZadCanvasBackground), never as a flat tinted fill.
+// The mockup's app canvas is one cool-neutral gradient
+// (`linear-gradient(165deg,#F4F5F7,#ECEEF1 45%,#E9ECEF)`) — see ZadCanvasBackground.
+// All color comes from the cards on top of it, never from a tinted canvas or from
+// blurred accent blobs (those were removed; they read as a gradient bug, not depth).
+val canvasTop = Color(0xFFF4F5F7)
+val canvasMid = Color(0xFFECEEF1)
+val canvasBottom = Color(0xFFE9ECEF)
+
 val background = Color(0xFFFFFFFF)
 val onBackground = Color(0xFF111827)       // Dark text
 val surface = Color(0xFFFFFFFF)            // Opaque white for cards

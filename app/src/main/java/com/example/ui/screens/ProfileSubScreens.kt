@@ -106,7 +106,7 @@ fun EditProfileScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-    Column(modifier = Modifier.fillMaxSize().background(background)) {
+    Column(modifier = Modifier.fillMaxSize()) {
         SubScreenTopBar(stringResource(R.string.edit_profile_title), onBack)
 
         AppearOnEntry {
@@ -209,7 +209,7 @@ fun FamilyManagementScreen(familyViewModel: FamilyViewModel, onBack: () -> Unit)
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(background)) {
+    Column(modifier = Modifier.fillMaxSize()) {
         SubScreenTopBar(stringResource(R.string.manage_family), onBack)
 
         AppearOnEntry {
@@ -320,7 +320,7 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
         newBudgetStr = budget.toString()
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(background)) {
+    Column(modifier = Modifier.fillMaxSize()) {
         SubScreenTopBar(stringResource(R.string.payment_and_budget_title), onBack)
 
         AppearOnEntry {
@@ -450,7 +450,7 @@ fun AssistantAlertsScreen(onBack: () -> Unit) {
     var mealSuggestions by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_MEAL_SUGGESTIONS)) }
     var tasbihReminder by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_TASBIH_REMINDER)) }
 
-    Column(modifier = Modifier.fillMaxSize().background(background)) {
+    Column(modifier = Modifier.fillMaxSize()) {
         SubScreenTopBar(stringResource(R.string.assistant_alerts_title), onBack)
 
         AppearOnEntry {

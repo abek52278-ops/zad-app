@@ -24,12 +24,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.example.ui.theme.background
-import com.example.ui.theme.coral
-import com.example.ui.theme.lilac
+import com.example.ui.theme.canvasBottom
+import com.example.ui.theme.canvasMid
+import com.example.ui.theme.canvasTop
 import com.example.ui.theme.primary
-import com.example.ui.theme.secondary
-import com.example.ui.theme.surfaceContainerLow
 
 /** Real RenderEffect blur only on API 31+ (Modifier.blur is a silent no-op below it,
  * which matters here since minSdk is 24) — every glass surface goes through this
@@ -38,54 +36,39 @@ internal fun Modifier.zadGlassBlur(radius: Dp = 20.dp): Modifier =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) this.blur(radius) else this
 
 /**
- * Soft gradient-mesh canvas — pure white base with four large blurred
- * pastel-accent blobs (Emerald/Gold/Coral/Lilac) behind scrollable content,
- * so GlassCard's translucency has something colorful to actually blur
- * instead of sitting on a flat background (which just reads as flat, not
- * "glass"). Below API 31 (see zadGlassBlur) the blobs render as soft flat
- * tints instead of blurred ones — same known, acceptable degradation
- * GlassCard itself already has.
+ * App canvas — the mockup's single neutral diagonal gradient
+ * (`linear-gradient(165deg,#F4F5F7 0%,#ECEEF1 45%,#E9ECEF 100%)`), nothing else.
+ *
+ * This used to paint four large blurred pastel blobs (Emerald/Gold/Coral/Lilac)
+ * over a white base. The mockup has no such blobs: every screen sits on that one
+ * cool-neutral gradient, and all the color comes from the cards on top of it
+ * (green hero, amber prices, category badges). The blobs were the "random yellow
+ * circles / random light backgrounds" the design review flagged — they tinted
+ * whole regions of Home amber and lilac, which reads as an unfinished gradient
+ * bug rather than as depth, and they fought the cards for attention.
+ *
+ * Kept as a composable (not a plain `Modifier.background`) because call sites
+ * layer it behind scrolling content with `fillMaxSize()`, and because the mockup's
+ * 165° angle needs an explicit start/end offset rather than `verticalGradient`.
  */
 @Composable
 fun ZadCanvasBackground(modifier: Modifier = Modifier) {
-    Box(modifier = modifier.fillMaxSize().background(background)) {
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .offset(x = (-70).dp, y = (-50).dp)
-                .size(220.dp)
-                .clip(CircleShape)
-                .zadGlassBlur(70.dp)
-                .background(primary.copy(alpha = 0.14f))
-        )
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = 50.dp, y = 40.dp)
-                .size(180.dp)
-                .clip(CircleShape)
-                .zadGlassBlur(65.dp)
-                .background(secondary.copy(alpha = 0.13f))
-        )
-        Box(
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .offset(x = 60.dp, y = 200.dp)
-                .size(200.dp)
-                .clip(CircleShape)
-                .zadGlassBlur(70.dp)
-                .background(coral.copy(alpha = 0.10f))
-        )
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .offset(x = (-50).dp, y = 60.dp)
-                .size(240.dp)
-                .clip(CircleShape)
-                .zadGlassBlur(75.dp)
-                .background(lilac.copy(alpha = 0.14f))
-        )
-    }
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                // The mockup's 165° is within 15° of straight-down, so a vertical
+                // gradient reproduces it at phone width without the diagonal's
+                // corner-to-corner banding.
+                Brush.verticalGradient(
+                    colorStops = arrayOf(
+                        0.0f to canvasTop,
+                        0.45f to canvasMid,
+                        1.0f to canvasBottom,
+                    )
+                )
+            )
+    )
 }
 
 /**

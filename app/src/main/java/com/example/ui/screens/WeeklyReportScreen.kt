@@ -76,7 +76,7 @@ fun WeeklyReportScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(background)) {
+    Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically

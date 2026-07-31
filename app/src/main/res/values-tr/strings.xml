@@ -894,4 +894,15 @@
     <string name="row_parse_error_hint">Bu satırda tarih veya tutar okunamadı</string>
     <string name="import_selected_rows_action">%1$d işlemi içe aktar</string>
     <string name="statement_import_done_toast">%1$d işlem içe aktarıldı, %2$d tekrar eden yoksayıldı</string>
+    <string name="days_left_value">%1$d gün</string>
+    <string name="safe_daily_spend_label">Güvenli günlük harcama</string>
+    <string name="chef_card_empty_hint">Zad Şef bugünün yemeğini önerebilmesi için stoğuna ürün ekle.</string>
+    <string name="telegram_status_linked">Telegram bağlı</string>
+    <string name="telegram_status_not_linked">Bağlı değil</string>
+    <string name="telegram_bot_handle_label">Telegram\'daki Zad botu</string>
+    <string name="telegram_open_bot_action">Botu aç ve otomatik bağla</string>
+    <string name="telegram_new_code_action">Yeni kod</string>
+    <string name="telegram_manual_hint">Düğme çalışmadı mı? Bota şunu gönder: /start %1$s</string>
+    <string name="telegram_no_app_toast">Cihazda Telegram uygulaması veya tarayıcı yok</string>
+    <string name="telegram_code_copied_toast">Kod kopyalandı</string>
 </resources>

@@ -766,4 +766,15 @@
     <string name="subscription_load_label">عبء الاشتراكات الشهري</string>
     <string name="top_categories_label">أكثر تصنيفات الصرف</string>
     <string name="last_updated_label">آخر تحديث: %1$s</string>
+    <string name="days_left_value">%1$d يوم</string>
+    <string name="safe_daily_spend_label">معدل الصرف اليومي الآمن</string>
+    <string name="chef_card_empty_hint">ضيف أصناف لمخزونك عشان شيف زاد يقترح لك طبق اليوم.</string>
+    <string name="telegram_status_linked">مربوط بتليجرام</string>
+    <string name="telegram_status_not_linked">غير مربوط</string>
+    <string name="telegram_bot_handle_label">بوت زاد على تليجرام</string>
+    <string name="telegram_open_bot_action">افتح البوت واربط تلقائياً</string>
+    <string name="telegram_new_code_action">كود جديد</string>
+    <string name="telegram_manual_hint">ما اشتغل الزر؟ أرسل للبوت: /start ‏%1$s</string>
+    <string name="telegram_no_app_toast">ما فيه تطبيق تليجرام أو متصفح على الجهاز</string>
+    <string name="telegram_code_copied_toast">تم نسخ الكود</string>
 </resources>

@@ -355,7 +355,15 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
             }
         }
     ) {
+        // The mockup's neutral canvas gradient is the app background for EVERY screen,
+        // not just Home — that's what makes the white list cards read as cards instead of
+        // as white-on-white "dead" blocks (the design review's complaint about the Zad
+        // Intelligence and Profile screens). Painting it once behind a transparent
+        // Scaffold beats each screen remembering to add its own background.
+        Box(modifier = Modifier.fillMaxSize()) {
+        com.example.ui.components.ZadCanvasBackground(modifier = Modifier.fillMaxSize())
         Scaffold(
+            containerColor = Color.Transparent,
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             bottomBar = { BottomBar(navController = navController, kidsModeEffective = kidsModeEffective) { scope.launch { drawerState.open() } } }
         ) { innerPadding ->
@@ -651,6 +659,7 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                 }
             }
         }
+        } // closes the ZadCanvasBackground Box
     }
 }
 

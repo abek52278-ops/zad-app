@@ -50,7 +50,7 @@ fun AssistantScreen(viewModel: ZadViewModel, onOpenDrawer: () -> Unit = {}) {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(background)) {
+    Column(modifier = Modifier.fillMaxSize()) {
         AssistantTopBar(onOpenDrawer, onClearChat = { viewModel.clearChatHistory() })
 
         // Quick Action Chips

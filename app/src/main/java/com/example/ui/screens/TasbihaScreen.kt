@@ -294,7 +294,7 @@ private fun TasbihaMainContent(
             animationSpec = tween(500, easing = FastOutSlowInEasing)
         )
     ) {
-        Column(modifier = Modifier.fillMaxSize().background(background)) {
+        Column(modifier = Modifier.fillMaxSize()) {
             // Header
             Box(
                 modifier = Modifier

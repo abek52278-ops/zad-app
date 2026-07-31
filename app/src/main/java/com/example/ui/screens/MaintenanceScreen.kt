@@ -57,7 +57,7 @@ fun MaintenanceScreen(
         )
     )
 
-    Box(modifier = Modifier.fillMaxSize().background(background)) {
+    Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth().background(surface).padding(horizontal = 16.dp, vertical = 14.dp),

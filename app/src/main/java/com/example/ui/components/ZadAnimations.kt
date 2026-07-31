@@ -213,6 +213,11 @@ fun animatedCountAsState(targetValue: Int, durationMs: Int = 800): State<Int> {
 @Composable
 fun AppearOnEntry(
     delayMs: Int = 0,
+    // Needed by callers that place this inside a Row/Column and must pass a layout
+    // weight through to the AnimatedVisibility wrapper (e.g. ZadPageShortcutsGrid's
+    // six equal columns) — without it the wrapper collapses to wrap-content and the
+    // grid stops being a grid.
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
     var visible by remember { mutableStateOf(false) }
@@ -221,6 +226,7 @@ fun AppearOnEntry(
         visible = true
     }
     AnimatedVisibility(
+        modifier = modifier,
         visible = visible,
         enter = slideInVertically(
             initialOffsetY = { it / 4 },

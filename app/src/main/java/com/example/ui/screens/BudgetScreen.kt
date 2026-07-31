@@ -111,7 +111,7 @@ fun BudgetScreen(
     }
     val todayFallbackLabel = stringResource(R.string.today_label)
 
-    Box(modifier = Modifier.fillMaxSize().background(background)) {
+    Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 100.dp)

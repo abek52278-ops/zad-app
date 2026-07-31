@@ -65,7 +65,7 @@ fun FamilyScreen(
 ) {
     val state by viewModel.state.collectAsState()
 
-    Box(modifier = Modifier.fillMaxSize().background(background)) {
+    Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             FamilyTopBar(onOpenDrawer, unreadCount = unreadNotificationCount, onNotificationsClick = onNotificationsClick)
 

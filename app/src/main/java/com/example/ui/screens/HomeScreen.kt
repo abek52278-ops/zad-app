@@ -204,8 +204,9 @@ fun HomeScreen(
         }
     }
 
+    // No local canvas here any more — MainScreen paints ZadCanvasBackground once behind
+    // the whole Scaffold so every screen shares the mockup's one gradient.
     Box(modifier = Modifier.fillMaxSize()) {
-        com.example.ui.components.ZadCanvasBackground(modifier = Modifier.fillMaxSize())
         Column(
         modifier = Modifier
             .fillMaxSize()
@@ -251,61 +252,14 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Section order below follows the "ZAD App.dc.html" mockup's Home screen
+            // top-to-bottom, verbatim: ticker → hero → days/safe-spend pair → 6-icon
+            // shortcut grid → insights → 2×2 stat grid → dark AI summary → tasbiha
+            // garden → Chef Zad → Amazon picks → recent transactions. Everything the
+            // mockup doesn't have (cash card, shortages, mini inventory/shopping,
+            // urgent recipes, events radar, forecast) now sits in one block *after*
+            // that sequence instead of being interleaved through it.
             Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                // أهم تنبيهات عقل زاد — zad_insights كان مكتوب من زاد-برين وميتقراش
-                // خالص، فالتحليل والتنبيهات ما كانتش توصل هنا. دي أول محطة ليها.
-                val homeInsights = zadInsights
-                    .filter { it.surface == "home_card" }
-                    .sortedByDescending { it.priority == "critical" }
-                    .take(3)
-                if (homeInsights.isNotEmpty()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        homeInsights.forEach { insight ->
-                            if (insight.kind == "question") {
-                                com.example.ui.widgets.ZadQuestionCard(
-                                    insight = insight,
-                                    onAnswer = { answer -> viewModel.answerBrainQuestion(insight, answer) },
-                                    onDismiss = { viewModel.dismissInsight(insight.id) },
-                                    onOpenCamera = onNavigateToCamera
-                                )
-                                return@forEach
-                            }
-                            val isCritical = insight.priority == "critical"
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(if (isCritical) dangerColor.copy(alpha = 0.1f) else primaryContainer)
-                                    .padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    if (isCritical) Icons.Default.Warning else Icons.Default.Lightbulb,
-                                    contentDescription = null,
-                                    tint = if (isCritical) dangerColor else primary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(insight.title, style = Typography.labelLarge, fontWeight = FontWeight.Bold, color = onSurface)
-                                    Text(insight.body, style = Typography.bodySmall, color = onSurfaceVariant, maxLines = 2)
-                                }
-                                // Task 28 — "رفض بمعنى": بدل رفض صامت، ٣ خيارات بسبب فعلي
-                                var showDismissMenu by remember(insight.id) { mutableStateOf(false) }
-                                IconButton(onClick = { showDismissMenu = true }, modifier = Modifier.size(28.dp)) {
-                                    Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp), tint = onSurfaceVariant)
-                                }
-                                com.example.ui.components.DismissReasonMenu(
-                                    expanded = showDismissMenu,
-                                    onDismissRequest = { showDismissMenu = false },
-                                    onReasonSelected = { reason -> viewModel.dismissInsightWithReason(insight, reason) }
-                                )
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-
                 if (!isNotificationAccessGranted) {
                     NotificationPermissionCard {
                         Log.d(TAG_HOME, "NotificationPermissionCard button clicked")
@@ -314,7 +268,7 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // 1. Signature Visa-card style budget hero (orchestrated entrance: card, then circles, then stats, then banner)
+                // ── 1. Hero (mockup: the 28dp mesh-gradient "متاح" card) ──
                 // Task 26 — daysLeft بقى بحدود دورة الراتب (ZadViewModel.daysLeftInCycle)
                 // مش الشهر التقويمي كان مؤجل من Task 25.
                 val daysLeft = daysLeftInCycle
@@ -346,209 +300,142 @@ fun HomeScreen(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // Task 19.4 — كارت الكاش. بيظهر بس لو فيه كاش فعلاً (cashOnHand > 0،
-                // مشتق من BudgetMath.cashOnHand)، ويختفي لوحده لما يوصل صفر — الكارت
-                // نفسه هو التذكير، مفيش إشعار منفصل غرضه بس "افتكر تسجل الكاش".
-                if (cashOnHand > 0.0) {
+                // ── 2. Days left / daily safe spend pair (mockup: two 18dp white cards) ──
+                if (budgetConfirmed) {
                     com.example.ui.components.AppearOnEntry(delayMs = 60) {
-                        com.example.ui.components.CashCard(
-                            cashOnHand = cashOnHand,
-                            habitChips = habitChips,
-                            onChipTap = { chip ->
-                                viewModel.addTransaction(
-                                    ZadTransaction(
-                                        amount = chip.amount,
-                                        title = chip.label,
-                                        category = chip.category,
-                                        isExpense = true,
-                                        wallet = "cash",
-                                        createdAt = java.time.Instant.now().toString()
-                                    )
-                                )
-                            },
-                            onSpentFromCash = { amount, title, category ->
-                                viewModel.addTransaction(
-                                    ZadTransaction(
-                                        amount = amount,
-                                        title = title,
-                                        category = category,
-                                        isExpense = true,
-                                        wallet = "cash",
-                                        createdAt = java.time.Instant.now().toString()
-                                    )
-                                )
-                            }
+                        com.example.ui.components.ZadDaysAndSafeSpendRow(
+                            daysLeft = daysLeft,
+                            available = availableFigure.value
                         )
                     }
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                // 1b. Circular one-tap shortcuts to every screen
+                // ── 3. Shortcut grid — 6 fixed columns, exactly the mockup's six
+                // destinations. Was a 9-item horizontally-scrolling LazyRow, which is why
+                // the row read as arbitrary: half of it was off-screen.
                 com.example.ui.components.AppearOnEntry(delayMs = 80) {
-                    com.example.ui.components.ZadPageShortcutsRow(
+                    com.example.ui.components.ZadPageShortcutsGrid(
                         items = listOf(
                             com.example.ui.components.ZadShortcutItem(Icons.Default.Inventory2, stringResource(R.string.nav_inventory), primary, onNavigateToInventory),
                             com.example.ui.components.ZadShortcutItem(Icons.Default.ShoppingCart, stringResource(R.string.nav_shopping), catDailyIcon, onNavigateToShopping),
-                            com.example.ui.components.ZadShortcutItem(Icons.Default.FamilyRestroom, stringResource(R.string.nav_family), coral, onNavigateToFamily),
-                            com.example.ui.components.ZadShortcutItem(Icons.Default.Subscriptions, stringResource(R.string.quick_stat_subscriptions_title), secondaryDark, onNavigateToSubscriptions),
-                            com.example.ui.components.ZadShortcutItem(Icons.Default.AccountBalanceWallet, stringResource(R.string.nav_budget), primaryDark, onNavigateToBudget),
-                            com.example.ui.components.ZadShortcutItem(Icons.Default.AutoAwesome, stringResource(R.string.nav_assistant), lilac, onNavigateToAssistant),
-                            com.example.ui.components.ZadShortcutItem(Icons.Default.Park, stringResource(R.string.tasbiha_short_label), catHealthIcon, onNavigateToTasbiha),
-                            com.example.ui.components.ZadShortcutItem(Icons.Default.LocalPharmacy, stringResource(R.string.nav_pharmacy), catHealthIcon, onNavigateToPharmacy),
-                            com.example.ui.components.ZadShortcutItem(Icons.Default.Person, stringResource(R.string.profile_title), tertiary, onNavigateToProfile)
+                            com.example.ui.components.ZadShortcutItem(Icons.Default.FamilyRestroom, stringResource(R.string.nav_family), kidsPrimary, onNavigateToFamily),
+                            com.example.ui.components.ZadShortcutItem(Icons.Default.Subscriptions, stringResource(R.string.quick_stat_subscriptions_title), tertiary, onNavigateToSubscriptions),
+                            com.example.ui.components.ZadShortcutItem(Icons.Default.LocalPharmacy, stringResource(R.string.nav_pharmacy), dangerColor, onNavigateToPharmacy),
+                            com.example.ui.components.ZadShortcutItem(Icons.Default.Park, stringResource(R.string.tasbiha_short_label), secondaryDark, onNavigateToTasbiha)
                         )
                     )
                 }
+                Spacer(modifier = Modifier.height(18.dp))
 
-                // Task 9 — ZadFacts on Home: these 6 numbers used to only exist inside
-                // ZadIntelligenceScreen's report; nothing on Home ever showed them, so
-                // they read as dead shells even though the underlying math was correct.
-                // Budget-remaining (ZadCardHero above) was already wired — left as-is.
-                zadFacts?.let { facts ->
-                    Spacer(modifier = Modifier.height(18.dp))
+                // ── 4. Insights (mockup: translucent glass rows, dot + text + tag) ──
+                // أهم تنبيهات عقل زاد — zad_insights كان مكتوب من زاد-برين وميتقراش
+                // خالص، فالتحليل والتنبيهات ما كانتش توصل هنا. دي أول محطة ليها.
+                val homeInsights = zadInsights
+                    .filter { it.surface == "home_card" }
+                    .sortedByDescending { it.priority == "critical" }
+                    .take(3)
+                if (homeInsights.isNotEmpty()) {
                     Text(
-                        "أرقامك الحقيقية",
+                        stringResource(R.string.zad_smart_insight_title),
                         style = Typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = onSurface,
                         modifier = Modifier.padding(bottom = 10.dp)
                     )
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        homeInsights.forEach { insight ->
+                            if (insight.kind == "question") {
+                                com.example.ui.widgets.ZadQuestionCard(
+                                    insight = insight,
+                                    onAnswer = { answer -> viewModel.answerBrainQuestion(insight, answer) },
+                                    onDismiss = { viewModel.dismissInsight(insight.id) },
+                                    onOpenCamera = onNavigateToCamera
+                                )
+                                return@forEach
+                            }
+                            // mockup: translucent white glass row, 16dp radius, a colored
+                            // priority dot (not an icon), title + body, and a pill tag on
+                            // the trailing edge.
+                            val isCritical = insight.priority == "critical"
+                            val accent = if (isCritical) dangerColor else primary
+                            com.example.ui.components.GlassCard(
+                                shape = RoundedCornerShape(16.dp),
+                                containerColor = Color.White.copy(alpha = 0.85f),
+                                contentPadding = 0.dp
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .padding(top = 5.dp)
+                                            .size(10.dp)
+                                            .clip(CircleShape)
+                                            .background(accent)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(insight.title, style = Typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = onSurface)
+                                        Text(insight.body, style = Typography.bodyMedium, color = onSurfaceVariant, maxLines = 2)
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    // Task 28 — "رفض بمعنى": بدل رفض صامت، ٣ خيارات بسبب فعلي
+                                    var showDismissMenu by remember(insight.id) { mutableStateOf(false) }
+                                    IconButton(onClick = { showDismissMenu = true }, modifier = Modifier.size(28.dp)) {
+                                        Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp), tint = onSurfaceVariant)
+                                    }
+                                    com.example.ui.components.DismissReasonMenu(
+                                        expanded = showDismissMenu,
+                                        onDismissRequest = { showDismissMenu = false },
+                                        onReasonSelected = { reason -> viewModel.dismissInsightWithReason(insight, reason) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(18.dp))
+                }
+
+                // ── 5. Stat grid — the mockup's 2×2 of plain white label/value tiles.
+                // Task 9 wired these ZadFacts numbers onto Home (they used to exist only
+                // inside ZadIntelligenceScreen's report). Trimmed from six colored
+                // icon-chip cards to the mockup's four: spending power, health score,
+                // monthly spend, 7-day trend. Stress-test days and top-category still
+                // live on the Zad Intelligence screen, which is where the mockup puts them.
+                zadFacts?.let { facts ->
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            MiniStatCard(
+                            com.example.ui.components.ZadStatTile(
                                 modifier = Modifier.weight(1f).clickable { onNavigateToAssistant() },
                                 label = stringResource(R.string.spending_power),
-                                value = facts.report.spendingPower.status,
-                                icon = Icons.Default.Speed,
-                                iconColor = primary,
-                                bgColor = primaryContainer
+                                value = facts.report.spendingPower.status
                             )
-                            MiniStatCard(
-                                modifier = Modifier.weight(1f).clickable { onNavigateToAssistant() },
-                                label = stringResource(R.string.stress_test_title),
-                                value = "${facts.stressTest.coverageDays} يوم",
-                                icon = Icons.Default.HealthAndSafety,
-                                iconColor = if (facts.stressTest.status == com.example.ui.screens.StressTestStatus.CRITICAL) dangerColor else successColor,
-                                bgColor = (if (facts.stressTest.status == com.example.ui.screens.StressTestStatus.CRITICAL) dangerColor else successColor).copy(alpha = 0.1f)
-                            )
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            MiniStatCard(
+                            com.example.ui.components.ZadStatTile(
                                 modifier = Modifier.weight(1f).clickable { onNavigateToAssistant() },
                                 label = "الصحة المالية",
-                                value = "${facts.report.healthScore}/100",
-                                icon = Icons.Default.Favorite,
-                                iconColor = if (facts.report.healthScore < 50) dangerColor else successColor,
-                                bgColor = (if (facts.report.healthScore < 50) dangerColor else successColor).copy(alpha = 0.1f)
-                            )
-                            MiniStatCard(
-                                modifier = Modifier.weight(1f).clickable { onNavigateToAssistant() },
-                                label = "الإنفاق الشهري",
-                                value = com.example.data.CurrencyFormatter.format(context, facts.report.totalSpent),
-                                icon = Icons.Default.CalendarMonth,
-                                iconColor = catBillsIcon,
-                                bgColor = catBillsBg
+                                value = "${facts.report.healthScore}/100"
                             )
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            val topCategory = facts.report.categoryBreakdown.maxByOrNull { it.spent }
-                            MiniStatCard(
+                            com.example.ui.components.ZadStatTile(
                                 modifier = Modifier.weight(1f).clickable { onNavigateToAssistant() },
-                                label = stringResource(R.string.expense_distribution),
-                                value = topCategory?.category ?: "—",
-                                icon = Icons.Default.PieChart,
-                                iconColor = catTransportIcon,
-                                bgColor = catTransportBg
+                                label = "الإنفاق الشهري",
+                                value = com.example.data.CurrencyFormatter.format(context, facts.report.totalSpent)
                             )
                             val consumptionTrend = facts.report.dailyTrend.takeLast(7).sumOf { it.amount }
-                            MiniStatCard(
+                            com.example.ui.components.ZadStatTile(
                                 modifier = Modifier.weight(1f).clickable { onNavigateToAssistant() },
                                 label = stringResource(R.string.consumption_ticker_title),
-                                value = com.example.data.CurrencyFormatter.format(context, consumptionTrend) + " /٧ أيام",
-                                icon = Icons.AutoMirrored.Filled.TrendingUp,
-                                iconColor = secondary,
-                                bgColor = secondary.copy(alpha = 0.1f)
+                                value = com.example.data.CurrencyFormatter.format(context, consumptionTrend)
                             )
                         }
                     }
+                    Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                if (shortageCount > 0) {
-                    Spacer(modifier = Modifier.height(14.dp))
-                    com.example.ui.components.ShortagesSummaryCard(
-                        shortageCount = shortageCount,
-                        onViewShortagesClick = {
-                            InventoryNavState.openShortagesTab = true
-                            onNavigateToInventory()
-                        }
-                    )
-                }
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // 2. Premium Quick Stats
-                val activeSubsCount = subscriptions.count { it.isActive }
-                val familyCount = if (familyState is FamilyState.Active) (familyState as FamilyState.Active).members.size else 1
-                com.example.ui.components.AppearOnEntry(delayMs = 150) {
-                    PremiumQuickStatsRow(
-                        inventoryCount = inventory.size,
-                        activeSubsCount = activeSubsCount,
-                        familyCount = familyCount,
-                        onInventoryClick = onNavigateToInventory,
-                        onSubsClick = onNavigateToSubscriptions,
-                        onFamilyClick = onNavigateToFamily
-                    )
-                }
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // 3. AI Insight Banner
-                val topInsight = insights.firstOrNull()?.description ?: stringResource(R.string.no_urgent_alerts_hint)
-                com.example.ui.components.AppearOnEntry(delayMs = 300) {
-                    PremiumInsightBanner(
-                        title = stringResource(R.string.zad_smart_insight_title),
-                        subtitle = topInsight,
-                        onClick = onNavigateToAssistant
-                    )
-                }
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // 4. Premium Meals Row
-                // فاضية عمدًا لحد ما يتوفر اقتراح وصفات مبني فعليًا على مخزون المستخدم —
-                // متتحطش أسماء وصفات هنا من غير تحقق حقيقي من المكونات المتاحة.
-                val recipeTitles = emptyList<String>()
-                PremiumMealsRow(
-                    meals = recipeTitles,
-                    onMealClick = { recipeName ->
-                        selectedRecipeTitle = recipeName
-                        showRecipeDialog = true
-                    }
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // 5. Premium Transactions Row
-                PremiumTransactionsRow(
-                    transactions = transactions,
-                    onSeeAllClick = { showAllTransactionsDialog = true }
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // 6. Kids Snippet
-                PremiumKidsSnippet(
-                    onKidsClick = onNavigateToFamily
-                )
-                Spacer(modifier = Modifier.height(32.dp))
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // 4. Zad Alerts
-                val alerts = insights.filter { it.type == "Alert" }
-                if (alerts.isNotEmpty()) {
-                    AiAlertBanner(title = alerts.first().title, description = alerts.first().description)
-                    Spacer(modifier = Modifier.height(24.dp))
-                } else {
-                    ZadProactiveSummaryCard(insights = insights)
-                    Spacer(modifier = Modifier.height(24.dp))
-                }
-
-                // 4a2. Agent Summary — ملخص الوكيل الذكي (كان محسوب ومهدور بدون عرض)
+                // ── 6. Dark AI summary card (mockup: #052E16, mint title, chips) ──
                 agentSummary?.let { summary ->
                     AgentSummaryCard(
                         agentSummary = summary,
@@ -558,40 +445,134 @@ fun HomeScreen(
                         onNavigateToShopping = onNavigateToShopping,
                         onNavigateToInventory = onNavigateToInventory
                     )
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                // 4a3. Auto Suggestions — اقتراحات ذكية سريعة (nudges عامة، منفصلة عن ملخص الوكيل)
+                // ── 7. Tasbiha garden ──
+                TasbihaHomeWidget(tree = myTasbiha, onNavigateToTasbiha = onNavigateToTasbiha)
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // ── 8. Chef Zad (mockup: one 18dp white row card — 56dp amber tile,
+                // title, one-line suggestion — not a carousel of stock food photos) ──
+                SmartChefSection(
+                    suggestions = mealSuggestions,
+                    onViewAll = onNavigateToAssistant
+                )
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // ── 9. Amazon picks (mockup: 140dp fixed-width cards in a horizontal
+                // rail). AffiliateProductCard is `fillMaxWidth()` + its own 16dp margins,
+                // so putting it inside a LazyRow gave every card the full viewport width —
+                // that's the "overlapping cards" in the design review. ZadAmazonDealCard
+                // is the mockup's actual rail card and has a fixed width.
+                val activeAffiliateProducts = affiliateProducts.filter { it.isActive }
+                if (activeAffiliateProducts.isNotEmpty()) {
+                    Text(stringResource(R.string.shop_from_amazon), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(vertical = 4.dp)
+                    ) {
+                        items(activeAffiliateProducts.take(8)) { product ->
+                            com.example.ui.widgets.ZadAmazonDealCard(
+                                product = product,
+                                onClick = {
+                                    viewModel.recordAffiliateClick(product.id, "home")
+                                    com.example.data.AffiliateHelper.openProduct(context, product)
+                                }
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(18.dp))
+                }
+
+                // ── 10. Recent transactions ──
+                PremiumTransactionsRow(
+                    transactions = transactions,
+                    onSeeAllClick = { showAllTransactionsDialog = true }
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // ── Beyond the mockup ──────────────────────────────────────────────
+                // Cards Zad has and the mockup doesn't. They stay (each one is backed by
+                // real data the app computes), but they now sit below the mockup sequence
+                // as one block instead of being scattered between its sections.
+
+                // Task 19.4 — كارت الكاش. بيظهر بس لو فيه كاش فعلاً (cashOnHand > 0،
+                // مشتق من BudgetMath.cashOnHand)، ويختفي لوحده لما يوصل صفر — الكارت
+                // نفسه هو التذكير، مفيش إشعار منفصل غرضه بس "افتكر تسجل الكاش".
+                if (cashOnHand > 0.0) {
+                    com.example.ui.components.CashCard(
+                        cashOnHand = cashOnHand,
+                        habitChips = habitChips,
+                        onChipTap = { chip ->
+                            viewModel.addTransaction(
+                                ZadTransaction(
+                                    amount = chip.amount,
+                                    title = chip.label,
+                                    category = chip.category,
+                                    isExpense = true,
+                                    wallet = "cash",
+                                    createdAt = java.time.Instant.now().toString()
+                                )
+                            )
+                        },
+                        onSpentFromCash = { amount, title, category ->
+                            viewModel.addTransaction(
+                                ZadTransaction(
+                                    amount = amount,
+                                    title = title,
+                                    category = category,
+                                    isExpense = true,
+                                    wallet = "cash",
+                                    createdAt = java.time.Instant.now().toString()
+                                )
+                            )
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(18.dp))
+                }
+
+                if (shortageCount > 0) {
+                    com.example.ui.components.ShortagesSummaryCard(
+                        shortageCount = shortageCount,
+                        onViewShortagesClick = {
+                            InventoryNavState.openShortagesTab = true
+                            onNavigateToInventory()
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(18.dp))
+                }
+
+                val alerts = insights.filter { it.type == "Alert" }
+                if (alerts.isNotEmpty()) {
+                    AiAlertBanner(title = alerts.first().title, description = alerts.first().description)
+                    Spacer(modifier = Modifier.height(18.dp))
+                }
+
                 if (autoSuggestions.isNotEmpty()) {
                     AutoSuggestionsCard(suggestions = autoSuggestions)
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                // 4b. Events Radar — رادار المناسبات (family-only: needs cross-member transaction history)
+                // رادار المناسبات (family-only: needs cross-member transaction history)
                 if (familyState is FamilyState.Active && seasonalForecasts.isNotEmpty()) {
                     EventsRadarCard(forecasts = seasonalForecasts)
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                // 4c. Expense prediction — يقف جوار رادار المناسبات كـ"مستشار زاد" الثاني
                 expensePrediction?.let { prediction ->
                     PredictionCard(prediction, currentBudget)
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                // 5. Mini Inventory Edge
                 MiniInventoryWidget(inventory = inventory, onNavigateToInventory = onNavigateToInventory)
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
-                // 6. Mini Shopping List Edge
                 MiniShoppingWidget(shoppingList = shoppingList, onNavigateToShopping = onNavigateToShopping)
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
-                // 6b. Tasbiha Widget
-                TasbihaHomeWidget(tree = myTasbiha, onNavigateToTasbiha = onNavigateToTasbiha)
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // 6c. العقل → الوصفات: "عندك دجاج هينتهي بكرة → 3 وصفات بيه"
+                // العقل → الوصفات: "عندك دجاج هينتهي بكرة → 3 وصفات بيه"
                 urgentRecipes?.let { urgent ->
                     UrgentRecipeCard(
                         triggerItems = urgent.triggerItems,
@@ -601,39 +582,7 @@ fun HomeScreen(
                         isStagnantOnly = urgent.stagnantItems.isNotEmpty() && urgent.stagnantItems.size == urgent.triggerItems.size,
                         onOpenChat = onNavigateToAssistant
                     )
-                    Spacer(modifier = Modifier.height(24.dp))
-                }
-
-                // 7. AI Chef Widget
-                SmartChefSection(
-                    suggestions = mealSuggestions,
-                    onViewAll = {
-                        onNavigateToAssistant()
-                    },
-                    onRecipeClick = { title ->
-                        selectedRecipeTitle = title
-                        showRecipeDialog = true
-                    }
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // 8. Amazon Affiliate Suggestions
-                val activeAffiliateProducts = affiliateProducts.filter { it.isActive }
-                if (activeAffiliateProducts.isNotEmpty()) {
-                    Text(stringResource(R.string.shop_from_amazon), style = Typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(activeAffiliateProducts.take(5)) { product ->
-                            AffiliateProductCard(
-                                product = product,
-                                onBuyClick = {
-                                    viewModel.recordAffiliateClick(product.id, "home")
-                                    com.example.data.AffiliateHelper.openProduct(context, product)
-                                }
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
                 }
 
                 // clears both the voice FAB (bottom 24.dp + 70.dp tall) and the family chat
@@ -1030,92 +979,33 @@ fun UrgentRecipeCard(
     }
 }
 
+/**
+ * Chef Zad — one card, per the mockup. The old version rendered a rail of three
+ * meal cards; when the AI hadn't answered it fell back to three hardcoded meals with
+ * hardcoded Unsplash photos, which is exactly the kind of fake content the design
+ * review flagged. Now: real suggestion or an honest empty line, never a placeholder
+ * meal presented as a recommendation.
+ */
 @Composable
 fun SmartChefSection(
     suggestions: String,
-    onViewAll: () -> Unit,
-    onRecipeClick: (String) -> Unit
+    onViewAll: () -> Unit
 ) {
     // Was `isNotBlank() && startsWith("1.") || startsWith("-") || startsWith("•")` —
     // && binds tighter than ||, so isNotBlank() only guarded the "1." branch, and the
     // real model output is plain prose ("يمكنك تحضير وجبة دجاج..."), never numbered/
-    // bulleted. Net effect: isRealAi was false for every real AI response, so this
-    // section silently showed the 3 hardcoded English placeholder meals forever,
-    // regardless of what's actually in the user's inventory.
-    val isRealAi = suggestions.isNotBlank() && suggestions != com.example.data.ZadAiRepository.MEAL_SUGGESTIONS_FALLBACK
+    // bulleted. Net effect: isRealAi was false for every real AI response.
+    val isRealAi = suggestions.isNotBlank() &&
+        suggestions != com.example.data.ZadAiRepository.MEAL_SUGGESTIONS_FALLBACK
 
-    Column {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier.size(32.dp).clip(CircleShape).background(catFoodBg),
-                    contentAlignment = Alignment.Center
-                ) { Icon(Icons.Default.SmartToy, contentDescription = null, tint = catFoodIcon, modifier = Modifier.size(18.dp)) }
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(stringResource(R.string.zad_chef_suggestions), style = Typography.titleMedium, color = onSurface)
-            }
-            TextButton(onClick = onViewAll) { Text(stringResource(R.string.view_all), style = Typography.labelMedium, color = primary) }
-        }
-        Spacer(modifier = Modifier.height(14.dp))
-
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(horizontal = 4.dp)) {
-            if (isRealAi) {
-                val lines = suggestions.split("\n").filter { it.trim().isNotEmpty() }.take(3)
-                items(lines) { line ->
-                    val cleanLine = line.replace(Regex("^[\\d\\-•·.]+\\s*"), "").trim()
-                    val title = cleanLine.substringBefore(":").substringBefore("(").take(30)
-                    val desc = cleanLine.take(80)
-                    MealCard(
-                        title = title, desc = desc,
-                        status = stringResource(R.string.zad_chef_suggestion_status),
-                        isAvailable = true,
-                        imgUrl = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&q=80",
-                        onClick = { onRecipeClick(title) }
-                    )
-                }
-            } else {
-                item {
-                    val name = stringResource(R.string.meal_chicken_pasta)
-                    MealCard(
-                        title = name,
-                        desc = stringResource(R.string.meal_chicken_pasta_desc),
-                        status = stringResource(R.string.meal_status_available),
-                        isAvailable = true,
-                        imgUrl = "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=400&q=80",
-                        onClick = { onRecipeClick(name) }
-                    )
-                }
-                item {
-                    val name = stringResource(R.string.meal_quinoa_salad)
-                    MealCard(
-                        title = name,
-                        desc = stringResource(R.string.meal_quinoa_salad_desc),
-                        status = stringResource(R.string.meal_status_missing_lemon),
-                        isAvailable = false,
-                        imgUrl = "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400&q=80",
-                        onClick = { onRecipeClick(name) }
-                    )
-                }
-                item {
-                    val name = stringResource(R.string.meal_breakfast_shakshuka)
-                    MealCard(
-                        title = name,
-                        desc = stringResource(R.string.meal_breakfast_shakshuka_desc),
-                        status = stringResource(R.string.meal_status_available),
-                        isAvailable = true,
-                        imgUrl = "https://images.unsplash.com/photo-1590412200988-a436970781fa?w=400&q=80",
-                        onClick = { onRecipeClick(name) }
-                    )
-                }
-            }
-        }
-    }
+    com.example.ui.components.ZadChefCard(
+        suggestion = if (isRealAi) {
+            suggestions.split("\n").firstOrNull { it.isNotBlank() }?.trim()
+                ?.replace(Regex("^[\\d\\-•·.]+\\s*"), "")
+        } else null,
+        onClick = onViewAll
+    )
 }
-
 
 @Composable
 fun MealCard(title: String, desc: String, status: String, isAvailable: Boolean, imgUrl: String, onClick: () -> Unit) {

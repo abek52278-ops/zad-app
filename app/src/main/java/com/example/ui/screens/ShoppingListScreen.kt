@@ -116,7 +116,7 @@ fun ShoppingListScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize().background(background)) {
+        Column(modifier = Modifier.fillMaxSize()) {
             ShoppingTopBar(onOpenDrawer = onOpenDrawer)
 
             LazyColumn(

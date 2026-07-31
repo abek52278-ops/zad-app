@@ -2837,9 +2837,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun buildAmazonLink(asin: String): String {
-        return com.example.data.AffiliateHelper.productUrl(asin)
-    }
+    // buildAmazonLink(asin) deleted 2026-07-31: no call sites, and it was the last path
+    // that could still build an /dp/ link from a bare ASIN with no asin_verified check —
+    // exactly the thing that made every catalog link 404. Use AffiliateHelper.openProduct,
+    // which carries the flag.
 
     fun clearMatchedProduct() {
         _matchedProductId.value = null

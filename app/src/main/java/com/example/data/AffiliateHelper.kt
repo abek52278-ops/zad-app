@@ -25,16 +25,26 @@ object AffiliateHelper {
     val AFFILIATE_TAG: String get() = BuildConfig.AMAZON_ASSOCIATE_TAG
     private const val BASE = "https://www.amazon.sa"
 
-    /** لينك المنتج المباشر — أو بحث بالاسم لو الـ ASIN مش صالح */
-    fun productUrl(asin: String?, fallbackSearchTerm: String? = null): String {
+    /**
+     * لينك المنتج المباشر — أو بحث بالاسم.
+     *
+     * [asinVerified] لازم يكون true عشان نبني لينك /dp/. الفورمات لوحده مش كافي:
+     * الخمس منتجات اللي كانت في الكتالوج (B07G9LQJ5M، B07F2Y9Z9T، …) كلها ١٠ حروف
+     * وبتبدأ بـ B0 — يعني عدّت الفحص القديم — لكنها متولّدة مش حقيقية، فكل لينك منتج
+     * في التطبيق كان بيفتح صفحة 404 على أمازون. مفيش فحص offline يقدر يفرّق بين ASIN
+     * حقيقي وواحد متولّد، فالحل إن التحقق البشري (`affiliate_products.asin_verified`)
+     * هو اللي يفتح مسار /dp/، وأي حاجة تانية تروح على البحث اللي مستحيل يرجّع 404.
+     */
+    fun productUrl(asin: String?, fallbackSearchTerm: String? = null, asinVerified: Boolean = false): String {
         val cleanAsin = asin?.trim().orEmpty()
-        // ASIN الصحيح: 10 حروف/أرقام يبدأ بـ B غالباً
-        val validAsin = cleanAsin.length == 10 && cleanAsin.all { it.isLetterOrDigit() }
-        return if (validAsin) {
+        val wellFormed = cleanAsin.length == 10 && cleanAsin.all { it.isLetterOrDigit() }
+        return if (asinVerified && wellFormed) {
             "$BASE/dp/$cleanAsin/?tag=$AFFILIATE_TAG"
         } else {
             val term = Uri.encode(fallbackSearchTerm ?: "")
-            Log.w(TAG, "Invalid ASIN '$cleanAsin' — falling back to search: $term")
+            if (cleanAsin.isNotEmpty() && !asinVerified) {
+                Log.w(TAG, "ASIN '$cleanAsin' is not verified — using search instead of /dp/ to avoid a 404: $term")
+            }
             "$BASE/s?k=$term&tag=$AFFILIATE_TAG"
         }
     }
@@ -73,6 +83,6 @@ object AffiliateHelper {
 
     /** الاختصار الكامل: يبني اللينك الصح ويفتحه صح */
     fun openProduct(context: Context, product: AffiliateProduct) {
-        open(context, productUrl(product.asin, product.productNameAr))
+        open(context, productUrl(product.asin, product.productNameAr, product.asinVerified))
     }
 }

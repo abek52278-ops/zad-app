@@ -27,7 +27,7 @@ import androidx.room.TypeConverters
     com.example.data.ZadDoseLog::class,
     com.example.data.PendingSyncOp::class,
     com.example.data.RejectedBankMessage::class
-], version = 13, exportSchema = false)
+], version = 14, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class ZadDatabase : RoomDatabase() {
     abstract fun zadDao(): ZadDao
@@ -71,6 +71,48 @@ abstract class ZadDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * affiliate_products gains `asin_verified`, and `asin` becomes nullable —
+         * mirroring supabase/migrations/20260731000000_affiliate_asin_verification.sql.
+         *
+         * A real migration rather than a destructive fallback, for the same reason
+         * MIGRATION_12_13 is one: the fallback wipes *every* table, including the
+         * PendingSyncOp offline retry queue, which has no second copy anywhere.
+         *
+         * SQLite can't relax NOT NULL in place, so the table is recreated. Safe to do
+         * bluntly here — affiliate_products is a read-only catalog mirror that
+         * ZadViewModel refetches from Supabase, so nothing is lost even in the worst case.
+         */
+        private val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS affiliate_products_new")
+                db.execSQL(
+                    "CREATE TABLE affiliate_products_new (" +
+                        "id TEXT NOT NULL, " +
+                        "product_name_ar TEXT NOT NULL, " +
+                        "product_name_search_keywords TEXT NOT NULL, " +
+                        "category TEXT, " +
+                        "asin TEXT, " +
+                        "asin_verified INTEGER NOT NULL DEFAULT 0, " +
+                        "image_url TEXT, " +
+                        "average_price_sar REAL NOT NULL, " +
+                        "is_active INTEGER NOT NULL, " +
+                        "created_at TEXT, " +
+                        "PRIMARY KEY(id))"
+                )
+                db.execSQL(
+                    "INSERT INTO affiliate_products_new (" +
+                        "id, product_name_ar, product_name_search_keywords, category, asin, " +
+                        "asin_verified, image_url, average_price_sar, is_active, created_at) " +
+                        "SELECT id, product_name_ar, product_name_search_keywords, category, asin, " +
+                        "0, image_url, average_price_sar, is_active, created_at " +
+                        "FROM affiliate_products"
+                )
+                db.execSQL("DROP TABLE affiliate_products")
+                db.execSQL("ALTER TABLE affiliate_products_new RENAME TO affiliate_products")
+            }
+        }
+
         fun getDatabase(context: Context): ZadDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -78,7 +120,7 @@ abstract class ZadDatabase : RoomDatabase() {
                     ZadDatabase::class.java,
                     "zad_database"
                 )
-                    .addMigrations(MIGRATION_12_13)
+                    .addMigrations(MIGRATION_12_13, MIGRATION_13_14)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

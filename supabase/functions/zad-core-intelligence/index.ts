@@ -457,8 +457,20 @@ Deno.serve(async (req: Request) => {
       case "analyze_inventory_image": {
         const { image_base64, mime_type } = payload || {};
         if (!image_base64) return jsonResponse({ items: [] });
-        const systemPrompt = "You are a vision AI. Analyze the image of refrigerator/pantry contents. Identify every food item visible. Return ONLY JSON: {\"items\":[{\"name\":\"\",\"quantity\":1.0,\"unit\":\"قطعة\",\"category\":\"عام\"}]}";
-        const userPrompt = "List all food items visible in this image with estimated quantity, unit, and category.";
+        // Prompt kept deliberately explicit and kept in sync with the client-side
+        // ZadAiGeminiClient copy: the terse one-liner it replaced ("Identify every food
+        // item visible") made the small vision models return two or three generic nouns
+        // for a full fridge, and invent a plausible item rather than return [] when the
+        // photo wasn't groceries at all.
+        const systemPrompt = "You are an inventory-tracking vision AI for a Saudi household app called ZAD. " +
+          "Look at the image carefully and identify EVERY visible product, food item, or branded package — " +
+          "read the label text where it is legible and prefer the real product name over a generic noun. " +
+          "Even if the image shows a single bottle, can, box or bag, list it. " +
+          "If the image contains no grocery/household products at all (a document, a person, a landscape), " +
+          "return an empty items array — never invent a product just to avoid an empty list. " +
+          "Return ONLY a JSON object, no markdown and no commentary: " +
+          "{\"items\":[{\"name\":\"\",\"quantity\":1.0,\"unit\":\"قطعة\",\"category\":\"عام\"}]}";
+        const userPrompt = "List every product visible in this image with its estimated quantity, unit and category.";
         // callVisionModel already tries every Groq key then falls back to Gemini internally.
         const visionResult = await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg");
         if (!visionResult) {
@@ -495,8 +507,14 @@ Deno.serve(async (req: Request) => {
       case "analyze_receipt": {
         const { image_base64, mime_type } = payload || {};
         if (!image_base64) return jsonResponse({ total: 0, category: "", storeName: "", items: [] });
-        const systemPrompt = "You are a receipt scanning AI. Extract all information from this receipt image. Return ONLY JSON: {\"total\":0.0,\"category\":\"\",\"storeName\":\"\",\"items\":[{\"name\":\"\",\"price\":0.0,\"quantity\":1.0,\"unit\":\"قطعة\",\"category\":\"عام\"}]}";
-        const userPrompt = "Extract the total amount, store name, category, and all line items from this receipt.";
+        const systemPrompt = "You are a receipt-scanning AI for a Saudi household app called ZAD. " +
+          "Receipts are usually in Arabic, sometimes bilingual, and amounts are in SAR. " +
+          "Read every line item with its own price; keep the item names exactly as printed. " +
+          "`total` is the final amount actually paid (after VAT and any discount), as a number with no currency symbol. " +
+          "If a field is genuinely unreadable, leave it empty or 0 rather than guessing. " +
+          "Return ONLY a JSON object, no markdown and no commentary: " +
+          "{\"total\":0.0,\"category\":\"\",\"storeName\":\"\",\"items\":[{\"name\":\"\",\"price\":0.0,\"quantity\":1.0,\"unit\":\"قطعة\",\"category\":\"عام\"}]}";
+        const userPrompt = "Extract the store name, the total paid, a spending category, and every line item from this receipt.";
         // callVisionModel already tries every Groq key then falls back to Gemini internally.
         const visionResult = await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg");
         if (visionResult) {

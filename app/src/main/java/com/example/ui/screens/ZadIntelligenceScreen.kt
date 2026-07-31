@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.ui.components.GlassCard
 import com.example.ui.components.pressableScale
+import com.example.ui.components.zadCardShadow
 import com.example.ui.components.ZadLottieAsset
 import com.airbnb.lottie.compose.LottieConstants
 import com.example.ui.theme.*
@@ -91,48 +92,56 @@ fun ZadIntelligenceScreen(
 
     val brainReport by viewModel.brainReport.collectAsState()
 
-    Column(modifier = Modifier.fillMaxSize().background(background)) {
+    // Transparent, not `background`: MainScreen paints the mockup's canvas gradient
+    // behind every screen. A white fill here is what made this screen's white cards
+    // read as flat dead blocks (white card on white page, shadow invisible).
+    Column(modifier = Modifier.fillMaxSize()) {
         IntelligenceTopBar(onOpenDrawer)
 
         val tabs = listOf(
-            Icons.Default.Psychology to stringResource(R.string.tab_overview),
-            Icons.Default.Insights to stringResource(R.string.tab_behavior_predictions),
-            Icons.Default.BarChart to stringResource(R.string.tab_subscriptions_deals),
-            Icons.Default.Chat to stringResource(R.string.tab_tools_chat)
+            stringResource(R.string.tab_overview),
+            stringResource(R.string.tab_behavior_predictions),
+            stringResource(R.string.tab_subscriptions_deals),
+            stringResource(R.string.tab_tools_chat)
         )
-        TabRow(
-            selectedTabIndex = selectedTab,
-            containerColor = background,
-            contentColor = primary,
-            indicator = { positions ->
-                TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(positions[selectedTab]),
-                    height = 3.dp,
-                    color = primary
-                )
-            }
+        // The mockup's segmented control: a white pill track with a dark-green pill on
+        // the selected segment. Replaces a Material TabRow with an underline indicator —
+        // the underline sat on a white strip that merged into the white page behind it,
+        // so the current tab was barely legible. Icons dropped with it: four icon+label
+        // pairs don't fit inside one pill at phone width, and the mockup's control is
+        // text-only.
+        val trackShape = RoundedCornerShape(999.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 12.dp)
+                .zadCardShadow(trackShape)
+                .clip(trackShape)
+                .background(surface)
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            tabs.forEachIndexed { i, (icon, title) ->
-                Tab(
-                    selected = selectedTab == i,
-                    onClick = { selectedTab = i },
-                    text = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                icon,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = if (selectedTab == i) primary else onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                title,
-                                style = Typography.labelLarge,
-                                color = if (selectedTab == i) primary else onSurfaceVariant
-                            )
-                        }
-                    }
-                )
+            tabs.forEachIndexed { i, title ->
+                val isSelected = selectedTab == i
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(trackShape)
+                        .background(if (isSelected) primary else Color.Transparent)
+                        .clickable { selectedTab = i }
+                        .padding(vertical = 9.dp, horizontal = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        title,
+                        style = Typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isSelected) Color.White else onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
             }
         }
 
@@ -2609,22 +2618,28 @@ fun MiniStatCard(
     iconColor: Color,
     bgColor: Color
 ) {
-    val miniStatShape = RoundedCornerShape(18.dp)
-    Card(
+    // Mockup's overview stat card: 16dp radius, the two-layer card shadow shared with
+    // every other list surface, and the small-grey-label-over-bold-value stack. The
+    // icon keeps its colored chip but moved next to the label instead of sitting on
+    // its own row above it, which is what made these tiles taller than the mockup's
+    // and pushed the 2×2 grid off a phone screen.
+    val miniStatShape = RoundedCornerShape(16.dp)
+    Column(
         modifier = modifier
-            .shadow(elevation = 6.dp, shape = miniStatShape, spotColor = iconColor.copy(alpha = 0.16f))
-            .pressableScale(),
-        shape = miniStatShape,
-        colors = CardDefaults.cardColors(containerColor = surface)
+            .zadCardShadow(miniStatShape)
+            .clip(miniStatShape)
+            .background(surface)
+            .pressableScale()
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(bgColor), contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(18.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(modifier = Modifier.size(24.dp).clip(CircleShape).background(bgColor), contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(14.dp))
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(value, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-            Text(label, style = Typography.labelSmall, color = onSurfaceVariant)
+            Text(label, style = Typography.labelSmall, color = textTertiary, maxLines = 1)
         }
+        Text(value, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface, maxLines = 1)
     }
 }
 

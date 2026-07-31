@@ -19,7 +19,7 @@ import com.example.ui.components.AppearOnEntry
 
 @Composable
 fun TermsOfServiceScreen(onBack: () -> Unit) {
-    Column(modifier = Modifier.fillMaxSize().background(background)) {
+    Column(modifier = Modifier.fillMaxSize()) {
         SubScreenTopBar("Terms of Service", onBack)
 
         AppearOnEntry {

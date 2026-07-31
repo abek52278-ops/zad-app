@@ -28,6 +28,32 @@ object ZadAiGeminiClient {
         .build()
     private val json = Json { ignoreUnknownKeys = true }
 
+    /** Kept in one place so the two vision calls can't drift apart again. */
+    private const val VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+
+    /**
+     * Pulls the outermost `{...}` out of a model reply.
+     *
+     * Why this exists: both vision calls used to send
+     * `response_format: {"type":"json_object"}` alongside the image. Groq **rejects**
+     * JSON mode on any request whose messages contain an image — the call came back
+     * 400 and `analyzeInventoryImage`/`analyzeReceipt` returned null every single
+     * time, which is why the scanner "never recognised anything". (The server-side
+     * path in `zad-core-intelligence`'s `callVisionModel` never set jsonMode, so only
+     * this BYO-personal-key client path was broken.)
+     *
+     * Dropping `response_format` means the model is free to wrap the JSON in prose or
+     * a ``` fence, so the reply has to be parsed leniently instead of handed straight
+     * to `decodeFromString` — the previous strip-backticks-and-hope approach threw on
+     * any leading sentence.
+     */
+    private fun extractJsonObject(raw: String): String? {
+        val stripped = raw.replace("```json", "").replace("```", "").trim()
+        val start = stripped.indexOf('{')
+        val end = stripped.lastIndexOf('}')
+        return if (start >= 0 && end > start) stripped.substring(start, end + 1) else null
+    }
+
     private fun encodeBitmap(bitmap: Bitmap): String {
         // Kept in sync with ZadAiRepository.encodeBitmap's 1024px spec (same reasoning: receipt/
         // medicine-bottle OCR needs more resolution than 800px was giving the vision model).
@@ -65,8 +91,9 @@ object ZadAiGeminiClient {
             """.trimIndent()
             
             val payload = buildJsonObject {
-                put("model", "meta-llama/llama-4-scout-17b-16e-instruct")
-                put("response_format", buildJsonObject { put("type", "json_object") })
+                put("model", VISION_MODEL)
+                // NO response_format here — see extractJsonObject's doc: Groq rejects
+                // JSON mode outright when the request carries an image.
                 put("messages", buildJsonArray {
                     add(buildJsonObject {
                         put("role", "user")
@@ -84,6 +111,8 @@ object ZadAiGeminiClient {
                         })
                     })
                 })
+                put("max_tokens", 2000)
+                put("temperature", 0.2)
             }
 
             val request = Request.Builder()
@@ -93,16 +122,19 @@ object ZadAiGeminiClient {
                 .build()
 
             val response = client.newCall(request).execute()
+            val responseStr = response.body?.string()
             if (!response.isSuccessful) {
-                Log.e(TAG, "Groq request failed: ${response.code} - ${response.body?.string()}")
+                Log.e(TAG, "Groq vision request failed: ${response.code} - $responseStr")
                 return@withContext null
             }
-
-            val responseStr = response.body?.string() ?: return@withContext null
+            if (responseStr == null) return@withContext null
             val responseJson = json.parseToJsonElement(responseStr).jsonObject
             val text = responseJson["choices"]?.jsonArray?.firstOrNull()?.jsonObject?.get("message")?.jsonObject?.get("content")?.jsonPrimitive?.content ?: ""
-            
-            val cleanJson = text.replace("```json", "").replace("```", "").trim()
+
+            val cleanJson = extractJsonObject(text) ?: run {
+                Log.e(TAG, "analyzeInventoryImage: no JSON object in model reply: $text")
+                return@withContext null
+            }
             json.decodeFromString<AiInventoryScanResult>(cleanJson)
         } catch (e: Exception) {
             Log.e(TAG, "analyzeInventoryImage failed: ${e.message}")
@@ -129,8 +161,8 @@ object ZadAiGeminiClient {
             val byteSize = base64.length * 3 / 4
             Log.d(TAG, "analyzeReceipt: image base64 size = $byteSize bytes")
             val payload = buildJsonObject {
-                put("model", "meta-llama/llama-4-scout-17b-16e-instruct")
-                put("response_format", buildJsonObject { put("type", "json_object") })  // ensure JSON output
+                put("model", VISION_MODEL)
+                // NO response_format — Groq 400s on JSON mode + image (see extractJsonObject).
                 put("messages", buildJsonArray {
                     add(buildJsonObject {
                         put("role", "user")
@@ -169,7 +201,10 @@ object ZadAiGeminiClient {
             val responseJson = json.parseToJsonElement(responseStr).jsonObject
             val text = responseJson["choices"]?.jsonArray?.firstOrNull()?.jsonObject?.get("message")?.jsonObject?.get("content")?.jsonPrimitive?.content ?: ""
             Log.d(TAG, "analyzeReceipt model text: $text")
-            val cleanJson = text.replace("```json", "").replace("```", "").trim()
+            val cleanJson = extractJsonObject(text) ?: run {
+                Log.e(TAG, "analyzeReceipt: no JSON object in model reply: $text")
+                return@withContext null
+            }
             json.decodeFromString<AiParsedReceipt>(cleanJson)
         } catch (e: Exception) {
             Log.e(TAG, "analyzeReceipt failed: ${e.message}")

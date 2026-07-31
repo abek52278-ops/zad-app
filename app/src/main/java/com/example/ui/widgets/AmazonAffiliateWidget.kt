@@ -30,7 +30,92 @@ import coil.compose.AsyncImage
 import com.example.data.AffiliateProduct
 import com.example.data.CurrencyFormatter
 import com.example.ui.components.pressableScale
+import com.example.ui.components.zadCardShadow
 import com.example.ui.theme.*
+
+/**
+ * The mockup's Amazon rail card: a fixed 140dp-wide, 16dp-radius tile — 80dp image,
+ * product name, then price + "أمازون" badge on one baseline.
+ *
+ * `AffiliateProductCard` below is the full-width *list* card (Shopping screen). It was
+ * also being used inside Home's `LazyRow`, where its `fillMaxWidth()` made every card
+ * expand to the viewport width and its own `padding(horizontal = 16.dp)` added margins
+ * on top of the row's spacing — cards ran off the edge and visually collided. The two
+ * layouts are genuinely different shapes in the design, so they're two composables now
+ * rather than one with a flag.
+ */
+@Composable
+fun ZadAmazonDealCard(
+    product: AffiliateProduct,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        modifier = Modifier
+            .width(140.dp)
+            .zadCardShadow(shape)
+            .clip(shape)
+            .background(surface)
+            .pressableScale(pressedScale = 0.97f, withHaptic = false)
+            .clickable { onClick() }
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(80.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(surfaceContainerLow),
+            contentAlignment = Alignment.Center
+        ) {
+            if (!product.imageUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = product.imageUrl,
+                    contentDescription = product.productNameAr,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Icon(
+                    Icons.Default.ShoppingBag,
+                    contentDescription = null,
+                    tint = onSurfaceVariant.copy(alpha = 0.4f),
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+        Text(
+            product.productNameAr,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
+            color = onSurface,
+            maxLines = 2,
+            minLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                if (product.averagePriceSar > 0)
+                    CurrencyFormatter.format(LocalContext.current, product.averagePriceSar)
+                else "—",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.ExtraBold,
+                color = secondaryDark
+            )
+            Text(
+                "أمازون",
+                fontSize = 9.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = textTertiary
+            )
+        }
+    }
+}
 
 @Composable
 fun AffiliateProductCard(

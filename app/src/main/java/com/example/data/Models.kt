@@ -408,7 +408,18 @@ data class AffiliateProduct(
     @ColumnInfo(name = "product_name_search_keywords")
     @SerialName("product_name_search_keywords") val productNameSearchKeywords: List<String> = emptyList(),
     val category: String? = null,
-    val asin: String,
+    /** Nullable since 2026-07-31: a catalog row with no known ASIN is legitimate — it
+     * deep-links by tagged search instead. It used to be NOT NULL, which is how five
+     * fabricated ASINs ended up in the table just to satisfy the constraint. */
+    val asin: String? = null,
+    /**
+     * TRUE only once a human has confirmed `amazon.sa/dp/<asin>` actually resolves to
+     * this product. [AffiliateHelper.productUrl] deep-links only when this is set;
+     * otherwise it builds a tagged search URL, which can't 404. Format validation
+     * cannot substitute for this — a made-up ASIN is well-formed too.
+     */
+    @ColumnInfo(name = "asin_verified")
+    @SerialName("asin_verified") val asinVerified: Boolean = false,
     @ColumnInfo(name = "image_url")
     @SerialName("image_url") val imageUrl: String? = null,
     @ColumnInfo(name = "average_price_sar")
