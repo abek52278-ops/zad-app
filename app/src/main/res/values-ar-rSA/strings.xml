@@ -296,6 +296,7 @@
     <string name="available_breakdown_with_next">متبقي %1$s · محجوز %2$s (%3$s)</string>
     <string name="obligation_due_in_days">%1$s بعد %2$d يوم</string>
     <string name="spent_label">المصروف</string>
+    <string name="committed_label">محجوز للالتزامات</string>
     <string name="days_label">الأيام</string>
     <string name="budget_percent_used">%1$d٪ من ميزانيتك</string>
     <string name="budget_status_excellent">وضع ممتاز</string>

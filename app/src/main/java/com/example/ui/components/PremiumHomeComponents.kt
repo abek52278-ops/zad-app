@@ -181,17 +181,13 @@ fun ZadCardHero(
         label = "cardHeroProgress"
     )
 
-    val cardShape = RoundedCornerShape(24.dp)
+    val cardShape = RoundedCornerShape(28.dp)
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(elevation = 22.dp, shape = cardShape, spotColor = primary.copy(alpha = 0.4f))
-    ) {
+    Box(modifier = Modifier.fillMaxWidth()) {
         com.example.ui.components.HeroGradientCard(
-            colors = listOf(primaryDark, primary, primaryDark),
+            colors = com.example.ui.components.ZadHeroGradient,
             shape = cardShape,
-            contentPadding = 22.dp
+            contentPadding = 24.dp
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 Box(
@@ -232,7 +228,7 @@ fun ZadCardHero(
                     Text(
                         (if (!available.confident) "≈ " else "") +
                             com.example.data.CurrencyFormatter.formatNumber(currencyContext, available.value),
-                        style = Typography.displayLarge.copy(fontSize = 36.sp, letterSpacing = 1.5.sp),
+                        style = Typography.displayLarge.copy(fontSize = 44.sp, letterSpacing = (-1).sp),
                         color = if (available.value < 0) dangerColor else Color.White,
                         modifier = Modifier.combinedClickable(
                             onClick = { if (!available.confident) showAvailableReason = true },
@@ -272,7 +268,26 @@ fun ZadCardHero(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // شرايح "مصروف / محجوز" بنقطة متوهجة — توقيع الكارت في التصميم الجديد.
+                    // "محجوز" بيظهر بس لو فيه التزامات فعلاً، زي سطر التفصيل فوق.
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        HeroGlowPill(
+                            dotColor = Color(0xFFF4A93B),
+                            label = stringResource(R.string.spent_label),
+                            value = com.example.data.CurrencyFormatter.format(currencyContext, spent)
+                        )
+                        if (committed > 0) {
+                            HeroGlowPill(
+                                dotColor = Color(0xFFFF8066),
+                                label = stringResource(R.string.committed_label),
+                                value = com.example.data.CurrencyFormatter.format(currencyContext, committed)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     // الإحصائيات الثانوية (أيام/مصروف/إيداع) في بانل زجاجي مستقل — نفس
                     // GlassCard المستخدم في باقي التطبيق، مش لوح شفاف يدوي زي قبل كده.
@@ -338,6 +353,45 @@ fun ZadCardHero(
                 }
             }
         }
+    }
+}
+
+/**
+ * شريحة زجاجية بنقطة متوهجة — عنصر متكرر في هيرو التصميم الجديد ("مصروف: ٢٤٠"،
+ * "محجوز: ٨٠٠"). التوهج نقطة صغيرة ورا نفسها بشفافية أعلى، مش ظل حقيقي، عشان
+ * يشتغل على كل إصدارات أندرويد من غير ما يعتمد على blur (minSdk 24).
+ */
+@Composable
+private fun HeroGlowPill(dotColor: Color, label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(Color.White.copy(alpha = 0.14f))
+            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(50))
+            .padding(horizontal = 13.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier
+                    .size(13.dp)
+                    .clip(CircleShape)
+                    .background(dotColor.copy(alpha = 0.35f))
+            )
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .clip(CircleShape)
+                    .background(dotColor)
+            )
+        }
+        Text(
+            "$label: $value",
+            style = Typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White
+        )
     }
 }
 
@@ -412,12 +466,14 @@ fun ZadPageShortcutsRow(items: List<ZadShortcutItem>) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.width(68.dp)
                 ) {
+                    // بادچ مربع بحواف دائرية بخلفية باهتة وأيقونة بلون التصنيف نفسه —
+                    // بدل الدائرة الصلبة القديمة، زي التصميم الجديد.
+                    val badgeShape = RoundedCornerShape(16.dp)
                     Box(
                         modifier = Modifier
-                            .size(56.dp)
-                            .shadow(elevation = 8.dp, shape = CircleShape, spotColor = item.color.copy(alpha = 0.35f))
-                            .clip(CircleShape)
-                            .background(Brush.linearGradient(listOf(item.color, item.color.copy(alpha = 0.8f))))
+                            .size(52.dp)
+                            .clip(badgeShape)
+                            .background(item.color.copy(alpha = 0.12f))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
@@ -426,13 +482,13 @@ fun ZadPageShortcutsRow(items: List<ZadShortcutItem>) {
                             .pressableScale(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(item.icon, contentDescription = item.label, tint = Color.White, modifier = Modifier.size(24.dp))
+                        Icon(item.icon, contentDescription = item.label, tint = item.color, modifier = Modifier.size(22.dp))
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         item.label,
                         style = Typography.labelSmall,
-                        color = onSurfaceVariant,
+                        color = textSecondary,
                         maxLines = 1,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
