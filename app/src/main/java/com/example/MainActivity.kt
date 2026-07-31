@@ -31,11 +31,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import com.example.ui.theme.AppTheme
 import com.example.ui.theme.primary
@@ -52,6 +54,8 @@ import com.example.ui.screens.InventoryScreen
 import com.example.ui.screens.FamilyScreen
 import com.example.ui.screens.CameraScreen
 import com.example.data.SupabaseRepo
+import com.example.data.SessionHelper
+import io.github.jan.supabase.auth.status.SessionStatus
 
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -84,6 +88,18 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
 
         MarketPrefs.applyStoredLocale(this)
+
+        // Keep the persisted session in sync with every SDK-driven token refresh, not just
+        // explicit sign-in/out — otherwise the refresh token cached in SharedPreferences goes
+        // stale (Supabase rotates it on each refresh) and the next cold start silently fails
+        // to restore the session, forcing a re-login the user never asked for.
+        lifecycleScope.launch {
+            SupabaseRepo.client.auth.sessionStatus.collect { status ->
+                if (status is SessionStatus.Authenticated) {
+                    SessionHelper.saveSession(applicationContext)
+                }
+            }
+        }
 
         // Schedule periodic AI analysis (Feature 6)
         val workRequest = PeriodicWorkRequestBuilder<PeriodicAnalysisWorker>(6, TimeUnit.HOURS).build()
