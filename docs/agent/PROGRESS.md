@@ -763,24 +763,57 @@ comment, not silently followed.
 
 **What's genuinely still needed before this works end-to-end (none of it possible from
 this session — no Supabase CLI/MCP auth, no way to reach the live bot):**
-1. Apply `20260730150000_telegram_bindings.sql` (same pending-migrations situation as
-   everything else this session).
-2. Deploy the `zad-telegram-bot` function (`supabase functions deploy zad-telegram-bot`).
-3. Set the webhook — the user has the token, this session does not and should not:
+1. ~~Apply `20260730150000_telegram_bindings.sql`~~ — **DONE 2026-07-31** via MCP
+   `apply_migration`; `telegram_bindings` now exists live with RLS enabled, and the
+   security advisor reports no new findings for it.
+2. ~~Deploy the `zad-telegram-bot` function~~ — **DONE 2026-07-31** via MCP
+   `deploy_edge_function`; live as version 1, status ACTIVE, `verify_jwt: false`
+   (required — Telegram's webhook POST carries no Supabase JWT; the real authorization
+   is the webhook secret below plus the chat_id→user_id binding).
+3. **STILL OPEN — set the webhook.** This is the one remaining step and the reason the
+   bot is still silent. It needs the bot token, which is a write-only Supabase secret
+   that MCP cannot read back, so it has to be run by the user:
    ```
    curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
-     -d "url=https://<project-ref>.supabase.co/functions/v1/zad-telegram-bot" \
+     -d "url=https://auuftqncrjsnyylolhbu.supabase.co/functions/v1/zad-telegram-bot" \
      -d "secret_token=<a-random-string-you-also-set-as-TELEGRAM_WEBHOOK_SECRET>"
    ```
-   `TELEGRAM_WEBHOOK_SECRET` isn't set yet (only `TELEGRAM_BOT_TOKEN` was, per the
-   `supabase secrets set` command run this session) — **the function currently accepts
-   any webhook call with no secret verification** (`WEBHOOK_SECRET` falls through to
-   `undefined`, grammY's `secretToken` check is skipped entirely) until this is set and
-   deployed. Flagging as a real gap, not a "nice to have": anyone who discovers the
-   function URL could currently POST fake Telegram updates to it.
+   Set that same random string as the `TELEGRAM_WEBHOOK_SECRET` Supabase secret
+   **first**, then redeploy, then run the curl. Until `TELEGRAM_WEBHOOK_SECRET` is set,
+   `WEBHOOK_SECRET` falls through to `undefined` and grammY's `secretToken` check is
+   skipped entirely — **the deployed function currently accepts any webhook call with no
+   secret verification**. Now that it is actually deployed and publicly reachable, this
+   is a live exposure, not a theoretical one: anyone who discovers the function URL can
+   POST fake Telegram updates to it. Fix this before or immediately alongside setWebhook.
 4. Confirm the bot's actual Telegram username matches `@ZadSmartBot` hardcoded into
-   `ProfileScreen.kt`'s instructions string — not verified against the live bot from
-   here.
+   `ProfileScreen.kt`'s instructions string — still not verified against the live bot.
+
+### 2026-07-31 — Telegram bot v2: conversational agent + deployed
+
+- `context.ts` (new, pure/testable like `telegram.ts`): `buildAgentContext()` assembles
+  the customer's full picture server-side using the same `=== SECTION ===` contract as
+  the Kotlin client's `ZadViewModel.buildFullChatContext()` — profile/budget, month
+  totals, per-category spend, last 30 transactions, obligations, inventory,
+  subscriptions, pharmacy, shopping list, pending insights, tasbiha garden, `zad_memory`
+  notes. `agentSystemPrompt()` holds the rules and never opens a `=== ===` section
+  itself, so injected text (a transaction title, an item name) can't reach rule-level
+  authority.
+- `index.ts`: free text now goes to Zad instead of bouncing back the button menu. New
+  `/tahlil` (full situation analysis), `/menu` (old buttons). The model call routes
+  through `zad-core-intelligence`'s `ai_text` action, so the bot inherits the app's
+  Groq-pool-primary/Gemini-fallback policy rather than forking a second provider path.
+  Replies clamped to Telegram's 4096-char cap.
+- Bug caught pre-deploy: `fetchAgentContext` had `.or("created_at.gte.<monthStart>")`
+  which would have silently excluded all older transactions while the comment claimed
+  the opposite. Replaced with a straight 200-row newest-first window, which is what
+  `monthTotals`/`categoryBreakdown` actually need to be correct.
+- Verification: `deno test` 29/29 (13 new context tests), `deno check index.ts` clean.
+  One new test caught a wrong assertion of mine about the system prompt and was
+  corrected rather than deleted. **Not verified against live Telegram** — the webhook is
+  still unset (step 3 above), so no real message has round-tripped yet.
+- **Still read-only.** The agent is explicitly instructed (rule 5) not to claim it
+  logged or changed anything, because it genuinely cannot from here. User has approved
+  adding expense logging (with a confirm step) as the next phase — not yet built.
 
 **Deliberately deferred, disclosed not silently skipped:**
 - **Read-only v1 only** — no expense logging, no budget edits, nothing beyond dismissing

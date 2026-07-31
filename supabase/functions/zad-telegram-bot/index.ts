@@ -58,14 +58,14 @@ async function resolveUserId(sb: SupabaseClient, chatId: number): Promise<string
  * guard here; the .eq("user_id", userId) on each query is. */
 async function fetchAgentContext(sb: SupabaseClient, userId: string): Promise<AgentContextInput> {
   const today = new Date().toISOString().slice(0, 10);
-  const monthStart = `${today.slice(0, 7)}-01T00:00:00.000Z`;
 
   const [user, txs, inv, subs, obligations, pharmacy, shopping, insights, tasbiha, memory] = await Promise.all([
     sb.from("zad_users").select("full_name,monthly_limit,currency").eq("id", userId).maybeSingle(),
-    // 30 most recent overall, plus anything this month, so month totals stay correct
-    // even for a heavy-spending month with more than 30 transactions in it.
+    // Pull a deep-enough window (200 newest) rather than just the 30 the prompt shows:
+    // monthTotals/categoryBreakdown run over this same list, so a heavy month with more
+    // than 30 transactions would otherwise report totals that are silently too low.
     sb.from("zad_transactions").select("title,amount,txn_kind,category,created_at")
-      .eq("user_id", userId).or(`created_at.gte.${monthStart}`).order("created_at", { ascending: false }).limit(200),
+      .eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
     sb.from("zad_inventory").select("item_name,quantity,unit,expiry_date").eq("user_id", userId).limit(60),
     sb.from("zad_subscriptions").select("title,amount,renewal_date,is_active").eq("user_id", userId).limit(30),
     sb.from("zad_obligations").select("title,amount,due_date,status").eq("user_id", userId).limit(30),
