@@ -480,9 +480,50 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // سياق بستان التسبيح — يتغذى من FamilyViewModel عبر MainScreen، نفس نمط العائلة.
+    // النموذج الحقيقي تراكمي مدى الحياة (٥ مراحل × ٩٩ نقطة) مش هدف يومي بيتصفّر،
+    // فالسياق بيتكلم بلغة المستوى/التقدم/السلسلة زي ما الداتابيز مخزّنة بالظبط.
+    private val _tasbihaContext = MutableStateFlow<String?>(null)
+
+    /** يستدعى من MainScreen كلما اتحدثت بيانات البستان */
+    fun updateTasbihaContext(myTree: com.example.data.TasbihaTree?, familyTrees: List<com.example.data.TasbihaTree>) {
+        if (myTree == null && familyTrees.isEmpty()) { _tasbihaContext.value = null; return }
+        _tasbihaContext.value = buildString {
+            myTree?.let { t ->
+                appendLine("شجرتي: ${t.stageEmoji()} ${t.stageName()} (مستوى ${t.level} من ٥)")
+                appendLine("النقاط التراكمية: ${t.score}" + if (t.level < 5) " — باقي ${t.nextLevelAt() - t.score} للمستوى الجاي" else " — وصلت لأعلى مستوى")
+                appendLine("إجمالي التسبيحات: ${t.totalClicks}")
+                if (t.streakDays > 0) appendLine("سلسلة الأيام المتتالية: ${t.streakDays} يوم")
+                t.lastTasbihAt?.take(10)?.let { appendLine("آخر تسبيح: $it") }
+            }
+            if (familyTrees.size > 1) {
+                val ranked = familyTrees.sortedByDescending { it.score }.take(5)
+                appendLine("ترتيب بستان العائلة: " + ranked.joinToString("، ") { "${it.gardenName} ${it.stageEmoji()} (${it.score})" })
+            }
+        }
+    }
+
+    // ترشيحات أمازون — كتالوچ الأفلييت النشط، بيتحمّل مرة عند فتح الشات/التقرير.
+    // مش محرك ترشيح شخصي: دي منتجات الكتالوچ المتاحة، والربط بالمخزون بيحصل في
+    // الرد نفسه (زاد بيقارن الناقص عنده بالكتالوچ ده) مش هنا.
+    private val _affiliateContext = MutableStateFlow<String?>(null)
+
+    fun refreshAffiliateContext() {
+        viewModelScope.launch {
+            val products = runCatching { SupabaseRepo.getAffiliateProducts() }.getOrNull()
+                .orEmpty().filter { it.isActive }
+            _affiliateContext.value = if (products.isEmpty()) null else products.take(12).joinToString("\n") { p ->
+                "- ${p.productNameAr}" +
+                    (if (p.averagePriceSar > 0) " — ${com.example.data.CurrencyFormatter.format(getApplication(), p.averagePriceSar)}" else "") +
+                    (p.category?.takeIf { it.isNotBlank() }?.let { " [$it]" } ?: "")
+            }
+        }
+    }
+
     /**
      * حقن السياق الكامل — الشات يعرف كل حاجة عن العميل:
      * مخزون + معاملات + بادجت الفئات + اشتراكات + تسوق + تنبؤات + سلوكيات + عائلة
+     * + بستان التسبيح + ترشيحات أمازون
      */
     private fun buildFullChatContext(): String {
         val ctx = getApplication<Application>()
@@ -602,6 +643,12 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
             === العائلة ===
             $familyText
+
+            === بستان التسبيح ===
+            ${_tasbihaContext.value ?: "لا توجد بيانات بستان بعد."}
+
+            === ترشيحات أمازون المتاحة ===
+            ${_affiliateContext.value ?: "لا يوجد كتالوچ ترشيحات متاح حالياً."}
         """.trimIndent()
     }
 

@@ -103,6 +103,15 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
         viewModel.updateFamilyContext(familyStateForChat)
     }
 
+    // نفس النمط لبستان التسبيح — البستان بيتخزن في FamilyViewModel، وعقل زاد كان
+    // مش شايفه خالص قبل كده رغم إنه بيانات حقيقية في family_tasbiha.
+    LaunchedEffect(familyViewModel.myTasbiha, familyViewModel.familyTasbiha) {
+        viewModel.updateTasbihaContext(familyViewModel.myTasbiha, familyViewModel.familyTasbiha)
+    }
+
+    // كتالوچ ترشيحات أمازون — مرة واحدة، عشان زاد يقدر يرشح منتج للناقص في المخزون
+    LaunchedEffect(Unit) { viewModel.refreshAffiliateContext() }
+
     // ─── وضع الأطفال: قفل تنقّل على مستوى الشاشة كلها، مش بس محتوى الرئيسية ───
     val context = LocalContext.current
     // role حقيقي من الداتابيز (حساب طفل مستقل) — مش قابل للتبديل من المستخدم نفسه
