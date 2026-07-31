@@ -770,21 +770,37 @@ this session — no Supabase CLI/MCP auth, no way to reach the live bot):**
    `deploy_edge_function`; live as version 1, status ACTIVE, `verify_jwt: false`
    (required — Telegram's webhook POST carries no Supabase JWT; the real authorization
    is the webhook secret below plus the chat_id→user_id binding).
-3. **STILL OPEN — set the webhook.** This is the one remaining step and the reason the
-   bot is still silent. It needs the bot token, which is a write-only Supabase secret
-   that MCP cannot read back, so it has to be run by the user:
+3. **ROOT CAUSE, confirmed live 2026-07-31: `TELEGRAM_BOT_TOKEN` is NOT set on this
+   project.** The claim below (and in the 2026-07-30 notes) that it had been set via
+   `supabase secrets set` is **false** — it was never verified, and the deployed
+   function's own config probe now reports `bot_token: false`. This is why the bot never
+   worked, and it made every downstream step moot: the function was crashing at module
+   load on `new Bot("")` and returning an opaque WORKER_ERROR/500 to everything,
+   including its own health endpoint.
+
+   **The fix is one action the user must take** (MCP has no secret-setting tool):
+   either the Supabase dashboard → Project Settings → Edge Functions → Secrets, or
+   ```
+   supabase secrets set TELEGRAM_BOT_TOKEN=<token> --project-ref auuftqncrjsnyylolhbu
+   ```
+   Once set, no further deploy is needed for the webhook: the function self-registers on
+   its next cold start, and `GET /functions/v1/zad-telegram-bot` returns the live config
+   and webhook state. `TELEGRAM_WEBHOOK_SECRET` is optional — if unset, the function
+   derives one from the bot token so signature verification is enforced either way.
+
+3b. Historical note — the manual setWebhook path, no longer required:
    ```
    curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
      -d "url=https://auuftqncrjsnyylolhbu.supabase.co/functions/v1/zad-telegram-bot" \
      -d "secret_token=<a-random-string-you-also-set-as-TELEGRAM_WEBHOOK_SECRET>"
    ```
-   Set that same random string as the `TELEGRAM_WEBHOOK_SECRET` Supabase secret
-   **first**, then redeploy, then run the curl. Until `TELEGRAM_WEBHOOK_SECRET` is set,
-   `WEBHOOK_SECRET` falls through to `undefined` and grammY's `secretToken` check is
-   skipped entirely — **the deployed function currently accepts any webhook call with no
-   secret verification**. Now that it is actually deployed and publicly reachable, this
-   is a live exposure, not a theoretical one: anyone who discovers the function URL can
-   POST fake Telegram updates to it. Fix this before or immediately alongside setWebhook.
+   Superseded as of 2026-07-31: the function calls `setWebhook` itself on cold start
+   (`ensureWebhook`, idempotent via `getWebhookInfo`), so this curl is no longer needed.
+   The earlier "accepts any webhook call with no secret verification" exposure is also
+   closed — `WEBHOOK_SECRET` no longer falls through to `undefined`; when
+   `TELEGRAM_WEBHOOK_SECRET` is unset it is derived from the bot token, so grammY's
+   `secretToken` check is always enforced. Setting `TELEGRAM_WEBHOOK_SECRET` explicitly
+   still takes precedence if you prefer to manage it yourself.
 4. Confirm the bot's actual Telegram username matches `@ZadSmartBot` hardcoded into
    `ProfileScreen.kt`'s instructions string — still not verified against the live bot.
 
