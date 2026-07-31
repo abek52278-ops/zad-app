@@ -36,6 +36,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.R
 import com.example.data.*
 import com.example.ui.screens.auth.AuthTextField
+import com.example.ui.components.zadCardShadow
 import com.example.ui.theme.*
 import com.example.ui.components.QrCode
 import com.example.ui.components.pressableScale
@@ -359,7 +360,7 @@ private fun GroceriesTab(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .shadow(elevation = 6.dp, shape = groceryShape, spotColor = primary.copy(alpha = 0.10f)),
+                        .zadCardShadow(groceryShape, elevation = 6.dp),
                     shape = groceryShape,
                     colors = CardDefaults.cardColors(containerColor = surfaceContainer)
                 ) {
@@ -565,7 +566,7 @@ private fun MemberDetailCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(elevation = 8.dp, shape = memberCardShape, spotColor = memberAccent.copy(alpha = 0.14f))
+            .zadCardShadow(memberCardShape)
             .clickable { onClick() }
             .pressableScale(),
         shape = memberCardShape,
@@ -1053,7 +1054,7 @@ private fun TasksTab(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp)
-                            .shadow(elevation = 4.dp, shape = choreShape, spotColor = primary.copy(alpha = 0.08f))
+                            .zadCardShadow(choreShape, elevation = 4.dp)
                             .clickable { onToggle(chore.id, !chore.isCompleted) }
                             .pressableScale(),
                         shape = choreShape,

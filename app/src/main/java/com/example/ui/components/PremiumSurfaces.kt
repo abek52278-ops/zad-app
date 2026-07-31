@@ -174,6 +174,56 @@ fun HeroGradientCard(
     )
 }
 
+/**
+ * The mockup's plain list card: opaque white, 16dp radius, two-layer shadow. This is
+ * the single most repeated surface in the design (inventory items, shopping rows,
+ * subscriptions, pharmacy, maintenance, deals, profile rows), and the screens had each
+ * hand-rolled it as a Surface/Box with slightly different radii and elevations.
+ *
+ * Distinct from GlassCard on purpose: GlassCard is translucent and belongs over the
+ * gradient canvas or a hero; this is the flat card used inside ordinary lists, where
+ * translucency would just muddy the text.
+ */
+@Composable
+fun ZadListCard(
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(16.dp),
+    containerColor: Color = Color.White,
+    contentPadding: Dp = 16.dp,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .zadCardShadow(shape)
+            .clip(shape)
+            .background(containerColor)
+            .padding(contentPadding),
+        content = content,
+    )
+}
+
+/**
+ * Compact banner used at the top of a list screen for one headline number or warning
+ * (shopping total, low-stock count, monthly obligations). Mesh gradient + white text,
+ * matching the mockup's smaller sibling of the Home hero.
+ */
+@Composable
+fun ZadScreenBanner(
+    modifier: Modifier = Modifier,
+    shape: Shape = RoundedCornerShape(20.dp),
+    contentPadding: Dp = 18.dp,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    HeroGradientCard(
+        modifier = modifier,
+        colors = ZadHeroGradient,
+        shape = shape,
+        contentPadding = contentPadding,
+        content = content,
+    )
+}
+
 /** The mockup's hero mesh gradient (`120deg, #0B6B4E, #0F9B76, #064E3B, #0B6B4E`). */
 val ZadHeroGradient = listOf(
     Color(0xFF0B6B4E),

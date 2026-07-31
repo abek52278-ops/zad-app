@@ -30,6 +30,7 @@ import com.example.data.ZadMaintenanceItem
 import com.example.ui.components.AppearOnEntry
 import com.example.ui.components.ZadLottieAsset
 import com.example.ui.components.ZadTransitions
+import com.example.ui.components.ZadListCard
 import com.example.ui.components.pressableScale
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
@@ -185,13 +186,13 @@ private fun MaintenanceItemCard(
         else -> successColor
     }
 
-    val cardShape = RoundedCornerShape(18.dp)
-    Card(
-        modifier = Modifier.fillMaxWidth()
-            .shadow(elevation = 6.dp, shape = cardShape, spotColor = statusColor.copy(alpha = 0.16f))
-            .pressableScale(),
+    // نفس كارت القائمة المشترك (ZadListCard) اللي باقي الشاشات بتستخدمه — بدل
+    // Card + shadow يدوي بنصف قطر وارتفاع مختلفين في كل شاشة.
+    val cardShape = RoundedCornerShape(16.dp)
+    ZadListCard(
+        modifier = Modifier.pressableScale(),
         shape = cardShape,
-        colors = CardDefaults.cardColors(containerColor = surface)
+        contentPadding = 0.dp
     ) {
         Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
             Box(modifier = Modifier.width(4.dp).fillMaxHeight().background(statusColor))

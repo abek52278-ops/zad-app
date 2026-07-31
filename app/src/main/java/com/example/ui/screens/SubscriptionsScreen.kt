@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.ZadSubscription
+import com.example.ui.components.ZadListCard
+import com.example.ui.components.ZadScreenBanner
 import com.example.ui.components.pressableScale
 import com.example.ui.components.ZadLottieAsset
 import com.example.ui.components.ZadTransitions
@@ -108,13 +110,9 @@ fun SubscriptionsScreen(
 
             // Summary Banner
             com.example.ui.components.AppearOnEntry {
-            Box(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)
-                    .shadow(elevation = 10.dp, shape = RoundedCornerShape(20.dp), spotColor = primary.copy(alpha = 0.20f))
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(
-                        Brush.horizontalGradient(listOf(primary, primaryLight))
-                    ).padding(20.dp)
+            ZadScreenBanner(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                contentPadding = 20.dp
             ) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Box(
@@ -283,14 +281,12 @@ private fun SubScreenSubscriptionCardFull(
         else -> successColor
     }
 
-    val subCardShape = RoundedCornerShape(18.dp)
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(elevation = 6.dp, shape = subCardShape, spotColor = daysColor.copy(alpha = 0.16f))
-            .pressableScale(),
+    val subCardShape = RoundedCornerShape(16.dp)
+    ZadListCard(
+        modifier = Modifier.pressableScale(),
         shape = subCardShape,
-        colors = CardDefaults.cardColors(containerColor = if (sub.isActive) surface else surfaceContainerLow)
+        containerColor = if (sub.isActive) surface else surfaceContainerLow,
+        contentPadding = 0.dp
     ) {
         Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
             // مؤشر لوني بحسب إلحاحية التجديد — نفس لغة التصميم اللي استخدمناها في مؤشر مخزون InventoryScreen

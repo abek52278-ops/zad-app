@@ -41,6 +41,7 @@ import com.example.ui.components.GlassCard
 import com.example.ui.components.ZadLottieAsset
 import com.example.ui.components.ZadTransitions
 import com.example.ui.components.pressableScale
+import com.example.ui.components.ZadListCard
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 import com.example.ui.widgets.AffiliateProductCard
@@ -452,14 +453,11 @@ private fun EnhancedShoppingItemCard(
         "medium" -> warningColor
         else -> successColor
     }
-    val shoppingCardShape = RoundedCornerShape(18.dp)
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(elevation = 6.dp, shape = shoppingCardShape, spotColor = priorityColor.copy(alpha = 0.16f))
-            .pressableScale(),
-        colors = CardDefaults.cardColors(containerColor = surface),
-        shape = shoppingCardShape
+    val shoppingCardShape = RoundedCornerShape(16.dp)
+    ZadListCard(
+        modifier = Modifier.pressableScale(),
+        shape = shoppingCardShape,
+        contentPadding = 0.dp
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),

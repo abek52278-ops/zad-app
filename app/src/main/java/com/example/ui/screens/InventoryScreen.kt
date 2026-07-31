@@ -38,6 +38,7 @@ import com.example.R
 import com.example.data.ZadInventory
 import com.example.ui.components.pressableScale
 import com.example.ui.components.floatingIdle
+import com.example.ui.components.zadCardShadow
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 import java.time.LocalDate
@@ -713,7 +714,7 @@ private fun InventoryItemCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(elevation = 10.dp, shape = cardShape, spotColor = catDef.fg.copy(alpha = 0.18f))
+            .zadCardShadow(cardShape, elevation = 10.dp)
             .clip(cardShape)
             .background(
                 Brush.verticalGradient(listOf(catDef.bg.copy(alpha = 0.35f), surface))

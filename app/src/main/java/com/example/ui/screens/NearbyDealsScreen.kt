@@ -31,6 +31,7 @@ import com.example.data.NearbyStore
 import com.example.data.OverpassRepo
 import com.example.ui.components.AppearOnEntry
 import com.example.ui.components.ZadLottieAsset
+import com.example.ui.components.ZadListCard
 import com.example.ui.components.pressableScale
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
@@ -281,11 +282,12 @@ fun NearbyDealsScreen(
 
 @Composable
 private fun NearbyStoreCard(store: NearbyStore, lowStockNames: List<String>, isPharmacy: Boolean = false) {
-    val cardShape = RoundedCornerShape(18.dp)
-    Card(
-        modifier = Modifier.fillMaxWidth().shadow(elevation = 4.dp, shape = cardShape).pressableScale(),
+    // كارت القائمة المشترك — نفس الشكل في كل الشاشات بدل ظل ونصف قطر مختلفين
+    val cardShape = RoundedCornerShape(16.dp)
+    ZadListCard(
+        modifier = Modifier.pressableScale(),
         shape = cardShape,
-        colors = CardDefaults.cardColors(containerColor = surface)
+        contentPadding = 0.dp
     ) {
         Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(

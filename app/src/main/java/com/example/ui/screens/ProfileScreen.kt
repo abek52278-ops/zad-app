@@ -45,6 +45,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.example.ui.components.AppearOnEntry
 import com.example.ui.components.ZadLottieAsset
+import com.example.ui.components.zadCardShadow
 import com.example.ui.theme.*
 import androidx.compose.runtime.*
 import com.example.data.SupabaseRepo
@@ -821,7 +822,7 @@ fun ProfileMenuItem(
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
-            .shadow(6.dp, RoundedCornerShape(16.dp), spotColor = gradient[0].copy(alpha = 0.1f))
+            .zadCardShadow(RoundedCornerShape(16.dp), elevation = 6.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(surface)
             .clickable(
