@@ -188,20 +188,6 @@ fun HomeScreen(
         familyViewModel.loadTasbiha()
     }
 
-    // SMS Permission Request
-    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        Log.d(TAG_HOME, "SMS Permission granted: $isGranted")
-    }
-
-    LaunchedEffect(Unit) {
-        val permission = android.Manifest.permission.RECEIVE_SMS
-        if (androidx.core.content.ContextCompat.checkSelfPermission(context, permission) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            launcher.launch(permission)
-        }
-    }
-
     // No local canvas here any more — MainScreen paints ZadCanvasBackground once behind
     // the whole Scaffold so every screen shares the mockup's one gradient.
     Box(modifier = Modifier.fillMaxSize()) {

@@ -273,7 +273,8 @@ fun PharmacyScreen(
                             daysUntilExpiry = daysUntilExpiry(item),
                             familyMemberName = familyMembers.find { it.id == item.familyMemberId }?.alias,
                             onDelete = { viewModel.deletePharmacyItem(item.id) },
-                            onConfirmQuantity = { qty -> viewModel.confirmPharmacyQuantity(item.id, qty) }
+                            onConfirmQuantity = { qty -> viewModel.confirmPharmacyQuantity(item.id, qty) },
+                            onSetUnitsPerDose = { perDose -> viewModel.setPharmacyUnitsPerDose(item.id, perDose) }
                         )
                     }
                 }
@@ -298,6 +299,7 @@ fun PharmacyScreen(
                                     viewModel.consumePharmacyDose(item.id, scheduledAt)
                                 },
                                 onConfirmQuantity = { qty -> viewModel.confirmPharmacyQuantity(item.id, qty) },
+                                onSetUnitsPerDose = { perDose -> viewModel.setPharmacyUnitsPerDose(item.id, perDose) },
                                 onRefill = { refillTarget = item },
                                 onDelete = { viewModel.deletePharmacyItem(item.id) }
                             )
@@ -378,6 +380,7 @@ private fun PharmacyItemCard(
     familyMemberName: String?,
     onConsumeDose: (String?) -> Unit,
     onConfirmQuantity: (Int) -> Unit,
+    onSetUnitsPerDose: (Double) -> Unit,
     onRefill: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -534,22 +537,41 @@ private fun PharmacyItemCard(
         ConfirmQuantityDialog(
             item = item,
             onDismiss = { showConfirmDialog = false },
-            onConfirm = { qty -> onConfirmQuantity(qty); showConfirmDialog = false }
+            onConfirm = { qty -> onConfirmQuantity(qty); showConfirmDialog = false },
+            onConfirmUnitsPerDose = onSetUnitsPerDose
         )
     }
 }
 
 /** Task 17.2.2 — manual resync: counts drift no matter how good the logging is, so there
- * must be a way to fix remaining_quantity directly without deleting/re-adding the medication. */
+ * must be a way to fix remaining_quantity directly without deleting/re-adding the medication.
+ *
+ * "الكمية محتاجة تأكيد" — the resolution path for an item whose days-of-supply
+ * can't be computed.
+ *
+ * Two things are missing when that badge shows, not one: the real remaining
+ * count *and* `units_per_dose` (how many tablets one dose actually is, which the
+ * free-text dosage was never parsed into confidently). The dialog only asked for
+ * the count, so `ZadViewModel.setPharmacyUnitsPerDose` — repo method, server
+ * column, and all — had no caller anywhere in the app, and a two-tablet dose kept
+ * being counted as one. That is the difference between "يكفي 10 أيام" and the
+ * truth, which is 5.
+ */
 @Composable
-private fun ConfirmQuantityDialog(item: ZadPharmacyItem, onDismiss: () -> Unit, onConfirm: (Int) -> Unit) {
+private fun ConfirmQuantityDialog(
+    item: ZadPharmacyItem,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit,
+    onConfirmUnitsPerDose: (Double) -> Unit = {}
+) {
     var text by remember { mutableStateOf(item.remainingQuantity.toString()) }
+    var perDose by remember { mutableStateOf(item.unitsPerDose?.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() } ?: "") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("فاضل قد إيه فعلاً؟") },
+        title = { Text(stringResource(R.string.confirm_quantity_title)) },
         text = {
             Column {
-                Text("${item.name} — الكمية الحالية المسجلة: ${item.remainingQuantity} ${item.unit}", style = Typography.bodySmall, color = onSurfaceVariant)
+                Text("${item.name} — ${stringResource(R.string.current_recorded_quantity)}: ${item.remainingQuantity} ${item.unit}", style = Typography.bodySmall, color = onSurfaceVariant)
                 Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
                     value = text,
@@ -558,10 +580,22 @@ private fun ConfirmQuantityDialog(item: ZadPharmacyItem, onDismiss: () -> Unit, 
                     singleLine = true,
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
                 )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = perDose,
+                    onValueChange = { v -> if (v.isEmpty() || v.matches(Regex("^\\d{0,2}(\\.\\d?)?$"))) perDose = v },
+                    label = { Text(stringResource(R.string.units_per_dose_label, item.unit)) },
+                    supportingText = { Text(stringResource(R.string.units_per_dose_hint), style = Typography.labelSmall) },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal)
+                )
             }
         },
         confirmButton = {
-            TextButton(onClick = { text.toIntOrNull()?.let(onConfirm) }) { Text("تأكيد") }
+            TextButton(onClick = {
+                perDose.toDoubleOrNull()?.takeIf { it > 0 }?.let(onConfirmUnitsPerDose)
+                text.toIntOrNull()?.let(onConfirm)
+            }) { Text(stringResource(R.string.confirm_action_short)) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
@@ -575,7 +609,8 @@ private fun PharmacyItemGridCard(
     daysUntilExpiry: Int?,
     familyMemberName: String?,
     onDelete: () -> Unit,
-    onConfirmQuantity: (Int) -> Unit
+    onConfirmQuantity: (Int) -> Unit,
+    onSetUnitsPerDose: (Double) -> Unit = {}
 ) {
     var showConfirmDialog by remember { mutableStateOf(false) }
     val supplyDays = item.daysOfSupplyLeft()
@@ -640,7 +675,8 @@ private fun PharmacyItemGridCard(
         ConfirmQuantityDialog(
             item = item,
             onDismiss = { showConfirmDialog = false },
-            onConfirm = { qty -> onConfirmQuantity(qty); showConfirmDialog = false }
+            onConfirm = { qty -> onConfirmQuantity(qty); showConfirmDialog = false },
+            onConfirmUnitsPerDose = onSetUnitsPerDose
         )
     }
 }

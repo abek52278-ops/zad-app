@@ -407,28 +407,24 @@ fun ProfileScreen(
                 Spacer(Modifier.height(10.dp))
 
                 AppearOnEntry(delayMs = 180) {
-                    var isRescanning by remember { mutableStateOf(false) }
-                    val rescanningText = stringResource(R.string.rescanning_sms_toast)
-                    val rescanDoneTextTemplate = stringResource(R.string.rescan_done_toast)
-                    val permissionMissingText = stringResource(R.string.read_sms_permission_missing_toast)
+                    // Phase A6 — this slot held "rescan SMS", which needed READ_SMS.
+                    // Reading is done by the notification listener now, so the useful
+                    // control here is the switch that turns that listener on, plus a
+                    // live indication of whether it is actually granted.
+                    val listenerGranted = androidx.core.app.NotificationManagerCompat
+                        .getEnabledListenerPackages(context).contains(context.packageName)
                     ProfileMenuItem(
-                        icon = Icons.Default.Sms,
-                        title = stringResource(R.string.rescan_sms_title),
-                        subtitle = stringResource(R.string.rescan_sms_subtitle),
+                        icon = Icons.Default.NotificationsActive,
+                        title = stringResource(R.string.notification_access_title),
+                        subtitle = stringResource(
+                            if (listenerGranted) R.string.notification_access_granted
+                            else R.string.notification_access_subtitle
+                        ),
                         gradient = listOf(Color(0xFF0EA5E9), Color(0xFF7DD3FC)),
                         onClick = {
-                            if (isRescanning) return@ProfileMenuItem
-                            if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_SMS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                                android.widget.Toast.makeText(context, permissionMissingText, android.widget.Toast.LENGTH_LONG).show()
-                            } else {
-                                isRescanning = true
-                                android.widget.Toast.makeText(context, rescanningText, android.widget.Toast.LENGTH_SHORT).show()
-                                scope.launch {
-                                    val count = com.example.data.SmsBackfillScanner.rescan(context, com.example.data.SmsBackfillScanner.DEFAULT_SINCE_DAYS)
-                                    isRescanning = false
-                                    android.widget.Toast.makeText(context, rescanDoneTextTemplate.format(count), android.widget.Toast.LENGTH_LONG).show()
-                                }
-                            }
+                            context.startActivity(
+                                android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                            )
                         }
                     )
                 }

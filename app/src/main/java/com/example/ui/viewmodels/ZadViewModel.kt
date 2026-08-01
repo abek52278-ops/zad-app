@@ -715,6 +715,13 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Ceiling on any pre-request context warmup in the chat path — see sendAiChatMessage. */
+    private val WARMUP_TIMEOUT_MS = 3_000L
+
+    /** Reasoning-token cap for chat replies. Enough to reason over the household
+     *  context, short of the open-ended budget that made replies feel hung. */
+    private val CHAT_THINKING_BUDGET = 512
+
     fun sendAiChatMessage(userText: String) {
         if (userText.isBlank()) return
         val userMsg = AiChatMessage(text = userText, isUser = true)
@@ -744,20 +751,33 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             try {
-                // لو تقرير العقل مش جاهز، احسبه عشان الشات يكون عارف كل حاجة
+                // لو تقرير العقل مش جاهز، احسبه عشان الشات يكون عارف كل حاجة.
+                //
+                // Bounded, and deliberately so: this runs *before* the request is even
+                // sent, so an unbounded warmup stacks its own wait on top of the AI
+                // call's 30s read timeout — which is what made a slow first message
+                // read as a hang rather than as a slow reply. Past the bound the chat
+                // goes ahead with whatever context it already has; the report lands on
+                // its own and the next message gets it.
                 if (_brainReport.value == null) {
                     try {
-                        _brainReport.value = ZadCentralBrain.generateReport(
-                            getApplication(), _inventory.value, _transactions.value,
-                            _subscriptions.value, _budget.value
-                        )
+                        kotlinx.coroutines.withTimeoutOrNull(WARMUP_TIMEOUT_MS) {
+                            _brainReport.value = ZadCentralBrain.generateReport(
+                                getApplication(), _inventory.value, _transactions.value,
+                                _subscriptions.value, _budget.value
+                            )
+                        }
                     } catch (_: Exception) {}
                 }
                 // نفس نمط تحميل تقرير العقل الكسول أعلاه — الديون بتتحمّل بس لو حد فتح شاشة
                 // ذكاء زاد قبل كده (loadDebts() مش بتتنادى تلقائياً)، فلو الشات هو أول حاجة
                 // اتفتحت، لازم نجيبها هنا عشان "خطة سداد الديون إيه؟" يجاوب بأرقام حقيقية
                 if (_debts.value.isEmpty()) {
-                    try { _debts.value = SupabaseRepo.getDebts() } catch (_: Exception) {}
+                    try {
+                        kotlinx.coroutines.withTimeoutOrNull(WARMUP_TIMEOUT_MS) {
+                            _debts.value = SupabaseRepo.getDebts()
+                        }
+                    } catch (_: Exception) {}
                 }
 
                 // ذاكرة المحادثة: آخر 8 رسائل عشان يفهم سياق الحوار
@@ -789,7 +809,11 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     8. لو سأل عن خطة سداد الديون، استخدم أرقام قسم === الديون وخطة السداد === فوق بالظبط (الأشهر، الفوائد، الترتيب) — متخترعش خطة مختلفة
                 """.trimIndent()
 
-                val response = com.example.data.ZadAiRepository.callGeminiText(systemPrompt, userText)
+                // Chat is the one AI call with a human waiting on it and no streaming
+                // to show progress, so it caps reasoning rather than letting it run.
+                val response = com.example.data.ZadAiRepository.callGeminiText(
+                    systemPrompt, userText, thinkingBudget = CHAT_THINKING_BUDGET
+                )
                 val aiMsg = if (response != null) {
                     AiChatMessage(text = applyChatAction(response), isUser = false)
                 } else {
@@ -1765,6 +1789,11 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         Log.d(TAG, "addTransaction(overload) → amount=$amount, title=$title, isExpense=$isExpense, category=$category, isVerified=$isVerified")
         val t = ZadTransaction(amount = amount.asMoney(), title = title, isExpense = isExpense, category = category, isVerified = isVerified)
         addTransaction(t)
+        // No category picked — let the classifier fill it in rather than leaving the
+        // transaction in "Other", where it skews every category breakdown.
+        if (isExpense && (category == "Other" || category == "أخرى")) {
+            classifyTransactionItem(title, amount.asMoney(), category)
+        }
     }
 
     fun addSubscription(title: String, amount: Double) {
@@ -2873,23 +2902,39 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             .edit().putBoolean("behavior_consent_given", given).apply()
     }
 
+    /**
+     * Fills in a transaction's category when the user didn't pick one.
+     *
+     * Two things were wrong with this before: nothing called it, and it posted
+     * `action = "classify"` — an action `zad-core-intelligence` has never had, so
+     * every call would have fallen through to the dispatcher's default. It now
+     * uses `bill_classification`, the deployed action that does exactly this job,
+     * and `addTransaction` calls it for any expense saved as "Other".
+     *
+     * Advisory only: the category is patched in and synced, and a failure leaves
+     * the transaction exactly as the user saved it.
+     */
     fun classifyTransactionItem(title: String, amount: Double, category: String? = null) {
         viewModelScope.launch {
             try {
-                val userId = _userProfile.value?.id ?: ""
                 val response = SupabaseRepo.callEdgeFunction("zad-core-intelligence", mapOf(
-                    "action" to "classify",
-                    "user_id" to userId,
+                    "action" to "bill_classification",
+                    "user_id" to (SupabaseRepo.client.auth.currentUserOrNull()?.id ?: ""),
                     "payload" to mapOf(
                         "title" to title,
                         "amount" to amount,
                         "category" to (category ?: "")
                     )
                 ))
-                val aiCategory = response["category"] as? String
-                if (aiCategory != null && aiCategory != "أخرى") {
-                    Log.d(TAG, "classifyTransactionItem() → classified '$title' as '$aiCategory'")
-                }
+                val aiCategory = (response["category"] as? String)?.trim()
+                if (aiCategory.isNullOrBlank() || aiCategory == "أخرى" || aiCategory == "عام") return@launch
+
+                val target = _transactions.value.firstOrNull { it.title == title && it.amount == amount }
+                    ?: return@launch
+                if (!target.category.isNullOrBlank() && target.category != "Other" && target.category != "أخرى") return@launch
+
+                updateTransactionCategory(target.id, aiCategory)
+                Log.d(TAG, "classifyTransactionItem() → classified '$title' as '$aiCategory'")
             } catch (e: Exception) {
                 Log.e(TAG, "classifyTransactionItem() FAILED: ${e.message}")
             }

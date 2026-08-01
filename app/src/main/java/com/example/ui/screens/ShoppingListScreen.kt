@@ -76,6 +76,14 @@ fun ShoppingListScreen(
     val matchedProductId by viewModel.matchedProductId.collectAsState()
     val isMatchingProduct by viewModel.isMatchingProduct.collectAsState()
     val affiliateConsentGiven by viewModel.affiliateConsentGiven.collectAsState()
+    val affiliateStats by viewModel.affiliateStats.collectAsState()
+    // Consent was one-way: it could be granted from the banner below and never
+    // withdrawn from anywhere, and `loadAffiliateStats()` — the user's own click
+    // history, RLS-scoped — had no caller at all. Both are fixed by the footer
+    // that renders under the suggestion once consent exists.
+    LaunchedEffect(affiliateConsentGiven) {
+        if (affiliateConsentGiven) viewModel.loadAffiliateStats()
+    }
     var recentlyPurchasedItemName by remember { mutableStateOf("") }
     var justCheckedItemName by remember { mutableStateOf<String?>(null) }
 
@@ -237,6 +245,10 @@ fun ShoppingListScreen(
                                             viewModel.recordAffiliateClick(matchedProduct.id, "shopping")
                                             com.example.data.AffiliateHelper.openProduct(context, matchedProduct)
                                         }
+                                    )
+                                    AffiliateTransparencyFooter(
+                                        clickCount = affiliateStats.size,
+                                        onWithdraw = { viewModel.setAffiliateConsent(false) }
                                     )
                                 }
                             }
@@ -587,5 +599,41 @@ private fun shareOnWhatsApp(context: Context, shoppingList: List<ZadShoppingItem
             putExtra(Intent.EXTRA_TEXT, full)
         }
         context.startActivity(Intent.createChooser(fallback, "مشاركة القائمة"))
+    }
+}
+
+/**
+ * Transparency line under the Amazon suggestion: how many of these the user has
+ * actually clicked, and a way out.
+ *
+ * Consent used to be a one-way door — `AffiliateConsentBanner` could set it true
+ * and nothing anywhere could set it back — and the click history the app records
+ * was never shown to the person it is about. A disclosure the user cannot audit
+ * or revoke is not consent.
+ */
+@Composable
+private fun AffiliateTransparencyFooter(clickCount: Int, onWithdraw: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            stringResource(R.string.affiliate_clicks_recorded, clickCount),
+            style = Typography.labelSmall,
+            color = textTertiary,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            stringResource(R.string.affiliate_withdraw_consent),
+            style = Typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = onSurfaceVariant,
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .clickable { onWithdraw() }
+                .padding(horizontal = 10.dp, vertical = 4.dp)
+        )
     }
 }

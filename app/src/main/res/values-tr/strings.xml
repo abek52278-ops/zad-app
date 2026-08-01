@@ -943,4 +943,14 @@
     <string name="clear_chat_title">Sohbeti temizle</string>
     <string name="clear_chat_confirm">Zad Zihni ile tüm sohbet mesajları silinecek. Finans ve stok verileri etkilenmez.</string>
     <string name="clear_chat_action">Sohbeti temizle</string>
+    <string name="notification_access_title">Ödeme bildirimlerini oku</string>
+    <string name="notification_access_subtitle">Zad; banka, cüzdan ve mesaj bildirimlerinden ödeme ve yatırma işlemlerini yakalar</string>
+    <string name="notification_access_granted">Etkin ✅ — Zad ödemeleri otomatik yakalıyor</string>
+    <string name="confirm_quantity_title">Gerçekte ne kadar kaldı?</string>
+    <string name="current_recorded_quantity">Kayıtlı mevcut miktar</string>
+    <string name="units_per_dose_label">Tek doz kaç %1$s?</string>
+    <string name="units_per_dose_hint">Bu sayı olmadan stokun kaç gün yeteceği hesaplanamaz</string>
+    <string name="confirm_action_short">Onayla</string>
+    <string name="affiliate_clicks_recorded">Zad, Amazon önerilerinde %1$d tıklama kaydetti</string>
+    <string name="affiliate_withdraw_consent">Önerileri kapat</string>
 </resources>

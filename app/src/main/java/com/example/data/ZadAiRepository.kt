@@ -417,12 +417,25 @@ object ZadAiRepository {
 
     // ── AI Text (generic, used by chat and other screens) ──
 
-    suspend fun callGeminiText(systemPrompt: String, userPrompt: String): String? {
-        val response = callAction("ai_text", mapOf(
-            "system_prompt" to systemPrompt,
-            "user_prompt" to userPrompt,
-            "response_mime_type" to "text/plain"  // use plain text — json causes double-encoded response
-        ))
+    /**
+     * @param thinkingBudget caps the model's reasoning tokens for this call. Chat
+     *   passes a small number: with no streaming, every reasoning token is a second
+     *   the user spends watching a typing dot. Null keeps the server's default
+     *   (unbounded on the brain tier), which is right for background analysis where
+     *   nobody is waiting on the screen.
+     */
+    suspend fun callGeminiText(
+        systemPrompt: String,
+        userPrompt: String,
+        thinkingBudget: Int? = null
+    ): String? {
+        val payload = buildMap<String, Any?> {
+            put("system_prompt", systemPrompt)
+            put("user_prompt", userPrompt)
+            put("response_mime_type", "text/plain")  // json causes a double-encoded response
+            if (thinkingBudget != null) put("thinking_budget", thinkingBudget)
+        }
+        val response = callAction("ai_text", payload)
         return response["text"] as? String
     }
 

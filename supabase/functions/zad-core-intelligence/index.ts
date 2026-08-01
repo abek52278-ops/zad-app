@@ -334,11 +334,19 @@ async function callGeminiPool(opts: {
 async function callTextModel(
   systemPrompt: string, userPrompt: string, maxTokens = 1000, temperature = 0.7,
   tier: "routine" | "brain" = "brain",
+  thinkingBudgetOverride?: number,
 ) {
   const model = tier === "routine" ? GEMINI_MODEL_ROUTINE : GEMINI_MODEL_BRAIN;
   // Routine tier is deliberately non-thinking: these are extraction/classification calls
   // where reasoning tokens only eat the output budget (see callGeminiNative.thinkingBudget).
-  const thinkingBudget = tier === "routine" ? 0 : undefined;
+  //
+  // The override exists for latency-sensitive callers — chat, above all. Unbounded
+  // thinking on a conversational turn means the user watches a typing dot while the
+  // model reasons, with no streaming to show progress; a small budget keeps the
+  // reasoning that makes the answer good and drops the part that only costs seconds.
+  const thinkingBudget = thinkingBudgetOverride !== undefined
+    ? thinkingBudgetOverride
+    : (tier === "routine" ? 0 : undefined);
   const gemini = await callGeminiPool({ model, systemPrompt, content: userPrompt, temperature, maxTokens, thinkingBudget });
   if (gemini.ok) return gemini.content;
   console.warn("[CoreIntel] Gemini pool exhausted for text — falling back to Groq");
@@ -1032,12 +1040,15 @@ Deno.serve(async (req: Request) => {
       // AI_TEXT — Generic text generation
       // ──────────────────────────────────────────────
       case "ai_text": {
-        const { system_prompt, user_prompt, response_mime_type } = payload || {};
+        const { system_prompt, user_prompt, response_mime_type, thinking_budget } = payload || {};
         if (response_mime_type === "application/json") {
           const result = await callJsonModel(system_prompt || "", user_prompt || "");
           return jsonResponse({ text: JSON.stringify(result) });
         }
-        const result = await callTextModel(system_prompt || "", user_prompt || "");
+        // thinking_budget is optional and caller-supplied; an older client that
+        // doesn't send it keeps the previous unbounded-thinking behaviour.
+        const budget = typeof thinking_budget === "number" ? thinking_budget : undefined;
+        const result = await callTextModel(system_prompt || "", user_prompt || "", 1000, 0.7, "brain", budget);
         // same honest-failure contract — null/ok:false on genuine upstream failure, no baked
         // Arabic fallback text (was previously blaming "الاتصال" for what's actually an
         // OpenRouter free-tier rate limit/timeout, not a real connectivity failure).

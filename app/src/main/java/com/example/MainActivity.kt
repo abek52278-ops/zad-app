@@ -303,15 +303,11 @@ fun SplashScreen(onTimeout: () -> Unit) {
     )
 
     val context = androidx.compose.ui.platform.LocalContext.current
-    val backfillScope = rememberCoroutineScope()
     val permissionsLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         permissions.entries.forEach {
             Log.d("ZAD_PERM", "${it.key} = ${it.value}")
-        }
-        if (permissions[Manifest.permission.READ_SMS] == true) {
-            backfillScope.launch { com.example.data.SmsBackfillScanner.scanIfNeeded(context) }
         }
     }
     LaunchedEffect(key1 = true) {
@@ -338,17 +334,12 @@ fun SplashScreen(onTimeout: () -> Unit) {
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
         }
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECEIVE_SMS) != PackageManager.PERMISSION_GRANTED) {
-            permissionsToRequest.add(Manifest.permission.RECEIVE_SMS)
-        }
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
-            permissionsToRequest.add(Manifest.permission.READ_SMS)
-        }
+        // Phase A6 (PRODUCT_PLAN.md §5): RECEIVE_SMS/READ_SMS are Play-restricted and
+        // are no longer requested. Bank messages now arrive through
+        // UnifiedBankListener, which reads them from the messaging app's own
+        // notification — same data, a permission the user grants explicitly.
         if (permissionsToRequest.isNotEmpty()) {
             permissionsLauncher.launch(permissionsToRequest.toTypedArray())
-        } else if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED) {
-            // إذن READ_SMS ممنوح مسبقاً (تثبيت قديم أو تحديث) — امسح المسح الرجعي لو لسه مانفّذش
-            backfillScope.launch { com.example.data.SmsBackfillScanner.scanIfNeeded(context) }
         }
 
         onTimeout()

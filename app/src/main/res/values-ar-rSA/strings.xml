@@ -815,4 +815,14 @@
     <string name="clear_chat_title">مسح المحادثة</string>
     <string name="clear_chat_confirm">هنمسح كل رسائل المحادثة مع عقل زاد. البيانات المالية والمخزون مش هتتأثر.</string>
     <string name="clear_chat_action">مسح المحادثة</string>
+    <string name="notification_access_title">قراءة إشعارات الدفع</string>
+    <string name="notification_access_subtitle">زاد يرصد أي دفع أو إيداع من إشعارات البنك والمحفظة والرسايل</string>
+    <string name="notification_access_granted">مفعّل ✅ — زاد بيرصد عمليات الدفع تلقائياً</string>
+    <string name="confirm_quantity_title">فاضل قد إيه فعلاً؟</string>
+    <string name="current_recorded_quantity">الكمية الحالية المسجلة</string>
+    <string name="units_per_dose_label">الجرعة الواحدة كام %1$s؟</string>
+    <string name="units_per_dose_hint">من غير الرقم ده مقدرش أحسب المخزون هيكفي كام يوم</string>
+    <string name="confirm_action_short">تأكيد</string>
+    <string name="affiliate_clicks_recorded">زاد سجّل %1$d نقرة على ترشيحات أمازون</string>
+    <string name="affiliate_withdraw_consent">إيقاف الترشيحات</string>
 </resources>

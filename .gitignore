@@ -39,3 +39,4 @@ google-cloud-sdk/
 node_modules/  
 .gradle/  
 build/  
+supabase/.temp/

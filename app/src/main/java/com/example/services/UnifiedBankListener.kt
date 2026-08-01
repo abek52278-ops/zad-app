@@ -24,20 +24,89 @@ class UnifiedBankListener : NotificationListenerService() {
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
 
+    /**
+     * Apps whose notifications are financial by definition — banks, wallets,
+     * BNPL, delivery/e-commerce checkouts. A hit here skips the keyword test,
+     * because these apps say "تم" with an amount and nothing else often enough
+     * that keyword matching alone would drop real transactions.
+     *
+     * Matching is `contains`, so a bare vendor token ("alrajhi") catches the
+     * regional package variants without listing each one.
+     */
     private val trackedPackages = listOf(
+        // ── السعودية: بنوك ──
         "com.alrajhi.bank", "com.snb", "com.riyadbank",
         "com.sabb", "com.alinma.bank",
-        "com.stcpay", "com.tabby", "com.tamara",
-        "com.fawry", "com.vodafone",
         "alrajhi", "snb", "riyad", "sabb", "alinma",
-        "stcpay", "tabby", "tamara",
-        // بنوك تركيا — أسماء حزمة تقريبية بأفضل معرفة، لسه محتاجة تأكيد فعلي على أجهزة حقيقية
+        "albilad", "aljazira", "anb", "saib", "gib", "emiratesnbd",
+        // ── السعودية: محافظ ومدفوعات ──
+        "com.stcpay", "stcpay", "urpay", "barq", "tweeq", "d360",
+        "mada", "sarie", "geidea", "moyasar", "hyperpay", "paytabs",
+        // ── اشترِ الآن وادفع لاحقاً ──
+        "com.tabby", "com.tamara", "tabby", "tamara", "madfu", "spotii",
+        // ── محافظ عالمية ──
+        "com.google.android.apps.walletnfcrel", "com.paypal", "paypal",
+        "com.samsung.android.spay", "wise", "revolut", "payoneer",
+        // ── تجارة وتوصيل (إيصالات الدفع بتوصل كإشعار) ──
+        "noon", "amazon", "aliexpress", "shein", "jahez", "hungerstation",
+        "talabat", "careem", "uber", "ninja", "mrsool", "chefz",
+        // ── تركيا ──
         "isbank", "garanti", "akbank", "yapikredi", "ziraat",
         "halkbank", "vakifbank", "qnbfinansbank", "denizbank", "teb", "papara",
-        // بنوك ومحافظ مصر — أسماء حزمة تقريبية بأفضل معرفة، لسه محتاجة تأكيد فعلي على أجهزة حقيقية
+        "ininal", "tosla", "enpara",
+        // ── مصر ──
         "com.cib.cbe", "com.qnb.alahli", "com.nbe", "com.banquemisr",
         "com.alexbank", "com.hsbc.egypt", "com.instapay",
-        "cib", "qnbalahli", "nbe", "banquemisr", "alexbank", "hsbcegypt", "instapay", "fawry", "vodafonecash"
+        "cib", "qnbalahli", "nbe", "banquemisr", "alexbank", "hsbcegypt",
+        "instapay", "fawry", "vodafonecash", "etisalatcash", "orangecash",
+        "valu", "halan", "telda", "meeza", "aman", "souhoola",
+        "com.fawry", "com.vodafone"
+    )
+
+    /**
+     * SMS/RCS clients. Bank messages arrive here as ordinary notifications, and
+     * reading them through this service is what lets the app drop `RECEIVE_SMS`
+     * and `READ_SMS` entirely (PRODUCT_PLAN.md §5 / Phase A6) — Play Store
+     * treats both as restricted permissions, and a notification listener the
+     * user explicitly grants covers the same ground.
+     *
+     * These are listed separately from `trackedPackages` because a messaging app
+     * carries mostly non-financial traffic: a hit here still has to pass the
+     * keyword test *and* contain a parseable amount.
+     */
+    private val messagingPackages = listOf(
+        "com.google.android.apps.messaging",
+        "com.android.mms",
+        "com.samsung.android.messaging",
+        "com.android.messaging",
+        "com.truecaller",
+        "org.thoughtcrime.securesms",
+        "com.microsoft.android.smsorganizer",
+        "com.textra", "com.moez.QKSMS", "com.p1.chompsms"
+    )
+
+    /**
+     * System/OS surfaces that never carry a transaction but do carry currency-ish
+     * strings (Play Store purchase prompts, download progress, media controls).
+     *
+     * This replaces a blanket `com.google.*` / `com.android.*` exclusion, which
+     * was the single reason bank SMS never reached the parser: Google Messages
+     * is `com.google.android.apps.messaging` and AOSP SMS is `com.android.mms`,
+     * so the prefix rule silently discarded every bank message on the device.
+     */
+    private val ignoredPackages = listOf(
+        "android",
+        "com.android.systemui",
+        "com.android.settings",
+        "com.android.providers",
+        "com.android.vending",
+        "com.google.android.gms",
+        "com.google.android.googlequicksearchbox",
+        "com.google.android.apps.nbu.files",
+        "com.google.android.youtube",
+        "com.google.android.gm",
+        "com.whatsapp", "com.instagram.android", "com.facebook",
+        "com.twitter", "com.snapchat", "org.telegram"
     )
 
     override fun onDestroy() {
@@ -59,7 +128,7 @@ class UnifiedBankListener : NotificationListenerService() {
 
             activeNotifications?.forEach { sbn ->
                 val packageName = sbn.packageName
-                if (packageName == "android" || packageName.startsWith("com.android") || packageName.startsWith("com.google")) return@forEach
+                if (isIgnoredPackage(packageName)) return@forEach
                 // بس الإشعارات اللي جاية آخر 24 ساعة — إشعار بنكي قديم فاضل معلّق (بعض البنوك
                 // مابتشيلوش) متتحسبش كل مرة السيرفس يعيد الاتصال (زي بعد إعادة تشغيل الجهاز)
                 if (System.currentTimeMillis() - sbn.postTime > dayMs) return@forEach
@@ -67,9 +136,7 @@ class UnifiedBankListener : NotificationListenerService() {
                 // والإشعار لسه معلّق (خلاف TxDeduplicator اللي بصمته زمنية 10 دقايق بس)
                 if (sbn.key in processedKeys) return@forEach
 
-                val extras = sbn.notification.extras
-                val title = extras.getString("android.title") ?: ""
-                val text = extras.getCharSequence("android.text")?.toString() ?: ""
+                val (title, text) = extractContent(sbn)
                 if (isFinancialNotification(packageName, title, text)) {
                     Log.d("UnifiedBankListener", "Active notification on connect: $packageName - $title")
                     processedKeys.add(sbn.key)
@@ -89,12 +156,9 @@ class UnifiedBankListener : NotificationListenerService() {
         super.onNotificationPosted(sbn)
         sbn?.let { notification ->
             val packageName = notification.packageName
-            if (packageName == "android" || packageName.startsWith("com.android") ||
-                packageName.startsWith("com.google")) return
+            if (isIgnoredPackage(packageName)) return
 
-            val extras = notification.notification.extras
-            val title = extras.getString("android.title") ?: ""
-            val text = extras.getCharSequence("android.text")?.toString() ?: ""
+            val (title, text) = extractContent(notification)
 
             if (isFinancialNotification(packageName, title, text)) {
                 Log.d("UnifiedBankListener", "Financial notification: $packageName - $title")
@@ -107,19 +171,82 @@ class UnifiedBankListener : NotificationListenerService() {
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {}
 
+    private fun isIgnoredPackage(packageName: String): Boolean =
+        packageName == applicationContext.packageName ||
+            ignoredPackages.any { packageName == it || packageName.startsWith("$it.") }
+
+    /**
+     * Notification body, un-truncated.
+     *
+     * `android.text` is the collapsed one-line form — a bank SMS shown through a
+     * messaging app is almost always cut off there, and the cut usually lands
+     * before the amount. `android.bigText` (expanded view) and
+     * `android.textLines` (inbox style, one entry per message) carry the full
+     * body, so both are preferred when present. `android.subText` is appended
+     * because some banks put the account tail there.
+     */
+    private fun extractContent(sbn: StatusBarNotification): Pair<String, String> {
+        val extras = sbn.notification.extras
+        val title = extras.getString("android.title")
+            ?: extras.getCharSequence("android.title")?.toString()
+            ?: ""
+        val big = extras.getCharSequence("android.bigText")?.toString()
+        val lines = extras.getCharSequenceArray("android.textLines")
+            ?.joinToString("\n") { it.toString() }
+            ?.takeIf { it.isNotBlank() }
+        val plain = extras.getCharSequence("android.text")?.toString()
+        val sub = extras.getCharSequence("android.subText")?.toString()
+
+        val body = listOfNotNull(
+            big?.takeIf { it.isNotBlank() } ?: lines ?: plain,
+            sub?.takeIf { it.isNotBlank() && it != plain }
+        ).joinToString(" ")
+
+        return title to body
+    }
+
+    /**
+     * Money keywords across the three markets the app ships to, plus the wallet
+     * and e-commerce vocabulary that bank-only wording missed ("محفظة",
+     * "تم استلام", "طلبك", "refund", "cashback", …).
+     */
+    private val moneyKeywords = listOf(
+        // عربي — بنوك
+        "ر.س", "رس", "ريال", "SAR", "خصم", "شراء", "دفع", "تم الدفع",
+        "رصيد", "إيداع", "تحويل", "مبلغ", "بطاقة", "مشتريات", "سحب",
+        "راتب", "مرتب", "مدين", "دائن", "قسط", "فاتورة", "اشتراك",
+        // عربي — محافظ وتجارة
+        "محفظة", "تم استلام", "تم إرسال", "تم تحويل", "عملية", "معاملة",
+        "طلبك", "استرجاع", "استرداد", "كاش باك", "نقاط", "تم الشراء",
+        // إنجليزي
+        "pay", "paid", "purchase", "amount", "debit", "credit", "transfer",
+        "balance", "deposit", "withdraw", "refund", "cashback", "receipt",
+        "transaction", "charged", "order total", "salary",
+        // تركي
+        "TL", "₺", "TRY", "ödeme", "harcama", "bakiye", "kartınızdan",
+        "fatura", "maaş", "iade", "havale", "eft", "işlem",
+        // مصري
+        "EGP", "ج.م", "جنيه"
+    )
+
+    /**
+     * A notification is worth parsing when it comes from a financial app, or —
+     * for everything else, messaging apps included — when it both talks about
+     * money and carries a number the parser can actually read.
+     *
+     * The amount requirement is what makes opening this up to messaging apps
+     * safe: a chat that merely says "دفعت" produces no amount and is dropped
+     * before it ever reaches `SaBankParser`.
+     */
     private fun isFinancialNotification(packageName: String, title: String, text: String): Boolean {
-        val isBankApp = trackedPackages.any { packageName.contains(it, ignoreCase = true) }
-        val keywords = listOf(
-            "ر.س", "رس", "ريال", "SAR", "خصم", "شراء", "دفع", "تم الدفع",
-            "رصيد", "إيداع", "تحويل", "pay", "purchase", "amount",
-            "مبلغ", "بطاقة", "مشتريات", "سحب", "راتب", "مرتب",
-            "مدين", "دائن", "قسط", "فاتورة", "اشتراك",
-            "TL", "₺", "TRY", "ödeme", "harcama", "bakiye", "kartınızdan", "fatura", "maaş",
-            "EGP", "ج.م", "جنيه"
-        )
-        return isBankApp || keywords.any {
-            text.contains(it, ignoreCase = true) || title.contains(it, ignoreCase = true)
-        }
+        val content = "$title $text"
+        if (content.isBlank()) return false
+        val isFinancialApp = trackedPackages.any { packageName.contains(it, ignoreCase = true) }
+        if (isFinancialApp) return true
+
+        val hasKeyword = moneyKeywords.any { content.contains(it, ignoreCase = true) }
+        if (!hasKeyword) return false
+        return SaBankParser.extractAmount(content) != null
     }
 
     private suspend fun processAndTrackNotification(packageName: String, title: String, text: String) {
