@@ -84,8 +84,19 @@ function nextGeminiKeyIndex(): number {
 //   ZAD_MODEL_ROUTINE — OCR/vision, receipt scanning, SMS extraction, quick classification.
 //   ZAD_MODEL_BRAIN   — household analytics, budget planning, recommendations.
 // Env-configurable for the same reason the Groq slugs are: Gemini's catalog moves.
-const GEMINI_MODEL_ROUTINE = Deno.env.get("ZAD_MODEL_ROUTINE") || "gemini-2.5-flash";
-const GEMINI_MODEL_BRAIN = Deno.env.get("ZAD_MODEL_BRAIN") || "gemini-2.5-pro";
+// Defaults verified live against the project's own keys on 2026-08-01 by listing
+// /v1beta/models and calling each candidate with a real image:
+//   gemini-2.5-flash  → 404 "no longer available to new users" (it still LISTS, it just
+//                       cannot be called) — this was the dead scanner: every vision and
+//                       routine call 404'd while brain-tier text quietly answered.
+//   gemini-2.5-pro    → 429 quota-exhausted on the first key; the pool rotates, but free
+//                       pro quota is too thin to be the default.
+//   gemini-3.5-flash  → 200, read the test receipt correctly.
+// Both tiers therefore run the same model; the tiering that still matters is thinking —
+// routine calls disable it (see callGeminiNative.thinkingBudget), brain calls keep it.
+// Set ZAD_MODEL_BRAIN back to a pro model once billing is on.
+const GEMINI_MODEL_ROUTINE = Deno.env.get("ZAD_MODEL_ROUTINE") || "gemini-3.5-flash";
+const GEMINI_MODEL_BRAIN = Deno.env.get("ZAD_MODEL_BRAIN") || "gemini-3.5-flash";
 
 // Prepended to every system prompt on every provider. The per-action prompts below stay in
 // charge of their own output shape; this anchors tone/reliability once instead of being
@@ -229,6 +240,16 @@ async function callGeminiNative(opts: {
   temperature?: number;
   maxTokens?: number;
   jsonMode?: boolean;
+  /**
+   * Gemini 2.5 models think by default, and thinking tokens are billed against
+   * maxOutputTokens — so a request can spend its entire budget reasoning and come back
+   * with a candidate that has no text part at all. That is exactly what killed the
+   * receipt scan after the provider swap: text actions (short answers, plenty of
+   * headroom) worked while every image request returned `{"total":0,…,"items":[]}`.
+   * Pass 0 to switch thinking off for the routine/vision tier; leave undefined for the
+   * brain tier, where the reasoning is the point (and gemini-2.5-pro cannot disable it).
+   */
+  thinkingBudget?: number;
 }): Promise<{ content: string | null; status: number; ok: boolean; raw: unknown }> {
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${opts.model}:generateContent?key=${encodeURIComponent(opts.apiKey)}`;
@@ -237,6 +258,9 @@ async function callGeminiNative(opts: {
       maxOutputTokens: Math.max(opts.maxTokens ?? 1000, 300),
     };
     if (opts.jsonMode) generationConfig.response_mime_type = "application/json";
+    if (typeof opts.thinkingBudget === "number") {
+      generationConfig.thinkingConfig = { thinkingBudget: opts.thinkingBudget };
+    }
     const resp = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -250,6 +274,16 @@ async function callGeminiNative(opts: {
     const data = await resp.json();
     const parts = data.candidates?.[0]?.content?.parts ?? [];
     const text = parts.map((p: { text?: string }) => p.text || "").join("") || null;
+    if (resp.ok && !text) {
+      // A 200 with no text is the silent failure mode worth naming: finishReason MAX_TOKENS
+      // means the budget went to thinking, SAFETY means the image/prompt was blocked. Both
+      // used to surface identically as an empty scan result.
+      console.error(
+        "[CoreIntel] Gemini 200 with empty content — finishReason:",
+        data.candidates?.[0]?.finishReason,
+        "usage:", JSON.stringify(data.usageMetadata ?? {}),
+      );
+    }
     return { content: text, status: resp.status, ok: resp.ok, raw: data };
   } catch (e) {
     return { content: null, status: 0, ok: false, raw: { error: (e as Error).message } };
@@ -267,6 +301,7 @@ async function callGeminiPool(opts: {
   temperature?: number;
   maxTokens?: number;
   jsonMode?: boolean;
+  thinkingBudget?: number;
 }): Promise<{ content: string | null; ok: boolean }> {
   if (GEMINI_KEYS.length === 0) {
     console.error("[CoreIntel] No Gemini keys configured (ZAD_API_KEY_1..5 / GEMINI_API_KEY all unset)");
@@ -283,6 +318,7 @@ async function callGeminiPool(opts: {
       temperature: opts.temperature,
       maxTokens: opts.maxTokens,
       jsonMode: opts.jsonMode,
+      thinkingBudget: opts.thinkingBudget,
     });
     if (result.ok && result.content) return { content: result.content, ok: true };
     if (result.status === 429) {
@@ -300,7 +336,10 @@ async function callTextModel(
   tier: "routine" | "brain" = "brain",
 ) {
   const model = tier === "routine" ? GEMINI_MODEL_ROUTINE : GEMINI_MODEL_BRAIN;
-  const gemini = await callGeminiPool({ model, systemPrompt, content: userPrompt, temperature, maxTokens });
+  // Routine tier is deliberately non-thinking: these are extraction/classification calls
+  // where reasoning tokens only eat the output budget (see callGeminiNative.thinkingBudget).
+  const thinkingBudget = tier === "routine" ? 0 : undefined;
+  const gemini = await callGeminiPool({ model, systemPrompt, content: userPrompt, temperature, maxTokens, thinkingBudget });
   if (gemini.ok) return gemini.content;
   console.warn("[CoreIntel] Gemini pool exhausted for text — falling back to Groq");
   const groq = await callGroqPool({ model: GROQ_TEXT_MODEL, systemPrompt, content: userPrompt, temperature, maxTokens });
@@ -312,7 +351,8 @@ async function callJsonModel(
   tier: "routine" | "brain" = "brain",
 ) {
   const model = tier === "routine" ? GEMINI_MODEL_ROUTINE : GEMINI_MODEL_BRAIN;
-  const gemini = await callGeminiPool({ model, systemPrompt, content: userPrompt, temperature: 0.2, maxTokens, jsonMode: true });
+  const thinkingBudget = tier === "routine" ? 0 : undefined;
+  const gemini = await callGeminiPool({ model, systemPrompt, content: userPrompt, temperature: 0.2, maxTokens, jsonMode: true, thinkingBudget });
   let raw = gemini.content;
   if (!gemini.ok) {
     console.warn("[CoreIntel] Gemini pool exhausted for JSON — falling back to Groq");
@@ -338,7 +378,10 @@ async function callVisionModel(systemPrompt: string, userPrompt: string, imageBa
     { type: "image_url", image_url: { url: "data:" + mimeType + ";base64," + imageBase64 } },
   ];
   const gemini = await callGeminiPool({
-    model: GEMINI_MODEL_ROUTINE, systemPrompt, content, temperature: 0.2, maxTokens: 2000, jsonMode: true,
+    model: GEMINI_MODEL_ROUTINE, systemPrompt, content, temperature: 0.2,
+    // 4000, not 2000: a long receipt's line items are the output here, and thinking is off
+    // so the whole budget is available for the JSON itself.
+    maxTokens: 4000, jsonMode: true, thinkingBudget: 0,
   });
   if (!gemini.ok) console.error("[CoreIntel] callVisionModel: Gemini pool exhausted; images are never routed to Groq");
   return gemini.content;
