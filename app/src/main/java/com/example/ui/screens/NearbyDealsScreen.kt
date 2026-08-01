@@ -24,6 +24,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.R
 import com.example.data.GroceryGeofenceManager
@@ -199,13 +200,17 @@ fun NearbyDealsScreen(
                 }
             } else {
                 AppearOnEntry {
+                    // The mockup tints this note `rgba(6,78,59,.06)` with green text.
+                    // It was painted with `primaryContainer` (#052E16) — a near-black
+                    // slab at the top of the screen for what is a footnote.
                     Box(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)
-                            .clip(RoundedCornerShape(12.dp)).background(primaryContainer).padding(12.dp)
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)
+                            .clip(RoundedCornerShape(14.dp)).background(primary.copy(alpha = 0.06f))
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
                     ) {
                         Text(
                             stringResource(R.string.nearby_deals_disclaimer),
-                            style = Typography.labelSmall, color = onPrimaryContainer
+                            fontSize = 12.sp, lineHeight = 18.sp, color = primary
                         )
                     }
                 }
@@ -237,7 +242,7 @@ fun NearbyDealsScreen(
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 100.dp),
+                        contentPadding = PaddingValues(20.dp, 8.dp, 20.dp, 100.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         if (pharmacies.isNotEmpty()) {

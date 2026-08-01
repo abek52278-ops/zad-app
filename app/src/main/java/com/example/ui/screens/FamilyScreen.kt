@@ -248,52 +248,14 @@ fun ActiveFamilyScreen(
             }
         }
 
-        // Tabs — wrapped in a rounded surface so it reads as one segment
-        // attached to the gradient header above, not a flat M3 default edge.
-        Surface(
-            shape = RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp),
-            color = surfaceContainerLow
-        ) {
-            ScrollableTabRow(
-                selectedTabIndex = selectedTab,
-                containerColor = Color.Transparent,
-                contentColor = primary,
-                edgePadding = 16.dp,
-                indicator = { tabPositions ->
-                    if (selectedTab < tabPositions.size) {
-                        val position = tabPositions[selectedTab]
-                        Box(
-                            modifier = Modifier
-                                .tabIndicatorOffset(position)
-                                .padding(horizontal = 20.dp)
-                                .height(3.dp)
-                                .clip(RoundedCornerShape(999.dp))
-                                .background(primary)
-                        )
-                    }
-                }
-            ) {
-                tabs.forEachIndexed { index, tab ->
-                    Tab(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        text = {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(tab.icon, contentDescription = null, modifier = Modifier.size(18.dp), tint = if (selectedTab == index) primary else onSurfaceVariant)
-                                Text(
-                                    tab.title,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp
-                                )
-                            }
-                        }
-                    )
-                }
-            }
-        }
+        // The mockup's segmented pill, shared with Zad Mind. Was a
+        // `ScrollableTabRow` whose 3dp underline indicator sat on a near-white
+        // strip — on the canvas gradient the selected tab was barely legible.
+        com.example.ui.components.ZadSegmentedTabs(
+            tabs = tabs.map { it.title },
+            selectedIndex = selectedTab,
+            onSelect = { selectedTab = it }
+        )
 
         // Content
         Box(modifier = Modifier.weight(1f)) {

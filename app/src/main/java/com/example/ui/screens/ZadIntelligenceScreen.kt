@@ -101,46 +101,11 @@ fun ZadIntelligenceScreen(
             stringResource(R.string.tab_subscriptions_deals),
             stringResource(R.string.tab_tools_chat)
         )
-        // The mockup's segmented control: a white pill track with a dark-green pill on
-        // the selected segment. Replaces a Material TabRow with an underline indicator —
-        // the underline sat on a white strip that merged into the white page behind it,
-        // so the current tab was barely legible. Icons dropped with it: four icon+label
-        // pairs don't fit inside one pill at phone width, and the mockup's control is
-        // text-only.
-        val trackShape = RoundedCornerShape(999.dp)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp)
-                .zadCardShadow(trackShape)
-                .clip(trackShape)
-                .background(surface)
-                .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            tabs.forEachIndexed { i, title ->
-                val isSelected = selectedTab == i
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(trackShape)
-                        .background(if (isSelected) primary else Color.Transparent)
-                        .clickable { selectedTab = i }
-                        .padding(vertical = 9.dp, horizontal = 4.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        title,
-                        style = Typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isSelected) Color.White else onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
-                }
-            }
-        }
+        com.example.ui.components.ZadSegmentedTabs(
+            tabs = tabs,
+            selectedIndex = selectedTab,
+            onSelect = { selectedTab = it }
+        )
 
         AnimatedContent(
             targetState = selectedTab,

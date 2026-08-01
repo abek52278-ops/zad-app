@@ -934,4 +934,10 @@
     <string name="obligation_status_scheduled">Planlandı</string>
     <string name="no_obligations_title">Yükümlülük yok</string>
     <string name="no_obligations_hint">Sabit taksitler ve faturalar kaydedilince burada görünür</string>
+    <string name="dose_adherence_label">Doz uyumu</string>
+    <string name="monthly_cost_label">Aylık maliyet</string>
+    <string name="priority_critical">Kritik</string>
+    <string name="priority_medium">Orta</string>
+    <string name="priority_low">Düşük</string>
+    <string name="runs_out_in_days">%1$d gün içinde bitiyor</string>
 </resources>

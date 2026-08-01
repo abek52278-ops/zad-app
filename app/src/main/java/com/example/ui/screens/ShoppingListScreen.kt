@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.airbnb.lottie.compose.LottieConstants
+import androidx.compose.ui.res.stringResource
 import com.example.R
 import com.example.data.ZadShoppingItem
 import com.example.data.AiPriceEstimate
@@ -118,7 +119,7 @@ fun ShoppingListScreen(
         Column(modifier = Modifier.fillMaxSize()) {
 
             LazyColumn(
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 140.dp),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 140.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item { ShoppingBudgetHeader(totalPrice = totalPrice, budgetRemaining = budgetRemaining, budgetPct = budgetPct) }
@@ -423,6 +424,16 @@ private fun GrocerySuggestionsCard(suggestions: List<GrocerySuggestion>, onAdd: 
     }
 }
 
+/**
+ * The mockup's `SHOP_ITEMS` row: name over the price range on the leading edge,
+ * one priority pill on the trailing edge, inside a plain 16dp white card.
+ *
+ * The row used to stack up to five dark chips (quantity, price, predicted
+ * days-left, store, priority dot) built out of `primaryContainer`/
+ * `secondaryContainer` — both near-black in this palette, so a shopping list
+ * read as a wall of dark blobs. The same facts survive as one grey caption line
+ * plus the pill; nothing is dropped, it just stops shouting.
+ */
 @Composable
 private fun EnhancedShoppingItemCard(
     item: ZadShoppingItem,
@@ -433,67 +444,72 @@ private fun EnhancedShoppingItemCard(
     val context = LocalContext.current
     val priorityColor = when (item.priority) {
         "high" -> dangerColor
-        "medium" -> warningColor
-        else -> successColor
+        "medium" -> secondaryDark
+        else -> primary
     }
-    val shoppingCardShape = RoundedCornerShape(16.dp)
+    val priorityLabel = when (item.priority) {
+        "high" -> stringResource(R.string.priority_critical)
+        "medium" -> stringResource(R.string.priority_medium)
+        else -> stringResource(R.string.priority_low)
+    }
+    val priceText = when {
+        priceEstimate != null ->
+            com.example.data.CurrencyFormatter.formatNumber(context, priceEstimate.lowPrice) + "–" +
+                com.example.data.CurrencyFormatter.format(context, priceEstimate.highPrice)
+        item.estimatedPrice > 0 -> com.example.data.CurrencyFormatter.format(context, item.estimatedPrice)
+        else -> null
+    }
+    val caption = listOfNotNull(
+        "× ${item.quantity}",
+        priceText,
+        item.store?.takeIf { it.isNotBlank() },
+        item.predictedDaysLeft?.takeIf { it <= 3 }?.let { stringResource(R.string.runs_out_in_days, it) }
+    ).joinToString(" · ")
+
     ZadListCard(
         modifier = Modifier.pressableScale(),
-        shape = shoppingCardShape,
+        shape = RoundedCornerShape(16.dp),
         contentPadding = 0.dp
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onCheck, modifier = Modifier.size(42.dp).pressableScale()) {
+            IconButton(onClick = onCheck, modifier = Modifier.size(36.dp).pressableScale()) {
                 Box(
-                    modifier = Modifier.size(36.dp).clip(CircleShape).background(outlineVariant.copy(alpha = 0.2f)),
+                    modifier = Modifier.size(30.dp).clip(CircleShape).background(outlineVariant.copy(alpha = 0.4f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.ShoppingCart, contentDescription = "تم", tint = onSurfaceVariant, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.ShoppingCart, contentDescription = "تم", tint = onSurfaceVariant, modifier = Modifier.size(16.dp))
                 }
             }
             Spacer(Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(item.itemName, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                    Spacer(Modifier.width(6.dp))
-                    Box(
-                        modifier = Modifier.size(8.dp).clip(CircleShape).background(priorityColor)
-                    )
-                }
-                Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(secondaryContainer).padding(horizontal = 7.dp, vertical = 3.dp)
-                    ) { Text("× ${item.quantity}", style = Typography.bodySmall, color = onSecondaryContainer, fontWeight = FontWeight.Medium) }
-
-                    if (priceEstimate != null) {
-                        Box(
-                            modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(primaryContainer).padding(horizontal = 7.dp, vertical = 3.dp)
-                        ) { Text("${com.example.data.CurrencyFormatter.formatNumber(context, priceEstimate.lowPrice)}-${com.example.data.CurrencyFormatter.format(context, priceEstimate.highPrice)}", style = Typography.bodySmall, color = onPrimaryContainer, fontWeight = FontWeight.Medium) }
-                    } else if (item.estimatedPrice > 0) {
-                        Box(
-                            modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(primaryContainer).padding(horizontal = 7.dp, vertical = 3.dp)
-                        ) { Text(com.example.data.CurrencyFormatter.format(context, item.estimatedPrice), style = Typography.bodySmall, color = onPrimaryContainer, fontWeight = FontWeight.Medium) }
-                    }
-
-                    if (item.predictedDaysLeft != null && item.predictedDaysLeft <= 3) {
-                        Box(
-                            modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(errorContainer).padding(horizontal = 7.dp, vertical = 3.dp)
-                        ) { Text("ينفذ بعد ${item.predictedDaysLeft} أيام", style = Typography.bodySmall, color = dangerColor, fontWeight = FontWeight.Bold) }
-                    }
-
-                    if (item.store != null) {
-                        Box(
-                            modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(catBankingBg).padding(horizontal = 7.dp, vertical = 3.dp)
-                        ) { Text(item.store!!, style = Typography.bodySmall, color = catBankingIcon, fontWeight = FontWeight.Medium) }
-                    }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    item.itemName,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = onSurface,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                if (caption.isNotBlank()) {
+                    Text(caption, fontSize = 11.5.sp, color = textTertiary, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 }
             }
-            IconButton(onClick = onDelete, modifier = Modifier.size(36.dp).pressableScale()) {
-                Icon(Icons.Default.Delete, contentDescription = "حذف", tint = onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                priorityLabel,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = priorityColor,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(priorityColor.copy(alpha = 0.12f))
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            )
+            IconButton(onClick = onDelete, modifier = Modifier.size(32.dp).pressableScale()) {
+                Icon(Icons.Default.Delete, contentDescription = "حذف", tint = onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(17.dp))
             }
         }
     }

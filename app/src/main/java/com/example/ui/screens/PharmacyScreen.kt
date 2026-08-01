@@ -39,6 +39,7 @@ import com.example.ui.components.HeroGradientCard
 import com.example.ui.components.ZadLottieAsset
 import com.example.ui.components.ZadTransitions
 import com.example.ui.components.pressableScale
+import com.example.ui.components.zadCardShadow
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.FamilyState
 import com.example.ui.viewmodels.FamilyViewModel
@@ -167,30 +168,43 @@ fun PharmacyScreen(
                 }
             }
 
-            // Quick Summary — Glassmorphism hero
+            // ── The mockup's two pharmacy stats: dose adherence and monthly cost ──
+            // Was a teal→green gradient hero holding three counts plus the cost as a
+            // footnote under a divider. The mockup puts the two numbers that describe
+            // behaviour (are doses being taken, what does this cost) in plain white
+            // cards, and the raw counts belong under them as a quieter line — they
+            // are inventory facts, not the headline.
             AppearOnEntry {
-                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                    HeroGradientCard(colors = listOf(catHealthIcon, primary)) {
-                        Column {
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                PharmacySummaryStat(items.size.toString(), stringResource(R.string.total_medicines_label))
-                                PharmacySummaryStat(expiringSoon.size.toString(), stringResource(R.string.expiring_soon_label))
-                                PharmacySummaryStat(lowStock.size.toString(), stringResource(R.string.low_stock_label))
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        PharmacyStatCard(
+                            modifier = Modifier.weight(1f),
+                            label = stringResource(R.string.dose_adherence_label),
+                            value = weeklyAdherence?.let { "$it%" } ?: "—",
+                            valueColor = when {
+                                weeklyAdherence == null -> textTertiary
+                                weeklyAdherence!! >= 80 -> primary
+                                weeklyAdherence!! >= 50 -> warningColor
+                                else -> dangerColor
                             }
-                            if (monthlyCost > 0) {
-                                Spacer(modifier = Modifier.height(14.dp))
-                                HorizontalDivider(color = Color.White.copy(alpha = 0.25f))
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        stringResource(R.string.monthly_pharma_cost_label, com.example.data.CurrencyFormatter.format(context, monthlyCost)),
-                                        style = Typography.labelMedium, color = Color.White.copy(alpha = 0.9f)
-                                    )
-                                }
-                            }
-                        }
+                        )
+                        PharmacyStatCard(
+                            modifier = Modifier.weight(1f),
+                            label = stringResource(R.string.monthly_cost_label),
+                            value = com.example.data.CurrencyFormatter.format(context, monthlyCost),
+                            valueColor = textPrimary
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        PharmacyCountLine(items.size, stringResource(R.string.total_medicines_label))
+                        PharmacyCountLine(expiringSoon.size, stringResource(R.string.expiring_soon_label))
+                        PharmacyCountLine(lowStock.size, stringResource(R.string.low_stock_label))
                     }
                 }
             }
@@ -206,27 +220,6 @@ fun PharmacyScreen(
                         Text(
                             stringResource(R.string.expired_medicine_warning, expired.size),
                             style = Typography.bodySmall, color = dangerColor, fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-            }
-
-            weeklyAdherence?.let { pct ->
-                val adherenceColor = when {
-                    pct >= 80 -> successColor
-                    pct >= 50 -> warningColor
-                    else -> dangerColor
-                }
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-                        .clip(RoundedCornerShape(12.dp)).background(adherenceColor.copy(alpha = 0.10f)).padding(12.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Insights, contentDescription = null, tint = adherenceColor, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            stringResource(R.string.weekly_adherence_label, pct),
-                            style = Typography.bodySmall, color = adherenceColor, fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
@@ -270,7 +263,7 @@ fun PharmacyScreen(
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 100.dp),
+                    contentPadding = PaddingValues(20.dp, 8.dp, 20.dp, 100.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
@@ -287,7 +280,7 @@ fun PharmacyScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 100.dp),
+                    contentPadding = PaddingValues(20.dp, 8.dp, 20.dp, 100.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     itemsIndexed(sortedItems, key = { _, it -> it.id }) { index, item ->
@@ -818,4 +811,35 @@ private fun RefillPharmacyItemDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )
+}
+
+/** The mockup's pharmacy stat card: white, 16dp, small grey label over a bold value. */
+@Composable
+private fun PharmacyStatCard(
+    label: String,
+    value: String,
+    valueColor: Color,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        modifier = modifier
+            .zadCardShadow(shape)
+            .clip(shape)
+            .background(surface)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = textTertiary, maxLines = 1)
+        Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = valueColor, maxLines = 1)
+    }
+}
+
+/** Inventory counts, demoted from the old gradient hero to one quiet line. */
+@Composable
+private fun PharmacyCountLine(count: Int, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("$count", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = textSecondary)
+        Text(label, fontSize = 11.5.sp, color = textTertiary)
+    }
 }

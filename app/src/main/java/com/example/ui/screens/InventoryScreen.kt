@@ -209,9 +209,13 @@ fun InventoryScreen(
                 )
             }
 
-            InventoryTabRow(
-                selectedTab = selectedTab,
-                shortageCount = shortageItems.size,
+            com.example.ui.components.ZadSegmentedTabs(
+                tabs = listOf(
+                    stringResource(R.string.tab_all_products),
+                    if (shortageItems.isEmpty()) stringResource(R.string.tab_shortages)
+                    else "${stringResource(R.string.tab_shortages)} (${shortageItems.size})"
+                ),
+                selectedIndex = selectedTab,
                 onSelect = { selectedTab = it }
             )
 
@@ -228,7 +232,7 @@ fun InventoryScreen(
                 } else {
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(2),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize()
@@ -262,7 +266,7 @@ fun InventoryScreen(
                 } else {
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(2),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize()
@@ -391,7 +395,7 @@ private fun LowStockBanner(items: List<ZadInventory>, onShopClick: () -> Unit = 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 20.dp, vertical = 8.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(errorContainer)
             .padding(horizontal = 16.dp, vertical = 12.dp),
@@ -527,97 +531,54 @@ private fun ExpiringSoonSection(
 }
 
 @Composable
-private fun InventoryTabRow(
-    selectedTab: Int,
-    shortageCount: Int,
-    onSelect: (Int) -> Unit
-) {
-    TabRow(
-        selectedTabIndex = selectedTab,
-        containerColor = background,
-        contentColor = primary
-    ) {
-        Tab(
-            selected = selectedTab == 0,
-            onClick = { onSelect(0) },
-            text = {
-                Text(
-                    stringResource(R.string.tab_all_products),
-                    fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium
-                )
-            }
-        )
-        Tab(
-            selected = selectedTab == 1,
-            onClick = { onSelect(1) },
-            text = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        stringResource(R.string.tab_shortages),
-                        fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium
-                    )
-                    if (shortageCount > 0) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Surface(shape = CircleShape, color = dangerColor) {
-                            Text(
-                                "$shortageCount",
-                                color = Color.White,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        )
-    }
-}
-
-@Composable
 private fun CategoryPills(
     selected: String,
     onSelect: (String) -> Unit
 ) {
+    // The mockup's category chip: fully rounded, white with a soft shadow when
+    // idle, solid brand green when active, and the icon inside a 20dp tinted
+    // circle rather than loose next to the label. The old chip was a transparent
+    // outline — on the canvas gradient that reads as a disabled control.
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 20.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         categoryDefs.forEach { def ->
             val isSelected = selected == def.key
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = if (isSelected) primary else Color.Transparent,
+            val shape = RoundedCornerShape(50)
+            Row(
                 modifier = Modifier
-                    .border(
-                        width = 1.2.dp,
-                        color = if (isSelected) primary else outline,
-                        shape = RoundedCornerShape(20.dp)
-                    )
-                    .clip(RoundedCornerShape(20.dp))
+                    .then(if (isSelected) Modifier else Modifier.zadCardShadow(shape, elevation = 6.dp))
+                    .clip(shape)
+                    .background(if (isSelected) primary else Color.White)
                     .clickable { onSelect(def.key) }
+                    .padding(start = 6.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .background(if (isSelected) Color.White.copy(alpha = 0.2f) else def.bg),
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         def.icon,
                         contentDescription = null,
-                        tint = if (isSelected) onPrimary else def.fg,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        def.label,
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSelected) onPrimary else def.fg
+                        tint = if (isSelected) Color.White else def.fg,
+                        modifier = Modifier.size(13.dp)
                     )
                 }
+                Text(
+                    def.label,
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isSelected) Color.White else textSecondary
+                )
             }
         }
     }

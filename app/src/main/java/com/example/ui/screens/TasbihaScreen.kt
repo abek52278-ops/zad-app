@@ -326,20 +326,11 @@ private fun TasbihaMainContent(
                 }
             }
 
-            // Tabs
-            TabRow(
-                selectedTabIndex = selectedTabIndex,
-                containerColor = surface,
-                contentColor = primary
-            ) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = selectedTabIndex == index,
-                        onClick = { selectedTabIndex = index },
-                        text = { Text(title, fontWeight = FontWeight.Bold) }
-                    )
-                }
-            }
+            com.example.ui.components.ZadSegmentedTabs(
+                tabs = tabs,
+                selectedIndex = selectedTabIndex,
+                onSelect = { selectedTabIndex = it }
+            )
 
             when (selectedTabIndex) {
                 0 -> MyGardenTab(

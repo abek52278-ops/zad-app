@@ -914,4 +914,10 @@
     <string name="obligation_status_scheduled">مجدول</string>
     <string name="no_obligations_title">لا توجد التزامات</string>
     <string name="no_obligations_hint">الأقساط والفواتير الثابتة هتظهر هنا أول ما تتسجل</string>
+    <string name="dose_adherence_label">الالتزام بالجرعات</string>
+    <string name="monthly_cost_label">التكلفة الشهرية</string>
+    <string name="priority_critical">حرج</string>
+    <string name="priority_medium">متوسط</string>
+    <string name="priority_low">منخفض</string>
+    <string name="runs_out_in_days">ينفد بعد %1$d أيام</string>
 </resources>

@@ -127,25 +127,11 @@ fun SubscriptionsScreen(
             }
             }
 
-            // Tabs
-            ScrollableTabRow(
-                selectedTabIndex = selectedTab,
-                containerColor = background,
-                contentColor = primary,
-                edgePadding = 16.dp,
-                divider = {}
-            ) {
-                tabs.forEachIndexed { i, title ->
-                    Tab(
-                        selected = selectedTab == i,
-                        onClick = { selectedTab = i },
-                        text = {
-                            Text(title, fontWeight = FontWeight.Bold, style = Typography.labelLarge,
-                                color = if (selectedTab == i) primary else onSurfaceVariant)
-                        }
-                    )
-                }
-            }
+            com.example.ui.components.ZadSegmentedTabs(
+                tabs = tabs,
+                selectedIndex = selectedTab,
+                onSelect = { selectedTab = it }
+            )
 
             // AI Detection Banner
             if (selectedTab == 0 && activeSubs.isEmpty()) {
@@ -176,7 +162,7 @@ fun SubscriptionsScreen(
             // List
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 100.dp),
+                contentPadding = PaddingValues(20.dp, 8.dp, 20.dp, 100.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 if (filtered.isEmpty()) {
@@ -288,14 +274,10 @@ private fun SubScreenSubscriptionCardFull(
                     .fillMaxHeight()
                     .background(if (sub.isActive) daysColor else outlineVariant)
             )
+            // The mockup's subscription row is name + renewal + price against the
+            // colored edge — no leading icon. The 48dp credit-card circle that sat
+            // here repeated on every row and said nothing a row can differ on.
             Row(modifier = Modifier.padding(16.dp).weight(1f), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier.size(48.dp).clip(CircleShape).background(catBillsBg),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.CreditCard, contentDescription = null, tint = catBillsIcon)
-            }
-            Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(sub.title, style = Typography.titleMedium, fontWeight = FontWeight.Bold,

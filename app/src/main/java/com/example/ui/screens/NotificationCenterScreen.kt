@@ -22,7 +22,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.ui.components.zadCardShadow
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 import android.util.Log
@@ -185,6 +187,15 @@ fun NotificationCenterScreen(
     }
 }
 
+/**
+ * The mockup's notification row (`NOTIFS`): a white 16dp card, a 10dp dot in the
+ * severity colour, then title over body. The 40dp icon circle it used to lead
+ * with is gone — the icon repeated what the colour already said, and the mockup
+ * spends that width on the text instead.
+ *
+ * Unread still reads as unread: the dot is solid on unread rows and drops to 35%
+ * once read, which is the same signal without tinting the whole card.
+ */
 @Composable
 private fun NotificationCard(
     title: String,
@@ -194,33 +205,34 @@ private fun NotificationCard(
     isRead: Boolean,
     onClick: () -> Unit
 ) {
-    Card(
+    val shape = RoundedCornerShape(16.dp)
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isRead) surface else color.copy(alpha = 0.08f)
-        ),
-        shape = RoundedCornerShape(14.dp)
+            .padding(vertical = 5.dp)
+            .zadCardShadow(shape)
+            .clip(shape)
+            .background(surface)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.Top
     ) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier.size(40.dp).clip(CircleShape).background(color.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                    Text(title, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface, modifier = Modifier.weight(1f))
-                    if (!isRead) {
-                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(dangerColor))
-                    }
-                }
-                Text(message, style = Typography.bodySmall, color = onSurfaceVariant)
-            }
+        Box(
+            modifier = Modifier
+                .padding(top = 5.dp)
+                .size(10.dp)
+                .clip(CircleShape)
+                .background(if (isRead) color.copy(alpha = 0.35f) else color)
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(
+                title,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = textPrimary
+            )
+            Text(message, fontSize = 12.5.sp, color = onSurfaceVariant, lineHeight = 18.sp)
         }
     }
 }

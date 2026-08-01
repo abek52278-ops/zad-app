@@ -3,6 +3,7 @@ package com.example.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -350,6 +351,71 @@ private fun ZadNavTab(icon: ImageVector, label: String, selected: Boolean, onCli
             color = tint,
             maxLines = 1
         )
+    }
+}
+
+// ── segmented tabs ───────────────────────────────────────────────────────────
+
+/**
+ * The mockup's segmented control (`segBtn`): a white pill track with a
+ * dark-green pill on the selected segment.
+ *
+ * Scrolls horizontally when the labels don't fit, which is what lets screens
+ * with more than the mockup's three tabs (Family has six) use the same control
+ * instead of falling back to a Material `TabRow` whose underline indicator
+ * disappears against the white track behind it.
+ */
+@Composable
+fun ZadSegmentedTabs(
+    tabs: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    scrollable: Boolean = tabs.size > 3,
+) {
+    val trackShape = RoundedCornerShape(999.dp)
+    val track = modifier
+        .fillMaxWidth()
+        .padding(horizontal = 20.dp, vertical = 12.dp)
+        .zadCardShadow(trackShape)
+        .clip(trackShape)
+        .background(Color.White)
+        .padding(4.dp)
+
+    @Composable
+    fun segment(index: Int, title: String, segModifier: Modifier) {
+        val isSelected = selectedIndex == index
+        Box(
+            modifier = segModifier
+                .clip(trackShape)
+                .background(if (isSelected) primary else Color.Transparent)
+                .clickable { onSelect(index) }
+                .padding(horizontal = 14.dp, vertical = 9.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                title,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isSelected) Color.White else onSurfaceVariant,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+    }
+
+    if (scrollable) {
+        Row(
+            modifier = track.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            tabs.forEachIndexed { i, title -> segment(i, title, Modifier) }
+        }
+    } else {
+        Row(modifier = track, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            tabs.forEachIndexed { i, title -> segment(i, title, Modifier.weight(1f)) }
+        }
     }
 }
 

@@ -32,6 +32,7 @@ import com.example.ui.components.ZadLottieAsset
 import com.example.ui.components.ZadTransitions
 import com.example.ui.components.ZadListCard
 import com.example.ui.components.pressableScale
+import com.example.ui.components.zadCardShadow
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 
@@ -58,19 +59,17 @@ fun MaintenanceScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
+            // The mockup keeps this screen to plain white cards — the blue→indigo
+            // gradient banner that stood here was the only place in the app using
+            // that pair, and it fought the green identity for the top of the page.
             AppearOnEntry {
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)
-                        .shadow(elevation = 10.dp, shape = RoundedCornerShape(20.dp), spotColor = infoColor.copy(alpha = 0.20f))
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Brush.horizontalGradient(listOf(infoColor, tertiary)))
-                        .padding(20.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        MaintenanceSummaryStat(items.size.toString(), stringResource(R.string.total_appliances_label))
-                        MaintenanceSummaryStat(dueSoon.size.toString(), stringResource(R.string.due_soon_label))
-                        MaintenanceSummaryStat(warrantyExpiring.size.toString(), stringResource(R.string.warranty_expiring_label))
-                    }
+                    MaintenanceSummaryStat(Modifier.weight(1f), items.size.toString(), stringResource(R.string.total_appliances_label), textPrimary)
+                    MaintenanceSummaryStat(Modifier.weight(1f), dueSoon.size.toString(), stringResource(R.string.due_soon_label), secondaryDark)
+                    MaintenanceSummaryStat(Modifier.weight(1f), warrantyExpiring.size.toString(), stringResource(R.string.warranty_expiring_label), dangerColor)
                 }
             }
 
@@ -92,7 +91,7 @@ fun MaintenanceScreen(
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 100.dp),
+                contentPadding = PaddingValues(20.dp, 8.dp, 20.dp, 100.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 if (sortedItems.isEmpty()) {
@@ -149,11 +148,23 @@ fun MaintenanceScreen(
 }
 
 @Composable
-private fun MaintenanceSummaryStat(value: String, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = Typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(label, style = Typography.labelSmall, color = Color.White.copy(alpha = 0.85f))
+private fun MaintenanceSummaryStat(
+    modifier: Modifier = Modifier,
+    value: String,
+    label: String,
+    valueColor: Color
+) {
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        modifier = modifier
+            .zadCardShadow(shape)
+            .clip(shape)
+            .background(surface)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = textTertiary, maxLines = 2)
+        Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = valueColor, maxLines = 1)
     }
 }
 
