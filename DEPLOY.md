@@ -1,6 +1,21 @@
 # Zad — دليل النشر (Updated)
 
-> ⚠️ **ملاحظة تحديث (2026-07-20):** هذا الملف قديم جزئياً — `zad-ai-proxy` الحالي بيستخدم **Groq فقط** (`GROQ_API_KEY`)، مش Gemini، لكل الطلبات النصية وحتى مسح الصور (نموذج `llama-4-scout` الخاص بالرؤية). أي ذكر لـ`GEMINI_API_KEY` هنا خاص بتجربة قديمة أو مسار عميل اختياري غير مستخدم — راجع `.env.example` و`PROJECT_MAP.md` للحالة الحالية.
+> ⚠️ **تحديث 2026-08-01 — اقرأ ده الأول:**
+>
+> - الدالة المستخدمة فعلياً اسمها **`zad-core-intelligence`**، مش `zad-ai-proxy`. `zad-ai-proxy`
+>   كود ميت — العميل مابينادهوش خالص غير في اختبار androidTest متمثّل.
+> - المزوّد الأساسي بقى **Gemini** عن طريق pool من ٥ مفاتيح (`ZAD_API_KEY_1..5`) بنداء
+>   `generateContent` الأصلي. Groq بقى fallback **للنصوص/JSON بس**.
+> - **الصور عمرها ما بتروح لـ Groq.** Groq بيرفض JSON mode على أي طلب فيه صورة (400)، وكل
+>   أفعال المسح محتاجة JSON منظم، فمسار الصور عند Gemini لوحده.
+> - الموديلات بتتظبط بأسرار المشروع `ZAD_MODEL_ROUTINE` و`ZAD_MODEL_BRAIN`، والاتنين دلوقتي
+>   `gemini-3.5-flash`. **السر بيغلب الافتراضي اللي في الكود** — تغيير الافتراضي لوحده مابيعملش
+>   حاجة على مشروع منشور.
+> - `gemini-2.5-flash` مات: بيرجّع 404 "no longer available to new users" (لسه بيظهر في قائمة
+>   الموديلات، بس مابينفعش يتنادى). ده بالظبط اللي كان مكسّر الماسح الذكي.
+>
+> باقي الملف تحت لسه فيه خطوات قديمة بأسماء `zad-ai-proxy`/`GEMINI_API_KEY` المفرد — سيبناها
+> كتأريخ، بس اتبع قسم "النشر الحالي" اللي بعد ده مباشرة.
 
 ## ملخص الإصلاحات
 
@@ -76,6 +91,72 @@ SUPABASE_ANON_KEY=YOUR_ANON_KEY
 
 ---
 
+## النشر الحالي (2026-08-01)
+
+### الأسرار المطلوبة على Supabase
+
+```bash
+export SUPABASE_ACCESS_TOKEN="sbp_..."      # من dashboard → Account → Access Tokens
+
+# Gemini — الـ pool الأساسي، نفس الأسماء اللي zad-brain وzad-core-intelligence بيقروها
+npx supabase secrets set \
+  ZAD_API_KEY_1="..." ZAD_API_KEY_2="..." ZAD_API_KEY_3="..." \
+  ZAD_API_KEY_4="..." ZAD_API_KEY_5="..." \
+  --project-ref YOUR_PROJECT_REF
+
+# الموديلات (لازم تكون موديلات المفاتيح دي بتقدر تناديها فعلاً)
+npx supabase secrets set \
+  ZAD_MODEL_ROUTINE="gemini-3.5-flash" ZAD_MODEL_BRAIN="gemini-3.5-flash" \
+  --project-ref YOUR_PROJECT_REF
+
+# Groq — fallback نصوص/JSON بس، زائد Whisper والبحث الحي (المفتاح المفرد)
+npx supabase secrets set \
+  GROQ_API_KEY_1="..." GROQ_API_KEY_2="..." GROQ_API_KEY="..." \
+  --project-ref YOUR_PROJECT_REF
+```
+
+`GEMINI_API_KEY` المفرد بقى fallback قديم بس — بيتقرا لو مفيش أي مفتاح من `ZAD_API_KEY_1..5`.
+لو مفيش ولا واحد فيهم، مفيش مزوّد للرؤية أصلاً، والدالة بتسجّل الخطأ بصوت عالي بدل ما ترجّع
+الصور لـ Groq (لأن Groq مابيقدرش يخدمها).
+
+### نشر الدوال
+
+```bash
+npx supabase functions deploy zad-core-intelligence --project-ref YOUR_PROJECT_REF
+npx supabase functions deploy zad-brain            --project-ref YOUR_PROJECT_REF
+```
+
+### التحقق (نداء حي، مش تخمين)
+
+```bash
+# مسار النص
+curl -s -X POST "https://YOUR_PROJECT_REF.supabase.co/functions/v1/zad-core-intelligence" \
+  -H "Authorization: Bearer YOUR_ANON_KEY" -H "Content-Type: application/json" \
+  -d '{"action":"estimate_price","payload":{"item_name":"حليب 1 لتر","store":"بنده"}}'
+# المتوقع: أسعار حقيقية، مش أصفار
+
+# مسار الرؤية (صورة فاتورة base64)
+curl -s -X POST "https://YOUR_PROJECT_REF.supabase.co/functions/v1/zad-core-intelligence" \
+  -H "Authorization: Bearer YOUR_ANON_KEY" -H "Content-Type: application/json" \
+  -d '{"action":"analyze_receipt","payload":{"image_base64":"...","mime_type":"image/jpeg"}}'
+# المتوقع: total واسم المتجر والأصناف. لو رجعت {"total":0,...,"items":[]} يبقى الرؤية واقعة.
+```
+
+**الفخ الأهم:** الدالة بترجّع `200` مع نتيجة فاضية حتى لما المزوّد يفشل — عشان كده لازم تبص على
+القيم نفسها، مش على status code. ولو Gemini رجّع 200 من غير نص (finishReason = MAX_TOKENS
+لما الموديل يصرف الميزانية كلها "تفكير"، أو SAFETY) الدالة بتسجّل `finishReason` و`usageMetadata`
+في اللوج.
+
+### تنبيه: المنشور ممكن يختلف عن الريبو
+حصل فعلاً مرتين (`zad-core-intelligence` v89 و`zad-brain` v64). قبل ما تفترض إن أي نسخة هي
+الصح، قارن:
+
+```bash
+# عن طريق MCP: mcp__supabase__get_edge_function ثم diff مع supabase/functions/<name>/index.ts
+```
+
+---
+
 ## هيكل الخدمات بعد الإصلاح
 
 ```
@@ -92,5 +173,10 @@ SUPABASE_ANON_KEY=YOUR_ANON_KEY
 ```
 
 ## ملاحظة
-مفتاح Gemini API موجود الآن **فقط** في Supabase Secrets (سيرفر سايد).
-التطبيق لا يضم المفتاح في الـ APK أبداً — كل طلبات AI تذهب عبر Edge Function.
+مفاتيح Gemini موجودة **فقط** في Supabase Secrets (سيرفر سايد). التطبيق مابيحطّش أي مفتاح
+في الـ APK — كل طلبات AI بتروح عبر Edge Function.
+
+الاستثناء الوحيد: المستخدم يقدر يلصق مفتاح Gemini بتاعه في شاشة الكاميرا (`ZadAiGeminiClient`)،
+وساعتها المفتاح بيتخزن على جهازه هو بس في SharedPreferences. المسار ده اختياري بالكامل، وبيقبل
+أكتر من مفتاح مفصولين بفاصلة مع دوران عند الـ 429، ولو فشل بيرجع تلقائي لـ
+`zad-core-intelligence`.

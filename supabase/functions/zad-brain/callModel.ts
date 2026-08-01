@@ -44,11 +44,40 @@ export type ModelReply = {
 
 export type Provider = "anthropic" | "gemini" | "openai_compatible";
 
-const cfg = () => ({
-  provider: (Deno.env.get("ZAD_PROVIDER") ?? "anthropic") as Provider,
-  key: Deno.env.get("ZAD_API_KEY")!,
-  baseUrl: Deno.env.get("ZAD_BASE_URL") ?? "",
-});
+// Same ZAD_API_KEY_1..5 pool zad-core-intelligence reads — shared deliberately, not a
+// naming collision. Only consulted for provider "gemini"; anthropic/openai_compatible keep
+// using the single ZAD_API_KEY exactly as before (separate auth mechanisms, and a pool was
+// never asked for on them).
+//
+// Falls back to the legacy singular ZAD_API_KEY when none of the five are set, so a
+// half-migrated project doesn't lose Gemini access outright.
+const GEMINI_KEY_POOL: string[] = [1, 2, 3, 4, 5]
+  .map((n) => Deno.env.get(`ZAD_API_KEY_${n}`))
+  .filter((k): k is string => !!k);
+if (GEMINI_KEY_POOL.length === 0) {
+  const legacy = Deno.env.get("ZAD_API_KEY");
+  if (legacy) GEMINI_KEY_POOL.push(legacy);
+}
+
+// Round-robin starting point across warm invocations, so consecutive requests don't all
+// hammer key 1 first. sendGemini() walks the whole pool from here on a 429.
+let geminiKeyCursor = 0;
+function nextGeminiKeyIndex(): number {
+  const i = geminiKeyCursor % Math.max(GEMINI_KEY_POOL.length, 1);
+  geminiKeyCursor = (geminiKeyCursor + 1) % Math.max(GEMINI_KEY_POOL.length, 1);
+  return i;
+}
+
+const cfg = () => {
+  const provider = (Deno.env.get("ZAD_PROVIDER") ?? "anthropic") as Provider;
+  return {
+    provider,
+    // Gemini's key is chosen per attempt inside sendGemini, not here — this stays for the
+    // other two providers.
+    key: Deno.env.get("ZAD_API_KEY")!,
+    baseUrl: Deno.env.get("ZAD_BASE_URL") ?? "",
+  };
+};
 
 // ============================================================
 // المدخل الموحد
@@ -190,8 +219,6 @@ function sanitizeSchema(s: any): any {
 async function sendGemini(o: {
   model: string; system: string; tools: ToolDef[]; history: Turn[]; maxTokens?: number;
 }): Promise<ModelReply> {
-  const { key } = cfg();
-
   const contents: any[] = [];
   for (const t of o.history) {
     if (t.role === "user") {
@@ -213,24 +240,58 @@ async function sendGemini(o: {
     }
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${o.model}:generateContent?key=${encodeURIComponent(key)}`;
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: o.system }] },
-      contents,
-      tools: [{
-        functionDeclarations: o.tools.map((t) => ({
-          name: t.name,
-          description: t.description,
-          parameters: sanitizeSchema(t.input_schema),
-        })),
-      }],
-      generationConfig: { maxOutputTokens: o.maxTokens ?? 1500, temperature: 0.4 },
-    }),
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: o.system }] },
+    contents,
+    tools: [{
+      functionDeclarations: o.tools.map((t) => ({
+        name: t.name,
+        description: t.description,
+        parameters: sanitizeSchema(t.input_schema),
+      })),
+    }],
+    generationConfig: { maxOutputTokens: o.maxTokens ?? 1500, temperature: 0.4 },
   });
+
+  // Same contract as zad-core-intelligence's callGeminiPool: one request exhausts the whole
+  // key pool before reporting failure. A 429 on key N retries the SAME request on key N+1
+  // immediately — quota failover inside a single call, which is a different thing from
+  // withRetry()'s backoff (that exists for transient upstream faults and still wraps this).
+  //
+  // Non-429 failures are NOT rotated past: checkResponse classifies 400/401/403 as
+  // ConfigError, and retrying a malformed request or a bad-auth response on four more keys
+  // just burns them and buries the real error.
+  if (GEMINI_KEY_POOL.length === 0) {
+    throw new ConfigError("gemini: no key configured (ZAD_API_KEY_1..5 / ZAD_API_KEY all unset)");
+  }
+
+  let res: Response | null = null;
+  let lastQuotaBody = "";
+  const start = nextGeminiKeyIndex();
+  for (let i = 0; i < GEMINI_KEY_POOL.length; i++) {
+    const keyIndex = (start + i) % GEMINI_KEY_POOL.length;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${o.model}` +
+      `:generateContent?key=${encodeURIComponent(GEMINI_KEY_POOL[keyIndex])}`;
+    const attempt = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+    });
+    if (attempt.status === 429) {
+      lastQuotaBody = await attempt.text();
+      console.warn(`[zad-brain] Gemini key ${keyIndex + 1} hit 429/quota, switching to next key...`);
+      continue;
+    }
+    res = attempt;
+    break;
+  }
+
+  if (!res) {
+    // Every key is rate-limited. Surface it as retryable so withRetry's backoff gets a shot
+    // at a window where quota has recovered, rather than failing the whole brain run.
+    throw new RetryableError(`gemini 429 (all ${GEMINI_KEY_POOL.length} keys exhausted): ${lastQuotaBody}`);
+  }
+
   await checkResponse(res, "gemini");
   const d = await res.json();
 
