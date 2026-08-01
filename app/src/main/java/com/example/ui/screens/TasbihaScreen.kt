@@ -45,7 +45,7 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 @Composable
-fun TasbihaScreen(viewModel: FamilyViewModel, onOpenDrawer: () -> Unit = {}) {
+fun TasbihaScreen(viewModel: FamilyViewModel) {
     val selectedTree = viewModel.selectedTree
     val myAllTrees = viewModel.myAllTrees
     val familyTrees = viewModel.familyTasbiha
@@ -72,8 +72,7 @@ fun TasbihaScreen(viewModel: FamilyViewModel, onOpenDrawer: () -> Unit = {}) {
                 viewModel = viewModel,
                 selectedTree = selectedTree,
                 myAllTrees = myAllTrees,
-                familyMembers = familyMembers,
-                onOpenDrawer = onOpenDrawer
+                familyMembers = familyMembers
             )
         }
     }
@@ -271,8 +270,7 @@ private fun TasbihaMainContent(
     viewModel: FamilyViewModel,
     selectedTree: TasbihaTree?,
     myAllTrees: List<TasbihaTree>,
-    familyMembers: List<FamilyMemberWithTasbiha>,
-    onOpenDrawer: () -> Unit
+    familyMembers: List<FamilyMemberWithTasbiha>
 ) {
     var selectedTabIndex by remember { mutableStateOf(0) }
     val tabs = listOf(
@@ -307,10 +305,6 @@ private fun TasbihaMainContent(
                     .padding(top = 16.dp, bottom = 16.dp, start = 8.dp, end = 16.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onOpenDrawer) {
-                        Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.nav_menu), tint = Color.White)
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Park, contentDescription = null, modifier = Modifier.size(24.dp), tint = Color.White)

@@ -59,7 +59,6 @@ import com.example.ui.viewmodels.FamilyState
 import com.example.ui.viewmodels.ZadViewModel
 import android.util.Log
 import androidx.navigation.NavController
-import com.example.Screen
 
 private const val TAG_PROF = "ProfileScreen"
 
@@ -67,7 +66,6 @@ private const val TAG_PROF = "ProfileScreen"
 fun ProfileScreen(
     viewModel: ZadViewModel,
     familyViewModel: FamilyViewModel = viewModel(),
-    onOpenDrawer: () -> Unit = {},
     onLogout: () -> Unit = {},
     navController: NavController? = null,
     /** يفعّل وضع الأطفال يدوياً (بلا PIN — الخروج منه بس هو اللي محتاج PIN، في MainScreen) */
@@ -102,19 +100,6 @@ fun ProfileScreen(
         animTriggered = true
         Log.d(TAG_PROF, "ProfileScreen loaded — userName=$displayUserName, userId=$userId")
     }
-
-    val infiniteTransition = rememberInfiniteTransition(label = "profile_glow")
-    val glowAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f, targetValue = 0.8f,
-        animationSpec = infiniteRepeatable(tween(2000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "glow_alpha"
-    )
-
-    val headerAnim by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(4000, easing = LinearEasing), RepeatMode.Reverse),
-        label = "header_shift"
-    )
 
     var showSaveSuccess by remember { mutableStateOf(false) }
     var isUploadingAvatar by remember { mutableStateOf(false) }
@@ -239,66 +224,37 @@ fun ProfileScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            // -- Premium Animated Header --
+            // ── Profile header, mockup `renderProfile` ──────────────────────
+            // The mockup's is an inset 22dp gradient card: avatar, name, member id.
+            // What stood here was a 280dp full-bleed banner with four decorative
+            // translucent circles and an animated glow ring around the avatar —
+            // a third of the screen spent on ornament before the first setting.
+            // The avatar picker, its edit badge and the upload spinner survive,
+            // because those are controls, not decoration.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(280.dp)
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(
-                                Color(0xFF0D5C3F),
-                                Color(0xFF1A7A55),
-                                Color(0xFF0D5C3F),
-                                Color(0xFF094730)
-                            ),
-                            start = androidx.compose.ui.geometry.Offset(0f, 0f),
-                            end = androidx.compose.ui.geometry.Offset(1000f * headerAnim, 1000f * headerAnim)
-                        )
-                    )
+                    .padding(horizontal = 20.dp, vertical = 16.dp)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xFF064E3B), Color(0xFF0B6B4E))))
+                    .padding(20.dp)
             ) {
-                // Decorative floating circles
-                Box(
-                    Modifier
-                        .size(200.dp).offset(x = (-60).dp, y = (-80).dp)
-                        .clip(CircleShape).background(Color.White.copy(alpha = 0.04f))
-                )
-                Box(
-                    Modifier
-                        .size(140.dp).offset(x = 250.dp, y = (-40).dp)
-                        .clip(CircleShape).background(Color.White.copy(alpha = 0.06f))
-                )
-                Box(
-                    Modifier
-                        .size(100.dp).offset(x = (-20).dp, y = 200.dp)
-                        .clip(CircleShape).background(Color.White.copy(alpha = 0.03f))
-                )
-                Box(
-                    Modifier
-                        .size(180.dp).offset(x = 200.dp, y = 150.dp)
-                        .clip(CircleShape).background(Color.White.copy(alpha = 0.05f))
-                )
-
                 Column(
-                    modifier = Modifier.fillMaxSize().padding(top = 50.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Avatar with animated glow ring
-                    Box(modifier = Modifier.size(100.dp)) {
-                        // Glow ring
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .scale(1.15f)
-                                .clip(CircleShape)
-                                .background(primaryFixed.copy(alpha = glowAlpha * 0.3f))
-                        )
-                        // Outer ring
+                    Box(modifier = Modifier.size(64.dp)) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .clip(CircleShape)
-                                .border(3.dp, Color.White.copy(alpha = 0.6f), CircleShape)
+                                .background(Color.White.copy(alpha = 0.15f))
+                                .border(2.dp, Color.White.copy(alpha = 0.4f), CircleShape)
+                                .clickable(enabled = !isUploadingAvatar) {
+                                    avatarPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                },
+                            contentAlignment = Alignment.Center
                         ) {
                             if (!globalAvatarUri.isNullOrBlank()) {
                                 AsyncImage(
@@ -307,42 +263,41 @@ fun ProfileScreen(
                                     contentScale = ContentScale.Crop,
                                     placeholder = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.avatar),
                                     error = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.avatar),
-                                    modifier = Modifier.fillMaxSize().clip(CircleShape).clickable(enabled = !isUploadingAvatar) { avatarPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+                                    modifier = Modifier.fillMaxSize().clip(CircleShape)
                                 )
                             } else {
-                                Box(
-                                    modifier = Modifier.fillMaxSize().clip(CircleShape).background(Color.White.copy(alpha = 0.2f)).clickable(enabled = !isUploadingAvatar) { avatarPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(Icons.Default.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(44.dp))
-                                }
+                                Text(
+                                    displayUserName.trim().take(1).uppercase(),
+                                    color = Color.White,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
-                        // Edit badge
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
-                                .size(28.dp).clip(CircleShape)
+                                .size(24.dp)
+                                .clip(CircleShape)
                                 .background(Color.White)
-                                .border(2.dp, Color(0xFF0D5C3F), CircleShape)
-                                .clickable(enabled = !isUploadingAvatar) { avatarPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                                .clickable(enabled = !isUploadingAvatar) {
+                                    avatarPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                },
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color(0xFF0D5C3F), modifier = Modifier.size(14.dp))
+                            Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit_profile_title), tint = primary, modifier = Modifier.size(13.dp))
                         }
                         if (isUploadingAvatar) {
                             Box(
                                 modifier = Modifier.fillMaxSize().clip(CircleShape).background(Color.Black.copy(alpha = 0.4f)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
+                                CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
                             }
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
-                    Text(displayUserName, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 22.sp)
-                    Spacer(Modifier.height(4.dp))
-                    Text("#ZAD-$userId", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+                    Text(displayUserName, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("#ZAD-$userId", color = Color.White.copy(alpha = 0.7f), fontSize = 11.5.sp)
                 }
             }
 
@@ -400,7 +355,7 @@ fun ProfileScreen(
                         title = stringResource(R.string.edit_profile_title),
                         subtitle = stringResource(R.string.edit_profile_subtitle),
                         gradient = listOf(Color(0xFF0D5C3F), Color(0xFF1A7A55)),
-                        onClick = { navController?.navigate(Screen.EditProfile.route) }
+                        onClick = { navController?.navigate(com.example.ZadNav.EDIT_PROFILE) }
                     )
                 }
                 Spacer(Modifier.height(10.dp))
@@ -411,7 +366,7 @@ fun ProfileScreen(
                         title = stringResource(R.string.manage_family),
                         subtitle = stringResource(R.string.members_and_permissions),
                         gradient = listOf(Color(0xFFC8963E), Color(0xFFE8BC6A)),
-                        onClick = { navController?.navigate(Screen.FamilyManagement.route) }
+                        onClick = { navController?.navigate(com.example.ZadNav.FAMILY_MANAGEMENT) }
                     )
                 }
                 Spacer(Modifier.height(10.dp))
@@ -435,7 +390,7 @@ fun ProfileScreen(
                         title = stringResource(R.string.budget_and_payment_methods),
                         subtitle = stringResource(R.string.monthly_budget_and_bank_link),
                         gradient = listOf(Color(0xFF1C6EA4), Color(0xFF60A5FA)),
-                        onClick = { navController?.navigate(Screen.PaymentBudget.route) }
+                        onClick = { navController?.navigate(com.example.ZadNav.PAYMENT_BUDGET) }
                     )
                 }
                 Spacer(Modifier.height(10.dp))
@@ -446,7 +401,7 @@ fun ProfileScreen(
                         title = stringResource(R.string.assistant_alerts_title),
                         subtitle = stringResource(R.string.control_smart_alerts),
                         gradient = listOf(Color(0xFF7C3AED), Color(0xFFA78BFA)),
-                        onClick = { navController?.navigate(Screen.AssistantAlerts.route) }
+                        onClick = { navController?.navigate(com.example.ZadNav.ASSISTANT_ALERTS) }
                     )
                 }
                 Spacer(Modifier.height(10.dp))
@@ -485,7 +440,7 @@ fun ProfileScreen(
                         title = stringResource(R.string.statement_import_title),
                         subtitle = stringResource(R.string.import_bank_statement_subtitle),
                         gradient = listOf(Color(0xFF059669), Color(0xFF6EE7B7)),
-                        onClick = { navController?.navigate(Screen.StatementImport.route) }
+                        onClick = { navController?.navigate(com.example.ui.components.ZadRoutes.STATEMENT) }
                     )
                 }
                 Spacer(Modifier.height(10.dp))
@@ -512,7 +467,7 @@ fun ProfileScreen(
                         title = stringResource(R.string.terms_of_service_menu_title),
                         subtitle = stringResource(R.string.terms_of_service_menu_subtitle),
                         gradient = listOf(Color(0xFF64748B), Color(0xFF94A3B8)),
-                        onClick = { navController?.navigate(Screen.TermsOfService.route) }
+                        onClick = { navController?.navigate(com.example.ZadNav.TERMS) }
                     )
                 }
 

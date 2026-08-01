@@ -887,4 +887,23 @@
     <string name="telegram_code_copied_toast">تم نسخ الكود</string>
     <string name="insight_tag_alert">تحذير</string>
     <string name="insight_tag_info">معلومة</string>
+    <!-- ZadShell — mockup app chrome -->
+    <string name="screen_title_home">لوحة الميزانية</string>
+    <string name="screen_title_budget">الميزانية والالتزامات</string>
+    <string name="screen_title_assistant">عقل زاد</string>
+    <string name="screen_title_pharmacy">الصيدلية</string>
+    <string name="screen_title_maintenance">الصيانة</string>
+    <string name="screen_title_deals">عروض قريبة</string>
+    <string name="screen_title_profile">حسابي</string>
+    <string name="nav_tab_home">الرئيسية</string>
+    <string name="nav_more">المزيد</string>
+    <string name="cancel_action">إلغاء</string>
+    <string name="camera_sheet_title">زاد الذكي بالكاميرا</string>
+    <string name="camera_scan_inventory">مسح مخزون</string>
+    <string name="camera_scan_receipt">مسح فاتورة</string>
+    <string name="kids_mode_badge">وضع الأطفال</string>
+    <string name="kids_mode_exit">الوضع الكامل</string>
+    <string name="kids_mode_full_mode">الوضع الكامل 🔒</string>
+    <string name="default_user_name">مستخدم زاد</string>
+    <string name="tap_to_view_profile">اضغط لعرض الملف الشخصي</string>
 </resources>

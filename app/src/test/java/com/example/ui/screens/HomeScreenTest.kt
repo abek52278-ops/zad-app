@@ -33,8 +33,7 @@ class HomeScreenTest {
             HomeScreen(
                 viewModel = viewModel,
                 familyViewModel = familyViewModel,
-                onNavigateToAssistant = {},
-                onOpenDrawer = {}
+                onNavigateToAssistant = {}
             )
         }
 

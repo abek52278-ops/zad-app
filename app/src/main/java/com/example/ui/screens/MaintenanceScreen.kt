@@ -40,8 +40,7 @@ private val MAINTENANCE_CATEGORIES = listOf("عام", "تكييف", "سخان", 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MaintenanceScreen(
-    viewModel: ZadViewModel,
-    onOpenDrawer: () -> Unit = {}
+    viewModel: ZadViewModel
 ) {
     val items by viewModel.maintenanceItems.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
@@ -59,17 +58,6 @@ fun MaintenanceScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().background(surface).padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onOpenDrawer) {
-                    Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.nav_menu), tint = onSurfaceVariant)
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(R.string.maintenance_title), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = primary)
-            }
-
             AppearOnEntry {
                 Box(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)

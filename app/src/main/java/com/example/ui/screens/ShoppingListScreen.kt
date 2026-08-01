@@ -57,7 +57,6 @@ private const val TAG = "ShoppingListScreen"
 @Composable
 fun ShoppingListScreen(
     viewModel: ZadViewModel,
-    onOpenDrawer: () -> Unit = {},
     onNavigateToAssistant: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -117,7 +116,6 @@ fun ShoppingListScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            ShoppingTopBar(onOpenDrawer = onOpenDrawer)
 
             LazyColumn(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 140.dp),
@@ -299,21 +297,6 @@ fun ShoppingListScreen(
                 showAddDialog = false
             }
         )
-    }
-}
-
-@Composable
-private fun ShoppingTopBar(onOpenDrawer: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().background(surface).padding(horizontal = 16.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(onClick = onOpenDrawer) { Icon(Icons.Default.Menu, contentDescription = "Menu", tint = onSurfaceVariant) }
-        Text("وكيل التسوق الذكي", style = Typography.titleLarge, color = onSurface, fontWeight = FontWeight.Bold)
-        Box(modifier = Modifier.size(38.dp).clip(CircleShape).background(primary.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
-            Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = primary, modifier = Modifier.size(18.dp))
-        }
     }
 }
 

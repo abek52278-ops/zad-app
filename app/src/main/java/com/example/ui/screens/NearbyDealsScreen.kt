@@ -51,8 +51,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NearbyDealsScreen(
-    viewModel: ZadViewModel,
-    onOpenDrawer: () -> Unit = {}
+    viewModel: ZadViewModel
 ) {
     val context = LocalContext.current
     val inventory by viewModel.inventory.collectAsState()
@@ -170,17 +169,6 @@ fun NearbyDealsScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().background(surface).padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onOpenDrawer) {
-                    Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.nav_menu), tint = onSurfaceVariant)
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(R.string.nearby_deals_title), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = primary)
-            }
-
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
                     .clip(RoundedCornerShape(12.dp)).background(surfaceContainerLow).padding(12.dp),

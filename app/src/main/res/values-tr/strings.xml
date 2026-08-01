@@ -907,4 +907,23 @@
     <string name="telegram_code_copied_toast">Kod kopyalandı</string>
     <string name="insight_tag_alert">Uyarı</string>
     <string name="insight_tag_info">Bilgi</string>
+    <!-- ZadShell — mockup app chrome -->
+    <string name="screen_title_home">Bütçe Panosu</string>
+    <string name="screen_title_budget">Bütçe ve Yükümlülükler</string>
+    <string name="screen_title_assistant">Zad Zihni</string>
+    <string name="screen_title_pharmacy">Eczane</string>
+    <string name="screen_title_maintenance">Bakım</string>
+    <string name="screen_title_deals">Yakındaki fırsatlar</string>
+    <string name="screen_title_profile">Hesabım</string>
+    <string name="nav_tab_home">Ana sayfa</string>
+    <string name="nav_more">Daha fazla</string>
+    <string name="cancel_action">İptal</string>
+    <string name="camera_sheet_title">Zad akıllı kamera</string>
+    <string name="camera_scan_inventory">Stok tara</string>
+    <string name="camera_scan_receipt">Fiş tara</string>
+    <string name="kids_mode_badge">Çocuk modu</string>
+    <string name="kids_mode_exit">Tam mod</string>
+    <string name="kids_mode_full_mode">Tam mod 🔒</string>
+    <string name="default_user_name">Zad kullanıcısı</string>
+    <string name="tap_to_view_profile">Profili görmek için dokun</string>
 </resources>

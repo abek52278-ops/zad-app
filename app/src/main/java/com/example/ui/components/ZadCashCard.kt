@@ -1,6 +1,11 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -34,12 +40,19 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import com.example.data.CurrencyFormatter
 import com.example.data.HabitChip
-import com.example.ui.screens.HabitChipsRow
+import com.example.ui.theme.onSurface
+import com.example.ui.theme.onSurfaceVariant
+import com.example.ui.theme.outlineVariant
+import com.example.ui.theme.primary
 import com.example.ui.theme.secondary
 import com.example.ui.theme.secondaryDark
+import com.example.ui.theme.surface
 
 /**
  * Task 19.4 — "الميزة كلها بتنجح أو تفشل هنا" (EPIC_1_4.md). الكارت ده *هو* التذكير:
@@ -152,4 +165,56 @@ private fun SpentFromCashDialog(onDismiss: () -> Unit, onSave: (Double, String, 
             TextButton(onClick = onDismiss) { Text("إلغاء") }
         }
     )
+}
+
+/**
+ * Task 22 — كارت لكل عادة صرف ثابتة، Tap واحد يسجّلها كمصروف كاش فوري.
+ *
+ * Lived in `TransactionsScreen` until that screen was deleted with the rest of the
+ * pre-mockup UI; `CashCard` above is its only consumer, so it moved here rather
+ * than dying with its old host.
+ */
+@Composable
+fun HabitChipsRow(
+    chips: List<HabitChip>,
+    onChipTap: (HabitChip) -> Unit,
+    horizontalPadding: Dp = 16.dp
+) {
+    val context = LocalContext.current
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        Text(
+            "عادات صرفك",
+            modifier = Modifier.padding(horizontal = horizontalPadding, vertical = 4.dp),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = onSurfaceVariant
+        )
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = horizontalPadding),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(chips, key = { it.label + it.category }) { chip ->
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(surface)
+                        .border(1.dp, outlineVariant, RoundedCornerShape(20.dp))
+                        .clickable { onChipTap(chip) }
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Outlined.Bolt, contentDescription = null, tint = primary, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Column {
+                        Text(chip.label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            CurrencyFormatter.formatNumber(context, chip.amount),
+                            fontSize = 11.sp,
+                            color = onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
 }

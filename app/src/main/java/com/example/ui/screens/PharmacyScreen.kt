@@ -77,7 +77,6 @@ private fun suggestDoseTimes(dailyDoseCount: Int): String {
 fun PharmacyScreen(
     viewModel: ZadViewModel,
     familyViewModel: FamilyViewModel = viewModel(),
-    onOpenDrawer: () -> Unit = {},
     onNavigateToCamera: () -> Unit = {}
 ) {
     val items by viewModel.pharmacyItems.collectAsState()
@@ -126,26 +125,18 @@ fun PharmacyScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header
+            // The screen title lives in ZadTopHeader now — only this screen's own
+            // two actions stay here.
             Row(
-                modifier = Modifier.fillMaxWidth().background(surface).padding(horizontal = 16.dp, vertical = 14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onOpenDrawer) {
-                        Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.nav_menu), tint = onSurfaceVariant)
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.pharmacy_title), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = primary)
+                IconButton(onClick = { isGridView = !isGridView }, modifier = Modifier.pressableScale()) {
+                    Icon(if (isGridView) Icons.Default.ViewList else Icons.Default.GridView, contentDescription = stringResource(R.string.toggle_view_action), tint = onSurfaceVariant)
                 }
-                Row {
-                    IconButton(onClick = { isGridView = !isGridView }, modifier = Modifier.pressableScale()) {
-                        Icon(if (isGridView) Icons.Default.ViewList else Icons.Default.GridView, contentDescription = stringResource(R.string.toggle_view_action), tint = onSurfaceVariant)
-                    }
-                    IconButton(onClick = onNavigateToCamera, modifier = Modifier.pressableScale()) {
-                        Icon(Icons.Default.CameraAlt, contentDescription = stringResource(R.string.scan_medicine_action), tint = primary)
-                    }
+                IconButton(onClick = onNavigateToCamera, modifier = Modifier.pressableScale()) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = stringResource(R.string.scan_medicine_action), tint = primary)
                 }
             }
 

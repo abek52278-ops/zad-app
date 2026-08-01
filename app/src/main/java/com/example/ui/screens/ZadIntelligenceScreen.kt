@@ -59,8 +59,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ZadIntelligenceScreen(
     viewModel: ZadViewModel,
-    familyViewModel: com.example.ui.viewmodels.FamilyViewModel,
-    onOpenDrawer: () -> Unit = {}
+    familyViewModel: com.example.ui.viewmodels.FamilyViewModel
 ) {
     val transactions by viewModel.transactions.collectAsState()
     val inventory by viewModel.inventory.collectAsState()
@@ -96,8 +95,6 @@ fun ZadIntelligenceScreen(
     // behind every screen. A white fill here is what made this screen's white cards
     // read as flat dead blocks (white card on white page, shadow invisible).
     Column(modifier = Modifier.fillMaxSize()) {
-        IntelligenceTopBar(onOpenDrawer)
-
         val tabs = listOf(
             stringResource(R.string.tab_overview),
             stringResource(R.string.tab_behavior_predictions),
@@ -2790,30 +2787,6 @@ private fun ZadIntTypingIndicator() {
             )
         }
     }
-}
-
-// ════════════════════════════════════════════════════════════════
-//  TOP BAR
-// ════════════════════════════════════════════════════════════════
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun IntelligenceTopBar(onOpenDrawer: () -> Unit) {
-    TopAppBar(
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = primary, modifier = Modifier.size(22.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(R.string.zad_ai), style = Typography.headlineMedium, fontWeight = FontWeight.Bold, color = primary)
-            }
-        },
-        actions = {
-            IconButton(onClick = onOpenDrawer) {
-                Icon(Icons.Default.Menu, contentDescription = "Menu", tint = onSurface)
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = background)
-    )
 }
 
 // ════════════════════════════════════════════════════════════════

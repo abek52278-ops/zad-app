@@ -42,8 +42,7 @@ import java.time.temporal.ChronoUnit
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SubscriptionsScreen(
-    viewModel: ZadViewModel,
-    onOpenDrawer: () -> Unit = {}
+    viewModel: ZadViewModel
 ) {
     val subscriptions by viewModel.subscriptions.collectAsState()
     val pendingSubscriptions by viewModel.pendingSubscriptions.collectAsState()
@@ -76,19 +75,12 @@ fun SubscriptionsScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header
+            // Title moved to ZadTopHeader — the active/all filter is all that stays.
             Row(
-                modifier = Modifier.fillMaxWidth().background(surface).padding(horizontal = 16.dp, vertical = 14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onOpenDrawer) {
-                        Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.nav_menu), tint = onSurfaceVariant)
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.subscriptions_title), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = primary)
-                }
                 Row {
                     FilterChip(
                         selected = !showInactive,

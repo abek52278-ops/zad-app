@@ -31,8 +31,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun WeeklyReportScreen(
     viewModel: ZadViewModel,
-    familyViewModel: FamilyViewModel,
-    onOpenDrawer: () -> Unit = {}
+    familyViewModel: FamilyViewModel
 ) {
     val familyState by familyViewModel.state.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
@@ -81,16 +80,7 @@ fun WeeklyReportScreen(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onOpenDrawer) {
-                Icon(Icons.Default.Menu, contentDescription = null, tint = onSurface)
-            }
-            Text(
-                stringResource(R.string.weekly_report_title),
-                style = Typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = onSurface,
-                modifier = Modifier.weight(1f)
-            )
+            Spacer(modifier = Modifier.weight(1f))
             val active = familyState
             if (active is FamilyState.Active) {
                 IconButton(onClick = { generateReport(active) }, enabled = !isLoading) {

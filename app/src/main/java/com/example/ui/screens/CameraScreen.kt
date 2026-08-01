@@ -56,6 +56,8 @@ import java.io.File
 @Composable
 fun CameraScreen(
     viewModel: ZadViewModel,
+    /** "INVENTORY" or "RECEIPT" — preselected by ZadCameraSheet's two buttons. */
+    initialMode: String = "INVENTORY",
     onBack: () -> Unit = {}
 ) {
     var imageUri by remember { mutableStateOf<Uri?>(null) }
@@ -65,7 +67,7 @@ fun CameraScreen(
     var parsedItems by remember { mutableStateOf<List<AiParsedInventoryItem>>(emptyList()) }
     var showConfirmationDialog by remember { mutableStateOf(false) }
     var showManualEntry by remember { mutableStateOf(false) }
-    var scanMode by remember { mutableStateOf("INVENTORY") }
+    var scanMode by remember { mutableStateOf(initialMode) }
     var pulseScale by remember { mutableStateOf(1f) }
     var showCaptureFlash by remember { mutableStateOf(false) }
 

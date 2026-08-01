@@ -82,29 +82,20 @@ fun NotificationCenterScreen(
     }
 
     Scaffold(
-        containerColor = background,
+        containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(stringResource(R.string.notifications_title), fontWeight = FontWeight.Bold)
-                        if (unreadCount > 0) {
-                            Text("$unreadCount غير مقروء", style = Typography.labelSmall, color = onSurfaceVariant)
-                        }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { readAloud() }) {
-                        Icon(Icons.Default.VolumeUp, contentDescription = "قراءة التنبيهات صوتيًا", tint = primary)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = background)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (unreadCount > 0) {
+                    Text("$unreadCount غير مقروء", style = Typography.labelSmall, color = onSurfaceVariant)
+                }
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = { readAloud() }) {
+                    Icon(Icons.Default.VolumeUp, contentDescription = "قراءة التنبيهات صوتيًا", tint = primary)
+                }
+            }
         }
     ) { padding ->
         if (alertInsights.isEmpty() && notifications.isEmpty() && brainAlerts.isEmpty()) {

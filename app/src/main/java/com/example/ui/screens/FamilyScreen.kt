@@ -57,7 +57,6 @@ private const val TAG_FAM = "FamilyScreen"
 fun FamilyScreen(
     pendingInviteCode: String? = null,
     viewModel: FamilyViewModel = viewModel(),
-    onOpenDrawer: () -> Unit = {},
     unreadNotificationCount: Int = 0,
     onNotificationsClick: () -> Unit = {},
     /** false في وضع الأطفال — يخفي الأرصدة/أهداف الادخار/حدود الصرف/مكافآت المهام */
@@ -67,8 +66,6 @@ fun FamilyScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            FamilyTopBar(onOpenDrawer, unreadCount = unreadNotificationCount, onNotificationsClick = onNotificationsClick)
-
             when (val currState = state) {
                 is FamilyState.Loading -> {
                     com.example.ui.components.ZadLoadingState()
@@ -2016,34 +2013,3 @@ private fun TextBubble(msg: ChatMessage, isMe: Boolean, isAi: Boolean, senderAli
     }
 }
 
-@Composable
-fun FamilyTopBar(onOpenDrawer: () -> Unit, unreadCount: Int = 0, onNotificationsClick: () -> Unit = {}) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(surface)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { onOpenDrawer() }) {
-                Icon(Icons.Default.Menu, contentDescription = "Menu", tint = onSurfaceVariant)
-            }
-        }
-        Text(stringResource(R.string.family_hub), style = Typography.titleLarge, color = onSurface, fontWeight = FontWeight.Bold)
-        BadgedBox(
-            badge = {
-                if (unreadCount > 0) {
-                    Badge(containerColor = Color.Red) {
-                        Text("$unreadCount", color = Color.White, fontSize = 10.sp)
-                    }
-                }
-            }
-        ) {
-            IconButton(onClick = onNotificationsClick) {
-                Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = onSurfaceVariant)
-            }
-        }
-    }
-}

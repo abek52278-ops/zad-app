@@ -49,7 +49,6 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun BudgetScreen(
     viewModel: ZadViewModel,
-    onOpenDrawer: () -> Unit = {},
     onNavigateToAssistant: () -> Unit = {},
     onNavigateToCamera: () -> Unit = {}
 ) {
@@ -151,27 +150,16 @@ fun BudgetScreen(
                     )
 
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        // TopBar row
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            horizontalArrangement = Arrangement.End
                         ) {
-                            IconButton(onClick = onOpenDrawer) {
-                                Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White)
-                            }
-                            Text(
-                                stringResource(R.string.transactions_title),
-                                style = Typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
                             IconButton(onClick = { viewModel.showBudgetDialog() }) {
                                 Icon(Icons.Default.Edit, contentDescription = "Edit Budget", tint = Color.White.copy(alpha = 0.8f))
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         // Balance display (animated) — Task 26: "متاح" (available) بقى الأساسي
                         Text(

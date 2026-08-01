@@ -27,6 +27,7 @@ import com.example.data.TasbihaTree
 import com.example.data.ZadInventory
 import com.example.data.ZadShoppingItem
 import com.example.data.SupabaseRepo
+import com.example.ui.components.pressableScale
 import com.example.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -210,79 +211,102 @@ fun MiniShoppingWidget(shoppingList: List<ZadShoppingItem>, onNavigateToShopping
     }
 }
 
+/**
+ * Home's Tasbiha garden card, rebuilt to the mockup's `tasbihaTitle` block:
+ * translucent glass, the completion percentage on the trailing edge, the stage
+ * emoji large and centered, a progress bar, and the count next to a purple tap
+ * button.
+ *
+ * The mockup taps a hardcoded counter; here the button calls the real
+ * `FamilyViewModel.tasbihaClick()` (Supabase-backed, streak-aware), so tasbih no
+ * longer requires opening the full garden screen — tapping the card body still
+ * does that.
+ */
 @Composable
-fun TasbihaHomeWidget(tree: TasbihaTree?, onNavigateToTasbiha: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable { onNavigateToTasbiha() },
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = when (tree?.treeType) {
-                "golden" -> Color(0xFFFFF8E1)
-                "special" -> Color(0xFFF3E5F5)
-                else -> primaryContainer.copy(alpha = 0.3f)
-            }
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+fun TasbihaHomeWidget(
+    tree: TasbihaTree?,
+    onTasbih: () -> Unit,
+    onNavigateToTasbiha: () -> Unit
+) {
+    val pct = ((tree?.progressToNext() ?: 0f) * 100).toInt().coerceIn(0, 100)
+    val animatedPct by animateFloatAsState(
+        targetValue = (tree?.progressToNext() ?: 0f).coerceIn(0f, 1f),
+        animationSpec = tween(400),
+        label = "tasbiha_progress"
+    )
+    // The mockup rains petals the moment the bar fills; a level-up is this app's
+    // equivalent milestone, and it is the only event worth interrupting for.
+    var lastLevel by remember(tree?.id) { mutableStateOf(tree?.level ?: 1) }
+    var showConfetti by remember { mutableStateOf(false) }
+    LaunchedEffect(tree?.level) {
+        val level = tree?.level ?: 1
+        if (level > lastLevel) {
+            showConfetti = true
+            kotlinx.coroutines.delay(2200)
+            showConfetti = false
+        }
+        lastLevel = level
+    }
+
+    com.example.ui.components.GlassCard(
+        modifier = Modifier.clickable { onNavigateToTasbiha() },
+        shape = RoundedCornerShape(18.dp),
+        containerColor = Color.White.copy(alpha = 0.7f),
+        contentPadding = 0.dp
     ) {
-        Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                if (tree != null) Icons.Default.Park else Icons.Default.FavoriteBorder,
-                contentDescription = null,
-                tint = Color(0xFF2E7D32),
-                modifier = Modifier.size(32.dp)
-            )
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Park, contentDescription = null, tint = Color(0xFF2E7D32), modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(if (tree != null) "بستان تسبيحة" else "ابدأ تسبيحك!", fontWeight = FontWeight.Bold, color = onSurface)
-                    if (tree?.treeType == "golden") {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(Icons.Default.Star, contentDescription = null, tint = Color(0xFFFFD700), modifier = Modifier.size(16.dp))
-                    } else if (tree?.treeType == "special") {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(Icons.Default.Diamond, contentDescription = null, tint = Color(0xFF00BCD4), modifier = Modifier.size(16.dp))
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("بستان التسبيح", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textSecondary)
+                Spacer(Modifier.weight(1f))
+                Text("$pct%", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = primaryLight)
+            }
+
+            Box(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
+                Text(tree?.stageEmoji() ?: "🌰", fontSize = 46.sp)
+                if (showConfetti) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        listOf("🌸", "🍃", "🌸", "🍃", "🌸").forEach { Text(it, fontSize = 16.sp) }
                     }
                 }
-                Text(
-                    if (tree != null) "${tree.treeName} • ${tree.stageName()} • ${tree.score} تسبيحة"
-                    else "اضغط لبدء بستان العائلة",
-                    style = MaterialTheme.typography.bodySmall, color = onSurfaceVariant
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color(0xFF0F172A).copy(alpha = 0.08f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(animatedPct)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(50))
+                        .background(Brush.horizontalGradient(listOf(kidsPrimary, primaryLight)))
                 )
-                if (tree != null && tree.streakDays > 0) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(Icons.Default.LocalFireDepartment, contentDescription = null, tint = Color(0xFFFF5722), modifier = Modifier.size(14.dp))
-                        Text(
-                            "${tree.streakDays} أيام متتالية",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFFFF5722),
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+            }
+
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "${tree?.score ?: 0} / ${tree?.nextLevelAt()?.takeIf { it != Int.MAX_VALUE } ?: (tree?.score ?: 0)}",
+                    fontSize = 12.sp,
+                    color = onSurfaceVariant
+                )
+                Spacer(Modifier.weight(1f))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(kidsPrimary)
+                        .pressableScale()
+                        .clickable { onTasbih() }
+                        .padding(horizontal = 20.dp, vertical = 9.dp)
+                ) {
+                    Text("سبحان الله", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
-            if (tree != null) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    LinearProgressIndicator(
-                        progress = { tree.progressToNext() },
-                        modifier = Modifier.width(60.dp).height(6.dp).clip(RoundedCornerShape(3.dp)),
-                        color = when (tree.treeType) {
-                            "golden" -> Color(0xFFFFD700)
-                            "special" -> Color(0xFF9C27B0)
-                            else -> primary
-                        },
-                        trackColor = onSurface.copy(alpha = 0.1f)
-                    )
-                    Text(
-                        "${tree.level}/5",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = onSurfaceVariant
-                    )
-                }
-            }
-            Spacer(Modifier.width(12.dp))
-            Icon(Icons.Default.ArrowForward, null, tint = primary)
         }
     }
 }

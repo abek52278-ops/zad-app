@@ -145,7 +145,6 @@ object InventoryNavState {
 @Composable
 fun InventoryScreen(
     viewModel: ZadViewModel,
-    onOpenDrawer: () -> Unit,
     onNavigateToAssistant: () -> Unit,
     onNavigateToCamera: () -> Unit
 ) {
@@ -182,14 +181,11 @@ fun InventoryScreen(
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(background)
-    ) {
+    // Transparent: MainScreen paints the mockup's canvas gradient behind every
+    // screen, and a white fill here flattens every white list card on top of it.
+    Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            InventoryTopBar(
-                onOpenDrawer = onOpenDrawer,
+            InventorySearchBar(
                 searchQuery = searchQuery,
                 onSearchChange = { viewModel.setSearchQuery(it) }
             )
@@ -332,78 +328,41 @@ fun InventoryScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * The mockup's inventory screen has no app bar of its own — `ZadTopHeader` in the
+ * shell carries the title, so all that is left here is the search field, promoted
+ * from a collapsed icon to a persistent pill (a filter you cannot see is a filter
+ * nobody uses).
+ */
 @Composable
-private fun InventoryTopBar(
-    onOpenDrawer: () -> Unit,
+private fun InventorySearchBar(
     searchQuery: String,
     onSearchChange: (String) -> Unit
 ) {
-    var expanded by remember { mutableStateOf(false) }
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        CenterAlignedTopAppBar(
-            title = {
-                Text(
-                    stringResource(R.string.smart_inventory),
-                    fontWeight = FontWeight.Bold,
-                    color = onBackground
-                )
-            },
-            navigationIcon = {
-                IconButton(onClick = onOpenDrawer) {
-                    Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.main_menu))
+    OutlinedTextField(
+        value = searchQuery,
+        onValueChange = onSearchChange,
+        placeholder = { Text(stringResource(R.string.search_inventory), color = onSurfaceVariant) },
+        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = onSurfaceVariant) },
+        trailingIcon = {
+            if (searchQuery.isNotEmpty()) {
+                IconButton(onClick = { onSearchChange("") }) {
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear_cd), tint = onSurfaceVariant)
                 }
-            },
-            actions = {
-                IconButton(onClick = { expanded = !expanded }) {
-                    Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search_cd))
-                }
-            },
-            colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                containerColor = background
-            )
-        )
-
-        AnimatedVisibility(
-            visible = expanded,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut()
-        ) {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = onSearchChange,
-                placeholder = {
-                    Text(stringResource(R.string.search_inventory), color = onSurfaceVariant)
-                },
-                leadingIcon = {
-                    Icon(
-                        Icons.Default.Search,
-                        contentDescription = null,
-                        tint = onSurfaceVariant
-                    )
-                },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { onSearchChange("") }) {
-                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear_cd), tint = onSurfaceVariant)
-                        }
-                    }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = primary,
-                    unfocusedBorderColor = outline,
-                    focusedContainerColor = surface,
-                    unfocusedContainerColor = surface
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-            )
-        }
-    }
+            }
+        },
+        singleLine = true,
+        shape = RoundedCornerShape(50),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = primary,
+            unfocusedBorderColor = Color.Transparent,
+            focusedContainerColor = Color.White,
+            unfocusedContainerColor = Color.White
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 12.dp)
+    )
 }
 
 private fun getEstimatedPrice(itemName: String): Double {

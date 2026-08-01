@@ -30,7 +30,7 @@ import kotlinx.coroutines.launch
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatementImportScreen(onOpenDrawer: () -> Unit = {}) {
+fun StatementImportScreen() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -61,17 +61,6 @@ fun StatementImportScreen(onOpenDrawer: () -> Unit = {}) {
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().background(surface).padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onOpenDrawer) {
-                    Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.nav_menu), tint = onSurfaceVariant)
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(R.string.statement_import_title), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = primary)
-            }
-
             when (step) {
                 0 -> Column(
                     modifier = Modifier.fillMaxSize().padding(24.dp),

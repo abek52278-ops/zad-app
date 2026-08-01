@@ -291,37 +291,6 @@ fun AppNavigation(pendingInviteCode: String? = null) {
                 )
             }
         }
-        composable("inventory") {
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                val invViewModel = androidx.lifecycle.viewmodel.compose.viewModel<ZadViewModel>()
-                InventoryScreen(
-                    viewModel = invViewModel,
-                    onOpenDrawer = { navController.popBackStack() },
-                    onNavigateToAssistant = { navController.navigate("main") },
-                    onNavigateToCamera = { navController.navigate("camera") }
-                )
-            }
-        }
-        composable("family") {
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                FamilyScreen(
-                    pendingInviteCode = pendingInviteCode,
-                    onOpenDrawer = { navController.popBackStack() }
-                )
-            }
-        }
-        composable("chat") {
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                androidx.compose.material3.Text("الشات متاح من صفحة العائلة")
-            }
-        }
-
-
-        composable("camera") {
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                Text("الكاميرا متاحة من الشريط السفلي")
-            }
-        }
     }
 }
 

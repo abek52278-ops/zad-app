@@ -84,7 +84,6 @@ fun HomeScreen(
     onNavigateToPharmacy: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
     onNavigateToCamera: () -> Unit = {},
-    onOpenDrawer: () -> Unit = {},
     /** تفعيل يدوي من الأب/الأم (Switch to Kids Mode) — بيفرض واجهة الأطفال حتى لو role الحساب "admin" */
     kidsModeOverride: Boolean = false
 ) {
@@ -211,16 +210,6 @@ fun HomeScreen(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
     ) {
-        val appNotificationsState by viewModel.appNotifications.collectAsState()
-        PremiumTopBar(
-            userName = userName,
-            avatarUrl = globalAvatarUri?.toString(),
-            hasUnreadNotifications = appNotificationsState.any { !it.isRead } || zadInsights.any { it.surface == "bell" },
-            onNotificationsClick = {
-                Log.d(TAG_HOME, "🔔 Notifications icon clicked — opening notification center")
-                onNavigateToNotifications()
-            }
-        )
         if (isChild) {
             // KIDS MODE UI
             val needAmountPattern = stringResource(R.string.need_amount_purchase)
@@ -464,7 +453,11 @@ fun HomeScreen(
                 }
 
                 // ── 7. Tasbiha garden ──
-                TasbihaHomeWidget(tree = myTasbiha, onNavigateToTasbiha = onNavigateToTasbiha)
+                TasbihaHomeWidget(
+                    tree = myTasbiha,
+                    onTasbih = { familyViewModel.tasbihaClick() },
+                    onNavigateToTasbiha = onNavigateToTasbiha
+                )
                 Spacer(modifier = Modifier.height(18.dp))
 
                 // ── 8. Chef Zad (mockup: one 18dp white row card — 56dp amber tile,
@@ -670,125 +663,6 @@ fun HomeScreen(
             inventory = inventory,
             onDismiss = { showRecipeDialog = false }
         )
-    }
-}
-
-@Composable
-fun TopAppBarSection(onOpenDrawer: () -> Unit, userName: String, globalAvatarUri: String?, unreadNotificationsCount: Int = 0, onNotificationsClick: () -> Unit = {}, onNavigateToProfile: () -> Unit = {}) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.Transparent)
-            .padding(horizontal = 20.dp, vertical = 24.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Right side (RTL Start) - Profile & Greeting
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            var profileExpanded by remember { mutableStateOf(false) }
-            Box {
-                if (!globalAvatarUri.isNullOrBlank()) {
-                    AsyncImage(
-                        model = globalAvatarUri,
-                        contentDescription = "User Profile",
-                        contentScale = ContentScale.Crop,
-                        placeholder = androidx.compose.ui.res.painterResource(id = R.drawable.avatar),
-                        error = androidx.compose.ui.res.painterResource(id = R.drawable.avatar),
-                        modifier = Modifier
-                            .size(52.dp)
-                            .clip(CircleShape)
-                            .border(2.dp, primaryFixed, CircleShape)
-                            .clickable { profileExpanded = true }
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(52.dp)
-                            .clip(CircleShape)
-                            .border(2.dp, primaryFixed, CircleShape)
-                            .background(primary.copy(alpha = 0.12f))
-                            .clickable { profileExpanded = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = userName.take(1).uppercase().ifEmpty { "?" },
-                            style = Typography.titleLarge,
-                            color = primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-                DropdownMenu(expanded = profileExpanded, onDismissRequest = { profileExpanded = false }) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.profile_title)) },
-                        onClick = { profileExpanded = false; onNavigateToProfile() }
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.main_menu)) },
-                        onClick = { profileExpanded = false; onOpenDrawer() }
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column {
-                Text(
-                    text = stringResource(R.string.welcome_back_comma),
-                    style = Typography.labelMedium,
-                    color = onSurfaceVariant
-                )
-                Text(
-                    text = userName.ifEmpty { stringResource(R.string.guest_name_fallback) } + " \uD83D\uDC4B",
-                    style = Typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = onSurface
-                )
-            }
-        }
-
-        // Left side (RTL End) - Notifications & Menu
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            // Notifications
-            IconButton(onClick = onNotificationsClick, modifier = Modifier
-                .size(44.dp)
-                .shadow(4.dp, CircleShape, spotColor = Color.Black.copy(alpha = 0.05f))
-                .clip(CircleShape)
-                .background(surface)) {
-                Box(contentAlignment = Alignment.Center) {
-                    if (unreadNotificationsCount > 0) {
-                        ZadLottieAsset(
-                            resId = R.raw.lottie_bell_notification,
-                            iterations = 1,
-                            autoPlay = unreadNotificationsCount > 0,
-                            modifier = Modifier.size(36.dp),
-                            contentDescription = null
-                        )
-                    }
-                    Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = onSurfaceVariant, modifier = Modifier.size(24.dp))
-                    if (unreadNotificationsCount > 0) {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(dangerColor)
-                                .border(1.5.dp, surface, CircleShape)
-                                .align(Alignment.TopEnd)
-                        )
-                    }
-                }
-            }
-
-            // Menu Drawer
-            IconButton(
-                onClick = onOpenDrawer,
-                modifier = Modifier
-                    .size(44.dp)
-                    .shadow(4.dp, CircleShape, spotColor = Color.Black.copy(alpha = 0.05f))
-                    .clip(CircleShape)
-                    .background(surface)
-            ) {
-                Icon(Icons.Default.Menu, contentDescription = "Menu", tint = onSurfaceVariant, modifier = Modifier.size(24.dp))
-            }
-        }
     }
 }
 

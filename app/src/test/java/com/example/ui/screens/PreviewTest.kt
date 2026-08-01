@@ -37,7 +37,12 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.data.Figure
 import com.example.data.ZadInsight
 import com.example.ui.components.GlassCard
+import com.example.ui.components.ZadBottomNavBar
 import com.example.ui.components.ZadCanvasBackground
+import com.example.ui.components.ZadDrawerContent
+import com.example.ui.components.ZadRoutes
+import com.example.ui.components.ZadTopHeader
+import com.example.ui.components.zadDrawerEntries
 import com.example.ui.components.ZadCardHero
 import com.example.ui.components.ZadChefCard
 import com.example.ui.components.ZadDaysAndSafeSpendRow
@@ -294,6 +299,63 @@ class PreviewTest {
 
         composeTestRule.onRoot().captureRoboImage(
             filePath = "build/outputs/roborazzi/home_mockup_sequence.png"
+        )
+    }
+
+    /**
+     * The mockup's app chrome, rendered as one frame: sticky header over the
+     * canvas gradient, and the floating bottom pill with its raised camera
+     * button. This is what replaced twelve per-screen `TopAppBar`s, so it is the
+     * one composable worth a screenshot gate.
+     */
+    @Test
+    fun captureZadShellChrome() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    ZadCanvasBackground(modifier = Modifier.fillMaxSize())
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        ZadTopHeader(
+                            title = "لوحة الميزانية",
+                            hasUnreadNotifications = true
+                        )
+                        Spacer(Modifier.weight(1f))
+                        ZadBottomNavBar(
+                            currentRoute = ZadRoutes.HOME,
+                            kidsMode = false,
+                            onNavigate = {},
+                            onOpenCamera = {},
+                            onOpenMore = {}
+                        )
+                    }
+                }
+            }
+        }
+
+        composeTestRule.onRoot().captureRoboImage(
+            filePath = "build/outputs/roborazzi/zad_shell_chrome.png"
+        )
+    }
+
+    @Test
+    fun captureZadShellDrawer() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.fillMaxWidth(0.78f).fillMaxSize()) {
+                    ZadDrawerContent(
+                        currentRoute = ZadRoutes.HOME,
+                        entries = zadDrawerEntries,
+                        userName = "سارة",
+                        avatarUri = null,
+                        onNavigate = {},
+                        onProfileClick = {}
+                    )
+                }
+            }
+        }
+
+        composeTestRule.onRoot().captureRoboImage(
+            filePath = "build/outputs/roborazzi/zad_shell_drawer.png"
         )
     }
 }
