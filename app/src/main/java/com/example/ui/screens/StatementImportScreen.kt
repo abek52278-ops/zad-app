@@ -215,10 +215,9 @@ private fun PreviewStep(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(rows, key = { it.rowIndex }) { row ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = if (row.hasError) dangerColor.copy(alpha = 0.06f) else surface)
+                com.example.ui.components.ZadListCard(
+                    containerColor = if (row.hasError) dangerColor.copy(alpha = 0.06f) else surface,
+                    contentPadding = 0.dp
                 ) {
                     Row(modifier = Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(

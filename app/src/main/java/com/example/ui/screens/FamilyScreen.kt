@@ -388,10 +388,9 @@ private fun KidsSpendingTab(
             val completed = childChores.count { it.isCompleted }
             val childRequests = purchaseRequests.filter { it.senderId == child.id }
 
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = surface)
+            com.example.ui.components.ZadListCard(
+                modifier = Modifier.padding(vertical = 6.dp),
+                contentPadding = 0.dp
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1381,10 +1380,9 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
 
         item {
             val currentGoal = goals.maxByOrNull { it.monthYear }
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            com.example.ui.components.ZadListCard(
+                modifier = Modifier.padding(bottom = 16.dp),
+                contentPadding = 0.dp
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1440,10 +1438,9 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
         }
 
         item {
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            com.example.ui.components.ZadListCard(
+                modifier = Modifier.padding(bottom = 16.dp),
+                contentPadding = 0.dp
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(stringResource(R.string.children_balance_stats), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
@@ -1486,11 +1483,7 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
         }
 
         item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = primary.copy(alpha = 0.1f))
-            ) {
+            com.example.ui.components.ZadListCard(contentPadding = 0.dp) {
                 Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.MonetizationOn, contentDescription = null, tint = primary, modifier = Modifier.size(32.dp))
                     Spacer(modifier = Modifier.width(16.dp))

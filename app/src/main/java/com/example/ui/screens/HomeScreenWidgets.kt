@@ -141,13 +141,12 @@ fun PremiumFeatureCard(title: String, icon: ImageVector, gradient: Brush, onClic
 
 @Composable
 fun MiniInventoryWidget(inventory: List<ZadInventory>, onNavigateToInventory: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onNavigateToInventory() },
+    // white card with the design's two-layer shadow — these were flat, zero-elevation
+    // half-transparent grey on the grey canvas, so they had no edge at all
+    com.example.ui.components.ZadListCard(
+        modifier = Modifier.clickable { onNavigateToInventory() },
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        contentPadding = 0.dp
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(
@@ -174,13 +173,12 @@ fun MiniInventoryWidget(inventory: List<ZadInventory>, onNavigateToInventory: ()
 
 @Composable
 fun MiniShoppingWidget(shoppingList: List<ZadShoppingItem>, onNavigateToShopping: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onNavigateToShopping() },
+    // white card with the design's two-layer shadow — these were flat, zero-elevation
+    // half-transparent grey on the grey canvas, so they had no edge at all
+    com.example.ui.components.ZadListCard(
+        modifier = Modifier.clickable { onNavigateToShopping() },
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        contentPadding = 0.dp
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(

@@ -214,11 +214,9 @@ fun FamilyManagementScreen(familyViewModel: FamilyViewModel, onBack: () -> Unit)
         Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
             if (state is FamilyState.Active) {
                 val activeState = state as FamilyState.Active
-                Card(
-                    modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(16.dp)),
-                    colors = CardDefaults.cardColors(containerColor = primary)
-                ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
+                // the design's inset mesh banner, same as every other headline number
+                com.example.ui.components.ZadScreenBanner(contentPadding = 20.dp) {
+                    Column {
                         Text(stringResource(R.string.family_invite_code_label), style = Typography.labelMedium, color = Color.White.copy(alpha = 0.8f))
                         Text(activeState.familyGroup.inviteCode, style = Typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Bold)
                     }
@@ -323,10 +321,7 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
 
         AppearOnEntry {
         Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
-            Card(
-                modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(16.dp)),
-                colors = CardDefaults.cardColors(containerColor = surface)
-            ) {
+            com.example.ui.components.ZadListCard(contentPadding = 0.dp) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     Text(stringResource(R.string.current_monthly_budget), style = Typography.labelMedium, color = onSurfaceVariant)
                     Spacer(modifier = Modifier.height(8.dp))

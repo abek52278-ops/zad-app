@@ -162,16 +162,17 @@ private fun WeeklyReportContent(
 
         item {
             Spacer(Modifier.height(16.dp))
-            Surface(shape = RoundedCornerShape(20.dp), color = surface, shadowElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = primary, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(stringResource(R.string.ai_family_summary_title), fontWeight = FontWeight.Bold, color = onSurface)
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Text(analysis.familySummary.ifBlank { "—" }, style = Typography.bodyMedium, color = onSurfaceVariant)
-                }
+            // anything the assistant *says* goes on the dark #052E16 panel in this
+            // design, not on another white card
+            com.example.ui.components.ZadDarkPanel(
+                title = stringResource(R.string.ai_family_summary_title)
+            ) {
+                Text(
+                    analysis.familySummary.ifBlank { "—" },
+                    style = Typography.bodyMedium,
+                    color = Color.White,
+                    lineHeight = 22.sp
+                )
             }
         }
 
@@ -185,10 +186,9 @@ private fun WeeklyReportContent(
                 val spent = com.example.data.approvedSpendSince(state.messages, child.id, weekAgo)
                 val choresDone = state.chores.count { it.assignedTo == child.id && it.isCompleted }
                 val choresTotal = state.chores.count { it.assignedTo == child.id }
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = surfaceContainer,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                com.example.ui.components.ZadListCard(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    contentPadding = 0.dp
                 ) {
                     Column(Modifier.padding(14.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -250,7 +250,10 @@ private fun WeeklyReportContent(
                 Spacer(Modifier.height(8.dp))
             }
             items(analysis.memberHighlights) { h ->
-                Surface(shape = RoundedCornerShape(14.dp), color = Color(0xFFF5F3FF), modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                com.example.ui.components.ZadListCard(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    contentPadding = 0.dp
+                ) {
                     Column(Modifier.padding(12.dp)) {
                         Text(h.name, fontWeight = FontWeight.Bold, color = Color(0xFF6D28D9), fontSize = 13.sp)
                         if (h.achievement.isNotBlank()) Text("🌟 ${h.achievement}", style = Typography.bodySmall, color = Color(0xFF4C1D95))
@@ -289,7 +292,7 @@ private fun HealthScoreGauge(score: Int) {
         label = "familyHealthScore"
     )
     Spacer(Modifier.height(4.dp))
-    Surface(shape = RoundedCornerShape(20.dp), color = surface, shadowElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(20.dp), contentPadding = 0.dp) {
         Row(modifier = Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.size(84.dp)) {
                 CircularProgressIndicator(

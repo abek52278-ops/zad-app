@@ -164,13 +164,12 @@ fun RecipeDetailDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Card(
+        com.example.ui.components.ZadListCard(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
                 .fillMaxHeight(0.85f),
             shape = RoundedCornerShape(28.dp),
-            colors = CardDefaults.cardColors(containerColor = surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            contentPadding = 0.dp
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 AppearOnEntry {
@@ -222,7 +221,7 @@ fun RecipeDetailDialog(
                                 text = recipeTitle,
                                 style = Typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = Color.White
                             )
                         }
                     }

@@ -3,6 +3,7 @@ package com.example.ui.screens
 import androidx.compose.animation.core.*
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -35,6 +36,7 @@ import com.example.R
 import com.example.data.TasbihaTree
 import com.example.data.FamilyMemberWithTasbiha
 import com.example.ui.components.ZadLottieAsset
+import com.example.ui.components.zadCardShadow
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.FamilyViewModel
 import androidx.compose.ui.platform.LocalContext
@@ -293,34 +295,29 @@ private fun TasbihaMainContent(
         )
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(primary, primaryLight)
-                        )
-                    )
-                    .padding(top = 16.dp, bottom = 16.dp, start = 8.dp, end = 16.dp)
+            // The design has no full-bleed per-screen header — the title lives in
+            // ZadTopHeader, and a screen's own headline number goes in the same inset
+            // mesh-gradient banner Subscriptions and Shopping use. This was a
+            // hard-edged green band butted against the top of the content.
+            com.example.ui.components.ZadScreenBanner(
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                contentPadding = 18.dp
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Park, contentDescription = null, modifier = Modifier.size(24.dp), tint = Color.White)
+                    Spacer(Modifier.width(10.dp))
                     Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Park, contentDescription = null, modifier = Modifier.size(24.dp), tint = Color.White)
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                stringResource(R.string.tasbiha_garden),
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
+                        Text(
+                            stringResource(R.string.tasbiha_garden),
+                            style = Typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             stringResource(R.string.tasbiha_trees_and_score, myAllTrees.size, myAllTrees.sumOf { it.score }),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.White.copy(alpha = 0.9f)
+                            style = Typography.labelMedium,
+                            color = Color.White.copy(alpha = 0.85f)
                         )
                     }
                 }
@@ -625,13 +622,11 @@ private fun AnimatedTreeDisplay(
                 Text(tree.stageName(), style = MaterialTheme.typography.bodyMedium, color = onSurfaceVariant)
                 if (tree.streakDays > 0) {
                     Spacer(modifier = Modifier.width(8.dp))
-                    Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFFF5722).copy(alpha = 0.2f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)) {
-                            Icon(Icons.Default.LocalFireDepartment, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color(0xFFFF5722))
-                            Spacer(Modifier.width(4.dp))
-                            Text(stringResource(R.string.streak_days_count, tree.streakDays), fontSize = 12.sp, color = Color(0xFFFF5722), fontWeight = FontWeight.Bold)
-                        }
-                    }
+                    com.example.ui.components.ZadStatusPill(
+                        text = stringResource(R.string.streak_days_count, tree.streakDays),
+                        color = Color(0xFFFF5722),
+                        containerColor = Color(0xFFFF5722).copy(alpha = 0.12f)
+                    )
                 }
             }
             Spacer(modifier = Modifier.height(20.dp))
@@ -804,9 +799,14 @@ private fun TasbihaStats(tree: TasbihaTree) {
 
 @Composable
 private fun StatCard(label: String, value: String, icon: @Composable () -> Unit) {
-    Card(
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = surface)
+    // 16dp radius and the two-layer card shadow, like every other tile in the design —
+    // this was a flat 12dp Material Card with no elevation on a same-white canvas.
+    val statShape = RoundedCornerShape(16.dp)
+    Box(
+        modifier = Modifier
+            .zadCardShadow(statShape)
+            .clip(statShape)
+            .background(surface)
     ) {
         Column(
             Modifier.padding(12.dp),
@@ -826,15 +826,16 @@ private fun TreeMiniCard(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    Card(
+    // white tile with the shared shadow; selection is a green ring, not a grey fill
+    val miniShape = RoundedCornerShape(16.dp)
+    Box(
         modifier = Modifier
             .aspectRatio(1f)
-            .clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) primaryContainer else surfaceContainer
-        ),
-        border = if (isSelected) CardDefaults.outlinedCardBorder() else null
+            .zadCardShadow(miniShape)
+            .clip(miniShape)
+            .background(surface)
+            .then(if (isSelected) Modifier.border(2.dp, primary, miniShape) else Modifier)
+            .clickable { onClick() }
     ) {
         Column(
             modifier = Modifier.fillMaxSize().padding(8.dp),
@@ -890,11 +891,7 @@ private fun FamilyGardenTab(familyMembers: List<FamilyMemberWithTasbiha>) {
 
 @Composable
 private fun FamilyMemberTreeCard(memberData: FamilyMemberWithTasbiha) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = surface)
-    ) {
+    com.example.ui.components.ZadListCard(contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -998,11 +995,7 @@ private fun ChallengesTab(challenges: List<com.example.data.TasbihaChallenge>) {
 
         if (challenges.isEmpty()) {
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = surface)
-                ) {
+                com.example.ui.components.ZadListCard(contentPadding = 0.dp) {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(32.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -1035,11 +1028,9 @@ private fun ChallengesTab(challenges: List<com.example.data.TasbihaChallenge>) {
 
 @Composable
 private fun ChallengeCard(challenge: com.example.data.TasbihaChallenge) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = primary.copy(alpha = 0.1f))
-    ) {
+    // white card, like every other row in the design — this was a 10%-primary tint,
+    // the only card in the app filled with a wash of the brand colour
+    com.example.ui.components.ZadListCard(contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1047,18 +1038,10 @@ private fun ChallengeCard(challenge: com.example.data.TasbihaChallenge) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(challenge.title, fontWeight = FontWeight.Bold, color = onSurface)
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = primary.copy(alpha = 0.2f)
-                ) {
-                    Text(
-                        challenge.challengeType,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        fontSize = 12.sp,
-                        color = primary,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                com.example.ui.components.ZadStatusPill(
+                    text = challenge.challengeType,
+                    color = primary
+                )
             }
             if (challenge.description != null) {
                 Spacer(Modifier.height(8.dp))

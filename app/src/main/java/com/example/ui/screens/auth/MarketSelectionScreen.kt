@@ -11,6 +11,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
+import com.example.ui.components.zadCardShadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -41,7 +44,9 @@ fun MarketSelectionScreen(onContinue: () -> Unit) {
     val listVisible = remember { MutableTransitionState(false) }
     LaunchedEffect(Unit) { listVisible.targetState = true }
 
-    Box(modifier = Modifier.fillMaxSize().background(background)) {
+    // part of the auth flow, so it shares the splash canvas with login/sign-up/onboarding
+    // instead of the flat white it had
+    com.example.ui.components.ZadAuthBackground {
         AppearOnEntry {
         Column(
             modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -70,21 +75,22 @@ fun MarketSelectionScreen(onContinue: () -> Unit) {
                     visibleState = listVisible,
                     enter = ZadTransitions.listItemEnter(index)
                 ) {
-                Card(
+                // white card with the shared shadow; selection is a green ring, the way
+                // the design marks a chosen row everywhere else
+                val optionShape = RoundedCornerShape(20.dp)
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 6.dp)
+                        .zadCardShadow(optionShape)
+                        .clip(optionShape)
+                        .background(surface)
+                        .then(
+                            if (isSelected) Modifier.border(2.dp, primary, optionShape)
+                            else Modifier
+                        )
                         .pressableScale()
-                        .clickable { selected = option.market },
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (isSelected) primary.copy(alpha = 0.12f) else surface
-                    ),
-                    border = BorderStroke(
-                        width = if (isSelected) 2.dp else 1.dp,
-                        color = if (isSelected) primary else outlineVariant
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 4.dp else 0.dp)
+                        .clickable { selected = option.market }
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp),
@@ -111,7 +117,8 @@ fun MarketSelectionScreen(onContinue: () -> Unit) {
 
             Spacer(Modifier.weight(1f))
 
-            Button(
+            com.example.ui.components.ZadPrimaryButton(
+                text = "متابعة",
                 onClick = {
                     selected?.let { market ->
                         MarketPrefs.setMarket(context, market)
@@ -119,12 +126,8 @@ fun MarketSelectionScreen(onContinue: () -> Unit) {
                     }
                 },
                 enabled = selected != null,
-                modifier = Modifier.fillMaxWidth().height(56.dp).pressableScale(),
-                colors = ButtonDefaults.buttonColors(containerColor = primary),
-                shape = RoundedCornerShape(18.dp)
-            ) {
-                Text("متابعة", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            }
+                modifier = Modifier.fillMaxWidth()
+            )
             Spacer(Modifier.height(12.dp))
         }
         }
