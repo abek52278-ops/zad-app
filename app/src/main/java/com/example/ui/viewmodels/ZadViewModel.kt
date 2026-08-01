@@ -108,6 +108,18 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     /** Task 19.0 — مصروف الشهر الحالي بس، مشتق من BudgetMath، مش كل الوقت. مستخدم في تنبيه ٨٥٪. */
     private val _spentThisMonth = MutableStateFlow(0.0)
 
+    /**
+     * نفس الرقم اللي `recalculateRemainingBalance` بيطرحه من الميزانية بالظبط — بحدود
+     * دورة الراتب، مش كل الوقت. الشاشات كانت بتحسب "المصروف" بنفسها بـ
+     * `BudgetMath.totalExpense` (كل المعاملات من أول يوم في التطبيق) وتعرضه جنب "متاح"
+     * المحسوب على الدورة، فالكارت كان بيعرض رقمين من مقياسين مختلفين ومش بيقفلوا حسابياً.
+     */
+    val spentThisCycle: StateFlow<Double> = _spentThisMonth.asStateFlow()
+
+    /** الدخل المرصود داخل نفس الدورة — الطرف التاني من نفس المعادلة، لنفس السبب فوق. */
+    private val _incomeThisCycle = MutableStateFlow(0.0)
+    val incomeThisCycle: StateFlow<Double> = _incomeThisCycle.asStateFlow()
+
     private val _remainingBalance = MutableStateFlow<Double>(3500.0)
     val remainingBalance: StateFlow<Double> = _remainingBalance.asStateFlow()
 
@@ -1242,6 +1254,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
         val spent = BudgetMath.spentInCycle(txs, cycleStart, cycleEnd)
         _spentThisMonth.value = spent
+        _incomeThisCycle.value = BudgetMath.incomeInCycle(txs, cycleStart, cycleEnd)
         val remaining = BudgetMath.remainingInCycle(currentBudget, txs, cycleStart, cycleEnd)
         _remainingBalance.value = remaining
         _cashOnHand.value = BudgetMath.cashOnHand(txs)

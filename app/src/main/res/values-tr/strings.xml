@@ -175,6 +175,7 @@
     <string name="zad_ai_predictions">Zad zeka tahminleri</string>
     <string name="next_month_label">Gelecek ay</string>
     <string name="predicted_label">Tahmin: %1$s</string>
+    <string name="seven_day_trend_label">7 günlük eğilim</string>
     <string name="consumption_ticker_title">Tüketim göstergesi</string>
     <string name="consumption_ticker_period_30d">Son 30 gün</string>
     <string name="consumption_ticker_vs_prev_period">Önceki döneme göre</string>

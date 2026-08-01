@@ -175,6 +175,7 @@
     <string name="zad_ai_predictions">توقعات ذكاء زاد</string>
     <string name="next_month_label">الشهر القادم</string>
     <string name="predicted_label">توقع: %1$s</string>
+    <string name="seven_day_trend_label">اتجاه 7 أيام</string>
     <string name="consumption_ticker_title">مؤشر الاستهلاك</string>
     <string name="consumption_ticker_period_30d">آخر 30 يوم</string>
     <string name="consumption_ticker_vs_prev_period">مقارنة بالفترة السابقة</string>

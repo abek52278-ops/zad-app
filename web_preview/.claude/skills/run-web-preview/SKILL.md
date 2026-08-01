@@ -1,11 +1,17 @@
 ---
 name: run-web-preview
-description: Build, run, and drive the زاد (Zad) web_preview static mockup. Use when asked to start web_preview, take a screenshot of it, or click through its screens (home, inventory, subscriptions, family, chat, kids mode).
+description: Run and drive the زاد (Zad) web_preview design mockup — defaults to the current React build at web_preview/react/, with the older web_preview/index.html mockup still reachable. Use when asked to start web_preview, screenshot it, or click through its screens (home, inventory, Zad Mind, family, kids mode).
 ---
 
-`web_preview/index.html` is a single self-contained static HTML mockup
-(no build step, no framework) of the Zad phone UI — 6 screens toggled
-by JS (`switchScreen()`), no server-side logic. Drive it via the
+**The current design is `web_preview/react/index.html`, not
+`web_preview/index.html`.** `react/` is the 13-screen React port (drawer,
+more/camera/why sheets, kids mode, AR/EN with RTL, React vendored, `app.js`
+committed so there is no build step). `web_preview/index.html` beside it is
+the **older** Tajawal mockup, kept for reference only — this skill used to
+launch it by default, which is why "the preview still shows the old UI".
+Serve `react/index.html` unless you are explicitly asked for the old one.
+
+Both are static (no server-side logic). Drive either via the
 headless-Chromium REPL at `.claude/skills/run-web-preview/driver.mjs`
 (no `chromium-cli` on this machine, so this driver wraps Playwright
 directly).
@@ -34,8 +40,11 @@ virtual X server.
 ```bash
 cd web_preview
 python3 -m http.server 8420 &
-timeout 10 bash -c 'until curl -sf http://localhost:8420/index.html >/dev/null; do sleep 0.5; done'
+timeout 10 bash -c 'until curl -sf http://localhost:8420/react/index.html >/dev/null; do sleep 0.5; done'
 ```
+
+Serving from `web_preview/` (not `web_preview/react/`) keeps the old mockup
+reachable at `/index.html` on the same server.
 
 2. Launch the driver under tmux and drive it:
 
@@ -43,7 +52,7 @@ timeout 10 bash -c 'until curl -sf http://localhost:8420/index.html >/dev/null; 
 tmux new-session -d -s zadweb -x 200 -y 50
 tmux send-keys -t zadweb 'node .claude/skills/run-web-preview/driver.mjs' Enter
 timeout 10 bash -c 'until tmux capture-pane -t zadweb -p | grep -q "launch <url>"; do sleep 0.2; done'
-tmux send-keys -t zadweb 'launch http://localhost:8420/index.html' Enter
+tmux send-keys -t zadweb 'launch http://localhost:8420/react/index.html' Enter
 timeout 20 bash -c 'until tmux capture-pane -t zadweb -p | grep -q "^launched\."; do sleep 0.2; done'
 tmux send-keys -t zadweb 'ss 01-home' Enter
 timeout 10 bash -c 'until tmux capture-pane -t zadweb -p | grep -q "screenshot:.*01-home"; do sleep 0.2; done'
@@ -73,23 +82,34 @@ Screenshots land in `screenshots/` next to the driver (override with
 | `console-errors` | print any buffered console/page errors |
 | `quit` | close the browser, exit the driver |
 
-### The 6 screens
+### Screens (`react/index.html`)
 
-Bottom-nav driven, via `id`/class selectors in `index.html`:
+The React build has no `id`s — it's inline-styled, so drive it by label
+text with `click-text`. A splash screen shows first: `click-text ابدأ مع زاد`
+(AR) / `Get started` (EN) before anything else.
 
 | screen | how to reach it |
 |---|---|
-| Home | `click #navHome` (default on load) |
-| Inventory (المخزون) | `click #navInv` |
-| Chat (مساعد زاد الذكي) | `click .ncenter` |
-| Subscriptions (الاشتراكات) | `click #navSubs` |
-| Family (العائلة) | `click #navFamily` |
-| Kids mode (وضع الأطفال) | `click-text إدارة` (link inside the Family screen's kids card — not in the bottom nav) |
+| Home (الرئيسية) | default after the splash, or `click-text الرئيسية` |
+| Inventory (المخزون) | `click-text المخزون` |
+| Zad Mind (عقل زاد) | `click-text عقل زاد` — tabs: نظرة عامة / السلوك / المحادثة |
+| More sheet | `click-text المزيد` — routes to shopping, budget, pharmacy, maintenance, deals, subs, notifications, profile |
+| Family (العائلة) | drawer (hamburger in the header) or the More sheet |
+| Kids mode | Profile screen → the kids-mode toggle |
+| Why-changed sheet | `click-text لماذا تغير الرقم؟` on Home |
+| Camera sheet | the round center button in the bottom nav |
+| AR ⇄ EN | `click-text EN` (or `AR`) in the header — flips `dir` too |
+
+Selectors for the **old** mockup (`/index.html`), if you're explicitly
+asked for it: `#navHome`, `#navInv`, `.ncenter`, `#navSubs`, `#navFamily`,
+and `click-text إدارة` for its kids mode.
 
 ## Run (human path)
 
-Open `index.html` directly in a real browser, or serve it and open
-`http://localhost:8420/` — it's a static mockup, nothing to build.
+Serve `web_preview/` and open `http://localhost:8420/react/index.html`.
+`file://` works too for the React build (React is vendored, nothing is
+fetched), but `http://` is the tested path. Nothing to build — `app.js` is
+committed; run `react/build.sh` only after editing `react/app.jsx`.
 
 ## Gotchas
 

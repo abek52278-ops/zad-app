@@ -632,13 +632,19 @@ object ZadCentralBrain {
 
     data class DepletionForecast(val itemName: String, val quantity: Int, val predictedDaysLeft: Int)
 
-    /** قوة الصرف — كم يقدر يصرف يومياً بأمان حتى نهاية الشهر */
+    /**
+     * قوة الصرف — كم يقدر يصرف يومياً بأمان حتى نهاية الشهر.
+     *
+     * `powerPct` نسبة المتبقي من البادجت، و**بيبقى null لما مفيش بادجت متسجّل** — قبل كده
+     * كان بيرجع 100 في الحالة دي، يعني مستخدم جديد ما حددش سقف كان بيتقاله "قوي 💪"
+     * على أساس رقم اتخترع من العدم. null بيجبر كل شاشة تعرض "—" بدل رقم مالوش أصل.
+     */
     data class SpendingPower(
         val dailySafeSpend: Double,     // المسموح يومياً من المتبقي
         val currentDailyAvg: Double,    // معدل صرفه الفعلي يومياً
         val daysLeftInMonth: Int,
-        val powerPct: Int,              // 0-100: المتبقي كنسبة من البادجت
-        val status: String              // قوي / متوازن / ضعيف / خطر
+        val powerPct: Int?,             // 0-100: المتبقي كنسبة من البادجت — null = مفيش بادجت
+        val status: String              // قوي / متوازن / ضعيف / خطر / غير محدد
     )
 
     /** البروفايل السلوكي العميق — محسوب محلياً من كل المعاملات */
@@ -680,7 +686,9 @@ object ZadCentralBrain {
         val insights: List<String>,                 // ملاحظات جاهزة للعرض
         val spendingPower: SpendingPower,           // عداد قوة الصرف
         val behaviorProfile: BehaviorProfile?,      // التحليل السلوكي العميق (null لو البيانات قليلة)
-        val monthComparison: MonthComparison?       // مقارنة شهرية (null لو مفيش شهر سابق)
+        val monthComparison: MonthComparison?,      // مقارنة شهرية (null لو مفيش شهر سابق)
+        /** false = مفيش بادجت ولا معاملات في الشهر ده، فـ healthScore رقم افتراضي مش تقييم */
+        val hasEnoughData: Boolean = true
     )
 
     /**
@@ -758,7 +766,16 @@ object ZadCentralBrain {
             .map { it.key to it.value }
 
         // 4) الاشتراكات الشهرية
-        val subsMonthlyCost = subscriptions.filter { it.isActive }.sumOf { it.amount }
+        // subsMonthlyCost = كل حاجة متكررة (بما فيها الإيجار والأقساط) — ده الرقم اللي
+        // BrainReport.subscriptionsMonthlyCost بيتعرّف بيه ومحدش بيقيس عليه حكم.
+        // discretionaryMonthlyCost = الاشتراكات الاختيارية بس. كل نسبة أو خصم نقاط تحت
+        // بيتحسب من ده، مش من الأول: "اشتراكاتك ٦٠٪ من ميزانيتك" لمستخدم إيجاره ٥٥٪
+        // منها كانت جملة صح حسابياً وغلط تماماً في معناها — ودي بالظبط اللي بتخلي
+        // كارت التحليلات يقول رقم مالوش لازمة.
+        val activeSubs = subscriptions.filter { it.isActive }
+        val subsMonthlyCost = activeSubs.sumOf { it.amount }
+        val discretionarySubs = activeSubs.filter { !isFixedObligation(it) }
+        val discretionaryMonthlyCost = discretionarySubs.sumOf { it.amount }
 
         // 5) صحة المخزون + تنبؤات النفاد من ConsumptionLearner
         val lowStock = inventory.count { it.quantity <= (it.lowStockThreshold ?: 2) }
@@ -775,6 +792,11 @@ object ZadCentralBrain {
         }.sortedBy { it.predictedDaysLeft }.take(8)
 
         // 6) نقاط الصحة المالية (0-100)
+        // كل الخصومات تحت شرطية: مفيش بادجت ومفيش معاملات ومفيش مخزون يعني مفيش خصم
+        // واحد يتطبّق، فالنتيجة بتفضل 100 = "ممتاز 🌟" لحساب فاضي تماماً. النتيجة نفسها
+        // سليمة كحساب، بس عرضها كتقييم كذب — hasEnoughData هي اللي بتخلي الشاشة تعرض
+        // "—" بدل ما تدّي مستخدم يومه الأول شهادة صحة مالية.
+        val hasEnoughData = budget > 0 || monthTx.isNotEmpty()
         var score = 100
         if (budget > 0) {
             val pctUsed = (totalSpent / budget * 100).toInt()
@@ -790,7 +812,9 @@ object ZadCentralBrain {
             score -= ((lowStock.toDouble() / inventory.size) * 20).toInt()
             score -= (expiringSoon * 3).coerceAtMost(10)
         }
-        if (budget > 0 && subsMonthlyCost > budget * 0.25) score -= 10
+        // الخصم ده معناه "اشتراكاتك الاختيارية واكلة ربع الميزانية" — الإيجار والأقساط
+        // مش سلوك ينتقد، فما بيدخلوش في الحساب.
+        if (budget > 0 && discretionaryMonthlyCost > budget * 0.25) score -= 10
         val healthScore = score.coerceIn(0, 100)
         val healthLabel = when {
             healthScore >= 85 -> "ممتاز 🌟"
@@ -807,17 +831,17 @@ object ZadCentralBrain {
         categoryBreakdown.filter { it.isOverBudget }.forEach {
             insights.add("⛔ تجاوزت ميزانية ${it.category} بـ${CurrencyFormatter.format(context, it.spent - it.budget)}")
         }
-        if (subsMonthlyCost > 0) {
-            insights.add("اشتراكاتك النشطة تكلفك ${CurrencyFormatter.format(context, subsMonthlyCost)} شهرياً (${CurrencyFormatter.format(context, subsMonthlyCost * 12)} سنوياً)")
+        if (discretionaryMonthlyCost > 0) {
+            insights.add("اشتراكاتك النشطة تكلفك ${CurrencyFormatter.format(context, discretionaryMonthlyCost)} شهرياً (${CurrencyFormatter.format(context, discretionaryMonthlyCost * 12)} سنوياً)")
 
             // اقتراح إلغاء: نسبة الاشتراكات من الميزانية مرتفعة — بس من الاشتراكات
-            // الاختيارية فعلاً. الإيجار والأقساط والفواتير التزامات ثابتة، مينفعش
-            // الاقتراح يقول "راجعه لو مش مستخدمه" عن حاجة زي الإيجار.
-            val discretionarySubs = subscriptions.filter { it.isActive && !isFixedObligation(it) }
-            if (budget > 0 && subsMonthlyCost > budget * 0.2) {
+            // الاختيارية فعلاً، بسطاً ومقاماً. الإيجار والأقساط والفواتير التزامات ثابتة،
+            // مينفعش الاقتراح يقول "راجعه لو مش مستخدمه" عن حاجة زي الإيجار، ولا حتى
+            // يعدّها في النسبة اللي بتبرّر الاقتراح.
+            if (budget > 0 && discretionaryMonthlyCost > budget * 0.2) {
                 val mostExpensive = discretionarySubs.maxByOrNull { it.amount }
                 if (mostExpensive != null) {
-                    insights.add("💡 اشتراكاتك ${(subsMonthlyCost / budget * 100).toInt()}% من ميزانيتك — راجع ${mostExpensive.title} (${CurrencyFormatter.format(context, mostExpensive.amount)}) لو مش مستخدمه")
+                    insights.add("💡 اشتراكاتك ${(discretionaryMonthlyCost / budget * 100).toInt()}% من ميزانيتك — راجع ${mostExpensive.title} (${CurrencyFormatter.format(context, mostExpensive.amount)}) لو مش مستخدمه")
                 }
             }
 
@@ -843,13 +867,14 @@ object ZadCentralBrain {
         val daysLeftInMonth = (today.lengthOfMonth() - today.dayOfMonth + 1).coerceAtLeast(1)
         val dailySafeSpend = (remaining / daysLeftInMonth).coerceAtLeast(0.0)
         val currentDailyAvg = if (today.dayOfMonth > 0) totalSpent / today.dayOfMonth else 0.0
-        val powerPct = if (budget > 0) ((remaining / budget) * 100).toInt().coerceIn(0, 100) else 100
+        val powerPct = if (budget > 0) ((remaining / budget) * 100).toInt().coerceIn(0, 100) else null
         val spendingPower = SpendingPower(
             dailySafeSpend = dailySafeSpend,
             currentDailyAvg = currentDailyAvg,
             daysLeftInMonth = daysLeftInMonth,
             powerPct = powerPct,
             status = when {
+                powerPct == null -> "غير محدد"
                 powerPct >= 60 -> "قوي 💪"
                 powerPct >= 35 -> "متوازن ⚖️"
                 powerPct >= 15 -> "ضعيف ⚠️"
@@ -955,7 +980,8 @@ object ZadCentralBrain {
             insights = insights,
             spendingPower = spendingPower,
             behaviorProfile = behaviorProfile,
-            monthComparison = monthComparison
+            monthComparison = monthComparison,
+            hasEnoughData = hasEnoughData
         )
     }
 

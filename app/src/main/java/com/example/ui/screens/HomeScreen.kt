@@ -117,8 +117,11 @@ fun HomeScreen(
     val cashOnHand by viewModel.cashOnHand.collectAsState()
     val habitChips by viewModel.habitChips.collectAsState()
 
-    val totalIncome = com.example.data.BudgetMath.totalIncome(transactions)
-    val totalSpent = com.example.data.BudgetMath.totalExpense(transactions)
+    // "مصروف" في كارت الميزانية لازم يكون مصروف نفس الدورة اللي "متاح" اتحسب عليها.
+    // كان BudgetMath.totalExpense — إجمالي كل المعاملات من أول يوم في التطبيق — جنب
+    // "متاح" المحسوب على الدورة، فالكارت كان بيعرض رقمين مالهمش علاقة ببعض وبيكبر
+    // للأبد. spentThisCycle هو نفس الرقم اللي ZadViewModel بيطرحه من الميزانية.
+    val totalSpent by viewModel.spentThisCycle.collectAsState()
     val currentBudget = remainingBalance
 
     val shortageCount = remember(inventory) {
@@ -405,15 +408,18 @@ fun HomeScreen(
                 zadFacts?.let { facts ->
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            // المockup بيحط نسبة مئوية هنا ("82%")، والحالة النصية
+                            // ("قوي 💪") بتفضل على شاشة عقل زاد جنب العداد نفسه.
+                            // powerPct = null يعني مفيش سقف ميزانية، فمفيش نسبة تتعرض.
                             com.example.ui.components.ZadStatTile(
                                 modifier = Modifier.weight(1f).clickable { onNavigateToAssistant() },
                                 label = stringResource(R.string.spending_power),
-                                value = facts.report.spendingPower.status
+                                value = facts.report.spendingPower.powerPct?.let { "$it%" } ?: "—"
                             )
                             com.example.ui.components.ZadStatTile(
                                 modifier = Modifier.weight(1f).clickable { onNavigateToAssistant() },
                                 label = "الصحة المالية",
-                                value = "${facts.report.healthScore}/100"
+                                value = if (facts.report.hasEnoughData) "${facts.report.healthScore}/100" else "—"
                             )
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -422,11 +428,23 @@ fun HomeScreen(
                                 label = "الإنفاق الشهري",
                                 value = com.example.data.CurrencyFormatter.format(context, facts.report.totalSpent)
                             )
-                            val consumptionTrend = facts.report.dailyTrend.takeLast(7).sumOf { it.amount }
+                            // "اتجاه ٧ أيام" في الmockup نسبة تغيّر (↓ 6%)، مش مبلغ.
+                            // اللي كان هنا مجموع آخر ٧ أيام بالريال تحت عنوان "اتجاه" —
+                            // رقم صح باسم غلط، وما بيقولش اتجاه إيه مقارنة بإيه.
+                            // dailyTrend فيها ١٤ يوم، فالأسبوع اللي فات هو خط الأساس.
+                            val trend = facts.report.dailyTrend
+                            val last7 = trend.takeLast(7).sumOf { it.amount }
+                            val prev7 = trend.dropLast(7).takeLast(7).sumOf { it.amount }
+                            val deltaPct = if (prev7 > 0.0) ((last7 - prev7) / prev7 * 100).toInt() else null
                             com.example.ui.components.ZadStatTile(
                                 modifier = Modifier.weight(1f).clickable { onNavigateToAssistant() },
-                                label = stringResource(R.string.consumption_ticker_title),
-                                value = com.example.data.CurrencyFormatter.format(context, consumptionTrend)
+                                label = stringResource(R.string.seven_day_trend_label),
+                                value = when {
+                                    deltaPct == null -> "—"
+                                    deltaPct > 0 -> "↑ $deltaPct%"
+                                    deltaPct < 0 -> "↓ ${-deltaPct}%"
+                                    else -> "0%"
+                                }
                             )
                         }
                     }

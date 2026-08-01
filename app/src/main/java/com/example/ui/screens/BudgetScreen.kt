@@ -89,8 +89,13 @@ fun BudgetScreen(
             .sortedByDescending { it.third }
     }
 
-    val totalIncome = com.example.data.BudgetMath.totalIncome(transactions)
-    val totalSpent = com.example.data.BudgetMath.totalExpense(transactions)
+    // كارت الملخص تحت بيعرض الدخل والمصروف جنب "الميزانية" (سقف شهري)، وشريط التنبيه
+    // بيقسم المصروف على نفس السقف ده. لما الرقمين دول كانوا totalIncome/totalExpense
+    // (كل المعاملات من أول يوم في التطبيق)، القسمة كانت بتعدّي ١٠٠٪ بعد شهرين استخدام
+    // وتفضل هناك للأبد — يعني الشريط بيقول "تجاوزت ميزانيتك" دايماً بغض النظر عن الشهر.
+    // الاتنين بقوا بحدود دورة الراتب، نفس حدود "متاح" فوق بالظبط.
+    val totalIncome by viewModel.incomeThisCycle.collectAsState()
+    val totalSpent by viewModel.spentThisCycle.collectAsState()
     // Task 26 — "متاح" (available) بقى الرقم الأساسي، مش remainingBalance الخام —
     // available بيخصم الالتزامات الثابتة المؤكدة (إيجار/قسط/اشتراكات) القادمة قبل نهاية
     // الدورة. لمستخدم من غير التزامات مسجلة available == remainingBalance بالظبط.
@@ -1051,36 +1056,31 @@ private fun TxRowItem(tx: ZadTransaction, onDelete: () -> Unit) {
 internal fun ObligationCard(obligation: com.example.data.ZadObligation) {
     val context = LocalContext.current
     val today = java.time.LocalDate.now()
-    val dueDate = remember(obligation.id, obligation.dueDay, obligation.dueDate) {
-        runCatching {
-            obligation.dueDate?.takeIf { it.isNotBlank() }?.let { java.time.LocalDate.parse(it.take(10)) }
-                ?: obligation.dueDay?.let { day ->
-                    val thisMonth = today.withDayOfMonth(day.coerceIn(1, today.lengthOfMonth()))
-                    if (thisMonth.isBefore(today)) {
-                        val next = today.plusMonths(1)
-                        next.withDayOfMonth(day.coerceIn(1, next.lengthOfMonth()))
-                    } else thisMonth
-                }
-        }.getOrNull()
+    // BudgetMath.nextDueDate هي نفس الدالة اللي "محجوز" و"الاستحقاق الجاي" في الهيرو
+    // بيتحسبوا بيها. الكارت ده كان بيحسب التاريخ بنفسه بمنطق مختلف شوية (بيتجاهل
+    // recurrence تماماً، ويعامل due_date اللي فات كأنه استحقاق حالي)، فكان ممكن يقول
+    // "مستحق بعد ٣ أيام" لالتزام مش داخل أصلاً في رقم "محجوز" اللي فوقه على نفس الشاشة.
+    val dueDate = remember(obligation.id, obligation.dueDay, obligation.dueDate, obligation.recurrence) {
+        com.example.data.BudgetMath.nextDueDate(obligation, today)
     }
     val daysUntil = dueDate?.let { java.time.temporal.ChronoUnit.DAYS.between(today, it).toInt() }
 
-    // paid  = this cycle's occurrence is behind us
-    // pending = due inside a week
-    // scheduled = further out, or no date on record
+    // nextDueDate بترجع null في حالتين بس: التزام "once" فات معاده (بنفترض إنه اتدفع،
+    // نفس افتراض zad-brain)، أو التزام دوري من غير due_day فمفيش معاد يتقال أصلاً.
+    // الفرق بينهم لازم يبان — "مدفوع" لالتزام ناقصه تاريخ كذبة، والعكس كمان.
     val statusColor: Color
     val statusLabel: String
     val progress: Float
     when {
+        daysUntil == null && obligation.recurrence == "once" -> {
+            statusColor = primary
+            statusLabel = stringResource(R.string.obligation_status_paid)
+            progress = 1f
+        }
         daysUntil == null -> {
             statusColor = secondaryDark
             statusLabel = stringResource(R.string.obligation_status_scheduled)
             progress = 0f
-        }
-        daysUntil < 0 -> {
-            statusColor = primary
-            statusLabel = stringResource(R.string.obligation_status_paid)
-            progress = 1f
         }
         daysUntil <= 7 -> {
             statusColor = dangerColor
@@ -1124,9 +1124,8 @@ internal fun ObligationCard(obligation: com.example.data.ZadObligation) {
         }
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                when {
-                    daysUntil == null -> obligation.recurrence
-                    daysUntil < 0 -> stringResource(R.string.obligation_status_paid)
+                when (daysUntil) {
+                    null -> obligation.recurrence
                     else -> stringResource(R.string.obligation_due_in_days, "", daysUntil).trim()
                 },
                 fontSize = 12.5.sp,

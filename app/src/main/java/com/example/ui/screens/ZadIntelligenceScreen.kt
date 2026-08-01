@@ -178,8 +178,11 @@ fun OverviewTab(
     val emergencyFund by viewModel.emergencyFund.collectAsState()
     val expenses = transactions.filter { it.isExpense }
     val income = transactions.filter { !it.isExpense }
-    val totalExpense = com.example.data.BudgetMath.totalExpense(transactions)
-    val totalIncome = com.example.data.BudgetMath.totalIncome(transactions)
+    // كانوا totalExpense/totalIncome على كل الوقت، وبيتعرضوا تحت كارت الصحة المالية
+    // اللي بيعرض مصروف الشهر — يعني نفس الشاشة كان فيها رقمين مختلفين اسمهم "مصروف"
+    // من غير ما حاجة تفرّق بينهم. الاتنين بقوا بحدود الدورة، زي الرئيسية والميزانية.
+    val totalExpense by viewModel.spentThisCycle.collectAsState()
+    val totalIncome by viewModel.incomeThisCycle.collectAsState()
 
     val categoryMap = expenses
         .groupBy { it.category ?: otherCategoryLabel }
@@ -2948,14 +2951,18 @@ fun predictNextMonth(monthlyData: List<Pair<String, Double>>): Double {
 @Composable
 private fun SpendingPowerGaugeCard(power: com.example.data.ZadCentralBrain.SpendingPower) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    // powerPct = null معناه مفيش سقف ميزانية متسجّل، يعني مفيش نسبة أصلاً. العداد
+    // بيتلوّن رمادي وبيقف على الصفر بدل ما يبقى أخضر ممتلئ على رقم مخترع.
+    val pct = power.powerPct
     val gaugeColor = when {
-        power.powerPct >= 60 -> successColor
-        power.powerPct >= 35 -> Color(0xFF84CC16)
-        power.powerPct >= 15 -> secondary
+        pct == null -> onSurfaceVariant
+        pct >= 60 -> successColor
+        pct >= 35 -> Color(0xFF84CC16)
+        pct >= 15 -> secondary
         else -> dangerColor
     }
     val animatedPct by animateFloatAsState(
-        targetValue = power.powerPct / 100f,
+        targetValue = (pct ?: 0) / 100f,
         animationSpec = tween(1100, easing = FastOutSlowInEasing),
         label = "gauge"
     )
@@ -3055,7 +3062,7 @@ private fun SpendingPowerGaugeCard(power: com.example.data.ZadCentralBrain.Spend
                     Text(stringResource(R.string.actual_daily_rate), style = Typography.labelSmall, color = onSurfaceVariant)
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("${power.powerPct}%", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = gaugeColor)
+                    Text(pct?.let { "$it%" } ?: "—", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = gaugeColor)
                     Text(stringResource(R.string.budget_remaining_pct_label), style = Typography.labelSmall, color = onSurfaceVariant)
                 }
             }
