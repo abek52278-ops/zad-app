@@ -942,4 +942,7 @@
     <string name="priority_medium">متوسط</string>
     <string name="priority_low">منخفض</string>
     <string name="runs_out_in_days">ينفد بعد %1$d أيام</string>
+    <string name="clear_chat_title">مسح المحادثة</string>
+    <string name="clear_chat_confirm">هنمسح كل رسائل المحادثة مع عقل زاد. البيانات المالية والمخزون مش هتتأثر.</string>
+    <string name="clear_chat_action">مسح المحادثة</string>
 </resources>

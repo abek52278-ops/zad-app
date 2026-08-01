@@ -438,7 +438,8 @@ fun ToolsChatTab(
                     inputText = inputText,
                     listState = listState,
                     onInputChange = onInputChange,
-                    onSend = onSend
+                    onSend = onSend,
+                    onClearChat = { viewModel.clearChatHistory() }
                 )
             } else {
                 LazyColumn(
@@ -2616,7 +2617,8 @@ fun ChatTab(
     inputText: String,
     listState: androidx.compose.foundation.lazy.LazyListState,
     onInputChange: (String) -> Unit,
-    onSend: () -> Unit
+    onSend: () -> Unit,
+    onClearChat: () -> Unit = {}
 ) {
     val quickPrompts = listOf(
         Icons.Default.Restaurant to stringResource(R.string.quick_prompt_recipe),
@@ -2627,7 +2629,36 @@ fun ChatTab(
         Icons.Default.Eco to stringResource(R.string.quick_prompt_healthy_meal)
     )
 
+    var confirmClear by remember { mutableStateOf(false) }
+    if (confirmClear) {
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            title = { Text(stringResource(R.string.clear_chat_title), fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(R.string.clear_chat_confirm)) },
+            confirmButton = {
+                TextButton(onClick = { onClearChat(); confirmClear = false }) {
+                    Text(stringResource(R.string.clear_chat_action), color = dangerColor)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.cancel_action)) }
+            }
+        )
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
+        if (messages.size > 1) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = { confirmClear = true }) {
+                    Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = onSurfaceVariant, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.clear_chat_action), style = Typography.labelSmall, color = onSurfaceVariant)
+                }
+            }
+        }
         LazyColumn(
             state = listState,
             modifier = Modifier.weight(1f).fillMaxWidth(),

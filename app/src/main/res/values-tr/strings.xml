@@ -940,4 +940,7 @@
     <string name="priority_medium">Orta</string>
     <string name="priority_low">Düşük</string>
     <string name="runs_out_in_days">%1$d gün içinde bitiyor</string>
+    <string name="clear_chat_title">Sohbeti temizle</string>
+    <string name="clear_chat_confirm">Zad Zihni ile tüm sohbet mesajları silinecek. Finans ve stok verileri etkilenmez.</string>
+    <string name="clear_chat_action">Sohbeti temizle</string>
 </resources>
