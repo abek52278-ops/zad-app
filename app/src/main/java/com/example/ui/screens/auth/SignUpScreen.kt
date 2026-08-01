@@ -25,6 +25,7 @@ import com.example.ui.components.AppearOnEntry
 import com.example.ui.components.ZadLottieAsset
 import com.example.ui.components.pressableScale
 import com.example.ui.theme.Typography
+import com.example.ui.theme.onSurface
 import com.example.ui.theme.onSurfaceVariant
 import com.example.ui.theme.primary
 import com.example.ui.viewmodels.AuthState
@@ -57,22 +58,35 @@ fun SignUpScreen(
         }
     }
 
+    // same splash canvas as LoginScreen — the two are one flow and were on two
+    // different backgrounds
+    com.example.ui.components.ZadAuthBackground {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 24.dp)
             .verticalScroll(rememberScrollState())
     ) {
         Spacer(modifier = Modifier.height(48.dp))
         
         com.example.ui.components.AppearOnEntry {
-            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Image(
                     painter = painterResource(id = R.drawable.ic_carrot_logo),
                     contentDescription = stringResource(R.string.app_name),
                     modifier = Modifier.size(60.dp),
                     contentScale = ContentScale.Fit
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    "ZAD",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = (-0.5).sp,
+                    color = com.example.ui.theme.primaryLight
                 )
             }
         }
@@ -186,31 +200,23 @@ fun SignUpScreen(
             )
         }
         
-        Button(
+        // same fix as LoginScreen: the label was `onSurface` on a green container
+        com.example.ui.components.ZadPrimaryButton(
+            text = "إنشاء حساب",
             onClick = { viewModel.signUp(email, password) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp)
-                .pressableScale(),
-            colors = ButtonDefaults.buttonColors(containerColor = primary),
-            shape = RoundedCornerShape(50),
-            enabled = authState !is AuthState.Loading && email.isNotBlank() && password.isNotBlank() && termsAgreed
-        ) {
-            if (authState is AuthState.Loading) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(24.dp))
-            } else {
-                Text(text = "إنشاء حساب", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-            }
-        }
-        
+            modifier = Modifier.fillMaxWidth(),
+            enabled = email.isNotBlank() && password.isNotBlank() && termsAgreed,
+            loading = authState is AuthState.Loading
+        )
+
         Spacer(modifier = Modifier.weight(1f))
-        
+
         Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 32.dp, bottom = 32.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = "لديك حساب بالفعل؟ ", color = MaterialTheme.colorScheme.onBackground, fontSize = 14.sp)
+            Text(text = "لديك حساب بالفعل؟ ", color = onSurface, fontSize = 14.sp)
             TextButton(
                 onClick = onNavigateToLogin,
                 contentPadding = PaddingValues(0.dp)
@@ -218,6 +224,7 @@ fun SignUpScreen(
                 Text(text = "تسجيل الدخول", color = primary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
         }
+    }
     }
     
     if (showTermsDialog) {
@@ -261,7 +268,7 @@ fun SignUpScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = primary)
                 ) {
-                    Text("Agree & Continue", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                    Text("Agree & Continue", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {

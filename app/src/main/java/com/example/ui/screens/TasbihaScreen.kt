@@ -806,7 +806,7 @@ private fun TasbihaStats(tree: TasbihaTree) {
 private fun StatCard(label: String, value: String, icon: @Composable () -> Unit) {
     Card(
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = surfaceContainer)
+        colors = CardDefaults.cardColors(containerColor = surface)
     ) {
         Column(
             Modifier.padding(12.dp),
@@ -893,7 +893,7 @@ private fun FamilyMemberTreeCard(memberData: FamilyMemberWithTasbiha) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = surfaceContainer)
+        colors = CardDefaults.cardColors(containerColor = surface)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -1001,7 +1001,7 @@ private fun ChallengesTab(challenges: List<com.example.data.TasbihaChallenge>) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = surfaceContainer)
+                    colors = CardDefaults.cardColors(containerColor = surface)
                 ) {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(32.dp),

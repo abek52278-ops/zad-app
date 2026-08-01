@@ -41,7 +41,9 @@ fun ZadSwitch(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    /** Kids mode's toggle is purple in the design, not brand green. */
+    checkedColor: Color = primary
 ) {
     val trackWidth = 51.dp
     val trackHeight = 31.dp
@@ -53,7 +55,7 @@ fun ZadSwitch(
         animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f), // same feel as ZadSprings.Press
         label = "zadSwitchThumb"
     )
-    val trackColor = if (checked) primary else outlineVariant
+    val trackColor = if (checked) checkedColor else outlineVariant
 
     Box(
         modifier = modifier

@@ -301,164 +301,96 @@ fun ProfileScreen(
                 }
             }
 
-            // -- Quick Stats with Animated Counters --
-            Spacer(Modifier.height(20.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                AnimatedStatCard(
-                    icon = Icons.Default.Inventory2,
-                    label = stringResource(R.string.in_inventory_label),
-                    value = inventory.size,
-                    color = primaryFixed,
-                    animTriggered = animTriggered,
-                    modifier = Modifier.weight(1f)
-                )
-                AnimatedStatCard(
-                    icon = Icons.Default.Subscriptions,
-                    label = stringResource(R.string.subscriptions),
-                    value = subscriptions.size,
-                    color = secondary,
-                    animTriggered = animTriggered,
-                    modifier = Modifier.weight(1f)
-                )
-                AnimatedStatCard(
-                    icon = Icons.Default.FamilyRestroom,
-                    label = stringResource(R.string.family_members),
-                    value = familyMembersCount,
-                    color = tertiary,
-                    animTriggered = animTriggered,
-                    modifier = Modifier.weight(1f)
-                )
+            // ── Kids-mode toggle card (mockup `renderProfile`) ───────────────
+            // The mockup puts this directly under the header as a card with a real
+            // switch. It was one more row in the menu list, indistinguishable from
+            // "terms of service", for a control that flips the whole app's UI.
+            Spacer(Modifier.height(14.dp))
+            if ((familyState as? FamilyState.Active)?.myMemberInfo?.role == "admin") {
+                com.example.ui.components.ZadMenuGroup(
+                    modifier = Modifier.padding(horizontal = 20.dp)
+                ) {
+                    com.example.ui.components.ZadMenuRow(
+                        title = stringResource(R.string.switch_to_kids_mode),
+                        subtitle = stringResource(R.string.switch_to_kids_mode_subtitle),
+                        onClick = onSwitchToKidsMode,
+                        showDivider = false,
+                        trailing = {
+                            com.example.ui.components.ZadSwitch(
+                                checked = false,
+                                onCheckedChange = { if (it) onSwitchToKidsMode() }
+                            )
+                        }
+                    )
+                }
+                Spacer(Modifier.height(14.dp))
             }
 
-            // -- Achievements Section --
-            Spacer(Modifier.height(28.dp))
-            AchievementsSection(
-                inventoryCount = inventory.size,
-                subscriptionsCount = subscriptions.size,
-                familyMembersCount = familyMembersCount,
-                tasbihaCount = if (myTasbiha != null) 1 else 0,
-                transactionsCount = viewModel.transactions.collectAsState().value.size
-            )
-
-            Spacer(Modifier.height(24.dp))
             Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                // -- Menu Items with Premium Styling --
+                // ── Settings, as the mockup's single grouped card ────────────────
+                // Was ten separate 16dp cards, each with its own 44dp gradient icon
+                // tile in a different colour pair. Ten gradients in one scroll is the
+                // opposite of the design, which spends colour on the hero and the AI
+                // card and keeps settings neutral. The rows, their order and every
+                // destination are unchanged.
                 SectionTitle(stringResource(R.string.settings_title))
                 Spacer(Modifier.height(12.dp))
 
-                AppearOnEntry(delayMs = 0) {
-                    ProfileMenuItem(
-                        icon = Icons.Default.Edit,
+                val listenerGranted = androidx.core.app.NotificationManagerCompat
+                    .getEnabledListenerPackages(context).contains(context.packageName)
+
+                com.example.ui.components.ZadMenuGroup {
+                    com.example.ui.components.ZadMenuRow(
                         title = stringResource(R.string.edit_profile_title),
                         subtitle = stringResource(R.string.edit_profile_subtitle),
-                        gradient = listOf(Color(0xFF0D5C3F), Color(0xFF1A7A55)),
                         onClick = { navController?.navigate(com.example.ZadNav.EDIT_PROFILE) }
                     )
-                }
-                Spacer(Modifier.height(10.dp))
-
-                AppearOnEntry(delayMs = 40) {
-                    ProfileMenuItem(
-                        icon = Icons.Default.FamilyRestroom,
+                    com.example.ui.components.ZadMenuRow(
                         title = stringResource(R.string.manage_family),
                         subtitle = stringResource(R.string.members_and_permissions),
-                        gradient = listOf(Color(0xFFC8963E), Color(0xFFE8BC6A)),
                         onClick = { navController?.navigate(com.example.ZadNav.FAMILY_MANAGEMENT) }
                     )
-                }
-                Spacer(Modifier.height(10.dp))
-
-                if ((familyState as? FamilyState.Active)?.myMemberInfo?.role == "admin") {
-                    AppearOnEntry(delayMs = 80) {
-                        ProfileMenuItem(
-                            icon = Icons.Default.ChildCare,
-                            title = stringResource(R.string.switch_to_kids_mode),
-                            subtitle = stringResource(R.string.switch_to_kids_mode_subtitle),
-                            gradient = listOf(Color(0xFF7C3AED), Color(0xFFEC4899)),
-                            onClick = onSwitchToKidsMode
-                        )
-                    }
-                    Spacer(Modifier.height(10.dp))
-                }
-
-                AppearOnEntry(delayMs = 120) {
-                    ProfileMenuItem(
-                        icon = Icons.Default.AccountBalanceWallet,
+                    com.example.ui.components.ZadMenuRow(
                         title = stringResource(R.string.budget_and_payment_methods),
                         subtitle = stringResource(R.string.monthly_budget_and_bank_link),
-                        gradient = listOf(Color(0xFF1C6EA4), Color(0xFF60A5FA)),
                         onClick = { navController?.navigate(com.example.ZadNav.PAYMENT_BUDGET) }
                     )
-                }
-                Spacer(Modifier.height(10.dp))
-
-                AppearOnEntry(delayMs = 160) {
-                    ProfileMenuItem(
-                        icon = Icons.Default.SmartToy,
+                    com.example.ui.components.ZadMenuRow(
                         title = stringResource(R.string.assistant_alerts_title),
                         subtitle = stringResource(R.string.control_smart_alerts),
-                        gradient = listOf(Color(0xFF7C3AED), Color(0xFFA78BFA)),
                         onClick = { navController?.navigate(com.example.ZadNav.ASSISTANT_ALERTS) }
                     )
-                }
-                Spacer(Modifier.height(10.dp))
-
-                AppearOnEntry(delayMs = 180) {
                     // Phase A6 — this slot held "rescan SMS", which needed READ_SMS.
                     // Reading is done by the notification listener now, so the useful
                     // control here is the switch that turns that listener on, plus a
                     // live indication of whether it is actually granted.
-                    val listenerGranted = androidx.core.app.NotificationManagerCompat
-                        .getEnabledListenerPackages(context).contains(context.packageName)
-                    ProfileMenuItem(
-                        icon = Icons.Default.NotificationsActive,
+                    com.example.ui.components.ZadMenuRow(
                         title = stringResource(R.string.notification_access_title),
                         subtitle = stringResource(
                             if (listenerGranted) R.string.notification_access_granted
                             else R.string.notification_access_subtitle
                         ),
-                        gradient = listOf(Color(0xFF0EA5E9), Color(0xFF7DD3FC)),
                         onClick = {
                             context.startActivity(
                                 android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
                             )
                         }
                     )
-                }
-                Spacer(Modifier.height(10.dp))
-
-                AppearOnEntry(delayMs = 190) {
-                    ProfileMenuItem(
-                        icon = Icons.Default.UploadFile,
+                    com.example.ui.components.ZadMenuRow(
                         title = stringResource(R.string.statement_import_title),
                         subtitle = stringResource(R.string.import_bank_statement_subtitle),
-                        gradient = listOf(Color(0xFF059669), Color(0xFF6EE7B7)),
                         onClick = { navController?.navigate(com.example.ui.components.ZadRoutes.STATEMENT) }
                     )
-                }
-                Spacer(Modifier.height(10.dp))
-
-                AppearOnEntry(delayMs = 200) {
-                    ProfileMenuItem(
-                        icon = Icons.Default.SupportAgent,
+                    com.example.ui.components.ZadMenuRow(
                         title = stringResource(R.string.nav_help),
                         subtitle = stringResource(R.string.contact_us),
-                        gradient = listOf(Color(0xFF0D5C3F), Color(0xFF34C77B)),
                         onClick = { showHelpSupport = true }
                     )
-                }
-                Spacer(Modifier.height(10.dp))
-
-                AppearOnEntry(delayMs = 220) {
-                    ProfileMenuItem(
-                        icon = Icons.Default.Description,
+                    com.example.ui.components.ZadMenuRow(
                         title = stringResource(R.string.terms_of_service_menu_title),
                         subtitle = stringResource(R.string.terms_of_service_menu_subtitle),
-                        gradient = listOf(Color(0xFF64748B), Color(0xFF94A3B8)),
-                        onClick = { navController?.navigate(com.example.ZadNav.TERMS) }
+                        onClick = { navController?.navigate(com.example.ZadNav.TERMS) },
+                        showDivider = false
                     )
                 }
 
@@ -466,27 +398,30 @@ fun ProfileScreen(
                 SectionTitle(stringResource(R.string.account_title))
                 Spacer(Modifier.height(12.dp))
 
-                AppearOnEntry(delayMs = 240) {
-                    ProfileMenuItem(
-                        icon = Icons.Default.DeleteForever,
+                val behaviorConsent = viewModel.behaviorConsentGiven.collectAsState().value
+                com.example.ui.components.ZadMenuGroup {
+                    // ── Data Analysis Consent (PDPL) ──
+                    com.example.ui.components.ZadMenuRow(
+                        title = stringResource(R.string.smart_behavior_analysis),
+                        subtitle = if (behaviorConsent) stringResource(R.string.behavior_analysis_enabled_subtitle)
+                                   else stringResource(R.string.behavior_analysis_disabled_subtitle),
+                        onClick = { showBehaviorConsentDialog = true },
+                        trailing = {
+                            com.example.ui.components.ZadSwitch(
+                                checked = behaviorConsent,
+                                onCheckedChange = { showBehaviorConsentDialog = true },
+                                checkedColor = primary
+                            )
+                        }
+                    )
+                    com.example.ui.components.ZadMenuRow(
                         title = stringResource(R.string.delete_account),
                         subtitle = stringResource(R.string.delete_account_permanently),
-                        gradient = listOf(dangerColor, Color(0xFFE57373)),
-                        onClick = { showDeleteAccountDialog = true }
+                        onClick = { showDeleteAccountDialog = true },
+                        titleColor = dangerColor,
+                        showDivider = false
                     )
                 }
-
-                Spacer(Modifier.height(8.dp))
-
-                // ── Data Analysis Consent (PDPL) ──
-                val behaviorConsent = viewModel.behaviorConsentGiven.collectAsState().value
-                ProfileMenuItem(
-                    icon = if (behaviorConsent) Icons.Default.CheckCircle else Icons.Default.TrackChanges,
-                    title = stringResource(R.string.smart_behavior_analysis),
-                    subtitle = if (behaviorConsent) stringResource(R.string.behavior_analysis_enabled_subtitle)
-                               else stringResource(R.string.behavior_analysis_disabled_subtitle),
-                    onClick = { showBehaviorConsentDialog = true }
-                )
 
                 Spacer(Modifier.height(24.dp))
 
@@ -547,191 +482,6 @@ fun ProfileScreen(
 @Composable
 fun SectionTitle(text: String) {
     Text(text, style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
-}
-
-@Composable
-fun AnimatedStatCard(
-    icon: ImageVector,
-    label: String,
-    value: Int,
-    color: Color,
-    animTriggered: Boolean,
-    modifier: Modifier = Modifier
-) {
-    val animatedValue by animateFloatAsState(
-        targetValue = if (animTriggered) value.toFloat() else 0f,
-        animationSpec = tween(1200, easing = FastOutSlowInEasing),
-        label = "stat_counter"
-    )
-    val scaleAnim by animateFloatAsState(
-        targetValue = if (animTriggered) 1f else 0.8f,
-        animationSpec = tween(600, easing = FastOutSlowInEasing),
-        label = "stat_scale"
-    )
-
-    // لا shadow/pressableScale هنا عمداً — دي بطاقة إحصائية للعرض فقط، مش زرار
-    // (كانت بتبان زي زرار قابل للضغط بس من غير أي onClick حقيقي، مربكة للمستخدم).
-    Column(
-        modifier = modifier
-            .scale(scaleAnim)
-            .clip(RoundedCornerShape(20.dp))
-            .background(color.copy(alpha = 0.05f))
-            .border(1.dp, color.copy(alpha = 0.12f), RoundedCornerShape(20.dp))
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(color.copy(alpha = 0.12f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(24.dp))
-        }
-        Spacer(Modifier.height(10.dp))
-        Text(
-            "${animatedValue.toInt()}",
-            style = Typography.headlineMedium.copy(fontSize = 22.sp),
-            fontWeight = FontWeight.Bold,
-            color = onSurface
-        )
-        Text(label, style = Typography.labelSmall, color = onSurfaceVariant)
-    }
-}
-
-@Composable
-fun AchievementsSection(
-    inventoryCount: Int,
-    subscriptionsCount: Int,
-    familyMembersCount: Int,
-    tasbihaCount: Int,
-    transactionsCount: Int
-) {
-    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-        SectionTitle(stringResource(R.string.achievements_title))
-        Spacer(Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            AchievementBadge(
-                icon = Icons.Default.Inventory2,
-                label = stringResource(R.string.inventory_short_label),
-                unlocked = inventoryCount >= 5,
-                earned = inventoryCount >= 1
-            )
-            AchievementBadge(
-                icon = Icons.Default.Subscriptions,
-                label = stringResource(R.string.subscriptions),
-                unlocked = subscriptionsCount >= 3,
-                earned = subscriptionsCount >= 1
-            )
-            AchievementBadge(
-                icon = Icons.Default.People,
-                label = stringResource(R.string.family_short_label),
-                unlocked = familyMembersCount >= 3,
-                earned = familyMembersCount >= 1
-            )
-            AchievementBadge(
-                icon = Icons.Default.Favorite,
-                label = stringResource(R.string.tasbiha_short_label),
-                unlocked = tasbihaCount >= 1,
-                earned = tasbihaCount >= 1
-            )
-            AchievementBadge(
-                icon = Icons.Default.Payments,
-                label = stringResource(R.string.transactions_short_label),
-                unlocked = transactionsCount >= 20,
-                earned = transactionsCount >= 1
-            )
-        }
-    }
-}
-
-@Composable
-fun AchievementBadge(icon: ImageVector, label: String, unlocked: Boolean, earned: Boolean) {
-    val alpha = if (earned) 1f else 0.4f
-    // من غير خلفية بطاقة/كارت هنا عمداً — دي شارة إنجاز للعرض بس، مش زرار قابل
-    // للضغط، فمفيش داعي تتلبس شكل كارت قابل للنقر زي ProfileMenuItem الحقيقية.
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.padding(10.dp)
-    ) {
-        Box(
-            modifier = Modifier.size(42.dp).clip(RoundedCornerShape(12.dp))
-                .background(if (unlocked) primary.copy(alpha = 0.12f) else surfaceContainerLow),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, contentDescription = null, tint = primary.copy(alpha = alpha), modifier = Modifier.size(22.dp))
-        }
-        Spacer(Modifier.height(4.dp))
-        Text(label, style = Typography.labelSmall, color = onSurfaceVariant.copy(alpha = alpha), fontSize = 9.sp, maxLines = 1)
-        Box(
-            modifier = Modifier
-                .size(6.dp).clip(CircleShape)
-                .background(if (unlocked) primaryFixed else surfaceContainerLow)
-                .padding(top = 2.dp)
-        )
-    }
-}
-
-@Composable
-fun ProfileMenuItem(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    gradient: List<Color> = listOf(primary, primaryFixed),
-    onClick: () -> Unit = {}
-) {
-    var pressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.97f else 1f,
-        animationSpec = tween(100), label = "menu_scale"
-    )
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .scale(scale)
-            .zadCardShadow(RoundedCornerShape(16.dp), elevation = 6.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(surface)
-            .clickable(
-                onClick = onClick,
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() }.also { src ->
-                    LaunchedEffect(src) {
-                        src.interactions.collect { interaction ->
-                            when (interaction) {
-                                is androidx.compose.foundation.interaction.PressInteraction.Press -> pressed = true
-                                is androidx.compose.foundation.interaction.PressInteraction.Release -> pressed = false
-                                is androidx.compose.foundation.interaction.PressInteraction.Cancel -> pressed = false
-                                else -> {}
-                            }
-                        }
-                    }
-                }
-            )
-            .padding(16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp).clip(RoundedCornerShape(12.dp))
-                    .background(Brush.linearGradient(colors = gradient))
-                    .padding(10.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
-            }
-            Spacer(Modifier.width(14.dp))
-            Column {
-                Text(title, style = Typography.titleMedium.copy(fontSize = 14.sp), color = onSurface, fontWeight = FontWeight.Bold)
-                Text(subtitle, style = Typography.labelSmall, color = onSurfaceVariant)
-            }
-        }
-        Icon(Icons.Default.ChevronLeft, contentDescription = null, tint = onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
-    }
 }
 
 @Composable

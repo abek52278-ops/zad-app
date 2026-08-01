@@ -2948,125 +2948,69 @@ fun predictNextMonth(monthlyData: List<Pair<String, Double>>): Double {
 //  PREMIUM CARDS — قوة الصرف + مقارنة شهرية + تحليل سلوكي + تصدير
 // ════════════════════════════════════════════════════════════════
 
+/**
+ * Spending power, as the mockup's Zad Mind overview card: the dark `#052E16` panel with a
+ * mint title, the percentage at 30/800, and one flat 8dp meter.
+ *
+ * What stood here was a hand-drawn semicircular gauge — four tinted background arcs, a
+ * progress arc, a rotating needle and a hub — about 70 lines of Canvas for one number the
+ * design states as a percentage and a bar. The three figures underneath it (safe daily
+ * spend, actual daily rate, days left) are real data the mockup's hardcoded card has no
+ * equivalent for, so they stay, restyled as the panel's muted footer row rather than as
+ * three columns competing with the gauge.
+ */
 @Composable
 private fun SpendingPowerGaugeCard(power: com.example.data.ZadCentralBrain.SpendingPower) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    // powerPct = null معناه مفيش سقف ميزانية متسجّل، يعني مفيش نسبة أصلاً. العداد
-    // بيتلوّن رمادي وبيقف على الصفر بدل ما يبقى أخضر ممتلئ على رقم مخترع.
+    // powerPct = null means no budget is on record, so there is no percentage to state.
     val pct = power.powerPct
-    val gaugeColor = when {
-        pct == null -> onSurfaceVariant
-        pct >= 60 -> successColor
+    val meterColor = when {
+        pct == null -> Color.White.copy(alpha = 0.35f)
+        pct >= 60 -> primaryFixed
         pct >= 35 -> Color(0xFF84CC16)
         pct >= 15 -> secondary
         else -> dangerColor
     }
-    val animatedPct by animateFloatAsState(
-        targetValue = (pct ?: 0) / 100f,
-        animationSpec = tween(1100, easing = FastOutSlowInEasing),
-        label = "gauge"
-    )
 
-    Surface(
-        shape = RoundedCornerShape(24.dp),
-        color = surface,
-        shadowElevation = 3.dp,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+    com.example.ui.components.ZadDarkPanel(title = stringResource(R.string.spending_power)) {
+        Text(
+            pct?.let { "$it%" } ?: "—",
+            fontSize = 30.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = Color.White
+        )
+        com.example.ui.components.ZadMeterBar(
+            progress = (pct ?: 0) / 100f,
+            color = meterColor,
+            height = 8.dp,
+            trackColor = Color.White.copy(alpha = 0.15f)
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Default.Speed, contentDescription = null, tint = gaugeColor, modifier = Modifier.size(22.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(R.string.spending_power), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                Spacer(modifier = Modifier.weight(1f))
-                Surface(shape = RoundedCornerShape(10.dp), color = gaugeColor.copy(alpha = 0.12f)) {
-                    Text(
-                        power.status,
-                        style = Typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = gaugeColor,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // العداد نصف الدائري
-            Box(contentAlignment = Alignment.BottomCenter) {
-                Canvas(modifier = Modifier.size(width = 220.dp, height = 120.dp)) {
-                    val strokeWidth = 20.dp.toPx()
-                    val radius = (size.width - strokeWidth) / 2f
-                    val center = Offset(size.width / 2f, size.height - strokeWidth / 4f)
-                    val arcSize = Size(radius * 2, radius * 2)
-                    val topLeft = Offset(center.x - radius, center.y - radius)
-
-                    // خلفية مقسمة مناطق: أحمر → برتقالي → أخضر فاتح → أخضر
-                    val zones = listOf(
-                        Triple(180f, 27f, dangerColor.copy(alpha = 0.25f)),
-                        Triple(207f, 36f, secondary.copy(alpha = 0.25f)),
-                        Triple(243f, 45f, Color(0xFF84CC16).copy(alpha = 0.25f)),
-                        Triple(288f, 72f, successColor.copy(alpha = 0.25f))
-                    )
-                    zones.forEach { (start, sweep, color) ->
-                        drawArc(
-                            color = color,
-                            startAngle = start, sweepAngle = sweep - 2f,
-                            useCenter = false, topLeft = topLeft, size = arcSize,
-                            style = Stroke(strokeWidth, cap = StrokeCap.Round)
-                        )
-                    }
-                    // قوس التقدم الفعلي
-                    drawArc(
-                        color = gaugeColor,
-                        startAngle = 180f, sweepAngle = 180f * animatedPct,
-                        useCenter = false, topLeft = topLeft, size = arcSize,
-                        style = Stroke(strokeWidth, cap = StrokeCap.Round)
-                    )
-                    // المؤشر (الإبرة)
-                    val needleAngle = Math.toRadians((180.0 + 180.0 * animatedPct))
-                    val needleLen = radius - strokeWidth
-                    val needleEnd = Offset(
-                        center.x + (needleLen * kotlin.math.cos(needleAngle)).toFloat(),
-                        center.y + (needleLen * kotlin.math.sin(needleAngle)).toFloat()
-                    )
-                    drawLine(
-                        color = onSurface.copy(alpha = 0.75f),
-                        start = center, end = needleEnd,
-                        strokeWidth = 4.dp.toPx(), cap = StrokeCap.Round
-                    )
-                    drawCircle(color = gaugeColor, radius = 7.dp.toPx(), center = center)
-                    drawCircle(color = Color.White, radius = 3.dp.toPx(), center = center)
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(bottom = 26.dp)) {
-                    Text(
-                        com.example.data.CurrencyFormatter.formatNumber(context, power.dailySafeSpend),
-                        style = Typography.displaySmall,
-                        fontWeight = FontWeight.Black,
-                        color = gaugeColor
-                    )
-                    Text(stringResource(R.string.safe_per_day_suffix, com.example.data.CurrencyFormatter.symbol(context)), style = Typography.labelSmall, color = onSurfaceVariant)
-                }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("${power.daysLeftInMonth}", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                    Text(stringResource(R.string.days_left_label), style = Typography.labelSmall, color = onSurfaceVariant)
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(com.example.data.CurrencyFormatter.format(context, power.currentDailyAvg), style = Typography.titleMedium, fontWeight = FontWeight.Bold,
-                        color = if (power.currentDailyAvg > power.dailySafeSpend && power.dailySafeSpend > 0) dangerColor else onSurface)
-                    Text(stringResource(R.string.actual_daily_rate), style = Typography.labelSmall, color = onSurfaceVariant)
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(pct?.let { "$it%" } ?: "—", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = gaugeColor)
-                    Text(stringResource(R.string.budget_remaining_pct_label), style = Typography.labelSmall, color = onSurfaceVariant)
-                }
-            }
+            SpendingPowerFigure(
+                value = com.example.data.CurrencyFormatter.format(context, power.dailySafeSpend),
+                label = stringResource(R.string.safe_per_day_suffix, com.example.data.CurrencyFormatter.symbol(context))
+            )
+            SpendingPowerFigure(
+                value = com.example.data.CurrencyFormatter.format(context, power.currentDailyAvg),
+                label = stringResource(R.string.actual_daily_rate),
+                valueColor = if (power.currentDailyAvg > power.dailySafeSpend && power.dailySafeSpend > 0) secondaryLight else Color.White
+            )
+            SpendingPowerFigure(
+                value = "${power.daysLeftInMonth}",
+                label = stringResource(R.string.days_left_label)
+            )
         }
+    }
+}
+
+@Composable
+private fun SpendingPowerFigure(value: String, label: String, valueColor: Color = Color.White) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = valueColor, maxLines = 1)
+        Text(label, style = Typography.labelSmall, color = Color.White.copy(alpha = 0.6f), maxLines = 1)
     }
 }
 

@@ -220,7 +220,7 @@ fun FamilyManagementScreen(familyViewModel: FamilyViewModel, onBack: () -> Unit)
                 ) {
                     Column(modifier = Modifier.padding(20.dp)) {
                         Text(stringResource(R.string.family_invite_code_label), style = Typography.labelMedium, color = Color.White.copy(alpha = 0.8f))
-                        Text(activeState.familyGroup.inviteCode, style = Typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                        Text(activeState.familyGroup.inviteCode, style = Typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
                 Spacer(modifier = Modifier.height(24.dp))

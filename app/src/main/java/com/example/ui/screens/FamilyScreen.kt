@@ -321,7 +321,7 @@ private fun GroceriesTab(
                         .fillMaxWidth()
                         .zadCardShadow(groceryShape, elevation = 6.dp),
                     shape = groceryShape,
-                    colors = CardDefaults.cardColors(containerColor = surfaceContainer)
+                    colors = CardDefaults.cardColors(containerColor = surface)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -391,7 +391,7 @@ private fun KidsSpendingTab(
             Card(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = surfaceContainer)
+                colors = CardDefaults.cardColors(containerColor = surface)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -529,7 +529,7 @@ private fun MemberDetailCard(
             .clickable { onClick() }
             .pressableScale(),
         shape = memberCardShape,
-        colors = CardDefaults.cardColors(containerColor = surfaceContainer)
+        colors = CardDefaults.cardColors(containerColor = surface)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(

@@ -1,6 +1,8 @@
 <resources>
     <string name="app_name">زاد</string>
-    <string name="slogan">بوصلة عيلتك الذكية</string>
+    <string name="cta_enter">ابدأ مع زاد</string>
+    <string name="slogan">تدبير ذكي لبيت هادي</string>
+    <string name="slogan_sub">Smart care for your home</string>
     <string name="welcome">أهلاً بيك في زاد</string>
     <string name="login">تسجيل الدخول</string>
     <string name="signup">اعمل حساب</string>

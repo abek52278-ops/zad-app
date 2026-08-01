@@ -56,22 +56,43 @@ fun LoginScreen(
         }
     }
 
+    // The mockup's splash canvas, not flat white — this is the first screen anyone sees,
+    // and on `MaterialTheme.colorScheme.background` it shared nothing with the rest of
+    // the app. Brand mark + wordmark + slogan below it are the splash's own stack.
+    com.example.ui.components.ZadAuthBackground {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 24.dp)
             .verticalScroll(rememberScrollState())
     ) {
         Spacer(modifier = Modifier.height(64.dp))
 
         com.example.ui.components.AppearOnEntry {
-            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Image(
                     painter = painterResource(id = R.drawable.ic_carrot_logo),
                     contentDescription = stringResource(R.string.app_name),
                     modifier = Modifier.size(60.dp),
                     contentScale = ContentScale.Fit
+                )
+                Spacer(modifier = Modifier.height(20.dp))
+                Text(
+                    "ZAD",
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = (-0.5).sp,
+                    color = com.example.ui.theme.primaryLight
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    stringResource(R.string.slogan),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = com.example.ui.theme.textSecondary
                 )
             }
         }
@@ -114,9 +135,11 @@ fun LoginScreen(
                     onValueChange = { email = it },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
+                    // white fields, not transparent — they now sit on the splash
+                    // gradient, where a transparent field has no edge to read against
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
                         focusedBorderColor = primary,
                         unfocusedBorderColor = outline
                     ),
@@ -133,9 +156,11 @@ fun LoginScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
                     visualTransformation = if (passwordVisible) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    // white fields, not transparent — they now sit on the splash
+                    // gradient, where a transparent field has no edge to read against
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
                         focusedBorderColor = primary,
                         unfocusedBorderColor = outline
                     ),
@@ -172,31 +197,24 @@ fun LoginScreen(
             )
         }
         
-        Button(
+        // Was a Button whose label color was `colorScheme.onSurface` — near-black text on
+        // the deep-green container, which read as a disabled button.
+        com.example.ui.components.ZadPrimaryButton(
+            text = "دخول",
             onClick = { viewModel.signIn(email, password) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp)
-                .pressableScale(),
-            colors = ButtonDefaults.buttonColors(containerColor = primary),
-            shape = RoundedCornerShape(50),
-            enabled = authState !is AuthState.Loading && email.isNotBlank() && password.isNotBlank()
-        ) {
-            if (authState is AuthState.Loading) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(24.dp))
-            } else {
-                Text(text = "دخول", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-            }
-        }
-        
+            modifier = Modifier.fillMaxWidth(),
+            enabled = email.isNotBlank() && password.isNotBlank(),
+            loading = authState is AuthState.Loading
+        )
+
         Spacer(modifier = Modifier.weight(1f))
-        
+
         Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 32.dp, bottom = 32.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = "ليس لديك حساب؟ ", color = MaterialTheme.colorScheme.onBackground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(text = "ليس لديك حساب؟ ", color = onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             TextButton(
                 onClick = onNavigateToSignUp,
                 contentPadding = PaddingValues(0.dp)
@@ -204,6 +222,7 @@ fun LoginScreen(
                 Text(text = "سجل الآن", color = primary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
         }
+    }
     }
 
     if (showForgotPasswordDialog) {

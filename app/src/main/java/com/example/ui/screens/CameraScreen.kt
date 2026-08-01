@@ -360,7 +360,7 @@ fun CameraScreen(
                                 contentDescription = "جاري التحليل..."
                             )
                             Spacer(modifier = Modifier.height(12.dp))
-                            Text("جاري التحليل...", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Text("جاري التحليل...", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

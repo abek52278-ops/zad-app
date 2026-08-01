@@ -67,28 +67,11 @@ fun OnboardingScreen(
     )
 
     Box(modifier = Modifier.fillMaxSize().background(background)) {
-        // Animated gradient background
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            Color(0xFF0D5C3F).copy(alpha = 0.08f),
-                            Color(0xFF0D5C3F).copy(alpha = 0.15f),
-                            Color(0xFF0D5C3F).copy(alpha = 0.08f),
-                            Color(0xFF0D5C3F).copy(alpha = 0.02f)
-                        ),
-                        start = androidx.compose.ui.geometry.Offset(0f, 0f),
-                        end = androidx.compose.ui.geometry.Offset(800f * bgOffset, 800f * bgOffset)
-                    )
-                )
-        )
-
-        // Decorative floating elements
-        Box(Modifier.size(250.dp).offset(x = (-80).dp, y = (-100).dp).clip(CircleShape).background(primary.copy(alpha = 0.04f)))
-        Box(Modifier.size(180.dp).offset(x = 280.dp, y = (-60).dp).clip(CircleShape).background(secondary.copy(alpha = 0.05f)))
-        Box(Modifier.size(120.dp).offset(x = (-40).dp, y = 400.dp).clip(CircleShape).background(primary.copy(alpha = 0.03f)))
+        // The mockup's splash canvas — two soft radial washes on #FBFAF8. What stood
+        // here was a sliding green linear gradient plus three decorative circles, a
+        // background the design does not have anywhere and which put onboarding on a
+        // different surface from the login screen it hands off to.
+        com.example.ui.components.ZadAuthBackground {}
 
         Column(
             modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp).padding(top = 60.dp, bottom = 36.dp),
@@ -175,7 +158,10 @@ fun OnboardingScreen(
             Spacer(Modifier.height(32.dp))
 
             // Action Buttons
-            Button(
+            // fully-rounded pill with a white label, like every other CTA in the design
+            // (this one was an 18dp-radius button with near-black text on green)
+            com.example.ui.components.ZadPrimaryButton(
+                text = if (currentPage < features.size - 1) "التالي" else stringResource(R.string.cta_enter),
                 onClick = {
                     if (currentPage < features.size - 1) {
                         scope.launch { pagerState.animateScrollToPage(currentPage + 1) }
@@ -184,21 +170,8 @@ fun OnboardingScreen(
                         onNavigateToLogin()
                     }
                 },
-                modifier = Modifier.fillMaxWidth().height(60.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = primary),
-                shape = RoundedCornerShape(18.dp)
-            ) {
-                Text(
-                    if (currentPage < features.size - 1) "التالي" else "ابدأ الآن",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                if (currentPage < features.size - 1) {
-                    Spacer(Modifier.width(8.dp))
-                    Icon(Icons.Default.ArrowForward, contentDescription = null, tint = Color.White)
-                }
-            }
+                modifier = Modifier.fillMaxWidth()
+            )
 
             Spacer(Modifier.height(12.dp))
 

@@ -117,11 +117,11 @@ fun SubscriptionsScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(stringResource(R.string.total_monthly_subscriptions), style = Typography.labelMedium, color = Color.White.copy(alpha = 0.85f))
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(com.example.data.CurrencyFormatter.format(context, totalMonthly), style = Typography.displaySmall, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                        Text(com.example.data.CurrencyFormatter.format(context, totalMonthly), style = Typography.displaySmall, color = Color.White, fontWeight = FontWeight.Bold)
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         Text(stringResource(R.string.active_subs_count_label), style = Typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
-                        Text("${activeSubs.size}", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("${activeSubs.size}", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
             }
@@ -211,7 +211,7 @@ fun SubscriptionsScreen(
         FloatingActionButton(
             onClick = { showAddDialog = true },
             containerColor = primary,
-            contentColor = MaterialTheme.colorScheme.onSurface,
+            contentColor = Color.White,
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 88.dp).pressableScale()
         ) {
             Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_action))

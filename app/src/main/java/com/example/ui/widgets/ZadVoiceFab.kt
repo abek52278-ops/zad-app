@@ -123,7 +123,7 @@ fun ZadVoiceFab(
         contentAlignment = Alignment.Center
     ) {
         if (isProcessing) {
-            CircularProgressIndicator(color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(30.dp))
+            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(30.dp))
         } else {
             Icon(
                 imageVector = Icons.Default.Mic,

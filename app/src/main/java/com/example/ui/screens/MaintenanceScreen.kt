@@ -129,7 +129,7 @@ fun MaintenanceScreen(
         FloatingActionButton(
             onClick = { showAddDialog = true },
             containerColor = primary,
-            contentColor = MaterialTheme.colorScheme.onSurface,
+            contentColor = Color.White,
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 88.dp).pressableScale()
         ) {
             Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_action))

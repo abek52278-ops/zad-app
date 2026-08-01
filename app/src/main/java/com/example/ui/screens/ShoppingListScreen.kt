@@ -153,7 +153,7 @@ fun ShoppingListScreen(
                             onClick = { shareOnWhatsApp(context, shoppingList) },
                             modifier = Modifier.weight(1f).pressableScale(),
                             shape = RoundedCornerShape(50),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366), contentColor = MaterialTheme.colorScheme.onSurface)
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366), contentColor = Color.White)
                         ) {
                             Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
@@ -337,7 +337,7 @@ private fun ShoppingBudgetHeader(totalPrice: Double, budgetRemaining: Double, bu
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("سلة زاد الذكية", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text("سلة زاد الذكية", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Column(horizontalAlignment = Alignment.End) {
                         Text("الميزانية المتبقية", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
                         Text(
@@ -350,7 +350,7 @@ private fun ShoppingBudgetHeader(totalPrice: Double, budgetRemaining: Double, bu
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
-                    Text(com.example.data.CurrencyFormatter.format(context, totalPrice), color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.ExtraBold, fontSize = 28.sp)
+                    Text(com.example.data.CurrencyFormatter.format(context, totalPrice), color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 28.sp)
                     Spacer(Modifier.width(10.dp))
                     if (budgetPct > 0) {
                         Box(
@@ -359,7 +359,7 @@ private fun ShoppingBudgetHeader(totalPrice: Double, budgetRemaining: Double, bu
                                 .background(Color.White.copy(alpha = 0.25f))
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            Text("$budgetPct% من الميزانية", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("$budgetPct% من الميزانية", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
                     }
                 }

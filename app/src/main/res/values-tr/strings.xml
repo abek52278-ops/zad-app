@@ -1,6 +1,8 @@
 <resources>
     <string name="app_name">Zad</string>
-    <string name="slogan">Ailenizin akıllı pusulası</string>
+    <string name="cta_enter">Zad ile başla</string>
+    <string name="slogan">Eviniz için akıllı düzen</string>
+    <string name="slogan_sub">Smart care for your home</string>
     <string name="welcome">Zad\'a hoş geldiniz</string>
     <string name="login">Giriş yap</string>
     <string name="signup">Hesap oluştur</string>

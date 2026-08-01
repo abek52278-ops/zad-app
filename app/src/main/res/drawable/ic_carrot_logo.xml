@@ -1,32 +1,36 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="200dp"
-    android:height="200dp"
-    android:viewportWidth="100"
-    android:viewportHeight="100">
-    <!-- Leaves — Zad Emerald -->
-    <path
-        android:fillColor="#047857"
-        android:pathData="M 64.0 27.0 C 67.0 23.0 70.0 25.0 69.0 29.0 C 68.0 33.0 64.0 35.0 64.0 35.0 Z"/>
-    <path
-        android:fillColor="#10B981"
-        android:pathData="M 60.0 24.0 C 62.0 19.0 66.0 19.0 65.0 25.0 C 64.0 31.0 60.0 34.0 60.0 34.0 Z"/>
-    <path
-        android:fillColor="#047857"
-        android:pathData="M 54.0 26.0 C 53.0 21.0 57.0 19.0 58.0 25.0 C 59.0 31.0 57.0 35.0 57.0 35.0 Z"/>
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The brand mark from the design mockup (web_preview/react/app.jsx, the splash `<svg>`),
+  path-for-path: a #F0703D carrot body, three off-white ridge strokes, three #3CA06E
+  leaf strokes. viewportWidth/Height are the mockup's own 64×64 so the coordinates are
+  copied rather than re-fitted.
 
-    <!-- Carrot Body — Zad Gold -->
+  What was here before was a different drawing entirely — an amber (#F59E0B) carrot with
+  emerald leaves, lying diagonally and sitting off-centre in its own viewport, which is
+  why the logo on the auth screens and in the app bar did not match the mockup.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+
+    <!-- Body -->
     <path
-        android:fillColor="#F59E0B"
-        android:pathData="M 67.0 34.0 C 70.0 42.0 45.0 70.0 42.0 72.0 C 39.0 74.0 37.0 71.0 38.0 68.0 C 40.0 64.0 56.0 30.0 61.0 30.0 C 65.0 30.0 67.0 34.0 67.0 34.0 Z"/>
-        
-    <!-- White Cutouts (represented as drawn paths with the background color, assuming background is white, or just white) -->
+        android:fillColor="#F0703D"
+        android:pathData="M31,16C36,20 42,30 40,44C39,51 34,58 29,57C24,56 21,50 22,43C24,30 27,21 31,16Z" />
+
+    <!-- Ridges -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M 44.0 57.0 C 45.0 57.0 49.0 59.0 49.0 59.0 L 48.0 61.0 L 43.0 59.0 Z"/>
+        android:strokeColor="#FBFAF8"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M25.5,30.5L34.5,33.5M24,38L33,41M25.5,45.5L31.5,47.5" />
+
+    <!-- Leaves -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M 49.0 48.0 C 51.0 48.0 55.0 51.0 55.0 51.0 L 53.0 53.0 L 47.0 49.0 Z"/>
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M 55.0 41.0 C 57.0 41.0 61.0 44.0 61.0 44.0 L 59.0 46.0 L 53.0 42.0 Z"/>
+        android:strokeColor="#3CA06E"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:pathData="M29,17C27,13 28,9 26,6M32,15C32,11 34,8 33,4M35,17C37,14 40,12 40,8" />
 </vector>
