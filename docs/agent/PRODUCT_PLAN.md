@@ -81,7 +81,7 @@ Each phase must be finished before the next. Within a phase, order matters less.
 | A3 | **Committed obligations → "available" number** | Task 26 below |
 | A4 | Pharmacy: dosage units + manual dose logging | `17_2_pharmacy_fix.md` |
 | A5 | Egyptian bank rules + wallets (Vodafone Cash, InstaPay, Fawry) | `EPIC_1_4.md` 21 |
-| A6 | Drop `RECEIVE_SMS`; rely on `NotificationListenerService` | see §5 |
+| A6 | Drop `RECEIVE_SMS`; rely on `NotificationListenerService` | ✅ done 2026-08-01, see §5 |
 
 ### Phase B — Effortless capture. The user will not type; design for that.
 
@@ -318,6 +318,23 @@ permission.
 **Action:** remove `UnifiedSmsReceiver` and `SmsBackfillScanner`, drop the SMS permissions from
 the manifest, and route everything through the notification listener. Verify no regression in
 parsing coverage first, on a real device.
+
+**Done — 2026-08-01.** `UnifiedSmsReceiver` became `UnifiedBankListener`, the permissions left
+the manifest (`757f41c`), and the follow-up removed the client code that still asked for them:
+a `checkSelfPermission(RECEIVE_SMS)` that could only ever return `DENIED`, and an "Enable" row
+in the bank-reading status screen that requested an undeclared permission — which Android
+refuses outright, without a dialog, so the button did nothing while telling the user bank
+reading was off. Checked against the **merged** manifest, the artifact Play actually reviews:
+14 permissions, none SMS.
+
+Two Play-sensitive permissions do survive and have not been decided:
+`ACCESS_BACKGROUND_LOCATION` (needs a declaration form and a video walkthrough) and
+`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` (restricted to a narrow set of app categories). Neither
+is in A6's scope, but both are the same class of risk and should be settled before submission.
+
+The one thing still unverified: parsing coverage on a real device. Nothing in this container can
+receive a bank notification, so "no regression vs. the SMS path" rests on the notification
+parser's unit tests, not on live traffic.
 
 Separately: Egypt's data protection regime has a compliance deadline of **1 November 2026**,
 requires authorisation for most processing, and requires a licence plus explicit consent for

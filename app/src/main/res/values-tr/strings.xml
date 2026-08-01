@@ -687,9 +687,8 @@
     <string name="meal_suggestions_alert_desc">Mevcut envantere göre günlük yemek önerisi</string>
     <string name="tasbih_reminder_alert">Zikir hatırlatıcısı</string>
     <string name="tasbih_reminder_alert_desc">Bugün henüz zikir yapmadıysan saat 17:00\'de nazik bir hatırlatma</string>
-    <string name="bank_reading_status_title">Banka mesajı okuma</string>
+    <string name="bank_reading_status_title">Banka bildirimlerini okuma</string>
     <string name="bank_reading_status_desc">Gerçek izin durumu — sistem ayarlarından izni kaldırırsan burada hemen görünür</string>
-    <string name="sms_reading_status_label">SMS okuma</string>
     <string name="notification_reading_status_label">Banka bildirimi okuma</string>
     <string name="battery_optimization_status_label">Pil optimizasyonu istisnası</string>
     <string name="enable_action">Etkinleştir</string>

@@ -50,10 +50,18 @@ PRODUCT_PLAN.md's Phase A/C generally (what's done, what's left, in what order, 
 critical note on what's committed to git vs. actually deployed to Supabase). **Tasks
 25-28 span two phases, not one** — despite the filename, Task 25/26 = Phase A (A2/A3),
 Task 27/28 = Phase C (C2+C3/C1); the file itself documents and corrects this mislabel.
-**Phase A is not closed**: A1/A2/A3/A4/A5 are done, but **A6 (drop `RECEIVE_SMS`,
-PRODUCT_PLAN.md §5's Play Store compliance risk) is still open** — verified live in
-`AndroidManifest.xml`/`UnifiedSmsReceiver.kt` as of 2026-07-30, not carried forward from
-an old note. Don't describe Phase A as done until A6 lands. Update the session file
+**Phase A is closed as of 2026-08-01**: A6 (drop `RECEIVE_SMS`, PRODUCT_PLAN.md §5's
+Play Store compliance risk) landed in two steps — `757f41c` removed the permission and
+replaced `UnifiedSmsReceiver` with `UnifiedBankListener` (bank text now comes from the
+messaging app's *notification*), and a follow-up removed the code that still asked for
+the now-undeclared permission (`BankReadingStatus.isSmsPermissionGranted`, and a
+permanently-off "قراءة الرسايل" row whose Enable button the system rejected without
+even showing a dialog). Verified in the **merged** manifest
+(`:app:processDebugMainManifest`), not just the source one — 14 permissions, none of
+them SMS. Remaining SMS mentions in `.kt` files are comments documenting the decision.
+Two other Play-sensitive permissions survive and are undecided:
+`ACCESS_BACKGROUND_LOCATION` and `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`. Update the
+session file
 (don't just append to PROGRESS.md) whenever a Task 25+ item or Phase A/C item lands, so
 a fresh session — this file is auto-loaded every time, no manual paste needed — starts
 already knowing where things stand instead of re-deriving it from commit history.

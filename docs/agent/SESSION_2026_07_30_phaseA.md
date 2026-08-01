@@ -9,7 +9,7 @@
 > بيقول "Phase A" لتاسكات 25-28 الأربعة — ده غلط. حسب `PRODUCT_PLAN.md` §3 نفسه:
 > Task 25 = A2، Task 26 = A3 (فعلاً **Phase A**)، لكن Task 27 = C2+C3، Task 28 = C1
 > (فعلاً **Phase C**). الأربع تاسكات خلصت (كود)، بس دي مش "جلسة Phase A واحدة" —
-> اتنين من كل فيز. وأهم من كده: **Phase A مش مقفولة** — عندها A6 (شيل `RECEIVE_SMS`)
+> اتنين من كل فيز. وأهم من كده: ~~**Phase A مش مقفولة** — عندها A6 (شيل `RECEIVE_SMS`)~~ *(اتقفلت 2026-08-01)*
 > لسه مفتوحة، انظر القسم تحت.
 
 ## ⚠️ أهم حاجة تعرفها الجلسة الجاية
@@ -83,7 +83,7 @@
     `dismiss_reason`، `DismissalMemory.noteFor()` (مختبرة)، `DismissReasonMenu`.
     Android 127/127. (كوميت `947b731`)
 13. **تصحيح توثيق Phase A/C** — اتكشف إن تاسكات 27/28 كانت متسمّاة "Phase A" غلط
-    (فعليًا Phase C)، وإن Phase A نفسها **مش مقفولة** (A6 — شيل `RECEIVE_SMS` — لسه
+    (فعليًا Phase C)، وإن Phase A نفسها كانت **مش مقفولة** وقتها (A6 — شيل `RECEIVE_SMS` — خلصت 2026-08-01، كانت لسه
     مفتوحة، اتفحص فعليًا في الكود). `CLAUDE.md`/`PROGRESS.md`/ملف الجلسة ده اتصححوا.
     (كوميت `9a584c5`)
 14. **Phase B4 — بنية تحتية بوت تليجرام** (read-only v1، grammY): جدول
@@ -149,15 +149,25 @@
 | A3 | الالتزامات الثابتة/"متاح" | ✅ خلص (Task 26، النهارده) |
 | A4 | جرعات الصيدلية (وحدات الجرعة) | ✅ خلص (Task 17.2، جلسة سابقة) |
 | A5 | قواعد بنوك مصرية | ✅ خلص (Task 21، جلسة سابقة) |
-| A6 | شيل `RECEIVE_SMS`، الاعتماد على `NotificationListenerService` بس | ❌ **لسه مفتوحة** |
+| A6 | شيل `RECEIVE_SMS`، الاعتماد على `NotificationListenerService` بس | ✅ خلصت (2026-08-01) |
 
-**A6 اتفحصت فعليًا النهارده (مش افتراض)**: `AndroidManifest.xml` لسه فيه
-`<uses-permission android:name="android.permission.RECEIVE_SMS" />` و
-`UnifiedSmsReceiver` لسه مسجل لـ `SMS_RECEIVED` action وشغال فعليًا — مش كود ميت.
-`PRODUCT_PLAN.md` §5 بيقول صراحة: "`RECEIVE_SMS`... a budgeting app declaring
-[it] risks rejection or removal... do not defer this." يعني Phase A **متقفلش**
-لحد ما A6 يتعمل — القرار الصريح من المستخدم (2026-07-30): وثّق الفجوة دي، متبدأش
-A6 دلوقتي، ابدأه كتاسك منفصل بعدين لو طلب.
+**A6 خلصت على مرحلتين — والمرحلة التانية هي اللي أقفلتها فعلاً.** كوميت
+`757f41c` شال الصلاحية من `AndroidManifest.xml` وحوّل `UnifiedSmsReceiver` لـ
+`UnifiedBankListener` (قراءة من إشعار تطبيق الرسايل بدل الـ SMS نفسه). بس فضل
+كود حي بينده صلاحية اتشالت:
+
+- `BankReadingStatus.isSmsPermissionGranted()` بيعمل `checkSelfPermission` على
+  `RECEIVE_SMS` — صلاحية مش معلَنة يعني النتيجة `DENIED` دايماً.
+- `BankReadingStatusScreen` كان فيه صف "قراءة الرسايل" بيفضل OFF على طول مع زرار
+  "تفعيل" بيطلب `RECEIVE_SMS` — طلب صلاحية غير معلَنة النظام بيرفضه فوراً من غير
+  ما يعرض أي dialog. يعني زرار مسدود بيقول للمستخدم إن قراءة البنك مكسورة.
+
+الاتنين اتشالوا في 2026-08-01، ومعاهم `sms_reading_status_label` من الأربع لغات،
+وعنوان الشاشة بقى "قراءة إشعارات البنك" لأنها بقت إشعارات + بطارية بس.
+
+**التحقق النهائي على المستوى اللي Play بيفحصه**: الـ merged manifest
+(`:app:processDebugMainManifest`) — يعني بعد دمج مانيفستات كل المكتبات — فيه 14
+صلاحية ومفيهوش ولا واحدة SMS. الباقي في الكود مجرد كومنتات بتوثّق القرار.
 
 ## حالة Phase C فعليًا (PRODUCT_PLAN.md §3 — C1/C2/C3)
 
@@ -201,8 +211,8 @@ unlinkTelegram` + `TelegramLinkDialog` في `ProfileScreen`). deno 17/17 (كل �
 
 ## فاضل عمومًا
 
-- **Phase A**: بس A6 (شيل `RECEIVE_SMS`) — compliance risk موثّق، القرار كان
-  متتأجلش من غير ما تتوثق، مش إنها اتقفلت.
+- **Phase A**: ✅ مقفولة بالكامل (A6 خلصت 2026-08-01، اتأكدت من الـ merged
+  manifest مش من ملف المصدر بس).
 - **Phase C follow-ups**: 27.1(c) (قراءة `zad_consumption` من الكلاينت)، 27.1(d)
   (عمود `reconciled_at` جديد — مفيش أصلاً)، مثال "رسالة من CIB" الحرفي (نص SMS خام
   على `ZadTransaction` — قرار خصوصية اتسيب عمدًا مش مقرر لوحدي).

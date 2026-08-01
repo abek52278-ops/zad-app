@@ -40,8 +40,6 @@ import androidx.compose.animation.scaleIn
 import com.example.ui.components.AppearOnEntry
 import com.example.ui.components.ZadLottieAsset
 import com.example.ui.components.pressableScale
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import com.example.data.BankReadingStatus
 import com.example.data.SaBankParser
 
@@ -490,7 +488,6 @@ fun BankReadingStatusSection() {
     val context = LocalContext.current
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
 
-    var smsGranted by remember { mutableStateOf(BankReadingStatus.isSmsPermissionGranted(context)) }
     var listenerEnabled by remember { mutableStateOf(BankReadingStatus.isNotificationListenerEnabled(context)) }
     var batteryUnrestricted by remember { mutableStateOf(BankReadingStatus.isIgnoringBatteryOptimizations(context)) }
     var lastParsedAt by remember { mutableStateOf(BankReadingStatus.lastParsedAt(context)) }
@@ -500,7 +497,6 @@ fun BankReadingStatusSection() {
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                smsGranted = BankReadingStatus.isSmsPermissionGranted(context)
                 listenerEnabled = BankReadingStatus.isNotificationListenerEnabled(context)
                 batteryUnrestricted = BankReadingStatus.isIgnoringBatteryOptimizations(context)
                 lastParsedAt = BankReadingStatus.lastParsedAt(context)
@@ -510,22 +506,12 @@ fun BankReadingStatusSection() {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    val smsPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted -> smsGranted = granted }
-
     Column {
         Text(stringResource(R.string.bank_reading_status_title), fontWeight = FontWeight.Bold, color = onSurface)
         Spacer(Modifier.height(4.dp))
         Text(stringResource(R.string.bank_reading_status_desc), fontSize = 12.sp, color = onSurfaceVariant)
         Spacer(Modifier.height(12.dp))
 
-        BankReadingStatusRow(
-            label = stringResource(R.string.sms_reading_status_label),
-            isOn = smsGranted,
-            actionLabel = if (!smsGranted) stringResource(R.string.enable_action) else null,
-            onAction = { smsPermissionLauncher.launch(android.Manifest.permission.RECEIVE_SMS) }
-        )
         BankReadingStatusRow(
             label = stringResource(R.string.notification_reading_status_label),
             isOn = listenerEnabled,

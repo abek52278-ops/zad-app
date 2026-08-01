@@ -934,3 +934,27 @@ design-system pieces already existed in the codebase.
   `ShoppingListScreen`, `PharmacyScreen`) automatically get the blur fix for free since
   it's fixed at the shared component, but none of them were individually re-verified
   visually this session — only `ZadCardHero` was actually screenshotted before and after.
+
+## A6 — `RECEIVE_SMS` مشالت بالكامل (2026-08-01)
+
+Phase A بقت مقفولة. الصلاحية نفسها كانت اتشالت من `AndroidManifest.xml` في
+`757f41c` مع تحويل `UnifiedSmsReceiver` لـ `UnifiedBankListener`، بس فضل كود حي
+بينده صلاحية مش موجودة:
+
+- `BankReadingStatus.isSmsPermissionGranted()` — `checkSelfPermission` على صلاحية
+  غير معلَنة، يعني `DENIED` دايماً.
+- صف "قراءة الرسايل" في `BankReadingStatusScreen` — كان بيفضل OFF على طول وزراره
+  بيطلب `RECEIVE_SMS`؛ طلب صلاحية غير معلَنة النظام بيرفضه فوراً من غير dialog،
+  فالزرار كان مسدود وبيوحي إن قراءة البنك مكسورة.
+
+اتشال الاتنين، ومعاهم `sms_reading_status_label` من الأربع لغات. عنوان الشاشة بقى
+"قراءة إشعارات البنك" — الصفوف الفاضلة إشعارات + بطارية بس.
+
+**التحقق**: `:app:processDebugMainManifest` — الـ merged manifest (بعد دمج
+مانيفستات كل المكتبات، وده المستوى اللي Play بيفحصه) فيه 14 صلاحية، ولا واحدة
+منهم SMS. `compileDebugKotlin` نضيف و129 unit test بيعدوا.
+
+**ملاحظة مش من نطاق A6**: الـ merged manifest فيه كمان
+`ACCESS_BACKGROUND_LOCATION` و`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` — الاتنين
+حساسين عند Play (الأولى محتاجة declaration form، والتانية مقيّدة لفئات محددة).
+اتسابوا زي ما هما، بس محتاجين قرار قبل النشر.
