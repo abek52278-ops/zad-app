@@ -13,12 +13,28 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.TimeUnit
 
-// Despite the file/object name, every request here goes to api.groq.com, not Gemini —
-// the name predates a provider swap and was never updated. This is the BYO-personal-key
-// vision fallback for CameraScreen (user pastes their own key when the free-tier edge
-// function is rate-limited); the key the user is asked for is a Groq key (CameraScreen.kt's
-// dialog text was fixed to say so), not a Google Gemini key. See ZadAiRepository.geminiApiKey
-// for where this gets tried before falling back to the zad-core-intelligence edge function.
+/**
+ * BYO-personal-key vision client for [com.example.ui.screens.CameraScreen] — tried before
+ * the `zad-core-intelligence` edge function, so a user whose free-tier quota is exhausted
+ * can keep scanning with their own key.
+ *
+ * As of 2026-08-01 this genuinely talks to Google Gemini (`generateContent`), which the
+ * file name has always claimed and the code stopped doing at some point: every request
+ * used to go to api.groq.com. Two reasons it moved back:
+ *
+ *  - **Groq cannot serve this use case.** It rejects JSON mode outright on any request
+ *    carrying an image, so these two scans had to ask for free-form text and then dig the
+ *    JSON back out of prose. Gemini's `response_mime_type: application/json` returns
+ *    structured JSON *with* the image, which is what the scanner needed all along.
+ *  - **Key rotation.** One key means one 429 kills the scanner. [splitKeys] accepts several
+ *    keys in the single stored string, and every call walks the whole list before failing.
+ *
+ * Migration note: the stored SharedPreferences value (`gemini_api_key`) may still hold a
+ * **Groq** key saved by an older build. Gemini will reject it (400/401), this client
+ * returns null, and [ZadAiRepository] falls through to the edge function exactly as it does
+ * when no key is set — degraded, never broken. CameraScreen's dialog now asks for a Gemini
+ * key so the stale value gets replaced on next use.
+ */
 object ZadAiGeminiClient {
     private const val TAG = "ZadAiGemini"
     private val client = OkHttpClient.Builder()
@@ -28,24 +44,38 @@ object ZadAiGeminiClient {
         .build()
     private val json = Json { ignoreUnknownKeys = true }
 
-    /** Kept in one place so the two vision calls can't drift apart again. */
-    private const val VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+    /**
+     * Vision/OCR model, in one place so the two scans can't drift apart again. Gemini's
+     * catalog moves, so this is the single line to change when a slug is retired.
+     */
+    private const val VISION_MODEL = "gemini-2.5-flash"
+
+    /** Text-only model for [generateText]. Same key, heavier tier. */
+    private const val TEXT_MODEL = "gemini-2.5-flash"
+
+    private const val API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+
+    /** Cap matches the server pool (`ZAD_API_KEY_1..5`) — more keys than that is a typo, not intent. */
+    private const val MAX_KEYS = 5
+
+    /**
+     * One stored string, up to five keys. Users paste keys separated by commas, spaces or
+     * newlines depending on where they copied them from, so all three delimit here.
+     */
+    internal fun splitKeys(raw: String): List<String> =
+        raw.split(',', '\n', ' ', '\t')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .take(MAX_KEYS)
 
     /**
      * Pulls the outermost `{...}` out of a model reply.
      *
-     * Why this exists: both vision calls used to send
-     * `response_format: {"type":"json_object"}` alongside the image. Groq **rejects**
-     * JSON mode on any request whose messages contain an image — the call came back
-     * 400 and `analyzeInventoryImage`/`analyzeReceipt` returned null every single
-     * time, which is why the scanner "never recognised anything". (The server-side
-     * path in `zad-core-intelligence`'s `callVisionModel` never set jsonMode, so only
-     * this BYO-personal-key client path was broken.)
-     *
-     * Dropping `response_format` means the model is free to wrap the JSON in prose or
-     * a ``` fence, so the reply has to be parsed leniently instead of handed straight
-     * to `decodeFromString` — the previous strip-backticks-and-hope approach threw on
-     * any leading sentence.
+     * Still needed even with `response_mime_type: application/json`: that config is honored
+     * for the JSON *shape*, but a model can still prefix a stray token, and this path also
+     * runs when a caller asks for free-form text. Lenient extraction costs nothing and the
+     * strip-backticks-and-hope approach it replaced threw on any leading sentence.
      */
     private fun extractJsonObject(raw: String): String? {
         val stripped = raw.replace("```json", "").replace("```", "").trim()
@@ -70,187 +100,171 @@ object ZadAiGeminiClient {
         return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
     }
 
-    suspend fun analyzeInventoryImage(apiKey: String, bitmap: Bitmap): AiInventoryScanResult? = withContext(Dispatchers.IO) {
-        try {
-            val base64 = encodeBitmap(bitmap)
-            val byteSize = base64.length * 3 / 4
-            Log.d(TAG, "analyzeInventoryImage: image base64 size = $byteSize bytes")
-            val prompt = """
-                You are an inventory tracking AI for a Saudi budget app called ZAD.
-                Look at this image carefully and identify EVERY visible product, food item, or branded item.
-                Even if the image shows a single bottle, can, box, or bag — list it.
-                Output ONLY a valid JSON object (no markdown, no backticks, no explanation) with this EXACT structure:
-                {
-                  "items": [
-                    { "name": "product name in Arabic or English", "quantity": 1.0, "unit": "قطعة", "category": "estimated category" }
-                  ]
-                }
-                Only list items that are actually grocery/household products visible in the image. If the image shows
-                no such products (e.g. it's a document, a person, text, or unrelated scene), return an empty items array —
-                never invent or guess a product to avoid an empty list.
-            """.trimIndent()
-            
-            val payload = buildJsonObject {
-                put("model", VISION_MODEL)
-                // NO response_format here — see extractJsonObject's doc: Groq rejects
-                // JSON mode outright when the request carries an image.
-                put("messages", buildJsonArray {
-                    add(buildJsonObject {
-                        put("role", "user")
-                        put("content", buildJsonArray {
-                            add(buildJsonObject {
-                                put("type", "text")
-                                put("text", prompt)
-                            })
-                            add(buildJsonObject {
-                                put("type", "image_url")
-                                put("image_url", buildJsonObject {
-                                    put("url", "data:image/jpeg;base64,$base64")
-                                })
-                            })
-                        })
+    /**
+     * One `generateContent` call against one key. Returns the concatenated text parts, or
+     * null plus the HTTP status so the caller can tell a quota bounce (429, worth retrying
+     * on the next key) from a bad request (worth logging).
+     */
+    private fun callOnce(
+        apiKey: String,
+        model: String,
+        prompt: String,
+        imageBase64: String?,
+        jsonMode: Boolean,
+        maxTokens: Int,
+    ): Pair<String?, Int> {
+        val parts = buildJsonArray {
+            add(buildJsonObject { put("text", prompt) })
+            if (imageBase64 != null) {
+                add(buildJsonObject {
+                    put("inline_data", buildJsonObject {
+                        put("mime_type", "image/jpeg")
+                        put("data", imageBase64)
                     })
                 })
-                put("max_tokens", 2000)
+            }
+        }
+        val payload = buildJsonObject {
+            put("contents", buildJsonArray {
+                add(buildJsonObject {
+                    put("role", "user")
+                    put("parts", parts)
+                })
+            })
+            put("generationConfig", buildJsonObject {
                 put("temperature", 0.2)
-            }
+                put("maxOutputTokens", maxTokens)
+                if (jsonMode) put("response_mime_type", "application/json")
+            })
+        }
+        // Key goes in the query string, the shape Gemini's REST API documents. It never
+        // leaves the device except to Google, and it is the user's own key.
+        val request = Request.Builder()
+            .url("$API_BASE/$model:generateContent?key=$apiKey")
+            .post(payload.toString().toRequestBody("application/json".toMediaType()))
+            .build()
 
-            val request = Request.Builder()
-                .url("https://api.groq.com/openai/v1/chat/completions")
-                .header("Authorization", "Bearer $apiKey")
-                .post(payload.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val response = client.newCall(request).execute()
-            val responseStr = response.body?.string()
-            if (!response.isSuccessful) {
-                Log.e(TAG, "Groq vision request failed: ${response.code} - $responseStr")
-                return@withContext null
+        return try {
+            client.newCall(request).execute().use { response ->
+                val body = response.body?.string()
+                if (!response.isSuccessful || body == null) {
+                    Log.e(TAG, "Gemini request failed: ${response.code} - $body")
+                    return@use null to response.code
+                }
+                val text = json.parseToJsonElement(body).jsonObject["candidates"]
+                    ?.jsonArray?.firstOrNull()?.jsonObject
+                    ?.get("content")?.jsonObject
+                    ?.get("parts")?.jsonArray
+                    ?.joinToString("") { it.jsonObject["text"]?.jsonPrimitive?.content ?: "" }
+                    ?.takeIf { it.isNotBlank() }
+                text to response.code
             }
-            if (responseStr == null) return@withContext null
-            val responseJson = json.parseToJsonElement(responseStr).jsonObject
-            val text = responseJson["choices"]?.jsonArray?.firstOrNull()?.jsonObject?.get("message")?.jsonObject?.get("content")?.jsonPrimitive?.content ?: ""
+        } catch (e: Exception) {
+            Log.e(TAG, "Gemini request threw: ${e.message}")
+            null to 0
+        }
+    }
 
-            val cleanJson = extractJsonObject(text) ?: run {
-                Log.e(TAG, "analyzeInventoryImage: no JSON object in model reply: $text")
-                return@withContext null
+    /**
+     * Walks every key in [rawKeys] before giving up. A 429 on key N retries the *same*
+     * request on key N+1 immediately — this is quota failover within one scan, not
+     * per-scan round-robin, because the user is standing there holding up a receipt.
+     */
+    private suspend fun generate(
+        rawKeys: String,
+        model: String,
+        prompt: String,
+        imageBase64: String? = null,
+        jsonMode: Boolean = true,
+        maxTokens: Int = 2000,
+    ): String? = withContext(Dispatchers.IO) {
+        val keys = splitKeys(rawKeys)
+        if (keys.isEmpty()) return@withContext null
+        for ((i, key) in keys.withIndex()) {
+            val (text, status) = callOnce(key, model, prompt, imageBase64, jsonMode, maxTokens)
+            if (text != null) return@withContext text
+            if (status == 429) {
+                Log.w(TAG, "Gemini key ${i + 1}/${keys.size} hit quota, trying next key")
+            } else {
+                Log.e(TAG, "Gemini key ${i + 1}/${keys.size} failed (status $status)")
             }
+        }
+        Log.e(TAG, "All ${keys.size} Gemini key(s) exhausted — falling back to edge function")
+        null
+    }
+
+    suspend fun analyzeInventoryImage(apiKey: String, bitmap: Bitmap): AiInventoryScanResult? {
+        val base64 = encodeBitmap(bitmap)
+        Log.d(TAG, "analyzeInventoryImage: image base64 size = ${base64.length * 3 / 4} bytes")
+        val prompt = """
+            You are an inventory tracking AI for a Saudi budget app called ZAD.
+            Look at this image carefully and identify EVERY visible product, food item, or branded item.
+            Even if the image shows a single bottle, can, box, or bag — list it.
+            Output ONLY a valid JSON object (no markdown, no backticks, no explanation) with this EXACT structure:
+            {
+              "items": [
+                { "name": "product name in Arabic or English", "quantity": 1.0, "unit": "قطعة", "category": "estimated category" }
+              ]
+            }
+            Only list items that are actually grocery/household products visible in the image. If the image shows
+            no such products (e.g. it's a document, a person, text, or unrelated scene), return an empty items array —
+            never invent or guess a product to avoid an empty list.
+        """.trimIndent()
+
+        val text = generate(apiKey, VISION_MODEL, prompt, imageBase64 = base64) ?: return null
+        val cleanJson = extractJsonObject(text) ?: run {
+            Log.e(TAG, "analyzeInventoryImage: no JSON object in model reply: $text")
+            return null
+        }
+        return try {
             json.decodeFromString<AiInventoryScanResult>(cleanJson)
         } catch (e: Exception) {
-            Log.e(TAG, "analyzeInventoryImage failed: ${e.message}")
+            Log.e(TAG, "analyzeInventoryImage decode failed: ${e.message}")
             null
         }
     }
 
-    suspend fun analyzeReceipt(apiKey: String, bitmap: Bitmap): AiParsedReceipt? = withContext(Dispatchers.IO) {
-        try {
-            val base64 = encodeBitmap(bitmap)
-            val prompt = """
-                You are a receipt parsing AI for a Saudi budget app called ZAD.
-                Extract the data from this receipt into ONLY a JSON object (no markdown, no backticks) with this structure:
-                {
-                  "storeName": "Store Name in Arabic",
-                  "total": 150.5,
-                  "category": "grocery",
-                  "items": [
-                    { "name": "Item name", "quantity": 1.0, "price": 10.0, "unit": "حبة", "category": "grocery" }
-                  ]
-                }
-            """.trimIndent()
-            
-            val byteSize = base64.length * 3 / 4
-            Log.d(TAG, "analyzeReceipt: image base64 size = $byteSize bytes")
-            val payload = buildJsonObject {
-                put("model", VISION_MODEL)
-                // NO response_format — Groq 400s on JSON mode + image (see extractJsonObject).
-                put("messages", buildJsonArray {
-                    add(buildJsonObject {
-                        put("role", "user")
-                        put("content", buildJsonArray {
-                            add(buildJsonObject {
-                                put("type", "text")
-                                put("text", prompt)
-                            })
-                            add(buildJsonObject {
-                                put("type", "image_url")
-                                put("image_url", buildJsonObject {
-                                    put("url", "data:image/jpeg;base64,$base64")
-                                })
-                            })
-                        })
-                    })
-                })
-                put("max_tokens", 2000)
-                put("temperature", 0.2)
+    suspend fun analyzeReceipt(apiKey: String, bitmap: Bitmap): AiParsedReceipt? {
+        val base64 = encodeBitmap(bitmap)
+        Log.d(TAG, "analyzeReceipt: image base64 size = ${base64.length * 3 / 4} bytes")
+        val prompt = """
+            You are a receipt parsing AI for a Saudi budget app called ZAD.
+            Receipts are usually in Arabic, sometimes bilingual, and amounts are in SAR.
+            Read every line item with its own price and keep item names exactly as printed.
+            `total` is the final amount actually paid (after VAT and any discount), a number with no currency symbol.
+            If a field is genuinely unreadable, leave it empty or 0 rather than guessing.
+            Extract the data into ONLY a JSON object (no markdown, no backticks) with this structure:
+            {
+              "storeName": "Store Name in Arabic",
+              "total": 150.5,
+              "category": "grocery",
+              "items": [
+                { "name": "Item name", "quantity": 1.0, "price": 10.0, "unit": "حبة", "category": "grocery" }
+              ]
             }
+        """.trimIndent()
 
-            val request = Request.Builder()
-                .url("https://api.groq.com/openai/v1/chat/completions")
-                .header("Authorization", "Bearer $apiKey")
-                .post(payload.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val response = client.newCall(request).execute()
-            val responseStr = response.body?.string() ?: return@withContext null
-            Log.d(TAG, "analyzeReceipt RAW response: $responseStr")
-            if (!response.isSuccessful) {
-                Log.e(TAG, "Groq request failed: ${response.code}")
-                return@withContext null
-            }
-
-            val responseJson = json.parseToJsonElement(responseStr).jsonObject
-            val text = responseJson["choices"]?.jsonArray?.firstOrNull()?.jsonObject?.get("message")?.jsonObject?.get("content")?.jsonPrimitive?.content ?: ""
-            Log.d(TAG, "analyzeReceipt model text: $text")
-            val cleanJson = extractJsonObject(text) ?: run {
-                Log.e(TAG, "analyzeReceipt: no JSON object in model reply: $text")
-                return@withContext null
-            }
+        val text = generate(apiKey, VISION_MODEL, prompt, imageBase64 = base64) ?: return null
+        val cleanJson = extractJsonObject(text) ?: run {
+            Log.e(TAG, "analyzeReceipt: no JSON object in model reply: $text")
+            return null
+        }
+        return try {
             json.decodeFromString<AiParsedReceipt>(cleanJson)
         } catch (e: Exception) {
-            Log.e(TAG, "analyzeReceipt failed: ${e.message}")
+            Log.e(TAG, "analyzeReceipt decode failed: ${e.message}")
             null
         }
     }
 
-    suspend fun generateText(apiKey: String, prompt: String, jsonFormat: Boolean = false): String? = withContext(Dispatchers.IO) {
-        try {
-            val payload = buildJsonObject {
-                put("model", "llama-3.3-70b-versatile")  // text model, not vision
-                if (jsonFormat) {
-                    put("response_format", buildJsonObject { put("type", "json_object") })
-                }
-                put("messages", buildJsonArray {
-                    add(buildJsonObject {
-                        put("role", "user")
-                        put("content", prompt)
-                    })
-                })
-            }
-
-            val request = Request.Builder()
-                .url("https://api.groq.com/openai/v1/chat/completions")
-                .header("Authorization", "Bearer $apiKey")
-                .post(payload.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                Log.e(TAG, "Groq Text request failed: ${response.code} - ${response.body?.string()}")
-                return@withContext null
-            }
-
-            val responseStr = response.body?.string() ?: return@withContext null
-            val responseJson = json.parseToJsonElement(responseStr).jsonObject
-            val text = responseJson["choices"]?.jsonArray?.firstOrNull()?.jsonObject?.get("message")?.jsonObject?.get("content")?.jsonPrimitive?.content ?: ""
-            
-            if (jsonFormat) {
-                text.replace("```json", "").replace("```", "").trim()
-            } else {
-                text
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "generateText failed: ${e.message}")
-            null
-        }
+    suspend fun generateText(apiKey: String, prompt: String, jsonFormat: Boolean = false): String? {
+        val text = generate(
+            rawKeys = apiKey,
+            model = TEXT_MODEL,
+            prompt = prompt,
+            jsonMode = jsonFormat,
+            maxTokens = 1500,
+        ) ?: return null
+        return if (jsonFormat) text.replace("```json", "").replace("```", "").trim() else text
     }
 }

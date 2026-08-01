@@ -85,10 +85,11 @@ object ZadAiRepository {
     // fragile prefix-matching on the model's prose formatting.
     const val MEAL_SUGGESTIONS_FALLBACK = "لم أتمكن من إيجاد اقتراحات حالياً."
 
-    // Name is legacy — this key is actually sent to Groq's API by ZadAiGeminiClient, not
-    // Google Gemini (CameraScreen's dialog was corrected to ask for a Groq key). Kept as-is
-    // to avoid a SharedPreferences migration for users who already saved a key under
-    // "gemini_api_key".
+    // Accurate again as of 2026-08-01: ZadAiGeminiClient really does call Google Gemini,
+    // so the name, the SharedPreferences key ("gemini_api_key") and the destination finally
+    // agree. May hold several comma-separated keys — the client rotates through them on
+    // quota errors. A stale Groq key left here by an older build just fails and falls
+    // through to the edge function.
     var geminiApiKey: String? = null
 
     suspend fun analyzeReceipt(bitmap: Bitmap): AiParsedReceipt? {

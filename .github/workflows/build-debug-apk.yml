@@ -19,9 +19,11 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      # GEMINI_API_KEY is intentionally NOT read from secrets — the app doesn't need it
-      # (all AI features run on GROQ_API_KEY server-side in Supabase). "unused" is a
-      # harmless placeholder so the Secrets Gradle Plugin has something to inject.
+      # GEMINI_API_KEY is intentionally NOT read from secrets — the app doesn't need it.
+      # AI runs server-side in Supabase on ZAD_API_KEY_1..5 (Gemini pool, primary) with
+      # GROQ_API_KEY_1/_2 as the text-only fallback; the only client-side use of a Gemini
+      # key is the optional personal key a user types into the camera screen at runtime.
+      # "unused" is a harmless placeholder so the Secrets Gradle Plugin has something to inject.
       - name: Write .env
         run: |
           echo "GEMINI_API_KEY=unused" >> .env

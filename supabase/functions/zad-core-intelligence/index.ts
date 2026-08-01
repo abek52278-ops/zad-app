@@ -1,7 +1,18 @@
 // deno-lint-ignore-file
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.6";
 
-// ── Provider chain (rewritten): Groq (multi-key pool) primary, Gemini secondary ──────────
+// ── Provider chain (2026-08-01): Gemini (5-key pool, native endpoint) primary, Groq
+// (2-key pool) secondary for TEXT/JSON only — vision never touches Groq ──────────────────
+//
+// Direction has flipped before in this file, so treat CLAUDE.md + this header as the record
+// of what is live, not any single commit. Two things forced this rewrite:
+//   1. Vision. Groq's vision path here was called with jsonMode, and Groq rejects JSON mode
+//      on any request carrying an image (400) — so the "fallback" could never have produced
+//      a scan. Images now go to Gemini and only Gemini (callVisionModel below): the user's
+//      requirement is explicit, and the Groq image path was dead code pretending to be a
+//      safety net.
+//   2. Quota. One key per provider meant a single 429 took the whole brain down. Both pools
+//      now exhaust every key on one request before reporting failure.
 //
 // GROQ_API_KEY (singular, no suffix) stays reserved for transcribeAudio() and
 // callCompoundSearch() further down — untouched by this refactor. Their retry/TPM-budget
@@ -10,10 +21,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.6";
 // incidents to get right. If 429s show up there too, that's a follow-up, not this change.
 const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
 
-// GROQ_KEYS is the pool for callTextModel/callJsonModel/callVisionModel: GROQ_API_KEY_1
-// (falls back to the original singular GROQ_API_KEY so existing deployments with only one
-// key keep working unmodified) plus GROQ_API_KEY_2. Add GROQ_API_KEY_3 etc. below if the
-// pool ever needs to grow — nextGroqKey() already loops over whatever length GROQ_KEYS is.
+// GROQ_KEYS is now the FALLBACK pool for callTextModel/callJsonModel only (never vision) —
+// reached once every Gemini key has failed or 429'd. GROQ_API_KEY_1 falls back to the
+// original singular GROQ_API_KEY so existing deployments with only one key keep working
+// unmodified. Add GROQ_API_KEY_3 etc. below if the pool ever needs to grow — the loop
+// already handles whatever length GROQ_KEYS is.
 const GROQ_KEYS: string[] = [
   Deno.env.get("GROQ_API_KEY_1") || Deno.env.get("GROQ_API_KEY"),
   Deno.env.get("GROQ_API_KEY_2"),
@@ -23,13 +35,13 @@ const GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
 // has churned before (Llama vision models were pulled from Groq's catalog previously over
 // licensing). A wrong/deprecated slug becomes a secret update, not a redeploy.
 const GROQ_TEXT_MODEL = Deno.env.get("ZAD_GROQ_TEXT_MODEL") || "llama-3.3-70b-versatile";
-// Verified live 2026-07-25 against console.groq.com/docs/models: "llama-3.2-11b-vision-
-// instruct" (this file's original default) is not in Groq's current production/preview
-// catalog at all — a synthetic smoke test against it returned in 312ms (vs ~1-1.6s for a
-// real successful call), consistent with a fast 404 silently swallowed by the {items:[]}
-// fallback. meta-llama/llama-4-scout-17b-16e-instruct is Groq's current active multimodal
-// model (natively multimodal, up to 5 image inputs) — confirmed on its GroqDocs page.
-const GROQ_VISION_MODEL = Deno.env.get("ZAD_GROQ_VISION_MODEL") || "meta-llama/llama-4-scout-17b-16e-instruct";
+// No GROQ_VISION_MODEL any more: images go to Gemini and nowhere else (see callVisionModel).
+// Kept as history because it cost real debugging: "llama-3.2-11b-vision-instruct", this
+// file's original vision default, was verified on 2026-07-25 to be absent from Groq's
+// catalog entirely — a smoke test returned in 312ms (vs ~1-1.6s for a real call), a fast
+// 404 silently swallowed by the {items:[]} fallback. Its replacement then hit Groq's other
+// vision limitation (no JSON mode with an image). Two dead ends on the same path is why
+// vision is single-provider now.
 
 // Round-robin pointer across warm invocations of this isolate — "alternate" per the pool,
 // not a fresh random pick every call (steadier load distribution across N keys than pure
@@ -41,12 +53,46 @@ function nextGroqKeyIndex(): number {
   return i;
 }
 
-// GEMINI_API_KEY is the SAME project secret CLAUDE.md documents — shared across every edge
-// function in this project, not a new/separate key. Now called via Gemini's OpenAI-
-// compatible endpoint (not the native generateContent REST shape used elsewhere in this
-// file previously) specifically so it can share callOpenAICompatibleChat() with the Groq
-// pool instead of a third near-duplicate fetch/parse implementation.
-const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+// GEMINI_KEYS — the PRIMARY pool. ZAD_API_KEY_1..5 are deliberately the same secret names
+// zad-brain's callModel.ts already reads for its "gemini" provider, so both functions share
+// one pool of keys and one rotation policy instead of two separately-named sets. Falls back
+// to the legacy singular GEMINI_API_KEY (the key CLAUDE.md documents) when none of
+// ZAD_API_KEY_1..5 are set, so a half-migrated project doesn't silently lose Gemini.
+//
+// If this array ends up empty, vision has no provider at all — that is intentional and
+// loud (callVisionModel returns null and the action logs it) rather than silently routing
+// images back to Groq, which cannot serve them.
+const GEMINI_KEYS: string[] = [
+  Deno.env.get("ZAD_API_KEY_1"),
+  Deno.env.get("ZAD_API_KEY_2"),
+  Deno.env.get("ZAD_API_KEY_3"),
+  Deno.env.get("ZAD_API_KEY_4"),
+  Deno.env.get("ZAD_API_KEY_5"),
+].filter((k): k is string => !!k);
+if (GEMINI_KEYS.length === 0) {
+  const legacy = Deno.env.get("GEMINI_API_KEY");
+  if (legacy) GEMINI_KEYS.push(legacy);
+}
+let geminiKeyCursor = 0;
+function nextGeminiKeyIndex(): number {
+  const i = geminiKeyCursor % Math.max(GEMINI_KEYS.length, 1);
+  geminiKeyCursor = (geminiKeyCursor + 1) % Math.max(GEMINI_KEYS.length, 1);
+  return i;
+}
+
+// Model per task weight, not one model for everything:
+//   ZAD_MODEL_ROUTINE — OCR/vision, receipt scanning, SMS extraction, quick classification.
+//   ZAD_MODEL_BRAIN   — household analytics, budget planning, recommendations.
+// Env-configurable for the same reason the Groq slugs are: Gemini's catalog moves.
+const GEMINI_MODEL_ROUTINE = Deno.env.get("ZAD_MODEL_ROUTINE") || "gemini-2.5-flash";
+const GEMINI_MODEL_BRAIN = Deno.env.get("ZAD_MODEL_BRAIN") || "gemini-2.5-pro";
+
+// Prepended to every system prompt on every provider. The per-action prompts below stay in
+// charge of their own output shape; this anchors tone/reliability once instead of being
+// repeated in ~20 prompts (or forgotten in the next one added). It stays OUTSIDE the
+// `=== SECTION ===` blocks user/OCR text is injected into, so it keeps its authority over
+// anything that arrives inside them.
+const ZAD_PERSONA_PREFIX = "أنت عقل زاد — مدير مالي ومنزلي ذكي وموثوق لعائلة عربية. لا تخترع أرقاماً أو حقائق أبداً، والتزم حرفياً بصيغة الإخراج المطلوبة. ";
 
 // LOCATIONIQ_API_KEY — server-side only, deliberately NOT a client BuildConfig secret like
 // AMAZON_ASSOCIATE_TAG. A LocationIQ key is a real rate-limited credential (unlike the
@@ -54,8 +100,6 @@ const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 // anyone decompile it and burn the free-tier quota. nearby_pois below proxies it the same
 // way every other third-party AI/data call in this file already goes through the server.
 const LOCATIONIQ_API_KEY = Deno.env.get("LOCATIONIQ_API_KEY");
-const GEMINI_OPENAI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
-const GEMINI_FALLBACK_MODEL = Deno.env.get("ZAD_GEMINI_FALLBACK_MODEL") || "gemini-2.0-flash";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -150,38 +194,131 @@ async function callGroqPool(opts: {
       console.error(`[CoreIntel] Groq key ${keyIndex + 1} failed (status ${result.status}):`, JSON.stringify(result.raw));
     }
   }
-  console.warn("[CoreIntel] All Groq keys exhausted, falling back to Gemini Direct");
+  console.error("[CoreIntel] All Groq fallback keys exhausted — no provider left for this call");
   return { content: null, ok: false };
 }
 
-async function callGeminiFallback(opts: {
+// Translates the OpenAI-style content shape this file already speaks (plain string, or
+// [{type:"text"},{type:"image_url",image_url:{url:"data:mime;base64,…"}}]) into Gemini's
+// native `parts`. Keeping the call sites in OpenAI shape is what let the provider swap
+// happen without touching any of the ~20 actions below.
+function toGeminiParts(content: string | Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  if (typeof content === "string") return [{ text: content }];
+  const parts: Array<Record<string, unknown>> = [];
+  for (const block of content) {
+    if (block.type === "text") {
+      parts.push({ text: block.text });
+    } else if (block.type === "image_url") {
+      const url = (block.image_url as { url?: string } | undefined)?.url || "";
+      const m = /^data:([^;]+);base64,(.*)$/s.exec(url);
+      if (m) parts.push({ inline_data: { mime_type: m[1], data: m[2] } });
+    }
+  }
+  return parts;
+}
+
+// Native generateContent, not the OpenAI-compat shim used before: inline_data images and
+// generationConfig.response_mime_type (real structured JSON) are both first-class here,
+// instead of being squeezed through an OpenAI-shaped intermediate that silently dropped
+// the image on some shapes.
+async function callGeminiNative(opts: {
+  apiKey: string;
+  model: string;
   systemPrompt: string;
   content: string | Array<Record<string, unknown>>;
   temperature?: number;
   maxTokens?: number;
   jsonMode?: boolean;
-}): Promise<string | null> {
-  if (!GEMINI_API_KEY) {
-    console.error("[CoreIntel] Gemini fallback unavailable: GEMINI_API_KEY not set");
-    return null;
+}): Promise<{ content: string | null; status: number; ok: boolean; raw: unknown }> {
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${opts.model}:generateContent?key=${encodeURIComponent(opts.apiKey)}`;
+    const generationConfig: Record<string, unknown> = {
+      temperature: opts.temperature ?? 0.3,
+      maxOutputTokens: Math.max(opts.maxTokens ?? 1000, 300),
+    };
+    if (opts.jsonMode) generationConfig.response_mime_type = "application/json";
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: opts.systemPrompt }] },
+        contents: [{ role: "user", parts: toGeminiParts(opts.content) }],
+        generationConfig,
+      }),
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+    });
+    const data = await resp.json();
+    const parts = data.candidates?.[0]?.content?.parts ?? [];
+    const text = parts.map((p: { text?: string }) => p.text || "").join("") || null;
+    return { content: text, status: resp.status, ok: resp.ok, raw: data };
+  } catch (e) {
+    return { content: null, status: 0, ok: false, raw: { error: (e as Error).message } };
   }
-  const result = await callOpenAICompatibleChat({ baseUrl: GEMINI_OPENAI_URL, apiKey: GEMINI_API_KEY, model: GEMINI_FALLBACK_MODEL, ...opts });
-  if (!result.ok || !result.content) {
-    console.error("[CoreIntel] Gemini fallback failed:", result.status, JSON.stringify(result.raw));
-    return null;
-  }
-  return result.content;
 }
 
-async function callTextModel(systemPrompt: string, userPrompt: string, maxTokens = 1000, temperature = 0.7) {
+// Exhausts every key in GEMINI_KEYS on one request before signalling failure — same
+// contract as callGroqPool, so callers don't need to know which provider is primary.
+// A 429/quota on key N retries the SAME request on key N+1 immediately; any other failure
+// also advances, since one bad key shouldn't cost the whole pool.
+async function callGeminiPool(opts: {
+  model: string;
+  systemPrompt: string;
+  content: string | Array<Record<string, unknown>>;
+  temperature?: number;
+  maxTokens?: number;
+  jsonMode?: boolean;
+}): Promise<{ content: string | null; ok: boolean }> {
+  if (GEMINI_KEYS.length === 0) {
+    console.error("[CoreIntel] No Gemini keys configured (ZAD_API_KEY_1..5 / GEMINI_API_KEY all unset)");
+    return { content: null, ok: false };
+  }
+  const start = nextGeminiKeyIndex();
+  for (let i = 0; i < GEMINI_KEYS.length; i++) {
+    const keyIndex = (start + i) % GEMINI_KEYS.length;
+    const result = await callGeminiNative({
+      apiKey: GEMINI_KEYS[keyIndex],
+      model: opts.model,
+      systemPrompt: ZAD_PERSONA_PREFIX + opts.systemPrompt,
+      content: opts.content,
+      temperature: opts.temperature,
+      maxTokens: opts.maxTokens,
+      jsonMode: opts.jsonMode,
+    });
+    if (result.ok && result.content) return { content: result.content, ok: true };
+    if (result.status === 429) {
+      console.warn(`[CoreIntel] Gemini key ${keyIndex + 1} hit 429/quota, switching to next Gemini key...`);
+    } else {
+      console.error(`[CoreIntel] Gemini key ${keyIndex + 1} failed (status ${result.status}):`, JSON.stringify(result.raw));
+    }
+  }
+  console.warn("[CoreIntel] All Gemini keys exhausted");
+  return { content: null, ok: false };
+}
+
+async function callTextModel(
+  systemPrompt: string, userPrompt: string, maxTokens = 1000, temperature = 0.7,
+  tier: "routine" | "brain" = "brain",
+) {
+  const model = tier === "routine" ? GEMINI_MODEL_ROUTINE : GEMINI_MODEL_BRAIN;
+  const gemini = await callGeminiPool({ model, systemPrompt, content: userPrompt, temperature, maxTokens });
+  if (gemini.ok) return gemini.content;
+  console.warn("[CoreIntel] Gemini pool exhausted for text — falling back to Groq");
   const groq = await callGroqPool({ model: GROQ_TEXT_MODEL, systemPrompt, content: userPrompt, temperature, maxTokens });
-  if (groq.ok) return groq.content;
-  return await callGeminiFallback({ systemPrompt, content: userPrompt, temperature, maxTokens });
+  return groq.content;
 }
 
-async function callJsonModel(systemPrompt: string, userPrompt: string, maxTokens = 1500) {
-  const groq = await callGroqPool({ model: GROQ_TEXT_MODEL, systemPrompt, content: userPrompt, temperature: 0.2, maxTokens, jsonMode: true });
-  const raw = groq.ok ? groq.content : await callGeminiFallback({ systemPrompt, content: userPrompt, temperature: 0.2, maxTokens, jsonMode: true });
+async function callJsonModel(
+  systemPrompt: string, userPrompt: string, maxTokens = 1500,
+  tier: "routine" | "brain" = "brain",
+) {
+  const model = tier === "routine" ? GEMINI_MODEL_ROUTINE : GEMINI_MODEL_BRAIN;
+  const gemini = await callGeminiPool({ model, systemPrompt, content: userPrompt, temperature: 0.2, maxTokens, jsonMode: true });
+  let raw = gemini.content;
+  if (!gemini.ok) {
+    console.warn("[CoreIntel] Gemini pool exhausted for JSON — falling back to Groq");
+    const groq = await callGroqPool({ model: GROQ_TEXT_MODEL, systemPrompt, content: userPrompt, temperature: 0.2, maxTokens, jsonMode: true });
+    raw = groq.content;
+  }
   if (!raw) return null;
   try { return JSON.parse(raw); } catch (e) {
     console.error("[CoreIntel] callJsonModel: JSON.parse failed:", e.message, "raw:", raw);
@@ -189,19 +326,22 @@ async function callJsonModel(systemPrompt: string, userPrompt: string, maxTokens
   }
 }
 
-// Vision: Groq primary (GROQ_VISION_MODEL, whichever key answers first), Gemini fallback —
-// same pool/fallback order as text, per spec section 3 ("If Groq Vision fails, route
-// directly to Gemini"). image_url + base64 data URI is the OpenAI-compatible multimodal
-// shape both Groq and Gemini's compat endpoint accept, so the same content-block array
-// works unchanged across both.
+// Vision: Gemini ONLY, routine tier, rotating across the whole key pool. There is
+// deliberately no Groq fallback here — see this file's header. Groq rejects JSON mode on
+// image requests, and the scan actions below all need structured JSON back, so a Groq
+// image fallback can only ever produce a 400 dressed up as an empty result. Failing
+// honestly (null → the action logs and returns an empty payload) beats a fallback that
+// pretends to be one.
 async function callVisionModel(systemPrompt: string, userPrompt: string, imageBase64: string, mimeType: string) {
   const content = [
     { type: "text", text: userPrompt },
     { type: "image_url", image_url: { url: "data:" + mimeType + ";base64," + imageBase64 } },
   ];
-  const groq = await callGroqPool({ model: GROQ_VISION_MODEL, systemPrompt, content, temperature: 0.2, maxTokens: 2000 });
-  if (groq.ok) return groq.content;
-  return await callGeminiFallback({ systemPrompt, content, temperature: 0.2, maxTokens: 2000 });
+  const gemini = await callGeminiPool({
+    model: GEMINI_MODEL_ROUTINE, systemPrompt, content, temperature: 0.2, maxTokens: 2000, jsonMode: true,
+  });
+  if (!gemini.ok) console.error("[CoreIntel] callVisionModel: Gemini pool exhausted; images are never routed to Groq");
+  return gemini.content;
 }
 
 async function transcribeAudio(audioBase64: string, mimeType: string) {
@@ -442,7 +582,8 @@ Deno.serve(async (req: Request) => {
         const { bank, sms_text } = payload || {};
         const systemPrompt = "أنت محلل رسائل بنكية. استخرج معلومات المعاملة من نص الإشعار البنكي. أجب بصيغة JSON: {\"amount\":0.0,\"title\":\"\",\"is_expense\":true,\"category\":\"\"}";
         const userPrompt = "البنك: " + (bank || "") + " | النص: " + (sms_text || "");
-        const result = await callJsonModel(systemPrompt, userPrompt);
+        // Structured extraction from one short SMS — routine tier, not the deep model.
+        const result = await callJsonModel(systemPrompt, userPrompt, 1500, "routine");
         return jsonResponse({
           amount: result?.amount || 0,
           title: result?.title || "",
@@ -471,10 +612,10 @@ Deno.serve(async (req: Request) => {
           "Return ONLY a JSON object, no markdown and no commentary: " +
           "{\"items\":[{\"name\":\"\",\"quantity\":1.0,\"unit\":\"قطعة\",\"category\":\"عام\"}]}";
         const userPrompt = "List every product visible in this image with its estimated quantity, unit and category.";
-        // callVisionModel already tries every Groq key then falls back to Gemini internally.
+        // callVisionModel rotates the whole Gemini key pool internally; images never hit Groq.
         const visionResult = await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg");
         if (!visionResult) {
-          console.error("[CoreIntel] analyze_inventory_image: Groq pool and Gemini fallback both returned null content");
+          console.error("[CoreIntel] analyze_inventory_image: Gemini key pool returned no content");
           return jsonResponse({ items: [] });
         }
         const objectMatch = visionResult.match(/\{[\s\S]*\}/);
@@ -515,7 +656,7 @@ Deno.serve(async (req: Request) => {
           "Return ONLY a JSON object, no markdown and no commentary: " +
           "{\"total\":0.0,\"category\":\"\",\"storeName\":\"\",\"items\":[{\"name\":\"\",\"price\":0.0,\"quantity\":1.0,\"unit\":\"قطعة\",\"category\":\"عام\"}]}";
         const userPrompt = "Extract the store name, the total paid, a spending category, and every line item from this receipt.";
-        // callVisionModel already tries every Groq key then falls back to Gemini internally.
+        // callVisionModel rotates the whole Gemini key pool internally; images never hit Groq.
         const visionResult = await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg");
         if (visionResult) {
           const jsonMatch = visionResult.match(/\{[\s\S]*\}/);
@@ -697,7 +838,8 @@ Deno.serve(async (req: Request) => {
         const { title, amount } = payload || {};
         const systemPrompt = "أنت مصنف فواتير. صنف هذه الفاتورة بناءً على عنوانها ومبلغها. أجب بصيغة JSON: {\"type\":\"\",\"provider\":\"\",\"category\":\"\",\"confidence\":0.0,\"is_recurring\":false,\"suggested_frequency_days\":null}";
         const userPrompt = "العنوان: " + (title || "") + " | المبلغ: " + (amount || 0);
-        const result = await callJsonModel(systemPrompt, userPrompt);
+        // One-line classification — routine tier.
+        const result = await callJsonModel(systemPrompt, userPrompt, 1500, "routine");
         return jsonResponse({
           type: result?.type || "other",
           provider: result?.provider || null,
@@ -889,7 +1031,8 @@ Deno.serve(async (req: Request) => {
           "Return ONLY JSON: {\"action\":\"chat|add_expense|add_income|check_budget|add_inventory|log_pharmacy_dose\",\"message\":\"short confirmation reply matching the requested dialect/language\",\"data\":{\"amount\":0,\"title\":\"\",\"category\":\"\"}}. " +
           "Use action=\"add_expense\" when the user says they spent/paid money, \"add_income\" when they received money, \"check_budget\" when they ask about their budget/balance, \"add_inventory\" when they mention buying/adding a physical item to track, " +
           "\"log_pharmacy_dose\" when the user says they took/used a medication or pill (put the medication name in data.title, leave data.amount as 0), otherwise \"chat\".";
-        const result = await callJsonModel(systemPrompt, transcript);
+        // Intent parsing off one utterance — routine tier.
+        const result = await callJsonModel(systemPrompt, transcript, 1500, "routine");
         return jsonResponse({
           action: result?.action || "chat",
           message: result?.message || "",

@@ -227,10 +227,18 @@ fun CameraScreen(
     if (showApiKeyDialog) {
         AlertDialog(
             onDismissRequest = { showApiKeyDialog = false },
-            title = { Text("إعداد الذكاء الاصطناعي (Groq API)") },
+            title = { Text("إعداد الذكاء الاصطناعي (Gemini API)") },
             text = {
                 Column {
-                    Text("أدخل مفتاح Groq الخاص بك لتفعيل تحليل الصور:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    // Gemini, not Groq: Groq refuses structured JSON on image requests, so
+                    // the scanner runs on Gemini only now (ZadAiGeminiClient). Several keys
+                    // can be pasted at once, separated by commas — they're tried in order
+                    // when one hits its quota.
+                    Text(
+                        "أدخل مفتاح Gemini الخاص بك لتفعيل تحليل الصور (يمكن إدخال أكثر من مفتاح مفصولة بفاصلة):",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = apiKeyInput,
