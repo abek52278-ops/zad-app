@@ -45,13 +45,19 @@ object ZadAiGeminiClient {
     private val json = Json { ignoreUnknownKeys = true }
 
     /**
-     * Vision/OCR model, in one place so the two scans can't drift apart again. Gemini's
-     * catalog moves, so this is the single line to change when a slug is retired.
+     * Vision/OCR model, in one place so the two scans can't drift apart again.
+     *
+     * Must stay in step with `zad-core-intelligence`'s `ZAD_MODEL_ROUTINE`: on 2026-08-01
+     * `gemini-2.5-flash` started returning 404 "no longer available to new users" — it is
+     * still listed by the models endpoint, it simply cannot be called — which is what
+     * killed the server-side scanner. The server is configurable by secret; this constant
+     * is the one place the client can be retargeted, so it is the line to change when a
+     * slug is retired.
      */
-    private const val VISION_MODEL = "gemini-2.5-flash"
+    private const val VISION_MODEL = "gemini-3.5-flash"
 
-    /** Text-only model for [generateText]. Same key, heavier tier. */
-    private const val TEXT_MODEL = "gemini-2.5-flash"
+    /** Text-only model for [generateText]. Same key, same slug caveat as [VISION_MODEL]. */
+    private const val TEXT_MODEL = "gemini-3.5-flash"
 
     private const val API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
