@@ -958,3 +958,33 @@ Phase A بقت مقفولة. الصلاحية نفسها كانت اتشالت �
 `ACCESS_BACKGROUND_LOCATION` و`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` — الاتنين
 حساسين عند Play (الأولى محتاجة declaration form، والتانية مقيّدة لفئات محددة).
 اتسابوا زي ما هما، بس محتاجين قرار قبل النشر.
+
+## minSdk 24 / API-level safety (2026-08-01)
+
+**الباج المسجّل في CLAUDE.md كان متصلّح خلاص، والملاحظة هي اللي كانت قديمة.**
+`app/build.gradle.kts` فيه `isCoreLibraryDesugaringEnabled = true` +
+`desugar_jdk_libs:2.1.4`. اتأكدت من الـ APK نفسه بـ `dexdump` مش من ملف البناء:
+`classes12.dex` بيعرّف **225 كلاس `Lj$/time/*`**، وصفر كلاس `java/time/*` معرّف في
+أي dex (ده مهم — ART بترفض كلاسات في باكدج `java.`)، وكود التطبيق في `classes6.dex`
+بيشاور على `Lj$/time/LocalDate;` **696 مرة** من غير ولا نداء `Ljava/time/` متساب من
+غير إعادة كتابة. يعني `java.time` آمنة فعلياً على API 24-25.
+
+**بس الـ desugaring بيغطي `java.*` بس — مش `android.*`.** ولقينا اتنين:
+
+1. **`TasbihaScreen:730` — كراش حقيقي على API 24-25.**
+   `VibrationEffect.createOneShot` (API 26) من غير حارس `SDK_INT`. كان ملفوف في
+   `try/catch (Exception)` وده مكانش بيحمي: كلاس ناقص بيرمي `NoClassDefFoundError`
+   وده `Error` مش `Exception`. يعني كل ضغطة تسبيحة على جهاز 24-25 = كراش.
+   اتحط نفس الحارس اللي `CameraScreen` مستعمله + fallback لـ `vibrate(long)`.
+2. **`android.permission.VIBRATE` مكانتش معلَنة خالص.** كل نداء `vibrate()` في
+   التطبيق كان بيرمي `SecurityException` ويتبلع في الـ try/catch — الاهتزاز مكانش
+   شغال في أي مكان (تسبيح + كاميرا). اتعلنت في المانيفست؛ صلاحية عادية بتتمنح وقت
+   التثبيت، مفيش نافذة طلب ولا خطر Play.
+
+الاتنين كانوا **متخبّيين في `lint-baseline.xml`** (2 × `NewApi` + 5 ×
+`MissingPermission`). السبع مدخلات اتشالوا من الـ baseline بدل ما يتساب الغطا عليهم،
+و`lintDebug` بقى نضيف (0 errors غير مفلترة). قاعدة للجلسات الجاية: `NewApi` و
+`MissingPermission` ما يتحطوش في baseline — دول كراشات أو ميزات ميتة بصمت.
+
+**التحقق**: `lintDebug` نضيف، `compileDebugKotlin` نضيف، 129 unit test بيعدوا،
+والـ merged manifest فيه 15 صلاحية (VIBRATE موجودة، SMS صفر).

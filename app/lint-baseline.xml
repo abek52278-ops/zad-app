@@ -1,60 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <issues format="6" by="lint 9.1.1" type="baseline" client="gradle" dependencies="false" name="AGP (9.1.1)" variant="all" version="9.1.1">
 
-    <issue
-        id="MissingPermission"
-        message="Missing permissions required by Vibrator.vibrate: android.permission.VIBRATE"
-        errorLine1="                                    vib?.vibrate(VibrationEffect.createOneShot(50, 200))"
-        errorLine2="                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/example/ui/screens/CameraScreen.kt"
-            line="136"
-            column="37"/>
-    </issue>
 
-    <issue
-        id="MissingPermission"
-        message="Missing permissions required by Vibrator.vibrate: android.permission.VIBRATE"
-        errorLine1="                                    @Suppress(&quot;DEPRECATION&quot;) vib?.vibrate(50)"
-        errorLine2="                                                             ~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/example/ui/screens/CameraScreen.kt"
-            line="138"
-            column="62"/>
-    </issue>
 
-    <issue
-        id="MissingPermission"
-        message="Missing permissions required by Vibrator.vibrate: android.permission.VIBRATE"
-        errorLine1="                                    vib?.vibrate(VibrationEffect.createOneShot(100, 255))"
-        errorLine2="                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/example/ui/screens/CameraScreen.kt"
-            line="175"
-            column="37"/>
-    </issue>
 
-    <issue
-        id="MissingPermission"
-        message="Missing permissions required by Vibrator.vibrate: android.permission.VIBRATE"
-        errorLine1="                                    @Suppress(&quot;DEPRECATION&quot;) vib?.vibrate(100)"
-        errorLine2="                                                             ~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/example/ui/screens/CameraScreen.kt"
-            line="177"
-            column="62"/>
-    </issue>
 
-    <issue
-        id="MissingPermission"
-        message="Missing permissions required by Vibrator.vibrate: android.permission.VIBRATE"
-        errorLine1="                                vib?.vibrate(android.os.VibrationEffect.createOneShot(30, 200))"
-        errorLine2="                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/example/ui/screens/TasbihaScreen.kt"
-            line="745"
-            column="33"/>
-    </issue>
 
     <issue
         id="DefaultLocale"
@@ -111,27 +61,7 @@
             column="66"/>
     </issue>
 
-    <issue
-        id="NewApi"
-        message="Call requires API level 26 (current min is 24): `android.os.VibrationEffect#createOneShot`"
-        errorLine1="                                vib?.vibrate(android.os.VibrationEffect.createOneShot(30, 200))"
-        errorLine2="                                                                        ~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/example/ui/screens/TasbihaScreen.kt"
-            line="745"
-            column="73"/>
-    </issue>
 
-    <issue
-        id="NewApi"
-        message="Call requires API level 26 (current min is 24): `android.os.Vibrator#vibrate`"
-        errorLine1="                                vib?.vibrate(android.os.VibrationEffect.createOneShot(30, 200))"
-        errorLine2="                                     ~~~~~~~">
-        <location
-            file="src/main/java/com/example/ui/screens/TasbihaScreen.kt"
-            line="745"
-            column="38"/>
-    </issue>
 
     <issue
         id="OldTargetApi"

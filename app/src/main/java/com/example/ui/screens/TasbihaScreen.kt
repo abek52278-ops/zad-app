@@ -724,10 +724,17 @@ private fun AnimatedTreeDisplay(
                             tapCount++
                             spawnParticles()
                             haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
-                            // Vibrate
+                            // Vibrate — VibrationEffect ماوصلش غير في API 26، وminSdk 24.
+                            // الـ try/catch مش كان بيحمي: كلاس ناقص بيرمي NoClassDefFoundError
+                            // وده Error مش Exception، فكان بيعدي منه ويكسّر التطبيق على 24-25
+                            // مع كل ضغطة تسبيحة. نفس الحارس اللي CameraScreen مستعمله.
                             try {
                                 val vib = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
-                                vib?.vibrate(android.os.VibrationEffect.createOneShot(30, 200))
+                                if (android.os.Build.VERSION.SDK_INT >= 26) {
+                                    vib?.vibrate(android.os.VibrationEffect.createOneShot(30, 200))
+                                } else {
+                                    @Suppress("DEPRECATION") vib?.vibrate(30)
+                                }
                             } catch (_: Exception) {}
                             onTap()
                         },
