@@ -189,7 +189,7 @@ object ZadAiRepository {
         val response = callAction("recipe_details", mapOf("recipe_name" to recipeName, "inventory" to itemsList))
         // a failed/timed-out upstream call used to fall back to a placeholder string that was
         // then rendered as if it were a real recipe — throw instead so the caller can show a
-        // retry state (see RecipeDetailScreen's isLoading/errorMessage handling)
+        // retry state (see RecipeDetailDialog's isLoading/errorMessage handling)
         return response["text"] as? String
             ?: throw IllegalStateException("recipe_details: upstream call failed for \"$recipeName\"")
     }

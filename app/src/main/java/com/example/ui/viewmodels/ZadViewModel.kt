@@ -439,8 +439,6 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
                 Log.d(TAG, "syncData() SUCCESS")
 
-                // Optionally trigger the brain after sync
-                // triggerBrain() 
             } catch (e: Exception) {
                 Log.e(TAG, "syncData() FAILED: ${e.message} — falling back to cached Room data")
                 e.printStackTrace()
@@ -2150,54 +2148,6 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun analyzeReceiptAndSave(bitmap: android.graphics.Bitmap) {
-        viewModelScope.launch {
-            try {
-                Log.d(TAG, "analyzeReceiptAndSave() -> Calling Gemini Vision...")
-                val parsed = ZadAiRepository.analyzeReceipt(bitmap)
-                if (parsed != null) {
-                    // 1. Add Transaction
-                    addTransaction(
-                        title = parsed.storeName,
-                        amount = parsed.total,
-                        isExpense = true,
-                        category = parsed.category
-                    )
-                    // 2. Add to Inventory
-                    parsed.items.forEach { item ->
-                        addInventory(
-                            ZadInventory(
-                                itemName = item.name,
-                                quantity = item.quantity.toInt(),
-                                unit = item.unit,
-                                category = item.category
-                            )
-                        )
-                    }
-                    Log.d(TAG, "analyzeReceiptAndSave() -> Success! Added tx and ${parsed.items.size} inventory items.")
-                } else {
-                    Log.e(TAG, "analyzeReceiptAndSave() -> Parsed is null")
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "analyzeReceiptAndSave() FAILED: ${e.message}")
-            }
-        }
-    }
-
-    fun fetchMealSuggestions() {
-        viewModelScope.launch {
-            Log.d(TAG, "fetchMealSuggestions() → fetching...")
-            _mealSuggestions.value = "جاري استنباط الطبخات من المخزون..."
-            try {
-                val suggestions = ZadAiRepository.suggestMeals(_inventory.value)
-                _mealSuggestions.value = suggestions
-            } catch (e: Exception) {
-                Log.e(TAG, "fetchMealSuggestions() FAILED: ${e.message}")
-                _mealSuggestions.value = "حدث خطأ أثناء اقتراح الوجبات."
-            }
-        }
-    }
-
     // --- تقرير العقل المهيكل لصفحة ذكاء زاد ---
     private val _brainReport = kotlinx.coroutines.flow.MutableStateFlow<ZadCentralBrain.BrainReport?>(null)
     val brainReport: kotlinx.coroutines.flow.StateFlow<ZadCentralBrain.BrainReport?> = _brainReport
@@ -2427,97 +2377,6 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // --- Zad Brain Trigger (الدماغ المركزي الموحد) ---
-    fun triggerBrain() {
-        viewModelScope.launch {
-            Log.d(TAG, "triggerBrain() -> Fetching current state for Central Brain")
-            val inventory = _inventory.value
-            val transactions = _transactions.value
-            val subscriptions = _subscriptions.value
-            val shoppingList = _shoppingList.value
-            val patterns = _behaviorPatterns.value
-            val budget = _budget.value
-
-            val brainOutput = ZadCentralBrain.fullAnalysis(getApplication(), inventory, transactions, subscriptions, shoppingList, patterns, budget)
-
-            Log.d(TAG, "triggerBrain() -> ${brainOutput.alerts.size} alerts, ${brainOutput.suggestions.size} suggestions, ${brainOutput.autoActions.size} auto-actions")
-
-            // تنفيذ الإجراءات التلقائية
-            brainOutput.autoActions.forEach { action ->
-                when (action.type) {
-                    "ADD_TO_SHOPPING" -> {
-                        val existing = _shoppingList.value.find { it.itemName == action.payload && !it.isPurchased }
-                        if (existing == null) {
-                            addShoppingItem(ZadShoppingItem(
-                                itemName = action.payload,
-                                quantity = 1,
-                                estimatedPrice = 0.0,
-                                priority = "high"
-                            ))
-                        }
-                    }
-                    "SUGGEST_RECIPE" -> {
-                        Log.d(TAG, "Brain suggests recipe using: ${action.payload}")
-                    }
-                    "SEND_NOTIFICATION" -> {
-                        Log.d(TAG, "Brain notification: ${action.payload}")
-                    }
-                }
-            }
-
-            // توليد إشعارات ذكية من التحذيرات
-            if (brainOutput.alerts.isNotEmpty()) {
-                val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
-                if (userId != null) {
-                    brainOutput.alerts.take(3).forEach { alertText ->
-                        try {
-                            val title = when {
-                                alertText.contains("مخزون منخفض") -> "📦 مخزون منخفض"
-                                alertText.contains("تجدد") || alertText.contains("يُجدد") -> "🔔 تجديد اشتراك"
-                                alertText.contains("إنفاق غير مألوف") -> "💰 تنبيه إنفاق"
-                                alertText.contains("تجاوزت الميزانية") -> "🚨 تجاوز الميزانية"
-                                alertText.contains("على وشك النفاد") -> "⚠️ الميزانية"
-                                alertText.contains("تنتهي") -> "⏰ انتهاء صلاحية"
-                                else -> "🔔 تنبيه زاد"
-                            }
-                            SupabaseRepo.sendAppNotification(userId, title, alertText)
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Brain notification failed: ${e.message}")
-                        }
-                    }
-                    _appNotifications.value = SupabaseRepo.getAppNotifications(userId)
-                }
-            }
-        }
-    }
-
-    // --- Scan Fridge with Camera (Gemini Vision) ---
-    fun scanFridgeWithCamera(bitmap: android.graphics.Bitmap) {
-        viewModelScope.launch {
-            try {
-                Log.d(TAG, "scanFridgeWithCamera() -> Calling Gemini Vision for fridge scan...")
-                val result = com.example.data.ZadAiRepository.analyzeInventoryImage(bitmap)
-                if (result != null) {
-                    result.items.forEach { item ->
-                        if (item.name.isNotBlank()) {
-                            addInventory(ZadInventory(
-                                itemName = item.name,
-                                quantity = item.quantity.toInt(),
-                                unit = item.unit,
-                                category = item.category
-                            ))
-                        }
-                    }
-                    Log.d(TAG, "scanFridgeWithCamera() -> Added ${result.items.size} items from fridge scan")
-                } else {
-                    Log.e(TAG, "scanFridgeWithCamera() -> Result is null")
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "scanFridgeWithCamera() FAILED: ${e.message}")
-            }
-        }
-    }
-
     // --- Refresh Smart Shopping (AI-powered) ---
     fun refreshSmartShopping() {
         viewModelScope.launch {
@@ -2665,10 +2524,6 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.e(TAG, "refreshAutoSuggestions() FAILED: ${e.message}")
             }
         }
-    }
-
-    fun setAvatarUri(uri: String?) {
-        _avatarUri.value = uri
     }
 
     suspend fun processVoiceCommand(audioBase64: String): com.example.data.VoiceAgentResponse? {
@@ -2870,10 +2725,6 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     // that could still build an /dp/ link from a bare ASIN with no asin_verified check —
     // exactly the thing that made every catalog link 404. Use AffiliateHelper.openProduct,
     // which carries the flag.
-
-    fun clearMatchedProduct() {
-        _matchedProductId.value = null
-    }
 
     private val _affiliateStats = MutableStateFlow<List<AffiliateClick>>(emptyList())
     val affiliateStats: StateFlow<List<AffiliateClick>> = _affiliateStats.asStateFlow()
