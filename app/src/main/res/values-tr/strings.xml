@@ -905,4 +905,6 @@
     <string name="telegram_manual_hint">Düğme çalışmadı mı? Bota şunu gönder: /start %1$s</string>
     <string name="telegram_no_app_toast">Cihazda Telegram uygulaması veya tarayıcı yok</string>
     <string name="telegram_code_copied_toast">Kod kopyalandı</string>
+    <string name="insight_tag_alert">Uyarı</string>
+    <string name="insight_tag_info">Bilgi</string>
 </resources>

@@ -138,218 +138,120 @@ fun PremiumTopBar(
  * the old rectangular PremiumHeroCard.
  */
 /**
- * Signature hero, v3 (glassmorphism pass) — same "زاد" wordmark + big available figure
- * as v2, but the secondary stats (days left / spent / deposit) now sit in a nested
- * `GlassCard` frosted panel instead of directly on the gradient, and the outer card
- * goes through `HeroGradientCard` — the same two primitives `ZadIntelligenceScreen`/
- * `PharmacyScreen` already use — an unused `BudgetCardSection` in `HomeScreen.kt` had
- * already prototyped this exact nesting with zero call sites and predated Task 26/27
- * (no available/committed/confidence), so it was deleted rather than left as a second,
- * stale "budget hero" composable. Also dropped the fixed `aspectRatio(1.62f)`
- * credit-card silhouette — content-sized height gives
- * the nested glass panel room without cramping either layer.
+ * Signature hero, v4 — now the mockup's ("ZAD App.dc.html") hero card and nothing else:
+ * a 28dp mesh-gradient card holding the "متاح" label, the figure, and the spent/committed
+ * glow pills. That is the entire card in the design.
+ *
+ * v3 carried three things the mockup does not have, all removed here: an EMV-chip
+ * silhouette + "زاد" wordmark row, a decorative translucent blob, and a nested glass panel
+ * repeating days-left and spent with a deposit button. The days/spent repetition was the
+ * real problem — `ZadDaysAndSafeSpendRow` renders both directly underneath, so the hero was
+ * restating its own next sibling.
+ *
+ * The deposit shortcut moved out rather than being kept as an off-design extra: adding a
+ * transaction still lives on Budget (its own FAB) and Transactions, and Home's "عرض الكل"
+ * goes straight to Budget. One tap further, no capability lost.
+ *
+ * What is NOT dropped, because it is product logic rather than decoration: the "≈" prefix
+ * and its explanation dialog when the figure isn't confident (Task 27.1a), the long-press
+ * that opens "آخر التغييرات" (Task 27.2), and the "متبقي X · محجوز Y" breakdown line, which
+ * only renders when committed > 0 (Task 26).
  */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ZadCardHero(
-    budget: Double,
     spent: Double,
     remaining: Double,
-    daysLeft: Int,
-    onDepositClick: () -> Unit,
-    // Task 26 — "متاح" (available) هو الرقم الأساسي دلوقتي، remaining بقى تفصيل ثانوي.
-    // available == remaining لحد ما فيه التزامات مؤكدة (committed > 0)، فمفيش تغيير مرئي
-    // لمستخدم لسه ما سجلش/أكدش أي التزام.
     available: com.example.data.Figure = com.example.data.Figure(remaining, confident = true),
     committed: Double = 0.0,
     nextObligationText: String? = null,
-    // Task 27.2 — طول الضغط على الرقم بيفتح شيت "آخر التغييرات" (zad_brain_runs.mutations)
     onAvailableLongPress: () -> Unit = {}
 ) {
     val currencyContext = LocalContext.current
-    val spentPct = if (budget > 0) (spent / budget * 100).toInt() else 0
-    val progress = if (budget > 0) (spent / budget).toFloat().coerceIn(0f, 1f) else 0f
-
-    var isVisible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        delay(200)
-        isVisible = true
-    }
-    val animatedProgress by animateFloatAsState(
-        targetValue = if (isVisible) progress else 0f,
-        animationSpec = ZadSprings.Screen,
-        label = "cardHeroProgress"
-    )
-
     val cardShape = RoundedCornerShape(28.dp)
 
-    Box(modifier = Modifier.fillMaxWidth()) {
-        com.example.ui.components.HeroGradientCard(
-            colors = com.example.ui.components.ZadHeroGradient,
-            shape = cardShape,
-            contentPadding = 24.dp
-        ) {
-            Box(modifier = Modifier.fillMaxWidth()) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = 40.dp, y = (-40).dp)
-                        .size(140.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.05f))
+    com.example.ui.components.HeroGradientCard(
+        colors = com.example.ui.components.ZadHeroGradient,
+        shape = cardShape,
+        contentPadding = 0.dp
+    ) {
+        // mockup: padding 26px top / 24px sides / 22px bottom, 16px gaps.
+        Column(modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 26.dp, bottom = 22.dp)) {
+            Text(
+                stringResource(R.string.available_label),
+                style = Typography.labelSmall.copy(fontSize = 11.5.sp, letterSpacing = 0.4.sp),
+                fontWeight = FontWeight.Bold,
+                color = Color.White.copy(alpha = 0.72f)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            var showAvailableReason by remember { mutableStateOf(false) }
+            // mockup paints the figure with a white → #D9F2E6 vertical gradient; a negative
+            // figure drops the gradient for a flat danger color so it still reads as alarming.
+            val figureStyle = Typography.displayLarge.copy(
+                fontSize = 44.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = (-1.2).sp,
+                brush = if (available.value < 0) null else Brush.verticalGradient(
+                    listOf(Color.White, Color(0xFFD9F2E6))
                 )
+            )
+            Text(
+                (if (!available.confident) "≈ " else "") +
+                    com.example.data.CurrencyFormatter.formatNumber(currencyContext, available.value),
+                style = figureStyle,
+                color = if (available.value < 0) dangerColor else Color.White,
+                modifier = Modifier.combinedClickable(
+                    onClick = { if (!available.confident) showAvailableReason = true },
+                    onLongClick = onAvailableLongPress
+                )
+            )
+            if (showAvailableReason && available.reason != null) {
+                AlertDialog(
+                    onDismissRequest = { showAvailableReason = false },
+                    confirmButton = { TextButton(onClick = { showAvailableReason = false }) { Text(stringResource(R.string.close_action)) } },
+                    title = { Text(stringResource(R.string.available_label) + " ≈") },
+                    text = { Text(available.reason!!) }
+                )
+            }
 
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // EMV-chip silhouette
-                        Box(
-                            modifier = Modifier
-                                .size(width = 36.dp, height = 26.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Brush.linearGradient(listOf(secondaryLight, secondary)))
+            if (committed > 0) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    if (nextObligationText != null) {
+                        stringResource(
+                            R.string.available_breakdown_with_next,
+                            com.example.data.CurrencyFormatter.format(currencyContext, remaining),
+                            com.example.data.CurrencyFormatter.format(currencyContext, committed),
+                            nextObligationText
                         )
-                        Text("زاد", color = Color.White, fontWeight = FontWeight.Black, fontSize = 18.sp)
-                    }
+                    } else {
+                        stringResource(
+                            R.string.available_breakdown,
+                            com.example.data.CurrencyFormatter.format(currencyContext, remaining),
+                            com.example.data.CurrencyFormatter.format(currencyContext, committed)
+                        )
+                    },
+                    style = Typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.65f)
+                )
+            }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-                    Text(
-                        stringResource(R.string.available_label),
-                        style = Typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.7f)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                HeroGlowPill(
+                    dotColor = Color(0xFFF4A93B),
+                    label = stringResource(R.string.spent_label),
+                    value = com.example.data.CurrencyFormatter.format(currencyContext, spent)
+                )
+                if (committed > 0) {
+                    HeroGlowPill(
+                        dotColor = Color(0xFFFF8066),
+                        label = stringResource(R.string.committed_label),
+                        value = com.example.data.CurrencyFormatter.format(currencyContext, committed)
                     )
-                    // Task 27.1(a) — "≈" لو فيه معاملة مش متأكدة، تاب يشرح السبب. طول الضغط
-                    // (27.2) يفتح شيت "آخر التغييرات" عن طريق onAvailableLongPress.
-                    var showAvailableReason by remember { mutableStateOf(false) }
-                    Text(
-                        (if (!available.confident) "≈ " else "") +
-                            com.example.data.CurrencyFormatter.formatNumber(currencyContext, available.value),
-                        style = Typography.displayLarge.copy(fontSize = 44.sp, letterSpacing = (-1).sp),
-                        color = if (available.value < 0) dangerColor else Color.White,
-                        modifier = Modifier.combinedClickable(
-                            onClick = { if (!available.confident) showAvailableReason = true },
-                            onLongClick = onAvailableLongPress
-                        )
-                    )
-                    if (showAvailableReason && available.reason != null) {
-                        AlertDialog(
-                            onDismissRequest = { showAvailableReason = false },
-                            confirmButton = { TextButton(onClick = { showAvailableReason = false }) { Text(stringResource(R.string.close_action)) } },
-                            title = { Text(stringResource(R.string.available_label) + " ≈") },
-                            text = { Text(available.reason!!) }
-                        )
-                    }
-                    // Task 26 — تفصيل "متبقي X · محجوز Y" تحت الرقم الأساسي. بيظهر بس لو فيه
-                    // التزامات فعلاً (committed > 0)، عشان مستخدم من غير التزامات مسجلة يشوف
-                    // نفس الشاشة القديمة بالظبط.
-                    if (committed > 0) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            if (nextObligationText != null) {
-                                stringResource(
-                                    R.string.available_breakdown_with_next,
-                                    com.example.data.CurrencyFormatter.format(currencyContext, remaining),
-                                    com.example.data.CurrencyFormatter.format(currencyContext, committed),
-                                    nextObligationText
-                                )
-                            } else {
-                                stringResource(
-                                    R.string.available_breakdown,
-                                    com.example.data.CurrencyFormatter.format(currencyContext, remaining),
-                                    com.example.data.CurrencyFormatter.format(currencyContext, committed)
-                                )
-                            },
-                            style = Typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.65f)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // شرايح "مصروف / محجوز" بنقطة متوهجة — توقيع الكارت في التصميم الجديد.
-                    // "محجوز" بيظهر بس لو فيه التزامات فعلاً، زي سطر التفصيل فوق.
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        HeroGlowPill(
-                            dotColor = Color(0xFFF4A93B),
-                            label = stringResource(R.string.spent_label),
-                            value = com.example.data.CurrencyFormatter.format(currencyContext, spent)
-                        )
-                        if (committed > 0) {
-                            HeroGlowPill(
-                                dotColor = Color(0xFFFF8066),
-                                label = stringResource(R.string.committed_label),
-                                value = com.example.data.CurrencyFormatter.format(currencyContext, committed)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // الإحصائيات الثانوية (أيام/مصروف/إيداع) في بانل زجاجي مستقل — نفس
-                    // GlassCard المستخدم في باقي التطبيق، مش لوح شفاف يدوي زي قبل كده.
-                    com.example.ui.components.GlassCard(
-                        shape = RoundedCornerShape(18.dp),
-                        containerColor = Color.White.copy(alpha = 0.14f),
-                        borderColor = Color.White.copy(alpha = 0.22f),
-                        contentPadding = 16.dp
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(50))
-                                .background(Color.White.copy(alpha = 0.25f))
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth(animatedProgress)
-                                    .fillMaxHeight()
-                                    .clip(RoundedCornerShape(50))
-                                    .background(if (spentPct >= 100) dangerColor else Color.White)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(stringResource(R.string.days_label), style = Typography.labelSmall, color = Color.White.copy(alpha = 0.6f))
-                                Text("$daysLeft", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
-                            }
-                            Column {
-                                Text(stringResource(R.string.spent_label), style = Typography.labelSmall, color = Color.White.copy(alpha = 0.6f))
-                                Text(
-                                    com.example.data.CurrencyFormatter.format(currencyContext, spent),
-                                    style = Typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                            }
-                            Surface(
-                                color = Color.White,
-                                shape = RoundedCornerShape(50),
-                                onClick = onDepositClick,
-                                modifier = Modifier.pressableScale()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.deposit), tint = primaryDark, modifier = Modifier.size(16.dp))
-                                    Text(stringResource(R.string.deposit), style = Typography.labelMedium, fontWeight = FontWeight.Bold, color = primaryDark)
-                                }
-                            }
-                        }
-                    }
                 }
             }
         }

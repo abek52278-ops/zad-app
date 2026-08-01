@@ -907,4 +907,6 @@
     <string name="telegram_manual_hint">مش اشتغل الزرار؟ ابعت للبوت: /start ‏%1$s</string>
     <string name="telegram_no_app_toast">مفيش تطبيق تليجرام أو متصفح على الجهاز</string>
     <string name="telegram_code_copied_toast">تم نسخ الكود</string>
+    <string name="insight_tag_alert">تحذير</string>
+    <string name="insight_tag_info">معلومة</string>
 </resources>

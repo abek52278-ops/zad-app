@@ -177,7 +177,6 @@ fun HomeScreen(
 
     val userName = userNameState ?: "..."
 
-    var showAddTransactionDialog by remember { mutableStateOf(false) }
     var showAllTransactionsDialog by remember { mutableStateOf(false) }
     var showWhySheet by remember { mutableStateOf(false) } // Task 27.2 — طول الضغط على "متاح"
     var selectedRecipeTitle by remember { mutableStateOf<String?>(null) }
@@ -280,11 +279,8 @@ fun HomeScreen(
                 com.example.ui.components.AppearOnEntry {
                     if (budgetConfirmed) {
                         com.example.ui.components.ZadCardHero(
-                            budget = budget,
                             spent = totalSpent,
                             remaining = currentBudget,
-                            daysLeft = daysLeft,
-                            onDepositClick = { showAddTransactionDialog = true },
                             available = availableFigure,
                             committed = committed,
                             nextObligationText = nextObligationText,
@@ -381,6 +377,25 @@ fun HomeScreen(
                                         Text(insight.body, style = Typography.bodyMedium, color = onSurfaceVariant, maxLines = 2)
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
+                                    // mockup: a kind tag pill on the trailing edge, tinted to
+                                    // match the dot. The mockup has three (معلومة/مطلوب/تحذير)
+                                    // because its data is hardcoded; ZadInsight.priority only
+                                    // has normal|critical, so inventing a third would mean
+                                    // inventing a state the brain never emits.
+                                    Text(
+                                        stringResource(
+                                            if (isCritical) R.string.insight_tag_alert else R.string.insight_tag_info
+                                        ),
+                                        style = Typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = accent,
+                                        maxLines = 1,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(50))
+                                            .background(accent.copy(alpha = 0.12f))
+                                            .padding(horizontal = 9.dp, vertical = 4.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
                                     // Task 28 — "رفض بمعنى": بدل رفض صامت، ٣ خيارات بسبب فعلي
                                     var showDismissMenu by remember(insight.id) { mutableStateOf(false) }
                                     IconButton(onClick = { showDismissMenu = true }, modifier = Modifier.size(28.dp)) {
@@ -601,17 +616,6 @@ fun HomeScreen(
         viewModel = viewModel
     )
 } // closes Box
-    if (showAddTransactionDialog) {
-        AddTransactionDialog(
-            onDismiss = { showAddTransactionDialog = false },
-            onSave = { amount, title, isExpense, category ->
-                Log.d(TAG_HOME, "AddTransactionDialog SAVE → amount=$amount, title=$title, isExpense=$isExpense, category=$category")
-                viewModel.addTransaction(amount, title, isExpense, category, isVerified = true)
-                showAddTransactionDialog = false
-            }
-        )
-    }
-
     if (showWhySheet) {
         com.example.ui.components.WhyChangedSheet(onDismiss = { showWhySheet = false })
     }

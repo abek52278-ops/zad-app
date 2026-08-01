@@ -161,11 +161,8 @@ class PreviewTest {
             AppTheme {
                 Box(modifier = Modifier.padding(16.dp)) {
                     ZadCardHero(
-                        budget = 3500.0,
                         spent = 1200.0,
                         remaining = 2300.0,
-                        daysLeft = 12,
-                        onDepositClick = {},
                         available = Figure(value = 2000.0, confident = true),
                         committed = 300.0,
                         nextObligationText = "إيجار بعد 4 أيام"
@@ -207,11 +204,8 @@ class PreviewTest {
                         verticalArrangement = Arrangement.spacedBy(18.dp)
                     ) {
                         ZadCardHero(
-                            budget = 9000.0,
                             spent = 1120.0,
                             remaining = 3880.0,
-                            daysLeft = 9,
-                            onDepositClick = {},
                             available = Figure(value = 3240.0, confident = false),
                             committed = 640.0,
                             nextObligationText = "إيجار بعد 4 أيام"
