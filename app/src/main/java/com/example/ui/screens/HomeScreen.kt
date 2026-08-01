@@ -178,6 +178,7 @@ fun HomeScreen(
 
     var showAllTransactionsDialog by remember { mutableStateOf(false) }
     var showWhySheet by remember { mutableStateOf(false) } // Task 27.2 — طول الضغط على "متاح"
+    var showTelegramSheet by remember { mutableStateOf(false) } // بوت تليجرام — اتنقل من البروفايل للرئيسية
     var selectedRecipeTitle by remember { mutableStateOf<String?>(null) }
     var showRecipeDialog by remember { mutableStateOf(false) }
     var showTasbihaReminder by remember { mutableStateOf(false) }
@@ -296,6 +297,13 @@ fun HomeScreen(
                             com.example.ui.components.ZadShortcutItem(Icons.Default.Park, stringResource(R.string.tasbiha_short_label), secondaryDark, onNavigateToTasbiha)
                         )
                     )
+                }
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // ── 3b. Telegram bot — كان جوه البروفايل، والناس ما بتوصلش له. الرئيسية
+                // هي المكان اللي بيتشاف. زرار بيفتح شيت عشان الربط نفسه بيعمل نداء شبكة.
+                com.example.ui.components.AppearOnEntry(delayMs = 90) {
+                    com.example.ui.components.TelegramBotCard(onClick = { showTelegramSheet = true })
                 }
                 Spacer(modifier = Modifier.height(18.dp))
 
@@ -595,6 +603,10 @@ fun HomeScreen(
         viewModel = viewModel
     )
 } // closes Box
+    if (showTelegramSheet) {
+        com.example.ui.components.TelegramBotSheet(onDismiss = { showTelegramSheet = false })
+    }
+
     if (showWhySheet) {
         com.example.ui.components.WhyChangedSheet(onDismiss = { showWhySheet = false })
     }
