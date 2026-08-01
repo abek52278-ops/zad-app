@@ -2250,6 +2250,8 @@ fun DebtPayoffPlannerCard(debts: List<com.example.data.ZadDebt>, viewModel: ZadV
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var strategy by remember { mutableStateOf(DebtStrategy.SNOWBALL) }
+    var payTarget by remember { mutableStateOf<com.example.data.ZadDebt?>(null) }
+    var deleteTarget by remember { mutableStateOf<com.example.data.ZadDebt?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
     var aiNarrative by remember { mutableStateOf<String?>(null) }
     var isLoadingNarrative by remember { mutableStateOf(false) }
@@ -2300,14 +2302,45 @@ fun DebtPayoffPlannerCard(debts: List<com.example.data.ZadDebt>, viewModel: ZadV
                 }
                 Spacer(modifier = Modifier.height(14.dp))
 
+                // كل دين بقى ليه صف كامل: المتبقي + تسجيل دفعة + حذف. الخطة كانت
+                // بتعرض الترتيب بس، فالدين اللي يتضاف غلط أو يتسدد كان بيفضل محبوس
+                // في القائمة — updateDebtBalance/deleteDebt كانوا موجودين من غير أي زر.
                 plan.steps.sortedBy { it.order }.forEach { step ->
+                    val debt = debts.firstOrNull { it.name == step.debtName }
                     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Surface(shape = CircleShape, color = primaryContainer) {
                             Text("${step.order}", style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = primary, modifier = Modifier.padding(8.dp))
                         }
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text(step.debtName, style = Typography.bodyMedium, color = onSurface, modifier = Modifier.weight(1f))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(step.debtName, style = Typography.bodyMedium, color = onSurface)
+                            if (debt != null) {
+                                Text(
+                                    stringResource(R.string.debt_remaining_label, com.example.data.CurrencyFormatter.format(context, debt.remainingBalance)),
+                                    style = Typography.labelSmall,
+                                    color = onSurfaceVariant
+                                )
+                            }
+                        }
                         Text("${step.monthsToPayoff} " + stringResource(R.string.months_unit), style = Typography.labelSmall, color = onSurfaceVariant)
+                        if (debt != null) {
+                            IconButton(onClick = { payTarget = debt }, modifier = Modifier.size(40.dp)) {
+                                Icon(
+                                    Icons.Default.Payments,
+                                    contentDescription = stringResource(R.string.debt_pay_action),
+                                    tint = primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            IconButton(onClick = { deleteTarget = debt }, modifier = Modifier.size(40.dp)) {
+                                Icon(
+                                    Icons.Default.DeleteOutline,
+                                    contentDescription = stringResource(R.string.debt_delete_action),
+                                    tint = dangerColor,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -2367,6 +2400,57 @@ fun DebtPayoffPlannerCard(debts: List<com.example.data.ZadDebt>, viewModel: ZadV
                 }) { Text(stringResource(R.string.save)) }
             },
             dismissButton = { TextButton(onClick = { showAddDialog = false }) { Text(stringResource(R.string.cancel)) } }
+        )
+    }
+
+    // تسجيل دفعة: بيخصم من المتبقي بدل ما المستخدم يمسح الدين ويضيفه تاني بمبلغ جديد.
+    payTarget?.let { debt ->
+        var paidStr by remember(debt.id) { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { payTarget = null },
+            title = { Text(stringResource(R.string.debt_pay_title, debt.name), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        stringResource(R.string.debt_remaining_label, com.example.data.CurrencyFormatter.format(context, debt.remainingBalance)),
+                        style = Typography.bodySmall,
+                        color = onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = paidStr,
+                        onValueChange = { paidStr = it },
+                        label = { Text(stringResource(R.string.debt_payment_amount_hint)) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val paid = paidStr.toDoubleOrNull() ?: return@Button
+                    // ما ينفعش يبقى بالسالب — دفعة أكبر من المتبقي معناها الدين اتقفل.
+                    viewModel.updateDebtBalance(debt.id, (debt.remainingBalance - paid).coerceAtLeast(0.0))
+                    payTarget = null
+                }) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = { TextButton(onClick = { payTarget = null }) { Text(stringResource(R.string.cancel)) } }
+        )
+    }
+
+    deleteTarget?.let { debt ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text(stringResource(R.string.debt_delete_action), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(R.string.debt_delete_confirm, debt.name), style = Typography.bodyMedium, color = onSurfaceVariant) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteDebt(debt.id)
+                        deleteTarget = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = dangerColor)
+                ) { Text(stringResource(R.string.debt_delete_action)) }
+            },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text(stringResource(R.string.cancel)) } }
         )
     }
 }

@@ -501,6 +501,12 @@
     <string name="debt_remaining_hint">المبلغ المتبقي</string>
     <string name="debt_interest_rate_hint">معدل الفائدة السنوي %</string>
     <string name="debt_minimum_payment_hint">الحد الأدنى للدفعة الشهرية</string>
+    <string name="debt_remaining_label">المتبقي: %1$s</string>
+    <string name="debt_pay_action">سجّل دفعة</string>
+    <string name="debt_payment_amount_hint">المبلغ المدفوع</string>
+    <string name="debt_delete_action">حذف الدين</string>
+    <string name="debt_delete_confirm">حذف «%1$s» من قائمة الديون؟</string>
+    <string name="debt_pay_title">دفعة على %1$s</string>
 
     <string name="inflation_radar_title">رادار التضخم الشخصي</string>
     <string name="inflation_radar_subtitle">مقارنة صرفك هذا الشهر بمعتادك</string>

@@ -458,7 +458,11 @@ fun HomeScreen(
                 // title, one-line suggestion — not a carousel of stock food photos) ──
                 SmartChefSection(
                     suggestions = mealSuggestions,
-                    onViewAll = onNavigateToAssistant
+                    onViewAll = onNavigateToAssistant,
+                    onOpenRecipe = { title ->
+                        selectedRecipeTitle = title
+                        showRecipeDialog = true
+                    }
                 )
                 Spacer(modifier = Modifier.height(18.dp))
 
@@ -865,7 +869,8 @@ fun UrgentRecipeCard(
 @Composable
 fun SmartChefSection(
     suggestions: String,
-    onViewAll: () -> Unit
+    onViewAll: () -> Unit,
+    onOpenRecipe: (String) -> Unit
 ) {
     // Was `isNotBlank() && startsWith("1.") || startsWith("-") || startsWith("•")` —
     // && binds tighter than ||, so isNotBlank() only guarded the "1." branch, and the
@@ -874,12 +879,17 @@ fun SmartChefSection(
     val isRealAi = suggestions.isNotBlank() &&
         suggestions != com.example.data.ZadAiRepository.MEAL_SUGGESTIONS_FALLBACK
 
+    val dish = if (isRealAi) {
+        suggestions.split("\n").firstOrNull { it.isNotBlank() }?.trim()
+            ?.replace(Regex("^[\\d\\-•·.]+\\s*"), "")
+    } else null
+
     com.example.ui.components.ZadChefCard(
-        suggestion = if (isRealAi) {
-            suggestions.split("\n").firstOrNull { it.isNotBlank() }?.trim()
-                ?.replace(Regex("^[\\d\\-•·.]+\\s*"), "")
-        } else null,
-        onClick = onViewAll
+        suggestion = dish,
+        // الكارت بيوعد بوصفة، فيفتح الوصفة. كان بيروح لعقل زاد، و RecipeDetailDialog
+        // (بكل الـ parsing وقائمة المقادير وخطوات التحضير) ما كانش ليه أي مدخل —
+        // showRecipeDialog اتعرّف واتقرا وعمره ما اتعمل true.
+        onClick = { if (dish != null) onOpenRecipe(dish) else onViewAll() }
     )
 }
 

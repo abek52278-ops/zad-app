@@ -498,6 +498,12 @@
     <string name="debt_remaining_hint">Kalan tutar</string>
     <string name="debt_interest_rate_hint">Yıllık faiz oranı %</string>
     <string name="debt_minimum_payment_hint">Aylık asgari ödeme</string>
+    <string name="debt_remaining_label">Kalan: %1$s</string>
+    <string name="debt_pay_action">Ödeme kaydet</string>
+    <string name="debt_payment_amount_hint">Ödenen tutar</string>
+    <string name="debt_delete_action">Borcu sil</string>
+    <string name="debt_delete_confirm">“%1$s” borç listesinden silinsin mi?</string>
+    <string name="debt_pay_title">%1$s için ödeme</string>
 
     <string name="inflation_radar_title">Kişisel Enflasyon Radarı</string>
     <string name="inflation_radar_subtitle">Bu ayki harcamanı alışkanlığınla kıyasla</string>

@@ -45,6 +45,7 @@ import com.example.ui.components.ZadTopHeader
 import com.example.ui.components.zadDrawerEntries
 import com.example.ui.components.ZadCardHero
 import com.example.ui.components.ZadChefCard
+import com.example.ui.components.TelegramBotCard
 import com.example.ui.components.ZadDaysAndSafeSpendRow
 import com.example.ui.components.PremiumTransactionsRow
 import com.example.ui.components.ZadPageShortcutsGrid
@@ -83,6 +84,38 @@ class PreviewTest {
         
         composeTestRule.onRoot().captureRoboImage(
             filePath = "build/outputs/roborazzi/onboarding_screen.png"
+        )
+    }
+
+    /** بوت تليجرام بعد ما اتنقل من البروفايل للرئيسية. */
+    @Test
+    fun captureTelegramBotCard() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.background(background).padding(20.dp)) {
+                    TelegramBotCard(onClick = {})
+                }
+            }
+        }
+
+        composeTestRule.onRoot().captureRoboImage(
+            filePath = "build/outputs/roborazzi/telegram_bot_card.png"
+        )
+    }
+
+    /** كارت شيف زاد — بيفتح الوصفة دلوقتي بدل ما يروح لعقل زاد. */
+    @Test
+    fun captureChefCardWithSuggestion() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.background(background).padding(20.dp)) {
+                    ZadChefCard(suggestion = "دجاج بالبطاطس بالفرن", onClick = {})
+                }
+            }
+        }
+
+        composeTestRule.onRoot().captureRoboImage(
+            filePath = "build/outputs/roborazzi/chef_card_suggestion.png"
         )
     }
 
