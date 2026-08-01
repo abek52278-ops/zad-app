@@ -1002,34 +1002,34 @@ fun AgentSummaryCard(
     onNavigateToShopping: () -> Unit,
     onNavigateToInventory: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth()
-            .shadow(8.dp, RoundedCornerShape(20.dp), spotColor = primary.copy(alpha = 0.15f))
+    // The mockup's `aiSummaryTitle` card: #052E16 at 20dp radius, a mint title in
+    // 12.5sp, the summary at 14sp/1.55, and the actions as translucent chips. The
+    // 36dp robot-avatar circle and the 16sp white heading that used to sit on top
+    // are gone — the mockup gives this card one small label, then the sentence.
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(primary),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+            .background(primaryContainer)
+            .padding(18.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(36.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) { Icon(Icons.Default.SmartToy, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp)) }
-                    Spacer(Modifier.width(10.dp))
-                    Text(stringResource(R.string.zad_agent), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                }
-                IconButton(onClick = onRefresh, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.refresh_cd), tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
+                Text(
+                    stringResource(R.string.zad_agent),
+                    color = primaryFixed,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.5.sp
+                )
+                IconButton(onClick = onRefresh, modifier = Modifier.size(24.dp)) {
+                    Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.refresh_cd), tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(10.dp))
 
             if (isLoading) {
                 com.example.ui.components.ZadLoadingState(
@@ -1039,7 +1039,7 @@ fun AgentSummaryCard(
                     strokeWidth = 2.dp
                 )
             } else if (agentSummary != null) {
-                Text(agentSummary.summary, color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp, lineHeight = 18.sp)
+                Text(agentSummary.summary, color = Color.White, fontSize = 14.sp, lineHeight = 22.sp)
 
                 if (agentSummary.alerts.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
@@ -1069,14 +1069,14 @@ fun AgentSummaryCard(
                                 else -> Color.White.copy(alpha = 0.3f)
                             }
                             Box(
-                                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(suggestionColor.copy(alpha = 0.2f)).clickable {
+                                modifier = Modifier.clip(RoundedCornerShape(50)).background(suggestionColor.copy(alpha = 0.18f)).clickable {
                                     when (suggestion.action) {
                                         "add_to_shopping" -> onNavigateToShopping()
                                         "cook_meal" -> onNavigateToAssistant()
                                         else -> onNavigateToInventory()
                                     }
-                                }.padding(horizontal = 8.dp, vertical = 4.dp)
-                            ) { Text(suggestion.reason, color = Color.White, fontSize = 11.sp, maxLines = 1) }
+                                }.padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) { Text(suggestion.reason, color = Color.White, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) }
                         }
                     }
                 }
@@ -1096,7 +1096,6 @@ fun AgentSummaryCard(
             } else {
                 Text(stringResource(R.string.zad_analyzing_now), color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
             }
-        }
     }
 }
 

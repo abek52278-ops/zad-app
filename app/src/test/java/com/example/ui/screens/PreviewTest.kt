@@ -46,8 +46,10 @@ import com.example.ui.components.zadDrawerEntries
 import com.example.ui.components.ZadCardHero
 import com.example.ui.components.ZadChefCard
 import com.example.ui.components.ZadDaysAndSafeSpendRow
+import com.example.ui.components.PremiumTransactionsRow
 import com.example.ui.components.ZadPageShortcutsGrid
 import com.example.ui.components.ZadShortcutItem
+import com.example.ui.components.PremiumTransactionsRow
 import com.example.ui.components.ZadStatTile
 import com.example.ui.widgets.ZadAmazonDealCard
 import com.example.ui.screens.auth.OnboardingScreen
@@ -273,6 +275,30 @@ class PreviewTest {
                             onClick = {}
                         )
 
+                        PremiumTransactionsRow(
+                            transactions = listOf(
+                                com.example.data.ZadTransaction(
+                                    title = "سوبرماركت العائلة",
+                                    amount = 240.0,
+                                    isExpense = true,
+                                    createdAt = java.time.Instant.now().toString()
+                                ),
+                                com.example.data.ZadTransaction(
+                                    title = "راتب يوليو",
+                                    amount = 9000.0,
+                                    isExpense = false,
+                                    createdAt = java.time.Instant.now().minusSeconds(2 * 86400).toString()
+                                ),
+                                com.example.data.ZadTransaction(
+                                    title = "نتفليكس",
+                                    amount = 45.0,
+                                    isExpense = true,
+                                    createdAt = java.time.Instant.now().minusSeconds(3 * 86400).toString()
+                                ),
+                            ),
+                            onSeeAllClick = {}
+                        )
+
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
@@ -292,6 +318,30 @@ class PreviewTest {
                                 )
                             }
                         }
+
+                        PremiumTransactionsRow(
+                            transactions = listOf(
+                                com.example.data.ZadTransaction(
+                                    title = "سوبرماركت العائلة",
+                                    amount = 240.0,
+                                    isExpense = true,
+                                    createdAt = java.time.Instant.now().toString()
+                                ),
+                                com.example.data.ZadTransaction(
+                                    title = "راتب يوليو",
+                                    amount = 9000.0,
+                                    isExpense = false,
+                                    createdAt = java.time.Instant.now().minus(2, java.time.temporal.ChronoUnit.DAYS).toString()
+                                ),
+                                com.example.data.ZadTransaction(
+                                    title = "اشتراك نتفليكس",
+                                    amount = 45.0,
+                                    isExpense = true,
+                                    createdAt = java.time.Instant.now().minus(3, java.time.temporal.ChronoUnit.DAYS).toString()
+                                ),
+                            ),
+                            onSeeAllClick = {}
+                        )
                     }
                 }
             }
@@ -356,6 +406,56 @@ class PreviewTest {
 
         composeTestRule.onRoot().captureRoboImage(
             filePath = "build/outputs/roborazzi/zad_shell_drawer.png"
+        )
+    }
+
+    /**
+     * Budget's obligation cards — the mockup's `OBLIGATIONS` block. Three rows
+     * covering all three derived states: overdue-so-paid, due inside a week, and
+     * scheduled further out.
+     */
+    @Test
+    fun captureBudgetObligations() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    ZadCanvasBackground(modifier = Modifier.fillMaxSize())
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(vertical = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        val today = java.time.LocalDate.now()
+                        ObligationCard(
+                            com.example.data.ZadObligation(
+                                title = "الإيجار",
+                                amount = 2400.0,
+                                kind = "rent",
+                                dueDate = today.plusDays(4).toString()
+                            )
+                        )
+                        ObligationCard(
+                            com.example.data.ZadObligation(
+                                title = "الإنترنت والاتصالات",
+                                amount = 260.0,
+                                kind = "utility",
+                                dueDate = today.minusDays(3).toString()
+                            )
+                        )
+                        ObligationCard(
+                            com.example.data.ZadObligation(
+                                title = "قسط السيارة",
+                                amount = 980.0,
+                                kind = "installment",
+                                dueDate = today.plusDays(11).toString()
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        composeTestRule.onRoot().captureRoboImage(
+            filePath = "build/outputs/roborazzi/budget_obligations.png"
         )
     }
 }

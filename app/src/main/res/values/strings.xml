@@ -928,4 +928,12 @@
     <string name="kids_mode_full_mode">الوضع الكامل 🔒</string>
     <string name="default_user_name">مستخدم زاد</string>
     <string name="tap_to_view_profile">اضغط لعرض الملف الشخصي</string>
+    <!-- Home/Budget bodies — mockup pass -->
+    <string name="days_ago_label">قبل %1$d أيام</string>
+    <string name="total_obligations_label">إجمالي الالتزامات</string>
+    <string name="obligation_status_paid">مدفوع</string>
+    <string name="obligation_status_pending">مستحق</string>
+    <string name="obligation_status_scheduled">مجدول</string>
+    <string name="no_obligations_title">لا توجد التزامات</string>
+    <string name="no_obligations_hint">الأقساط والفواتير الثابتة هتظهر هنا أول ما تتسجل</string>
 </resources>

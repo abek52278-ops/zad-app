@@ -444,30 +444,70 @@ fun ShortagesSummaryCard(shortageCount: Int, onViewShortagesClick: () -> Unit) {
     }
 }
 
+/**
+ * Relative transaction date, the mockup's `dateAr` ("اليوم" / "قبل يومين").
+ *
+ * The rows used to print `tx.createdAt` raw, which is an ISO-8601 instant — every
+ * transaction on Home read "2026-08-01T09:12:33Z" where the design has one word.
+ */
+@Composable
+private fun relativeTxDate(createdAt: String?): String {
+    if (createdAt.isNullOrBlank()) return stringResource(R.string.today_label)
+    val days = remember(createdAt) {
+        runCatching {
+            val date = java.time.Instant.parse(createdAt)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDate()
+            java.time.temporal.ChronoUnit.DAYS.between(date, java.time.LocalDate.now()).toInt()
+        }.getOrNull()
+    } ?: return stringResource(R.string.today_label)
+    return when {
+        days <= 0 -> stringResource(R.string.today_label)
+        days == 1 -> stringResource(R.string.yesterday_label)
+        else -> stringResource(R.string.days_ago_label, days)
+    }
+}
+
+/**
+ * Recent transactions — the mockup's `HOME_TX` block: a plain title row with a
+ * "عرض الكل" link, then three 14dp white rows of name + relative date on the
+ * leading edge and a signed amount on the trailing edge.
+ *
+ * The 36dp category icon tile each row used to carry is gone: the mockup has no
+ * icon here, and the tile was decorative anyway — it only ever encoded
+ * expense-vs-income, which the signed amount already says in the same row.
+ */
 @Composable
 fun PremiumTransactionsRow(transactions: List<com.example.data.ZadTransaction>, onSeeAllClick: () -> Unit) {
     val txCurrencyContext = LocalContext.current
     // No inner horizontal padding: Home's content Column already applies the mockup's
-    // 20dp page padding, so the old `padding(horizontal = 16.dp)` here stacked to 36dp
-    // and made this section narrower than every card above it.
+    // 20dp page padding.
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = textPrimary, modifier = Modifier.size(16.dp))
-                Text("أحدث العمليات", fontSize = 15.sp, fontWeight = FontWeight.Black, color = textPrimary)
-            }
-            Text("سجل كامل", fontSize = 11.sp, color = primaryLight, modifier = Modifier.clickable { onSeeAllClick() })
+            Text(
+                stringResource(R.string.recent_transactions),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = textPrimary
+            )
+            Text(
+                stringResource(R.string.view_all),
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = primary,
+                modifier = Modifier.clickable { onSeeAllClick() }
+            )
         }
-        Spacer(modifier = Modifier.height(11.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         if (transactions.isEmpty()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(surface)
                     .padding(16.dp),
                 horizontalArrangement = Arrangement.Center,
@@ -475,13 +515,12 @@ fun PremiumTransactionsRow(transactions: List<com.example.data.ZadTransaction>, 
             ) {
                 Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = textTertiary, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("لا توجد عمليات مسجلة بعد", fontSize = 12.sp, color = textTertiary)
+                Text(stringResource(R.string.no_transactions_yet), fontSize = 12.sp, color = textTertiary)
             }
             return@Column
         }
-        Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            val recent = transactions.take(3)
-
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            val recent = transactions.sortedByDescending { it.createdAt ?: "" }.take(3)
             for (tx in recent) {
                 val rowShape = RoundedCornerShape(14.dp)
                 Row(
@@ -494,19 +533,25 @@ fun PremiumTransactionsRow(transactions: List<com.example.data.ZadTransaction>, 
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-                        Box(
-                            modifier = Modifier.size(36.dp).clip(RoundedCornerShape(11.dp)).background(if (tx.isExpense) dangerColor.copy(alpha=0.15f) else successColor.copy(alpha=0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(if (tx.isExpense) Icons.Default.ShoppingCart else Icons.Default.AccountBalanceWallet, contentDescription = null, tint = if (tx.isExpense) dangerColor else successColor, modifier = Modifier.size(18.dp))
-                        }
-                        Column {
-                            Text(tx.title, fontWeight = FontWeight.Bold, color = onSurface, fontSize = 13.sp)
-                            Text(tx.createdAt ?: "اليوم", fontSize = 10.sp, color = textTertiary)
-                        }
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.weight(1f)) {
+                        Text(
+                            tx.title,
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = textPrimary,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                        Text(relativeTxDate(tx.createdAt), fontSize = 11.5.sp, color = textTertiary)
                     }
-                    Text("${if (tx.isExpense) "-" else "+"} ${com.example.data.CurrencyFormatter.format(txCurrencyContext, tx.amount)}", fontSize = 13.sp, fontWeight = FontWeight.Black, color = if (tx.isExpense) textPrimary else successColor)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        (if (tx.isExpense) "-" else "+") + com.example.data.CurrencyFormatter.format(txCurrencyContext, tx.amount),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (tx.isExpense) dangerColor else primary,
+                        maxLines = 1
+                    )
                 }
             }
         }

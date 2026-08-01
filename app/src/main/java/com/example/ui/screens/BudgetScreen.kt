@@ -38,6 +38,7 @@ import com.example.data.ZadTransaction
 import com.example.ui.components.ZadLottieAsset
 import com.example.ui.components.pressableScale
 import com.airbnb.lottie.compose.LottieConstants
+import com.example.ui.components.zadCardShadow
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 import java.time.Instant
@@ -59,6 +60,7 @@ fun BudgetScreen(
     val availableFigure by viewModel.availableFigure.collectAsState()
     val committed by viewModel.committed.collectAsState()
     val nextObligationDue by viewModel.nextObligationDue.collectAsState()
+    val obligations by viewModel.obligations.collectAsState()
     val showBudgetDialog by viewModel.showBudgetDialog.collectAsState()
     val suggestedBudget by viewModel.suggestedBudget.collectAsState()
     var showAddTransactionDialog by remember { mutableStateOf(false) }
@@ -115,163 +117,173 @@ fun BudgetScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 100.dp)
         ) {
-            // ── Header card (glassmorphism pass — HeroGradientCard + nested GlassCard,
-            // same primitives ZadCardHero/ZadIntelligenceScreen/PharmacyScreen use, 24dp
-            // corners, floating with margin instead of the old edge-to-edge banner) ──
+            // ── Available (mockup `renderBudget`'s first block) ──────────────
+            // Solid #064E3B at 22dp, label over figure, nothing else. What stood
+            // here was a 24dp gradient hero with two decorative circles and a
+            // nested glass panel repeating income/spent/budget — three numbers
+            // that now live in their own card below, where they don't compete
+            // with the one figure this screen exists to state.
+            //
+            // Product logic kept verbatim: the "≈" prefix + its explanation when
+            // the figure isn't confident (Task 27.1a), long-press for "آخر
+            // التغييرات" (Task 27.2), and the "متبقي X · محجوز Y" line (Task 26).
             item {
-                val headerShape = RoundedCornerShape(24.dp)
-                Box(
+                var showAvailableReason by remember { mutableStateOf(false) }
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .shadow(elevation = 22.dp, shape = headerShape, spotColor = primary.copy(alpha = 0.4f))
+                        .padding(horizontal = 20.dp, vertical = 8.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(primary)
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                com.example.ui.components.HeroGradientCard(
-                    colors = listOf(primary, primaryDark),
-                    shape = headerShape,
-                    contentPadding = 20.dp
-                ) {
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    // Decorative circles
-                    Box(
-                        modifier = Modifier
-                            .offset(x = (-30).dp, y = (-30).dp)
-                            .size(160.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.04f))
-                    )
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .offset(x = 40.dp, y = (-20).dp)
-                            .size(200.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.04f))
-                    )
-
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
-                        ) {
-                            IconButton(onClick = { viewModel.showBudgetDialog() }) {
-                                Icon(Icons.Default.Edit, contentDescription = "Edit Budget", tint = Color.White.copy(alpha = 0.8f))
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Balance display (animated) — Task 26: "متاح" (available) بقى الأساسي
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             stringResource(R.string.available_label),
-                            style = Typography.labelMedium,
-                            color = Color.White.copy(alpha = 0.75f),
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White.copy(alpha = 0.7f)
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        // Task 27.1(a) — "≈" لو فيه معاملة مش متأكدة داخلة في الرقم، تاب
-                        // يشرح السبب. طول الضغط (27.2) يفتح شيت "آخر التغييرات".
-                        var showAvailableReason by remember { mutableStateOf(false) }
-                        Text(
-                            (if (!availableFigure.confident) "≈ " else "") +
-                                com.example.data.CurrencyFormatter.format(context, animatedBalance.toDouble()),
-                            style = Typography.displayLarge.copy(fontSize = 40.sp),
-                            fontWeight = FontWeight.Bold,
-                            color = if (currentBalance < 0) dangerColor else Color.White,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .combinedClickable(
-                                    onClick = { if (!availableFigure.confident) showAvailableReason = true },
-                                    onLongClick = { showWhySheet = true }
-                                ),
-                            textAlign = TextAlign.Center
-                        )
-                        if (showAvailableReason && availableFigure.reason != null) {
-                            AlertDialog(
-                                onDismissRequest = { showAvailableReason = false },
-                                confirmButton = { TextButton(onClick = { showAvailableReason = false }) { Text(stringResource(R.string.close_action)) } },
-                                title = { Text(stringResource(R.string.available_label) + " ≈") },
-                                text = { Text(availableFigure.reason!!) }
+                        Spacer(modifier = Modifier.weight(1f))
+                        IconButton(onClick = { viewModel.showBudgetDialog() }, modifier = Modifier.size(28.dp)) {
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = stringResource(R.string.edit_monthly_budget),
+                                tint = Color.White.copy(alpha = 0.8f),
+                                modifier = Modifier.size(17.dp)
                             )
-                        }
-                        if (committed > 0) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            val nextText = nextObligationDue?.let { (ob, due) ->
-                                val days = java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), due).toInt()
-                                stringResource(R.string.obligation_due_in_days, ob.title, days)
-                            }
-                            Text(
-                                if (nextText != null) {
-                                    stringResource(
-                                        R.string.available_breakdown_with_next,
-                                        com.example.data.CurrencyFormatter.format(context, remainingBalance),
-                                        com.example.data.CurrencyFormatter.format(context, committed),
-                                        nextText
-                                    )
-                                } else {
-                                    stringResource(
-                                        R.string.available_breakdown,
-                                        com.example.data.CurrencyFormatter.format(context, remainingBalance),
-                                        com.example.data.CurrencyFormatter.format(context, committed)
-                                    )
-                                },
-                                style = Typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.7f),
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = TextAlign.Center
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        // Income / Spent summary row — نفس GlassCard المستخدم في باقي
-                        // التطبيق بدل اللوح الشفاف اليدوي القديم
-                        com.example.ui.components.GlassCard(
-                            shape = RoundedCornerShape(18.dp),
-                            containerColor = Color.White.copy(alpha = 0.12f),
-                            borderColor = Color.White.copy(alpha = 0.2f),
-                            contentPadding = 20.dp
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceEvenly
-                            ) {
-                                TxSummaryItem(
-                                    label = stringResource(R.string.income_label),
-                                    amount = totalIncome,
-                                    icon = Icons.Default.TrendingUp,
-                                    color = successColor
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .height(50.dp)
-                                        .width(1.dp)
-                                        .background(Color.White.copy(alpha = 0.2f))
-                                )
-                                TxSummaryItem(
-                                    label = stringResource(R.string.expense_label),
-                                    amount = totalSpent,
-                                    icon = Icons.Default.TrendingDown,
-                                    color = dangerColor
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .height(50.dp)
-                                        .width(1.dp)
-                                        .background(Color.White.copy(alpha = 0.2f))
-                                )
-                                TxSummaryItem(
-                                    label = stringResource(R.string.budget_label),
-                                    amount = budget,
-                                    icon = Icons.Default.AccountBalanceWallet,
-                                    color = secondaryLight
-                                )
-                            }
                         }
                     }
+                    Text(
+                        (if (!availableFigure.confident) "≈ " else "") +
+                            com.example.data.CurrencyFormatter.format(context, animatedBalance.toDouble()),
+                        fontSize = 34.sp,
+                        lineHeight = 40.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (currentBalance < 0) dangerColor else Color.White,
+                        modifier = Modifier.combinedClickable(
+                            onClick = { if (!availableFigure.confident) showAvailableReason = true },
+                            onLongClick = { showWhySheet = true }
+                        )
+                    )
+                    if (committed > 0) {
+                        val nextText = nextObligationDue?.let { (ob, due) ->
+                            val days = java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), due).toInt()
+                            stringResource(R.string.obligation_due_in_days, ob.title, days)
+                        }
+                        Text(
+                            if (nextText != null) {
+                                stringResource(
+                                    R.string.available_breakdown_with_next,
+                                    com.example.data.CurrencyFormatter.format(context, remainingBalance),
+                                    com.example.data.CurrencyFormatter.format(context, committed),
+                                    nextText
+                                )
+                            } else {
+                                stringResource(
+                                    R.string.available_breakdown,
+                                    com.example.data.CurrencyFormatter.format(context, remainingBalance),
+                                    com.example.data.CurrencyFormatter.format(context, committed)
+                                )
+                            },
+                            style = Typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                    }
                 }
+                if (showAvailableReason && availableFigure.reason != null) {
+                    AlertDialog(
+                        onDismissRequest = { showAvailableReason = false },
+                        confirmButton = { TextButton(onClick = { showAvailableReason = false }) { Text(stringResource(R.string.close_action)) } },
+                        title = { Text(stringResource(R.string.available_label) + " ≈") },
+                        text = { Text(availableFigure.reason!!) }
+                    )
                 }
+            }
+
+            // ── Total obligations (mockup's `totalObligations` strip) ─────────
+            item {
+                val obligationsTotal = obligations.sumOf { it.amount }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 6.dp)
+                        .zadCardShadow(RoundedCornerShape(18.dp))
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(surface)
+                        .padding(horizontal = 18.dp, vertical = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        stringResource(R.string.total_obligations_label),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = textSecondary
+                    )
+                    Text(
+                        com.example.data.CurrencyFormatter.format(context, obligationsTotal),
+                        fontSize = 19.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = secondaryDark
+                    )
+                }
+            }
+
+            // ── Obligation cards (mockup's `OBLIGATIONS` list) ────────────────
+            // `viewModel.obligations` is the real zad_obligations table; the
+            // mockup's four rows are hardcoded. Status is derived from the due
+            // date rather than invented: past due date = paid this cycle, due
+            // within a week = pending, anything further out = scheduled.
+            if (obligations.isEmpty()) {
+                item {
+                    com.example.ui.components.ZadEmptyState(
+                        icon = Icons.Default.EventRepeat,
+                        title = stringResource(R.string.no_obligations_title),
+                        subtitle = stringResource(R.string.no_obligations_hint),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)
+                    )
+                }
+            } else {
+                items(obligations, key = { it.id }) { obligation ->
+                    ObligationCard(obligation = obligation)
+                }
+            }
+
+            // ── Income / spent / budget strip ────────────────────────────────
+            // Was nested inside the hero above. Same three numbers, its own card.
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 10.dp)
+                        .zadCardShadow(RoundedCornerShape(18.dp))
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(surface)
+                        .padding(vertical = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    TxSummaryItem(
+                        label = stringResource(R.string.income_label),
+                        amount = totalIncome,
+                        icon = Icons.Default.TrendingUp,
+                        color = successColor
+                    )
+                    Box(modifier = Modifier.height(50.dp).width(1.dp).background(outlineVariant))
+                    TxSummaryItem(
+                        label = stringResource(R.string.expense_label),
+                        amount = totalSpent,
+                        icon = Icons.Default.TrendingDown,
+                        color = dangerColor
+                    )
+                    Box(modifier = Modifier.height(50.dp).width(1.dp).background(outlineVariant))
+                    TxSummaryItem(
+                        label = stringResource(R.string.budget_label),
+                        amount = budget,
+                        icon = Icons.Default.AccountBalanceWallet,
+                        color = secondaryDark
+                    )
                 }
             }
 
@@ -845,9 +857,9 @@ private fun TxSummaryItem(label: String, amount: Double, icon: ImageVector, colo
             "${String.format("%,.0f", amount)}",
             style = Typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = Color.White
+            color = textPrimary
         )
-        Text(label, style = Typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
+        Text(label, style = Typography.labelSmall, color = textSecondary)
     }
 }
 
@@ -1026,4 +1038,127 @@ private fun TxRowItem(tx: ZadTransaction, onDelete: () -> Unit) {
     }
 }
 
+/**
+ * One obligation, drawn as the mockup's `OBLIGATIONS` card: name + amount, due
+ * line + status pill, then a progress bar tinted to the status.
+ *
+ * Status is derived, not stored — `ZadObligation` has no status column, and
+ * inventing one to match the mockup's hardcoded `statusKind` would mean showing
+ * a state the data never sets. Days until the next occurrence decide it, and the
+ * bar shows how far through the cycle that occurrence is.
+ */
+@Composable
+internal fun ObligationCard(obligation: com.example.data.ZadObligation) {
+    val context = LocalContext.current
+    val today = java.time.LocalDate.now()
+    val dueDate = remember(obligation.id, obligation.dueDay, obligation.dueDate) {
+        runCatching {
+            obligation.dueDate?.takeIf { it.isNotBlank() }?.let { java.time.LocalDate.parse(it.take(10)) }
+                ?: obligation.dueDay?.let { day ->
+                    val thisMonth = today.withDayOfMonth(day.coerceIn(1, today.lengthOfMonth()))
+                    if (thisMonth.isBefore(today)) {
+                        val next = today.plusMonths(1)
+                        next.withDayOfMonth(day.coerceIn(1, next.lengthOfMonth()))
+                    } else thisMonth
+                }
+        }.getOrNull()
+    }
+    val daysUntil = dueDate?.let { java.time.temporal.ChronoUnit.DAYS.between(today, it).toInt() }
 
+    // paid  = this cycle's occurrence is behind us
+    // pending = due inside a week
+    // scheduled = further out, or no date on record
+    val statusColor: Color
+    val statusLabel: String
+    val progress: Float
+    when {
+        daysUntil == null -> {
+            statusColor = secondaryDark
+            statusLabel = stringResource(R.string.obligation_status_scheduled)
+            progress = 0f
+        }
+        daysUntil < 0 -> {
+            statusColor = primary
+            statusLabel = stringResource(R.string.obligation_status_paid)
+            progress = 1f
+        }
+        daysUntil <= 7 -> {
+            statusColor = dangerColor
+            statusLabel = stringResource(R.string.obligation_status_pending)
+            progress = ((7 - daysUntil) / 7f).coerceIn(0f, 1f)
+        }
+        else -> {
+            statusColor = secondaryDark
+            statusLabel = stringResource(R.string.obligation_status_scheduled)
+            progress = (1f - (daysUntil / 30f)).coerceIn(0f, 1f)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 6.dp)
+            .zadCardShadow(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(18.dp))
+            .background(surface)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                obligation.title,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = textPrimary,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                com.example.data.CurrencyFormatter.format(context, obligation.amount),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = textPrimary
+            )
+        }
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                when {
+                    daysUntil == null -> obligation.recurrence
+                    daysUntil < 0 -> stringResource(R.string.obligation_status_paid)
+                    else -> stringResource(R.string.obligation_due_in_days, "", daysUntil).trim()
+                },
+                fontSize = 12.5.sp,
+                color = textTertiary,
+                maxLines = 1,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                statusLabel,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = statusColor,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(primary.copy(alpha = 0.06f))
+                    .padding(horizontal = 9.dp, vertical = 3.dp)
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(50))
+                .background(Color(0xFFF1F4F3))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(progress)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(50))
+                    .background(statusColor)
+            )
+        }
+    }
+}

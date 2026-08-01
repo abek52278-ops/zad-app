@@ -1,15 +1,12 @@
 package com.example.ui.components
 
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,24 +19,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.TrendingFlat
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.TrendingDown
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.font.FontWeight
@@ -48,11 +39,12 @@ import androidx.compose.ui.unit.sp
 import com.example.data.MarketPriceItem
 import com.example.ui.theme.Typography
 import com.example.ui.theme.dangerColor
-import com.example.ui.theme.onSurface
 import com.example.ui.theme.onSurfaceVariant
 import com.example.ui.theme.primary
-import com.example.ui.theme.secondary
 import com.example.ui.theme.successColor
+import com.example.ui.theme.surface
+import com.example.ui.theme.textPrimary
+import com.example.ui.theme.textTertiary
 import com.example.ui.viewmodels.ZadViewModel
 
 /**
@@ -78,31 +70,17 @@ fun LiveMarketTicker(
     // من غير داعي نظهر أي حاجة أو نلمّح لفشل لم يحدث بعد.
     if (fetchState == ZadViewModel.LiveFetchState.NotFetchedYet && prices.isEmpty()) return
 
+    // The mockup opens Home with a bare row of price pills — no section title, no
+    // toolbar band. The refresh control survives as the last pill in the same row,
+    // so the live-fetch retry stays reachable without that band coming back.
     Column(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(6.dp).clip(RoundedCornerShape(50)).background(secondary))
-                Text(
-                    "زاد الحي — أسعار اليوم",
-                    style = Typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = onSurface
-                )
-            }
-            RefreshButton(loading = fetchState == ZadViewModel.LiveFetchState.Loading, onClick = onRetry)
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-
         if (prices.isNotEmpty()) {
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(prices) { item -> MarketTickerCard(item) }
+                item { RefreshButton(loading = fetchState == ZadViewModel.LiveFetchState.Loading, onClick = onRetry) }
             }
         } else if (fetchState == ZadViewModel.LiveFetchState.Loading) {
             LoadingRow()
@@ -123,12 +101,21 @@ private fun RefreshButton(loading: Boolean, onClick: () -> Unit) {
         animationSpec = infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Restart),
         label = "spin"
     )
-    IconButton(onClick = onClick, enabled = !loading, modifier = Modifier.size(28.dp)) {
+    val shape = RoundedCornerShape(50)
+    Box(
+        modifier = Modifier
+            .zadCardShadow(shape, elevation = 6.dp)
+            .clip(shape)
+            .background(surface)
+            .clickable(enabled = !loading) { onClick() }
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
         Icon(
             Icons.Default.Refresh,
             contentDescription = "تحديث الأسعار",
             tint = onSurfaceVariant,
-            modifier = Modifier.size(16.dp).rotate(if (loading) rotation else 0f)
+            modifier = Modifier.size(15.dp).rotate(if (loading) rotation else 0f)
         )
     }
 }
@@ -168,56 +155,41 @@ private fun RetryRow(onRetry: () -> Unit) {
     }
 }
 
+/**
+ * The mockup's ticker pill: white, fully rounded, one row of item + delta with a
+ * soft shadow. Was a 108dp three-line card (name over price over trend) — five of
+ * those is a wall of numbers directly above the hero, which is exactly what a
+ * single glanceable strip exists to avoid.
+ *
+ * The price stays in the pill even though the mockup's hardcoded ticker omits it:
+ * it is the number the user actually shops on, and dropping real data to match a
+ * demo's placeholder would be matching the wrong thing.
+ */
 @Composable
 private fun MarketTickerCard(item: MarketPriceItem) {
-    val (trendColor, trendIcon) = when (item.trend) {
-        "up" -> dangerColor to Icons.Default.TrendingUp
-        "down" -> successColor to Icons.Default.TrendingDown
-        else -> onSurfaceVariant to Icons.AutoMirrored.Filled.TrendingFlat
+    val trendColor = when (item.trend) {
+        "up" -> dangerColor
+        "down" -> successColor
+        else -> textTertiary
     }
-    val revealAlpha by animateFloatAsState(targetValue = 1f, animationSpec = tween(500, easing = FastOutSlowInEasing), label = "ticker_reveal")
-
-    val shape = RoundedCornerShape(16.dp)
-    Column(
+    val shape = RoundedCornerShape(50)
+    Row(
         modifier = Modifier
-            .widthIn(min = 108.dp)
-            .alpha(revealAlpha)
-            .zadGlassBlur(radius = 12.dp)
+            .zadCardShadow(shape, elevation = 6.dp)
             .clip(shape)
-            .background(primary.copy(alpha = 0.06f))
-            .border(1.dp, primary.copy(alpha = 0.14f), shape)
-            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .background(surface)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
+        Text(item.symbol, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textPrimary, maxLines = 1)
+        Text("%.1f".format(item.price), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = onSurfaceVariant, maxLines = 1)
         Text(
-            item.symbol,
-            style = Typography.labelMedium,
+            "${if (item.changePercent > 0) "+" else ""}${"%.1f".format(item.changePercent)}%",
+            fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
-            color = onSurface,
+            color = trendColor,
             maxLines = 1
         )
-        Spacer(modifier = Modifier.height(4.dp))
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                "%.1f".format(item.price),
-                style = Typography.titleMedium,
-                fontWeight = FontWeight.ExtraBold,
-                color = onSurface
-            )
-            if (item.unit.isNotBlank()) {
-                Spacer(modifier = Modifier.width(3.dp))
-                Text(item.unit, style = Typography.labelSmall.copy(fontSize = 9.sp), color = onSurfaceVariant, modifier = Modifier.padding(bottom = 2.dp))
-            }
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(trendIcon, contentDescription = null, tint = trendColor, modifier = Modifier.size(12.dp))
-            Spacer(modifier = Modifier.width(2.dp))
-            Text(
-                "${if (item.changePercent > 0) "+" else ""}${"%.1f".format(item.changePercent)}%",
-                style = Typography.labelSmall.copy(fontSize = 10.sp),
-                fontWeight = FontWeight.Bold,
-                color = trendColor
-            )
-        }
     }
 }
