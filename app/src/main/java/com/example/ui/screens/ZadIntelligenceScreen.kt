@@ -589,12 +589,7 @@ fun ServerBehaviorProfileCard(
         label = "refreshSpin"
     )
 
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = surface,
-        shadowElevation = 2.dp,
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(20.dp), contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.Insights, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
@@ -823,10 +818,9 @@ fun ZadIntSubscriptionCardFull(
         else -> successColor
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth().shadow(2.dp, RoundedCornerShape(16.dp)),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = if (sub.isActive) surface else surfaceContainerLow)
+    com.example.ui.components.ZadListCard(
+        containerColor = if (sub.isActive) surface else surfaceContainerLow,
+        contentPadding = 0.dp
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -891,11 +885,7 @@ fun ExpenseDonutCard(categoryMap: List<Pair<String, Double>>, total: Double) {
     // الدونات من "الإجمالي" لتفاصيل الفئة دي — عرض أمرن بدل رقم إجمالي ثابت.
     var selectedIndex by remember(categoryMap) { mutableStateOf<Int?>(null) }
 
-    Card(
-        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = surface)
-    ) {
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.BarChart, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
@@ -1030,11 +1020,7 @@ fun MonthlyBarChartCard(monthlyData: List<Pair<String, Double>>, predictedNextMo
     val context = androidx.compose.ui.platform.LocalContext.current
     val animatedProgress by animateFloatAsState(targetValue = 1f, animationSpec = tween(1000), label = "bars")
 
-    Card(
-        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = surface)
-    ) {
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1114,11 +1100,7 @@ fun ConsumptionTickerCard(transactions: List<ZadTransaction>) {
 
     val drawProgress by animateFloatAsState(targetValue = if (hasData) 1f else 0f, animationSpec = tween(1200, easing = FastOutSlowInEasing), label = "ticker_draw")
 
-    Card(
-        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = surface)
-    ) {
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
@@ -1306,11 +1288,7 @@ fun WhatIfSimulatorCard(viewModel: ZadViewModel, predictedMonthlySpend: Double) 
     var aiNarrative by remember { mutableStateOf<String?>(null) }
     var isLoadingNarrative by remember { mutableStateOf(false) }
 
-    Card(
-        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = surface)
-    ) {
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Calculate, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
@@ -1621,11 +1599,7 @@ fun FinancialStressTestCard(transactions: List<ZadTransaction>, emergencyFund: D
         StressTestStatus.HEALTHY -> successColor to stringResource(R.string.stress_test_status_healthy)
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = surface)
-    ) {
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.HealthAndSafety, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
@@ -1722,11 +1696,7 @@ fun InflationRadarCard(transactions: List<ZadTransaction>) {
     var aiNarrative by remember(categories) { mutableStateOf<String?>(null) }
     var isLoadingNarrative by remember { mutableStateOf(false) }
 
-    Card(
-        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = surface)
-    ) {
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Radar, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
@@ -1826,11 +1796,7 @@ fun SmartBuyingTimingCard(inventory: List<ZadInventory>, serverBehaviorProfile: 
     var isLoadingNarrative by remember { mutableStateOf(false) }
     var narratingItem by remember { mutableStateOf<String?>(null) }
 
-    Card(
-        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = surface)
-    ) {
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
@@ -2002,11 +1968,7 @@ fun FinancialChallengesCard(familyViewModel: com.example.ui.viewmodels.FamilyVie
     LaunchedEffect(Unit) { familyViewModel.loadFinancialChallenges() }
 
     val active = familyState
-    Card(
-        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = surface)
-    ) {
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.EmojiEvents, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
@@ -2263,11 +2225,7 @@ fun DebtPayoffPlannerCard(debts: List<com.example.data.ZadDebt>, viewModel: ZadV
 
     LaunchedEffect(Unit) { viewModel.loadDebts() }
 
-    Card(
-        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = surface)
-    ) {
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.AccountBalance, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
@@ -2506,11 +2464,7 @@ fun LiveDealsCard(shortageItems: List<String>, viewModel: ZadViewModel) {
     val deals by viewModel.liveDeals.collectAsState()
     val fetchState by viewModel.dealsFetchState.collectAsState()
 
-    Card(
-        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = surface)
-    ) {
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.LocalOffer, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
@@ -2583,11 +2537,7 @@ fun PriceShockRadarCard(categories: List<String>, viewModel: ZadViewModel) {
     val warnings by viewModel.priceShockWarnings.collectAsState()
     val fetchState by viewModel.priceShockFetchState.collectAsState()
 
-    Card(
-        modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = surface)
-    ) {
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.ShowChart, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
@@ -3022,12 +2972,7 @@ private fun MonthComparisonCard(mc: com.example.data.ZadCentralBrain.MonthCompar
     val maxSpend = maxOf(mc.thisMonthSpent, mc.lastMonthSpent, 1.0)
     val animatedProgress by animateFloatAsState(targetValue = 1f, animationSpec = tween(900), label = "mc")
 
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = surface,
-        shadowElevation = 2.dp,
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(20.dp), contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.CompareArrows, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
@@ -3210,12 +3155,7 @@ private fun HealthScoreCard(report: com.example.data.ZadCentralBrain.BrainReport
         label = "score"
     )
 
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = surface,
-        shadowElevation = 2.dp,
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(20.dp), contentPadding = 0.dp) {
         Row(
             modifier = Modifier.padding(20.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -3271,12 +3211,7 @@ private fun HealthScoreCard(report: com.example.data.ZadCentralBrain.BrainReport
 
 @Composable
 private fun DepletionForecastCard(forecasts: List<com.example.data.ZadCentralBrain.DepletionForecast>) {
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = surface,
-        shadowElevation = 1.dp,
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(20.dp), contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
