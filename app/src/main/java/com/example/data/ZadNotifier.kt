@@ -51,13 +51,14 @@ object ZadNotifier {
     }
 
     private fun speakArabic(context: Context, text: String) {
-        val tts = TextToSpeech(context.applicationContext) { status ->
+        var tts: TextToSpeech? = null
+        tts = TextToSpeech(context.applicationContext) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 val arabic = Locale("ar")
-                val available = tts.isLanguageAvailable(arabic)
+                val available = tts?.isLanguageAvailable(arabic) ?: TextToSpeech.LANG_MISSING_DATA
                 if (available >= TextToSpeech.LANG_AVAILABLE) {
-                    tts.language = arabic
-                    tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "zad_notifier")
+                    tts?.language = arabic
+                    tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "zad_notifier")
                 }
             }
         }

@@ -7,6 +7,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.data.ZadCentralBrain
 import com.example.data.ZadNotifier
+import io.github.jan.supabase.auth.auth
 import com.example.data.buildZadFamilyState
 import com.example.data.local.ZadDatabase
 import kotlinx.coroutines.flow.first
