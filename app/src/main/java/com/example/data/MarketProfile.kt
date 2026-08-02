@@ -9,6 +9,7 @@ import java.util.Locale
  */
 enum class Market(
     val displayNameAr: String,
+    val countryCode: String,
     val localeTag: String,
     val currencyCode: String,
     val currencySymbol: String,
@@ -18,15 +19,15 @@ enum class Market(
     val dialectInstruction: String = ""
 ) {
     SAUDI_ARABIA(
-        "السعودية", "ar-SA", "SAR", "ر.س",
+        "السعودية", "SA", "ar-SA", "SAR", "ر.س",
         dialectInstruction = "تتحدث باللهجة السعودية/الخليجية الطبيعية في المحادثة اليومية (مثل: \"أبشر\"، \"يعطيك العافية\"، \"وش رايك\"، \"كذا\") — مش فصحى رسمية."
     ),
     EGYPT(
-        "مصر", "ar-EG", "EGP", "ج.م",
+        "مصر", "EG", "ar-EG", "EGP", "ج.م",
         dialectInstruction = "تتحدث باللهجة المصرية العامية الطبيعية في المحادثة اليومية (مثل: \"إزيك\"، \"تمام\"، \"خلاص\"، \"يلا\"، \"معلش\") — مش فصحى رسمية."
     ),
     TURKEY(
-        "تركيا", "tr-TR", "TRY", "₺", useEuropeanNumberFormat = true,
+        "تركيا", "TR", "tr-TR", "TRY", "₺", useEuropeanNumberFormat = true,
         dialectInstruction = "Respond entirely in natural, conversational Turkish (samimi bir Türkçe ile) — not Arabic, regardless of what language the underlying data labels are in."
     );
 

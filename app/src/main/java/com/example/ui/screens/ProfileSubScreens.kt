@@ -311,6 +311,7 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
     var editMode by remember { mutableStateOf(false) }
     var newBudgetStr by remember { mutableStateOf(budget.toString()) }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(budget) {
         Log.d(TAG_SUB_PROF, "PaymentAndBudgetScreen loaded — current budget=$budget")
@@ -371,6 +372,7 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
                             .clickable {
                                 selectedMarket = market
                                 com.example.data.MarketPrefs.setMarket(context, market)
+                                scope.launch { com.example.data.SupabaseRepo.syncMarketProfile(market) }
                             },
                         shape = RoundedCornerShape(12.dp),
                         color = if (isSelected) primary.copy(alpha = 0.15f) else surfaceContainer,

@@ -30,7 +30,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import coil.compose.AsyncImage
 import com.example.data.ZadAiRepository
 import com.example.data.ZadInventory
 import com.example.ui.components.AppearOnEntry
@@ -178,12 +177,42 @@ fun RecipeDetailDialog(
                             .fillMaxWidth()
                             .height(200.dp)
                     ) {
-                        AsyncImage(
-                            model = "https://source.unsplash.com/600x400/?${recipeTitle.replace(" ", ",")}",
-                            contentDescription = recipeTitle,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
+                        // الصورة دي كانت hotlink لـ source.unsplash.com — خدمة اتقفلت، فكانت
+                        // بتتعرض فاضية/عشوائية وللأكل العربي مش بترجع حاجة خالص. اتستبدلت
+                        // بهيدر متدرج ثابت (نفس ستايل ZadChefCard) بيرندر دايمًا من غير شبكة،
+                        // بدل صورة مزيفة مش حقيقية. الصور الحقيقية للوصفات محتاجة مصدر متفق
+                        // عليه (Spoonacular/صور مولّدة) — ده خارج إصلاح الـ hotlink.
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.linearGradient(
+                                        colors = listOf(primaryDark, primary, primaryLight)
+                                    )
+                                )
                         )
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.Restaurant,
+                                    contentDescription = null,
+                                    tint = primaryFixed,
+                                    modifier = Modifier.size(56.dp)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = recipeTitle,
+                                    style = com.example.ui.theme.Typography.titleLarge,
+                                    color = primaryFixed,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(horizontal = 24.dp)
+                                )
+                            }
+                        }
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()

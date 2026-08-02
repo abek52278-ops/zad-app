@@ -1323,7 +1323,9 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      * ونجمع بعدين التكلفة الثابتة الحالية عليه — يعكس التزامات النهاردة مش تاريخ قديم ممكن اتغير.
      */
     private fun recalculateBudgetSuggestion(txs: List<ZadTransaction>, currentBudget: Double) {
-        if (currentBudget <= 0.0) { _suggestedBudget.value = null; return }
+        // كان فيه حاجز معكوس هنا: لو السقف غير محدد (<= 0) بترجع null فوراً — أي إن الاشتقاق
+        // من آخر شهرين بيقف بالظبط لما المستخدم محتاجه أكثر (عمره ما حدد سقف). الاشتقاق دلوقتي
+        // بيشتغل دايماً؛ لما مفيش سقف، الاقتراح هو الجواب (مش تعديل على رقم موجود).
 
         val now = java.time.LocalDate.now()
         val monthlyExpenses = mutableMapOf<java.time.YearMonth, Double>()
@@ -1348,7 +1350,9 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
         val suggestion = currentRecurringCost + variableAverage
         val rounded = (Math.round(suggestion / 50.0) * 50.0)
-        val diffRatio = kotlin.math.abs(rounded - currentBudget) / currentBudget
+        // من غير سقف محدد مفيش diffRatio يتقارن بيه — الاقتراح بيبان زي ما هو.
+        // مع سقف محدد، بيتعرض بس لو الفرق >= 10% (مش ضوضاء لكل قرش).
+        val diffRatio = if (currentBudget > 0) kotlin.math.abs(rounded - currentBudget) / currentBudget else 1.0
 
         val prefs = getApplication<Application>().getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
         val dismissedValue = prefs.getFloat("dismissed_budget_suggestion", -1f).toDouble()

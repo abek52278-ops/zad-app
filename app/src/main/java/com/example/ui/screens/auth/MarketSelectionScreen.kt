@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import com.example.ui.components.zadCardShadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -40,6 +41,7 @@ private val marketOptions = listOf(
 @Composable
 fun MarketSelectionScreen(onContinue: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var selected by remember { mutableStateOf<Market?>(null) }
     val listVisible = remember { MutableTransitionState(false) }
     LaunchedEffect(Unit) { listVisible.targetState = true }
@@ -122,6 +124,9 @@ fun MarketSelectionScreen(onContinue: () -> Unit) {
                 onClick = {
                     selected?.let { market ->
                         MarketPrefs.setMarket(context, market)
+                        // العملة/البلد بتترفع للسيرفر فوراً — العقل والبوت بيلاقوها بدل
+                        // الافتراض الخاطئ "ر.س" (مشكلة "قالي مفيش ولا ريال وأنا بالمصري")
+                        scope.launch { com.example.data.SupabaseRepo.syncMarketProfile(market) }
                         onContinue()
                     }
                 },

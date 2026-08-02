@@ -218,7 +218,7 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
   const cashKey = isoWeekKey(new Date());
   const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes, askedRes, selfMemRes, cashBalRes, cashAskedRes, obligRes, debtRes, maintRes, behaviorRes, notifRes, doseRes] =
     await Promise.all([
-      sb.from("zad_users").select("monthly_limit,cycle_start_day,cycle_anchor").eq("id", userId).maybeSingle(),
+      sb.from("zad_users").select("monthly_limit,cycle_start_day,cycle_anchor,currency,country").eq("id", userId).maybeSingle(),
       sb.from("zad_transactions").select("amount,title,category,is_expense,txn_kind,created_at,merchant_name")
         .eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
       sb.from("zad_inventory").select("item_name,category,quantity,unit,expiry_date,low_stock_threshold,created_at")
@@ -427,7 +427,10 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
   }
 
   return {
-    currency: "auto", // العملة الفعلية تتحدد من MarketPrefs على الجهاز، مش هنا
+    // العملة والبلد دلوقتي من zad_users (بييجي من اختيار السوق في الكلاينت عبر
+    // syncMarketProfile). "غير معروف" بدل افتراض ر.س — الموديل ممنوع يخترع عملة.
+    currency: userRes.data?.currency ?? "غير معروف",
+    country: userRes.data?.country ?? "غير معروف",
     budget, spent, remaining, dailyAllowanceLeft, velocity, threat,
     // Task 26 — رقم "متاح" (available). كل تحذير/رؤية عن الميزانية لازم يبني على ده مش
     // على remaining — remaining بيتجاهل الالتزامات الثابتة (إيجار/قسط/اشتراكات) القادمة
@@ -858,6 +861,7 @@ function buildSystemPrompt(snap: any): string {
 - الحد الأدنى لسداد الديون (debts[].min_payment) التزام ثابت زي الإيجار بالظبط — ممنوع تقترح تقليله أو تأجيله، وممنوع تحسب "متاح" وكأنه فلوس اختيارية.
 - notifications_sent هو اللي التطبيق قاله للعميل فعلاً آخر أسبوع (من مسارات تانية غيرك). لو موضوعك اتقال فيه بالفعل، ماتكررهوش — العميل شايفه أصلاً. read=false برضه بيتحسب اتقال.
 - behavior_profile أرقام محسوبة من معاملات حقيقية سيرفر-سايد. لو رقمك مختلف عنها اختلاف كبير، الغلط الأرجح عندك انت — راجع حسابك قبل ما تنبّه.
+- العملة والبلد جوه الـ snapshot هم الحقيقة الوحيدة. لو currency = "غير معروف"، ممنوع تفترض ريال أو جنيه أو أي عملة من عندك، وممنوع تكتب رؤية فيها رمز عملة — قول إن عملة المستخدم لسه مش متسجلة وحدّها في إعدادات البلد والعملة بالتطبيق. المبالغ في الـ snapshot كلها من نفس السجلات المالية للمستخدم، والتسمية بالعملة مش بتغيّر حجمها.
 
 لما العميل يرد على سؤال:
 - الرد بيتسجل تلقائياً في النظام، متقلقش على الرقم نفسه.

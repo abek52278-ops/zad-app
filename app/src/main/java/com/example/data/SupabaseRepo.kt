@@ -119,6 +119,27 @@ object SupabaseRepo {
     }
 
     /**
+     * اختيار السوق (البلد/العملة) بيتزامن للسيرفر عشان العقل والبوت يقرأوه من
+     * zad_users.currency/country بدل الافتراض "ر.س" (المشكلة اللي خلّت البوت يقول
+     * "مفيش ولا ريال" لمستخدم في مصر). بيتنادى من كل موقع بيتغيّر فيه السوق
+     * (MarketSelectionScreen + شاشة "البلد والعملة" في البروفايل).
+     */
+    suspend fun syncMarketProfile(market: com.example.data.Market) {
+        val userId = client.auth.currentUserOrNull()?.id ?: return
+        try {
+            client.postgrest["zad_users"].update(
+                mapOf(
+                    "currency" to market.currencyCode,
+                    "country" to market.countryCode
+                )
+            ) { filter { eq("id", userId) } }
+            Log.d(TAG, "syncMarketProfile() SUCCESS → userId=$userId, currency=${market.currencyCode}")
+        } catch (e: Exception) {
+            Log.e(TAG, "syncMarketProfile() FAILED: ${e.message}")
+        }
+    }
+
+    /**
      * كل معاملات العيلة (المستخدم نفسه + أبناؤه لو أدمن) — يعتمد على RLS بس، مش فلترة
      * إضافية هنا: سياسة "family_admin_read_child_transactions" هي اللي بتحدد فعلياً مين
      * يشوف إيه (عضو عادي يرجعله صفوفه بس حتى لو طلب family_id العيلة كلها).

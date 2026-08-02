@@ -69,7 +69,7 @@ async function fetchAgentContext(sb: SupabaseClient, userId: string): Promise<Ag
   const today = new Date().toISOString().slice(0, 10);
 
   const [user, txs, inv, subs, obligations, pharmacy, shopping, insights, tasbiha, memory] = await Promise.all([
-    sb.from("zad_users").select("full_name,monthly_limit,currency").eq("id", userId).maybeSingle(),
+    sb.from("zad_users").select("full_name,monthly_limit,currency,country").eq("id", userId).maybeSingle(),
     // Pull a deep-enough window (200 newest) rather than just the 30 the prompt shows:
     // monthTotals/categoryBreakdown run over this same list, so a heavy month with more
     // than 30 transactions would otherwise report totals that are silently too low.
@@ -88,7 +88,11 @@ async function fetchAgentContext(sb: SupabaseClient, userId: string): Promise<Ag
   return {
     userName: (user.data as any)?.full_name ?? null,
     monthlyLimit: Number((user.data as any)?.monthly_limit) || 0,
-    currency: (user.data as any)?.currency || "ر.س",
+    // "غير معروف" بدل "ر.س" — كان افتراض ميت خلّى البوت يرد على عميل في مصر "مفيش
+    // ولا ريال" وهو فلوسه بالمصري. لو العمود موجود، قيمته الحقيقية (EGP/SAR/TRY)
+    // هي اللي بتوصل من الكلاينت (MarketPrefs → syncMarketProfile).
+    currency: (user.data as any)?.currency ?? "غير معروف",
+    country: (user.data as any)?.country ?? null,
     today,
     transactions: (txs.data ?? []) as any,
     inventory: (inv.data ?? []) as any,
@@ -215,7 +219,7 @@ bot.on("message:text", async (ctx) => {
   const intent = parseSpendIntent(await askZad(spendIntentPrompt(), ctx.message.text));
   if (intent) {
     const currency = (await sb.from("zad_users").select("currency").eq("id", userId).maybeSingle())
-      .data?.currency ?? "ر.س";
+      .data?.currency ?? "غير معروف";
     const { data: pending, error } = await sb.from("telegram_pending_writes").insert({
       user_id: userId,
       chat_id: ctx.chat.id,
@@ -373,7 +377,7 @@ bot.on("callback_query:data", async (ctx) => {
     }
 
     const { data: u } = await sb.from("zad_users").select("currency").eq("id", userId).maybeSingle();
-    const cur = (u as { currency?: string } | null)?.currency ?? "ر.س";
+    const cur = (u as { currency?: string } | null)?.currency ?? "غير معروف";
     await ctx.reply(`اتسجل ✅ ${row.title} — ${money(row.amount, cur)}`);
     return;
   }
