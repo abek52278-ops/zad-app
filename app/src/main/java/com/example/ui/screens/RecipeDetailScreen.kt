@@ -393,10 +393,9 @@ fun RecipeDetailDialog(
                     }
                 }
 
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shadowElevation = 8.dp,
-                    color = surface
+                com.example.ui.components.ZadListCard(
+                    shape = RoundedCornerShape(0.dp),
+                    contentPadding = 0.dp
                 ) {
                     Row(
                         modifier = Modifier

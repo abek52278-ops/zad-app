@@ -123,15 +123,13 @@ fun AffiliateProductCard(
     onBuyClick: () -> Unit,
     isLoading: Boolean = false
 ) {
-    Card(
+    com.example.ui.components.ZadListCard(
         modifier = Modifier
-            .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
             .pressableScale(pressedScale = 0.97f, withHaptic = false)
             .clickable { onBuyClick() },
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        contentPadding = 0.dp
     ) {
         Row(
             modifier = Modifier
@@ -287,12 +285,9 @@ fun AffiliateLoadingSkeleton() {
         end = androidx.compose.ui.geometry.Offset(translateAnim, 0f)
     )
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = surface)
+    com.example.ui.components.ZadListCard(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        contentPadding = 0.dp
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -336,12 +331,10 @@ fun AffiliateLoadingSkeleton() {
 
 @Composable
 fun AffiliateConsentBanner(onAccept: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = primaryContainer)
+    com.example.ui.components.ZadListCard(
+        modifier = Modifier.padding(16.dp),
+        containerColor = primaryContainer,
+        contentPadding = 0.dp
     ) {
         Column(
             modifier = Modifier.padding(16.dp),

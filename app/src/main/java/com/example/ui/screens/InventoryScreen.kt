@@ -491,11 +491,9 @@ private fun ExpiringSoonSection(
         ) {
             items(items) { item ->
                 val days = daysUntilExpiry(item.expiryDate)
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = surface,
-                    shadowElevation = 1.dp,
-                    modifier = Modifier.padding(vertical = 2.dp)
+                com.example.ui.components.ZadListCard(
+                    modifier = Modifier.padding(vertical = 2.dp),
+                    contentPadding = 0.dp
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -800,12 +798,7 @@ private fun ShortageItemCard(
     val catDef = categoryDefFor(item.category)
     var added by remember(item.id) { mutableStateOf(false) }
 
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    com.example.ui.components.ZadListCard(contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(

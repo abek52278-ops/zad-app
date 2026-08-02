@@ -316,12 +316,9 @@ private fun GroceriesTab(
         itemsIndexed(groceries) { index, item ->
             com.example.ui.components.AppearOnEntry(delayMs = (index * 40).coerceAtMost(400)) {
                 val groceryShape = RoundedCornerShape(18.dp)
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .zadCardShadow(groceryShape, elevation = 6.dp),
+                com.example.ui.components.ZadListCard(
                     shape = groceryShape,
-                    colors = CardDefaults.cardColors(containerColor = surface)
+                    contentPadding = 0.dp
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -521,14 +518,10 @@ private fun MemberDetailCard(
 
     val memberAccent = if (member.role == "admin") primary else secondary
     val memberCardShape = RoundedCornerShape(20.dp)
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .zadCardShadow(memberCardShape)
-            .clickable { onClick() }
-            .pressableScale(),
+    com.example.ui.components.ZadListCard(
+        modifier = Modifier.clickable { onClick() }.pressableScale(),
         shape = memberCardShape,
-        colors = CardDefaults.cardColors(containerColor = surface)
+        contentPadding = 0.dp
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -1008,17 +1001,14 @@ private fun TasksTab(
                 itemsIndexed(filteredChores) { index, chore ->
                     com.example.ui.components.AppearOnEntry(delayMs = (index * 40).coerceAtMost(400)) {
                     val choreShape = RoundedCornerShape(16.dp)
-                    Card(
+                    com.example.ui.components.ZadListCard(
                         modifier = Modifier
-                            .fillMaxWidth()
                             .padding(vertical = 4.dp)
-                            .zadCardShadow(choreShape, elevation = 4.dp)
                             .clickable { onToggle(chore.id, !chore.isCompleted) }
                             .pressableScale(),
                         shape = choreShape,
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (chore.isCompleted) primary.copy(alpha = 0.08f) else surfaceContainer
-                        )
+                        containerColor = if (chore.isCompleted) primary.copy(alpha = 0.08f) else surface,
+                        contentPadding = 0.dp
                     ) {
                         Row(
                             modifier = Modifier.padding(14.dp),
@@ -1960,7 +1950,7 @@ private fun TextBubble(msg: ChatMessage, isMe: Boolean, isAi: Boolean, senderAli
                 listOf("\uD83D\uDC4D", "\u2764\uFE0F", "\uD83D\uDE02", "\uD83D\uDE2E", "\uD83D\uDE22", "\uD83D\uDE4F").forEach { emoji ->
                     Surface(
                         modifier = Modifier.size(28.dp).clip(CircleShape).clickable { onReact(emoji); onToggleEmojiPicker() },
-                        shape = CircleShape, color = surfaceContainer, shadowElevation = 1.dp
+                        shape = CircleShape, color = surface
                     ) { Box(contentAlignment = Alignment.Center) { Text(emoji, fontSize = 14.sp) } }
                 }
             }

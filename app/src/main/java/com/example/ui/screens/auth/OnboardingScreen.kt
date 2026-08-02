@@ -205,14 +205,12 @@ fun FeatureCard(feature: OnboardingFeature, isSelected: Boolean, page: Int = -1)
         animationSpec = tween(300), label = "card_scale"
     )
 
-    Card(
+    com.example.ui.components.ZadListCard(
         modifier = Modifier
-            .fillMaxWidth()
             .scale(scale)
             .padding(vertical = 8.dp),
         shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        contentPadding = 0.dp
     ) {
         Column(
             modifier = Modifier.padding(32.dp),

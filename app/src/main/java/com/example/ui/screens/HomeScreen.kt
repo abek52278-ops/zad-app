@@ -1274,11 +1274,7 @@ fun HomeScreenPreview() {}
 
 @Composable
 fun NotificationPermissionCard(onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = catFoodBg),
-        shape = RoundedCornerShape(16.dp)
-    ) {
+    com.example.ui.components.ZadListCard(containerColor = catFoodBg, contentPadding = 0.dp) {
         Row(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -1315,11 +1311,7 @@ fun NotificationPermissionCard(onClick: () -> Unit) {
 
 @Composable
 fun AiAlertBanner(title: String, description: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = errorContainer),
-        shape = RoundedCornerShape(16.dp)
-    ) {
+    com.example.ui.components.ZadListCard(containerColor = errorContainer, contentPadding = 0.dp) {
         Row(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -1444,12 +1436,7 @@ fun MiniTableCard(
     items: List<MiniTableRow>,
     onSeeAll: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
+    com.example.ui.components.ZadListCard(contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1506,12 +1493,7 @@ fun ZadProactiveSummaryCard(insights: List<com.example.data.AiInsight>) {
         Log.d("HomeScreen", "🤖 الذكاء الاستباقي (ميزة 2): تم عرض ${insights.size} نصيحة استباقية")
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = surface),
-        shape = RoundedCornerShape(24.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(

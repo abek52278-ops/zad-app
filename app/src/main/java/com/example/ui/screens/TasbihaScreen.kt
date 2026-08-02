@@ -587,16 +587,14 @@ private fun AnimatedTreeDisplay(
         }
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
+    com.example.ui.components.ZadListCard(
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = when (tree.treeType) {
-                "golden" -> Color(0xFFFFF8E1)
-                "special" -> Color(0xFFF3E5F5)
-                else -> surfaceContainer
-            }
-        )
+        containerColor = when (tree.treeType) {
+            "golden" -> Color(0xFFFFF8E1)
+            "special" -> Color(0xFFF3E5F5)
+            else -> surface
+        },
+        contentPadding = 0.dp
     ) {
         Column(
             Modifier

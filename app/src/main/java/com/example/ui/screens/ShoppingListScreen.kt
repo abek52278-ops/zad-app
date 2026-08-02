@@ -276,10 +276,9 @@ fun ShoppingListScreen(
             enter = fadeIn() + slideInVertically { -it / 2 },
             exit = fadeOut() + slideOutVertically { -it / 2 }
         ) {
-            Surface(
+            com.example.ui.components.ZadListCard(
                 shape = RoundedCornerShape(50),
-                color = surface,
-                shadowElevation = 6.dp
+                contentPadding = 0.dp
             ) {
                 Row(
                     modifier = Modifier.padding(start = 8.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
@@ -317,10 +316,10 @@ fun ShoppingListScreen(
 private fun ShoppingBudgetHeader(totalPrice: Double, budgetRemaining: Double, budgetPct: Int) {
     val context = LocalContext.current
     val isOverBudget = totalPrice > budgetRemaining && budgetRemaining > 0
-    Card(
-        modifier = Modifier.fillMaxWidth().shadow(8.dp, RoundedCornerShape(20.dp)),
+    com.example.ui.components.ZadListCard(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+        containerColor = Color.Transparent,
+        contentPadding = 0.dp
     ) {
         Box(
             modifier = Modifier
