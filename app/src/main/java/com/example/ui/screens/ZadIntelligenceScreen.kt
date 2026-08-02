@@ -678,7 +678,8 @@ fun SubscriptionsTab(
     ) {
         item {
             Box(
-                modifier = Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(20.dp))
+                modifier = Modifier.fillMaxWidth()
+                    .zadCardShadow(RoundedCornerShape(20.dp))
                     .clip(RoundedCornerShape(20.dp)).background(primary).padding(20.dp)
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {

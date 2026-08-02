@@ -40,6 +40,7 @@ import androidx.compose.animation.scaleIn
 import com.example.ui.components.AppearOnEntry
 import com.example.ui.components.ZadLottieAsset
 import com.example.ui.components.pressableScale
+import com.example.ui.components.zadCardShadow
 import com.example.data.BankReadingStatus
 import com.example.data.SaBankParser
 
@@ -173,7 +174,7 @@ fun EditProfileScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
     ) {
         Column(
             modifier = Modifier
-                .shadow(12.dp, RoundedCornerShape(20.dp))
+                .zadCardShadow(RoundedCornerShape(20.dp), elevation = 12.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(surface)
                 .padding(24.dp),
@@ -605,7 +606,7 @@ fun AlertSwitchItem(title: String, desc: String, checked: Boolean, onCheckedChan
             Text(title, fontWeight = FontWeight.Bold, color = onSurface)
             Text(desc, fontSize = 12.sp, color = onSurfaceVariant)
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        com.example.ui.components.ZadSwitch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 

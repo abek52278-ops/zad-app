@@ -180,7 +180,7 @@ fun NearbyDealsScreen(
                     Text(stringResource(R.string.location_alerts_toggle_hint), style = Typography.labelSmall, color = onSurfaceVariant)
                 }
                 Spacer(modifier = Modifier.width(8.dp))
-                Switch(checked = locationAlertsEnabled, onCheckedChange = { onLocationAlertsToggle(it) })
+                com.example.ui.components.ZadSwitch(checked = locationAlertsEnabled, onCheckedChange = { onLocationAlertsToggle(it) })
             }
 
             if (!hasLocationPermission) {

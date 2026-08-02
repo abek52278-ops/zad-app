@@ -438,7 +438,7 @@ fun CameraScreen(
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest
+                    color = surfaceVariant
                 ) {
                     Text(
                         text = analysisStatus,
@@ -530,7 +530,7 @@ fun CameraScreen(
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainerHighest
+                                color = surfaceVariant
                             ) {
                                 Row(
                                     modifier = Modifier.padding(12.dp),
@@ -612,7 +612,7 @@ private fun ManualInventoryDialog(
                     items.indices.toList().forEach { idx ->
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest
+                            color = surfaceVariant
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
                                 Row(

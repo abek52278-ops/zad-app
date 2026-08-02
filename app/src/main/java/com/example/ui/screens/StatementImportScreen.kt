@@ -160,7 +160,7 @@ private fun ColumnMappingStep(
         Spacer(modifier = Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(R.string.invert_amount_sign_label), style = Typography.bodyMedium, modifier = Modifier.weight(1f))
-            Switch(checked = invertSign, onCheckedChange = onInvertSignChange)
+            com.example.ui.components.ZadSwitch(checked = invertSign, onCheckedChange = onInvertSignChange)
         }
 
         Spacer(modifier = Modifier.weight(1f))

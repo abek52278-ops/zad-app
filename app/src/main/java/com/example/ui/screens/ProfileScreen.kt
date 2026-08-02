@@ -461,7 +461,7 @@ fun ProfileScreen(
     ) {
         Column(
             modifier = Modifier
-                .shadow(12.dp, RoundedCornerShape(20.dp))
+                .zadCardShadow(RoundedCornerShape(20.dp), elevation = 12.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(surface)
                 .padding(24.dp),
