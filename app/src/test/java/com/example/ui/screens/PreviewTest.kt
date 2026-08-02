@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.example.data.Figure
 import com.example.data.ZadInsight
@@ -489,6 +490,149 @@ class PreviewTest {
 
         composeTestRule.onRoot().captureRoboImage(
             filePath = "build/outputs/roborazzi/budget_obligations.png"
+        )
+    }
+
+    // ── Design-port verification captures ────────────────────────────────────
+    // Proof that the ported surfaces render as intended, not just that they compile.
+
+    /** The auth canvas + brand mark + wordmark + slogan + pill CTA — the login screen's
+     *  own header stack, composed without AuthViewModel. */
+    @Test
+    fun captureAuthHeaderAndCta() {
+        composeTestRule.setContent {
+            AppTheme {
+                com.example.ui.components.ZadAuthBackground {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Spacer(modifier = Modifier.size(64.dp))
+                        androidx.compose.foundation.Image(
+                            painter = androidx.compose.ui.res.painterResource(id = com.example.R.drawable.ic_carrot_logo),
+                            contentDescription = null,
+                            modifier = Modifier.size(60.dp)
+                        )
+                        Spacer(modifier = Modifier.size(20.dp))
+                        Text("ZAD", fontSize = 32.sp, fontWeight = FontWeight.ExtraBold, color = primaryLight)
+                        Spacer(modifier = Modifier.size(10.dp))
+                        Text("تدبير ذكي لبيت هادئ", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = textSecondary)
+                        Spacer(modifier = Modifier.size(40.dp))
+                        com.example.ui.components.ZadPrimaryButton(
+                            text = "دخول",
+                            onClick = {},
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.size(16.dp))
+                        com.example.ui.components.ZadPrimaryButton(
+                            text = "دخول (معطّل)",
+                            onClick = {},
+                            enabled = false,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(
+            filePath = "build/outputs/roborazzi/auth_header_and_cta.png"
+        )
+    }
+
+    /** Profile's grouped settings card, the kids-mode switch, and the status pills. */
+    @Test
+    fun captureProfileMenuAndPrimitives() {
+        composeTestRule.setContent {
+            AppTheme {
+                ZadCanvasBackground()
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    com.example.ui.components.ZadMenuGroup {
+                        com.example.ui.components.ZadMenuRow(
+                            title = "وضع الأطفال",
+                            subtitle = "واجهة مبسطة للأبناء",
+                            onClick = {},
+                            showDivider = false,
+                            trailing = {
+                                com.example.ui.components.ZadSwitch(
+                                    checked = true,
+                                    onCheckedChange = {},
+                                    checkedColor = kidsPrimary
+                                )
+                            }
+                        )
+                    }
+                    com.example.ui.components.ZadMenuGroup {
+                        com.example.ui.components.ZadMenuRow(title = "تعديل الملف الشخصي", subtitle = "الاسم والصورة", onClick = {})
+                        com.example.ui.components.ZadMenuRow(title = "إدارة العائلة", subtitle = "الأعضاء والصلاحيات", onClick = {})
+                        com.example.ui.components.ZadMenuRow(
+                            title = "حذف الحساب",
+                            subtitle = "حذف نهائي",
+                            onClick = {},
+                            titleColor = dangerColor,
+                            showDivider = false
+                        )
+                    }
+                    com.example.ui.components.ZadRowCard(
+                        title = "نتفليكس",
+                        subtitle = "يتجدد بعد 4 أيام",
+                        leadingAccent = dangerColor,
+                        trailing = { com.example.ui.components.ZadRowAmount("45 ر.س") }
+                    )
+                    com.example.ui.components.ZadRowCard(
+                        title = "الإيجار",
+                        subtitle = "مستحق بعد 4 أيام",
+                        trailing = { com.example.ui.components.ZadStatusPill("مستحق", dangerColor) }
+                    )
+                    com.example.ui.components.ZadMeterBar(progress = 0.82f, color = primary, height = 8.dp)
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(
+            filePath = "build/outputs/roborazzi/profile_menu_and_primitives.png"
+        )
+    }
+
+    /** Zad Mind's spending-power card — the dark panel that replaced the drawn gauge. */
+    @Test
+    fun captureSpendingPowerPanel() {
+        composeTestRule.setContent {
+            AppTheme {
+                ZadCanvasBackground()
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    com.example.ui.components.ZadDarkPanel(title = "قوة الصرف") {
+                        Text("82%", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                        com.example.ui.components.ZadMeterBar(
+                            progress = 0.82f,
+                            color = primaryFixed,
+                            height = 8.dp,
+                            trackColor = Color.White.copy(alpha = 0.15f)
+                        )
+                    }
+                    // the no-budget state: powerPct = null must read as "—", not as a full bar
+                    com.example.ui.components.ZadDarkPanel(title = "قوة الصرف — بدون سقف") {
+                        Text("—", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                        com.example.ui.components.ZadMeterBar(
+                            progress = 0f,
+                            color = Color.White.copy(alpha = 0.35f),
+                            height = 8.dp,
+                            trackColor = Color.White.copy(alpha = 0.15f)
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        ZadStatTile(modifier = Modifier.weight(1f), label = "قوة الإنفاق", value = "82%")
+                        ZadStatTile(modifier = Modifier.weight(1f), label = "اتجاه 7 أيام", value = "↓ 6%")
+                    }
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(
+            filePath = "build/outputs/roborazzi/spending_power_panel.png"
         )
     }
 }
