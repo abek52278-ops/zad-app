@@ -167,9 +167,14 @@ object ZadAlertRouter {
                 ZadInsightMirror(it.id, it.kind, it.surface, it.priority, it.title, it.body, it.dedupeKey, it.status, it.actionType, it.aboutItem, it.createdAt)
             })
 
-            // التنبيهات الحرجة اللي لسه pending بتتوجه صوتياً هنا لحظة الـ sync (event/daily لسه محتاج push حقيقي لاحقاً)
-            remote.filter { it.surface == "voice" && it.priority == "critical" && it.status == "pending" }
-                .forEach { routeVoice(context, it.title, it.body) }
+            // التنبيهات الحرجة اللي لسه pending بتتوجه صوتياً لحظة الـ sync — من أي surface
+            // (العقل بيرسل أغلبها home_card افتراضياً، فتصفية voice بس كانت بتخليها تختفي نهائياً).
+            // بيتحدد "seen" بعد التوجيه عشان الـ sync الجاي ميعيدش نفس الإشعار.
+            remote.filter { it.priority == "critical" && it.status == "pending" }
+                .forEach { insight ->
+                    routeVoice(context, insight.title, insight.body)
+                    updateStatus(context, insight.id, "seen")
+                }
         } catch (e: Exception) {
             android.util.Log.e("ZadAlertRouter", "sync() failed: ${e.message}")
         }

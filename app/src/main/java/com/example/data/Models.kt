@@ -92,7 +92,9 @@ data class AiAgentStats(
     @SerialName("inventory_count") val inventoryCount: Int = 0,
     @SerialName("expiring_soon") val expiringSoon: Int = 0,
     @SerialName("subscriptions_active") val subscriptionsActive: Int = 0,
-    @SerialName("days_until_budget_end") val daysUntilBudgetEnd: Int = 30
+    // null = الموديل مش عارف. كان الافتراضي 30، فأي رد ما فيهوش الحقل كان بيتحول لرقم
+    // يبان محسوب. مفيش شاشة بتعرضه دلوقتي، فالنوع القابل للـ null مالوش تأثير على الواجهة.
+    @SerialName("days_until_budget_end") val daysUntilBudgetEnd: Int? = null
 )
 
 @Entity(tableName = "zad_users")

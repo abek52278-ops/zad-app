@@ -37,7 +37,9 @@ class MorningSummaryWorker(
             val transactions = dao.getAllTransactions().first()
             val subscriptions = dao.getAllSubscriptions().first()
             val prefs = applicationContext.getSharedPreferences("zad_prefs", Context.MODE_PRIVATE)
-            val budget = prefs.getFloat("cached_budget", 3500f).toDouble()
+            // 0 = سقف لسه مش متسجل. كان الافتراضي 3500، فملخص الصبح كان بيقول "قوة صرفك
+            // النهاردة كذا" لمستخدم عمره ما حدد سقف — رقم مخترع في إشعار بيوصل كل يوم.
+            val budget = prefs.getFloat("cached_budget", 0f).toDouble()
 
             val report = ZadCentralBrain.generateReport(
                 context = applicationContext,
@@ -54,7 +56,13 @@ class MorningSummaryWorker(
             }
 
             val body = buildString {
-                append("قوة صرفك اليوم: ${com.example.data.CurrencyFormatter.format(applicationContext, report.spendingPower.dailySafeSpend)} بأمان (${report.spendingPower.status})")
+                // من غير سقف متسجل، dailySafeSpend مبني على صفر — رقم مالوش معنى. الإشعار
+                // بيطلب السقف بدل ما يعرض رقم متحسب على معلومة ناقصة.
+                if (budget > 0) {
+                    append("قوة صرفك اليوم: ${com.example.data.CurrencyFormatter.format(applicationContext, report.spendingPower.dailySafeSpend)} بأمان (${report.spendingPower.status})")
+                } else {
+                    append("لسه ما حددتش سقف الشهر — حدده عشان أقدر أقولك قوة صرفك اليومية")
+                }
 
                 val expiring = inventory.filter { item ->
                     item.expiryDate?.let {
@@ -90,6 +98,11 @@ class MorningSummaryWorker(
                         mapOf("user_id" to userId, "trigger" to "daily")
                     )
                     Log.d("ZadMorningWorker", "zad-brain daily run triggered")
+
+                    // بعد ما العقل يشغّل، اسحب رؤاه الـ pending وحوّلها لإشعارات نظام + صوت.
+                    // الـ worker ده دايماً كان بينبه لكنه مكانش بيقرا رؤى العقل نهائياً.
+                    com.zad.agent.ZadAlertRouter.sync(applicationContext, userId)
+                    Log.d("ZadMorningWorker", "zad_insights synced → notifications")
                 }
             } catch (e: Exception) {
                 Log.e("ZadMorningWorker", "zad-brain trigger failed: ${e.message}")

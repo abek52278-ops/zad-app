@@ -208,7 +208,7 @@ class FamilyViewModel : ViewModel() {
                 }
                 child.id to ChildSpending(
                     monthlyTotal = childExpensesThisMonth.sumOf { it.amount },
-                    budgetCeiling = budgets[child.userId] ?: 3500.0,
+                    budgetCeiling = budgets[child.userId] ?: 0.0,
                     categoryBreakdown = childExpensesThisMonth.groupBy { it.category ?: "أخرى" }
                         .mapValues { (_, txs) -> txs.sumOf { it.amount } }
                 )

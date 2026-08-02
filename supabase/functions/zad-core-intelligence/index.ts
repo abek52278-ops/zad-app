@@ -615,14 +615,29 @@ Deno.serve(async (req: Request) => {
       // ──────────────────────────────────────────────
       case "agent_summary": {
         const data = payload || {};
-        const systemPrompt = dialectPrefix + "أنت وكيل زاد الذكي. حلل بيانات المستخدم بالكامل وقدّم ملخصاً شاملاً. لا تقترح أبداً إلغاء أو تقليل التزامات ثابتة (إيجار، أقساط قروض، فواتير أساسية) — دي مش اختيارية، اقتراحات التوفير لازم تستهدف إنفاق اختياري فعلاً. أجب بصيغة JSON: {\"summary\":\"\",\"alerts\":[{\"type\":\"\",\"title\":\"\",\"description\":\"\"}],\"suggestions\":[{\"action\":\"\",\"item\":\"\",\"reason\":\"\"}],\"stats\":{\"inventory_count\":0,\"expiring_soon\":0,\"subscriptions_active\":0,\"days_until_budget_end\":30}}";
+        // GROUNDING — الملخص ده بيتعرض على الشاشة الرئيسية كأنه حقيقة عن فلوس المستخدم،
+        // فمينفعش يتقال فيه رقم مش موجود في المدخلات. القواعد دي اتضافت بعد ما اتأكد
+        // (نداء حقيقي، 2026-08-02) إن الأكشن ده بيرد "تم رصد ميزانيتك الحالية بقيمة 3500"
+        // على مستخدم عمره ما حدد سقف — الرقم كان default سنتينل من العميل، والموديل نقله
+        // للمستخدم كحقيقة. العميل بقى بيبعت "غير معروف" بدل الرقم، وده الجزء اللي بيمنع
+        // الموديل يخترع بديل بدل ما يسكت.
+        const systemPrompt = dialectPrefix + "أنت وكيل زاد الذكي. حلل بيانات المستخدم بالكامل وقدّم ملخصاً شاملاً. " +
+          "قواعد إلزامية: (١) لا تذكر أبداً أي رقم غير موجود حرفياً في المدخلات — ممنوع التقدير أو التقريب أو الاختراع. " +
+          "(٢) لو الميزانية 'غير معروف' أو صفر، لا تفترض رقماً ولا تتكلم عن نسبة صرف أو متبقٍ إطلاقاً — اطلب من المستخدم تحديد سقفه. " +
+          "(٣) لو المعاملات فاضية، قل بوضوح إنه لا توجد بيانات كافية بدلاً من وصف سلوك إنفاق لم تره. " +
+          "(٤) alerts لازم كل تنبيه فيها يشير لبند حقيقي من المدخلات؛ لو مفيش، رجّع alerts فاضية — قائمة فاضية أفضل من تنبيه متألف. " +
+          "(٥) days_until_budget_end احسبها من التاريخ فقط، ولو مش قادر رجّعها null بدل 30. " +
+          "لا تقترح أبداً إلغاء أو تقليل التزامات ثابتة (إيجار، أقساط قروض، فواتير أساسية) — دي مش اختيارية، اقتراحات التوفير لازم تستهدف إنفاق اختياري فعلاً. " +
+          "أجب بصيغة JSON: {\"summary\":\"\",\"alerts\":[{\"type\":\"\",\"title\":\"\",\"description\":\"\"}],\"suggestions\":[{\"action\":\"\",\"item\":\"\",\"reason\":\"\"}],\"stats\":{\"inventory_count\":0,\"expiring_soon\":0,\"subscriptions_active\":0,\"days_until_budget_end\":null}}";
         const userPrompt = "المخزون: " + (data.inventory || "") + " | المعاملات: " + (data.transactions || "") + " | الاشتراكات: " + (data.subscriptions || "") + " | الميزانية: " + (data.budget || 0) + " | التسوق: " + (data.shopping || "") + " | الأنماط: " + (data.patterns || "");
         const result = await callJsonModel(systemPrompt, userPrompt, 2500);
         return jsonResponse({
           summary: result?.summary || "",
           alerts: result?.alerts || [],
           suggestions: result?.suggestions || [],
-          stats: result?.stats || { inventory_count: 0, expiring_soon: 0, subscriptions_active: 0, days_until_budget_end: 30 },
+          // كان الـ fallback هنا 30 يوم ثابتة — رقم مالوش أي علاقة بدورة المستخدم، وكان
+          // بيوصل للواجهة كأنه محسوب. null يعني "مش معروف" والواجهة تتصرف على أساسه.
+          stats: result?.stats || { inventory_count: 0, expiring_soon: 0, subscriptions_active: 0, days_until_budget_end: null },
         });
       }
 
@@ -923,7 +938,13 @@ Deno.serve(async (req: Request) => {
       // ──────────────────────────────────────────────
       case "auto_suggest": {
         const { context, inventory, transactions, patterns } = payload || {};
-        const systemPrompt = dialectPrefix + "أنت مساعد اقتراحات ذكي. بناءً على سياق المستخدم، اقترح إجراءات مفيدة. أجب بصيغة JSON: {\"suggestions\":[{\"action\":\"\",\"title\":\"\",\"description\":\"\",\"priority\":\"medium\",\"emoji\":\"\"}]}";
+        const systemPrompt = dialectPrefix + "أنت مساعد اقتراحات ذكي. بناءً على سياق المستخدم، اقترح إجراءات مفيدة. " +
+          // نفس قاعدة agent_summary: الاقتراحات دي بتتعرض كأنها مبنية على بيانات المستخدم،
+          // فأي رقم أو صنف فيها لازم يكون جاي من المدخلات مش من الموديل.
+          "قواعد إلزامية: (١) ممنوع تذكر أي مبلغ أو اسم صنف مش موجود حرفياً في المدخلات. " +
+          "(٢) لو المخزون والمعاملات الاتنين فاضيين، الاقتراحات المسموحة هي بس اقتراحات البدء (سجّل معاملة / أضف مخزون / حدد سقف شهري) — ممنوع أي اقتراح بيوحي إنك شفت إنفاق أو استهلاك فعلي. " +
+          "(٣) لو مفيش اقتراح مبني على بيانات حقيقية، رجّع suggestions فاضية. " +
+          "أجب بصيغة JSON: {\"suggestions\":[{\"action\":\"\",\"title\":\"\",\"description\":\"\",\"priority\":\"medium\",\"emoji\":\"\"}]}";
         const userPrompt = "السياق: " + (context || "") + " | المخزون: " + (inventory || "") + " | المعاملات: " + (transactions || "") + " | الأنماط: " + (patterns || "");
         const result = await callJsonModel(systemPrompt, userPrompt, 2000);
         return jsonResponse({ suggestions: result?.suggestions || [] });

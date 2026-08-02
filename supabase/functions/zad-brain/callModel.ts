@@ -23,7 +23,7 @@
 // كل محوّل بيترجم الشكل ده لصيغته في كل نداء، فتبديل المزوّد
 // وسط محادثة يبقى ممكن.
 // ------------------------------------------------------------
-export type ToolCall = { id: string; name: string; input: any };
+export type ToolCall = { id: string; name: string; input: any; thoughtSignature?: string };
 
 export type Turn =
   | { role: "user"; text: string }
@@ -227,7 +227,7 @@ async function sendGemini(o: {
       const parts: any[] = [];
       if (t.text) parts.push({ text: t.text });
       for (const c of t.toolCalls ?? [])
-        parts.push({ functionCall: { name: c.name, args: c.input } });
+        parts.push({ functionCall: { name: c.name, args: c.input, ...(c.thoughtSignature ? { thoughtSignature: c.thoughtSignature } : {}) } });
       contents.push({ role: "model", parts });
     } else {
       // ردود الأدوات بترجع بدور "user" في جيميناي، والربط بالاسم مش بـ id
@@ -306,6 +306,9 @@ async function sendGemini(o: {
         id: `gem_${p.functionCall.name}_${i}`,
         name: p.functionCall.name,
         input: p.functionCall.args ?? {},
+        // 2.5+: الـ functionCall بتيجي بـ thoughtSignature، وجيميناي بيطالبك ترجّعه زي ما هو
+        // في الـ turn اللي بعده — من غيره بيفشل بـ 400. بنحتفظ بيه ونعيد تزويده في النداء الجاي.
+        thoughtSignature: p.functionCall.thoughtSignature,
       });
     }
   });

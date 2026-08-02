@@ -21,8 +21,17 @@
 // (toolCalls having a real entry). Removed only that block; the analytical rules
 // ("قواعد صارمة", self_review usage) and the SNAPSHOT injection are untouched.
 //
-// Schema this file depends on (cross-checked against the live DB before writing this —
-// Task 8b): zad_transactions(user_id,amount,title,category,is_expense,created_at,
+// Schema this file depends on. The "cross-checked against the live DB" claim that used to
+// sit here was WRONG and cost the brain its entire financial input: zad_transactions never
+// had a merchant_name column, so the select 400'd, supabase-js returned {data:null} without
+// throwing, `txRes.data ?? []` swallowed it, and every run since reasoned over zero
+// transactions (spent=0, remaining=full budget, threat=SAFE, salary cycle undetectable).
+// Fixed on 2026-08-02 by migration 20260802000000_brain_visibility_missing_columns.sql
+// (adds merchant_name/bank_name/source_type/is_verified + zad_insights.dismiss_reason) and
+// by the data_errors block in buildSnapshot, which now makes a failed source loud instead
+// of indistinguishable from an empty one. Re-verify with a real select before trusting this
+// list again — see CLAUDE.md's "repo and deployed function can diverge" rule.
+// zad_transactions(user_id,amount,title,category,is_expense,txn_kind,created_at,
 // merchant_name), zad_users(id,monthly_limit), zad_inventory(user_id,item_name,category,
 // quantity,unit,expiry_date,low_stock_threshold,created_at), zad_pharmacy_items(user_id,
 // name,remaining_quantity,daily_dose_count,dose_times), zad_subscriptions(user_id,title,
@@ -30,6 +39,9 @@
 // zad_consumption(user_id,item_name,avg_daily_qty,rate_known), zad_insights, zad_memory,
 // zad_brain_runs, zad_brain_queue — all created in migrations/0001_zad_brain.sql.
 // Task 18 adds zad_inventory_observations + zad_record_observation/zad_recompute_consumption.
+// 2026-08-02 additions to the snapshot (all previously invisible to the brain despite
+// existing in the DB): zad_debts, zad_maintenance_items, user_behavior_profile,
+// app_notifications (the outbound side — what the app already told the user), zad_dose_log.
 //
 // Validators (Task 16.1/16.2) live in validators.ts — untouched, still the sole gate
 // before any tool executes. Model adapter (STEP 0) lives in callModel.ts.
@@ -204,7 +216,7 @@ function detectCycleStartDay(incomeTx: Array<{ created_at: string }>): number | 
 
 async function buildSnapshot(sb: SupabaseClient, userId: string) {
   const cashKey = isoWeekKey(new Date());
-  const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes, askedRes, selfMemRes, cashBalRes, cashAskedRes, obligRes] =
+  const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes, askedRes, selfMemRes, cashBalRes, cashAskedRes, obligRes, debtRes, maintRes, behaviorRes, notifRes, doseRes] =
     await Promise.all([
       sb.from("zad_users").select("monthly_limit,cycle_start_day,cycle_anchor").eq("id", userId).maybeSingle(),
       sb.from("zad_transactions").select("amount,title,category,is_expense,txn_kind,created_at,merchant_name")
@@ -242,7 +254,55 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
       // confirmed) so detectObligationCandidate can see already-known/pending ones too.
       sb.from("zad_obligations").select("id,title,amount,kind,due_day,due_date,recurrence,confirmed,active")
         .eq("user_id", userId).eq("active", true),
+      // ─── المصادر دي كانت موجودة في الداتابيز والعقل مكانش بيشوفها خالص ───
+      // كلها user-scoped ومالية/سلوكية بطبيعتها، يعني كانت بتغيب عن كل تحليل بيتعمل.
+      // ديون نشطة — أقرب حاجة لالتزام ثابت غير مسجّل في zad_obligations، والعقل كان
+      // بيقترح توفير من غير ما يعرف إن فيه قسط شهري أصلاً.
+      sb.from("zad_debts").select("name,remaining_balance,minimum_payment,due_day,interest_rate")
+        .eq("user_id", userId).eq("is_active", true),
+      // صيانة/ضمانات — مصاريف كبيرة متوقعة (خدمة عربية، ضمان بيخلص) بيقدر ينبه عليها بدري.
+      sb.from("zad_maintenance_items").select("name,category,warranty_expiry_date,last_service_date,service_interval_days,estimated_cost")
+        .eq("user_id", userId),
+      // ملف السلوك المحسوب سيرفر-سايد (update-behavior-profile) — متوسط الصرف الأسبوعي
+      // وتوزيعه على أيام الأسبوع. رقم حقيقي محسوب من المعاملات، مش تخمين من الموديل.
+      sb.from("user_behavior_profile").select("avg_weekly_spending,top_spending_categories,spending_pattern_by_weekday,subscription_load_monthly")
+        .eq("user_id", userId).maybeSingle(),
+      // الجهة الخارجة: إيه اللي التطبيق قاله للمستخدم فعلاً آخر أسبوع. من غير ده العقل
+      // بيقترح تنبيه المستخدم شافه بالفعل من مسار تاني (BudgetTracker/الووركرز).
+      sb.from("app_notifications").select("title,message,is_read,created_at")
+        .eq("user_id", userId).gte("created_at", new Date(Date.now() - 7 * 86400000).toISOString())
+        .order("created_at", { ascending: false }).limit(30),
+      // التزام الدوا — جرعات مجدولة آخر أسبوعين واتاخدت ولا لأ.
+      sb.from("zad_dose_log").select("item_name,scheduled_at,taken_at")
+        .eq("user_id", userId).gte("scheduled_at", new Date(Date.now() - 14 * 86400000).toISOString()),
     ]);
+
+  // ── الحاجة اللي خلّت كل ده يفضل مستخبي سنة ──────────────────────────────
+  // supabase-js مابيرميش استثناء على 400 — بيرجع {data:null,error}. وكل السطور تحت
+  // بتقول `res.data ?? []`، يعني خطأ سكيما بيتحول لمصفوفة فاضية من غير ولا سطر لوج.
+  // ده بالظبط اللي حصل مع zad_transactions.merchant_name: العمود مكانش موجود، فالعقل
+  // فضل يشوف صفر معاملة في كل تشغيلة ويقول spent=0 / threat=SAFE وهو مطمّن.
+  // دلوقتي أي مصدر بيفشل بيتسجل، وبيتحقن جوه الـ snapshot نفسه تحت data_errors عشان
+  // الموديل يعرف إن نظرته ناقصة بدل ما يفسّر الفراغ على إنه "مفيش حاجة".
+  const sources: Array<[string, { error?: unknown } | null]> = [
+    ["zad_users", userRes], ["zad_transactions", txRes], ["zad_inventory", invRes],
+    ["zad_subscriptions", subRes], ["zad_pharmacy_items", pharmRes], ["zad_shopping_list", shopRes],
+    ["zad_consumption", consRes], ["zad_memory", memRes], ["zad_insights.dismissed", dismissedRes],
+    ["zad_brain_self_review", selfReviewRes], ["zad_insights.asked", askedRes],
+    ["zad_memory.self", selfMemRes], ["zad_cash_balance", cashBalRes],
+    ["zad_insights.cash_asked", cashAskedRes], ["zad_obligations", obligRes],
+    ["zad_debts", debtRes], ["zad_maintenance_items", maintRes],
+    ["user_behavior_profile", behaviorRes], ["app_notifications", notifRes], ["zad_dose_log", doseRes],
+  ];
+  const dataErrors: Array<{ source: string; message: string }> = [];
+  for (const [name, res] of sources) {
+    const err = (res as any)?.error;
+    if (err) {
+      const message = String(err.message ?? err);
+      console.error(`[zad-brain] SNAPSHOT SOURCE FAILED: ${name} — ${message}`);
+      dataErrors.push({ source: name, message });
+    }
+  }
 
   // Task 19.0 — zad_users.budget كان بيتنقّص بمعاملة معاملة، فبيتقرا هنا وبيتطرح منه
   // المصروف تاني (السطر تحت)، يعني الطرح بيحصل مرتين. monthly_limit سقف ثابت مايتلمسش
@@ -427,6 +487,47 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
       needs_ask: (cashAskedRes.data ?? []).length === 0,
       dismissed_count: (dismissedRes.data ?? []).filter((d: any) => (d.dedupe_key ?? "").startsWith("cash_reconciliation_")).length,
     },
+    // ─── مصادر كانت غايبة عن العقل تماماً ───
+    // ديون نشطة. الحد الأدنى للسداد التزام فعلي زي الإيجار — أي اقتراح توفير لازم يحترمه.
+    debts: (debtRes.data ?? []).map((d: any) => ({
+      name: d.name, remaining: d.remaining_balance, min_payment: d.minimum_payment, due_day: d.due_day,
+    })),
+    // بنود صيانة/ضمان قربت — مصروف كبير متوقع، أنفع يتقال قبله بأسابيع مش بعده.
+    maintenance_due: (maintRes.data ?? [])
+      .map((m: any) => {
+        const warrantyLeft = m.warranty_expiry_date
+          ? Math.round((new Date(m.warranty_expiry_date).getTime() - now.getTime()) / 86400000) : null;
+        const serviceDue = m.last_service_date && m.service_interval_days
+          ? Math.round((new Date(m.last_service_date).getTime() + m.service_interval_days * 86400000 - now.getTime()) / 86400000)
+          : null;
+        return { name: m.name, category: m.category, est_cost: m.estimated_cost, warranty_days_left: warrantyLeft, service_days_left: serviceDue };
+      })
+      .filter((m: any) => (m.warranty_days_left !== null && m.warranty_days_left <= 60) ||
+        (m.service_days_left !== null && m.service_days_left <= 30)),
+    // أرقام سلوك محسوبة سيرفر-سايد من المعاملات (update-behavior-profile) — حقائق مش تخمين.
+    behavior_profile: behaviorRes?.data
+      ? {
+        avg_weekly_spending: behaviorRes.data.avg_weekly_spending,
+        top_categories: behaviorRes.data.top_spending_categories,
+        by_weekday: behaviorRes.data.spending_pattern_by_weekday,
+        subscription_load_monthly: behaviorRes.data.subscription_load_monthly,
+      }
+      : null,
+    // الجهة الخارجة — إيه اللي اتقال للمستخدم فعلاً آخر أسبوع، وقراه ولا لأ.
+    // ده اللي بيقفل الحلقة: العقل يشوف نتيجة كلامه، مش بس مدخلاته.
+    notifications_sent: (notifRes.data ?? []).map((n: any) => ({
+      title: n.title, read: n.is_read, at: String(n.created_at).slice(0, 10),
+    })),
+    dose_adherence: (() => {
+      const rows = doseRes.data ?? [];
+      if (rows.length === 0) return null;
+      const due = rows.filter((d: any) => new Date(d.scheduled_at) <= now);
+      if (due.length === 0) return null;
+      return { scheduled: due.length, taken: due.filter((d: any) => d.taken_at).length };
+    })(),
+    // Task: مصادر فشلت في التحميل. مش فاضية — مجهولة. الفرق ده هو كل الفرق بين
+    // "مفيش مصاريف" و"مقدرتش أقرا المصاريف"، والعقل كان بيقول الأولانية وهو يقصد التانية.
+    data_errors: dataErrors,
   };
 }
 
@@ -753,6 +854,10 @@ function buildSystemPrompt(snap: any): string {
 - كل حاجة تقولها في ردك النصي إنك عملتها لازم يكون فعلاً نداء أداة حقيقي في نفس الرد — مينفعش تقول "سجلت/عدّلت/ضفت" من غير ما تنادي الأداة المقابلة فعلاً.
 - أي تحذير أو رؤية عن الميزانية لازم يبني على available (رقم "متاح")، مش remaining — remaining بيتجاهل الالتزامات الثابتة القادمة (إيجار/قسط/اشتراكات)، available هو اللي بيحسبها.
 - dismissal_reasons جوه الـ snapshot بيقولك ليه العميل رفض حاجة قبل كده: wrong_data معناها الرقم/البيانات غلط فعلاً — لو شايف نفس الموضوع تاني، ماتفترضش إنه صح من غير سبب جديد. not_relevant معناها الموضوع مش مهم له، مش إن البيانات غلط — منفعش تتوقف عن رصد نفس النوع في مواضيع تانية بس عشان ده اتقفل.
+- **data_errors**: لو المصفوفة دي مش فاضية، يبقى فيه مصادر فشل تحميلها — البيانات بتاعتها **مجهولة مش فاضية**. ممنوع منعاً باتاً تبني أي رقم أو تحذير على مصدر موجود في data_errors. مثال: لو zad_transactions فيها، يبقى spent=0 و remaining=البادجت كله أرقام كاذبة، مينفعش تقول "مصرفتش حاجة الشهر ده". في الحالة دي نادِ emit_insight بـ priority="low" تقول فيها إن جزء من البيانات ماوصلش وإيه اللي مقدرتش تحلله وليه، وماتصدرش أي تحذير مالي تاني في التشغيلة دي.
+- الحد الأدنى لسداد الديون (debts[].min_payment) التزام ثابت زي الإيجار بالظبط — ممنوع تقترح تقليله أو تأجيله، وممنوع تحسب "متاح" وكأنه فلوس اختيارية.
+- notifications_sent هو اللي التطبيق قاله للعميل فعلاً آخر أسبوع (من مسارات تانية غيرك). لو موضوعك اتقال فيه بالفعل، ماتكررهوش — العميل شايفه أصلاً. read=false برضه بيتحسب اتقال.
+- behavior_profile أرقام محسوبة من معاملات حقيقية سيرفر-سايد. لو رقمك مختلف عنها اختلاف كبير، الغلط الأرجح عندك انت — راجع حسابك قبل ما تنبّه.
 
 لما العميل يرد على سؤال:
 - الرد بيتسجل تلقائياً في النظام، متقلقش على الرقم نفسه.

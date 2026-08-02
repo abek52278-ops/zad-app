@@ -57,7 +57,10 @@ suspend fun buildZadFamilyState(dao: ZadDao, context: Context): ZadFamilyState {
     val prefs = context.getSharedPreferences("zad_prefs", Context.MODE_PRIVATE)
     // cached_budget دلوقتي مرآة لـ monthly_limit (ZadViewModel.loadBudget/updateBudget
     // بيحدّثوه) — مش عمود budget الميت. Task 19.0.
-    val monthlyBudget = prefs.getFloat("cached_budget", 3500f).toDouble()
+    // 0 = السقف لسه مش متسجل. الـ snapshot ده بيتبعت للعقل، و3500 هنا كانت بتتقرا كسقف
+    // حقيقي للأسرة. BudgetMath.remaining بترجع 0 على أي سقف <= 0، فالنتيجة "مش معروف"
+    // بدل "3500" — وده الفرق اللي بيمنع تقرير كامل مبني على رقم متأليف.
+    val monthlyBudget = prefs.getFloat("cached_budget", 0f).toDouble()
     val remaining = BudgetMath.remaining(monthlyBudget, transactions)
 
     val lowStockItems = inventory.filter { it.quantity <= (it.lowStockThreshold ?: 0) }

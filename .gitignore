@@ -40,3 +40,7 @@ node_modules/
 .gradle/  
 build/  
 supabase/.temp/
+
+# AI tooling
+deepseek-vscode-extension/
+web_preview/

@@ -102,6 +102,17 @@ class MainActivity : ComponentActivity() {
             SupabaseRepo.client.auth.sessionStatus.collect { status ->
                 if (status is SessionStatus.Authenticated) {
                     SessionHelper.saveSession(applicationContext)
+                    // أول ما المستخدم يفتح التطبيق والجلسة تتعرف، اسحب رؤى العقل الـ pending
+                    // اللي لسه نازلة (حرجة) وحوّلها إشعارات + صوت. كنا بنستنى الـ workers
+                    // (كل 6 ساعات/يومياً) بس، فالرؤية كانت بتتأخر أو تختفي نهائياً.
+                    try {
+                        val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
+                        if (userId != null) {
+                            com.zad.agent.ZadAlertRouter.sync(applicationContext, userId)
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("MainActivity", "ZadAlertRouter.sync() on-open failed: ${e.message}")
+                    }
                 }
             }
         }

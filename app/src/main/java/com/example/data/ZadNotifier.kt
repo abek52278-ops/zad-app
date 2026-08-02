@@ -5,8 +5,10 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.os.Build
+import android.speech.tts.TextToSpeech
 import androidx.core.app.NotificationCompat
 import com.example.R
+import java.util.Locale
 
 // Real, system-level push notification — used by both ZadCentralBrain's deterministic rules
 // and its merged AI tool-loop (formerly the separate ZadBrainEngine) so proactive notifications
@@ -17,7 +19,7 @@ import com.example.R
 object ZadNotifier {
     private const val CHANNEL_ID = "zad_analysis_channel"
 
-    fun send(context: Context, title: String, message: String, priority: Int = NotificationCompat.PRIORITY_DEFAULT) {
+    fun send(context: Context, title: String, message: String, priority: Int = NotificationCompat.PRIORITY_DEFAULT, speak: Boolean = false) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(CHANNEL_ID, "زاد — الإشعارات الذكية", NotificationManager.IMPORTANCE_DEFAULT)
@@ -39,5 +41,27 @@ object ZadNotifier {
         // title+message hash to avoid Int overflow from currentTimeMillis().toInt()
         val notifId = (title + message).hashCode().let { if (it == Int.MIN_VALUE) 0 else Math.abs(it) }
         manager.notify(notifId, notification)
+
+        // "المفروض الإشعارات تكون ذكية وبصوت" — الـ HIGH/الحرجة بتتنطق بالعربي، الباقي صامت.
+        // نفس نمط TTS المستخدم في ZadAlertRouter/ChatNotificationService. الـ TTS بيشتغل
+        // لحظي (بصوت النداء مش بصوت التنبيه الميت)، والـ notification اتعرضت فوق أيوا.
+        if (speak && priority >= NotificationCompat.PRIORITY_HIGH) {
+            speakArabic(context, "$title. $message")
+        }
+    }
+
+    private fun speakArabic(context: Context, text: String) {
+        val tts = TextToSpeech(context.applicationContext) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                val arabic = Locale("ar")
+                val available = tts.isLanguageAvailable(arabic)
+                if (available >= TextToSpeech.LANG_AVAILABLE) {
+                    tts.language = arabic
+                    tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "zad_notifier")
+                }
+            }
+        }
+        // TTS init غير متزامن — نسيب الـ instance يكمل النداء وخلاص؛ الـ worker اللي استدعاه
+        // قصير العمر والمشهد (scene) هنا تنبيه لحظي مش جلسة طويلة.
     }
 }

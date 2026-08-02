@@ -295,7 +295,8 @@ object ZadAiRepository {
         }
         val response = callAction("expense_prediction", mapOf(
             "transactions" to txPayload,
-            "budget" to budget,
+            // نفس سبب getAgentSummary: سقف غير معروف مينفعش يتبعت كرقم يتقارن بيه التوقع.
+            "budget" to (if (budget > 0) budget else "غير معروف"),
             "patterns" to patternsPayload
         ))
         val predictedTotal = (response["predicted_total"] as? Number)?.toDouble() ?: return null
@@ -380,7 +381,9 @@ object ZadAiRepository {
             "inventory" to inventory.joinToString(", ") { "${it.itemName}(${it.quantity})" },
             "transactions" to transactions.takeLast(20).joinToString(", ") { "${it.title}:${it.amount}" },
             "subscriptions" to subscriptions.filter { it.isActive }.joinToString(", ") { "${it.title}(${it.amount}/month)" },
-            "budget" to budget,
+            // سقف مش متسجل (<= 0) بيتبعت كنص "غير معروف" مش كرقم. لو اتبعت رقم، الموديل
+            // بيقراه على إنه سقف المستخدم الحقيقي ويقتبسه في الملخص بالحرف.
+            "budget" to (if (budget > 0) budget else "غير معروف"),
             "shopping" to shopping.filter { !it.isPurchased }.joinToString(", ") { "${it.itemName}(${it.quantity})" },
             "patterns" to patterns.joinToString(", ") { "${it.category}:avg=${it.avgAmount},freq=${it.frequencyDays}d" }
         ))
@@ -410,7 +413,7 @@ object ZadAiRepository {
                 inventoryCount = (statsRaw["inventory_count"] as? Number)?.toInt() ?: 0,
                 expiringSoon = (statsRaw["expiring_soon"] as? Number)?.toInt() ?: 0,
                 subscriptionsActive = (statsRaw["subscriptions_active"] as? Number)?.toInt() ?: 0,
-                daysUntilBudgetEnd = (statsRaw["days_until_budget_end"] as? Number)?.toInt() ?: 30
+                daysUntilBudgetEnd = (statsRaw["days_until_budget_end"] as? Number)?.toInt()
             )
         )
     }

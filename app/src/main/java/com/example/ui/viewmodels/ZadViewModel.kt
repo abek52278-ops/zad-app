@@ -36,6 +36,18 @@ private const val TAG = "ZadViewModel"
  * مش فارق عن مستخدم اختار 3500 بجد، فبيتعامل كـ "غير معروف" وقت التقاط السقف.
  */
 private const val DEFAULT_BUDGET_SENTINEL = 3500.0
+
+/**
+ * "السقف لسه مش معروف" — الرقم اللي `_budget` بياخده لما مفيش monthly_limit متسجل.
+ *
+ * كان DEFAULT_BUDGET_SENTINEL (3500) بيتحط هنا، والشاشة بتخبّيه صح عن طريق
+ * budgetConfirmed — بس الـ AI مكانش بيشوف budgetConfirmed خالص، فكان بياخد 3500 كأنه
+ * رقم المستخدم الحقيقي ويبني عليه. اتأكد بنداء حقيقي على zad-core-intelligence يوم
+ * 2026-08-02: الرد كان "تم رصد ميزانيتك الحالية بقيمة 3500" لمستخدم عمره ما حدد سقف.
+ * صفر هنا مش رقم تاني مخترع — هو نفس اتفاقية BudgetMath الموجودة أصلاً
+ * (`if (monthlyLimit <= 0.0) return 0.0`) اللي معناها "مفيش سقف يتحسب عليه".
+ */
+private const val UNKNOWN_BUDGET = 0.0
 private var lastMealSuggestInventorySize = -1
 
 class ZadViewModel(application: Application) : AndroidViewModel(application) {
@@ -98,7 +110,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     val autoSuggestions: StateFlow<List<com.example.data.ZadAiRepository.AutoSuggestion>> = _autoSuggestions.asStateFlow()
 
     // Budget: fetched from Supabase zad_users table
-    private val _budget = MutableStateFlow<Double>(3500.0)
+    // القيمة الأولانية صفر (مش معروف) مش 3500 مخترع — الـ AI بيقرا _budget مباشرة قبل
+    // ما loadBudget() يخلّص (HomeScreen بينادي refreshAgentSummary في LaunchedEffect)،
+    // و3500 هنا كانت بتتسرب للعقل كسقف حقيقي لمستخدم عمره ما حدد سقف.
+    private val _budget = MutableStateFlow<Double>(UNKNOWN_BUDGET)
     val budget: StateFlow<Double> = _budget.asStateFlow()
 
     /** Task 19.0 §6 معيار ٦ — false يعني السقف لسه مش مؤكد، الشاشة تسأل مش تعرض رقم */
@@ -120,7 +135,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val _incomeThisCycle = MutableStateFlow(0.0)
     val incomeThisCycle: StateFlow<Double> = _incomeThisCycle.asStateFlow()
 
-    private val _remainingBalance = MutableStateFlow<Double>(3500.0)
+    private val _remainingBalance = MutableStateFlow<Double>(0.0)
     val remainingBalance: StateFlow<Double> = _remainingBalance.asStateFlow()
 
     /** Task 19.4 — مشتق من BudgetMath.cashOnHand، بيتحدث مع كل تحديث Room زي remainingBalance بالظبط */
@@ -150,7 +165,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      * المستخدم — انظر ZadTransaction.isVerified وتعليق addTransaction overload). ده مش
      * "بيصيح دايماً" — العرض السلبي (≈) مفيهوش مقاطعة زي سؤال، فمفيش تكلفة تكرار.
      */
-    private val _availableFigure = MutableStateFlow(Figure(3500.0, confident = true))
+    private val _availableFigure = MutableStateFlow(Figure(0.0, confident = true))
     val availableFigure: StateFlow<Figure> = _availableFigure.asStateFlow()
 
     /** أقرب التزام مؤكد مستحق جوه الدورة الحالية — null لو مفيش، للعرض ("محجوز ٣٠٠ (إيجار بعد ٤ أيام)") */
@@ -619,7 +634,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         return """
             === معلومات العميل ===
             الاسم: ${_userName.value ?: "مستخدم"} | التاريخ اليوم: $today
-            الميزانية الشهرية: ${com.example.data.CurrencyFormatter.format(ctx, _budget.value)} | المتبقي: ${com.example.data.CurrencyFormatter.format(ctx, com.example.data.BudgetMath.remaining(_budget.value, _transactions.value))}
+            الميزانية الشهرية: ${if (_budget.value > 0) com.example.data.CurrencyFormatter.format(ctx, _budget.value) else "غير معروف"} | المتبقي: ${if (_budget.value > 0) com.example.data.CurrencyFormatter.format(ctx, com.example.data.BudgetMath.remaining(_budget.value, _transactions.value)) else "غير معروف"}
 
             === مخزون المنزل (بتنبؤات النفاد) ===
             ${invText.ifBlank { "لا يوجد عناصر حالياً." }}
@@ -1118,7 +1133,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 _budgetConfirmed.value = confirmedAt != null
                 prefs.edit().putFloat("cached_budget", limit.toFloat()).apply()
             } else {
-                _budget.value = DEFAULT_BUDGET_SENTINEL
+                _budget.value = UNKNOWN_BUDGET
                 _budgetConfirmed.value = false
             }
 
