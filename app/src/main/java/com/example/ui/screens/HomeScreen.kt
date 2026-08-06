@@ -106,6 +106,7 @@ fun HomeScreen(
     val daysLeftInCycle by viewModel.daysLeftInCycle.collectAsState()
     val showBudgetDialog by viewModel.showBudgetDialog.collectAsState()
     val shoppingList by viewModel.shoppingList.collectAsState()
+    val pharmacyItems by viewModel.pharmacyItems.collectAsState()
     val affiliateProducts by viewModel.affiliateProducts.collectAsState()
     val urgentRecipes by viewModel.urgentRecipes.collectAsState()
     val upcomingSeasonalEvents by familyViewModel.upcomingSeasonalEvents.collectAsState()
@@ -300,6 +301,28 @@ fun HomeScreen(
                                 .edit().putBoolean("location_alerts_card_dismissed", true).apply()
                         },
                         onOpenNearby = onNavigateToNearby
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                // تاسك ٤ — دعوة "المنبهات الدقيقة" هنا كمان، مش مدفون في PharmacyScreen بس،
+                // عشان مستخدم عنده جرعات مجدولة ومنبهاته مش شغالة يشوفها من أول ما يفتح
+                // التطبيق. البانر جوه PharmacyScreen فاضل زي ما هو (belt-and-suspenders).
+                var exactAlarmCardDismissed by remember {
+                    mutableStateOf(context.getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+                        .getBoolean("exact_alarm_card_dismissed", false))
+                }
+                if (!exactAlarmCardDismissed &&
+                    pharmacyItems.any { it.doseTimesList().isNotEmpty() } &&
+                    !com.example.data.PharmacyReminderScheduler.canScheduleExact(context)
+                ) {
+                    com.example.ui.components.ExactAlarmPermissionCard(
+                        dismissed = exactAlarmCardDismissed,
+                        onDismiss = {
+                            exactAlarmCardDismissed = true
+                            context.getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+                                .edit().putBoolean("exact_alarm_card_dismissed", true).apply()
+                        }
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                 }

@@ -105,8 +105,13 @@ class PharmacyReminderReceiver : BroadcastReceiver() {
     private fun showReminderNotification(context: Context, itemId: String, itemName: String, doseTime: String, notificationId: Int, doseLogId: String, scheduledAt: String) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // showBadge=true افتراضي أصلاً لقناة جديدة، بس بنحدده صراحة عشان أيقونة التطبيق
+            // تعرض نقطة/عدد التنبيهات المعلقة (native per-channel badge API — مفيش API عام
+            // ثابت لكل اللانشرات في أندرويد، ده هو المدعوم رسمياً من النظام).
             manager.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "تذكير مواعيد الدواء", NotificationManager.IMPORTANCE_HIGH)
+                NotificationChannel(CHANNEL_ID, "تذكير مواعيد الدواء", NotificationManager.IMPORTANCE_HIGH).apply {
+                    setShowBadge(true)
+                }
             )
         }
 
