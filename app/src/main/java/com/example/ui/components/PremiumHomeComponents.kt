@@ -65,6 +65,12 @@ import kotlinx.coroutines.delay
  * that opens "آخر التغييرات" (Task 27.2), and the "متبقي X · محجوز Y" breakdown line, which
  * only renders when committed > 0 (Task 26).
  */
+/**
+ * مرحلة ٥ب-١ (docs/agent/PLAN_2026_08_06_rebuild.md) — أول كارت في التطبيق يتشاف، فأول
+ * واحد ياخد معاملة الـ glassmorphism الكاملة: بقعة ضوء مموّهة (`zadGlassBlur`) في الركن
+ * العلوي بتدّي إحساس عمق/زجاج فوق الجراديانت المسطّح اللي كان موجود، بدل ما يفضل لوح
+ * لون واحد. الـ 28dp radius الأصلي أكبر من الـ 24dp المطلوب أصلاً — اتسيب زي ما هو.
+ */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ZadCardHero(
@@ -72,6 +78,7 @@ fun ZadCardHero(
     remaining: Double,
     available: com.example.data.Figure = com.example.data.Figure(remaining, confident = true),
     committed: Double = 0.0,
+    monthlyLimit: Double = 0.0,
     nextObligationText: String? = null,
     onAvailableLongPress: () -> Unit = {}
 ) {
@@ -83,6 +90,18 @@ fun ZadCardHero(
         shape = cardShape,
         contentPadding = 0.dp
     ) {
+        Box {
+            // بقعة ضوء زجاجية أعلى يسار الكارت — API 31+ بس (zadGlassBlur نفسها بترجع
+            // no-op تحت كده)، نفس الـ fallback المستخدم في GlassCard الموجودة أصلاً.
+            Box(
+                modifier = Modifier
+                    .size(140.dp)
+                    .align(Alignment.TopStart)
+                    .offset(x = (-30).dp, y = (-30).dp)
+                    .zadGlassBlur(36.dp)
+                    .background(Color.White.copy(alpha = 0.18f), CircleShape)
+            )
+
         // mockup: padding 26px top / 24px sides / 22px bottom, 16px gaps.
         Column(modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 26.dp, bottom = 22.dp)) {
             Text(
@@ -146,6 +165,46 @@ fun ZadCardHero(
                 )
             }
 
+            // شريط التقدّم: مصروف الشهر مقابل السقف الكامل — مختلف عن أرقام الشرائح
+            // (اللي بتوريك قيم مطلقة)، الشريط ده بيوريك النسبة بصرياً بلمحة واحدة.
+            // مفيش شريط أصلاً لو السقف مش معروف (monthlyLimit <= 0)، عشان النسبة
+            // نفسها بتبقى بلا معنى وقتها.
+            if (monthlyLimit > 0) {
+                Spacer(modifier = Modifier.height(14.dp))
+                val progress = (spent / monthlyLimit).toFloat().coerceIn(0f, 1f)
+                val animatedProgress by animateFloatAsState(
+                    targetValue = progress,
+                    animationSpec = tween(700, easing = FastOutSlowInEasing),
+                    label = "budgetProgress"
+                )
+                val progressColor = when {
+                    progress >= 0.9f -> dangerColor
+                    progress >= 0.7f -> secondaryLight
+                    else -> Color(0xFF6EE7B7) // primaryFixed — نفس مسح الأخضر الفاتح بتاع الكارت
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(7.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color.White.copy(alpha = 0.16f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(animatedProgress.coerceAtLeast(0.02f))
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(50))
+                            .background(progressColor)
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    stringResource(R.string.budget_percent_used, (progress * 100).toInt()),
+                    style = Typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.6f)
+                )
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -162,6 +221,7 @@ fun ZadCardHero(
                     )
                 }
             }
+        }
         }
     }
 }
@@ -220,9 +280,18 @@ fun BudgetSetupPromptCard(onSetBudget: () -> Unit) {
             .shadow(elevation = 22.dp, shape = cardShape, spotColor = primary.copy(alpha = 0.4f))
             .clip(cardShape)
             .background(Brush.linearGradient(listOf(primaryDark, primary, primaryDark)))
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
     ) {
+        // نفس بقعة الضوء الزجاجية بتاعة ZadCardHero — الحالة الفاضية دي بديل الكارت
+        // ده، لازم يحس إنه نفس العائلة البصرية مش شاشة تانية مختلفة الطابع.
+        Box(
+            modifier = Modifier
+                .size(120.dp)
+                .align(Alignment.TopStart)
+                .offset(x = (-24).dp, y = (-24).dp)
+                .zadGlassBlur(32.dp)
+                .background(Color.White.copy(alpha = 0.18f), CircleShape)
+        )
+        Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
                 Icons.Default.AccountBalanceWallet,
@@ -251,6 +320,7 @@ fun BudgetSetupPromptCard(onSetBudget: () -> Unit) {
             ) {
                 Text(stringResource(R.string.budget_setup_prompt_action), style = Typography.labelMedium.copy(fontWeight = FontWeight.Bold))
             }
+        }
         }
     }
 }

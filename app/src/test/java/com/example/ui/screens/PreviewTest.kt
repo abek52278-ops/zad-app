@@ -45,6 +45,7 @@ import com.example.ui.components.ZadRoutes
 import com.example.ui.components.ZadTopHeader
 import com.example.ui.components.zadDrawerEntries
 import com.example.ui.components.ZadCardHero
+import com.example.ui.components.BudgetSetupPromptCard
 import com.example.ui.components.ZadChefCard
 import com.example.ui.components.TelegramBotCard
 import com.example.ui.components.ZadDaysAndSafeSpendRow
@@ -257,6 +258,7 @@ class PreviewTest {
                         remaining = 2300.0,
                         available = Figure(value = 2000.0, confident = true),
                         committed = 300.0,
+                        monthlyLimit = 4000.0,
                         nextObligationText = "إيجار بعد 4 أيام"
                     )
                 }
@@ -266,6 +268,73 @@ class PreviewTest {
         composeTestRule.onRoot().captureRoboImage(
             filePath = "build/outputs/roborazzi/zad_card_hero_glass.png"
         )
+    }
+
+    // مرحلة ٥ب-١ — شريط التقدّم الجديد بألوانه الثلاثة (أخضر/كهرماني/أحمر) — لازم
+    // نشوفهم فعلياً قبل الالتزام، مش نفترض إن الـ when() صح لمجرد إنه اتكتب صح.
+    @Test
+    fun captureZadCardHero_progressBar_danger() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.padding(16.dp)) {
+                    ZadCardHero(
+                        spent = 3800.0,
+                        remaining = 200.0,
+                        available = Figure(value = 200.0, confident = true),
+                        monthlyLimit = 4000.0
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/zad_card_hero_progress_danger.png")
+    }
+
+    @Test
+    fun captureZadCardHero_progressBar_warning() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.padding(16.dp)) {
+                    ZadCardHero(
+                        spent = 3000.0,
+                        remaining = 1000.0,
+                        available = Figure(value = 1000.0, confident = true),
+                        monthlyLimit = 4000.0
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/zad_card_hero_progress_warning.png")
+    }
+
+    // السقف مش معروف — من غير monthlyLimit أصلاً، مفروض الشريط ميظهرش خالص (نسبة من صفر مالهاش معنى)
+    @Test
+    fun captureZadCardHero_noMonthlyLimit_hidesProgressBar() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.padding(16.dp)) {
+                    ZadCardHero(
+                        spent = 500.0,
+                        remaining = 1500.0,
+                        available = Figure(value = 1500.0, confident = true)
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/zad_card_hero_no_limit.png")
+    }
+
+    // Task 19.0 معيار ٦ — الحالة الفاضية (سقف لسه مش متحدد) لازم تحس إنها نفس عائلة
+    // ZadCardHero البصرية بعد الـ glass pass، مش كارت من طابع مختلف.
+    @Test
+    fun captureBudgetSetupPromptCard_glassmorphism() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.padding(16.dp)) {
+                    BudgetSetupPromptCard(onSetBudget = {})
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/budget_setup_prompt_glass.png")
     }
 
     /**

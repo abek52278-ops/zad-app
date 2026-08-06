@@ -331,6 +331,7 @@ fun HomeScreen(
                             remaining = currentBudget,
                             available = availableFigureValue,
                             committed = committed,
+                            monthlyLimit = budget,
                             nextObligationText = nextObligationText,
                             onAvailableLongPress = { showWhySheet = true }
                         )
