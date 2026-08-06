@@ -126,6 +126,16 @@ A6 هو توسيع `StatementImportScreen` (صيغ ملفات أكتر، أو ر
 | ٤ج | **الموقع كان كاش قديم، مش قراءة حية** — `LocationManager.getLastKnownLocation()` في المكانين (`GroceryGeofenceManager.refreshGeofences`، `NearbyDealsScreen.searchNearby`) بيرجع فاضي على جهاز لسه ما فتحش خرائط، أو رقم قديم بالساعات. `LocationHelper` جديد (`FusedLocationProviderClient.getCurrentLocation()`) بيطلب إحداثية فعلية، مستخدم في المكانين | ✅ |
 | ٤د | `LOCATIONIQ_API_KEY` — **مش قابل للتأكيد عبر MCP** (مفيش أداة تقرأ قيم الأسرار، بقصد أمني). الكود آمن في الحالتين: `GroceryGeofenceManager.findStores()` بيرجع لـ `OverpassRepo` تلقائياً لو LocationIQ رجع فاضي — مفيش أثر على الوظيفة سواء المفتاح متظبط أو لأ، بس الدقة تفرق. لو عايز تأكيد قاطع، لازم يتفحص من Supabase dashboard مباشرة | ⚠️ غير قابل للفحص من هنا |
 
+**فجوة اتقفلت بعد المراجعة (2026-08-06، خارج نطاق المرحلة الأصلية)**: ٤أ سجّلت
+`notifyBrain()` بتنادي zad-brain، بس مستخدمة النتيجة تتضيّع — نصيحة الإنفاق
+(`emit_insight` priority=critical) كانت بتستنى `PeriodicAnalysisWorker`/فتح
+التطبيق عشان توصل، يعني ممكن توصل بعد ساعات من لحظة الدخول الفعلية، وقيمتها
+وقتها = صفر تقريباً. `ZadAlertRouter.sync()` أصلاً بيعمل بالظبط المطلوب
+(critical → إشعار+صوت فوري + mark seen)، بس محدش كان بينادّيه من المسار ده.
+سطر واحد إضافي في `GeofenceBroadcastReceiver.notifyBrain()` (بعد
+`callEdgeFunction` اللي أصلاً suspend وبتستنى الرد) — مفيش تعديل Backend.
+`compileDebugKotlin` نضيف، `testDebugUnitTest` 170/170.
+
 **تعمّد عدم بناؤه** (قرار موثّق 2026-08-06، مش نقص): رصد تنقل/رحلة (زي ركوب أوبر أو
 التحرك من مكان لمكان) عبر `ActivityRecognition` API. اتقيّم واتُرفض — تتبع خلفية
 مستمر يعني استهلاك بطارية عالي، مراجعة Play Store أشد بكتير لتطبيق مالي، وحساسية
