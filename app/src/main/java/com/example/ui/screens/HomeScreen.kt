@@ -55,6 +55,7 @@ import com.example.data.TasbihaTree
 import com.example.data.ZadInventory
 import com.example.data.ZadTransaction
 import com.example.data.SupabaseRepo
+import com.example.data.findActivity
 import io.github.jan.supabase.auth.auth
 import androidx.compose.ui.res.painterResource
 import com.example.R
@@ -262,6 +263,10 @@ fun HomeScreen(
                         onSwitch = {
                             com.example.data.MarketPrefs.setMarket(context, suggestedMarket)
                             scope.launch { com.example.data.SupabaseRepo.syncMarketProfile(suggestedMarket) }
+                            dismissedTravelCountry = detectedCountry
+                            context.getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+                                .edit().putString("dismissed_travel_country", detectedCountry).apply()
+                            context.findActivity()?.recreate()
                         },
                         onDismiss = {
                             dismissedTravelCountry = detectedCountry

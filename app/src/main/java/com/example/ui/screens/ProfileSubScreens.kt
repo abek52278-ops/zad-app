@@ -31,6 +31,7 @@ import com.example.ui.viewmodels.FamilyState
 import com.example.ui.viewmodels.FamilyViewModel
 import com.example.ui.viewmodels.ZadViewModel
 import com.example.data.SupabaseRepo
+import com.example.data.findActivity
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.launch
 import androidx.compose.animation.AnimatedVisibility
@@ -371,6 +372,7 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
                     selectedMarket = market
                     com.example.data.MarketPrefs.setMarket(context, market)
                     scope.launch { com.example.data.SupabaseRepo.syncMarketProfile(market) }
+                    context.findActivity()?.recreate()
                 },
                 modifier = Modifier.fillMaxWidth()
             )

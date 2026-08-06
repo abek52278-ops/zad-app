@@ -27,9 +27,15 @@ object CurrencyFormatter {
     private fun hasVisibleFraction(amount: Double): Boolean =
         kotlin.math.abs(amount - Math.round(amount)) > 1e-6
 
-    /** "1,234" أو "1.234" حسب البلد — بدون فواصل عشرية لو الرقم صحيح */
+    /**
+     * "1,234" أو "1.234" حسب البلد — بدون فواصل عشرية لو الرقم صحيح.
+     * بتقرأ MarketPrefs.currentMarket (Compose state) مباشرة بدل getMarket(context) —
+     * ده اللي بيخلي أي Text() بتنادي format() تتحدث فوراً لما المستخدم يبدّل السوق، من غير
+     * ما تحتاج سبب تاني للـ recomposition. context لسه محتاج له باقي الدوال في الملف
+     * (تنسيقات تانية بتاخده)، فسايبينه في الـ signature عشان الـ ١٧٩ نداء الحالي متتغيرش.
+     */
     fun format(context: Context, amount: Double): String {
-        val market = MarketPrefs.getMarket(context)
+        val market = MarketPrefs.currentMarket
         val rounded = amount.asMoney()
         val pattern = if (hasVisibleFraction(rounded)) "#,##0.##" else "#,##0"
         val formatted = DecimalFormat(pattern, symbolsFor(market)).format(rounded)
@@ -38,14 +44,14 @@ object CurrencyFormatter {
 
     /** بدون رمز العملة — لما تحتاج الرقم لوحده (مثلاً جوه جملة عربية) */
     fun formatNumber(context: Context, amount: Double): String {
-        val market = MarketPrefs.getMarket(context)
+        val market = MarketPrefs.currentMarket
         val rounded = amount.asMoney()
         val pattern = if (hasVisibleFraction(rounded)) "#,##0.##" else "#,##0"
         return DecimalFormat(pattern, symbolsFor(market)).format(rounded)
     }
 
-    fun symbol(context: Context): String = MarketPrefs.getMarket(context).currencySymbol
-    fun currencyCode(context: Context): String = MarketPrefs.getMarket(context).currencyCode
+    fun symbol(context: Context): String = MarketPrefs.currentMarket.currencySymbol
+    fun currencyCode(context: Context): String = MarketPrefs.currentMarket.currencyCode
 
     // مرحلة ١ (docs/agent/PLAN_2026_08_06_rebuild.md) — رمز/كود العملة لمعاملة بعينها، مش
     // للـ Market الحالي. الأعمدة الثلاثة اللي زاد بيدعمها فعلياً — SAR/EGP/TRY، نفس مجموعة

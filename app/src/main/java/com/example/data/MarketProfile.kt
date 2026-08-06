@@ -1,7 +1,22 @@
 package com.example.data
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import java.util.Locale
+
+/**
+ * MainActivity مش AppCompatActivity، فـ AppCompatDelegate.setApplicationLocales() ما بيعملش
+ * recreate تلقائي على أجهزة أقدم من API 33 — محتاجين نلاقي الـ Activity ونعمل recreate()
+ * يدوي بعد أي تبديل سوق عشان النصوص المعتمدة على اللغة تتحدث فعلياً.
+ */
+tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
 
 /**
  * البلد اللي بيحدد اللغة/اللهجة والعملة وتنسيق الأرقام لكل واجهات التطبيق.
@@ -115,10 +130,11 @@ object MarketPrefs {
     /**
      * كاش في الذاكرة — يسمح لطبقات زي ZadAiRepository (object بلا Context) إنها تقرأ
      * البلد الحالي عشان تحقن توجيه اللهجة في أي AI call من غير ما تحمل Context في كل دالة.
-     * يتحدّث تلقائياً مع أي getMarket()/setMarket().
+     * يتحدّث تلقائياً مع أي getMarket()/setMarket(). Compose state (مش @Volatile var عادي)
+     * عشان الشاشات اللي بتعرض العملة (CurrencyFormatter) تتحدث فوراً لما المستخدم يبدّل
+     * السوق، من غير ما تحتاج تنتظر recomposition لسبب تاني.
      */
-    @Volatile
-    var currentMarket: Market = Market.SAUDI_ARABIA
+    var currentMarket: Market by androidx.compose.runtime.mutableStateOf(Market.SAUDI_ARABIA)
         private set
 
     fun getMarket(context: Context): Market {
