@@ -55,6 +55,22 @@ object CurrencyFormatter {
         "SAR" -> "ر.س"
         "EGP" -> "ج.م"
         "TRY" -> "₺"
+        "AED" -> "د.إ"
+        "KWD" -> "د.ك"
+        "QAR" -> "ر.ق"
+        "BHD" -> "د.ب"
+        "OMR" -> "ر.ع"
+        "JOD" -> "د.أ"
+        "LBP" -> "ل.ل"
+        "IQD" -> "د.ع"
+        "SYP" -> "ل.س"
+        "YER" -> "ر.ي"
+        "ILS" -> "₪"
+        "LYD" -> "د.ل"
+        "SDG" -> "ج.س"
+        "MAD" -> "د.م"
+        "TND" -> "د.ت"
+        "DZD" -> "د.ج"
         else -> code
     }
 

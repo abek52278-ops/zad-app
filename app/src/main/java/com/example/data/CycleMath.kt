@@ -12,9 +12,13 @@ import java.time.temporal.ChronoUnit
  */
 object CycleMath {
 
-    /** عطلة نهاية الأسبوع بتختلف حسب السوق (تركيا سبت/حد، السعودية/مصر جمعة/سبت) — last_working_day محتاج يعرف يتفاداها */
+    /**
+     * عطلة نهاية الأسبوع بتختلف حسب السوق — أغلب الشرق الأوسط جمعة/سبت، لكن تركيا/المغرب/
+     * تونس/الجزائر/لبنان سبت/حد. last_working_day محتاج يعرف يتفاداها.
+     */
     fun weekendDays(market: Market): Set<DayOfWeek> = when (market) {
-        Market.TURKEY -> setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)
+        Market.TURKEY, Market.MOROCCO, Market.TUNISIA, Market.ALGERIA, Market.LEBANON ->
+            setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)
         else -> setOf(DayOfWeek.FRIDAY, DayOfWeek.SATURDAY)
     }
 

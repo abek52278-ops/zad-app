@@ -102,6 +102,7 @@
     <string name="budget_gate_body">زاد ما بيخترعش أرقام. من غير السقف مفيش "متبقي" ولا "متاح" — وكل رقم هتشوفه هيبقى تخمين.</string>
     <string name="travel_banner_message">شكلك في %1$s — أحوّل لـ %2$s؟</string>
     <string name="travel_banner_action">تحويل</string>
+    <string name="market_search_hint">دوّر على بلدك أو عملتك</string>
 
     <!-- HomeScreen: greeting and hero -->
     <string name="greeting_hi_name">أهلاً يا %1$s! 👋</string>

@@ -76,6 +76,42 @@ class SaBankParserTest {
         assertNull(SaBankParser.extractCurrency(text))
     }
 
+    // ─── extractCurrency — مرحلة ٢: كلمات عملة غامضة بين أكتر من بلد ───────────
+
+    @Test
+    fun `extractCurrency reads an unambiguous local abbreviation regardless of active market`() {
+        MarketPrefs.setCurrentMarketForTest(Market.SAUDI_ARABIA)
+        try {
+            // "د.إ" اختصار إماراتي مميز — مايحتاجش السوق الحالي يطابقه
+            assertEquals("AED", SaBankParser.extractCurrency("تم خصم 200 د.إ من بطاقتك"))
+        } finally {
+            MarketPrefs.setCurrentMarketForTest(Market.SAUDI_ARABIA)
+        }
+    }
+
+    @Test
+    fun `extractCurrency resolves an ambiguous word using the active market when it matches`() {
+        MarketPrefs.setCurrentMarketForTest(Market.KUWAIT)
+        try {
+            // "دينار" لوحدها غامضة (كويتي/بحريني/أردني/عراقي/ليبي/تونسي/جزائري) —
+            // السوق الحالي كويت فبترجع KWD
+            assertEquals("KWD", SaBankParser.extractCurrency("تم خصم 15 دينار من حسابك"))
+        } finally {
+            MarketPrefs.setCurrentMarketForTest(Market.SAUDI_ARABIA)
+        }
+    }
+
+    @Test
+    fun `extractCurrency refuses to guess an ambiguous word that doesn't match the active market`() {
+        MarketPrefs.setCurrentMarketForTest(Market.SAUDI_ARABIA)
+        try {
+            // "دينار" مش من عملات السعودية — رفض، مش تخمين عبر حدود دولة
+            assertNull(SaBankParser.extractCurrency("تم خصم 15 دينار من حسابك"))
+        } finally {
+            MarketPrefs.setCurrentMarketForTest(Market.SAUDI_ARABIA)
+        }
+    }
+
     // ─── detectAndParse: noise filtering ───────────────────────────
 
     @Test

@@ -30,21 +30,11 @@ import com.example.ui.components.pressableScale
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
 
-private data class MarketOption(val market: Market, val flag: String, val subtitle: String)
-
-private val marketOptions = listOf(
-    MarketOption(Market.SAUDI_ARABIA, "🇸🇦", "ريال سعودي"),
-    MarketOption(Market.EGYPT, "🇪🇬", "جنيه مصري"),
-    MarketOption(Market.TURKEY, "🇹🇷", "ليرة تركية")
-)
-
 @Composable
 fun MarketSelectionScreen(onContinue: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var selected by remember { mutableStateOf<Market?>(null) }
-    val listVisible = remember { MutableTransitionState(false) }
-    LaunchedEffect(Unit) { listVisible.targetState = true }
 
     // part of the auth flow, so it shares the splash canvas with login/sign-up/onboarding
     // instead of the flat white it had
@@ -54,7 +44,7 @@ fun MarketSelectionScreen(onContinue: () -> Unit) {
             modifier = Modifier.fillMaxSize().padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(64.dp))
+            Spacer(Modifier.height(48.dp))
             Text(
                 "وين موطنك؟",
                 style = Typography.headlineMedium.copy(fontSize = 28.sp),
@@ -69,53 +59,15 @@ fun MarketSelectionScreen(onContinue: () -> Unit) {
                 color = onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
-            Spacer(Modifier.height(40.dp))
+            Spacer(Modifier.height(28.dp))
 
-            marketOptions.forEachIndexed { index, option ->
-                val isSelected = selected == option.market
-                androidx.compose.animation.AnimatedVisibility(
-                    visibleState = listVisible,
-                    enter = ZadTransitions.listItemEnter(index)
-                ) {
-                // white card with the shared shadow; selection is a green ring, the way
-                // the design marks a chosen row everywhere else
-                val optionShape = RoundedCornerShape(20.dp)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 6.dp)
-                        .zadCardShadow(optionShape)
-                        .clip(optionShape)
-                        .background(surface)
-                        .then(
-                            if (isSelected) Modifier.border(2.dp, primary, optionShape)
-                            else Modifier
-                        )
-                        .pressableScale()
-                        .clickable { selected = option.market }
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(option.flag, fontSize = 32.sp)
-                        Spacer(Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                option.market.displayNameAr,
-                                style = Typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = onSurface
-                            )
-                            Text(option.subtitle, style = Typography.bodyMedium, color = onSurfaceVariant)
-                        }
-                        if (isSelected) {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = primary)
-                        }
-                    }
-                }
-                }
-            }
+            // مرحلة ٢ — ١٩ سوق بدل ٣، فبقى مكوّن مشترك (شبكة + بحث) بدل كارت قايمة لكل
+            // واحد؛ نفس المكوّن بالظبط مستخدم في ProfileSubScreens's "البلد والعملة".
+            com.example.ui.components.MarketPickerGrid(
+                selected = selected,
+                onSelect = { selected = it },
+                modifier = Modifier.fillMaxWidth()
+            )
 
             Spacer(Modifier.weight(1f))
 

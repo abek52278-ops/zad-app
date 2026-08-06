@@ -119,8 +119,30 @@ object SaBankParser {
     // البديل الأول (فاصلة آلاف/نقطة عشري) بيغطي السعودية/مصر زي ما هو — البديل التاني
     // (نقطة آلاف/فاصلة عشري) مضاف لتركيا (١.٢٣٤,٥٦) من غير ما يأثر على ترتيب المطابقة القديم
     private const val NUM = """(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?|\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)"""
-    // TL/₺/TRY مضافة لدعم تركيا، EGP/ج.م/جنيه لمصر — لسه محتاجين اختبار على SMS حقيقية
-    private const val CUR = """(?:ر\.س|رس|ريال|SAR|SR|TL|₺|TRY|EGP|ج\.?م|جنيه)"""
+    // مرحلة ٢ (docs/agent/PLAN_2026_08_06_rebuild.md) — موسّعة لـ ١٩ سوق: كل كود ISO
+    // ورمز محلي مختصر (ر.س/د.إ/د.ك...) بالإضافة للكلمات العامية المشتركة بين أكتر من
+    // بلد (دينار/درهم/ريال/جنيه/ليرة) — الفصل بينها شغل extractCurrency تحت، الرجزكس دي
+    // مسؤوليتها الوحيدة إنها تكتشف "فيه عملة هنا" عشان extractAmount يلقط الرقم المجاور.
+    private const val CUR = """(?:ر\.س|رس|ريال|SAR|SR|""" +
+        """TL|₺|TRY|""" +
+        """EGP|ج\.?م|جنيه|""" +
+        """AED|د\.إ|""" +
+        """KWD|د\.ك|""" +
+        """QAR|ر\.ق|""" +
+        """BHD|د\.ب|""" +
+        """OMR|ر\.ع|""" +
+        """JOD|د\.أ|""" +
+        """LBP|ل\.ل|""" +
+        """IQD|د\.ع|""" +
+        """SYP|ل\.س|""" +
+        """YER|ر\.ي|""" +
+        """ILS|NIS|₪|""" +
+        """LYD|د\.ل|""" +
+        """SDG|ج\.س|""" +
+        """MAD|د\.م|""" +
+        """TND|د\.ت|""" +
+        """DZD|د\.ج|""" +
+        """دينار|درهم)"""
 
     // مبلغ مُسمّى صراحة — أعلى أولوية
     private val labeledAmount = Regex("""(?:بمبلغ|مبلغ|بقيمة|قيمة|القيمة|amount)\s*:?\s*$CUR?\s*$NUM\s*$CUR?""", RegexOption.IGNORE_CASE)
@@ -178,26 +200,59 @@ object SaBankParser {
         return candidates.minOrNull() // لو فيه أكتر من رقم غير مستبعد، الأصغر غالباً هو مبلغ العملية والأكبر رصيد
     }
 
-    private fun mapCurrencyToken(token: String): String {
-        val t = token.lowercase()
-        return when {
-            t == "tl" || t == "₺" || t == "try" -> "TRY"
-            t == "egp" || t.contains("ج.م") || t.contains("جم") || t.contains("جنيه") -> "EGP"
-            else -> "SAR" // ر.س / رس / ريال / sar / sr — باقي مجموعة CUR كلها سعودية
-        }
-    }
+    // رمز مكتوب بشكل مميز — كود ISO أو اختصار محلي بيحسم العملة فوراً، مفيش بلدين بيتشاركوه
+    private val unambiguousCurrencyTokens: Map<String, String> = mapOf(
+        "sar" to "SAR", "sr" to "SAR", "ر.س" to "SAR", "رس" to "SAR",
+        "egp" to "EGP", "ج.م" to "EGP", "جم" to "EGP",
+        "try" to "TRY", "tl" to "TRY", "₺" to "TRY",
+        "aed" to "AED", "د.إ" to "AED",
+        "kwd" to "KWD", "د.ك" to "KWD",
+        "qar" to "QAR", "ر.ق" to "QAR",
+        "bhd" to "BHD", "د.ب" to "BHD",
+        "omr" to "OMR", "ر.ع" to "OMR",
+        "jod" to "JOD", "د.أ" to "JOD",
+        "lbp" to "LBP", "ل.ل" to "LBP",
+        "iqd" to "IQD", "د.ع" to "IQD",
+        "syp" to "SYP", "ل.س" to "SYP",
+        "yer" to "YER", "ر.ي" to "YER",
+        "ils" to "ILS", "nis" to "ILS", "₪" to "ILS",
+        "lyd" to "LYD", "د.ل" to "LYD",
+        "sdg" to "SDG", "ج.س" to "SDG",
+        "mad" to "MAD", "د.م" to "MAD",
+        "tnd" to "TND", "د.ت" to "TND",
+        "dzd" to "DZD", "د.ج" to "DZD"
+    )
+
+    // كلمة عامية مشتركة بين أكتر من بلد (مرحلة ٢ — ١٩ سوق فتحوا التصادم ده): "دينار" لوحدها
+    // كويتي/بحريني/أردني/عراقي/ليبي/تونسي/جزائري كلهم ممكن، و"ريال" سعودي/قطري/يمني،
+    // و"درهم" إماراتي/مغربي، و"جنيه" مصري/سوداني، و"ليرة" لبناني/سوري/تركي. الكلمة
+    // المجردة دي بترجع عملة بس لو بتطابق عملة السوق المختار يدوياً حالياً — أبداً مش
+    // تخمين عبر حدود دولة، نفس مبدأ SaBankParser الأساسي "الرفض أفضل من التخمين".
+    private val ambiguousCurrencyFamilies: Map<String, Set<String>> = mapOf(
+        "ريال" to setOf("SAR", "QAR", "YER"),
+        "دينار" to setOf("KWD", "BHD", "JOD", "IQD", "LYD", "TND", "DZD"),
+        "درهم" to setOf("AED", "MAD"),
+        "جنيه" to setOf("EGP", "SDG"),
+        "ليرة" to setOf("LBP", "SYP", "TRY")
+    )
 
     /**
-     * مرحلة ١ (docs/agent/PLAN_2026_08_06_rebuild.md) — العملة المذكورة فعلياً في نص
+     * مرحلة ١+٢ (docs/agent/PLAN_2026_08_06_rebuild.md) — العملة المذكورة فعلياً في نص
      * الرسالة، بدل افتراض عملة السوق الحالي دايماً. رسالة من بنك مصري وأنت مسافر
      * كانت بتتسجل "ر.س" لمجرد إن ده السوق المختار في التطبيق. null لو مفيش أي رمز
-     * عملة صريح في النص (رسايل كتير قديمة كده) — المستدعي (UnifiedBankListener) بيرجع
-     * لعملة الـ Market الحالي زي قبل تماماً في الحالة دي، مفيش تغيير سلوك بأثر رجعي.
+     * عملة صريح في النص، أو الرمز كلمة غامضة (زي "دينار") ومش بتطابق عملة السوق
+     * الحالي — المستدعي (UnifiedBankListener) بيرجع لعملة الـ Market الحالي في الحالتين،
+     * مفيش تغيير سلوك بأثر رجعي.
      */
     fun extractCurrency(rawText: String): String? {
         val text = normalizeDigits(rawText)
         val token = Regex(CUR, RegexOption.IGNORE_CASE).find(text)?.value ?: return null
-        return mapCurrencyToken(token)
+        val lower = token.lowercase()
+
+        unambiguousCurrencyTokens[lower]?.let { return it }
+
+        val family = ambiguousCurrencyFamilies[lower] ?: return null
+        return MarketPrefs.currentMarket.currencyCode.takeIf { it in family }
     }
 
     // ─── 3) تحديد نوع العملية بكلمات صريحة ───────────────────────

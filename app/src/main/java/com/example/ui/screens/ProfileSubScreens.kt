@@ -363,32 +363,17 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
             Text(stringResource(R.string.country_and_currency_hint), style = Typography.bodySmall, color = onSurfaceVariant)
             Spacer(modifier = Modifier.height(12.dp))
             var selectedMarket by remember { mutableStateOf(com.example.data.MarketPrefs.getMarket(context)) }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                com.example.data.Market.entries.forEach { market ->
-                    val isSelected = market == selectedMarket
-                    Surface(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable {
-                                selectedMarket = market
-                                com.example.data.MarketPrefs.setMarket(context, market)
-                                scope.launch { com.example.data.SupabaseRepo.syncMarketProfile(market) }
-                            },
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isSelected) primary.copy(alpha = 0.15f) else surfaceContainer,
-                        border = if (isSelected) androidx.compose.foundation.BorderStroke(1.5.dp, primary) else null
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(vertical = 12.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(market.displayNameAr, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = if (isSelected) primary else onSurface)
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(market.currencySymbol, fontSize = 12.sp, color = onSurfaceVariant)
-                        }
-                    }
-                }
-            }
+            // مرحلة ٢ — ١٩ سوق بدل ٣، فالـ Row متساوي العرض القديم كان بيتكسر (١٩ عمود
+            // ضيّق في صف واحد). نفس مكوّن الشبكة+البحث المستخدم في MarketSelectionScreen.
+            com.example.ui.components.MarketPickerGrid(
+                selected = selectedMarket,
+                onSelect = { market ->
+                    selectedMarket = market
+                    com.example.data.MarketPrefs.setMarket(context, market)
+                    scope.launch { com.example.data.SupabaseRepo.syncMarketProfile(market) }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
             Text(stringResource(R.string.auto_bank_sync), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)

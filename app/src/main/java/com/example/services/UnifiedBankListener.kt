@@ -206,12 +206,18 @@ class UnifiedBankListener : NotificationListenerService() {
     }
 
     /**
-     * Money keywords across the three markets the app ships to, plus the wallet
-     * and e-commerce vocabulary that bank-only wording missed ("محفظة",
+     * Money keywords across the markets the app ships to (مرحلة ٢ — ١٩ سوق عربي + تركيا)،
+     * plus the wallet and e-commerce vocabulary that bank-only wording missed ("محفظة",
      * "تم استلام", "طلبك", "refund", "cashback", …).
+     *
+     * أغلب مفردات البنوك (خصم/شراء/دفع/رصيد/تحويل/مبلغ/بطاقة/سحب/راتب/قسط/فاتورة) فصحى
+     * رسمية مستخدمة في رسائل البنوك بكل الدول العربية بغض النظر عن لهجة الكلام اليومي —
+     * مش محتاجة نسخة لكل بلد. المضاف هنا فعلياً جديد: رموز/أكواد العملات الـ١٦ الجديدة
+     * (AED/KWD/QAR/BHD/OMR/JOD/LBP/IQD/SYP/YER/ILS/LYD/SDG/MAD/TND/DZD)، ومفردات فرنساوية
+     * — بنوك المغرب/الجزائر/تونس كتير بتبعت رسائلها بالفرنساوي بدل العربي.
      */
     private val moneyKeywords = listOf(
-        // عربي — بنوك
+        // عربي — بنوك (فصحى، مشتركة بين كل الأسواق العربية)
         "ر.س", "رس", "ريال", "SAR", "خصم", "شراء", "دفع", "تم الدفع",
         "رصيد", "إيداع", "تحويل", "مبلغ", "بطاقة", "مشتريات", "سحب",
         "راتب", "مرتب", "مدين", "دائن", "قسط", "فاتورة", "اشتراك",
@@ -226,7 +232,14 @@ class UnifiedBankListener : NotificationListenerService() {
         "TL", "₺", "TRY", "ödeme", "harcama", "bakiye", "kartınızdan",
         "fatura", "maaş", "iade", "havale", "eft", "işlem",
         // مصري
-        "EGP", "ج.م", "جنيه"
+        "EGP", "ج.م", "جنيه",
+        // مرحلة ٢ — رموز/أكواد عملات الأسواق الجديدة (خليجي/شامي/عراقي/مغاربي)
+        "AED", "د.إ", "KWD", "د.ك", "QAR", "ر.ق", "BHD", "د.ب", "OMR", "ر.ع",
+        "JOD", "د.أ", "LBP", "ل.ل", "IQD", "د.ع", "SYP", "ل.س", "YER", "ر.ي",
+        "ILS", "₪", "LYD", "د.ل", "SDG", "ج.س", "MAD", "د.م", "TND", "د.ت",
+        "DZD", "د.ج", "دينار", "درهم",
+        // فرنساوي — بنوك المغرب/الجزائر/تونس غالباً بتبعت رسايلها بالفرنساوي
+        "paiement", "achat", "solde", "virement", "retrait", "carte bancaire", "montant", "débit", "crédit"
     )
 
     /**

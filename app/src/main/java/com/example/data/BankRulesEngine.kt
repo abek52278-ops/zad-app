@@ -51,6 +51,22 @@ object BankRulesEngine {
         "SA" -> "SAR"
         "EG" -> "EGP"
         "TR" -> "TRY"
+        "AE" -> "AED"
+        "KW" -> "KWD"
+        "QA" -> "QAR"
+        "BH" -> "BHD"
+        "OM" -> "OMR"
+        "JO" -> "JOD"
+        "LB" -> "LBP"
+        "IQ" -> "IQD"
+        "SY" -> "SYP"
+        "YE" -> "YER"
+        "PS" -> "ILS"
+        "LY" -> "LYD"
+        "SD" -> "SDG"
+        "MA" -> "MAD"
+        "TN" -> "TND"
+        "DZ" -> "DZD"
         else -> null
     }
 

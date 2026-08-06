@@ -102,6 +102,7 @@
     <string name="budget_gate_body">Zad sayı uydurmaz. Limit olmadan "kalan" da "kullanılabilir" de yoktur — göreceğin her sayı tahmin olur.</string>
     <string name="travel_banner_message">Görünüşe göre %1$s\'desin — %2$s\'ye geçeyim mi?</string>
     <string name="travel_banner_action">Geçiş yap</string>
+    <string name="market_search_hint">Ülkeni veya para birimini ara</string>
 
     <!-- HomeScreen: greeting and hero -->
     <string name="greeting_hi_name">Merhaba %1$s! 👋</string>
