@@ -383,6 +383,28 @@ class PreviewTest {
         composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/nearby_store_card_pharmacy.png")
     }
 
+    // مرحلة ٥ب-٣ — كارت المخزون التفاعلي (docs/agent/PLAN_2026_08_06_rebuild.md): نفس
+    // عائلة الزجاج البصرية بخلفية كهرمانية + أزرار FilledTonalButton ملوّنة.
+    @Test
+    fun captureInventoryCheckInCard_glassmorphism() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.background(background).padding(16.dp)) {
+                    com.example.ui.components.InventoryCheckInCard(
+                        candidate = com.example.data.InventoryFlowEngine.CheckInCandidate(
+                            item = com.example.data.ZadInventory(itemName = "حليب المراعي", quantity = 1),
+                            predictedDaysLeft = 0
+                        ),
+                        onDecrement = {},
+                        onFinished = {},
+                        onStillHave = {}
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/inventory_checkin_card_glass.png")
+    }
+
     /**
      * The Home screen's mockup sequence, composed out of the same components HomeScreen
      * uses, on the same canvas MainScreen paints.
