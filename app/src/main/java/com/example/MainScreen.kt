@@ -256,7 +256,8 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                                 onNavigateToTasbiha = { go(ZadRoutes.TASBIHA) },
                                 onNavigateToProfile = { go(ZadRoutes.PROFILE) },
                                 onNavigateToPharmacy = { go(ZadRoutes.PHARMACY) },
-                                onNavigateToNotifications = { go(ZadRoutes.NOTIFICATIONS) }
+                                onNavigateToNotifications = { go(ZadRoutes.NOTIFICATIONS) },
+                                onNavigateToNearby = { go(ZadRoutes.DEALS) }
                             )
                         }
                         composable(ZadRoutes.NOTIFICATIONS) {

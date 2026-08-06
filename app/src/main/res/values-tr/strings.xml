@@ -113,6 +113,7 @@
     <string name="grocery_purchase_add_action">Ekle</string>
     <string name="grocery_purchase_done_action">Tamam</string>
     <string name="grocery_purchase_item_added">Eklendi ✓</string>
+    <string name="nearby_alerts_view_action">Yakınımdakileri gör</string>
 
     <!-- HomeScreen: greeting and hero -->
     <string name="greeting_hi_name">Merhaba %1$s! 👋</string>

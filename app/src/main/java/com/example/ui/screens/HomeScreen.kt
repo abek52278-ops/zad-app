@@ -85,6 +85,7 @@ fun HomeScreen(
     onNavigateToPharmacy: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
     onNavigateToCamera: () -> Unit = {},
+    onNavigateToNearby: () -> Unit = {},
     /** تفعيل يدوي من الأب/الأم (Switch to Kids Mode) — بيفرض واجهة الأطفال حتى لو role الحساب "admin" */
     kidsModeOverride: Boolean = false
 ) {
@@ -293,7 +294,8 @@ fun HomeScreen(
                             locationAlertsCardDismissed = true
                             context.getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
                                 .edit().putBoolean("location_alerts_card_dismissed", true).apply()
-                        }
+                        },
+                        onOpenNearby = onNavigateToNearby
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                 }

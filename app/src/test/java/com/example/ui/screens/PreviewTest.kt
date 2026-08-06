@@ -337,6 +337,52 @@ class PreviewTest {
         composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/budget_setup_prompt_glass.png")
     }
 
+    // مرحلة ٥ب-٢ — كروت اللوكيشن (docs/agent/PLAN_2026_08_06_rebuild.md): نفس عائلة
+    // الزجاج البصرية (zadGlassBlur + 24dp) + دبوس مكان عائم بدل أيقونة مسطّحة.
+    @Test
+    fun captureLocationAlertsCard_glassmorphism() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.background(background).padding(16.dp)) {
+                    com.example.ui.components.LocationAlertsCard(dismissed = false, onDismiss = {}, onOpenNearby = {})
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/location_alerts_card_glass.png")
+    }
+
+    @Test
+    fun captureNearbyStoreCard_supermarket() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.background(background).padding(16.dp)) {
+                    NearbyStoreCard(
+                        store = com.example.data.NearbyStore(name = "كارفور المرجان", lat = 24.7, lon = 46.6, distanceMeters = 450),
+                        lowStockNames = listOf("حليب", "بيض"),
+                        isPharmacy = false
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/nearby_store_card_supermarket.png")
+    }
+
+    @Test
+    fun captureNearbyStoreCard_pharmacy() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.background(background).padding(16.dp)) {
+                    NearbyStoreCard(
+                        store = com.example.data.NearbyStore(name = "صيدلية النهدي", lat = 24.7, lon = 46.6, distanceMeters = 1800),
+                        lowStockNames = listOf("دواء الضغط"),
+                        isPharmacy = true
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/nearby_store_card_pharmacy.png")
+    }
+
     /**
      * The Home screen's mockup sequence, composed out of the same components HomeScreen
      * uses, on the same canvas MainScreen paints.

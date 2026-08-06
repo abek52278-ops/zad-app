@@ -272,18 +272,30 @@ fun NearbyDealsScreen(
     }
 }
 
+// internal مش private — Roborazzi capture tests (PreviewTest.kt) محتاجة توصله مباشرة
+// عشان NearbyDealsScreen نفسها stateful (بتاخد ZadViewModel)، مش قابلة للـ capture كاملة.
 @Composable
-private fun NearbyStoreCard(store: NearbyStore, lowStockNames: List<String>, isPharmacy: Boolean = false) {
-    // كارت القائمة المشترك — نفس الشكل في كل الشاشات بدل ظل ونصف قطر مختلفين
-    val cardShape = RoundedCornerShape(16.dp)
+internal fun NearbyStoreCard(store: NearbyStore, lowStockNames: List<String>, isPharmacy: Boolean = false) {
+    // مرحلة ٥ب-٢ (docs/agent/PLAN_2026_08_06_rebuild.md) — 24dp بدل 16dp، نفس نصف قطر
+    // كارت الميزانية وكارت تنبيهات الموقع، عائلة بصرية واحدة عبر التطبيق
+    val cardShape = RoundedCornerShape(24.dp)
     ZadListCard(
         modifier = Modifier.pressableScale(),
         shape = cardShape,
         contentPadding = 0.dp
     ) {
         Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            // دبوس مكان عائم — ظل حقيقي تحت الشارة بدل دائرة لون مسطّحة، إحساس "معلّق"
+            // فوق الخريطة مش مجرد أيقونة تصنيف
             Box(
-                modifier = Modifier.size(44.dp).clip(CircleShape).background(if (isPharmacy) catHealthBg else catFoodBg),
+                modifier = Modifier
+                    .size(46.dp)
+                    .shadow(
+                        elevation = 8.dp, shape = CircleShape,
+                        spotColor = (if (isPharmacy) catHealthIcon else catFoodIcon).copy(alpha = 0.45f)
+                    )
+                    .clip(CircleShape)
+                    .background(if (isPharmacy) catHealthBg else catFoodBg),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -294,10 +306,14 @@ private fun NearbyStoreCard(store: NearbyStore, lowStockNames: List<String>, isP
             Spacer(modifier = Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(store.name, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                Text(
-                    if (store.distanceMeters < 1000) "${store.distanceMeters} م" else "${"%.1f".format(store.distanceMeters / 1000.0)} كم",
-                    style = Typography.labelSmall, color = onSurfaceVariant
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.NearMe, contentDescription = null, tint = onSurfaceVariant, modifier = Modifier.size(11.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        if (store.distanceMeters < 1000) "${store.distanceMeters} م" else "${"%.1f".format(store.distanceMeters / 1000.0)} كم",
+                        style = Typography.labelSmall, color = onSurfaceVariant
+                    )
+                }
                 if (lowStockNames.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(

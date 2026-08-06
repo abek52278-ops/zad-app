@@ -111,6 +111,7 @@
     <string name="grocery_purchase_add_action">إضافة</string>
     <string name="grocery_purchase_done_action">تم</string>
     <string name="grocery_purchase_item_added">انضاف ✓</string>
+    <string name="nearby_alerts_view_action">شوف القريب مني</string>
 
     <!-- HomeScreen: greeting and hero -->
     <string name="greeting_hi_name">هلا يا %1$s! 👋</string>
