@@ -106,7 +106,6 @@ fun HomeScreen(
     val daysLeftInCycle by viewModel.daysLeftInCycle.collectAsState()
     val showBudgetDialog by viewModel.showBudgetDialog.collectAsState()
     val shoppingList by viewModel.shoppingList.collectAsState()
-    val globalAvatarUri by viewModel.avatarUri.collectAsState()
     val affiliateProducts by viewModel.affiliateProducts.collectAsState()
     val urgentRecipes by viewModel.urgentRecipes.collectAsState()
     val upcomingSeasonalEvents by familyViewModel.upcomingSeasonalEvents.collectAsState()

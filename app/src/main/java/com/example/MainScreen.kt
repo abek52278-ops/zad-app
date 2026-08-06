@@ -212,9 +212,11 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                             title = zadScreenTitle(if (kidsModeEffective && currentRoute != ZadRoutes.FAMILY) ZadRoutes.HOME else currentRoute),
                             kidsMode = kidsModeEffective,
                             hasUnreadNotifications = hasUnread,
+                            avatarUri = avatarUri,
                             onOpenDrawer = { scope.launch { drawerState.open() } },
                             onNotificationsClick = { go(ZadRoutes.NOTIFICATIONS) },
-                            onExitKidsMode = { showPinPrompt = true }
+                            onExitKidsMode = { showPinPrompt = true },
+                            onAvatarClick = { goGuarded(ZadRoutes.PROFILE) }
                         )
                     }
                 },

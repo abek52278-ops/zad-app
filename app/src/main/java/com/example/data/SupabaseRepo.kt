@@ -1244,13 +1244,14 @@ object SupabaseRepo {
         }
     }
 
-    suspend fun updateUserProfile(name: String, avatarUri: String?): Boolean {
+    /** name=null بيسيب الاسم المخزن زي ما هو — عشان أبلود صورة لوحده متمسحش الاسم لو لسه ماتحملش. */
+    suspend fun updateUserProfile(name: String?, avatarUri: String?): Boolean {
         return try {
             val userId = client.auth.currentUserOrNull()?.id ?: return false
             val current = getUserProfile() ?: ZadUser(id = userId)
             Log.d(TAG, "updateUserProfile() → userId=$userId, name=$name, avatarUri=$avatarUri")
             client.postgrest["zad_users"].upsert(
-                current.copy(name = name, avatarUri = avatarUri ?: current.avatarUri)
+                current.copy(name = name ?: current.name, avatarUri = avatarUri ?: current.avatarUri)
             )
             Log.d(TAG, "updateUserProfile() SUCCESS")
             true

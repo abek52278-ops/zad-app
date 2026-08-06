@@ -74,6 +74,7 @@ fun ProfileScreen(
 ) {
     val loadingText = stringResource(R.string.loading_ellipsis)
     val newUserText = stringResource(R.string.new_user_default)
+    val saveFailedText = stringResource(R.string.changes_save_failed)
     var userEmail by remember { mutableStateOf(loadingText) }
     var userId by remember { mutableStateOf("...") }
     val scope = rememberCoroutineScope()
@@ -128,7 +129,11 @@ fun ProfileScreen(
             }
             viewModel.uploadAvatar(jpegBytes, "image/jpeg") { success ->
                 isUploadingAvatar = false
-                showSaveSuccess = success
+                if (success) {
+                    showSaveSuccess = true
+                } else {
+                    android.widget.Toast.makeText(context, saveFailedText, android.widget.Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
@@ -149,9 +154,14 @@ fun ProfileScreen(
             currentName = displayUserName,
             onDismiss = { showEditNameDialog = false },
             onSave = { newName ->
-                viewModel.updateUserProfile(newName, globalAvatarUri)
                 showEditNameDialog = false
-                showSaveSuccess = true
+                viewModel.updateUserProfile(newName, globalAvatarUri) { success ->
+                    if (success) {
+                        showSaveSuccess = true
+                    } else {
+                        android.widget.Toast.makeText(context, saveFailedText, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
             }
         )
     }

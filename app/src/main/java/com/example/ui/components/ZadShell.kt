@@ -106,9 +106,11 @@ fun ZadTopHeader(
     modifier: Modifier = Modifier,
     kidsMode: Boolean = false,
     hasUnreadNotifications: Boolean = false,
+    avatarUri: String? = null,
     onOpenDrawer: () -> Unit = {},
     onNotificationsClick: () -> Unit = {},
     onExitKidsMode: () -> Unit = {},
+    onAvatarClick: () -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -182,6 +184,28 @@ fun ZadTopHeader(
                 )
                 Spacer(Modifier.width(8.dp))
             }
+            // دايرة الأفاتار — نفس أسلوب ZadDrawerContent (كروب + fallback بحرف الاسم)، عشان
+            // الصورة تتحدث في المكانين معاً لحظة ما ترفع (نفس StateFlow في الاتنين).
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(primary.copy(alpha = 0.12f))
+                    .clickable { onAvatarClick() },
+                contentAlignment = Alignment.Center
+            ) {
+                if (!avatarUri.isNullOrBlank()) {
+                    coil.compose.AsyncImage(
+                        model = avatarUri,
+                        contentDescription = stringResource(R.string.tap_to_view_profile),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().clip(CircleShape)
+                    )
+                } else {
+                    Icon(Icons.Default.Person, contentDescription = stringResource(R.string.tap_to_view_profile), tint = primary, modifier = Modifier.size(20.dp))
+                }
+            }
+            Spacer(Modifier.width(8.dp))
             // The mockup's trailing pill slot — bell instead of the AR/EN toggle.
             Box(
                 modifier = Modifier

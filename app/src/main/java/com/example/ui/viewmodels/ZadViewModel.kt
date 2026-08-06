@@ -2761,7 +2761,9 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val publicUrl = SupabaseRepo.uploadAvatar(bytes, mimeType)
                 if (publicUrl != null) {
-                    val success = SupabaseRepo.updateUserProfile(_userName.value ?: "", publicUrl)
+                    // name=null — أبلود الصورة لوحدها متلمسش الاسم، حتى لو _userName لسه null
+                    // (لسه ماحملش loadUserProfile()).
+                    val success = SupabaseRepo.updateUserProfile(null, publicUrl)
                     if (success) _avatarUri.value = publicUrl
                     Log.d(TAG, "uploadAvatar() → success=$success, url=$publicUrl")
                     onResult(success)
