@@ -2417,14 +2417,64 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val _marketPricesFetchState = kotlinx.coroutines.flow.MutableStateFlow(LiveFetchState.NotFetchedYet)
     val marketPricesFetchState: kotlinx.coroutines.flow.StateFlow<LiveFetchState> = _marketPricesFetchState
 
+    // كاش محلي لآخر أسعار نجحت — عشان الشريط يعرض حاجة فوراً عند فتح الرئيسية بدل سبينر،
+    // ويفضل يعرض آخر أسعار معروفة لو الشبكة فشلت بدل ما يفضي تماماً. مفتاح لكل سوق لأن
+    // الأسعار نفسها مختلفة لكل بلد.
+    private fun livePricesCacheKey() = "live_market_prices_${com.example.data.MarketPrefs.currentMarket.name}"
+
+    private fun loadCachedMarketPrices(): List<com.example.data.MarketPriceItem> = try {
+        getApplication<Application>()
+            .getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+            .getString(livePricesCacheKey(), null)
+            ?.let {
+                kotlinx.serialization.json.Json.decodeFromString(
+                    kotlinx.serialization.builtins.ListSerializer(com.example.data.MarketPriceItem.serializer()),
+                    it
+                )
+            }
+            ?: emptyList()
+    } catch (e: Exception) {
+        Log.e(TAG, "loadCachedMarketPrices() FAILED: ${e.message}")
+        emptyList()
+    }
+
+    private fun saveCachedMarketPrices(prices: List<com.example.data.MarketPriceItem>) {
+        try {
+            getApplication<Application>()
+                .getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+                .edit()
+                .putString(
+                    livePricesCacheKey(),
+                    kotlinx.serialization.json.Json.encodeToString(
+                        kotlinx.serialization.builtins.ListSerializer(com.example.data.MarketPriceItem.serializer()),
+                        prices
+                    )
+                )
+                .apply()
+        } catch (e: Exception) {
+            Log.e(TAG, "saveCachedMarketPrices() FAILED: ${e.message}")
+        }
+    }
+
     fun refreshLiveMarketPrices() {
         if (_marketPricesFetchState.value == LiveFetchState.Loading) return
         viewModelScope.launch {
+            // الكاش بيتعرض فوراً قبل ما نستنى الشبكة — الشريط مايفضلش على "جاري جلب الأسعار..."
+            // لو المستخدم فتح التطبيق قبل كده ونجح الجلب.
+            if (_livePrices.value.isEmpty()) _livePrices.value = loadCachedMarketPrices()
             _marketPricesFetchState.value = LiveFetchState.Loading
             try {
-                _livePrices.value = ZadAiRepository.fetchLiveMarketPrices()
+                // سقف صلب فوق مهلة الـ HTTP نفسها — أي تعليق في أي طبقة تحته (DNS، إعادة
+                // محاولة 429، دمج نداءات متزامنة) لازم ينتهي لحالة نهائية، مش يفضل Loading للأبد.
+                val fetched = kotlinx.coroutines.withTimeout(120_000) {
+                    ZadAiRepository.fetchLiveMarketPrices()
+                }
+                if (fetched.isNotEmpty()) {
+                    _livePrices.value = fetched
+                    saveCachedMarketPrices(fetched)
+                }
                 _marketPricesFetchState.value = LiveFetchState.Fetched
-                Log.d(TAG, "refreshLiveMarketPrices() → found=${_livePrices.value.size}")
+                Log.d(TAG, "refreshLiveMarketPrices() → found=${fetched.size}")
             } catch (e: Exception) {
                 Log.e(TAG, "refreshLiveMarketPrices() FAILED: ${e.message}")
                 _marketPricesFetchState.value = LiveFetchState.Error

@@ -590,11 +590,21 @@ object ZadAiRepository {
         }
     }
 
-    /** شريط أسعار زاد الحي — أسعار سلع أساسية حقيقية (بنزين، طماطم، ذهب...) عبر بحث حي، بكاش 12 ساعة على السيرفر. */
+    /**
+     * شريط أسعار زاد الحي — أسعار سلع أساسية حقيقية (بنزين، طماطم، ذهب...) عبر بحث حي،
+     * بكاش 12 ساعة على السيرفر. swallowErrors=false عشان فشل الشبكة يوصل للـ ViewModel
+     * كـ Error بدل ما يتقرا "نجح، صفر نتايج". المهلة أطول من الافتراضي لأن أسوأ حالة على
+     * السيرفر (إعادة محاولة البحث الحي) بتوصل ~100 ثانية، أطول من الـ 30 ثانية الافتراضية.
+     */
     suspend fun fetchLiveMarketPrices(
         location: String = MarketPrefs.currentMarket.displayNameAr
     ): List<MarketPriceItem> {
-        val response = callAction("fetch_live_market_prices", mapOf("location" to location))
+        val response = callAction(
+            "fetch_live_market_prices",
+            mapOf("location" to location),
+            swallowErrors = false,
+            timeoutMs = 110_000
+        )
         if (response["ok"] == false) throw IllegalStateException("fetch_live_market_prices: upstream search failed")
         val pricesRaw = response["prices"] as? List<*> ?: return emptyList()
         return pricesRaw.mapNotNull { entry ->
@@ -818,7 +828,18 @@ object ZadAiRepository {
     // this generic text-action dispatcher always goes straight to zad-core-intelligence so every
     // action gets its proper per-action system prompt and the injected-data delimiting that
     // prompt lives behind, instead of the flat, undelimited prompt a client-side path would need.
-    private suspend fun callAction(action: String, payload: Map<String, Any?>): Map<String, Any?> {
+    /**
+     * swallowErrors=true (الافتراضي) بيرجع emptyMap() على أي فشل — ده كان بيخلي الفشل الحقيقي
+     * (شبكة/تايم أوت) مش مميز عن "نجح بس مالقاش نتايج"، لأن اللي بيفحص response["ok"] == false
+     * بيلاقي null مش false فيعدّي. أي نداء محتاج يعرض حالة خطأ حقيقية للمستخدم لازم يبعت
+     * swallowErrors=false عشان الاستثناء يوصله.
+     */
+    private suspend fun callAction(
+        action: String,
+        payload: Map<String, Any?>,
+        swallowErrors: Boolean = true,
+        timeoutMs: Long = SupabaseRepo.DEFAULT_EDGE_TIMEOUT_MS
+    ): Map<String, Any?> {
         return try {
             val userId = getUserId()
             SupabaseRepo.callEdgeFunction(CENTRAL_FUNCTION, mapOf(
@@ -826,9 +847,10 @@ object ZadAiRepository {
                 "user_id" to userId,
                 "dialect" to MarketPrefs.currentMarket.dialectInstruction,
                 "payload" to payload
-            ))
+            ), timeoutMs = timeoutMs)
         } catch (e: Exception) {
             Log.e(TAG_REPO, "callAction($action) FAILED: ${e.message}")
+            if (!swallowErrors) throw e
             emptyMap()
         }
     }

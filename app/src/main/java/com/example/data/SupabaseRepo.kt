@@ -2043,7 +2043,14 @@ object SupabaseRepo {
     private val edgeCallMutex = kotlinx.coroutines.sync.Mutex()
     private val inFlightEdgeCalls = mutableMapOf<String, kotlinx.coroutines.Deferred<Map<String, Any?>>>()
 
-    suspend fun callEdgeFunction(functionName: String, body: Map<String, Any>): Map<String, Any?> {
+    /** 30s — يمنع ANR على شبكة بطيئة، ويكفي كل الأكشنات ما عدا البحث الحي (راجع fetchLiveMarketPrices). */
+    const val DEFAULT_EDGE_TIMEOUT_MS = 30_000L
+
+    suspend fun callEdgeFunction(
+        functionName: String,
+        body: Map<String, Any>,
+        timeoutMs: Long = DEFAULT_EDGE_TIMEOUT_MS
+    ): Map<String, Any?> {
         // Use anyToJson instead of org.json.JSONObject to handle nested Maps/Lists correctly
         val jsonStr = anyToJson(body)
         val requestKey = "$functionName:$jsonStr"
@@ -2051,7 +2058,7 @@ object SupabaseRepo {
         val deferred = edgeCallMutex.withLock {
             inFlightEdgeCalls[requestKey] ?: edgeCallScope.async {
                 try {
-                    executeEdgeFunctionWithBackoff(functionName, jsonStr)
+                    executeEdgeFunctionWithBackoff(functionName, jsonStr, timeoutMs)
                 } finally {
                     edgeCallMutex.withLock { inFlightEdgeCalls.remove(requestKey) }
                 }
@@ -2063,7 +2070,11 @@ object SupabaseRepo {
     // 429 (rate limit) gets a bounded exponential backoff — never an infinite retry loop.
     // Retry-After (seconds, per RFC 6585) wins when the server sends one; otherwise
     // 1s/2s/4s + jitter. Any other non-2xx status fails immediately, same as before.
-    private suspend fun executeEdgeFunctionWithBackoff(functionName: String, jsonStr: String): Map<String, Any?> {
+    private suspend fun executeEdgeFunctionWithBackoff(
+        functionName: String,
+        jsonStr: String,
+        timeoutMs: Long = DEFAULT_EDGE_TIMEOUT_MS
+    ): Map<String, Any?> {
         val maxRetries = 3
         var attempt = 0
         while (true) {
@@ -2074,8 +2085,10 @@ object SupabaseRepo {
 
                 val url = java.net.URL(urlString)
                 val connection = url.openConnection() as java.net.HttpURLConnection
-                connection.connectTimeout = 30_000  // 30s — prevent ANR on slow networks
-                connection.readTimeout = 30_000
+                // إنشاء الاتصال نفسه له سقف ثابت — لو TCP مش بيتفتح، مالوش لازمة ننتظر مهلة
+                // القراءة الطويلة. اللي بيطول هو رد السيرفر (بحث حي)، مش الـ handshake.
+                connection.connectTimeout = DEFAULT_EDGE_TIMEOUT_MS.toInt()
+                connection.readTimeout = timeoutMs.toInt()
                 connection.requestMethod = "POST"
                 connection.setRequestProperty("Authorization", "Bearer $token")
                 connection.setRequestProperty("Content-Type", "application/json")
