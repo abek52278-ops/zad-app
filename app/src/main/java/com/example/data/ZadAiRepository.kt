@@ -152,8 +152,10 @@ object ZadAiRepository {
     }
 
     suspend fun suggestMeals(inventory: List<ZadInventory>): String {
-        val itemsList = if (inventory.isEmpty()) "لا يوجد مخزون حاليا"
-        else inventory.joinToString(", ") { "${it.itemName} (${it.quantity})" }
+        // شيف زاد يقترح بس من صنف فعلاً موجود — صفر بالكمية يعني خلص، مش "متاح"
+        val available = inventory.filter { it.quantity > 0 }
+        val itemsList = if (available.isEmpty()) "لا يوجد مخزون حاليا"
+        else available.joinToString(", ") { "${it.itemName} (${it.quantity})" }
         val response = callAction("meal_suggestions", mapOf("items" to itemsList))
         return response["text"] as? String ?: MEAL_SUGGESTIONS_FALLBACK
     }
@@ -169,8 +171,10 @@ object ZadAiRepository {
         inventory: List<ZadInventory>,
         stagnantItems: List<String> = emptyList()
     ): String {
-        val invList = if (inventory.isEmpty()) "لا يوجد مخزون"
-        else inventory.joinToString(", ") { "${it.itemName} (${it.quantity})" }
+        // نفس مبدأ suggestMeals — "باقي المخزون المتاح" لازم يكون فعلاً متاح (كمية > 0)
+        val available = inventory.filter { it.quantity > 0 }
+        val invList = if (available.isEmpty()) "لا يوجد مخزون"
+        else available.joinToString(", ") { "${it.itemName} (${it.quantity})" }
         val parts = mutableListOf<String>()
         if (stagnantItems.isNotEmpty()) {
             parts += "عندك من فترة (شهر تقريباً) وماستخدمتهاش خالص: " + stagnantItems.joinToString("، ") + " — استخدمها الأول قبل أي حاجة تانية"
@@ -184,8 +188,9 @@ object ZadAiRepository {
     }
 
     suspend fun getRecipeDetails(recipeName: String, inventory: List<ZadInventory>): String {
-        val itemsList = if (inventory.isEmpty()) "لا يوجد مخزون حاليا"
-        else inventory.joinToString(", ") { "${it.itemName} (${it.quantity})" }
+        val available = inventory.filter { it.quantity > 0 }
+        val itemsList = if (available.isEmpty()) "لا يوجد مخزون حاليا"
+        else available.joinToString(", ") { "${it.itemName} (${it.quantity})" }
         val response = callAction("recipe_details", mapOf("recipe_name" to recipeName, "inventory" to itemsList))
         // a failed/timed-out upstream call used to fall back to a placeholder string that was
         // then rendered as if it were a real recipe — throw instead so the caller can show a
