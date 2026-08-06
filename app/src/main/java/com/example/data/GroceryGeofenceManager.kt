@@ -5,7 +5,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.LocationManager
 import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
@@ -124,11 +123,7 @@ object GroceryGeofenceManager {
             return@withContext true
         }
 
-        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
-        val location = try {
-            locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-        } catch (e: SecurityException) { null }
+        val location = LocationHelper.getCurrentLocation(context)
 
         if (location == null) {
             Log.w(TAG, "refreshGeofences() → no last known location")

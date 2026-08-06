@@ -277,6 +277,25 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
+                // مرحلة ٤ — دعوة تفعيل تنبيهات الموقع هنا، مش مدفون في NearbyDealsScreen
+                // بس. تجاهل بيتفتكر دائماً (ميزة اختيارية، مش زي إذن إشعارات البنك اللي
+                // فوق واللي أساسي لعمل التطبيق).
+                var locationAlertsCardDismissed by remember {
+                    mutableStateOf(context.getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+                        .getBoolean("location_alerts_card_dismissed", false))
+                }
+                if (!locationAlertsCardDismissed && !com.example.data.GroceryGeofenceManager.isEnabled(context)) {
+                    com.example.ui.components.LocationAlertsCard(
+                        dismissed = locationAlertsCardDismissed,
+                        onDismiss = {
+                            locationAlertsCardDismissed = true
+                            context.getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+                                .edit().putBoolean("location_alerts_card_dismissed", true).apply()
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
                 // ── 1. Hero (mockup: the 28dp mesh-gradient "متاح" card) ──
                 // Task 26 — daysLeft بقى بحدود دورة الراتب (ZadViewModel.daysLeftInCycle)
                 // مش الشهر التقويمي كان مؤجل من Task 25.

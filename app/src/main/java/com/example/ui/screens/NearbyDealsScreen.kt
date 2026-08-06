@@ -2,7 +2,6 @@ package com.example.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.location.LocationManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -78,19 +77,19 @@ fun NearbyDealsScreen(
     val refillNeededMeds = pharmacyItems.filter { val d = it.daysOfSupplyLeft(); d != null && d <= 5 }.map { it.name }
 
     fun searchNearby() {
-        val locationManager = context.getSystemService(android.content.Context.LOCATION_SERVICE) as? LocationManager
-        val location = try {
-            locationManager?.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                ?: locationManager?.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
-        } catch (e: SecurityException) { null }
-
-        if (location == null) {
-            searchError = true
-            return
-        }
         isLoading = true
         searchError = false
         scope.launch {
+            // مرحلة ٤ — FusedLocationProviderClient بدل LocationManager.getLastKnownLocation()
+            // (كاش ممكن يبقى فاضي أو قديم بالساعات)؛ Tasks.await() جوّاها بلوكينج فلازم IO
+            val location = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                com.example.data.LocationHelper.getCurrentLocation(context)
+            }
+            if (location == null) {
+                isLoading = false
+                searchError = true
+                return@launch
+            }
             stores = OverpassRepo.findNearbySupermarkets(location.latitude, location.longitude)
             // نجيب الصيدليات بس لو فعلاً فيه دواء قرب يخلص — مفيش داعي نستهلك API لغرض مفيدش
             pharmacies = if (refillNeededMeds.isNotEmpty()) {

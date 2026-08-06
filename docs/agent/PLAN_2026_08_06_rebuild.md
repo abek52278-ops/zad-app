@@ -98,11 +98,28 @@ A6 هو توسيع `StatementImportScreen` (صيغ ملفات أكتر، أو ر
 - `InventoryFlowEngine`: معاملة فئة "بقالة" تسأل "ضيف إيه للمخزون؟".
 - `ConsumptionLearner`: سؤال دوري فعلي ("خلص الحليب؟") بأزرار خصم سريعة (−1 / خلص / لسه).
 
-## مرحلة ٤ — اللوكيشن والـ geofence · ⬜
+## مرحلة ٤ — اللوكيشن والـ geofence · ✅ خلصت (نطاق معدّل بعد تدقيق فعلي للكود)
 
-- تشغيل الـ geofence من الـ onboarding بشرح واضح، مش مدفون في الإعدادات.
-- تأكيد `LOCATIONIQ_API_KEY` على Supabase (فحص بالـ MCP)، وإلا Overpass fallback بس.
-- ملاحظة Play Store: `ACCESS_BACKGROUND_LOCATION` لسه غير محسومة (شوف CLAUDE.md).
+قبل التنفيذ اتعمل تدقيق فعلي (Explore agent) للكود الموجود بدل الافتراض — اتضح إن
+الـ geofencing **حقيقي وشغال فعلاً** (`GroceryGeofenceManager`/`GeofenceBroadcastReceiver`/
+`GeofenceRefreshWorker`)، مش خطة نظرية زي ما بند "تشغيل الـ geofence" كان ممكن يوهم.
+الفجوة الحقيقية كانت في ٤ حاجات تحديداً، مش في وجود الميزة من عدمه:
+
+| # | البند | الحالة |
+|---|------|--------|
+| ٤أ | **العقل كان أعمى عن المكان تماماً** — دخول نطاق محل كان بيولّد إشعار محلي بس، zad-brain عمره ما كان بيعرف. `GeofenceBroadcastReceiver.notifyBrain()` جديدة بتنادي `zad-brain` (`trigger=geofence_enter`) بعد الإشعار المحلي مباشرة — نفس نمط `UnifiedBankListener` (نداء Supabase من مسار خلفية من غير ViewModel)؛ فشلها (لا إنترنت وقت الدخول) ما يأثرش على الإشعار المحلي | ✅ |
+| ٤ب | **الدعوة كانت مدفونة فعلاً** — التفعيل كان موجود بس جوه `NearbyDealsScreen` بس، محدش يعرف إنه موجود من غير ما يدخل الشاشة دي بالذات. `LocationAlertsCard` جديد أعلى `HomeScreen` (نفس نمط `NotificationPermissionCard` الموجود) — تجاهل بيتفتكر دائماً (ميزة اختيارية، مش زي إذن إشعارات البنك). التحكم في الإيقاف لسه في `NearbyDealsScreen` بس، مش اتكرر | ✅ |
+| ٤ج | **الموقع كان كاش قديم، مش قراءة حية** — `LocationManager.getLastKnownLocation()` في المكانين (`GroceryGeofenceManager.refreshGeofences`، `NearbyDealsScreen.searchNearby`) بيرجع فاضي على جهاز لسه ما فتحش خرائط، أو رقم قديم بالساعات. `LocationHelper` جديد (`FusedLocationProviderClient.getCurrentLocation()`) بيطلب إحداثية فعلية، مستخدم في المكانين | ✅ |
+| ٤د | `LOCATIONIQ_API_KEY` — **مش قابل للتأكيد عبر MCP** (مفيش أداة تقرأ قيم الأسرار، بقصد أمني). الكود آمن في الحالتين: `GroceryGeofenceManager.findStores()` بيرجع لـ `OverpassRepo` تلقائياً لو LocationIQ رجع فاضي — مفيش أثر على الوظيفة سواء المفتاح متظبط أو لأ، بس الدقة تفرق. لو عايز تأكيد قاطع، لازم يتفحص من Supabase dashboard مباشرة | ⚠️ غير قابل للفحص من هنا |
+
+**تعمّد عدم بناؤه** (قرار موثّق 2026-08-06، مش نقص): رصد تنقل/رحلة (زي ركوب أوبر أو
+التحرك من مكان لمكان) عبر `ActivityRecognition` API. اتقيّم واتُرفض — تتبع خلفية
+مستمر يعني استهلاك بطارية عالي، مراجعة Play Store أشد بكتير لتطبيق مالي، وحساسية
+خصوصية حقيقية (تتبع تنقل شخص) مقابل عائد صغير. الـ geofence الموجود (دخول/خروج نطاق
+محل بعينه) كافي لسيناريو "أنت في كارفور دلوقتي" من غير الحاجة لتتبع مستمر بين الأماكن.
+
+ملاحظة Play Store لسه قايمة: `ACCESS_BACKGROUND_LOCATION` يحتاج نموذج إفصاح + فيديو
+شرح لمراجعة جوجل (قرار Play Console إداري، خارج نطاق كود) — شوف CLAUDE.md.
 
 ## مرحلة ٥ — الواجهة والـ agent الحي · ⬜
 

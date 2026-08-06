@@ -15,6 +15,7 @@ import com.example.data.GroceryGeofenceManager
 import com.example.data.local.ZadDatabase
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
+import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -79,6 +80,30 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
         GroceryGeofenceManager.markNotified(context, geofenceId)
         showNotification(context, storeName, missingItems.take(6))
+        notifyBrain(context, storeName, category, missingItems)
+    }
+
+    /**
+     * مرحلة ٤ (docs/agent/PLAN_2026_08_06_rebuild.md) — قبل كده الإشعار المحلي كان كل
+     * حاجة؛ العقل (zad-brain) عمره ما كان بيعرف إن المستخدم دخل نطاق محل خالص، فمفيش
+     * نصيحة إنفاق لحظية مربوطة بالمكان زي "أنت قريب من X وميزانية الشهر أوشكت". نفس
+     * نمط UnifiedBankListener (نداء Supabase مباشر من مسار خلفية، من غير ViewModel) —
+     * zad-brain نفسه بيجيب سياق الميزانية/المعاملات من السيرفر، هنا بس بنبلّغه بالحدث.
+     * فشل هنا (لا إنترنت وقت الدخول، مثلاً) مايأثرش على الإشعار المحلي اللي فات فوق.
+     */
+    private suspend fun notifyBrain(context: Context, storeName: String, category: GeofenceCategory, missingItems: List<String>) {
+        try {
+            val userId = com.example.data.SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return
+            val kind = if (category == GeofenceCategory.PHARMACY) "صيدلية" else "سوبرماركت"
+            val userMessage = "المستخدم دلوقتي قريب من $storeName ($kind). النواقص المعروفة: ${missingItems.joinToString("، ")}. لو في تنبيه إنفاق مناسب اللحظة دي (زي اقتراب حد الميزانية)، وضّحه."
+            com.example.data.SupabaseRepo.callEdgeFunction(
+                "zad-brain",
+                mapOf("user_id" to userId, "trigger" to "geofence_enter", "user_message" to userMessage)
+            )
+            Log.d(TAG, "notifyBrain() → geofence_enter sent for $storeName")
+        } catch (e: Exception) {
+            Log.e(TAG, "notifyBrain() FAILED: ${e.message}")
+        }
     }
 
     private fun showNotification(context: Context, storeName: String, missingItems: List<String>) {
