@@ -6,6 +6,13 @@ on:
   pull_request:
   workflow_dispatch: {}
 
+# Explicit least-privilege GITHUB_TOKEN — this job only reads code, builds, tests,
+# lints, and uploads artifacts; it never writes back to the repo. Read-only was
+# already the implicit default, spelled out here so that stays true on purpose
+# instead of by accident as the workflow grows.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
