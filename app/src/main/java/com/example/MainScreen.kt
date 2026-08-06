@@ -275,7 +275,7 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                                 onNavigateToCamera = { showCameraSheet = true }
                             )
                         }
-                        composable(ZadRoutes.SUBS) { SubscriptionsScreen(viewModel) }
+                        composable(ZadRoutes.SUBS) { SubscriptionsScreen(viewModel, familyViewModel) }
                         composable(ZadRoutes.PHARMACY) {
                             PharmacyScreen(
                                 viewModel = viewModel,
