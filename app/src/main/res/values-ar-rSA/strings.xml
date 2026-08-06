@@ -101,6 +101,16 @@
     <string name="travel_banner_message">شكلك في %1$s — أحوّلك لـ %2$s؟</string>
     <string name="travel_banner_action">تحويل</string>
     <string name="market_search_hint">دوّر على بلدك أو عملتك</string>
+    <string name="inventory_checkin_question">خلص %1$s؟</string>
+    <string name="inventory_checkin_hint">حسب معدل استهلاكك، المفروض قرب يخلص</string>
+    <string name="inventory_checkin_minus_one">−1</string>
+    <string name="inventory_checkin_finished">خلص</string>
+    <string name="inventory_checkin_still_have">لسه</string>
+    <string name="grocery_purchase_prompt_title">اشتريت من %1$s بـ %2$s — تحط إيه بالمخزون؟</string>
+    <string name="grocery_purchase_new_item_hint">اسم منتج ثاني…</string>
+    <string name="grocery_purchase_add_action">إضافة</string>
+    <string name="grocery_purchase_done_action">تم</string>
+    <string name="grocery_purchase_item_added">انضاف ✓</string>
 
     <!-- HomeScreen: greeting and hero -->
     <string name="greeting_hi_name">هلا يا %1$s! 👋</string>

@@ -232,6 +232,9 @@ object InventoryFlowEngine {
     fun getCheckInCandidates(context: Context, inventory: List<ZadInventory>): List<CheckInCandidate> =
         inventory.mapNotNull { item ->
             if (item.quantity <= 0) return@mapNotNull null
+            // مرحلة ٣ (docs/agent/PLAN_2026_08_06_rebuild.md) — "لسه" بترجّي السؤال ٣ أيام
+            // بدل ما يترجع فوراً في أول إعادة حساب جاية (أي تغيير مخزون تاني كان بيرجّعه).
+            if (ConsumptionLearner.isSnoozed(context, item.itemName)) return@mapNotNull null
             val daysLeft = ConsumptionLearner.predictDaysLeft(context, item.itemName, item.quantity)
                 ?: return@mapNotNull null
             if (daysLeft <= 1) CheckInCandidate(item, daysLeft) else null
@@ -248,8 +251,10 @@ object ConsumptionLearner {
     private const val PURCHASE_PREFIX = "buy_"
     private const val CONSUME_PREFIX = "use_"
     private const val SMOOTHED_INTERVAL_PREFIX = "smoothed_interval_"
+    private const val SNOOZE_UNTIL_PREFIX = "checkin_snooze_until_"
     private const val MAX_EVENTS = 8
     private const val INTERVAL_ALPHA = 0.3 // weight on the newest interval — higher = more reactive to a recently-changed buying pattern
+    private const val SNOOZE_DAYS = 3L
 
     private fun recordEvent(context: Context, prefix: String, itemName: String) {
         val key = prefix + InventoryFlowEngine.normalizeName(itemName)
@@ -284,6 +289,23 @@ object ConsumptionLearner {
     fun recordPurchase(context: Context, itemName: String) = recordEvent(context, PURCHASE_PREFIX, itemName)
 
     fun recordConsumption(context: Context, itemName: String) = recordEvent(context, CONSUME_PREFIX, itemName)
+
+    /**
+     * مرحلة ٣ — المستخدم رد "لسه" على سؤال "هل خلص X؟": مش تصحيح استهلاك (مفيش حدث use_
+     * أو buy_ يتسجل، عشان "لسه" مش معلومة عن معدل الاستهلاك نفسه)، بس تأجيل السؤال —
+     * وإلا ده كان هيرجع يسأل تاني في أي إعادة حساب جاية (فتح شاشة، تحديث مخزون تاني...).
+     */
+    fun snoozeCheckIn(context: Context, itemName: String) {
+        val key = SNOOZE_UNTIL_PREFIX + InventoryFlowEngine.normalizeName(itemName)
+        val until = LocalDate.now().plusDays(SNOOZE_DAYS).toEpochDay()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putLong(key, until).apply()
+    }
+
+    fun isSnoozed(context: Context, itemName: String): Boolean {
+        val key = SNOOZE_UNTIL_PREFIX + InventoryFlowEngine.normalizeName(itemName)
+        val until = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(key, -1L)
+        return until >= 0 && LocalDate.now().toEpochDay() <= until
+    }
 
     private fun eventDays(context: Context, prefix: String, itemName: String): List<Long> {
         val key = prefix + InventoryFlowEngine.normalizeName(itemName)

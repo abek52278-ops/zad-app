@@ -103,6 +103,16 @@
     <string name="travel_banner_message">Görünüşe göre %1$s\'desin — %2$s\'ye geçeyim mi?</string>
     <string name="travel_banner_action">Geçiş yap</string>
     <string name="market_search_hint">Ülkeni veya para birimini ara</string>
+    <string name="inventory_checkin_question">%1$s bitti mi?</string>
+    <string name="inventory_checkin_hint">Tüketim hızına göre bitmek üzere</string>
+    <string name="inventory_checkin_minus_one">−1</string>
+    <string name="inventory_checkin_finished">Bitti</string>
+    <string name="inventory_checkin_still_have">Hâlâ var</string>
+    <string name="grocery_purchase_prompt_title">%1$s\'den %2$s harcadın — envantere ne eklensin?</string>
+    <string name="grocery_purchase_new_item_hint">Başka bir ürün adı…</string>
+    <string name="grocery_purchase_add_action">Ekle</string>
+    <string name="grocery_purchase_done_action">Tamam</string>
+    <string name="grocery_purchase_item_added">Eklendi ✓</string>
 
     <!-- HomeScreen: greeting and hero -->
     <string name="greeting_hi_name">Merhaba %1$s! 👋</string>

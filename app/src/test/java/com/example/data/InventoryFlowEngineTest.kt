@@ -94,4 +94,41 @@ class InventoryFlowEngineTest {
         val item = ZadInventory(itemName = "فاضي خالص", quantity = 0, createdAt = daysAgo(90))
         assertFalse(InventoryFlowEngine.isStagnant(context, item))
     }
+
+    // ─── مرحلة ٣ (docs/agent/PLAN_2026_08_06_rebuild.md): getCheckInCandidates + snooze ──
+
+    /** بيحضّر صنف متوقّع يخلص خلال يوم أو أقل — interval محسوب وشراء آخر قبل الـ interval بالظبط */
+    private fun seedPredictedDepleted(itemName: String, intervalDays: Long = 10) {
+        val prefs = context.getSharedPreferences("zad_consumption", android.content.Context.MODE_PRIVATE)
+        val normalized = InventoryFlowEngine.normalizeName(itemName)
+        prefs.edit()
+            .putFloat("smoothed_interval_$normalized", intervalDays.toFloat())
+            .putString("buy_$normalized", LocalDate.now().minusDays(intervalDays).toEpochDay().toString())
+            .apply()
+    }
+
+    @Test
+    fun `getCheckInCandidates includes an item predicted to run out within a day`() {
+        val item = ZadInventory(itemName = "حليب متوقع يخلص", quantity = 2)
+        seedPredictedDepleted(item.itemName)
+        val candidates = InventoryFlowEngine.getCheckInCandidates(context, listOf(item))
+        assertTrue(candidates.any { it.item.itemName == item.itemName })
+    }
+
+    @Test
+    fun `snoozeCheckIn removes the item from candidates until the snooze window passes`() {
+        val item = ZadInventory(itemName = "بيض مؤجل", quantity = 2)
+        seedPredictedDepleted(item.itemName)
+        assertTrue(InventoryFlowEngine.getCheckInCandidates(context, listOf(item)).isNotEmpty())
+
+        ConsumptionLearner.snoozeCheckIn(context, item.itemName)
+
+        assertTrue(ConsumptionLearner.isSnoozed(context, item.itemName))
+        assertTrue(InventoryFlowEngine.getCheckInCandidates(context, listOf(item)).isEmpty())
+    }
+
+    @Test
+    fun `an item with no snooze recorded is not snoozed`() {
+        assertFalse(ConsumptionLearner.isSnoozed(context, "صنف عادي ما اتسألش عليه أبداً"))
+    }
 }

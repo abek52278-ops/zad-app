@@ -68,6 +68,67 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     val pendingSubscriptions: StateFlow<List<DetectedSubscription>> = _pendingSubscriptions.asStateFlow()
     private val dismissedDetectedSubscriptionNames = mutableSetOf<String>()
 
+    /**
+     * مرحلة ٣ (docs/agent/PLAN_2026_08_06_rebuild.md) — "المتابعة الدورية" (ConsumptionLearner)
+     * كانت إشعار نصي بس يطلب من المستخدم يفتح المخزون ويحدّث يدوياً. بقت كارت تفاعلي فوري
+     * (−1 / خلص / لسه) على HomeScreen، مبني على InventoryFlowEngine.getCheckInCandidates
+     * الموجودة أصلاً — مفيش منطق تنبؤ جديد، بس واجهة فعلية للإجابة بدل التوجيه لشاشة تانية.
+     */
+    private val _inventoryCheckIns = MutableStateFlow<List<com.example.data.InventoryFlowEngine.CheckInCandidate>>(emptyList())
+    val inventoryCheckIns: StateFlow<List<com.example.data.InventoryFlowEngine.CheckInCandidate>> = _inventoryCheckIns.asStateFlow()
+
+    private fun refreshInventoryCheckIns() {
+        _inventoryCheckIns.value = com.example.data.InventoryFlowEngine.getCheckInCandidates(getApplication(), _inventory.value)
+    }
+
+    /** −1: استهلاك وحدة واحدة، بيتعلّم منها معدل الاستهلاك (نفس مسار consumeItem العادي) */
+    fun answerCheckInDecrement(item: ZadInventory) {
+        viewModelScope.launch {
+            com.example.data.InventoryFlowEngine.consumeItem(getApplication(), dao, item, amount = 1)
+        }
+    }
+
+    /** "خلص": يصفّر الكمية دفعة واحدة — مش بس -1، عشان النواقص تتفعّل فوراً لو تحت الحد */
+    fun answerCheckInFinished(item: ZadInventory) {
+        viewModelScope.launch {
+            com.example.data.InventoryFlowEngine.consumeItem(getApplication(), dao, item, amount = item.quantity)
+        }
+    }
+
+    /** "لسه": مفيش تصحيح استهلاك حقيقي (التنبؤ صح، بس السؤال بدري) — بس تأجيل السؤال ٣ أيام */
+    fun answerCheckInStillHave(item: ZadInventory) {
+        com.example.data.ConsumptionLearner.snoozeCheckIn(getApplication(), item.itemName)
+        refreshInventoryCheckIns()
+    }
+
+    /**
+     * مرحلة ٣ — معاملة بقالة/سوبرماركت جديدة (بنكية أو يدوية، مفيش فرق) بتفتح سؤال "ضيف
+     * إيه للمخزون؟" مرة واحدة بس لكل معاملة. null = مفيش سؤال معلّق حالياً.
+     */
+    private val _pendingGroceryPurchase = MutableStateFlow<ZadTransaction?>(null)
+    val pendingGroceryPurchase: StateFlow<ZadTransaction?> = _pendingGroceryPurchase.asStateFlow()
+    private val groceryPromptedTxIds = mutableSetOf<String>()
+    private var transactionsBaselineEstablished = false
+
+    fun dismissPendingGroceryPurchase() {
+        _pendingGroceryPurchase.value = null
+    }
+
+    /**
+     * إضافة سريعة من سؤال معاملة البقالة — بتعيد استخدام InventoryFlowEngine.injectScannedItems
+     * بالظبط زي حقن فاتورة مصوّرة (نفس دمج الكمية لو الصنف موجود، ونفس قفل قائمة التسوق لو
+     * الصنف كان ناقص، ونفس تسجيل التعلّم) — مفيش مسار تاني موازي بيعمل نفس الحاجة بمنطق مختلف.
+     */
+    fun addGroceryPurchaseItem(itemName: String) {
+        if (itemName.isBlank()) return
+        viewModelScope.launch {
+            com.example.data.InventoryFlowEngine.injectScannedItems(
+                getApplication(), dao, _inventory.value, _shoppingList.value,
+                listOf(ZadInventory(itemName = itemName.trim(), quantity = 1))
+            )
+        }
+    }
+
     private val _pharmacyItems = MutableStateFlow<List<ZadPharmacyItem>>(emptyList())
     val pharmacyItems: StateFlow<List<ZadPharmacyItem>> = _pharmacyItems.asStateFlow()
 
@@ -268,6 +329,22 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             dao.getAllTransactions().collectLatest { txs ->
                 Log.d(TAG, "Room transactions updated → count=${txs.size}")
+                // مرحلة ٣ — معاملة بقالة جديدة (بنكية عبر UnifiedBankListener، أو يدوية) تفتح
+                // سؤال "ضيف إيه للمخزون؟". لازم يقارن بالقايمة القديمة قبل ما تتكتب فوق —
+                // وأول تحميل للتطبيق (transactionsBaselineEstablished لسه false) مايتحسبش
+                // "جديد"، وإلا كل تاريخ البقالة القديم كان هيفتح السؤال ده مرة واحدة عند أول فتح.
+                if (transactionsBaselineEstablished) {
+                    val previousIds = _transactions.value.map { it.id }.toSet()
+                    txs.firstOrNull { tx ->
+                        tx.id !in previousIds && tx.id !in groceryPromptedTxIds &&
+                            tx.category == "البقالة" && tx.txnKind == "expense"
+                    }?.let { newGroceryTx ->
+                        groceryPromptedTxIds.add(newGroceryTx.id)
+                        _pendingGroceryPurchase.value = newGroceryTx
+                    }
+                } else {
+                    transactionsBaselineEstablished = true
+                }
                 _transactions.value = txs
                 recalculateRemainingBalance(txs, _budget.value)
                 recalculateBudgetSuggestion(txs, _budget.value)
@@ -304,6 +381,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 updateFilteredInventory(inv, _inventorySearchQuery.value)
                 checkLowStockItems(inv)
                 predictStockDepletion(inv)
+                refreshInventoryCheckIns()
                 // Only call AI when inventory size changes to avoid excessive API calls
                 if (inv.size != lastMealSuggestInventorySize) {
                     lastMealSuggestInventorySize = inv.size

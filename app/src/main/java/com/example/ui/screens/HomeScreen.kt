@@ -117,6 +117,8 @@ fun HomeScreen(
     val marketPricesFetchState by viewModel.marketPricesFetchState.collectAsState()
     val cashOnHand by viewModel.cashOnHand.collectAsState()
     val habitChips by viewModel.habitChips.collectAsState()
+    val inventoryCheckIns by viewModel.inventoryCheckIns.collectAsState()
+    val pendingGroceryPurchase by viewModel.pendingGroceryPurchase.collectAsState()
 
     // "مصروف" في كارت الميزانية لازم يكون مصروف نفس الدورة اللي "متاح" اتحسب عليها.
     // كان BudgetMath.totalExpense — إجمالي كل المعاملات من أول يوم في التطبيق — جنب
@@ -292,6 +294,17 @@ fun HomeScreen(
                             context.getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
                                 .edit().putBoolean("location_alerts_card_dismissed", true).apply()
                         }
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                // مرحلة ٣ — سؤال متابعة مخزون تفاعلي (أعلى مرشّح بس، عشان مايبقاش إلحاح)
+                inventoryCheckIns.firstOrNull()?.let { candidate ->
+                    com.example.ui.components.InventoryCheckInCard(
+                        candidate = candidate,
+                        onDecrement = { viewModel.answerCheckInDecrement(it) },
+                        onFinished = { viewModel.answerCheckInFinished(it) },
+                        onStillHave = { viewModel.answerCheckInStillHave(it) }
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                 }
@@ -740,6 +753,16 @@ fun HomeScreen(
             recipeTitle = selectedRecipeTitle!!,
             inventory = inventory,
             onDismiss = { showRecipeDialog = false }
+        )
+    }
+
+    // مرحلة ٣ — معاملة بقالة جديدة تفتح سؤال "ضيف إيه للمخزون؟"
+    pendingGroceryPurchase?.let { tx ->
+        com.example.ui.components.GroceryPurchasePromptDialog(
+            transaction = tx,
+            inventory = inventory,
+            onAddItem = { itemName -> viewModel.addGroceryPurchaseItem(itemName) },
+            onDismiss = { viewModel.dismissPendingGroceryPurchase() }
         )
     }
 }
