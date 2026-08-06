@@ -72,6 +72,11 @@ fun ZadIntelligenceScreen(
     val patterns by viewModel.behaviorPatterns.collectAsState()
     val serverBehaviorProfile by viewModel.behaviorProfile.collectAsState()
     val isRefreshingBehaviorProfile by viewModel.isRefreshingBehaviorProfile.collectAsState()
+    // predictNextMonthExpenses() below already fires this AI call every time the screen
+    // opens — it was collected nowhere in this screen until now, so the real answer sat
+    // unused while BehaviorPredictionsTab showed only the local weighted-average fallback.
+    val expensePrediction by viewModel.expensePrediction.collectAsState()
+    val budget by viewModel.budget.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
     var inputText by remember { mutableStateOf("") }
@@ -131,6 +136,8 @@ fun ZadIntelligenceScreen(
                     serverBehaviorProfile = serverBehaviorProfile,
                     isRefreshingBehaviorProfile = isRefreshingBehaviorProfile,
                     onRefreshBehaviorProfile = { viewModel.refreshBehaviorProfile() },
+                    expensePrediction = expensePrediction,
+                    budget = budget,
                     viewModel = viewModel
                 )
                 else -> ToolsChatTab(
@@ -286,6 +293,8 @@ fun BehaviorPredictionsTab(
     serverBehaviorProfile: com.example.data.UserBehaviorProfile? = null,
     isRefreshingBehaviorProfile: Boolean = false,
     onRefreshBehaviorProfile: () -> Unit = {},
+    expensePrediction: com.example.data.AiExpensePrediction? = null,
+    budget: Double = 0.0,
     viewModel: ZadViewModel
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -353,13 +362,21 @@ fun BehaviorPredictionsTab(
                 Text("توقعات زاد", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
             }
         }
+        // نفس شرط HomeScreen بالظبط (توقع AI حقيقي + سقف معروف) — الفرق إن الشاشة دي
+        // كانت بتستدعي predictNextMonthExpenses() فعلاً (LaunchedEffect فوق) بس النتيجة
+        // ماكانتش بتتقرا هنا خالص، فيبقى نداء شبكة ضايع والكارت المحلي (متوسط مرجّح
+        // بسيط، من غير سبب/ثقة/تحذيرات) هو اللي بيظهر دايماً بدل الأدق.
         item {
-            PredictionCard(
-                predictedAmount = predictedNextMonth,
-                currentMonthAmount = monthlyData.lastOrNull()?.second ?: 0.0,
-                lowStockCount = lowStockCount,
-                subscriptionsCount = subscriptions.count { it.isActive }
-            )
+            if (expensePrediction != null && budget > 0) {
+                PredictionCard(expensePrediction, budget)
+            } else {
+                PredictionCard(
+                    predictedAmount = predictedNextMonth,
+                    currentMonthAmount = monthlyData.lastOrNull()?.second ?: 0.0,
+                    lowStockCount = lowStockCount,
+                    subscriptionsCount = subscriptions.count { it.isActive }
+                )
+            }
         }
         item { SmartBuyingTimingCard(inventory, serverBehaviorProfile) }
         if (patterns.isNotEmpty()) {
