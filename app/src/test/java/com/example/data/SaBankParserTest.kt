@@ -50,6 +50,41 @@ class SaBankParserTest {
         assertNull(SaBankParser.extractAmount(text))
     }
 
+    @Test
+    fun `extractAmount excludes masked card digits adjacent to a currency token`() {
+        // "1234 SAR" هنا ملاصقة فعلاً (نفس شكل amountThenCur) — من غير الاستبعاد، minOrNull()
+        // كان هيختار 1234 (رقم البطاقة) بدل 500.00 (المبلغ الحقيقي) لأنه أصغر
+        val text = "بطاقتك *1234 SAR 500.00 تم الخصم"
+        assertEquals(500.00, SaBankParser.extractAmount(text)!!, 0.001)
+    }
+
+    @Test
+    fun `extractAmount excludes card-ending-in digits in English format`() {
+        val text = "Your card ending 1234 SAR 75.00 was charged"
+        assertEquals(75.00, SaBankParser.extractAmount(text)!!, 0.001)
+    }
+
+    // ─── extractBalance — Balance Anchor ─────────────────────────────
+
+    @Test
+    fun `extractBalance reads the bank-stated remaining balance`() {
+        val text = "خصم 30 ريال من حسابك. الرصيد المتاح: 970 ريال"
+        assertEquals(970.0, SaBankParser.extractBalance(text)!!, 0.001)
+    }
+
+    @Test
+    fun `extractBalance handles thousands separator and does not affect extractAmount`() {
+        val text = "مصرف الإنماء: تم إيداع راتب بمبلغ 8,500.00 ريال في حسابك. الرصيد الحالي: 12,300.00 ريال"
+        assertEquals(12300.00, SaBankParser.extractBalance(text)!!, 0.001)
+        assertEquals(8500.00, SaBankParser.extractAmount(text)!!, 0.001)
+    }
+
+    @Test
+    fun `extractBalance returns null when message has no balance mention`() {
+        val text = "مصرف الراجحي: تم خصم بمبلغ 125.50 ريال من حسابك في متجر بنده"
+        assertNull(SaBankParser.extractBalance(text))
+    }
+
     // ─── extractCurrency — مرحلة ١ (docs/agent/PLAN_2026_08_06_rebuild.md) ─────────
 
     @Test
@@ -189,6 +224,7 @@ class SaBankParserTest {
         assertEquals(TxType.PURCHASE, result.txType)
         assertEquals("البقالة", result.category)
         assertEquals("SAR", result.currency)
+        assertEquals(3450.00, result.balance!!, 0.001)
     }
 
     @Test

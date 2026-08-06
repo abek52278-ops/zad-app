@@ -149,7 +149,8 @@ object BankRulesEngine {
                 txType = txType,
                 confidence = rule.confidence,
                 externalRef = externalRef,
-                currency = countryToCurrency(rule.country)
+                currency = countryToCurrency(rule.country),
+                balance = SaBankParser.extractBalance(normalizedText)
             )
         }
         return null

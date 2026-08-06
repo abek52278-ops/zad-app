@@ -39,7 +39,11 @@ data class ParsedBankTx(
     // الرسالة (SaBankParser.extractCurrency) أو المستنتجة من بلد القاعدة (BankRulesEngine).
     // null = مفيش رمز عملة صريح في النص؛ المستهلك (UnifiedBankListener) بيرجع لعملة
     // الـ Market الحالي زي السلوك القديم بالظبط.
-    val currency: String? = null
+    val currency: String? = null,
+    // Balance Anchor — رصيد البنك المذكور صراحة في نفس الرسالة (SaBankParser.extractBalance).
+    // null لو الرسالة مفيهاش رقم رصيد. المستهلك (BalanceAnchor.reconcile عبر
+    // UnifiedBankListener) بيستخدمه لتصحيح الرصيد التراكمي المحلي، مش extractAmount نفسها.
+    val balance: Double? = null
 )
 
 /**
@@ -149,8 +153,17 @@ object SaBankParser {
     // مبلغ ملاصق للعملة
     private val amountThenCur = Regex("""$NUM\s*$CUR""", RegexOption.IGNORE_CASE)
     private val curThenAmount = Regex("""$CUR\s*$NUM""", RegexOption.IGNORE_CASE)
-    // أي رقم مرتبط بالرصيد — يُستبعد
-    private val balanceContext = Regex("""(?:الرصيد|رصيدك|رصيد|المتاح|المتبقي|balance|available)\s*(?:المتاح|الحالي|:)?\s*$CUR?\s*$NUM""", RegexOption.IGNORE_CASE)
+    // أي رقم مرتبط بالرصيد — يُستبعد من extractAmount، ويُستخرج صراحة في extractBalance تحت.
+    // "الحالي"/"المتاح" بعدها ":" غالباً ("الرصيد الحالي: X") — الـ ":" لازم تبقى اختيارية
+    // بعد الكلمة دي (مش جزء من الاختيار بينها وبين الكلمة)، وإلا "الرصيد الحالي: X" ماكانش
+    // بيتطابق خالص (الـ ":" كانت بتقطع المطابقة قبل النقطة دي — bug كان مستخبي لأن
+    // extractAmount بيرجع أصغر رقم أصلاً فمكانش بيبين إلا لما extractBalance بدأ يعتمد
+    // على المطابقة فعلياً تنجح لا بس تستبعد بالصدفة).
+    private val balanceContext = Regex("""(?:الرصيد|رصيدك|رصيد|المتاح|المتبقي|balance|available)\s*(?:المتاح|الحالي)?\s*:?\s*$CUR?\s*$NUM""", RegexOption.IGNORE_CASE)
+    // آخر أرقام البطاقة (*1234 / xxxx1234 / بطاقة تنتهي بـ1234 / card ending 1234) — مش
+    // مبلغ عملية. نادراً ما يكون رقم البطاقة ملاصق مباشرة لعملة في نفس الجملة، بس لو حصل
+    // ممكن candidates.minOrNull() تحت يختاره غلط لو كان أصغر من المبلغ الحقيقي — بيُستبعد
+    private val cardMaskContext = Regex("""(?:\*{1,4}|[xX*]{2,6}|بطاقة\s*(?:رقم\s*)?(?:تنتهي|منتهية)\s*ب\S*|card\s*(?:no\.?|number)?\s*ending(?:\s*(?:in|with))?)\s*$NUM""", RegexOption.IGNORE_CASE)
 
     private fun firstNumberIn(match: MatchResult): Double? =
         match.groupValues.drop(1).firstOrNull { it.isNotBlank() }?.let { normalizeNumber(it) }
@@ -188,11 +201,13 @@ object SaBankParser {
             firstNumberIn(m)?.let { if (it > 0) return it }
         }
 
-        // نحدد مواقع أرقام الرصيد عشان نستبعدها
+        // نحدد مواقع أرقام الرصيد وأرقام آخر البطاقة عشان نستبعدهم
         val balanceRanges = balanceContext.findAll(text).map { it.range }.toList()
+        val cardMaskRanges = cardMaskContext.findAll(text).map { it.range }.toList()
 
         val candidates = (amountThenCur.findAll(text) + curThenAmount.findAll(text))
             .filter { m -> balanceRanges.none { it.first <= m.range.first && m.range.first <= it.last } }
+            .filter { m -> cardMaskRanges.none { it.first <= m.range.first && m.range.first <= it.last } }
             .mapNotNull { firstNumberIn(it) }
             .filter { it > 0 }
             .toList()
@@ -253,6 +268,19 @@ object SaBankParser {
 
         val family = ambiguousCurrencyFamilies[lower] ?: return null
         return MarketPrefs.currentMarket.currencyCode.takeIf { it in family }
+    }
+
+    /**
+     * Balance Anchor — الرقم اللي البنك نفسه بيقوله هو رصيدك الحالي فعلاً ("الرصيد: X" /
+     * "المتبقي: X" / "Available Balance: X"). قبل كده كان بيتستبعد بس (balanceContext فوق)،
+     * دلوقتي بنرجّعه لـ [BalanceAnchor] عشان يصحح أي انحراف تراكمي (إشعارات اتفوتت، معاملة
+     * اتفسّرت غلط) — من غير ما يأثر على extractAmount نفسها. null لو مفيش رقم رصيد صريح
+     * في الرسالة، وده طبيعي (أغلب رسائل البنوك لأ).
+     */
+    fun extractBalance(rawText: String): Double? {
+        val text = normalizeDigits(rawText)
+        val match = balanceContext.find(text) ?: return null
+        return firstNumberIn(match)?.takeIf { it >= 0 }
     }
 
     // ─── 3) تحديد نوع العملية بكلمات صريحة ───────────────────────
@@ -448,7 +476,8 @@ object SaBankParser {
             merchantName = merchant,
             rawText = text.take(160),
             txType = finalType,
-            currency = extractCurrency(fullText)
+            currency = extractCurrency(fullText),
+            balance = extractBalance(fullText)
         )
     }
 

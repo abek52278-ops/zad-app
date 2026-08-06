@@ -60,7 +60,10 @@ class UnifiedBankListener : NotificationListenerService() {
         "cib", "qnbalahli", "nbe", "banquemisr", "alexbank", "hsbcegypt",
         "instapay", "fawry", "vodafonecash", "etisalatcash", "orangecash",
         "valu", "halan", "telda", "meeza", "aman", "souhoola",
-        "com.fawry", "com.vodafone"
+        "com.fawry", "com.vodafone",
+        // ── قطر / البحرين (أسماء تطبيقات — أفضل تخمين، غير مختبرة زي مصر/تركيا فوق) ──
+        "qnb", "dohabank", "cbq", "qib", "dukhanbank", "alrayan",
+        "nbbonline", "bbkonline", "ahliunited", "alsalambank", "ithmaar", "benefitpay"
     )
 
     /**
@@ -291,6 +294,12 @@ class UnifiedBankListener : NotificationListenerService() {
                 )
 
                 BankTransactionApplier.apply(applicationContext, transaction, parsed.txType)
+
+                // Balance Anchor — الرسالة دي فيها رقم "الرصيد: X" صريح من البنك نفسه،
+                // نستخدمه لتصحيح أي انحراف تراكمي (إشعارات اتفوتت) بدل ما نرميه زي قبل كده
+                parsed.balance?.let { bankBalance ->
+                    BalanceAnchor.reconcile(applicationContext, bankBalance, parsed.amount, parsed.bankName, parsed.currency)
+                }
 
                 // Salary detection: ADD to budget (not replace)
                 if (parsed.category == "الراتب" && !parsed.isExpense) {
