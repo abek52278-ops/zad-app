@@ -22,6 +22,7 @@ import {
   reasonForCode, parseDismissCallback, normalizeBindingCode, memoryNoteForDismissal,
   formatBalanceMessage, formatTransactionsMessage, formatInsightTitle,
   confirmSpendKeyboard, parseSpendCallback,
+  checkInKeyboard, parseCheckInCallback, checkInPromptMessage,
 } from "./telegram.ts";
 import {
   AgentContextInput, agentSystemPrompt, buildAgentContext, clampForTelegram,
@@ -40,6 +41,17 @@ const BOT_CONFIGURED = BOT_TOKEN.length > 0;
 // webhookCallback below. If unset we derive one from the bot token rather than leaving
 // verification off entirely — see deriveWebhookSecret in context.ts.
 const WEBHOOK_SECRET_ENV = Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ?? undefined;
+
+// Gates the daily check-in cron trigger (?job=daily_checkins) below. This endpoint has to
+// live on zad-telegram-bot because Telegram's own webhook needs verify_jwt=false on this
+// function, so the platform-level JWT check that gates every other function doesn't apply
+// here — without this, anyone on the internet could POST ?job=daily_checkins and spam
+// every bound user. Deliberately a plain literal (matching the same value in this repo's
+// telegram_checkin_pipeline migration) rather than a project secret: it authorizes nothing
+// beyond triggering this one job (no data access of its own), so committing it is a much
+// smaller blast radius than a leaked service-role key, and there is no tool available in
+// this environment to provision a new Supabase project secret remotely.
+const CHECKIN_CRON_SECRET = "5bbebc0b2acb1099e758e822be15144f9bf30175da67a459dd8511b0139c8ec5";
 
 function toGrammyKeyboard(rows: InlineKeyboardButton[][]): InlineKeyboard {
   const kb = new InlineKeyboard();
@@ -60,6 +72,95 @@ async function resolveUserId(sb: SupabaseClient, chatId: number): Promise<string
     .not("bound_at", "is", null)
     .maybeSingle();
   return (data as { user_id: string } | null)?.user_id ?? null;
+}
+
+/** Direct Telegram API call, not a grammY ctx.reply — this fires OUTSIDE any inbound
+ * webhook update (the cron job below has no ctx to reply through). */
+async function sendTelegramMessage(chatId: number, text: string, keyboard?: InlineKeyboardButton[][]): Promise<void> {
+  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text,
+      ...(keyboard ? { reply_markup: { inline_keyboard: keyboard } } : {}),
+    }),
+  });
+}
+
+/** Server-side low-stock detection against zad_inventory + zad_consumption (Task 18's
+ * learning loop) — deliberately NOT a port of ConsumptionLearner's on-device
+ * SharedPreferences model, which never leaves the Android client. "Needs a check-in" here
+ * means: at/under its low_stock_threshold, OR — when a real consumption rate has been
+ * learned (rate_known) — predicted to run out within 2 days at that rate. Items with an
+ * already-pending prompt are excluded (the unique index on telegram_checkin_prompts is the
+ * hard guarantee; this filter just avoids the wasted query/round-trip).
+ */
+async function findCheckInCandidates(sb: SupabaseClient, userId: string): Promise<Array<{ item_name: string; quantity: number }>> {
+  const [{ data: inv }, { data: cons }, { data: pending }] = await Promise.all([
+    sb.from("zad_inventory").select("item_name,quantity,low_stock_threshold").eq("user_id", userId),
+    sb.from("zad_consumption").select("item_name,avg_daily_qty,rate_known").eq("user_id", userId),
+    sb.from("telegram_checkin_prompts").select("item_name").eq("user_id", userId).eq("status", "pending"),
+  ]);
+
+  const consByItem = new Map(
+    ((cons ?? []) as Array<{ item_name: string; avg_daily_qty: number; rate_known: boolean }>)
+      .map((c) => [c.item_name, c]),
+  );
+  const pendingItems = new Set(((pending ?? []) as Array<{ item_name: string }>).map((p) => p.item_name));
+
+  return ((inv ?? []) as Array<{ item_name: string; quantity: number; low_stock_threshold: number | null }>)
+    .filter((item) => {
+      if (pendingItems.has(item.item_name)) return false;
+      const threshold = item.low_stock_threshold ?? 2;
+      if (item.quantity <= threshold) return true;
+      const rate = consByItem.get(item.item_name);
+      if (rate?.rate_known && rate.avg_daily_qty > 0) {
+        return item.quantity / rate.avg_daily_qty <= 2;
+      }
+      return false;
+    })
+    .map((item) => ({ item_name: item.item_name, quantity: item.quantity }));
+}
+
+/** The daily cron entry point. Capped at 2 prompts/user/day — this is a check-in nudge,
+ * not a notification flood; a household with many low-stock items still only hears about
+ * its two most pressing ones today (candidates aren't ranked beyond DB order — good enough
+ * for a cap this small, not worth a scoring pass). */
+const MAX_CHECKINS_PER_USER_PER_DAY = 2;
+
+async function runDailyCheckins(sb: SupabaseClient): Promise<{ usersChecked: number; promptsSent: number }> {
+  // Pending prompts nobody ever answered would otherwise block that item forever.
+  await sb.from("telegram_checkin_prompts")
+    .update({ status: "expired" })
+    .eq("status", "pending")
+    .lt("expires_at", new Date().toISOString());
+
+  const { data: bindings } = await sb.from("telegram_bindings")
+    .select("user_id,chat_id")
+    .not("bound_at", "is", null)
+    .not("chat_id", "is", null);
+
+  const rows = (bindings ?? []) as Array<{ user_id: string; chat_id: number }>;
+  let promptsSent = 0;
+
+  for (const b of rows) {
+    const candidates = await findCheckInCandidates(sb, b.user_id);
+    for (const item of candidates.slice(0, MAX_CHECKINS_PER_USER_PER_DAY)) {
+      const { data: prompt, error } = await sb.from("telegram_checkin_prompts")
+        .insert({ user_id: b.user_id, item_name: item.item_name, quantity_at_prompt: item.quantity })
+        .select("id")
+        .single();
+      if (error || !prompt) {
+        console.error("checkin prompt insert failed:", error?.message);
+        continue;
+      }
+      await sendTelegramMessage(b.chat_id, checkInPromptMessage(item.item_name), checkInKeyboard((prompt as { id: string }).id));
+      promptsSent++;
+    }
+  }
+
+  return { usersChecked: rows.length, promptsSent };
 }
 
 /** Pulls the same picture of the customer the in-app chat gets. Every query is
@@ -382,6 +483,52 @@ bot.on("callback_query:data", async (ctx) => {
     return;
   }
 
+  // Telegram Micro-Checkins — "لسه موجود ✅" / "خلص ❌" reply to a proactive daily prompt.
+  const checkin = parseCheckInCallback(data);
+  if (checkin) {
+    const { data: promptRow } = await sb.from("telegram_checkin_prompts")
+      .select("id,item_name,quantity_at_prompt,status,expires_at")
+      .eq("id", checkin.promptId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    const prompt = promptRow as {
+      id: string; item_name: string; quantity_at_prompt: number; status: string; expires_at: string;
+    } | null;
+
+    if (!prompt) {
+      await ctx.reply("السؤال ده مش موجود أو مش بتاعك.");
+      return;
+    }
+    if (prompt.status !== "pending") {
+      await ctx.reply("رديت على السؤال ده قبل كده.");
+      return;
+    }
+    if (new Date(prompt.expires_at) < new Date()) {
+      await sb.from("telegram_checkin_prompts").update({ status: "expired" }).eq("id", prompt.id);
+      await ctx.reply("السؤال ده قديم — هسأل تاني في المرة الجاية.");
+      return;
+    }
+
+    // نفس نمط zad-brain's update_inventory_qty tool بالظبط: أي إجابة كمية لازم تتسجل
+    // كـ observation وتعيد حساب معدل الاستهلاك، وإلا الصنف يفضل "غير معروف" للأبد
+    // (Task 18 Fault B) والعقل يسأل عنه تاني وتاني من غير ما يتعلم حاجة.
+    const newQty = checkin.stillInStock ? prompt.quantity_at_prompt : 0;
+    if (!checkin.stillInStock) {
+      await sb.from("zad_inventory").update({ quantity: 0 }).eq("user_id", userId).eq("item_name", prompt.item_name);
+    }
+    const { error: obsErr } = await sb.rpc("zad_record_observation", {
+      p_user: userId, p_item: prompt.item_name, p_qty: newQty, p_source: "question_answer",
+    });
+    if (obsErr) console.error("checkin zad_record_observation failed:", obsErr.message);
+
+    await sb.from("telegram_checkin_prompts")
+      .update({ status: checkin.stillInStock ? "answered_yes" : "answered_no", answered_at: new Date().toISOString() })
+      .eq("id", prompt.id);
+
+    await ctx.reply(checkin.stillInStock ? "تمام ✅ هفتكر إني سألت عنه." : `سجلتها خلصت ✅ ${prompt.item_name}`);
+    return;
+  }
+
   const dismiss = parseDismissCallback(data);
   if (dismiss) {
     const reason = reasonForCode(dismiss.reasonCode);
@@ -478,6 +625,27 @@ Deno.serve(async (req: Request) => {
       { headers: { "Content-Type": "application/json" } },
     );
   }
+  // Daily check-in cron trigger — see CHECKIN_CRON_SECRET's comment above for why this
+  // needs its own auth instead of relying on verify_jwt. Checked before BOT_CONFIGURED so
+  // a misconfigured bot token still reports a clear reason instead of falling through to
+  // "bot not configured" below, which would otherwise read as this branch not existing.
+  if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "daily_checkins") {
+    if (req.headers.get("X-Checkin-Cron-Secret") !== CHECKIN_CRON_SECRET) {
+      return new Response("unauthorized", { status: 401 });
+    }
+    if (!BOT_CONFIGURED) {
+      return new Response(JSON.stringify({ ok: false, reason: "bot not configured" }), { status: 503 });
+    }
+    try {
+      const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+      const result = await runDailyCheckins(sb);
+      return new Response(JSON.stringify({ ok: true, ...result }), { headers: { "Content-Type": "application/json" } });
+    } catch (e) {
+      console.error("runDailyCheckins failed:", e);
+      return new Response(JSON.stringify({ ok: false, error: String(e) }), { status: 500 });
+    }
+  }
+
   if (!BOT_CONFIGURED) {
     // Fail loudly rather than 500-ing opaquely: Telegram retries on 5xx, and a retry
     // loop against a misconfigured project helps nobody.

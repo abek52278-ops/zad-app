@@ -76,6 +76,29 @@ export function parseDismissCallback(data: string): { insightId: string; reasonC
   return { insightId: parts[1], reasonCode: parts[2] };
 }
 
+/** Telegram Micro-Checkins — "is <item> still in stock?" prompt buttons. Only the prompt
+ * row's id travels in callback_data (same reasoning as confirmSpendKeyboard: a long
+ * Arabic item name risks the 64-byte callback_data cap). */
+export function checkInKeyboard(promptId: string): InlineKeyboardButton[][] {
+  return [[
+    { text: "✅ لسه موجود", callback_data: `ck:${promptId}:y` },
+    { text: "❌ خلص", callback_data: `ck:${promptId}:n` },
+  ]];
+}
+
+/** "ck:<uuid>:y|n" callback_data */
+export function parseCheckInCallback(data: string): { promptId: string; stillInStock: boolean } | null {
+  const parts = data.split(":");
+  if (parts.length !== 3 || parts[0] !== "ck") return null;
+  if (parts[2] !== "y" && parts[2] !== "n") return null;
+  if (!/^[0-9a-fA-F-]{36}$/.test(parts[1])) return null;
+  return { promptId: parts[1], stillInStock: parts[2] === "y" };
+}
+
+export function checkInPromptMessage(itemName: string): string {
+  return `تذكير سريع: ${itemName} لسه موجود عندك ولا خلص؟`;
+}
+
 export function formatBalanceMessage(budget: number, spent: number, income: number): string {
   const remaining = budget - spent + income;
   // "الرصيد المتبقي" هنا شهر تقويمي بسيط عمدًا — مش نفس "متاح" اللي في التطبيق (دورة

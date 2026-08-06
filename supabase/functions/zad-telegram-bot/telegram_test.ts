@@ -2,6 +2,7 @@ import { assert, assertEquals } from "jsr:@std/assert@1";
 import {
   normalizeBindingCode, parseDismissCallback, reasonForCode, memoryNoteForDismissal,
   formatBalanceMessage, formatTransactionsMessage, mainMenuKeyboard, dismissKeyboard,
+  checkInKeyboard, parseCheckInCallback, checkInPromptMessage,
 } from "./telegram.ts";
 
 Deno.test("normalizeBindingCode uppercases a valid code", () => {
@@ -92,4 +93,39 @@ Deno.test("dismissKeyboard encodes the insight id and all three reason codes", (
   const kb = dismissKeyboard("insight-1");
   const codes = kb[0].map((b) => b.callback_data);
   assertEquals(codes.sort(), ["d:insight-1:n", "d:insight-1:t", "d:insight-1:w"]);
+});
+
+Deno.test("checkInKeyboard encodes the prompt id with y/n suffixes", () => {
+  const kb = checkInKeyboard("11111111-1111-1111-1111-111111111111");
+  const codes = kb[0].map((b) => b.callback_data);
+  assertEquals(codes, [
+    "ck:11111111-1111-1111-1111-111111111111:y",
+    "ck:11111111-1111-1111-1111-111111111111:n",
+  ]);
+});
+
+Deno.test("parseCheckInCallback parses a well-formed still-in-stock callback", () => {
+  const parsed = parseCheckInCallback("ck:11111111-1111-1111-1111-111111111111:y");
+  assertEquals(parsed, { promptId: "11111111-1111-1111-1111-111111111111", stillInStock: true });
+});
+
+Deno.test("parseCheckInCallback parses a well-formed finished callback", () => {
+  const parsed = parseCheckInCallback("ck:11111111-1111-1111-1111-111111111111:n");
+  assertEquals(parsed, { promptId: "11111111-1111-1111-1111-111111111111", stillInStock: false });
+});
+
+Deno.test("parseCheckInCallback rejects a non-checkin callback", () => {
+  assertEquals(parseCheckInCallback("d:insight-1:n"), null);
+});
+
+Deno.test("parseCheckInCallback rejects a malformed uuid", () => {
+  assertEquals(parseCheckInCallback("ck:not-a-uuid:y"), null);
+});
+
+Deno.test("parseCheckInCallback rejects an unknown answer letter", () => {
+  assertEquals(parseCheckInCallback("ck:11111111-1111-1111-1111-111111111111:z"), null);
+});
+
+Deno.test("checkInPromptMessage includes the item name", () => {
+  assert(checkInPromptMessage("لبن").includes("لبن"));
 });
