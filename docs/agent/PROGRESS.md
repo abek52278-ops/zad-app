@@ -988,3 +988,71 @@ Phase A بقت مقفولة. الصلاحية نفسها كانت اتشالت �
 
 **التحقق**: `lintDebug` نضيف، `compileDebugKotlin` نضيف، 129 unit test بيعدوا،
 والـ merged manifest فيه 15 صلاحية (VIBRATE موجودة، SMS صفر).
+
+## دفعة تصليحات UX/infrastructure — 7 تاسكات (2026-08-06) — DONE
+
+مش جزء من ترقيم Task 1-28 الموجود — دفعة بق تقارير مستخدم مباشرة (زر تحويل العملة،
+الأسعار الحية، صورة البروفايل، تنبيهات الدوا، زر المايك، الاشتراكات، شات العائلة).
+خطة كاملة اتكتبت في plan mode واتوافق عليها الأول (`/home/codespace/.claude/plans/
+splendid-cooking-marble.md` — ملف خارج الريبو، مرجع بس). كل تاسك commit مستقل، وكل
+واحد فيهم اتبنى واتفحص فعلياً (`compileDebugUnitTestKotlin` + `testDebugUnitTest`،
+163 test) بعد التعديل مباشرة — مفيش تقرير نجاح من غير تشغيل.
+
+1. **`b45981e` — زر تحويل العملة/الدولة كان no-op.** `MarketPrefs.currentMarket` كان
+   `@Volatile var` عادي مش Compose state، فـ `CurrencyFormatter` مكانش بيتحدث غير
+   بالصدفة مع أي recomposition تانية. بقى `by mutableStateOf(...)` — كل الـ ١٧٩ نداء
+   لـ `CurrencyFormatter.format/formatNumber/symbol/currencyCode` بقوا reactive
+   تلقائياً من غير ما يتغيروا هما. البانر نفسه كمان كان بيسيب `dismissedTravelCountry`
+   زي ما هو فيفضل ظاهر حتى بعد نجاح التحويل — بقى بيمسح نفسه فوراً. وضيف
+   `Context.findActivity().recreate()` بعد التبديل عشان اللغة (locale) تتحدث كمان على
+   أجهزة أقدم من API 33 (`MainActivity` مش `AppCompatActivity`، فمفيش auto-recreate).
+
+2. **`ac3ca99` — الأسعار الحية بتتقفل بشكل غلط (نجاح فاضي بدل خطأ).**
+   `ZadAiRepository.callAction()` كان بيبلع أي exception ويرجّع `emptyMap()`، فـ
+   `fetchLiveMarketPrices()` بيفحص `response["ok"] == false` بس ده `null` مش `false`
+   على فشل شبكة، فالفحص بيعدي بصمت والـ ViewModel بيسجل "نجح، صفر نتايج" بدل Error.
+   `callAction` بقى عنده `swallowErrors` (افتراضي `true`، باقي الـ ٢٠+ نداء زي ما هما)
+   ونداء الأسعار الحية بس بيبعت `false`. مهلة القراءة اتزودت لـ ١١٠ ثانية (سيرفر أسوأ
+   حالة ~١٠٠ث) مع سقف صلب `withTimeout(120s)`. كاش محلي (SharedPreferences لكل سوق)
+   بيعرض آخر أسعار نجحت فوراً بدل سبينر فاضي.
+
+3. **`c9a9e88` — أبلود الصورة كان بيمسح الاسم صامتاً + الهيدر الرئيسي مالوش مكان أفاتار.**
+   `uploadAvatar()` كان بيعمل upsert باسم `_userName.value ?: ""` — لو الاسم لسه ما
+   اتحملش، بيتمسح. `SupabaseRepo.updateUserProfile`'s `name` بقى nullable وبيسيب
+   الاسم الحالي لو `null`. `ZadTopHeader` (هيدر الهوم الفعلي) مكانش عنده `avatarUri`
+   parameter خالص — بس دايرة الـ drawer كانت شغالة. ضفت دايرة أفاتار في الهيدر متوصلة
+   بنفس `StateFlow` المشترك، فالمكانين يتحدثوا سوا من غير refresh يدوي.
+
+4. **`2685ed6` — تنبيهات الدوا: الجدولة سليمة، المشكلة كانت اكتشاف إذن مفقود.**
+   `AlarmManager.setExactAndAllowWhileIdle` + قناة `IMPORTANCE_HIGH` + إعادة جدولة بعد
+   الريستارت كانوا موجودين وصح. على Android 14+، `SCHEDULE_EXACT_ALARM` مرفوض
+   افتراضياً لحد ما المستخدم يوافق يدوي، والتنبيه الوحيد كان بانر مدفون جوه
+   `PharmacyScreen`. ضفت `ExactAlarmPermissionCard` على الرئيسية (نفس نمط
+   `LocationAlertsCard`). Badge: أندرويد مفيهوش API عام موحد لكل اللانشرات —
+   `NotificationChannel.setShowBadge(true)` (كان `true` افتراضي، بقى صريح) هو المدعوم
+   رسمياً؛ مكتبة OEM خارجية (ShortcutBadger) اتأجلت عمداً لحد ما تتلاحظ مشكلة فعلية.
+
+5. **`e1ef9af` — شيل زرار تسجيل الصوت الداخلي (`ZadVoiceFab`) خالص.**
+   حذف الملف + `AudioRecorderHelper.kt` (المستخدم الوحيد ليه) + `RECORD_AUDIO` من
+   المانيفست (اتأكد من الـ merged manifest الفعلي، مش المصدر بس) + كل الكود الميت
+   المرتبط (`processVoiceCommand` client wrappers، `VoiceAgentResponse`/`VoiceAgentData`،
+   ٤ اختبارات Roborazzi كانت بتصوره). `TelegramBotCard`/`TelegramBotSheet` الموجودين
+   أصلاً بقوا نقطة الدخول الوحيدة لبوت تليجرام (already had the exact `ACTION_VIEW`
+   deep-link pattern المطلوب — مفيش كود جديد احتاج).
+
+6. **`af0417b` — فصل تاب "الاشتراكات والفرص" من عقل زاد لشاشة `SubscriptionsScreen`
+   مستقلة.** الـ Navigation/Drawer/NavHost كانوا أصلاً متوصلين على `SubscriptionsScreen`
+   (بس نسخة أنحف) — نقلت المحتوى الغني (مخطط سداد الديون، عروض حية، تحديات عائلة،
+   صناديق تجميع) ليها، وسيبت `Overview`/`Behavior&Predictions`/`Tools&Chat` جوه عقل
+   زاد زي ما هي (القرار: الاقتصار على نقل الاشتراكات بس، مش "شات فقط" بالكامل —
+   الطلب الأوسع ده اتأجل عمداً). `SubscriptionsScreen` بقت محتاجة `familyViewModel`
+   param جديد. `detectSubscriptions()` كان بيتنادى مرتين (من الشاشتين) — بقى مرة واحدة.
+
+7. **`9d24e3d` — بق `senderId`/`userId` في شات العائلة + ترتيب فواصل التاريخ + كارت SOS
+   في عقل زاد.** `HomeScreen`'s mini widget كان بيقارن `msg.senderId` (بيخزن
+   `family_members.id`) مع `member.userId` (auth user id) — مقارنة غلط دايماً فاشلة.
+   فواصل التاريخ في `FamilyScreen.ChatTab` كانت بتترتب تحت مجموعتها بدل فوقها بسبب
+   `reverseLayout=true` + ترتيب emission غلط — اتصلح بـ `itemsIndexed` ونظرة قدّام
+   للرسالة الجاية. `SosBubble` مفيهوش overlay ثابت للنقل أصلاً (رسالة شات عادية) —
+   ضفت `ActiveSosBanner` جديد فوق تاب Tools&Chat جوه عقل زاد، بيظهر لو آخر نداء طوارئ
+   عمره أقل من ساعتين (مفيش resolved flag في الـ schema)، بيودي لشات العائلة بالضغط.
