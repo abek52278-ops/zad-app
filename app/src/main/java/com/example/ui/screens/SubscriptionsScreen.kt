@@ -34,6 +34,8 @@ import com.example.ui.components.ZadScreenBanner
 import com.example.ui.components.pressableScale
 import com.example.ui.components.ZadLottieAsset
 import com.example.ui.components.ZadTransitions
+import com.example.ui.components.zadGlassBlur
+import com.example.ui.components.subscriptionBrandFor
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 import java.time.LocalDate
@@ -102,6 +104,19 @@ fun SubscriptionsScreen(
 
             // Summary Banner
             com.example.ui.components.AppearOnEntry {
+            Box {
+            // بقعة ضوء زجاجية — نفس أداة ZadCardHero، هنا بس لأن البانر ده عنصر واحد في
+            // الشاشة (مش صف متكرر في LazyColumn زي كروت الاشتراكات تحت، فمفيش تكلفة أداء
+            // من تكرار الـ blur على عناصر كتير في قايمة بتتمرر)
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .align(Alignment.TopStart)
+                    .padding(horizontal = 16.dp)
+                    .offset(x = (-20).dp, y = (-8).dp)
+                    .zadGlassBlur(32.dp)
+                    .background(Color.White.copy(alpha = 0.18f), CircleShape)
+            )
             ZadScreenBanner(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 contentPadding = 20.dp
@@ -124,6 +139,7 @@ fun SubscriptionsScreen(
                         Text("${activeSubs.size}", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
+            }
             }
             }
 
@@ -238,8 +254,10 @@ fun SubscriptionsScreen(
     }
 }
 
+// internal مش private — Roborazzi capture tests (PreviewTest.kt) محتاجة توصله مباشرة،
+// نفس نمط NearbyStoreCard (الشاشة الأب SubscriptionsScreen نفسها stateful)
 @Composable
-private fun SubScreenSubscriptionCardFull(
+internal fun SubScreenSubscriptionCardFull(
     sub: ZadSubscription,
     onToggleActive: () -> Unit,
     onToggleAutoDeduct: () -> Unit,
@@ -259,7 +277,12 @@ private fun SubScreenSubscriptionCardFull(
         else -> successColor
     }
 
-    val subCardShape = RoundedCornerShape(16.dp)
+    // مرحلة ٥ب-٤ (docs/agent/PLAN_2026_08_06_rebuild.md) — 24dp بدل 16dp، نفس نصف قطر
+    // باقي كروت الـ glass family. برند الخدمة (لو معروف) بيرجع أيقونة عائمة ملوّنة —
+    // ده بالظبط اللي كان مبرر شيل الأيقونة قبل كده ("بتتكرر ومتفرقش")، دلوقتي الأيقونة
+    // بتختلف فعلياً حسب الخدمة فرجعت لها لازمة.
+    val subCardShape = RoundedCornerShape(24.dp)
+    val brand = subscriptionBrandFor(sub.title, sub.provider)
     ZadListCard(
         modifier = Modifier.pressableScale(),
         shape = subCardShape,
@@ -274,10 +297,20 @@ private fun SubScreenSubscriptionCardFull(
                     .fillMaxHeight()
                     .background(if (sub.isActive) daysColor else outlineVariant)
             )
-            // The mockup's subscription row is name + renewal + price against the
-            // colored edge — no leading icon. The 48dp credit-card circle that sat
-            // here repeated on every row and said nothing a row can differ on.
             Row(modifier = Modifier.padding(16.dp).weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            if (brand != null) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .shadow(elevation = 5.dp, shape = CircleShape, spotColor = brand.color.copy(alpha = 0.5f))
+                        .clip(CircleShape)
+                        .background(brand.color.copy(alpha = if (sub.isActive) 0.14f else 0.06f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(brand.icon, contentDescription = null, tint = brand.color.copy(alpha = if (sub.isActive) 1f else 0.5f), modifier = Modifier.size(20.dp))
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(sub.title, style = Typography.titleMedium, fontWeight = FontWeight.Bold,

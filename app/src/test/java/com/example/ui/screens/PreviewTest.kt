@@ -64,6 +64,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import java.time.LocalDate
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -403,6 +404,50 @@ class PreviewTest {
             }
         }
         composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/inventory_checkin_card_glass.png")
+    }
+
+    // مرحلة ٥ب-٤ — شاشة الاشتراكات وأيقونات البراندات (docs/agent/PLAN_2026_08_06_rebuild.md):
+    // 24dp + شارة برند عائمة ملوّنة (Netflix/Spotify) مقابل صنف مايتطابقش (رجوع للسلوك القديم).
+    @Test
+    fun captureSubscriptionCard_recognizedBrand() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.background(background).padding(16.dp)) {
+                    SubScreenSubscriptionCardFull(
+                        sub = com.example.data.ZadSubscription(
+                            title = "Netflix",
+                            amount = 55.0,
+                            renewalDate = LocalDate.now().plusDays(3).toString(),
+                            isActive = true,
+                            autoDeduct = true
+                        ),
+                        onToggleActive = {}, onToggleAutoDeduct = {}, onDelete = {}
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/subscription_card_netflix.png")
+    }
+
+    @Test
+    fun captureSubscriptionCard_unrecognizedBrand() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.background(background).padding(16.dp)) {
+                    SubScreenSubscriptionCardFull(
+                        sub = com.example.data.ZadSubscription(
+                            title = "اشتراك نادي القراءة",
+                            amount = 30.0,
+                            renewalDate = LocalDate.now().plusDays(15).toString(),
+                            isActive = true,
+                            autoDeduct = false
+                        ),
+                        onToggleActive = {}, onToggleAutoDeduct = {}, onDelete = {}
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/subscription_card_generic.png")
     }
 
     /**
