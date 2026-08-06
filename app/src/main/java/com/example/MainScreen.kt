@@ -289,7 +289,8 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                         composable(ZadRoutes.ASSISTANT) {
                             ZadIntelligenceScreen(
                                 viewModel = viewModel,
-                                familyViewModel = familyViewModel
+                                familyViewModel = familyViewModel,
+                                onNavigateToFamily = { go(ZadRoutes.FAMILY) }
                             )
                         }
                         composable(ZadRoutes.TASBIHA) { TasbihaScreen(viewModel = familyViewModel) }

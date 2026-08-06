@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.TrendingFlat
 import androidx.compose.material.icons.filled.*
@@ -59,7 +60,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun ZadIntelligenceScreen(
     viewModel: ZadViewModel,
-    familyViewModel: com.example.ui.viewmodels.FamilyViewModel
+    familyViewModel: com.example.ui.viewmodels.FamilyViewModel,
+    onNavigateToFamily: () -> Unit = {}
 ) {
     val transactions by viewModel.transactions.collectAsState()
     val inventory by viewModel.inventory.collectAsState()
@@ -136,6 +138,8 @@ fun ZadIntelligenceScreen(
                     report = brainReport,
                     predictedNextMonth = predictNextMonth(computeMonthlyData(transactions, LocalContext.current)),
                     viewModel = viewModel,
+                    familyViewModel = familyViewModel,
+                    onNavigateToFamily = onNavigateToFamily,
                     messages = messages,
                     isTyping = isTyping,
                     inputText = inputText,
@@ -392,6 +396,8 @@ fun ToolsChatTab(
     report: com.example.data.ZadCentralBrain.BrainReport? = null,
     predictedNextMonth: Double,
     viewModel: ZadViewModel,
+    familyViewModel: com.example.ui.viewmodels.FamilyViewModel,
+    onNavigateToFamily: () -> Unit = {},
     messages: List<AiChatMessage>,
     isTyping: Boolean,
     inputText: String,
@@ -402,6 +408,7 @@ fun ToolsChatTab(
     var showChat by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        ActiveSosBanner(familyViewModel = familyViewModel, onOpenFamilyChat = onNavigateToFamily)
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -474,6 +481,48 @@ fun ToolsChatTab(
                     item { Spacer(modifier = Modifier.height(80.dp)) }
                 }
             }
+        }
+    }
+}
+
+/**
+ * تاسك ٧ — نداء الطوارئ (SosBubble) أصلاً رسالة شات عادية جوه FamilyScreen، مش overlay
+ * ثابت منفصل زي ما كان متصوَّر. الإضافة هنا: كارت حالة صغير في أعلى عقل زاد يظهر لو
+ * فيه نداء طوارئ "نشط" (آخر رسالة SOS في آخر ساعتين، مفيش resolved flag في الـ schema
+ * فالحداثة الزمنية هي المؤشر البديل)، بيودي المستخدم لشات العائلة عند الضغط — إضافة
+ * جنب النداء الأصلي، مش بدل منه.
+ */
+@Composable
+private fun ActiveSosBanner(familyViewModel: com.example.ui.viewmodels.FamilyViewModel, onOpenFamilyChat: () -> Unit) {
+    val familyState by familyViewModel.state.collectAsState()
+    val active = familyState as? com.example.ui.viewmodels.FamilyState.Active ?: return
+    val latestSos = active.messages.lastOrNull { it.messageType == "SOS" } ?: return
+
+    val isRecent = try {
+        java.time.Instant.parse(latestSos.createdAt ?: "")
+            .isAfter(java.time.Instant.now().minusSeconds(2 * 3600))
+    } catch (e: Exception) { false }
+    if (!isRecent) return
+
+    val senderAlias = active.members.find { it.id == latestSos.senderId }?.alias ?: return
+
+    Surface(
+        onClick = onOpenFamilyChat,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(14.dp),
+        color = dangerColor.copy(alpha = 0.12f)
+    ) {
+        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Warning, contentDescription = null, tint = dangerColor, modifier = Modifier.size(22.dp))
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                stringResource(R.string.sos_call_from, senderAlias),
+                style = Typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                color = dangerColor,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = stringResource(R.string.open_chat), tint = dangerColor, modifier = Modifier.size(18.dp))
         }
     }
 }

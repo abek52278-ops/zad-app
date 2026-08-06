@@ -1569,11 +1569,16 @@ fun ChatTab(
         ) {
             item { Spacer(modifier = Modifier.height(16.dp)) }
 
-            // Group messages by date for date separators
+            // Group messages by date for date separators — messages.reversed() iterates
+            // newest→oldest, but reverseLayout=true means the FIRST-composed item lands at
+            // the BOTTOM of the screen. Emitting a separator *before* the newest message of
+            // each date group (old code) therefore visually placed it *below* that group
+            // instead of above it. Fix: emit the separator *after* the OLDEST message of a
+            // group (index == lastIndex, or the next message belongs to a different date) —
+            // composing it later means it renders higher up, i.e. correctly above the group.
             val groupedMessages = messages.reversed()
-            var lastDate = ""
 
-            items(groupedMessages) { msg ->
+            itemsIndexed(groupedMessages) { index, msg ->
                 val msgDate = msg.createdAt?.take(10) ?: ""
                 val today = java.time.LocalDate.now().toString()
                 val yesterday = java.time.LocalDate.now().minusDays(1).toString()
@@ -1582,15 +1587,8 @@ fun ChatTab(
                     yesterday -> stringResource(R.string.yesterday_label)
                     else -> msgDate.replace("-", "/")
                 }
-
-                if (msgDate != lastDate && msgDate.isNotBlank()) {
-                    lastDate = msgDate
-                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
-                        Surface(shape = RoundedCornerShape(12.dp), color = onSurface.copy(alpha = 0.08f)) {
-                            Text(dateLabel, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), fontSize = 11.sp, color = onSurfaceVariant)
-                        }
-                    }
-                }
+                val nextDate = groupedMessages.getOrNull(index + 1)?.createdAt?.take(10) ?: ""
+                val isGroupBoundary = msgDate.isNotBlank() && (index == groupedMessages.lastIndex || nextDate != msgDate)
 
                 val isMe = msg.senderId == myMemberInfo.id
                 val sender = members.find { it.id == msg.senderId }
@@ -1644,6 +1642,14 @@ fun ChatTab(
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+
+                if (isGroupBoundary) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                        Surface(shape = RoundedCornerShape(12.dp), color = onSurface.copy(alpha = 0.08f)) {
+                            Text(dateLabel, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), fontSize = 11.sp, color = onSurfaceVariant)
                         }
                     }
                 }

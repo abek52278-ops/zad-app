@@ -1874,7 +1874,10 @@ fun KidsModeContent(
             com.example.ui.components.ZadEmptyState(title = stringResource(R.string.no_messages_yet))
         } else {
             recentMessages.forEach { msg ->
-                val senderAlias = familyState.members.find { it.userId == msg.senderId }?.alias?.ifBlank { unknownAliasFallback } ?: unknownAliasFallback
+                // msg.senderId بيخزن family_members.id، مش auth user id — it.userId كان
+                // بيقارن بحقل غلط فمكانش بيلاقي أي عضو أبداً (نفس النمط الصح في
+                // FamilyScreen.kt وFamilyViewModel.kt: it.id == msg.senderId).
+                val senderAlias = familyState.members.find { it.id == msg.senderId }?.alias?.ifBlank { unknownAliasFallback } ?: unknownAliasFallback
                 Surface(shape = RoundedCornerShape(14.dp), color = surfaceContainer, modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
                     Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         KidAvatar(seed = msg.senderId.ifBlank { senderAlias }, size = 28.dp)
