@@ -392,20 +392,6 @@ data class ZadShoppingItem(
     val store: String? = null
 )
 
-@Serializable
-data class VoiceAgentResponse(
-    val action: String = "chat",
-    val message: String = "",
-    val data: VoiceAgentData? = null
-)
-
-@Serializable
-data class VoiceAgentData(
-    val amount: Double = 0.0,
-    val title: String = "",
-    val category: String = "عام"
-)
-
 @Entity(tableName = "affiliate_products")
 @Serializable
 data class AffiliateProduct(

@@ -627,21 +627,6 @@ object ZadAiRepository {
         return response["text"] as? String
     }
 
-    suspend fun processVoiceCommand(audioBase64: String): VoiceAgentResponse? {
-        val response = callAction("voice_agent", mapOf("audio_base64" to audioBase64))
-        val action = response["action"] as? String ?: return null
-        val message = response["message"] as? String ?: ""
-        val dataRaw = response["data"] as? Map<*, *>
-        val data = dataRaw?.let {
-            VoiceAgentData(
-                amount = (it["amount"] as? Number)?.toDouble()?.asMoney() ?: 0.0,
-                title = it["title"] as? String ?: "",
-                category = it["category"] as? String ?: "عام"
-            )
-        }
-        return VoiceAgentResponse(action = action, message = message, data = data)
-    }
-
     // ── New AI Family Features ──
 
     data class FamilyAnalysisResult(

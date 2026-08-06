@@ -64,7 +64,6 @@ import androidx.compose.foundation.Image
 import com.example.ui.viewmodels.FamilyViewModel
 import com.example.ui.viewmodels.FamilyState
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.ui.widgets.ZadVoiceFab
 import com.example.ui.widgets.AffiliateProductCard
 
 import com.example.ui.components.*
@@ -710,21 +709,10 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                // clears both the voice FAB (bottom 24.dp + 70.dp tall) and the family chat
-                // FAB stacked above it on this screen (bottom 106.dp + 56.dp tall), so the
-                // last list item isn't left partially hidden behind either
-                Spacer(modifier = Modifier.height(170.dp))
+                Spacer(modifier = Modifier.height(24.dp))
             } // closes inner Column
         } // closes else block (line 125)
     } // closes outer Column (line 103)
-    
-    // Floating Voice Agent Button
-    ZadVoiceFab(
-        modifier = Modifier
-            .align(Alignment.BottomEnd)
-            .padding(24.dp),
-        viewModel = viewModel
-    )
 } // closes Box
     if (showTelegramSheet) {
         com.example.ui.components.TelegramBotSheet(onDismiss = { showTelegramSheet = false })

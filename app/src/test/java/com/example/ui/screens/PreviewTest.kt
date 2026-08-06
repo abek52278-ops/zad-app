@@ -122,57 +122,6 @@ class PreviewTest {
         )
     }
 
-    // مرحلة ٥ (docs/agent/PLAN_2026_08_06_rebuild.md) — الـ Live Agent blob (ZadVoiceFab
-    // الداخلي) في حالاته الأربعة، عشان نتأكد بصرياً إن العينين والـ blob فعلاً بيتغيّروا
-    // حسب الحالة، مش بس بيتصرّفوا صح في الكود من غير ما حد يشوفهم.
-    @Test
-    fun captureZadLiveAgentBlob_idle() {
-        composeTestRule.setContent {
-            AppTheme {
-                Box(modifier = Modifier.background(background).padding(24.dp)) {
-                    com.example.ui.widgets.ZadLiveAgentBlob(state = com.example.ui.widgets.ZadAgentState.IDLE, size = 96.dp)
-                }
-            }
-        }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/zad_live_agent_idle.png")
-    }
-
-    @Test
-    fun captureZadLiveAgentBlob_listening() {
-        composeTestRule.setContent {
-            AppTheme {
-                Box(modifier = Modifier.background(background).padding(24.dp)) {
-                    com.example.ui.widgets.ZadLiveAgentBlob(state = com.example.ui.widgets.ZadAgentState.LISTENING, size = 96.dp)
-                }
-            }
-        }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/zad_live_agent_listening.png")
-    }
-
-    @Test
-    fun captureZadLiveAgentBlob_thinking() {
-        composeTestRule.setContent {
-            AppTheme {
-                Box(modifier = Modifier.background(background).padding(24.dp)) {
-                    com.example.ui.widgets.ZadLiveAgentBlob(state = com.example.ui.widgets.ZadAgentState.THINKING, size = 96.dp)
-                }
-            }
-        }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/zad_live_agent_thinking.png")
-    }
-
-    @Test
-    fun captureZadLiveAgentBlob_speaking() {
-        composeTestRule.setContent {
-            AppTheme {
-                Box(modifier = Modifier.background(background).padding(24.dp)) {
-                    com.example.ui.widgets.ZadLiveAgentBlob(state = com.example.ui.widgets.ZadAgentState.SPEAKING, size = 96.dp)
-                }
-            }
-        }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/zad_live_agent_speaking.png")
-    }
-
     @Test
     fun captureZadQuestionCard_numberType() {
         composeTestRule.setContent {

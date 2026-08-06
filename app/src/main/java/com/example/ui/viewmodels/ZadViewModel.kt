@@ -2703,10 +2703,6 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    suspend fun processVoiceCommand(audioBase64: String): com.example.data.VoiceAgentResponse? {
-        return com.example.data.ZadAiRepository.processVoiceCommand(audioBase64)
-    }
-
     fun loadUserProfile() {
         viewModelScope.launch {
             try {
