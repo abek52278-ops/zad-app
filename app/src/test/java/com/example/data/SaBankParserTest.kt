@@ -50,6 +50,32 @@ class SaBankParserTest {
         assertNull(SaBankParser.extractAmount(text))
     }
 
+    // ─── extractCurrency — مرحلة ١ (docs/agent/PLAN_2026_08_06_rebuild.md) ─────────
+
+    @Test
+    fun `extractCurrency reads SAR from a Saudi riyal message`() {
+        val text = "مصرف الراجحي: تم خصم بمبلغ 125.50 ريال من حسابك في متجر بنده"
+        assertEquals("SAR", SaBankParser.extractCurrency(text))
+    }
+
+    @Test
+    fun `extractCurrency reads EGP from an Egyptian pound message`() {
+        val text = "تم خصم مبلغ 300 ج.م من حسابك لدى بنك مصر"
+        assertEquals("EGP", SaBankParser.extractCurrency(text))
+    }
+
+    @Test
+    fun `extractCurrency reads TRY from a Turkish lira message`() {
+        val text = "kartınızdan 150,00 TL tutarında harcama yapıldı"
+        assertEquals("TRY", SaBankParser.extractCurrency(text))
+    }
+
+    @Test
+    fun `extractCurrency returns null when no currency token is present`() {
+        val text = "خصم 30 من حسابك اليوم"
+        assertNull(SaBankParser.extractCurrency(text))
+    }
+
     // ─── detectAndParse: noise filtering ───────────────────────────
 
     @Test
@@ -126,6 +152,7 @@ class SaBankParserTest {
         assertEquals("الراجحي", result.bankName)
         assertEquals(TxType.PURCHASE, result.txType)
         assertEquals("البقالة", result.category)
+        assertEquals("SAR", result.currency)
     }
 
     @Test

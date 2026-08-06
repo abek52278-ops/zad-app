@@ -34,7 +34,12 @@ data class ParsedBankTx(
     val confidence: Float = 1.0f,
     // مرجع العملية البنكي لو القاعدة لقته (bank_rules.json بس دلوقتي) — بصمة أقوى بكتير
     // من مبلغ+تاجر لـ TxDeduplicator، لأنه رقم فريد فعلي للعملية مش تخمين
-    val externalRef: String? = null
+    val externalRef: String? = null,
+    // مرحلة ١ (docs/agent/PLAN_2026_08_06_rebuild.md) — العملة المذكورة فعلياً في نص
+    // الرسالة (SaBankParser.extractCurrency) أو المستنتجة من بلد القاعدة (BankRulesEngine).
+    // null = مفيش رمز عملة صريح في النص؛ المستهلك (UnifiedBankListener) بيرجع لعملة
+    // الـ Market الحالي زي السلوك القديم بالظبط.
+    val currency: String? = null
 )
 
 /**
@@ -171,6 +176,28 @@ object SaBankParser {
             .toList()
 
         return candidates.minOrNull() // لو فيه أكتر من رقم غير مستبعد، الأصغر غالباً هو مبلغ العملية والأكبر رصيد
+    }
+
+    private fun mapCurrencyToken(token: String): String {
+        val t = token.lowercase()
+        return when {
+            t == "tl" || t == "₺" || t == "try" -> "TRY"
+            t == "egp" || t.contains("ج.م") || t.contains("جم") || t.contains("جنيه") -> "EGP"
+            else -> "SAR" // ر.س / رس / ريال / sar / sr — باقي مجموعة CUR كلها سعودية
+        }
+    }
+
+    /**
+     * مرحلة ١ (docs/agent/PLAN_2026_08_06_rebuild.md) — العملة المذكورة فعلياً في نص
+     * الرسالة، بدل افتراض عملة السوق الحالي دايماً. رسالة من بنك مصري وأنت مسافر
+     * كانت بتتسجل "ر.س" لمجرد إن ده السوق المختار في التطبيق. null لو مفيش أي رمز
+     * عملة صريح في النص (رسايل كتير قديمة كده) — المستدعي (UnifiedBankListener) بيرجع
+     * لعملة الـ Market الحالي زي قبل تماماً في الحالة دي، مفيش تغيير سلوك بأثر رجعي.
+     */
+    fun extractCurrency(rawText: String): String? {
+        val text = normalizeDigits(rawText)
+        val token = Regex(CUR, RegexOption.IGNORE_CASE).find(text)?.value ?: return null
+        return mapCurrencyToken(token)
     }
 
     // ─── 3) تحديد نوع العملية بكلمات صريحة ───────────────────────
@@ -365,7 +392,8 @@ object SaBankParser {
             bankName = bankName,
             merchantName = merchant,
             rawText = text.take(160),
-            txType = finalType
+            txType = finalType,
+            currency = extractCurrency(fullText)
         )
     }
 

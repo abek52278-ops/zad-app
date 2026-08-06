@@ -46,4 +46,37 @@ object CurrencyFormatter {
 
     fun symbol(context: Context): String = MarketPrefs.getMarket(context).currencySymbol
     fun currencyCode(context: Context): String = MarketPrefs.getMarket(context).currencyCode
+
+    // مرحلة ١ (docs/agent/PLAN_2026_08_06_rebuild.md) — رمز/كود العملة لمعاملة بعينها، مش
+    // للـ Market الحالي. الأعمدة الثلاثة اللي زاد بيدعمها فعلياً — SAR/EGP/TRY، نفس مجموعة
+    // Market enum. رمز مش معروف (كود من مصدر خارجي زي بنك أجنبي) بيتعرض زي ما هو بدل ما
+    // يتحول لرمز يوهم إنه اتعرف.
+    private fun symbolForCode(code: String): String = when (code.uppercase()) {
+        "SAR" -> "ر.س"
+        "EGP" -> "ج.م"
+        "TRY" -> "₺"
+        else -> code
+    }
+
+    /**
+     * تنسيق معاملة بعملتها الفعلية (tx.currency)، مش عملة الـ Market الحالي. معاملة
+     * اتسجلت وأنت مسافر (رسالة بنك مصري وسوقك المختار سعودي، مثلاً) كانت بتتعرض "ر.س"
+     * رغم إن الرسالة نفسها بتقول EGP بالظبط — نفس بق مرحلة ٠ب بالظبط، بس للعملة مش للسقف.
+     * tx.currency == null (صف قديم أو رسالة من غير رمز عملة صريح) بيرجع لسلوك
+     * format(context, amount) القديم تماماً — عملة الـ Market الحالي.
+     */
+    fun format(context: Context, tx: ZadTransaction): String {
+        val txCurrency = tx.currency
+        if (txCurrency == null) return format(context, tx.amount)
+
+        val market = MarketPrefs.getMarket(context)
+        val useEuropean = txCurrency.equals("TRY", ignoreCase = true)
+        val rounded = tx.amount.asMoney()
+        val pattern = if (hasVisibleFraction(rounded)) "#,##0.##" else "#,##0"
+        val formatted = DecimalFormat(pattern, if (useEuropean) europeanDigits else westernDigits).format(rounded)
+        // عملة المعاملة بتتوافق مع عملة الـ Market الحالي؟ استخدم رمزه المألوف، وإلا اعرض
+        // كود ISO زي ما هو — تجنّب رمز مضلل لعملة السوق ده عمره ما شافها.
+        val symbol = if (txCurrency.equals(market.currencyCode, ignoreCase = true)) market.currencySymbol else symbolForCode(txCurrency)
+        return "$formatted $symbol"
+    }
 }

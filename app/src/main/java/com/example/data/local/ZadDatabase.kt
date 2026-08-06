@@ -27,7 +27,7 @@ import androidx.room.TypeConverters
     com.example.data.ZadDoseLog::class,
     com.example.data.PendingSyncOp::class,
     com.example.data.RejectedBankMessage::class
-], version = 14, exportSchema = false)
+], version = 15, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class ZadDatabase : RoomDatabase() {
     abstract fun zadDao(): ZadDao
@@ -113,6 +113,18 @@ abstract class ZadDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * مرحلة ١ (docs/agent/PLAN_2026_08_06_rebuild.md) — zad_transactions.currency، مرآة
+         * لـ supabase/migrations/…_zad_transactions_currency.sql. null للصفوف القديمة كلها
+         * (مفيش افتراض SAR بأثر رجعي) — CurrencyFormatter.format(context, tx) بيرجع لعملة
+         * الـ Market الحالي وقت العرض في الحالة دي، زي السلوك القديم بالظبط.
+         */
+        private val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE zad_transactions ADD COLUMN currency TEXT")
+            }
+        }
+
         fun getDatabase(context: Context): ZadDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -120,7 +132,7 @@ abstract class ZadDatabase : RoomDatabase() {
                     ZadDatabase::class.java,
                     "zad_database"
                 )
-                    .addMigrations(MIGRATION_12_13, MIGRATION_13_14)
+                    .addMigrations(MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

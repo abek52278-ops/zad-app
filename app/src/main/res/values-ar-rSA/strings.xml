@@ -98,6 +98,8 @@
     <string name="budget_unknown_speech">ما حددت سقف ميزانيتك لين الحين. حدده أول عشان أقدر أقول لك الباقي.</string>
     <string name="budget_gate_headline">قبل ما نبدأ، حدد سقفك الشهري</string>
     <string name="budget_gate_body">زاد ما يخترع أرقام. بدون السقف ما فيه "متبقي" ولا "متاح" — وأي رقم تشوفه بيكون تخمين.</string>
+    <string name="travel_banner_message">شكلك في %1$s — أحوّلك لـ %2$s؟</string>
+    <string name="travel_banner_action">تحويل</string>
 
     <!-- HomeScreen: greeting and hero -->
     <string name="greeting_hi_name">هلا يا %1$s! 👋</string>

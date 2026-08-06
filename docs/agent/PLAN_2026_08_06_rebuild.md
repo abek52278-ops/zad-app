@@ -37,14 +37,28 @@
 `ZadViewModel.budgetLoaded` علشان مايحصلش وميض لمستخدم سقفه متأكد، وبعدين
 `BudgetGateScreen` لحد ما `updateBudget()` تتنادى. مفيش زرار تخطي — إجباري بقرار المستخدم.
 
-## مرحلة ١ — العملة والدولة الحقيقية · ⬜ الجاية
+## مرحلة ١ — العملة والدولة الحقيقية · ✅ خلصت (مع فجوة موثّقة)
 
-- عمود `currency` في `zad_transactions` + migration عبر Supabase MCP، والـ model الكوتلن.
-- `SaBankParser` يستخرج العملة من نص الرسالة نفسها (الـ regex موجود، `SaBankParser.kt:118`)
-  بدل ما يفترض ريال.
-- `CurrencyFormatter.format(context, tx)` overload بعملة المعاملة، مش عملة الـ Market.
-- كشف تلقائي للسفر: `TelephonyManager.networkCountryIso` + fallback على `Locale` — والنتيجة
-  **banner اقتراح** ("شكلك في مصر 🇪🇬 — أحوّل لـ ج.م؟")، **مش** تبديل صامت.
+| # | البند | الحالة |
+|---|------|--------|
+| ١أ | عمود `zad_transactions.currency` — Supabase migration (`zad_transactions_currency`) + Room `MIGRATION_14_15` (v14→v15) + `ZadTransaction.currency` | ✅ |
+| ١ب | `SaBankParser.extractCurrency()` يستخرج العملة من نص الرسالة نفسها (يعيد استخدام `CUR` regex الموجود، `SaBankParser.kt`) بدل افتراض ريال، متسلّك في `detectAndParse` | ✅ |
+| ١ج | `BankRulesEngine.tryParse` يستنتج العملة من بلد القاعدة (`rule.country`، القواعد أصلاً مفلترة بالسوق النشط) | ✅ |
+| ١د | `CurrencyFormatter.format(context, tx: ZadTransaction)` overload — يعرض عملة المعاملة، مش عملة الـ Market الحالي؛ يسقط لعملة الـ Market لو `tx.currency == null` (صفوف قديمة) | ✅ |
+| ١ه | `UnifiedBankListener` يمرر `parsed.currency` لـ `ZadTransaction` عند الحفظ | ✅ |
+| ١و | كشف سفر: `TravelDetector` (`networkCountryIso` + fallback `Locale`) + `TravelBanner` composable في `HomeScreen` — اقتراح تحويل قابل للتجاهل، مش تبديل صامت | ✅ |
+| ١ز | اختبارات: `SaBankParserTest` (+4 `extractCurrency`)، `BankRulesEngineTest` (+تأكيد `EGP`)، `CurrencyFormatterTest` جديد (4) | ✅ — 142/142 |
+
+**فجوة موثّقة، مش مقفولة**: مسار الـ AI fallback (`ZadAiRepository.analyzeBankNotification` في
+`UnifiedBankListener.kt`، بيتفعّل لما `SaBankParser`/`BankRulesEngine` الاتنين يرجّعوا
+null) بيرجّع `ZadTransaction` من غير `currency` — بيسقط لعملة الـ Market الحالي زي
+السلوك القديم، مش كذب لكنه مش "عملة حقيقية" كمان. يحتاج تعديل الـ Edge Function
+(`zad-core-intelligence`) عشان يستخرج العملة كمان، خارج نطاق تعديل كوتلن-فقط. مرشّح
+لمرحلة لاحقة أو لتاسك منفصل.
+
+**غير منفّذ عمداً** (خارج نطاق "عملة حقيقية"، جزء من مرحلة ٢): توسيع `Market` enum
+لأسواق تانية غير السعودية/مصر/تركيا — `TravelDetector.suggestedMarketFor` بيرجع null
+لأي بلد مكتشف مش من التلاتة دول لسه.
 
 ## مرحلة ٢ — الشرق الأوسط + البرسونا · ⬜
 

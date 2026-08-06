@@ -46,6 +46,9 @@ class BankRulesEngineTest {
         assertEquals("كارفور مصر الجديدة", result.merchantName)
         assertEquals(0.9f, result.confidence, 0.001f)
         assertEquals("TX48213", result.externalRef)
+        // مرحلة ١ — عملة القاعدة مستنتجة من بلدها (country="EG" في bank_rules.json)، مش من
+        // MarketPrefs.currentMarket المختار في الاختبار ده (مصر هنا فعلاً، بس المصدر مختلف)
+        assertEquals("EGP", result.currency)
     }
 
     @Test

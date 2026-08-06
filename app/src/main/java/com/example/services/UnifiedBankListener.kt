@@ -273,7 +273,8 @@ class UnifiedBankListener : NotificationListenerService() {
                     amount = parsed.amount,
                     isExpense = parsed.isExpense,
                     category = MerchantCategoryOverrides.get(applicationContext, parsed.merchantName) ?: parsed.category,
-                    createdAt = Instant.now().toString()
+                    createdAt = Instant.now().toString(),
+                    currency = parsed.currency
                 )
 
                 BankTransactionApplier.apply(applicationContext, transaction, parsed.txType)

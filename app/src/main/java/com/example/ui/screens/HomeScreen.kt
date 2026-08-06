@@ -33,6 +33,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
 import com.example.ui.viewmodels.ZadViewModel
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -134,6 +135,7 @@ fun HomeScreen(
     }
 
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var isNotificationAccessGranted by remember {
         mutableStateOf(
             androidx.core.app.NotificationManagerCompat
@@ -238,6 +240,35 @@ fun HomeScreen(
             // urgent recipes, events radar, forecast) now sits in one block *after*
             // that sequence instead of being interleaved through it.
             Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                // مرحلة ١ (docs/agent/PLAN_2026_08_06_rebuild.md) — اقتراح تحويل السوق لو
+                // بلد الشبكة الحالي مختلف عن السوق المختار. اقتراح بس، مفيش تبديل صامت —
+                // التجاهل بيتذكر لنفس البلد المكتشف بس (SharedPreferences)، فمابيرجعش
+                // يزعج في كل فتح للتطبيق لحد ما البلد يتغير تاني فعلاً.
+                var dismissedTravelCountry by remember {
+                    mutableStateOf(context.getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+                        .getString("dismissed_travel_country", null))
+                }
+                val detectedCountry = remember { com.example.data.TravelDetector.detectCurrentCountryCode(context) }
+                val suggestedMarket = remember(detectedCountry, dismissedTravelCountry) {
+                    if (detectedCountry != null && detectedCountry == dismissedTravelCountry) null
+                    else com.example.data.TravelDetector.suggestedMarketFor(context)
+                }
+                if (suggestedMarket != null) {
+                    com.example.ui.components.TravelBanner(
+                        suggestedMarket = suggestedMarket,
+                        onSwitch = {
+                            com.example.data.MarketPrefs.setMarket(context, suggestedMarket)
+                            scope.launch { com.example.data.SupabaseRepo.syncMarketProfile(suggestedMarket) }
+                        },
+                        onDismiss = {
+                            dismissedTravelCountry = detectedCountry
+                            context.getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+                                .edit().putString("dismissed_travel_country", detectedCountry).apply()
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
                 if (!isNotificationAccessGranted) {
                     NotificationPermissionCard {
                         Log.d(TAG_HOME, "NotificationPermissionCard button clicked")

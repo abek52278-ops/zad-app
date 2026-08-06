@@ -45,6 +45,15 @@ object BankRulesEngine {
         }
     }
 
+    // مرحلة ١ — قواعد JSON محمّلة أصلاً حسب بلد القاعدة (activeCountryCode filter تحت)،
+    // فبلد القاعدة نفسه دليل عملة موثوق، بدل ما نعيد نفس regex استخراج SaBankParser هنا.
+    private fun countryToCurrency(country: String): String? = when (country.uppercase()) {
+        "SA" -> "SAR"
+        "EG" -> "EGP"
+        "TR" -> "TRY"
+        else -> null
+    }
+
     private fun typeToTxType(type: String): TxType = when (type) {
         "debit" -> TxType.PURCHASE
         "withdrawal" -> TxType.WITHDRAWAL
@@ -123,7 +132,8 @@ object BankRulesEngine {
                 rawText = fullText.take(160),
                 txType = txType,
                 confidence = rule.confidence,
-                externalRef = externalRef
+                externalRef = externalRef,
+                currency = countryToCurrency(rule.country)
             )
         }
         return null

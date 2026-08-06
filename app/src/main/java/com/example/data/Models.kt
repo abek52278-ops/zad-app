@@ -143,7 +143,12 @@ data class ZadTransaction(
     // for the one case that actually needs to differ: ATM withdrawal -> transfer/cash.
     @SerialName("wallet") val wallet: String = "card",
     @SerialName("txn_kind") val txnKind: String = if (isExpense) "expense" else "income",
-    @SerialName("transfer_to") val transferTo: String? = null
+    @SerialName("transfer_to") val transferTo: String? = null,
+    // مرحلة ١ (docs/agent/PLAN_2026_08_06_rebuild.md) — عملة العملية نفسها، مش عملة الـ
+    // Market الحالي وقت العرض. null = مش معروفة (كل الصفوف القديمة، ورسايل من غير رمز
+    // عملة صريح) — CurrencyFormatter.format(context, tx) بيرجع لعملة الـ Market في الحالة
+    // دي، مفيش تغيير سلوك بأثر رجعي.
+    @SerialName("currency") val currency: String? = null
 )
 
 /** Task 22 — نتيجة صف واحد من zad_habit_chips() RPC. label بيكون العنوان (title) لو موجود، وإلا الفئة */
