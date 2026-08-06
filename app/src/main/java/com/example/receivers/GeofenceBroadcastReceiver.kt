@@ -15,6 +15,7 @@ import com.example.data.GroceryGeofenceManager
 import com.example.data.local.ZadDatabase
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
+import com.zad.agent.ZadAlertRouter
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -90,6 +91,12 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
      * نمط UnifiedBankListener (نداء Supabase مباشر من مسار خلفية، من غير ViewModel) —
      * zad-brain نفسه بيجيب سياق الميزانية/المعاملات من السيرفر، هنا بس بنبلّغه بالحدث.
      * فشل هنا (لا إنترنت وقت الدخول، مثلاً) مايأثرش على الإشعار المحلي اللي فات فوق.
+     *
+     * كان بيبعت للعقل وبس، ويسيب أي emit_insight critical يستنى الـ periodic worker
+     * (ZadAlertRouter عبر PeriodicAnalysisWorker) — نصيحة "وفّر" ممكن توصل بعد ساعات،
+     * لما المستخدم يبقى رجع البيت خلاص. callEdgeFunction فوق بالفعل suspend وبتستنى
+     * الرد (يعني السطر في zad_insights اتكتب فعلاً)، فـ sync() هنا بتسحبه وتطلع إشعار
+     * صوتي/مرئي فوري لو priority=critical — نفس مسار sync() الموجود أصلاً، مفيش تكرار.
      */
     private suspend fun notifyBrain(context: Context, storeName: String, category: GeofenceCategory, missingItems: List<String>) {
         try {
@@ -100,6 +107,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 "zad-brain",
                 mapOf("user_id" to userId, "trigger" to "geofence_enter", "user_message" to userMessage)
             )
+            ZadAlertRouter.sync(context, userId)
             Log.d(TAG, "notifyBrain() → geofence_enter sent for $storeName")
         } catch (e: Exception) {
             Log.e(TAG, "notifyBrain() FAILED: ${e.message}")
