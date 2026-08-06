@@ -450,6 +450,24 @@ class PreviewTest {
         composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/subscription_card_generic.png")
     }
 
+    // مرحلة ٥ب-٥ — البروفايل (docs/agent/PLAN_2026_08_06_rebuild.md): ZadMenuGroup بقت
+    // 24dp بدل 18dp. ProfileScreen نفسها stateful (ZadViewModel+FamilyViewModel) فمش
+    // قابلة للـ capture كاملة، فبنتحقق من الشكل المشترك اللي كل صفوف الإعدادات بتستخدمه.
+    @Test
+    fun captureZadMenuGroup_newCornerRadius() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.background(background).padding(16.dp)) {
+                    com.example.ui.components.ZadMenuGroup {
+                        com.example.ui.components.ZadMenuRow(title = "تعديل الملف الشخصي", subtitle = "الاسم والصورة", onClick = {})
+                        com.example.ui.components.ZadMenuRow(title = "إدارة العائلة", subtitle = "الأعضاء والصلاحيات", onClick = {}, showDivider = false)
+                    }
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/zad_menu_group_24dp.png")
+    }
+
     /**
      * The Home screen's mockup sequence, composed out of the same components HomeScreen
      * uses, on the same canvas MainScreen paints.

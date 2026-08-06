@@ -48,6 +48,7 @@ import kotlinx.coroutines.withContext
 import com.example.ui.components.AppearOnEntry
 import com.example.ui.components.ZadLottieAsset
 import com.example.ui.components.zadCardShadow
+import com.example.ui.components.zadGlassBlur
 import com.example.ui.theme.*
 import androidx.compose.runtime.*
 import com.example.data.SupabaseRepo
@@ -235,12 +236,22 @@ fun ProfileScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 16.dp)
-                    .clip(RoundedCornerShape(22.dp))
+                    .clip(RoundedCornerShape(24.dp))
                     .background(Brush.linearGradient(listOf(Color(0xFF064E3B), Color(0xFF0B6B4E))))
-                    .padding(20.dp)
             ) {
+                // مرحلة ٥ب-٥ — نفس بقعة الضوء الزجاجية بتاعة باقي كروت الـ glass family
+                // (ZadCardHero، اللوكيشن، المخزون، الاشتراكات) — هيدر البروفايل عنصر
+                // واحد في الشاشة، مرشّح طبيعي زيهم بالظبط.
+                Box(
+                    modifier = Modifier
+                        .size(120.dp)
+                        .align(Alignment.TopStart)
+                        .offset(x = (-24).dp, y = (-24).dp)
+                        .zadGlassBlur(32.dp)
+                        .background(Color.White.copy(alpha = 0.16f), CircleShape)
+                )
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {

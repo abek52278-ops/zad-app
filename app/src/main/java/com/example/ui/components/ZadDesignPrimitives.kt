@@ -239,7 +239,11 @@ fun ZadMenuGroup(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val shape = RoundedCornerShape(18.dp)
+    // مرحلة ٥ب-٥ (docs/agent/PLAN_2026_08_06_rebuild.md) — 24dp بدل 18dp، نفس نصف قطر
+    // عائلة الزجاج. الخلفية فضلت أبيض صافي عمداً (مش جراديانت/blur) — قايمة إعدادات
+    // كثيفة نصوص، والـ blur هيقلل وضوح القراءة، نفس مبدأ iOS Settings.app (كروت
+    // مجموعة معتمة، الزجاج محجوز للعناصر البارزة القليلة زي الهيدر فوقها).
+    val shape = RoundedCornerShape(24.dp)
     Column(
         modifier = modifier
             .fillMaxWidth()
