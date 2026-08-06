@@ -2940,14 +2940,18 @@ private fun SpendingPowerGaugeCard(power: com.example.data.ZadCentralBrain.Spend
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
+            // dailySafeSpend = null معناه مفيش سقف متسجل — الرقم مش موجود أصلاً، فبنعرض
+            // "لسه غير محدد" بدل ما نطبع صفر بعملة كأنه حصيلة حساب.
+            val safePerDay = power.dailySafeSpend
             SpendingPowerFigure(
-                value = com.example.data.CurrencyFormatter.format(context, power.dailySafeSpend),
+                value = safePerDay?.let { com.example.data.CurrencyFormatter.format(context, it) }
+                    ?: stringResource(R.string.budget_unknown_value),
                 label = stringResource(R.string.safe_per_day_suffix, com.example.data.CurrencyFormatter.symbol(context))
             )
             SpendingPowerFigure(
                 value = com.example.data.CurrencyFormatter.format(context, power.currentDailyAvg),
                 label = stringResource(R.string.actual_daily_rate),
-                valueColor = if (power.currentDailyAvg > power.dailySafeSpend && power.dailySafeSpend > 0) secondaryLight else Color.White
+                valueColor = if (safePerDay != null && safePerDay > 0 && power.currentDailyAvg > safePerDay) secondaryLight else Color.White
             )
             SpendingPowerFigure(
                 value = "${power.daysLeftInMonth}",
@@ -3194,7 +3198,12 @@ private fun HealthScoreCard(report: com.example.data.ZadCentralBrain.BrainReport
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    stringResource(R.string.spent_remaining_summary, com.example.data.CurrencyFormatter.format(context, report.totalSpent), com.example.data.CurrencyFormatter.format(context, report.remaining)),
+                    stringResource(
+                        R.string.spent_remaining_summary,
+                        com.example.data.CurrencyFormatter.format(context, report.totalSpent),
+                        report.remaining?.let { com.example.data.CurrencyFormatter.format(context, it) }
+                            ?: stringResource(R.string.budget_unknown_value)
+                    ),
                     style = Typography.bodySmall,
                     color = onSurfaceVariant
                 )

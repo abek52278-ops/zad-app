@@ -640,7 +640,7 @@ object ZadCentralBrain {
      * على أساس رقم اتخترع من العدم. null بيجبر كل شاشة تعرض "—" بدل رقم مالوش أصل.
      */
     data class SpendingPower(
-        val dailySafeSpend: Double,     // المسموح يومياً من المتبقي
+        val dailySafeSpend: Double?,    // المسموح يومياً من المتبقي — null = مفيش سقف متسجل
         val currentDailyAvg: Double,    // معدل صرفه الفعلي يومياً
         val daysLeftInMonth: Int,
         val powerPct: Int?,             // 0-100: المتبقي كنسبة من البادجت — null = مفيش بادجت
@@ -674,7 +674,8 @@ object ZadCentralBrain {
         val totalSpent: Double,
         val totalIncome: Double,
         val budget: Double,
-        val remaining: Double,
+        /** null = السقف الشهري مش متسجل — مفيش "متبقي" أصلاً، مش متبقي = صفر */
+        val remaining: Double?,
         val categoryBreakdown: List<CategorySpend>, // للدونات والبارات
         val dailyTrend: List<DailySpend>,           // آخر 14 يوم للجراف الخطي
         val topMerchants: List<Pair<String, Double>>,
@@ -859,15 +860,15 @@ object ZadCentralBrain {
             insights.add("🛒 ${it.itemName} متوقع يخلص خلال ${it.predictedDaysLeft.coerceAtLeast(0)} يوم")
         }
         val avgDaily = dailyTrend.map { it.amount }.filter { it > 0 }.ifEmpty { listOf(0.0) }.average()
-        if (avgDaily > 0 && remaining > 0) {
+        if (avgDaily > 0 && remaining != null && remaining > 0) {
             insights.add("بمعدل إنفاقك الحالي (${CurrencyFormatter.format(context, avgDaily)}/يوم)، الرصيد يكفي ${(remaining / avgDaily).toInt()} يوم")
         }
 
         // 8) قوة الصرف — كم يقدر يصرف يومياً بأمان
         val daysLeftInMonth = (today.lengthOfMonth() - today.dayOfMonth + 1).coerceAtLeast(1)
-        val dailySafeSpend = (remaining / daysLeftInMonth).coerceAtLeast(0.0)
+        val dailySafeSpend = remaining?.let { (it / daysLeftInMonth).coerceAtLeast(0.0) }
         val currentDailyAvg = if (today.dayOfMonth > 0) totalSpent / today.dayOfMonth else 0.0
-        val powerPct = if (budget > 0) ((remaining / budget) * 100).toInt().coerceIn(0, 100) else null
+        val powerPct = if (budget > 0 && remaining != null) ((remaining / budget) * 100).toInt().coerceIn(0, 100) else null
         val spendingPower = SpendingPower(
             dailySafeSpend = dailySafeSpend,
             currentDailyAvg = currentDailyAvg,
@@ -950,7 +951,7 @@ object ZadCentralBrain {
         } else null
 
         // ملاحظات إضافية من المحركات الجديدة
-        if (dailySafeSpend > 0 && currentDailyAvg > dailySafeSpend) {
+        if (dailySafeSpend != null && dailySafeSpend > 0 && currentDailyAvg > dailySafeSpend) {
             insights.add(0, "⚡ معدل صرفك اليومي (${CurrencyFormatter.format(context, currentDailyAvg)}) أعلى من الآمن (${CurrencyFormatter.format(context, dailySafeSpend)}) — خفف شوية")
         }
         monthComparison?.let { mc ->
@@ -991,13 +992,13 @@ object ZadCentralBrain {
         appendLine("📊 تقرير زاد المالي — ${today.month.value}/${today.year}")
         appendLine("═══════════════════════════")
         appendLine("الصحة المالية: ${report.healthScore}/100 (${report.healthLabel})")
-        appendLine("قوة الصرف: ${report.spendingPower.status} — الآمن يومياً: ${CurrencyFormatter.format(context, report.spendingPower.dailySafeSpend)}")
+        appendLine("قوة الصرف: ${report.spendingPower.status} — الآمن يومياً: ${report.spendingPower.dailySafeSpend?.let { CurrencyFormatter.format(context, it) } ?: context.getString(com.example.R.string.budget_unknown_value)}")
         appendLine()
         appendLine("💰 الأرقام:")
         appendLine("• الميزانية: ${CurrencyFormatter.format(context, report.budget)}")
         appendLine("• المصروف: ${CurrencyFormatter.format(context, report.totalSpent)}")
         appendLine("• الدخل: ${CurrencyFormatter.format(context, report.totalIncome)}")
-        appendLine("• المتبقي: ${CurrencyFormatter.format(context, report.remaining)}")
+        appendLine("• المتبقي: ${report.remaining?.let { CurrencyFormatter.format(context, it) } ?: context.getString(com.example.R.string.budget_unknown_value)}")
         if (report.subscriptionsMonthlyCost > 0)
             appendLine("• الاشتراكات: ${CurrencyFormatter.format(context, report.subscriptionsMonthlyCost)}/شهر")
         report.monthComparison?.let { mc ->

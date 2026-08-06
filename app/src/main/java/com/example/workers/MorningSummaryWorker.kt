@@ -58,8 +58,9 @@ class MorningSummaryWorker(
             val body = buildString {
                 // من غير سقف متسجل، dailySafeSpend مبني على صفر — رقم مالوش معنى. الإشعار
                 // بيطلب السقف بدل ما يعرض رقم متحسب على معلومة ناقصة.
-                if (budget > 0) {
-                    append("قوة صرفك اليوم: ${com.example.data.CurrencyFormatter.format(applicationContext, report.spendingPower.dailySafeSpend)} بأمان (${report.spendingPower.status})")
+                val safePerDay = report.spendingPower.dailySafeSpend
+                if (budget > 0 && safePerDay != null) {
+                    append("قوة صرفك اليوم: ${com.example.data.CurrencyFormatter.format(applicationContext, safePerDay)} بأمان (${report.spendingPower.status})")
                 } else {
                     append("لسه ما حددتش سقف الشهر — حدده عشان أقدر أقولك قوة صرفك اليومية")
                 }

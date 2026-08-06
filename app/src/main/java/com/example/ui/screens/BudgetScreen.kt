@@ -63,6 +63,18 @@ fun BudgetScreen(
     val obligations by viewModel.obligations.collectAsState()
     val showBudgetDialog by viewModel.showBudgetDialog.collectAsState()
     val suggestedBudget by viewModel.suggestedBudget.collectAsState()
+
+    // Task 0ب — remainingBalance/availableFigure بقوا nullable (null = السقف لسه مش
+    // معروف). الشاشة دي عملياً ما بتتعرضش من غير سقف مؤكد (بوابة MainScreen)، بس الشرط
+    // ده دفاعي لفجوة اللحظة الأولى بعد فتح التطبيق قبل ما loadBudget() يخلّص.
+    val remainingBalanceValue = remainingBalance
+    val availableFigureValue = availableFigure
+    if (remainingBalanceValue == null || availableFigureValue == null) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = primary)
+        }
+        return
+    }
     var showAddTransactionDialog by remember { mutableStateOf(false) }
     var showWhySheet by remember { mutableStateOf(false) } // Task 27.2 — طول الضغط على "متاح"
     var selectedFilter by remember { mutableStateOf("الكل") }
@@ -99,7 +111,7 @@ fun BudgetScreen(
     // Task 26 — "متاح" (available) بقى الرقم الأساسي، مش remainingBalance الخام —
     // available بيخصم الالتزامات الثابتة المؤكدة (إيجار/قسط/اشتراكات) القادمة قبل نهاية
     // الدورة. لمستخدم من غير التزامات مسجلة available == remainingBalance بالظبط.
-    val currentBalance = availableFigure.value
+    val currentBalance = availableFigureValue.value
 
     // Animate balance changes
     val animatedBalance by animateFloatAsState(
@@ -161,14 +173,14 @@ fun BudgetScreen(
                         }
                     }
                     Text(
-                        (if (!availableFigure.confident) "≈ " else "") +
+                        (if (!availableFigureValue.confident) "≈ " else "") +
                             com.example.data.CurrencyFormatter.format(context, animatedBalance.toDouble()),
                         fontSize = 34.sp,
                         lineHeight = 40.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (currentBalance < 0) dangerColor else Color.White,
                         modifier = Modifier.combinedClickable(
-                            onClick = { if (!availableFigure.confident) showAvailableReason = true },
+                            onClick = { if (!availableFigureValue.confident) showAvailableReason = true },
                             onLongClick = { showWhySheet = true }
                         )
                     )
@@ -181,14 +193,14 @@ fun BudgetScreen(
                             if (nextText != null) {
                                 stringResource(
                                     R.string.available_breakdown_with_next,
-                                    com.example.data.CurrencyFormatter.format(context, remainingBalance),
+                                    com.example.data.CurrencyFormatter.format(context, remainingBalanceValue),
                                     com.example.data.CurrencyFormatter.format(context, committed),
                                     nextText
                                 )
                             } else {
                                 stringResource(
                                     R.string.available_breakdown,
-                                    com.example.data.CurrencyFormatter.format(context, remainingBalance),
+                                    com.example.data.CurrencyFormatter.format(context, remainingBalanceValue),
                                     com.example.data.CurrencyFormatter.format(context, committed)
                                 )
                             },
@@ -197,12 +209,12 @@ fun BudgetScreen(
                         )
                     }
                 }
-                if (showAvailableReason && availableFigure.reason != null) {
+                if (showAvailableReason && availableFigureValue.reason != null) {
                     AlertDialog(
                         onDismissRequest = { showAvailableReason = false },
                         confirmButton = { TextButton(onClick = { showAvailableReason = false }) { Text(stringResource(R.string.close_action)) } },
                         title = { Text(stringResource(R.string.available_label) + " ≈") },
-                        text = { Text(availableFigure.reason!!) }
+                        text = { Text(availableFigureValue.reason!!) }
                     )
                 }
             }

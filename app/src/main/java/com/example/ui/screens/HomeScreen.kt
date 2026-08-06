@@ -255,12 +255,18 @@ fun HomeScreen(
                     stringResource(R.string.obligation_due_in_days, ob.title, days)
                 }
 
+                // Task 0ب — remaining/availableFigure بقوا nullable (null = السقف لسه مش
+                // معروف). budgetConfirmed لوحدها كانت كفاية زمان لما remaining كان بيرجع
+                // 0.0 صامت؛ دلوقتي الفلاتين لازم يتفقوا سوا قبل ما نعرض رقم حقيقي —
+                // budgetConfirmed=true لسه بيلحق فراغ لحظي (recalculate جوّه coroutine)
+                // من غير الشرط الإضافي ده.
+                val availableFigureValue = availableFigure
                 com.example.ui.components.AppearOnEntry {
-                    if (budgetConfirmed) {
+                    if (budgetConfirmed && availableFigureValue != null && currentBudget != null) {
                         com.example.ui.components.ZadCardHero(
                             spent = totalSpent,
                             remaining = currentBudget,
-                            available = availableFigure,
+                            available = availableFigureValue,
                             committed = committed,
                             nextObligationText = nextObligationText,
                             onAvailableLongPress = { showWhySheet = true }
@@ -276,11 +282,11 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(18.dp))
 
                 // ── 2. Days left / daily safe spend pair (mockup: two 18dp white cards) ──
-                if (budgetConfirmed) {
+                if (budgetConfirmed && availableFigureValue != null) {
                     com.example.ui.components.AppearOnEntry(delayMs = 60) {
                         com.example.ui.components.ZadDaysAndSafeSpendRow(
                             daysLeft = daysLeft,
-                            available = availableFigure.value
+                            available = availableFigureValue.value
                         )
                     }
                     Spacer(modifier = Modifier.height(18.dp))
@@ -585,8 +591,10 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                expensePrediction?.let { prediction ->
-                    PredictionCard(prediction, currentBudget)
+                // PredictionCard بيقارن توقّع الشهر الجاي بالسقف نفسه (budget)، مش بمتبقي
+                // الدورة — سقف <= 0 يبقى "غير معروف" أصلاً فمفيش كارت يتعرض من غير معنى.
+                if (expensePrediction != null && budget > 0) {
+                    PredictionCard(expensePrediction!!, budget)
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
@@ -695,7 +703,7 @@ fun BudgetEditDialog(currentBudget: Double, onDismiss: () -> Unit, onSave: (Doub
         title = { Text(stringResource(R.string.edit_monthly_budget)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.budget_save_note), style = Typography.labelSmall, color = onSurfaceVariant)
+                Text(stringResource(R.string.budget_save_hint), style = Typography.labelSmall, color = onSurfaceVariant)
                 OutlinedTextField(
                     value = budgetStr,
                     onValueChange = { budgetStr = it },

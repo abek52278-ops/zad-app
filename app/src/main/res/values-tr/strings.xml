@@ -95,7 +95,11 @@
     <string name="category_hint">Kategori (market, faturalar...)</string>
     <string name="edit_monthly_budget">Aylık bütçeyi düzenle</string>
     <string name="budget_with_currency">Bütçe (%1$s)</string>
-    <string name="budget_save_note">Bütçen Supabase → zad_users tablosuna kaydedilecek</string>
+    <string name="budget_save_hint">Kalan ve kullanılabilir tutarı bu limit üzerinden hesaplıyoruz; tüm cihazlarında eşitlenir.</string>
+    <string name="budget_unknown_value">Henüz belirlenmedi</string>
+    <string name="budget_unknown_speech">Aylık bütçe limitini henüz belirlemedin. Kalanı söyleyebilmem için önce onu ayarla.</string>
+    <string name="budget_gate_headline">Başlamadan önce aylık limitini belirle</string>
+    <string name="budget_gate_body">Zad sayı uydurmaz. Limit olmadan "kalan" da "kullanılabilir" de yoktur — göreceğin her sayı tahmin olur.</string>
 
     <!-- HomeScreen: greeting and hero -->
     <string name="greeting_hi_name">Merhaba %1$s! 👋</string>

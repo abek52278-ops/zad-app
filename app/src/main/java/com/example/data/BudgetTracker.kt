@@ -155,7 +155,8 @@ object BudgetTracker {
         val dao = ZadDatabase.getDatabase(context).zadDao()
         val transactions = dao.getAllTransactions().first()
         val spent = BudgetMath.spentThisMonth(transactions)
-        val remaining = BudgetMath.remaining(budget, transactions)
+        // budget > 0 مضمون فوق، فـ remaining مش هترجع null هنا — الـ return حماية للنوع بس
+        val remaining = BudgetMath.remaining(budget, transactions) ?: return
         val spentPct = ((budget - remaining) / budget * 100).toInt()
 
         val monthKey = java.time.YearMonth.now().toString() // "2026-07"

@@ -74,6 +74,25 @@ class BudgetMathTest {
         assertEquals(-50.0, BudgetMath.cashOnHand(txs), 0.001)
     }
 
+    // مرحلة ٠ب (docs/agent/PLAN_2026_08_06_rebuild.md) — سقف <= 0 يرجع null، مش 0.0.
+    // 0.0 كان بيتعرض للمستخدم كـ"متبقي ٠ ريال" رغم إنه عمره ما حدد سقف أصلاً.
+
+    @Test
+    fun `remaining returns null when no monthly limit is set`() {
+        assertEquals(null, BudgetMath.remaining(0.0, emptyList()))
+        assertEquals(null, BudgetMath.remaining(-5.0, emptyList()))
+    }
+
+    @Test
+    fun `remainingInCycle, velocityInCycle, dailyAllowanceInCycle and availableInCycle all return null when the limit is unknown`() {
+        val cycleStart = LocalDate.of(2026, 7, 1)
+        val cycleEnd = LocalDate.of(2026, 8, 1)
+        assertEquals(null, BudgetMath.remainingInCycle(0.0, emptyList(), cycleStart, cycleEnd))
+        assertEquals(null, BudgetMath.velocityInCycle(0.0, emptyList(), cycleStart, cycleEnd))
+        assertEquals(null, BudgetMath.dailyAllowanceInCycle(0.0, emptyList(), cycleStart, cycleEnd))
+        assertEquals(null, BudgetMath.availableInCycle(remaining = null, committed = 300.0))
+    }
+
     // totalIncome/totalExpense — 5 شاشات كانت بتعيد نفس المنطق ده بـ isExpense بدل txnKind
     // (AUDIT.md "Rule 1"). التوحيد ده هو اللي بيثبت إن سحب ATM (transfer) مابيتحسبش
     // مصروف/دخل في أي منهم، مش بس في spentThisMonth.
@@ -140,8 +159,8 @@ class BudgetMathTest {
             tx(amount = 1000.0, txnKind = "income", createdAt = "2026-07-05"),
             tx(amount = 300.0, txnKind = "expense", createdAt = "2026-07-10")
         )
-        assertEquals(BudgetMath.remaining(2000.0, txs, LocalDate.of(2026, 7, 15)),
-            BudgetMath.remainingInCycle(2000.0, txs, cycleStart, cycleEnd), 0.001)
+        assertEquals(BudgetMath.remaining(2000.0, txs, LocalDate.of(2026, 7, 15))!!,
+            BudgetMath.remainingInCycle(2000.0, txs, cycleStart, cycleEnd)!!, 0.001)
     }
 
     @Test
@@ -151,7 +170,7 @@ class BudgetMathTest {
         val cycleEnd = LocalDate.of(2026, 7, 31)
         val txs = listOf(tx(amount = 500.0, txnKind = "expense", createdAt = "2026-07-14"))
         val velocity = BudgetMath.velocityInCycle(1000.0, txs, cycleStart, cycleEnd, LocalDate.of(2026, 7, 15))
-        assertEquals(1.0, velocity, 0.05)
+        assertEquals(1.0, velocity!!, 0.05)
     }
 
     @Test
@@ -161,7 +180,7 @@ class BudgetMathTest {
         val txs = emptyList<ZadTransaction>()
         // متبقي = ١٠٠٠ (مفيش صرف)، ١٠ أيام باقيين من يوم ١ — ١٠٠ في اليوم
         val allowance = BudgetMath.dailyAllowanceInCycle(1000.0, txs, cycleStart, cycleEnd, LocalDate.of(2026, 7, 1))
-        assertEquals(100.0, allowance, 0.001)
+        assertEquals(100.0, allowance!!, 0.001)
     }
 
     // ── Task 26 — الالتزامات الثابتة ورقم "متاح" ────────────────────────────────
@@ -243,7 +262,7 @@ class BudgetMathTest {
     fun `availableInCycle can go negative and is not floored at zero`() {
         // PRODUCT_PLAN Task 26 — "Hiding it behind a floor of zero is the single most
         // harmful thing this feature could do."
-        assertEquals(-180.0, BudgetMath.availableInCycle(remaining = 120.0, committed = 300.0), 0.001)
+        assertEquals(-180.0, BudgetMath.availableInCycle(remaining = 120.0, committed = 300.0)!!, 0.001)
     }
 
     // ── Task 27.1(a) — is_verified feeds the "available" Figure's confidence ──────────

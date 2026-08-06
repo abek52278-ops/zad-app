@@ -20,7 +20,8 @@ data class ZadFamilyState(
 )
 
 data class BudgetSnapshot(
-    val remaining: Double,
+    /** null = السقف الشهري لسه مش متحدد، مش "متبقي صفر" — شوف BudgetMath.remaining */
+    val remaining: Double?,
     val monthlySpend: Double,
     val categoryBreakdown: List<CategoryBudgetCard>
 )
@@ -87,7 +88,9 @@ suspend fun buildZadFamilyState(dao: ZadDao, context: Context): ZadFamilyState {
     return ZadFamilyState(
         budget = BudgetSnapshot(
             remaining = remaining,
-            monthlySpend = monthlyBudget - remaining,
+            // المصروف رقم حقيقي مستقل عن السقف — كان بيتحسب (السقف − المتبقي)، يعني
+            // بيرجع صفر كدّاب لأي مستخدم من غير سقف. دلوقتي من المعاملات نفسها.
+            monthlySpend = BudgetMath.spentThisMonth(transactions),
             categoryBreakdown = BudgetTracker.getAllCategoryCards(context).map { (cat, budget, spent) ->
                 CategoryBudgetCard(cat, budget, spent)
             }

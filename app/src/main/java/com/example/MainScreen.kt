@@ -111,6 +111,17 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
         return
     }
 
+    // مرحلة ٠ج (docs/agent/PLAN_2026_08_06_rebuild.md) — بوابة إجبارية: مفيش شاشة مالية
+    // (HomeScreen وغيرها) تتعرض قبل ما السقف يتأكد. budgetLoaded بيمنع ومضة الشاشة دي
+    // للحظة قبل ما loadBudget() الأول يخلّص. مستبعدة من وضع الأطفال — الطفل أصلاً
+    // مايوصلش لأي شاشة مالية (goGuarded) ومالوش سلطة يحدد سقف العيلة.
+    val budgetLoaded by viewModel.budgetLoaded.collectAsState()
+    val budgetConfirmedForGate by viewModel.budgetConfirmed.collectAsState()
+    if (!kidsModeEffective && budgetLoaded && !budgetConfirmedForGate) {
+        com.example.ui.screens.BudgetGateScreen(onSetBudget = { viewModel.updateBudget(it) })
+        return
+    }
+
     if (showPinPrompt) {
         PinPromptDialog(
             onDismiss = { showPinPrompt = false },

@@ -2,6 +2,7 @@ package com.example.ui.widgets
 
 import android.Manifest
 import android.content.pm.PackageManager
+import com.example.R
 import android.speech.tts.TextToSpeech
 import android.util.Base64
 import android.util.Log
@@ -234,7 +235,9 @@ private suspend fun processAudioFile(
             // قراءة فقط — تُقال فوراً برقم حقيقي من الرصيد الفعلي، مش من تخمين الذكاء الاصطناعي
             "check_budget" -> {
                 val remaining = viewModel.remainingBalance.value
-                tts?.speak("باقي من ميزانيتك ${CurrencyFormatter.format(context, remaining)}", TextToSpeech.QUEUE_FLUSH, null, null)
+                val speech = remaining?.let { "باقي من ميزانيتك ${CurrencyFormatter.format(context, it)}" }
+                    ?: context.getString(R.string.budget_unknown_speech)
+                tts?.speak(speech, TextToSpeech.QUEUE_FLUSH, null, null)
                 null
             }
             // لا مبلغ مالي متضمن (التكلفة اتسجلت مرة واحدة وقت شراء الدواء، مش لكل جرعة) —

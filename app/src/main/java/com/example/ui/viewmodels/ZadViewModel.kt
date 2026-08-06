@@ -120,6 +120,14 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val _budgetConfirmed = MutableStateFlow(false)
     val budgetConfirmed: StateFlow<Boolean> = _budgetConfirmed.asStateFlow()
 
+    /**
+     * مرحلة ٠ج (docs/agent/PLAN_2026_08_06_rebuild.md) — false لحد ما loadBudget() يخلّص
+     * أول مرة. من غيرها MainScreen's البوابة كانت هتفتح شاشة "حدد سقفك" ومضة قبل ما
+     * تعرف إن فيه سقف متسجل فعلاً على السيرفر — الفرق بين "لسه مش عارفين" و"عارفين إنه مش موجود".
+     */
+    private val _budgetLoaded = MutableStateFlow(false)
+    val budgetLoaded: StateFlow<Boolean> = _budgetLoaded.asStateFlow()
+
     /** Task 19.0 — مصروف الشهر الحالي بس، مشتق من BudgetMath، مش كل الوقت. مستخدم في تنبيه ٨٥٪. */
     private val _spentThisMonth = MutableStateFlow(0.0)
 
@@ -135,8 +143,13 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val _incomeThisCycle = MutableStateFlow(0.0)
     val incomeThisCycle: StateFlow<Double> = _incomeThisCycle.asStateFlow()
 
-    private val _remainingBalance = MutableStateFlow<Double>(0.0)
-    val remainingBalance: StateFlow<Double> = _remainingBalance.asStateFlow()
+    /**
+     * null = السقف الشهري لسه مش متحدد، مش "متبقي صفر". الفرق ده هو كل مرحلة ٠ في
+     * `docs/agent/PLAN_2026_08_06_rebuild.md`: صفر رقم بيقول "خلصت فلوسك"، وغياب السقف
+     * بيقول "ما نعرفش" — والاتنين كانوا بيتعرضوا بنفس الشكل بالظبط للمستخدم.
+     */
+    private val _remainingBalance = MutableStateFlow<Double?>(null)
+    val remainingBalance: StateFlow<Double?> = _remainingBalance.asStateFlow()
 
     /** Task 19.4 — مشتق من BudgetMath.cashOnHand، بيتحدث مع كل تحديث Room زي remainingBalance بالظبط */
     private val _cashOnHand = MutableStateFlow(0.0)
@@ -165,8 +178,8 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      * المستخدم — انظر ZadTransaction.isVerified وتعليق addTransaction overload). ده مش
      * "بيصيح دايماً" — العرض السلبي (≈) مفيهوش مقاطعة زي سؤال، فمفيش تكلفة تكرار.
      */
-    private val _availableFigure = MutableStateFlow(Figure(0.0, confident = true))
-    val availableFigure: StateFlow<Figure> = _availableFigure.asStateFlow()
+    private val _availableFigure = MutableStateFlow<Figure?>(null)
+    val availableFigure: StateFlow<Figure?> = _availableFigure.asStateFlow()
 
     /** أقرب التزام مؤكد مستحق جوه الدورة الحالية — null لو مفيش، للعرض ("محجوز ٣٠٠ (إيجار بعد ٤ أيام)") */
     private val _nextObligationDue = MutableStateFlow<Pair<ZadObligation, LocalDate>?>(null)
@@ -598,7 +611,8 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         val brainText = report?.let { r ->
             buildString {
                 appendLine("الصحة المالية: ${r.healthScore}/100 (${r.healthLabel})")
-                appendLine("قوة الصرف: مسموح ${com.example.data.CurrencyFormatter.format(ctx, r.spendingPower.dailySafeSpend)}/يوم بأمان، معدله الفعلي ${com.example.data.CurrencyFormatter.format(ctx, r.spendingPower.currentDailyAvg)}/يوم")
+                val safePerDayText = r.spendingPower.dailySafeSpend?.let { com.example.data.CurrencyFormatter.format(ctx, it) } ?: "غير معروف (لسه محددش سقف)"
+                appendLine("قوة الصرف: مسموح $safePerDayText/يوم بأمان، معدله الفعلي ${com.example.data.CurrencyFormatter.format(ctx, r.spendingPower.currentDailyAvg)}/يوم")
                 r.monthComparison?.let { mc ->
                     appendLine("مقارنة بالشهر الماضي: ${if (mc.deltaPct >= 0) "+" else ""}${mc.deltaPct}%")
                 }
@@ -634,7 +648,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         return """
             === معلومات العميل ===
             الاسم: ${_userName.value ?: "مستخدم"} | التاريخ اليوم: $today
-            الميزانية الشهرية: ${if (_budget.value > 0) com.example.data.CurrencyFormatter.format(ctx, _budget.value) else "غير معروف"} | المتبقي: ${if (_budget.value > 0) com.example.data.CurrencyFormatter.format(ctx, com.example.data.BudgetMath.remaining(_budget.value, _transactions.value)) else "غير معروف"}
+            الميزانية الشهرية: ${if (_budget.value > 0) com.example.data.CurrencyFormatter.format(ctx, _budget.value) else "غير معروف"} | المتبقي: ${com.example.data.BudgetMath.remaining(_budget.value, _transactions.value)?.let { com.example.data.CurrencyFormatter.format(ctx, it) } ?: "غير معروف"}
 
             === مخزون المنزل (بتنبؤات النفاد) ===
             ${invText.ifBlank { "لا يوجد عناصر حالياً." }}
@@ -1138,6 +1152,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             recalculateRemainingBalance(_transactions.value, _budget.value)
+            _budgetLoaded.value = true
             Log.d(TAG, "loadBudget() → monthlyLimit=${_budget.value}, confirmed=${_budgetConfirmed.value}")
         }
     }
@@ -1270,21 +1285,23 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         val spent = BudgetMath.spentInCycle(txs, cycleStart, cycleEnd)
         _spentThisMonth.value = spent
         _incomeThisCycle.value = BudgetMath.incomeInCycle(txs, cycleStart, cycleEnd)
-        val remaining = BudgetMath.remainingInCycle(currentBudget, txs, cycleStart, cycleEnd)
+        val remaining: Double? = BudgetMath.remainingInCycle(currentBudget, txs, cycleStart, cycleEnd)
         _remainingBalance.value = remaining
         _cashOnHand.value = BudgetMath.cashOnHand(txs)
 
         val committed = BudgetMath.committedInCycle(_obligations.value, _subscriptions.value, cycleEnd, asOf)
         _committed.value = committed
-        val available = BudgetMath.availableInCycle(remaining, committed)
+        val available: Double? = BudgetMath.availableInCycle(remaining, committed)
         // Task 27.1(a) — أي معاملة في الدورة الحالية is_verified=false (معاملة بنكية لسه
         // ما اتراجعتش، مش معاملة كتبها المستخدم بنفسه) تخلي "متاح" ≈ مش رقم قاطع.
         val unverifiedCount = BudgetMath.unverifiedCountInCycle(txs, cycleStart, cycleEnd)
-        _availableFigure.value = Figure(
-            value = available,
-            confident = unverifiedCount == 0,
-            reason = if (unverifiedCount > 0) "فيه $unverifiedCount معاملة من الدورة دي لسه ما اتأكدتش (رسايل بنكية أو مصادر تانية غير مباشرة)" else null
-        )
+        _availableFigure.value = available?.let {
+            Figure(
+                value = it,
+                confident = unverifiedCount == 0,
+                reason = if (unverifiedCount > 0) "فيه $unverifiedCount معاملة من الدورة دي لسه ما اتأكدتش (رسايل بنكية أو مصادر تانية غير مباشرة)" else null
+            )
+        }
         _nextObligationDue.value = _obligations.value
             .filter { it.active && it.confirmed }
             .mapNotNull { ob -> BudgetMath.nextDueDate(ob, asOf)?.let { ob to it } }

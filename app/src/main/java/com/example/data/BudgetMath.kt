@@ -58,9 +58,16 @@ object BudgetMath {
     fun totalExpense(transactions: List<ZadTransaction>): Double =
         transactions.filter { it.txnKind == "expense" }.sumOf { it.amount }
 
-    /** monthlyLimit من zad_users.monthly_limit — الصفر أو الأقل بيرجع 0.0، مفيش "متبقي" لسقف مش معروف */
-    fun remaining(monthlyLimit: Double, transactions: List<ZadTransaction>, asOf: LocalDate = LocalDate.now()): Double {
-        if (monthlyLimit <= 0.0) return 0.0
+    /**
+     * monthlyLimit من zad_users.monthly_limit — سقف <= 0 معناه "مش معروف"، والدالة بترجع
+     * **null** مش 0.0.
+     *
+     * كان بيرجع 0.0، وده كان بيتعرض للمستخدم كرقم حقيقي: "متبقي ٠ ر.س" لمستخدم عمره ما
+     * حدد سقف. صفر رقم له معنى (خلصت فلوسك) مختلف تماماً عن غياب السقف، والاتنين كانوا
+     * بيتخلطوا في كل شاشة ماليّة. null بيجبر كل مستهلك يقرر يعرض إيه بدل ما يرث كدبة.
+     */
+    fun remaining(monthlyLimit: Double, transactions: List<ZadTransaction>, asOf: LocalDate = LocalDate.now()): Double? {
+        if (monthlyLimit <= 0.0) return null
         return monthlyLimit - spentThisMonth(transactions, asOf) + incomeThisMonth(transactions, asOf)
     }
 
@@ -77,8 +84,9 @@ object BudgetMath {
         transactions.filter { it.txnKind == "income" && txDate(it)?.let { d -> !d.isBefore(cycleStart) && d.isBefore(cycleEnd) } == true }
             .sumOf { it.amount }
 
-    fun remainingInCycle(monthlyLimit: Double, transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate): Double {
-        if (monthlyLimit <= 0.0) return 0.0
+    /** نفس اتفاقية `remaining`: سقف <= 0 = مش معروف = null، مش صفر. */
+    fun remainingInCycle(monthlyLimit: Double, transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate): Double? {
+        if (monthlyLimit <= 0.0) return null
         return monthlyLimit - spentInCycle(transactions, cycleStart, cycleEnd) + incomeInCycle(transactions, cycleStart, cycleEnd)
     }
 
@@ -96,8 +104,8 @@ object BudgetMath {
         }
 
     /** budget * (daysElapsed/cycleLength) هو المتوقع صرفه لحد دلوقتي — النسبة دي أعلى من ١ يعني بيصرف أسرع من المفروض */
-    fun velocityInCycle(monthlyLimit: Double, transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate, asOf: LocalDate = LocalDate.now()): Double {
-        if (monthlyLimit <= 0.0) return 0.0
+    fun velocityInCycle(monthlyLimit: Double, transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate, asOf: LocalDate = LocalDate.now()): Double? {
+        if (monthlyLimit <= 0.0) return null
         val cycleLength = CycleMath.cycleLengthDays(cycleStart, cycleEnd).coerceAtLeast(1)
         val daysElapsed = CycleMath.daysElapsed(asOf, cycleStart).coerceAtLeast(1)
         val expected = monthlyLimit * daysElapsed / cycleLength
@@ -105,8 +113,8 @@ object BudgetMath {
         return spentInCycle(transactions, cycleStart, cycleEnd) / expected
     }
 
-    fun dailyAllowanceInCycle(monthlyLimit: Double, transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate, asOf: LocalDate = LocalDate.now()): Double {
-        val available = remainingInCycle(monthlyLimit, transactions, cycleStart, cycleEnd)
+    fun dailyAllowanceInCycle(monthlyLimit: Double, transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate, asOf: LocalDate = LocalDate.now()): Double? {
+        val available = remainingInCycle(monthlyLimit, transactions, cycleStart, cycleEnd) ?: return null
         val daysLeft = CycleMath.daysLeft(asOf, cycleEnd)
         return if (daysLeft > 0) available / daysLeft else available
     }
@@ -158,7 +166,8 @@ object BudgetMath {
      * "متاح" — الرقم الأساسي اللي المفروض المستخدم يشوفه، مش "متبقي". ممكن يبقى سالب،
      * وده مقصود (PRODUCT_PLAN Task 26): إخفاؤه وراء صفر أخطر حاجة ممكن الميزة دي تعملها.
      */
-    fun availableInCycle(remaining: Double, committed: Double): Double = remaining - committed
+    fun availableInCycle(remaining: Double?, committed: Double): Double? =
+        remaining?.let { it - committed }
 
     /**
      * Task 19.4 — فلوس الكاش تحت اليد. مطابق تماماً لمنطق zad_cash_balance() SQL (migration

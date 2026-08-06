@@ -93,7 +93,11 @@
     <string name="category_hint">التصنيف (بقالة، فواتير...)</string>
     <string name="edit_monthly_budget">تعديل الميزانية الشهرية</string>
     <string name="budget_with_currency">الميزانية (%1$s)</string>
-    <string name="budget_save_note">بتنحفظ ميزانيتك في Supabase → جدول zad_users</string>
+    <string name="budget_save_hint">هذا السقف اللي بنحسب عليه المتبقي والمتاح، ويتزامن على كل أجهزتك.</string>
+    <string name="budget_unknown_value">ما زال غير محدد</string>
+    <string name="budget_unknown_speech">ما حددت سقف ميزانيتك لين الحين. حدده أول عشان أقدر أقول لك الباقي.</string>
+    <string name="budget_gate_headline">قبل ما نبدأ، حدد سقفك الشهري</string>
+    <string name="budget_gate_body">زاد ما يخترع أرقام. بدون السقف ما فيه "متبقي" ولا "متاح" — وأي رقم تشوفه بيكون تخمين.</string>
 
     <!-- HomeScreen: greeting and hero -->
     <string name="greeting_hi_name">هلا يا %1$s! 👋</string>
