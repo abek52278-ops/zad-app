@@ -193,6 +193,24 @@ object SyncOutbox {
         }
     }
 
+    /** avatarUri الفعلي (رابط storage عام) — الملف فعلاً موجود في bucket "avatars"، بس كتابة
+     * zad_users.avatar_uri فشلت. retry بيعيد الكتابة دي بس، مش رفع الصورة تاني. */
+    suspend fun enqueueAvatarUpdate(context: Context, avatarUri: String) {
+        try {
+            val dao = ZadDatabase.getDatabase(context).zadDao()
+            dao.insertPendingSyncOp(
+                PendingSyncOp(
+                    opType = "avatar_update",
+                    payloadJson = json.encodeToString(AvatarUpdatePayload(avatarUri)),
+                    createdAt = java.time.Instant.now().toString()
+                )
+            )
+            Log.d(TAG, "enqueueAvatarUpdate: queued avatar_uri for retry")
+        } catch (e: Exception) {
+            Log.e(TAG, "enqueueAvatarUpdate failed: ${e.message}")
+        }
+    }
+
     /** يقيّد نص/عنوان بنكي فشل تحليله الفوري (SaBankParser + AI) — retry في [flush] القادم */
     suspend fun enqueueUnparsedNotification(context: Context, source: String, title: String, text: String) {
         try {
@@ -300,6 +318,15 @@ object SyncOutbox {
                     "family_balance_update" -> {
                         val payload = json.decodeFromString<FamilyBalanceUpdatePayload>(op.payloadJson)
                         if (SupabaseRepo.updateFamilyMemberBalance(payload.memberId, payload.newBalance)) {
+                            dao.deletePendingSyncOp(op.id)
+                            Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
+                        } else {
+                            Log.w(TAG, "flush: op ${op.id} (${op.opType}) still failing — left queued for next run")
+                        }
+                    }
+                    "avatar_update" -> {
+                        val payload = json.decodeFromString<AvatarUpdatePayload>(op.payloadJson)
+                        if (SupabaseRepo.updateUserProfile(null, payload.avatarUri)) {
                             dao.deletePendingSyncOp(op.id)
                             Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
                         } else {

@@ -2804,16 +2804,23 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 val publicUrl = SupabaseRepo.uploadAvatar(bytes, mimeType)
                 if (publicUrl != null) {
                     // الصورة اترفعت فعلياً للـ storage — نحدّث الـ StateFlow فوراً (الهوم والدرج
-                    // بيعكسوها لحظياً) بدل ما نستنى نجاح كتابة zad_users.avatar_uri التانية. لو
-                    // الكتابة دي فشلت (شبكة/RLS) الصورة تفضل ظاهرة لحد آخر الجلسة، وبنسجل الفشل
-                    // بدل ما نسيب الواجهة عالقة على الصورة القديمة رغم إن الرفع نجح فعلاً.
+                    // بيعكسوها لحظياً هالجلسة) حتى لو الكتابة التانية تحت فشلت، عشان الواجهة
+                    // متفضلش عالقة على الصورة القديمة رغم إن الرفع نجح.
                     _avatarUri.value = publicUrl
                     // name=null — أبلود الصورة لوحدها متلمسش الاسم، حتى لو _userName لسه null
                     // (لسه ماحملش loadUserProfile()).
-                    val success = SupabaseRepo.updateUserProfile(null, publicUrl)
-                    if (!success) Log.e(TAG, "uploadAvatar() → storage upload OK but avatar_uri DB write FAILED, url=$publicUrl")
-                    Log.d(TAG, "uploadAvatar() → success=$success, url=$publicUrl")
-                    onResult(true)
+                    val dbSuccess = SupabaseRepo.updateUserProfile(null, publicUrl)
+                    if (!dbSuccess) {
+                        // الملف موجود في الـ bucket فعلاً — مش هنرفعه تاني، بس avatar_uri لسه
+                        // مكتوبش في zad_users. نقيّده لـ SyncOutbox عشان ميتفقدش لو الجلسة اتقفلت
+                        // قبل ما يترتّبط، بدل ما نسجّل الفشل ونسيبه من غير أي محاولة تانية.
+                        com.example.data.SyncOutbox.enqueueAvatarUpdate(getApplication(), publicUrl)
+                        Log.e(TAG, "uploadAvatar() → storage upload OK but avatar_uri DB write FAILED, url=$publicUrl — queued retry")
+                    }
+                    Log.d(TAG, "uploadAvatar() → dbSuccess=$dbSuccess, url=$publicUrl")
+                    // نجاح للواجهة بس لو الاتنين نجحوا (رفع + كتابة DB) — نجاح رفع لوحده مع فشل
+                    // كتابة لسه "مش خلص" من ناحية سلامة البيانات، حتى لو الصورة ظاهرة هالجلسة.
+                    onResult(dbSuccess)
                 } else {
                     onResult(false)
                 }

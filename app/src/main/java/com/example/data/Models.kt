@@ -467,7 +467,7 @@ data class ZadChatMessage(
 @Entity(tableName = "zad_pending_sync_ops")
 data class PendingSyncOp(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
-    val opType: String, // "add_transaction" | "analyze_unparsed_notification" | "inventory_upsert" | "inventory_delete" | "inventory_observation" | "budget_update" | "market_profile_update" | "debt_upsert" | "debt_delete" | "debt_balance_update" | "family_balance_update"
+    val opType: String, // "add_transaction" | "analyze_unparsed_notification" | "inventory_upsert" | "inventory_delete" | "inventory_observation" | "budget_update" | "market_profile_update" | "debt_upsert" | "debt_delete" | "debt_balance_update" | "family_balance_update" | "avatar_update"
     val payloadJson: String,
     val createdAt: String,
     val attempts: Int = 0
@@ -497,6 +497,12 @@ data class DebtBalanceUpdatePayload(val id: String, val newBalance: Double)
  * silently diverges the client's number from what the server actually holds. */
 @Serializable
 data class FamilyBalanceUpdatePayload(val memberId: String, val newBalance: Double)
+
+/** Payload for opType "avatar_update" — the storage upload already succeeded (the file is live
+ * in the "avatars" bucket) and only the zad_users.avatar_uri row write failed; retry replays
+ * just that write so the photo isn't lost across sessions even though the client already shows it. */
+@Serializable
+data class AvatarUpdatePayload(val avatarUri: String)
 
 /** Payload for opType "inventory_delete" — ZadInventory itself carries no delete marker, so a
  * failed SupabaseRepo.deleteInventory() retry just needs the id. */

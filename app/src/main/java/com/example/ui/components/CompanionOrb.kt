@@ -110,12 +110,16 @@ fun CompanionOrb(
         eyeOpenAmount = 1f
     }
 
-    val description = companionStateDescription(state)
-    Canvas(
-        modifier = modifier
-            .size(size)
-            .semantics { contentDescription = description }
-    ) {
+    // الوصف الصوتي بس على النسخ البارزة (animated=true — رأس الشاشة/الشات). نسخ فقاعات
+    // الشات (animated=false) عمداً من غير semantics عشان قارئ الشاشة ميكررش "زاد: ..." قبل كل
+    // رسالة رسالة في محادثة طويلة — اسم "زاد" ونص الرسالة نفسه أصلاً بيتقروا.
+    val orbModifier = if (animated) {
+        val description = companionStateDescription(state)
+        modifier.size(size).semantics { contentDescription = description }
+    } else {
+        modifier.size(size)
+    }
+    Canvas(modifier = orbModifier) {
         val radius = (this.size.minDimension / 2f) * breathScale
         val center = Offset(this.size.width / 2f, this.size.height / 2f)
 
