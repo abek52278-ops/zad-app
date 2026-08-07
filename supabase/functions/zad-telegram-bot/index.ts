@@ -229,6 +229,76 @@ async function askZad(systemPrompt: string, userPrompt: string): Promise<string 
   }
 }
 
+/** Generic version of askZad's fetch for any zad-core-intelligence action (voice_agent,
+ * analyze_receipt, ...) that returns a structured JSON body rather than a plain string. */
+async function callCoreIntelligence<T>(action: string, payload: Record<string, unknown>): Promise<T | null> {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/zad-core-intelligence`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
+      body: JSON.stringify({ action, payload }),
+    });
+    if (!res.ok) {
+      console.error(`callCoreIntelligence: ${action} returned`, res.status);
+      return null;
+    }
+    return await res.json() as T;
+  } catch (e) {
+    console.error(`callCoreIntelligence: ${action} failed:`, e);
+    return null;
+  }
+}
+
+/** Telegram file download is a two-step dance: resolve file_id → file_path via getFile,
+ * then GET the actual bytes from the file/ CDN host. Both calls use the bot token, not the
+ * webhook secret — this is Telegram's own API, unrelated to inbound webhook auth. */
+async function downloadTelegramFileBytes(fileId: string): Promise<ArrayBuffer | null> {
+  try {
+    const infoRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${fileId}`);
+    const info = await infoRes.json();
+    const filePath = info?.result?.file_path;
+    if (!filePath) {
+      console.error("downloadTelegramFileBytes: getFile returned no file_path", JSON.stringify(info));
+      return null;
+    }
+    const fileRes = await fetch(`https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`);
+    if (!fileRes.ok) {
+      console.error("downloadTelegramFileBytes: file download HTTP", fileRes.status);
+      return null;
+    }
+    return await fileRes.arrayBuffer();
+  } catch (e) {
+    console.error("downloadTelegramFileBytes failed:", e);
+    return null;
+  }
+}
+
+/** Chunked to avoid a call-stack overflow from String.fromCharCode(...bytes) on a large
+ * array — voice notes/photos are small (KB, not MB) but no reason to rely on that. */
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+interface VoiceAgentResult {
+  action: "chat" | "add_expense" | "add_income" | "check_budget" | "add_inventory" | "log_pharmacy_dose";
+  message: string;
+  data: { amount?: number; title?: string; category?: string } | null;
+  transcript: string;
+}
+
+interface AnalyzeReceiptResult {
+  total: number;
+  category: string;
+  storeName: string;
+  items: Array<{ name: string; price: number; quantity: number; unit: string; category: string }>;
+}
+
 // Constructed with a syntactically-valid placeholder when the token is missing so the
 // module still loads and the GET probe can explain the misconfiguration. No request is
 // ever routed to this bot in that state — Deno.serve short-circuits below.
@@ -354,6 +424,181 @@ bot.on("message:text", async (ctx) => {
       reply_markup: toGrammyKeyboard(mainMenuKeyboard()),
     });
   }
+});
+
+// رسالة صوتية — نفس فكرة رسالة الكتابة العادية، بس بعد تفريغ الصوت لنص عبر
+// zad-core-intelligence's voice_agent (Whisper + استخراج نية بخطوة واحدة). أي صرف/دخل
+// برضه بيعدي على نفس تأكيد الكتابة العادية (telegram_pending_writes + زر تأكيد) — مفيش
+// كتابة مباشرة في zad_transactions من صوت متسمعش صح، نفس قاعدة الأمان بتاعة النص.
+// إضافة مخزون بس هي اللي بتتكتب مباشرة (نفس فلسفة مسح الكاميرا في التطبيق: مخزون خطره
+// أقل بكتير من فلوس حقيقية في الدفتر).
+bot.on("message:voice", async (ctx) => {
+  const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  const userId = await resolveUserId(sb, ctx.chat.id);
+  if (!userId) {
+    await ctx.reply("أهلاً! لو عندك كود ربط من تطبيق زاد ابعته كده: /start الكود");
+    return;
+  }
+  await ctx.replyWithChatAction("typing");
+
+  const bytes = await downloadTelegramFileBytes(ctx.message.voice.file_id);
+  if (!bytes) {
+    await ctx.reply("معلش، مقدرتش أنزّل الرسالة الصوتية — جرب تاني.");
+    return;
+  }
+
+  const result = await callCoreIntelligence<VoiceAgentResult>("voice_agent", {
+    audio_base64: arrayBufferToBase64(bytes),
+    mime_type: ctx.message.voice.mime_type || "audio/ogg",
+  });
+  if (!result || !result.transcript) {
+    await ctx.reply("معلش، مسمعتش كلام واضح في الرسالة الصوتية — جرب تاني.");
+    return;
+  }
+  const heard = `🎤 "${result.transcript}"\n\n`;
+
+  if (result.action === "add_expense" || result.action === "add_income") {
+    const amount = Number(result.data?.amount ?? 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      await ctx.reply(heard + (result.message || "معلش، مسمعتش مبلغ واضح."));
+      return;
+    }
+    const kind = result.action === "add_expense" ? "expense" : "income";
+    const title = (result.data?.title || (kind === "expense" ? "مصروف" : "دخل")).slice(0, 80);
+    const category = (result.data?.category || "أخرى").slice(0, 40);
+    const currency = (await sb.from("zad_users").select("currency").eq("id", userId).maybeSingle())
+      .data?.currency ?? "غير معروف";
+    const { data: pending, error } = await sb.from("telegram_pending_writes").insert({
+      user_id: userId,
+      chat_id: ctx.chat.id,
+      txn_kind: kind,
+      amount: Math.round(amount * 100) / 100,
+      title,
+      category,
+      // voice_agent مبيرجعش confidence (مش زي parseSpendIntent) — قيمة ثابتة معقولة،
+      // مش بتتحكم في عرض زر التأكيد أصلاً (التأكيد بيتعرض دايماً بغض النظر عنها).
+      confidence: 0.75,
+    }).select("id").single();
+    if (!error && pending) {
+      await ctx.reply(heard + confirmSpendMessage({ is_spend: true, kind, amount, title, category, confidence: 0.75 }, currency), {
+        reply_markup: toGrammyKeyboard(confirmSpendKeyboard((pending as { id: string }).id)),
+      });
+      return;
+    }
+    console.error("voice pending write insert failed:", error);
+    await ctx.reply(heard + "معلش، حصلت مشكلة في تسجيل المصروف — جرب تاني.");
+    return;
+  }
+
+  if (result.action === "add_inventory") {
+    const itemName = (result.data?.title || "").trim();
+    if (!itemName) {
+      await ctx.reply(heard + (result.message || "معلش، مسمعتش اسم صنف واضح."));
+      return;
+    }
+    // voice_agent's data شكلها ثابت لكل action (amount/title/category) — مفيهاش حقل كمية
+    // مخصص لـ add_inventory. amount بيتفسر هنا كمية لو رقم منطقي، وإلا واحدة افتراضية.
+    const rawQty = Number(result.data?.amount);
+    const qty = Number.isFinite(rawQty) && rawQty > 0 ? Math.round(rawQty) : 1;
+    const { error } = await sb.from("zad_inventory").insert({
+      user_id: userId,
+      item_name: itemName,
+      quantity: qty,
+      unit: "قطعة",
+    });
+    if (error) {
+      console.error("voice add_inventory insert failed:", error);
+      await ctx.reply(heard + "معلش، مقدرتش أضيف الصنف للمخزون — جرب تاني.");
+      return;
+    }
+    await sb.rpc("zad_record_observation", { p_user: userId, p_item: itemName, p_qty: qty, p_source: "purchase" });
+    await ctx.reply(heard + `✅ اتضاف "${itemName}" للمخزون (${qty}).`);
+    return;
+  }
+
+  // check_budget / log_pharmacy_dose / chat — قراءة بس دلوقتي، مفيش كتابة. تسجيل جرعة
+  // دوا فعلي محتاج جدول/تدفق منفصل (zad_dose_log) مش داخل نطاق المهمة دي.
+  await ctx.reply(heard + (result.message || "تمام."));
+});
+
+// صورة (فاتورة أو صنف) — نفس مبدأ التسجيل الصوتي: الأصناف بتتضاف للمخزون مباشرة (زي
+// مسح الكاميرا في التطبيق)، أي مبلغ إجمالي مقروء من الفاتورة بيعدي على نفس تأكيد
+// الكتابة العادية قبل ما يتسجل في zad_transactions.
+bot.on("message:photo", async (ctx) => {
+  const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  const userId = await resolveUserId(sb, ctx.chat.id);
+  if (!userId) {
+    await ctx.reply("أهلاً! لو عندك كود ربط من تطبيق زاد ابعته كده: /start الكود");
+    return;
+  }
+  await ctx.replyWithChatAction("typing");
+
+  // آخر عنصر في مصفوفة PhotoSize دايماً أعلى دقة بعتها تليجرام (الترتيب تصاعدي مضمون)
+  const sizes = ctx.message.photo;
+  const largest = sizes[sizes.length - 1];
+  const bytes = await downloadTelegramFileBytes(largest.file_id);
+  if (!bytes) {
+    await ctx.reply("معلش، مقدرتش أنزّل الصورة — جرب تاني.");
+    return;
+  }
+
+  const result = await callCoreIntelligence<AnalyzeReceiptResult>("analyze_receipt", {
+    image_base64: arrayBufferToBase64(bytes),
+    mime_type: "image/jpeg", // تليجرام بيضغط صور الـ photo دايماً JPEG
+  });
+  if (!result || (result.items.length === 0 && (!result.total || result.total <= 0))) {
+    await ctx.reply("معلش، مقدرتش أقرا حاجة واضحة في الصورة دي — جرب صورة أوضح.");
+    return;
+  }
+
+  let addedCount = 0;
+  for (const item of result.items) {
+    if (!item.name?.trim()) continue;
+    const qty = Number.isFinite(item.quantity) && item.quantity > 0 ? Math.round(item.quantity) : 1;
+    const { error } = await sb.from("zad_inventory").insert({
+      user_id: userId,
+      item_name: item.name.trim(),
+      quantity: qty,
+      unit: item.unit || "قطعة",
+      category: item.category || null,
+    });
+    if (!error) {
+      addedCount++;
+      await sb.rpc("zad_record_observation", { p_user: userId, p_item: item.name.trim(), p_qty: qty, p_source: "purchase" });
+    } else {
+      console.error("photo inventory insert failed:", error);
+    }
+  }
+  const itemsSummary = addedCount > 0
+    ? `✅ اتضاف ${addedCount} صنف للمخزون${result.storeName ? ` من ${result.storeName}` : ""}.`
+    : "";
+
+  if (result.total > 0) {
+    const currency = (await sb.from("zad_users").select("currency").eq("id", userId).maybeSingle())
+      .data?.currency ?? "غير معروف";
+    const title = (result.storeName || "فاتورة").slice(0, 80);
+    const category = (result.category || "أخرى").slice(0, 40);
+    const { data: pending, error } = await sb.from("telegram_pending_writes").insert({
+      user_id: userId,
+      chat_id: ctx.chat.id,
+      txn_kind: "expense",
+      amount: Math.round(result.total * 100) / 100,
+      title,
+      category,
+      confidence: 0.75,
+    }).select("id").single();
+    if (!error && pending) {
+      await ctx.reply(
+        (itemsSummary ? itemsSummary + "\n\n" : "") +
+          confirmSpendMessage({ is_spend: true, kind: "expense", amount: result.total, title, category, confidence: 0.75 }, currency),
+        { reply_markup: toGrammyKeyboard(confirmSpendKeyboard((pending as { id: string }).id)) },
+      );
+      return;
+    }
+    console.error("photo pending write insert failed:", error);
+  }
+
+  await ctx.reply(itemsSummary || "معلش، ملقتش أصناف ولا مبلغ واضح في الصورة دي.");
 });
 
 bot.on("callback_query:data", async (ctx) => {
