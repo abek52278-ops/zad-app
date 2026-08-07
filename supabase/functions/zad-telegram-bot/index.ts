@@ -170,7 +170,7 @@ async function fetchAgentContext(sb: SupabaseClient, userId: string): Promise<Ag
   const today = new Date().toISOString().slice(0, 10);
 
   const [user, txs, inv, subs, obligations, pharmacy, shopping, insights, tasbiha, memory] = await Promise.all([
-    sb.from("zad_users").select("full_name,monthly_limit,currency,country").eq("id", userId).maybeSingle(),
+    sb.from("zad_users").select("name,monthly_limit,currency,country").eq("id", userId).maybeSingle(),
     // Pull a deep-enough window (200 newest) rather than just the 30 the prompt shows:
     // monthTotals/categoryBreakdown run over this same list, so a heavy month with more
     // than 30 transactions would otherwise report totals that are silently too low.
@@ -187,7 +187,7 @@ async function fetchAgentContext(sb: SupabaseClient, userId: string): Promise<Ag
   ]);
 
   return {
-    userName: (user.data as any)?.full_name ?? null,
+    userName: (user.data as any)?.name ?? null,
     monthlyLimit: Number((user.data as any)?.monthly_limit) || 0,
     // "غير معروف" بدل "ر.س" — كان افتراض ميت خلّى البوت يرد على عميل في مصر "مفيش
     // ولا ريال" وهو فلوسه بالمصري. لو العمود موجود، قيمته الحقيقية (EGP/SAR/TRY)
