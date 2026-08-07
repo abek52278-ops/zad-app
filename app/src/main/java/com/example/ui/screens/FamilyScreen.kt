@@ -40,7 +40,11 @@ import com.example.ui.components.zadCardShadow
 import com.example.ui.theme.*
 import com.example.ui.components.QrCode
 import com.example.ui.components.pressableScale
+import com.example.ui.components.GlassCard
+import com.example.ui.components.zadGlassBlur
 import com.example.ui.components.ZadLottieAsset
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import com.airbnb.lottie.compose.LottieConstants
 import com.example.ui.viewmodels.FamilyViewModel
 import com.example.ui.viewmodels.FamilyState
@@ -1532,6 +1536,7 @@ fun ChatTab(
     val sosMessageText = stringResource(R.string.sos_message)
     val context = LocalContext.current
     val needAmountPattern = stringResource(R.string.need_amount_purchase)
+    val haptic = LocalHapticFeedback.current
 
     // Start typing monitor
     LaunchedEffect(myMemberInfo.familyId) {
@@ -1683,9 +1688,9 @@ fun ChatTab(
         }
 
         // Input
-        Box(
-            modifier = Modifier.fillMaxWidth().background(surface).padding(horizontal = 12.dp, vertical = 8.dp)
-        ) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Box(modifier = Modifier.matchParentSize().zadGlassBlur(16.dp).background(surface.copy(alpha = 0.9f)))
+            Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
             Column {
                 // Quick replies
                 if (showQuickReplies) {
@@ -1715,16 +1720,22 @@ fun ChatTab(
                 }
 
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { showQuickReplies = !showQuickReplies }) {
+                    IconButton(onClick = { showQuickReplies = !showQuickReplies }, modifier = Modifier.pressableScale()) {
                         Icon(Icons.Default.Add, contentDescription = "Quick Replies", tint = primary)
                     }
-                    IconButton(onClick = { onSendMessage(sosMessageText, "SOS", null) }) {
+                    IconButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onSendMessage(sosMessageText, "SOS", null)
+                        },
+                        modifier = Modifier.pressableScale()
+                    ) {
                         Icon(Icons.Default.Warning, contentDescription = "SOS", tint = dangerColor)
                     }
-                    IconButton(onClick = { showPurchaseDialog = true }) {
+                    IconButton(onClick = { showPurchaseDialog = true }, modifier = Modifier.pressableScale()) {
                         Icon(Icons.Default.ShoppingCart, contentDescription = "Request", tint = primary)
                     }
-                    IconButton(onClick = { showPollDialog = true }) {
+                    IconButton(onClick = { showPollDialog = true }, modifier = Modifier.pressableScale()) {
                         Icon(Icons.Default.BarChart, contentDescription = "Poll", tint = secondary)
                     }
                     Row(
@@ -1743,15 +1754,19 @@ fun ChatTab(
                                 focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent
                             )
                         )
-                        IconButton(onClick = {
-                            if (text.isNotBlank()) { onSendMessage(text, "TEXT", null); text = "" }
-                        }) {
+                        IconButton(
+                            onClick = {
+                                if (text.isNotBlank()) { onSendMessage(text, "TEXT", null); text = "" }
+                            },
+                            modifier = Modifier.pressableScale()
+                        ) {
                             Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(primary), contentAlignment = Alignment.Center) {
                                 Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.White, modifier = Modifier.size(16.dp))
                             }
                         }
                     }
                 }
+            }
             }
         }
     }
@@ -1831,8 +1846,11 @@ private fun SosBubble(msg: ChatMessage, senderAlias: String) {
 private fun PurchaseBubble(msg: ChatMessage, senderAlias: String, myMemberInfo: com.example.data.FamilyMember, isMe: Boolean, onUpdateRequestStatus: (String, String, String) -> Unit) {
     val approvedPattern = stringResource(R.string.request_approved_message)
     val rejectedPattern = stringResource(R.string.request_rejected_message)
-    Box(modifier = Modifier.fillMaxWidth(0.85f).clip(RoundedCornerShape(16.dp)).background(surfaceContainerHigh).border(1.dp, primary, RoundedCornerShape(16.dp)).padding(16.dp)) {
-        Column {
+    val haptic = LocalHapticFeedback.current
+    val bubbleShape = RoundedCornerShape(16.dp)
+    Box(modifier = Modifier.fillMaxWidth(0.85f).clip(bubbleShape)) {
+        Box(modifier = Modifier.matchParentSize().zadGlassBlur(14.dp).background(surfaceContainerHigh.copy(alpha = 0.8f)))
+        Column(modifier = Modifier.border(1.dp, primary, bubbleShape).padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.ShoppingCart, contentDescription = "Request", tint = primary)
                 Spacer(modifier = Modifier.width(8.dp))
@@ -1846,8 +1864,22 @@ private fun PurchaseBubble(msg: ChatMessage, senderAlias: String, myMemberInfo: 
             if (isPending && myMemberInfo.role == "admin" && !isMe) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    Button(onClick = { onUpdateRequestStatus(msg.id, "APPROVED", String.format(approvedPattern, msg.message)) }, colors = ButtonDefaults.buttonColors(containerColor = primary)) { Text(stringResource(R.string.approve_and_deduct)) }
-                    OutlinedButton(onClick = { onUpdateRequestStatus(msg.id, "REJECTED", String.format(rejectedPattern, msg.message)) }, colors = ButtonDefaults.outlinedButtonColors(contentColor = dangerColor)) { Text(stringResource(R.string.reject)) }
+                    Button(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onUpdateRequestStatus(msg.id, "APPROVED", String.format(approvedPattern, msg.message))
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = primary),
+                        modifier = Modifier.pressableScale()
+                    ) { Text(stringResource(R.string.approve_and_deduct)) }
+                    OutlinedButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onUpdateRequestStatus(msg.id, "REJECTED", String.format(rejectedPattern, msg.message))
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = dangerColor),
+                        modifier = Modifier.pressableScale()
+                    ) { Text(stringResource(R.string.reject)) }
                 }
             } else if (isApproved) {
                 Spacer(modifier = Modifier.height(8.dp))
