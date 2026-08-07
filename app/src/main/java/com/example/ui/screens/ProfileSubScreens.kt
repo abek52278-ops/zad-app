@@ -313,6 +313,7 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
     var newBudgetStr by remember { mutableStateOf(budget.toString()) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val saveFailedText = stringResource(R.string.changes_save_failed)
 
     LaunchedEffect(budget) {
         Log.d(TAG_SUB_PROF, "PaymentAndBudgetScreen loaded — current budget=$budget")
@@ -371,7 +372,10 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
                 onSelect = { market ->
                     selectedMarket = market
                     com.example.data.MarketPrefs.setMarket(context, market)
-                    scope.launch { com.example.data.SupabaseRepo.syncMarketProfile(market) }
+                    scope.launch {
+                        val synced = com.example.data.SupabaseRepo.syncMarketProfile(market)
+                        if (!synced) Toast.makeText(context, saveFailedText, Toast.LENGTH_LONG).show()
+                    }
                     context.findActivity()?.recreate()
                 },
                 modifier = Modifier.fillMaxWidth()

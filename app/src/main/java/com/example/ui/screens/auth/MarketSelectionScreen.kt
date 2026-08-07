@@ -16,6 +16,8 @@ import androidx.compose.ui.draw.clip
 import com.example.ui.components.zadCardShadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import android.widget.Toast
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -35,6 +37,7 @@ fun MarketSelectionScreen(onContinue: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var selected by remember { mutableStateOf<Market?>(null) }
+    val syncFailedText = stringResource(com.example.R.string.changes_save_failed)
 
     // part of the auth flow, so it shares the splash canvas with login/sign-up/onboarding
     // instead of the flat white it had
@@ -77,8 +80,13 @@ fun MarketSelectionScreen(onContinue: () -> Unit) {
                     selected?.let { market ->
                         MarketPrefs.setMarket(context, market)
                         // العملة/البلد بتترفع للسيرفر فوراً — العقل والبوت بيلاقوها بدل
-                        // الافتراض الخاطئ "ر.س" (مشكلة "قالي مفيش ولا ريال وأنا بالمصري")
-                        scope.launch { com.example.data.SupabaseRepo.syncMarketProfile(market) }
+                        // الافتراض الخاطئ "ر.س" (مشكلة "قالي مفيش ولا ريال وأنا بالمصري").
+                        // مبنعطلش onContinue على النتيجة — مستخدم جديد من غير نت لسه لازم
+                        // يقدر يكمل التسجيل، بس بيتبلغ لو الرفع فشل بدل ما يفشل بصمت.
+                        scope.launch {
+                            val synced = com.example.data.SupabaseRepo.syncMarketProfile(market)
+                            if (!synced) Toast.makeText(context, syncFailedText, Toast.LENGTH_LONG).show()
+                        }
                         onContinue()
                     }
                 },

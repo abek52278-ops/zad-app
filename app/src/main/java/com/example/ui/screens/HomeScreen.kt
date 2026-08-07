@@ -42,6 +42,7 @@ import androidx.compose.ui.platform.LocalContext
 import android.content.Intent
 import android.provider.Settings
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -139,6 +140,7 @@ fun HomeScreen(
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val marketSyncFailedText = stringResource(R.string.changes_save_failed)
     var isNotificationAccessGranted by remember {
         mutableStateOf(
             androidx.core.app.NotificationManagerCompat
@@ -261,7 +263,10 @@ fun HomeScreen(
                         suggestedMarket = suggestedMarket,
                         onSwitch = {
                             com.example.data.MarketPrefs.setMarket(context, suggestedMarket)
-                            scope.launch { com.example.data.SupabaseRepo.syncMarketProfile(suggestedMarket) }
+                            scope.launch {
+                                val synced = com.example.data.SupabaseRepo.syncMarketProfile(suggestedMarket)
+                                if (!synced) Toast.makeText(context, marketSyncFailedText, Toast.LENGTH_LONG).show()
+                            }
                             dismissedTravelCountry = detectedCountry
                             context.getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
                                 .edit().putString("dismissed_travel_country", detectedCountry).apply()

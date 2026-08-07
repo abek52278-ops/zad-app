@@ -122,21 +122,30 @@ object SupabaseRepo {
      * اختيار السوق (البلد/العملة) بيتزامن للسيرفر عشان العقل والبوت يقرأوه من
      * zad_users.currency/country بدل الافتراض "ر.س" (المشكلة اللي خلّت البوت يقول
      * "مفيش ولا ريال" لمستخدم في مصر). بيتنادى من كل موقع بيتغيّر فيه السوق
-     * (MarketSelectionScreen + شاشة "البلد والعملة" في البروفايل).
+     * (MarketSelectionScreen + شاشة "البلد والعملة" في البروفايل + TravelBanner).
+     *
+     * مش fire-and-forget: بيرجع Boolean عشان الكولر يقدر يبلغ المستخدم لو فشل بدل ما
+     * يفشل بصمت (كان بيحصل قبل كده وده اللي خلّى zad_users.currency يقعد null حتى بعد
+     * ما المستخدم يختار سوقه فعلاً). محاولة واحدة إعادة عند فشل الشبكة، قبل ما يرجّع false.
      */
-    suspend fun syncMarketProfile(market: com.example.data.Market) {
-        val userId = client.auth.currentUserOrNull()?.id ?: return
-        try {
-            client.postgrest["zad_users"].update(
-                mapOf(
-                    "currency" to market.currencyCode,
-                    "country" to market.countryCode
-                )
-            ) { filter { eq("id", userId) } }
-            Log.d(TAG, "syncMarketProfile() SUCCESS → userId=$userId, currency=${market.currencyCode}")
-        } catch (e: Exception) {
-            Log.e(TAG, "syncMarketProfile() FAILED: ${e.message}")
+    suspend fun syncMarketProfile(market: com.example.data.Market): Boolean {
+        val userId = client.auth.currentUserOrNull()?.id ?: return false
+        repeat(2) { attempt ->
+            try {
+                client.postgrest["zad_users"].update(
+                    mapOf(
+                        "currency" to market.currencyCode,
+                        "country" to market.countryCode
+                    )
+                ) { filter { eq("id", userId) } }
+                Log.d(TAG, "syncMarketProfile() SUCCESS → userId=$userId, currency=${market.currencyCode}")
+                return true
+            } catch (e: Exception) {
+                Log.e(TAG, "syncMarketProfile() FAILED (attempt ${attempt + 1}/2): ${e.message}")
+                if (attempt == 0) kotlinx.coroutines.delay(1000)
+            }
         }
+        return false
     }
 
     /**
