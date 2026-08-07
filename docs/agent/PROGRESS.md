@@ -1056,3 +1056,39 @@ splendid-cooking-marble.md` — ملف خارج الريبو، مرجع بس). �
    للرسالة الجاية. `SosBubble` مفيهوش overlay ثابت للنقل أصلاً (رسالة شات عادية) —
    ضفت `ActiveSosBanner` جديد فوق تاب Tools&Chat جوه عقل زاد، بيظهر لو آخر نداء طوارئ
    عمره أقل من ساعتين (مفيش resolved flag في الـ schema)، بيودي لشات العائلة بالضغط.
+
+## Family Hub gap-analysis + haptics/glassmorphism pass — DONE (2026-08-07, commit `34ff482`)
+User pasted a "re-architect Family screen into iOS-style live chat hub" prompt (realtime
+chat, AI co-pilot approval cards, shared goals, shared tasbiha leaderboard, glassmorphism,
+FCM). Gap analysis first (user's call, not a greenfield build): almost everything already
+existed — `chat_messages` realtime via `RealtimeChatRepo`, in-chat `PURCHASE_REQUEST`
+approval bubble writing real balance updates through `SyncOutbox.enqueueFamilyBalanceUpdate`,
+shared `FamilyGoal` progress bar, shared grocery list, and a family-scoped tasbiha
+leaderboard already in `TasbihaScreen`'s `FamilyGardenTab`. Real gaps found: zero haptic
+feedback anywhere in `FamilyScreen.kt`, and no true blur/glassmorphism (solid gradients
+only). User explicitly chose to skip FCM (keep the existing foreground-service +
+Supabase-realtime + TTS push mechanism) and skip LLM-based intent parsing (keep the
+existing local `classifyMessageIntent()` regex — cheaper, matches this repo's
+no-LLM-on-UI-thread bias).
+Fix used only existing primitives (`GlassCard`/`zadGlassBlur`/`pressableScale` from
+`PremiumSurfaces.kt`/`ZadAnimations.kt`, already used elsewhere e.g. `PharmacyScreen`) —
+no new components. `PurchaseBubble` (money approval card) now real frosted glass (API 31+
+blur, no-op below per `zadGlassBlur`'s own gate); Approve fires `HapticFeedbackType.LongPress`
+(money commit, same weight as Tasbiha's milestone haptic), Reject fires lighter
+`TextHandleMove`. Chat input bar background is now frosted glass. Send/SOS/quick-reply/
+purchase/poll icon buttons all get `pressableScale()`; SOS additionally fires `LongPress`
+given it's an emergency action.
+Also verified (no code changes needed, already correct from earlier same-day commits
+`ea9f3f6`/`d8635a5`): `CompanionState` StateFlow is centralized on `ZadViewModel`, observed
+via `collectAsState()` in both `HomeScreen` (agent-summary-driven) and `ZadIntelligenceScreen`
+chat (typing/reply-tone-driven); `uploadAvatar()` sets the `_avatarUri` StateFlow immediately
+on Storage-upload success rather than gating on the second `zad_users` DB write, and both
+header + drawer `AsyncImage` have `placeholder`/`error` set to `R.drawable.avatar` (Coil
+fallback confirmed present, not a blank space on load failure).
+Build after the edits: `compileDebugUnitTestKotlin` + `testDebugUnitTest` both green,
+171 tests total across 19 classes (3 pre-existing skips, unrelated to this change), 0
+failures, 0 errors — includes the `captureCompanionOrbStates` Roborazzi screenshot test.
+Ran with `--no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx768m`: the container had a
+second concurrent Claude Code session running its own Gradle build this session, which
+OOM-killed the daemon twice at default settings before the capped-memory retry succeeded.
+Pushed to `origin/main` (fast-forward, `5e9bf11..34ff482`).
