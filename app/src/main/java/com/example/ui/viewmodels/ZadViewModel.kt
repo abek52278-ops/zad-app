@@ -1286,7 +1286,8 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             if (success) {
                 Log.d(TAG, "updateBudget() SUCCESS → monthly_limit = $newBudget")
             } else {
-                Log.e(TAG, "updateBudget() FAILED sync to Supabase, but saved locally")
+                Log.e(TAG, "updateBudget() FAILED sync to Supabase — queued for retry")
+                com.example.data.SyncOutbox.enqueueBudgetUpdate(getApplication(), newBudget)
             }
         }
     }

@@ -88,6 +88,41 @@ object SyncOutbox {
         }
     }
 
+    /** setMonthlyLimit push failed after updateBudget already committed locally — retry in [flush]. */
+    suspend fun enqueueBudgetUpdate(context: Context, limit: Double) {
+        try {
+            val dao = ZadDatabase.getDatabase(context).zadDao()
+            dao.insertPendingSyncOp(
+                PendingSyncOp(
+                    opType = "budget_update",
+                    payloadJson = json.encodeToString(BudgetUpdatePayload(limit)),
+                    createdAt = java.time.Instant.now().toString()
+                )
+            )
+            Log.d(TAG, "enqueueBudgetUpdate: queued limit=$limit for retry")
+        } catch (e: Exception) {
+            Log.e(TAG, "enqueueBudgetUpdate failed: ${e.message}")
+        }
+    }
+
+    /** syncMarketProfile's own 2-attempt in-process retry failed — this survives past that
+     * (process death, longer outage) via the same durable queue [flush] already drains. */
+    suspend fun enqueueMarketProfile(context: Context, currencyCode: String, countryCode: String) {
+        try {
+            val dao = ZadDatabase.getDatabase(context).zadDao()
+            dao.insertPendingSyncOp(
+                PendingSyncOp(
+                    opType = "market_profile_update",
+                    payloadJson = json.encodeToString(MarketProfilePayload(currencyCode, countryCode)),
+                    createdAt = java.time.Instant.now().toString()
+                )
+            )
+            Log.d(TAG, "enqueueMarketProfile: queued currency=$currencyCode country=$countryCode for retry")
+        } catch (e: Exception) {
+            Log.e(TAG, "enqueueMarketProfile failed: ${e.message}")
+        }
+    }
+
     /** يقيّد نص/عنوان بنكي فشل تحليله الفوري (SaBankParser + AI) — retry في [flush] القادم */
     suspend fun enqueueUnparsedNotification(context: Context, source: String, title: String, text: String) {
         try {
@@ -141,6 +176,25 @@ object SyncOutbox {
                     "inventory_observation" -> {
                         val payload = json.decodeFromString<InventoryObservationPayload>(op.payloadJson)
                         if (SupabaseRepo.recordInventoryObservation(payload.itemName, payload.qty, payload.source)) {
+                            dao.deletePendingSyncOp(op.id)
+                            Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
+                        } else {
+                            Log.w(TAG, "flush: op ${op.id} (${op.opType}) still failing — left queued for next run")
+                        }
+                    }
+                    "budget_update" -> {
+                        val payload = json.decodeFromString<BudgetUpdatePayload>(op.payloadJson)
+                        val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
+                        if (userId != null && SupabaseRepo.setMonthlyLimit(userId, payload.limit)) {
+                            dao.deletePendingSyncOp(op.id)
+                            Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
+                        } else {
+                            Log.w(TAG, "flush: op ${op.id} (${op.opType}) still failing — left queued for next run")
+                        }
+                    }
+                    "market_profile_update" -> {
+                        val payload = json.decodeFromString<MarketProfilePayload>(op.payloadJson)
+                        if (SupabaseRepo.syncMarketProfile(payload.currencyCode, payload.countryCode)) {
                             dao.deletePendingSyncOp(op.id)
                             Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
                         } else {

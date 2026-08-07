@@ -374,7 +374,10 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
                     com.example.data.MarketPrefs.setMarket(context, market)
                     scope.launch {
                         val synced = com.example.data.SupabaseRepo.syncMarketProfile(market)
-                        if (!synced) Toast.makeText(context, saveFailedText, Toast.LENGTH_LONG).show()
+                        if (!synced) {
+                            Toast.makeText(context, saveFailedText, Toast.LENGTH_LONG).show()
+                            com.example.data.SyncOutbox.enqueueMarketProfile(context, market.currencyCode, market.countryCode)
+                        }
                     }
                     context.findActivity()?.recreate()
                 },

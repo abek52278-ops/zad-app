@@ -467,11 +467,21 @@ data class ZadChatMessage(
 @Entity(tableName = "zad_pending_sync_ops")
 data class PendingSyncOp(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
-    val opType: String, // "add_transaction" | "analyze_unparsed_notification" | "inventory_upsert" | "inventory_delete" | "inventory_observation"
+    val opType: String, // "add_transaction" | "analyze_unparsed_notification" | "inventory_upsert" | "inventory_delete" | "inventory_observation" | "budget_update" | "market_profile_update"
     val payloadJson: String,
     val createdAt: String,
     val attempts: Int = 0
 )
+
+/** Payload for opType "budget_update" — userId is resolved fresh from the auth session at
+ * flush time (same pattern recordInventoryObservation already uses), not stored here. */
+@Serializable
+data class BudgetUpdatePayload(val limit: Double)
+
+/** Payload for opType "market_profile_update" — currency/country codes rather than the Market
+ * enum itself (not @Serializable, and codes are all zad_users.currency/country actually need). */
+@Serializable
+data class MarketProfilePayload(val currencyCode: String, val countryCode: String)
 
 /** Payload for opType "inventory_delete" — ZadInventory itself carries no delete marker, so a
  * failed SupabaseRepo.deleteInventory() retry just needs the id. */

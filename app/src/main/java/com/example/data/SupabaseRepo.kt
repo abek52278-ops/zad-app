@@ -128,17 +128,22 @@ object SupabaseRepo {
      * يفشل بصمت (كان بيحصل قبل كده وده اللي خلّى zad_users.currency يقعد null حتى بعد
      * ما المستخدم يختار سوقه فعلاً). محاولة واحدة إعادة عند فشل الشبكة، قبل ما يرجّع false.
      */
-    suspend fun syncMarketProfile(market: com.example.data.Market): Boolean {
+    suspend fun syncMarketProfile(market: com.example.data.Market): Boolean =
+        syncMarketProfile(market.currencyCode, market.countryCode)
+
+    /** String-code version — lets SyncOutbox retry a queued market sync without needing to
+     * reconstruct a Market enum (not @Serializable) from a stored payload. */
+    suspend fun syncMarketProfile(currencyCode: String, countryCode: String): Boolean {
         val userId = client.auth.currentUserOrNull()?.id ?: return false
         repeat(2) { attempt ->
             try {
                 client.postgrest["zad_users"].update(
                     mapOf(
-                        "currency" to market.currencyCode,
-                        "country" to market.countryCode
+                        "currency" to currencyCode,
+                        "country" to countryCode
                     )
                 ) { filter { eq("id", userId) } }
-                Log.d(TAG, "syncMarketProfile() SUCCESS → userId=$userId, currency=${market.currencyCode}")
+                Log.d(TAG, "syncMarketProfile() SUCCESS → userId=$userId, currency=$currencyCode")
                 return true
             } catch (e: Exception) {
                 Log.e(TAG, "syncMarketProfile() FAILED (attempt ${attempt + 1}/2): ${e.message}")

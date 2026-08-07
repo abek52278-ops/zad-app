@@ -85,7 +85,10 @@ fun MarketSelectionScreen(onContinue: () -> Unit) {
                         // يقدر يكمل التسجيل، بس بيتبلغ لو الرفع فشل بدل ما يفشل بصمت.
                         scope.launch {
                             val synced = com.example.data.SupabaseRepo.syncMarketProfile(market)
-                            if (!synced) Toast.makeText(context, syncFailedText, Toast.LENGTH_LONG).show()
+                            if (!synced) {
+                                Toast.makeText(context, syncFailedText, Toast.LENGTH_LONG).show()
+                                com.example.data.SyncOutbox.enqueueMarketProfile(context, market.currencyCode, market.countryCode)
+                            }
                         }
                         onContinue()
                     }

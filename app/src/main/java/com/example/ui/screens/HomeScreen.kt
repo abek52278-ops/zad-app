@@ -265,7 +265,10 @@ fun HomeScreen(
                             com.example.data.MarketPrefs.setMarket(context, suggestedMarket)
                             scope.launch {
                                 val synced = com.example.data.SupabaseRepo.syncMarketProfile(suggestedMarket)
-                                if (!synced) Toast.makeText(context, marketSyncFailedText, Toast.LENGTH_LONG).show()
+                                if (!synced) {
+                                    Toast.makeText(context, marketSyncFailedText, Toast.LENGTH_LONG).show()
+                                    com.example.data.SyncOutbox.enqueueMarketProfile(context, suggestedMarket.currencyCode, suggestedMarket.countryCode)
+                                }
                             }
                             dismissedTravelCountry = detectedCountry
                             context.getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
