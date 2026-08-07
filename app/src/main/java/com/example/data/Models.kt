@@ -467,11 +467,21 @@ data class ZadChatMessage(
 @Entity(tableName = "zad_pending_sync_ops")
 data class PendingSyncOp(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
-    val opType: String, // "add_transaction" | "analyze_unparsed_notification"
+    val opType: String, // "add_transaction" | "analyze_unparsed_notification" | "inventory_upsert" | "inventory_delete" | "inventory_observation"
     val payloadJson: String,
     val createdAt: String,
     val attempts: Int = 0
 )
+
+/** Payload for opType "inventory_delete" — ZadInventory itself carries no delete marker, so a
+ * failed SupabaseRepo.deleteInventory() retry just needs the id. */
+@Serializable
+data class InventoryDeletePayload(val id: String)
+
+/** Payload for opType "inventory_observation" — mirrors SupabaseRepo.recordInventoryObservation()'s
+ * params so a failed rpc call can be replayed verbatim by SyncOutbox.flush(). */
+@Serializable
+data class InventoryObservationPayload(val itemName: String, val qty: Int, val source: String)
 
 /**
  * Payload for opType "analyze_unparsed_notification" — a bank-looking notification that both

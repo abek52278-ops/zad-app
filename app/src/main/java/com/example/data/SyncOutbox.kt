@@ -37,6 +37,57 @@ object SyncOutbox {
         }
     }
 
+    /** addInventory/upsertInventory push failed — retried as an upsert either way, since by the
+     * time [flush] runs the row may or may not already exist remotely from an earlier partial
+     * success. */
+    suspend fun enqueueInventoryUpsert(context: Context, item: ZadInventory) {
+        try {
+            val dao = ZadDatabase.getDatabase(context).zadDao()
+            dao.insertPendingSyncOp(
+                PendingSyncOp(
+                    opType = "inventory_upsert",
+                    payloadJson = json.encodeToString(item),
+                    createdAt = java.time.Instant.now().toString()
+                )
+            )
+            Log.d(TAG, "enqueueInventoryUpsert: queued '${item.itemName}' for retry")
+        } catch (e: Exception) {
+            Log.e(TAG, "enqueueInventoryUpsert failed: ${e.message}")
+        }
+    }
+
+    suspend fun enqueueInventoryDelete(context: Context, id: String) {
+        try {
+            val dao = ZadDatabase.getDatabase(context).zadDao()
+            dao.insertPendingSyncOp(
+                PendingSyncOp(
+                    opType = "inventory_delete",
+                    payloadJson = json.encodeToString(InventoryDeletePayload(id)),
+                    createdAt = java.time.Instant.now().toString()
+                )
+            )
+            Log.d(TAG, "enqueueInventoryDelete: queued '$id' for retry")
+        } catch (e: Exception) {
+            Log.e(TAG, "enqueueInventoryDelete failed: ${e.message}")
+        }
+    }
+
+    suspend fun enqueueInventoryObservation(context: Context, itemName: String, qty: Int, source: String) {
+        try {
+            val dao = ZadDatabase.getDatabase(context).zadDao()
+            dao.insertPendingSyncOp(
+                PendingSyncOp(
+                    opType = "inventory_observation",
+                    payloadJson = json.encodeToString(InventoryObservationPayload(itemName, qty, source)),
+                    createdAt = java.time.Instant.now().toString()
+                )
+            )
+            Log.d(TAG, "enqueueInventoryObservation: queued '$itemName' for retry")
+        } catch (e: Exception) {
+            Log.e(TAG, "enqueueInventoryObservation failed: ${e.message}")
+        }
+    }
+
     /** يقيّد نص/عنوان بنكي فشل تحليله الفوري (SaBankParser + AI) — retry في [flush] القادم */
     suspend fun enqueueUnparsedNotification(context: Context, source: String, title: String, text: String) {
         try {
@@ -64,6 +115,32 @@ object SyncOutbox {
                 when (op.opType) {
                     "add_transaction" -> {
                         if (SupabaseRepo.addTransaction(json.decodeFromString<ZadTransaction>(op.payloadJson))) {
+                            dao.deletePendingSyncOp(op.id)
+                            Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
+                        } else {
+                            Log.w(TAG, "flush: op ${op.id} (${op.opType}) still failing — left queued for next run")
+                        }
+                    }
+                    "inventory_upsert" -> {
+                        if (SupabaseRepo.upsertInventory(json.decodeFromString<ZadInventory>(op.payloadJson))) {
+                            dao.deletePendingSyncOp(op.id)
+                            Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
+                        } else {
+                            Log.w(TAG, "flush: op ${op.id} (${op.opType}) still failing — left queued for next run")
+                        }
+                    }
+                    "inventory_delete" -> {
+                        val payload = json.decodeFromString<InventoryDeletePayload>(op.payloadJson)
+                        if (SupabaseRepo.deleteInventory(payload.id)) {
+                            dao.deletePendingSyncOp(op.id)
+                            Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
+                        } else {
+                            Log.w(TAG, "flush: op ${op.id} (${op.opType}) still failing — left queued for next run")
+                        }
+                    }
+                    "inventory_observation" -> {
+                        val payload = json.decodeFromString<InventoryObservationPayload>(op.payloadJson)
+                        if (SupabaseRepo.recordInventoryObservation(payload.itemName, payload.qty, payload.source)) {
                             dao.deletePendingSyncOp(op.id)
                             Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
                         } else {

@@ -1475,12 +1475,11 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             Log.d(TAG, "addInventory() → itemName=${item.itemName}, quantity=${item.quantity}")
             dao.insertInventoryItem(item)
             Log.d(TAG, "addInventory() → saved to Room DB, id=${item.id}")
-            try {
-                SupabaseRepo.addInventory(item)
+            if (SupabaseRepo.addInventory(item)) {
                 Log.d(TAG, "addInventory() → synced to Supabase table=zad_inventory")
-            } catch (e: Exception) {
-                Log.e(TAG, "addInventory() Supabase sync FAILED: ${e.message}")
-                e.printStackTrace()
+            } else {
+                Log.e(TAG, "addInventory() Supabase sync FAILED — queued for retry")
+                com.example.data.SyncOutbox.enqueueInventoryUpsert(getApplication(), item)
             }
         }
     }
@@ -1502,13 +1501,19 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     scannedItems = items
                 )
                 // مزامنة Supabase
-                result.addedNew.forEach { try { SupabaseRepo.addInventory(it) } catch (_: Exception) {} }
-                result.updatedExisting.forEach { try { SupabaseRepo.upsertInventory(it) } catch (_: Exception) {} }
+                result.addedNew.forEach {
+                    if (!SupabaseRepo.addInventory(it)) com.example.data.SyncOutbox.enqueueInventoryUpsert(getApplication(), it)
+                }
+                result.updatedExisting.forEach {
+                    if (!SupabaseRepo.upsertInventory(it)) com.example.data.SyncOutbox.enqueueInventoryUpsert(getApplication(), it)
+                }
                 // Task 18 — every scanned quantity is free consumption-rate data. Feeding OCR
                 // here (not just brain answers) is what makes rates converge in days instead
                 // of weeks, which in turn means the brain asks the user far fewer questions.
                 (result.addedNew + result.updatedExisting).forEach {
-                    try { SupabaseRepo.recordInventoryObservation(it.itemName, it.quantity, "camera_ocr") } catch (_: Exception) {}
+                    if (!SupabaseRepo.recordInventoryObservation(it.itemName, it.quantity, "camera_ocr")) {
+                        com.example.data.SyncOutbox.enqueueInventoryObservation(getApplication(), it.itemName, it.quantity, "camera_ocr")
+                    }
                 }
                 result.removedFromShopping.forEach {
                     try { SupabaseRepo.toggleShoppingItemPurchased(it.id, true) } catch (_: Exception) {}
@@ -1532,13 +1537,17 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 val result = com.example.data.InventoryFlowEngine.consumeItem(
                     getApplication(), dao, item, amount
                 )
-                try { SupabaseRepo.upsertInventory(result.updatedItem) } catch (_: Exception) {}
+                if (!SupabaseRepo.upsertInventory(result.updatedItem)) {
+                    com.example.data.SyncOutbox.enqueueInventoryUpsert(getApplication(), result.updatedItem)
+                }
                 // Task 18 — the − button is the highest-frequency real consumption signal in
                 // the app; recording it as an observation is what lets a rate become trusted
                 // (samples>=3) without the brain having to ask anything at all.
-                try {
-                    SupabaseRepo.recordInventoryObservation(result.updatedItem.itemName, result.updatedItem.quantity, "manual")
-                } catch (_: Exception) {}
+                if (!SupabaseRepo.recordInventoryObservation(result.updatedItem.itemName, result.updatedItem.quantity, "manual")) {
+                    com.example.data.SyncOutbox.enqueueInventoryObservation(
+                        getApplication(), result.updatedItem.itemName, result.updatedItem.quantity, "manual"
+                    )
+                }
 
                 if (result.hitLowStock) {
                     val added = com.example.data.InventoryFlowEngine.autoReplenish(
@@ -1586,12 +1595,11 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             Log.d(TAG, "deleteInventory() → id=$id")
             dao.deleteInventory(id)
             Log.d(TAG, "deleteInventory() → deleted from Room DB")
-            try {
-                SupabaseRepo.deleteInventory(id)
+            if (SupabaseRepo.deleteInventory(id)) {
                 Log.d(TAG, "deleteInventory() → synced to Supabase table=zad_inventory")
-            } catch (e: Exception) {
-                Log.e(TAG, "deleteInventory() Supabase sync FAILED: ${e.message}")
-                e.printStackTrace()
+            } else {
+                Log.e(TAG, "deleteInventory() Supabase sync FAILED — queued for retry")
+                com.example.data.SyncOutbox.enqueueInventoryDelete(getApplication(), id)
             }
         }
     }

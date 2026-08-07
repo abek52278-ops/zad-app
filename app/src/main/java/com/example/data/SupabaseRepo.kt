@@ -211,31 +211,35 @@ object SupabaseRepo {
         }
     }
 
-    suspend fun addInventory(item: ZadInventory) {
+    suspend fun addInventory(item: ZadInventory): Boolean {
         try {
             val userId = client.auth.currentUserOrNull()?.id
             if (userId == null) {
                 Log.w(TAG, "addInventory() skipped — user not authenticated")
-                return
+                return false
             }
             val itemWithUser = item.copy(userId = userId)
             Log.d(TAG, "addInventory() → table=zad_inventory, item=${itemWithUser.itemName}, qty=${itemWithUser.quantity}, userId=$userId")
             client.postgrest["zad_inventory"].insert(itemWithUser)
             Log.d(TAG, "addInventory() SUCCESS — id=${itemWithUser.id}")
+            return true
         } catch (e: Exception) {
             Log.e(TAG, "addInventory() FAILED: ${e.message}")
             e.printStackTrace()
+            return false
         }
     }
 
     /** Upsert: يحدث الصف لو موجود (نفس id) أو يضيفه — أساسي للحقن الذكي */
-    suspend fun upsertInventory(item: ZadInventory) {
+    suspend fun upsertInventory(item: ZadInventory): Boolean {
         try {
-            val userId = client.auth.currentUserOrNull()?.id ?: return
+            val userId = client.auth.currentUserOrNull()?.id ?: return false
             client.postgrest["zad_inventory"].upsert(item.copy(userId = userId))
             Log.d(TAG, "upsertInventory() SUCCESS — ${item.itemName} qty=${item.quantity}")
+            return true
         } catch (e: Exception) {
             Log.e(TAG, "upsertInventory() FAILED: ${e.message}")
+            return false
         }
     }
 
@@ -267,9 +271,9 @@ object SupabaseRepo {
      *
      * @param source one of question_answer | camera_ocr | manual | purchase (DB CHECK enforced)
      */
-    suspend fun recordInventoryObservation(itemName: String, qty: Int, source: String) {
+    suspend fun recordInventoryObservation(itemName: String, qty: Int, source: String): Boolean {
         try {
-            val userId = client.auth.currentUserOrNull()?.id ?: return
+            val userId = client.auth.currentUserOrNull()?.id ?: return false
             client.postgrest.rpc(
                 "zad_record_observation",
                 Json.encodeToJsonElement(
@@ -277,22 +281,25 @@ object SupabaseRepo {
                 ).jsonObject
             )
             Log.d(TAG, "recordInventoryObservation() SUCCESS — $itemName qty=$qty source=$source")
+            return true
         } catch (e: Exception) {
-            // Never fail the user-visible inventory edit over a learning-signal write.
             Log.e(TAG, "recordInventoryObservation() FAILED: ${e.message}")
+            return false
         }
     }
 
-    suspend fun deleteInventory(id: String) {
+    suspend fun deleteInventory(id: String): Boolean {
         try {
             Log.d(TAG, "deleteInventory() → table=zad_inventory, id=$id")
             client.postgrest["zad_inventory"].delete {
                 filter { eq("id", id) }
             }
             Log.d(TAG, "deleteInventory() SUCCESS")
+            return true
         } catch (e: Exception) {
             Log.e(TAG, "deleteInventory() FAILED: ${e.message}")
             e.printStackTrace()
+            return false
         }
     }
 
