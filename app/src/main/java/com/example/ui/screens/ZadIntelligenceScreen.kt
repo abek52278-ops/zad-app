@@ -188,7 +188,12 @@ fun OverviewTab(
     val totalExpense by viewModel.spentThisCycle.collectAsState()
     val totalIncome by viewModel.incomeThisCycle.collectAsState()
 
+    // نفس بق دونات الفئات القديم: كان بيجمع كل الوقت بينما الكروت فوقيه (totalExpense) بقت
+    // بحدود الدورة — نفس حدود _cycleStart/_cycleEnd اللي الهوم/البادجت/الشات بيستخدموها.
+    val cycleStart by viewModel.cycleStart.collectAsState()
+    val cycleEnd by viewModel.cycleEnd.collectAsState()
     val categoryMap = expenses
+        .filter { tx -> com.example.data.BudgetMath.txDate(tx)?.let { d -> !d.isBefore(cycleStart) && d.isBefore(cycleEnd) } == true }
         .groupBy { it.category ?: otherCategoryLabel }
         .mapValues { it.value.sumOf { t -> t.amount } }
         .toList()

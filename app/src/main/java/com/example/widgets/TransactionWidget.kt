@@ -10,6 +10,9 @@ import android.view.View
 import android.widget.RemoteViews
 import com.example.MainActivity
 import com.example.R
+import com.example.data.BudgetMath
+import com.example.data.CycleMath
+import com.example.data.MarketPrefs
 import com.example.data.ZadTransaction
 import com.example.data.local.ZadDatabase
 import kotlinx.coroutines.CoroutineScope
@@ -69,11 +72,25 @@ class TransactionWidget : AppWidgetProvider() {
                     val dao = db.zadDao()
                     val transactions = dao.getAllTransactionsOnce()
 
-                    val income = transactions.filter { !it.isExpense }.sumOf { it.amount }
-                    val expense = transactions.filter { it.isExpense }.sumOf { it.amount }
-                    val balance = income - expense
+                    // نفس حساب recalculateRemainingBalance بالظبط (ZadViewModel) — كان بيحسب
+                    // صافي كل المعاملات من أول يوم في التطبيق تحت اسم "الرصيد"، بينما الهوم
+                    // والبادجت بيوروا "متاح" بحدود دورة الراتب. رقمين تحت نفس الاسم لازم يبقوا
+                    // رقم واحد. الويدجت مالوش شبكة، فبيقرا cached_budget/cycle_* من نفس
+                    // SharedPreferences اللي loadBudget()/loadCycleSettings() بتكتب فيها.
+                    val prefs = context.getSharedPreferences("zad_prefs", Context.MODE_PRIVATE)
+                    val budget = prefs.getFloat("cached_budget", 0f).toDouble()
+                    val cycleStartDay = prefs.getInt("cycle_start_day", -1).let { if (it == -1) null else it }
+                    val cycleAnchor = prefs.getString("cycle_anchor", "day_of_month") ?: "day_of_month"
+                    val market = MarketPrefs.getMarket(context)
+                    val asOf = java.time.LocalDate.now()
+                    val cycleStart = CycleMath.cycleStart(asOf, cycleStartDay, cycleAnchor, market)
+                    val cycleEnd = CycleMath.cycleEnd(asOf, cycleStartDay, cycleAnchor, market)
+                    val remaining = BudgetMath.remainingInCycle(budget, transactions, cycleStart, cycleEnd)
 
-                    views.setTextViewText(R.id.widget_balance, com.example.data.CurrencyFormatter.format(context, balance))
+                    views.setTextViewText(
+                        R.id.widget_balance,
+                        remaining?.let { com.example.data.CurrencyFormatter.format(context, it) } ?: "غير محدد"
+                    )
 
                     // Add transaction rows
                     val recentTx = transactions.sortedByDescending { it.createdAt ?: "" }.take(3)

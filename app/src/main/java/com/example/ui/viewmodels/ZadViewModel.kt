@@ -250,12 +250,27 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val _daysLeftInCycle = MutableStateFlow(30)
     val daysLeftInCycle: StateFlow<Int> = _daysLeftInCycle.asStateFlow()
 
+    /** حدود الدورة الحالية نفسها — معروضة عشان أي استهلاك تاني (زي دونات الفئات في
+     * ZadIntelligenceScreen) يفلتر بنفس النطاق بالظبط اللي recalculateRemainingBalance
+     * استخدمه، مش يعيد حساب CycleMath لوحده وممكن يختلف. */
+    private val _cycleStart = MutableStateFlow(LocalDate.now().withDayOfMonth(1))
+    val cycleStart: StateFlow<LocalDate> = _cycleStart.asStateFlow()
+    private val _cycleEnd = MutableStateFlow(LocalDate.now().withDayOfMonth(1).plusMonths(1))
+    val cycleEnd: StateFlow<LocalDate> = _cycleEnd.asStateFlow()
+
     fun loadCycleSettings() {
         viewModelScope.launch {
             val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return@launch
             val (startDay, anchor) = SupabaseRepo.getCycleSettings(userId)
             cycleStartDay = startDay
             cycleAnchor = anchor
+            // نفس نمط cached_budget — TransactionWidget مالوش شبكة ولا ViewModel، محتاج نفس
+            // إعدادات الدورة دي محلياً عشان يحسب "المتاح" بنفس منطق الهوم/البادجت بالظبط.
+            val prefs = getApplication<Application>().getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+            prefs.edit()
+                .putInt("cycle_start_day", startDay ?: -1)
+                .putString("cycle_anchor", anchor)
+                .apply()
             recalculateRemainingBalance(_transactions.value, _budget.value)
             Log.d(TAG, "loadCycleSettings() → cycleStartDay=$startDay, cycleAnchor=$anchor")
         }
@@ -642,6 +657,11 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private fun buildFullChatContext(): String {
         val ctx = getApplication<Application>()
         val today = java.time.LocalDate.now()
+        // نفس حدود الدورة اللي recalculateRemainingBalance حسبها بالظبط (_cycleStart/_cycleEnd)
+        // — عشان رقم "المتبقي" اللي زاد بيتكلم عنه في الشات يطابق كارت الهوم والبادجت، مش
+        // يعيد حساب CycleMath لوحده وممكن يختلف.
+        val cycleStart = _cycleStart.value
+        val cycleEnd = _cycleEnd.value
 
         val invText = _inventory.value.joinToString("\n") { item ->
             val expiry = item.expiryDate?.takeIf { it.isNotBlank() }?.let { " [ينتهي: $it]" } ?: ""
@@ -660,15 +680,16 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         // المصروف الفعلي بيتحسب من المعاملات مباشرة (بيشمل اليدوية + البنكية)، الميزانية من BudgetTracker
-        val spentByCategoryThisMonth = _transactions.value.filter { tx ->
+        // — بحدود الدورة الحالية (CycleMath) مش الشهر التقويمي، نفس سبب تعديل "المتبقي" فوق.
+        val spentByCategoryInCycle = _transactions.value.filter { tx ->
             if (!tx.isExpense) return@filter false
             try {
                 val d = java.time.Instant.parse(tx.createdAt ?: "").atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-                d.monthValue == today.monthValue && d.year == today.year
+                !d.isBefore(cycleStart) && d.isBefore(cycleEnd)
             } catch (e: Exception) { false }
         }.groupBy { it.category ?: "أخرى" }.mapValues { (_, txs) -> txs.sumOf { it.amount } }
         val catBudgets = com.example.data.BudgetTracker.STANDARD_CATEGORIES
-            .map { cat -> Triple(cat, com.example.data.BudgetTracker.getCategoryBudget(ctx, cat), spentByCategoryThisMonth[cat] ?: 0.0) }
+            .map { cat -> Triple(cat, com.example.data.BudgetTracker.getCategoryBudget(ctx, cat), spentByCategoryInCycle[cat] ?: 0.0) }
             .filter { it.second > 0 || it.third > 0 }
             .joinToString("\n") { (cat, catBudget, spent) ->
                 "- $cat: صرف ${com.example.data.CurrencyFormatter.format(ctx, spent)}" + if (catBudget > 0) " من ميزانية ${com.example.data.CurrencyFormatter.format(ctx, catBudget)}" else " (بدون ميزانية محددة)"
@@ -726,7 +747,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         return """
             === معلومات العميل ===
             الاسم: ${_userName.value ?: "مستخدم"} | التاريخ اليوم: $today
-            الميزانية الشهرية: ${if (_budget.value > 0) com.example.data.CurrencyFormatter.format(ctx, _budget.value) else "غير معروف"} | المتبقي: ${com.example.data.BudgetMath.remaining(_budget.value, _transactions.value)?.let { com.example.data.CurrencyFormatter.format(ctx, it) } ?: "غير معروف"}
+            الميزانية الشهرية: ${if (_budget.value > 0) com.example.data.CurrencyFormatter.format(ctx, _budget.value) else "غير معروف"} | المتبقي (دورة الراتب الحالية): ${_remainingBalance.value?.let { com.example.data.CurrencyFormatter.format(ctx, it) } ?: "غير معروف"}
 
             === مخزون المنزل (بتنبؤات النفاد) ===
             ${invText.ifBlank { "لا يوجد عناصر حالياً." }}
@@ -1360,6 +1381,8 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         val asOf = LocalDate.now()
         val cycleStart = CycleMath.cycleStart(asOf, cycleStartDay, cycleAnchor, market)
         val cycleEnd = CycleMath.cycleEnd(asOf, cycleStartDay, cycleAnchor, market)
+        _cycleStart.value = cycleStart
+        _cycleEnd.value = cycleEnd
 
         val spent = BudgetMath.spentInCycle(txs, cycleStart, cycleEnd)
         _spentThisMonth.value = spent

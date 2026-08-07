@@ -16,7 +16,9 @@ import java.time.ZoneId
  */
 object BudgetMath {
 
-    private fun txDate(tx: ZadTransaction): LocalDate? = tx.createdAt?.let {
+    /** مش private — ZadIntelligenceScreen's category donut محتاج نفس منطق الفلترة بالتاريخ
+     * ده بالظبط، مش نسخة تالتة منه، عشان يطابق spentInCycle/incomeInCycle. */
+    fun txDate(tx: ZadTransaction): LocalDate? = tx.createdAt?.let {
         try {
             Instant.parse(it).atZone(ZoneId.systemDefault()).toLocalDate()
         } catch (e: Exception) {

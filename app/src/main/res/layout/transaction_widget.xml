@@ -35,7 +35,7 @@
                 android:id="@+id/widget_balance_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/current_balance"
+                android:text="@string/remaining_balance_label"
                 android:textColor="#829AB1"
                 android:textSize="10sp" />
 
