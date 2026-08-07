@@ -2346,12 +2346,13 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addDebt(debt: com.example.data.ZadDebt) {
         viewModelScope.launch {
-            try {
-                SupabaseRepo.addDebt(debt)
+            if (SupabaseRepo.addDebt(debt)) {
                 _debts.value = SupabaseRepo.getDebts()
                 Log.d(TAG, "addDebt() SUCCESS → name=${debt.name}")
-            } catch (e: Exception) {
-                Log.e(TAG, "addDebt() FAILED: ${e.message}")
+            } else {
+                Log.e(TAG, "addDebt() FAILED — queued for retry")
+                _debts.value = _debts.value + debt
+                com.example.data.SyncOutbox.enqueueDebtUpsert(getApplication(), debt)
             }
         }
     }
@@ -2359,10 +2360,9 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteDebt(id: String) {
         viewModelScope.launch {
             _debts.value = _debts.value.filter { it.id != id }
-            try {
-                SupabaseRepo.deleteDebt(id)
-            } catch (e: Exception) {
-                Log.e(TAG, "deleteDebt() FAILED: ${e.message}")
+            if (!SupabaseRepo.deleteDebt(id)) {
+                Log.e(TAG, "deleteDebt() FAILED — queued for retry")
+                com.example.data.SyncOutbox.enqueueDebtDelete(getApplication(), id)
             }
         }
     }
@@ -2370,10 +2370,9 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     fun updateDebtBalance(id: String, newRemainingBalance: Double) {
         viewModelScope.launch {
             _debts.value = _debts.value.map { if (it.id == id) it.copy(remainingBalance = newRemainingBalance) else it }
-            try {
-                SupabaseRepo.updateDebtRemainingBalance(id, newRemainingBalance)
-            } catch (e: Exception) {
-                Log.e(TAG, "updateDebtBalance() FAILED: ${e.message}")
+            if (!SupabaseRepo.updateDebtRemainingBalance(id, newRemainingBalance)) {
+                Log.e(TAG, "updateDebtBalance() FAILED — queued for retry")
+                com.example.data.SyncOutbox.enqueueDebtBalanceUpdate(getApplication(), id, newRemainingBalance)
             }
         }
     }

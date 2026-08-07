@@ -761,33 +761,37 @@ object SupabaseRepo {
         }
     }
 
-    suspend fun addDebt(debt: ZadDebt) {
+    suspend fun addDebt(debt: ZadDebt): Boolean {
         try {
             val userId = client.auth.currentUserOrNull()?.id
             val debtWithUser = debt.copy(userId = userId)
             Log.d(TAG, "addDebt() → table=zad_debts, name=${debtWithUser.name}, remainingBalance=${debtWithUser.remainingBalance}, userId=$userId")
             client.postgrest["zad_debts"].insert(debtWithUser)
             Log.d(TAG, "addDebt() SUCCESS — id=${debtWithUser.id}")
+            return true
         } catch (e: Exception) {
             Log.e(TAG, "addDebt() FAILED: ${e.message}")
             e.printStackTrace()
+            return false
         }
     }
 
-    suspend fun deleteDebt(id: String) {
+    suspend fun deleteDebt(id: String): Boolean {
         try {
             Log.d(TAG, "deleteDebt() → table=zad_debts, id=$id")
             client.postgrest["zad_debts"].delete {
                 filter { eq("id", id) }
             }
             Log.d(TAG, "deleteDebt() SUCCESS")
+            return true
         } catch (e: Exception) {
             Log.e(TAG, "deleteDebt() FAILED: ${e.message}")
             e.printStackTrace()
+            return false
         }
     }
 
-    suspend fun updateDebtRemainingBalance(id: String, newBalance: Double) {
+    suspend fun updateDebtRemainingBalance(id: String, newBalance: Double): Boolean {
         try {
             Log.d(TAG, "updateDebtRemainingBalance() → table=zad_debts, id=$id, newBalance=$newBalance")
             client.postgrest["zad_debts"].update(
@@ -796,9 +800,11 @@ object SupabaseRepo {
                 filter { eq("id", id) }
             }
             Log.d(TAG, "updateDebtRemainingBalance() SUCCESS")
+            return true
         } catch (e: Exception) {
             Log.e(TAG, "updateDebtRemainingBalance() FAILED: ${e.message}")
             e.printStackTrace()
+            return false
         }
     }
 
@@ -1176,7 +1182,7 @@ object SupabaseRepo {
     }
 
     // ─── Wallet & Goals ──────────────────────────────────────────────────────
-    suspend fun updateFamilyMemberBalance(memberId: String, newBalance: Double) {
+    suspend fun updateFamilyMemberBalance(memberId: String, newBalance: Double): Boolean {
         try {
             Log.d(TAG, "updateFamilyMemberBalance() → table=family_members, id=$memberId, newBalance=$newBalance")
             client.postgrest["family_members"].update(
@@ -1185,9 +1191,11 @@ object SupabaseRepo {
                 filter { eq("id", memberId) }
             }
             Log.d(TAG, "updateFamilyMemberBalance() SUCCESS")
+            return true
         } catch (e: Exception) {
             Log.e(TAG, "updateFamilyMemberBalance() FAILED: ${e.message}")
             e.printStackTrace()
+            return false
         }
     }
 

@@ -1,6 +1,7 @@
 package com.example.ui.viewmodels
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,7 +48,7 @@ data class ChildSpending(
     val categoryBreakdown: Map<String, Double>
 )
 
-class FamilyViewModel : ViewModel() {
+class FamilyViewModel(application: Application) : AndroidViewModel(application) {
     private val _state = MutableStateFlow<FamilyState>(FamilyState.Loading)
     val state: StateFlow<FamilyState> = _state.asStateFlow()
     
@@ -329,8 +330,10 @@ class FamilyViewModel : ViewModel() {
                     val memberToUpdate = curr.members.find { it.id == msgToUpdate.senderId }
                     if (memberToUpdate != null && amount > 0) {
                         val newBalance = memberToUpdate.balance - amount
-                        SupabaseRepo.updateFamilyMemberBalance(memberToUpdate.id, newBalance)
-                        
+                        if (!SupabaseRepo.updateFamilyMemberBalance(memberToUpdate.id, newBalance)) {
+                            SyncOutbox.enqueueFamilyBalanceUpdate(getApplication(), memberToUpdate.id, newBalance)
+                        }
+
                         SupabaseRepo.sendAppNotification(
                             userId = memberToUpdate.userId,
                             title = "موافق! ✅",
@@ -440,8 +443,10 @@ class FamilyViewModel : ViewModel() {
                     val memberToUpdate = curr.members.find { it.id == choreToUpdate.assignedTo }
                     if (memberToUpdate != null) {
                         val newBalance = memberToUpdate.balance + choreToUpdate.rewardAmount
-                        SupabaseRepo.updateFamilyMemberBalance(memberToUpdate.id, newBalance)
-                        
+                        if (!SupabaseRepo.updateFamilyMemberBalance(memberToUpdate.id, newBalance)) {
+                            SyncOutbox.enqueueFamilyBalanceUpdate(getApplication(), memberToUpdate.id, newBalance)
+                        }
+
                         SupabaseRepo.sendAppNotification(
                             userId = memberToUpdate.userId,
                             title = "عمل رائع! 🌟",
@@ -547,7 +552,9 @@ class FamilyViewModel : ViewModel() {
 
             if (justCompleted && challenge.rewardAmount > 0) {
                 val newBalance = member.balance + challenge.rewardAmount
-                SupabaseRepo.updateFamilyMemberBalance(member.id, newBalance)
+                if (!SupabaseRepo.updateFamilyMemberBalance(member.id, newBalance)) {
+                    SyncOutbox.enqueueFamilyBalanceUpdate(getApplication(), member.id, newBalance)
+                }
                 SupabaseRepo.sendAppNotification(
                     userId = member.userId,
                     title = "تحدي مكتمل! 🎉",

@@ -467,7 +467,7 @@ data class ZadChatMessage(
 @Entity(tableName = "zad_pending_sync_ops")
 data class PendingSyncOp(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
-    val opType: String, // "add_transaction" | "analyze_unparsed_notification" | "inventory_upsert" | "inventory_delete" | "inventory_observation" | "budget_update" | "market_profile_update"
+    val opType: String, // "add_transaction" | "analyze_unparsed_notification" | "inventory_upsert" | "inventory_delete" | "inventory_observation" | "budget_update" | "market_profile_update" | "debt_upsert" | "debt_delete" | "debt_balance_update" | "family_balance_update"
     val payloadJson: String,
     val createdAt: String,
     val attempts: Int = 0
@@ -482,6 +482,21 @@ data class BudgetUpdatePayload(val limit: Double)
  * enum itself (not @Serializable, and codes are all zad_users.currency/country actually need). */
 @Serializable
 data class MarketProfilePayload(val currencyCode: String, val countryCode: String)
+
+/** Payload for opType "debt_delete" — deleteDebt() only needs the id. */
+@Serializable
+data class DebtDeletePayload(val id: String)
+
+/** Payload for opType "debt_balance_update" — updateDebtRemainingBalance()'s params. */
+@Serializable
+data class DebtBalanceUpdatePayload(val id: String, val newBalance: Double)
+
+/** Payload for opType "family_balance_update" — updateFamilyMemberBalance()'s params. Real
+ * money: chore rewards, challenge rewards, and approved spend requests all update the local
+ * member balance immediately regardless of whether this push lands, so a dropped push here
+ * silently diverges the client's number from what the server actually holds. */
+@Serializable
+data class FamilyBalanceUpdatePayload(val memberId: String, val newBalance: Double)
 
 /** Payload for opType "inventory_delete" — ZadInventory itself carries no delete marker, so a
  * failed SupabaseRepo.deleteInventory() retry just needs the id. */

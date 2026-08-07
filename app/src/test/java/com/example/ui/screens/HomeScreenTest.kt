@@ -26,7 +26,7 @@ class HomeScreenTest {
         // Given
         val context = ApplicationProvider.getApplicationContext<Application>()
         val viewModel = ZadViewModel(context)
-        val familyViewModel = FamilyViewModel()
+        val familyViewModel = FamilyViewModel(context)
 
         // When
         composeTestRule.setContent {

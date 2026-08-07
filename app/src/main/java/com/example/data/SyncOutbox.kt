@@ -123,6 +123,76 @@ object SyncOutbox {
         }
     }
 
+    /** addDebt push failed — retried as an insert; a duplicate insert on a retried-but-actually-
+     * succeeded earlier attempt is the accepted tradeoff (same as inventory_upsert choosing
+     * upsert over insert), since debt ids are client-generated UUIDs so a genuine dup would
+     * conflict on the primary key rather than silently double-count. */
+    suspend fun enqueueDebtUpsert(context: Context, debt: ZadDebt) {
+        try {
+            val dao = ZadDatabase.getDatabase(context).zadDao()
+            dao.insertPendingSyncOp(
+                PendingSyncOp(
+                    opType = "debt_upsert",
+                    payloadJson = json.encodeToString(debt),
+                    createdAt = java.time.Instant.now().toString()
+                )
+            )
+            Log.d(TAG, "enqueueDebtUpsert: queued '${debt.name}' for retry")
+        } catch (e: Exception) {
+            Log.e(TAG, "enqueueDebtUpsert failed: ${e.message}")
+        }
+    }
+
+    suspend fun enqueueDebtDelete(context: Context, id: String) {
+        try {
+            val dao = ZadDatabase.getDatabase(context).zadDao()
+            dao.insertPendingSyncOp(
+                PendingSyncOp(
+                    opType = "debt_delete",
+                    payloadJson = json.encodeToString(DebtDeletePayload(id)),
+                    createdAt = java.time.Instant.now().toString()
+                )
+            )
+            Log.d(TAG, "enqueueDebtDelete: queued '$id' for retry")
+        } catch (e: Exception) {
+            Log.e(TAG, "enqueueDebtDelete failed: ${e.message}")
+        }
+    }
+
+    suspend fun enqueueDebtBalanceUpdate(context: Context, id: String, newBalance: Double) {
+        try {
+            val dao = ZadDatabase.getDatabase(context).zadDao()
+            dao.insertPendingSyncOp(
+                PendingSyncOp(
+                    opType = "debt_balance_update",
+                    payloadJson = json.encodeToString(DebtBalanceUpdatePayload(id, newBalance)),
+                    createdAt = java.time.Instant.now().toString()
+                )
+            )
+            Log.d(TAG, "enqueueDebtBalanceUpdate: queued '$id' for retry")
+        } catch (e: Exception) {
+            Log.e(TAG, "enqueueDebtBalanceUpdate failed: ${e.message}")
+        }
+    }
+
+    /** updateFamilyMemberBalance push failed — real money (chore/challenge rewards, approved
+     * spend requests), so this can't just be logged and dropped like the lower-stakes ops. */
+    suspend fun enqueueFamilyBalanceUpdate(context: Context, memberId: String, newBalance: Double) {
+        try {
+            val dao = ZadDatabase.getDatabase(context).zadDao()
+            dao.insertPendingSyncOp(
+                PendingSyncOp(
+                    opType = "family_balance_update",
+                    payloadJson = json.encodeToString(FamilyBalanceUpdatePayload(memberId, newBalance)),
+                    createdAt = java.time.Instant.now().toString()
+                )
+            )
+            Log.d(TAG, "enqueueFamilyBalanceUpdate: queued '$memberId' for retry")
+        } catch (e: Exception) {
+            Log.e(TAG, "enqueueFamilyBalanceUpdate failed: ${e.message}")
+        }
+    }
+
     /** يقيّد نص/عنوان بنكي فشل تحليله الفوري (SaBankParser + AI) — retry في [flush] القادم */
     suspend fun enqueueUnparsedNotification(context: Context, source: String, title: String, text: String) {
         try {
@@ -195,6 +265,41 @@ object SyncOutbox {
                     "market_profile_update" -> {
                         val payload = json.decodeFromString<MarketProfilePayload>(op.payloadJson)
                         if (SupabaseRepo.syncMarketProfile(payload.currencyCode, payload.countryCode)) {
+                            dao.deletePendingSyncOp(op.id)
+                            Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
+                        } else {
+                            Log.w(TAG, "flush: op ${op.id} (${op.opType}) still failing — left queued for next run")
+                        }
+                    }
+                    "debt_upsert" -> {
+                        if (SupabaseRepo.addDebt(json.decodeFromString<ZadDebt>(op.payloadJson))) {
+                            dao.deletePendingSyncOp(op.id)
+                            Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
+                        } else {
+                            Log.w(TAG, "flush: op ${op.id} (${op.opType}) still failing — left queued for next run")
+                        }
+                    }
+                    "debt_delete" -> {
+                        val payload = json.decodeFromString<DebtDeletePayload>(op.payloadJson)
+                        if (SupabaseRepo.deleteDebt(payload.id)) {
+                            dao.deletePendingSyncOp(op.id)
+                            Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
+                        } else {
+                            Log.w(TAG, "flush: op ${op.id} (${op.opType}) still failing — left queued for next run")
+                        }
+                    }
+                    "debt_balance_update" -> {
+                        val payload = json.decodeFromString<DebtBalanceUpdatePayload>(op.payloadJson)
+                        if (SupabaseRepo.updateDebtRemainingBalance(payload.id, payload.newBalance)) {
+                            dao.deletePendingSyncOp(op.id)
+                            Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
+                        } else {
+                            Log.w(TAG, "flush: op ${op.id} (${op.opType}) still failing — left queued for next run")
+                        }
+                    }
+                    "family_balance_update" -> {
+                        val payload = json.decodeFromString<FamilyBalanceUpdatePayload>(op.payloadJson)
+                        if (SupabaseRepo.updateFamilyMemberBalance(payload.memberId, payload.newBalance)) {
                             dao.deletePendingSyncOp(op.id)
                             Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
                         } else {
