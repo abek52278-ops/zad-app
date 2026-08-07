@@ -559,6 +559,18 @@ fun HomeScreen(
 
                 // ── 6. Dark AI summary card (mockup: #052E16, mint title, chips) ──
                 agentSummary?.let { summary ->
+                    val companionState = remember(summary, isAgentLoading) {
+                        when {
+                            summary.alerts.any { it.type == "warning" } -> com.example.ui.components.CompanionState.Alert
+                            summary.alerts.any { it.type == "success" } -> com.example.ui.components.CompanionState.Happy
+                            isAgentLoading -> com.example.ui.components.CompanionState.Focused
+                            else -> com.example.ui.components.CompanionState.Idle
+                        }
+                    }
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        com.example.ui.components.CompanionOrb(state = companionState, size = 88.dp)
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
                     AgentSummaryCard(
                         agentSummary = summary,
                         isLoading = isAgentLoading,

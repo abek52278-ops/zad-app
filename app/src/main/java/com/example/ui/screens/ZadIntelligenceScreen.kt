@@ -1942,7 +1942,20 @@ fun ChatTab(
         )
     }
 
+    // حالة الأيجنت العاطفية في رأس الشات: مركّز وهو بيفكر، وإلا نبرة آخر رد منه.
+    val companionState = remember(isTyping, messages) {
+        when {
+            isTyping -> com.example.ui.components.CompanionState.Focused
+            else -> messages.lastOrNull { !it.isUser }
+                ?.let { com.example.ui.components.companionStateForMessage(it.text) }
+                ?: com.example.ui.components.CompanionState.Idle
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), contentAlignment = Alignment.Center) {
+            com.example.ui.components.CompanionOrb(state = companionState, size = 64.dp)
+        }
         if (messages.size > 1) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
@@ -2052,8 +2065,15 @@ private fun ZadIntChatBubble(msg: AiChatMessage) {
         ) {
             Column {
                 if (!msg.isUser) {
-                    Text(stringResource(R.string.app_name), fontSize = 10.sp, color = primary, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        com.example.ui.components.CompanionOrb(
+                            state = com.example.ui.components.companionStateForMessage(msg.text),
+                            size = 18.dp
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(stringResource(R.string.app_name), fontSize = 10.sp, color = primary, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
                 }
                 Text(msg.text, color = if (msg.isUser) Color.White else onSurface, style = Typography.bodyMedium)
             }

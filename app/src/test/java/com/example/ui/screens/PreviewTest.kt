@@ -835,4 +835,25 @@ class PreviewTest {
             filePath = "build/outputs/roborazzi/spending_power_panel.png"
         )
     }
+
+    /** Companion orb — the four emotion states side by side, so eye shape and color read
+     *  correctly before wiring the real emotion engine on top of it. */
+    @Test
+    fun captureCompanionOrbStates() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.background(background).padding(24.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                        com.example.ui.components.CompanionOrb(com.example.ui.components.CompanionState.Idle)
+                        com.example.ui.components.CompanionOrb(com.example.ui.components.CompanionState.Focused)
+                        com.example.ui.components.CompanionOrb(com.example.ui.components.CompanionState.Happy)
+                        com.example.ui.components.CompanionOrb(com.example.ui.components.CompanionState.Alert)
+                    }
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(
+            filePath = "build/outputs/roborazzi/companion_orb_states.png"
+        )
+    }
 }
