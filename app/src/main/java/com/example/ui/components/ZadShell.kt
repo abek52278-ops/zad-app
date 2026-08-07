@@ -199,6 +199,8 @@ fun ZadTopHeader(
                         model = avatarUri,
                         contentDescription = stringResource(R.string.tap_to_view_profile),
                         contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        placeholder = androidx.compose.ui.res.painterResource(id = R.drawable.avatar),
+                        error = androidx.compose.ui.res.painterResource(id = R.drawable.avatar),
                         modifier = Modifier.fillMaxSize().clip(CircleShape)
                     )
                 } else {
@@ -750,6 +752,8 @@ fun ZadDrawerContent(
                         model = avatarUri,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
+                        placeholder = androidx.compose.ui.res.painterResource(id = R.drawable.avatar),
+                        error = androidx.compose.ui.res.painterResource(id = R.drawable.avatar),
                         modifier = Modifier.fillMaxSize().clip(CircleShape)
                     )
                 } else {

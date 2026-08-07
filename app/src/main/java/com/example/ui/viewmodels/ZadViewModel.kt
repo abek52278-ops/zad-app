@@ -337,6 +337,17 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val _isAiTyping = MutableStateFlow(false)
     val isAiTyping: StateFlow<Boolean> = _isAiTyping.asStateFlow()
 
+    // حالة الأيجنت العاطفية الموحّدة — مصدر واحد تقرأ منه كل الشاشات (الرئيسية، الشات، لاحقاً
+    // أي مكان تاني) بدل ما كل شاشة تحسب حالتها المحلية بشكل منفصل.
+    private val _companionState = MutableStateFlow(com.example.ui.components.CompanionState.Idle)
+    val companionState: StateFlow<com.example.ui.components.CompanionState> = _companionState.asStateFlow()
+
+    private fun companionStateFromAgentSummary(summary: com.example.data.AiAgentSummary): com.example.ui.components.CompanionState = when {
+        summary.alerts.any { it.type == "warning" } -> com.example.ui.components.CompanionState.Alert
+        summary.alerts.any { it.type == "success" } -> com.example.ui.components.CompanionState.Happy
+        else -> com.example.ui.components.CompanionState.Idle
+    }
+
     init {
         com.example.data.MarketPrefs.applyStoredLocale(getApplication())
         Log.d(TAG, "ZadViewModel init — collecting from Room DB")
@@ -886,6 +897,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         _isAiTyping.value = true
+        _companionState.value = com.example.ui.components.CompanionState.Focused
 
         viewModelScope.launch {
             try {
@@ -959,6 +971,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 _aiChatMessages.value = _aiChatMessages.value + aiMsg
                 persistChatMessage(aiMsg)
+                _companionState.value = com.example.ui.components.companionStateForMessage(aiMsg.text)
 
                 // zad-brain's own header comment says it runs "on a schedule and on debounced
                 // events/chat" — the chat path never actually fired it. This is fire-and-forget
@@ -971,6 +984,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 val errMsg = AiChatMessage(text = "حدث خطأ غير متوقع.", isUser = false)
                 _aiChatMessages.value = _aiChatMessages.value + errMsg
                 persistChatMessage(errMsg)
+                _companionState.value = com.example.ui.components.CompanionState.Idle
             } finally {
                 _isAiTyping.value = false
             }
@@ -2710,6 +2724,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 _agentSummary.value = summary
                 if (summary != null) {
                     Log.d(TAG, "refreshAgentSummary() → ${summary.summary.take(100)}")
+                    _companionState.value = companionStateFromAgentSummary(summary)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "refreshAgentSummary() FAILED: ${e.message}")
@@ -2788,12 +2803,17 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val publicUrl = SupabaseRepo.uploadAvatar(bytes, mimeType)
                 if (publicUrl != null) {
+                    // الصورة اترفعت فعلياً للـ storage — نحدّث الـ StateFlow فوراً (الهوم والدرج
+                    // بيعكسوها لحظياً) بدل ما نستنى نجاح كتابة zad_users.avatar_uri التانية. لو
+                    // الكتابة دي فشلت (شبكة/RLS) الصورة تفضل ظاهرة لحد آخر الجلسة، وبنسجل الفشل
+                    // بدل ما نسيب الواجهة عالقة على الصورة القديمة رغم إن الرفع نجح فعلاً.
+                    _avatarUri.value = publicUrl
                     // name=null — أبلود الصورة لوحدها متلمسش الاسم، حتى لو _userName لسه null
                     // (لسه ماحملش loadUserProfile()).
                     val success = SupabaseRepo.updateUserProfile(null, publicUrl)
-                    if (success) _avatarUri.value = publicUrl
+                    if (!success) Log.e(TAG, "uploadAvatar() → storage upload OK but avatar_uri DB write FAILED, url=$publicUrl")
                     Log.d(TAG, "uploadAvatar() → success=$success, url=$publicUrl")
-                    onResult(success)
+                    onResult(true)
                 } else {
                     onResult(false)
                 }

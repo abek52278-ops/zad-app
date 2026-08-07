@@ -114,6 +114,7 @@ fun HomeScreen(
     val expensePrediction by viewModel.expensePrediction.collectAsState()
     val agentSummary by viewModel.agentSummary.collectAsState()
     val isAgentLoading by viewModel.isAgentLoading.collectAsState()
+    val companionState by viewModel.companionState.collectAsState()
     val autoSuggestions by viewModel.autoSuggestions.collectAsState()
     val livePrices by viewModel.livePrices.collectAsState()
     val marketPricesFetchState by viewModel.marketPricesFetchState.collectAsState()
@@ -559,14 +560,6 @@ fun HomeScreen(
 
                 // ── 6. Dark AI summary card (mockup: #052E16, mint title, chips) ──
                 agentSummary?.let { summary ->
-                    val companionState = remember(summary, isAgentLoading) {
-                        when {
-                            summary.alerts.any { it.type == "warning" } -> com.example.ui.components.CompanionState.Alert
-                            summary.alerts.any { it.type == "success" } -> com.example.ui.components.CompanionState.Happy
-                            isAgentLoading -> com.example.ui.components.CompanionState.Focused
-                            else -> com.example.ui.components.CompanionState.Idle
-                        }
-                    }
                     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         com.example.ui.components.CompanionOrb(state = companionState, size = 88.dp)
                     }

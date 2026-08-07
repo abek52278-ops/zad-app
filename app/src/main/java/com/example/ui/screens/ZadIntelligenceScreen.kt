@@ -457,9 +457,11 @@ fun ToolsChatTab(
             label = "toolsChat"
         ) { onChat ->
             if (onChat) {
+                val companionState by viewModel.companionState.collectAsState()
                 ChatTab(
                     messages = messages,
                     isTyping = isTyping,
+                    companionState = companionState,
                     inputText = inputText,
                     listState = listState,
                     onInputChange = onInputChange,
@@ -1910,6 +1912,7 @@ fun MiniStatCard(
 fun ChatTab(
     messages: List<AiChatMessage>,
     isTyping: Boolean,
+    companionState: com.example.ui.components.CompanionState,
     inputText: String,
     listState: androidx.compose.foundation.lazy.LazyListState,
     onInputChange: (String) -> Unit,
@@ -1940,16 +1943,6 @@ fun ChatTab(
                 TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.cancel_action)) }
             }
         )
-    }
-
-    // حالة الأيجنت العاطفية في رأس الشات: مركّز وهو بيفكر، وإلا نبرة آخر رد منه.
-    val companionState = remember(isTyping, messages) {
-        when {
-            isTyping -> com.example.ui.components.CompanionState.Focused
-            else -> messages.lastOrNull { !it.isUser }
-                ?.let { com.example.ui.components.companionStateForMessage(it.text) }
-                ?: com.example.ui.components.CompanionState.Idle
-        }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -2068,7 +2061,8 @@ private fun ZadIntChatBubble(msg: AiChatMessage) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         com.example.ui.components.CompanionOrb(
                             state = com.example.ui.components.companionStateForMessage(msg.text),
-                            size = 18.dp
+                            size = 18.dp,
+                            animated = false
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(stringResource(R.string.app_name), fontSize = 10.sp, color = primary, fontWeight = FontWeight.Bold)
