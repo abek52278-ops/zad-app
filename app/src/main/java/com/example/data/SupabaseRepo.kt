@@ -985,6 +985,23 @@ object SupabaseRepo {
         }
     }
 
+    /** يمسح صف family_groups نفسه — RLS بيسمح لأي عضو حالي بيه (family_groups_delete_members)،
+     * فالتقييد إنه بس آخر فرد ممكن يحذف العائلة كله على مستوى الـ ViewModel، مش هنا. */
+    suspend fun deleteFamilyGroup(familyId: String): Boolean {
+        return try {
+            Log.d(TAG, "deleteFamilyGroup() → table=family_groups, id=$familyId")
+            client.postgrest["family_groups"].delete {
+                filter { eq("id", familyId) }
+            }
+            Log.d(TAG, "deleteFamilyGroup() SUCCESS")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteFamilyGroup() FAILED: ${e.message}")
+            e.printStackTrace()
+            false
+        }
+    }
+
     suspend fun updateFamilyMemberRole(memberId: String, newRole: String): Boolean {
         return try {
             Log.d(TAG, "updateFamilyMemberRole() → table=family_members, id=$memberId, newRole=$newRole")

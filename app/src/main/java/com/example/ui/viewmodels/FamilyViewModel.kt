@@ -474,6 +474,45 @@ class FamilyViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** يسيب العائلة الحالية — نفس مسار kickMember (removeFamilyMember) لكن على نفسي، ثم
+     * يرجع الحالة لـ NoFamily عشان الشاشة تعرض شاشة إنشاء/انضمام تاني. */
+    fun leaveFamily() {
+        viewModelScope.launch {
+            val curr = _state.value
+            if (curr !is FamilyState.Active) return@launch
+            val success = SupabaseRepo.removeFamilyMember(curr.myMemberInfo.id)
+            if (success) {
+                currentFamilyId = null
+                _state.value = FamilyState.NoFamily
+            } else {
+                _toastMessage.emit("فشل مغادرة العائلة، يرجى المحاولة لاحقاً.")
+            }
+        }
+    }
+
+    /** حذف العائلة بالكامل — مسموح بس لو أنا آخر فرد فيها (اتفحص هنا مش بس على الـ RLS،
+     * لأن policy الحذف بتسمح لأي عضو، وده تقييد على مستوى المنتج مش أمان). بنمسح صف
+     * family_members بتاعي الأول ضمانة إنه ميفضلش يتيم لو الـ FK cascade مش موجود، بعدين
+     * صف family_groups نفسه. */
+    fun deleteFamily() {
+        viewModelScope.launch {
+            val curr = _state.value
+            if (curr !is FamilyState.Active) return@launch
+            if (curr.members.size > 1) {
+                _toastMessage.emit("لا يمكن حذف العائلة وبها أعضاء آخرون.")
+                return@launch
+            }
+            val memberRemoved = SupabaseRepo.removeFamilyMember(curr.myMemberInfo.id)
+            val groupDeleted = SupabaseRepo.deleteFamilyGroup(curr.familyGroup.id)
+            if (memberRemoved && groupDeleted) {
+                currentFamilyId = null
+                _state.value = FamilyState.NoFamily
+            } else {
+                _toastMessage.emit("فشل حذف العائلة، يرجى المحاولة لاحقاً.")
+            }
+        }
+    }
+
     fun changeMemberRole(memberId: String, newRole: String) {
         viewModelScope.launch {
             val curr = _state.value

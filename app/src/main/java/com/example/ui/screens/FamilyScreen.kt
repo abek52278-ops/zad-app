@@ -547,6 +547,9 @@ private fun KidsSpendingTab(
 @Composable
 private fun MembersTab(state: FamilyState.Active, viewModel: FamilyViewModel, showFinancials: Boolean = true) {
     var selectedMember by remember { mutableStateOf<com.example.data.FamilyMember?>(null) }
+    var showLeaveConfirm by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    val isSoleMember = state.members.size <= 1
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -580,7 +583,36 @@ private fun MembersTab(state: FamilyState.Active, viewModel: FamilyViewModel, sh
             }
         }
 
-        item { Spacer(Modifier.height(16.dp)) }
+        item { Spacer(Modifier.height(24.dp)) }
+
+        // مغادرة/حذف العائلة — تحت تاب الأعضاء، مش في الهيدر المزدحم أصلاً بأيقونات
+        // نداء الطوارئ/الدعوة/المشاركة. لو أنا آخر فرد، الخيار بيتحول لحذف العائلة نهائياً
+        // بدل مغادرة (مغادرتها كآخر فرد تسيبها يتيمة بلا مالك).
+        item {
+            HorizontalDivider(color = onSurface.copy(alpha = 0.08f))
+            Spacer(Modifier.height(16.dp))
+            if (isSoleMember) {
+                OutlinedButton(
+                    onClick = { showDeleteConfirm = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = dangerColor)
+                ) {
+                    Icon(Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.delete_family_action))
+                }
+            } else {
+                OutlinedButton(
+                    onClick = { showLeaveConfirm = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = dangerColor)
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.leave_family_action))
+                }
+            }
+        }
     }
 
     if (selectedMember != null) {
@@ -590,6 +622,42 @@ private fun MembersTab(state: FamilyState.Active, viewModel: FamilyViewModel, sh
             state = state,
             onDismiss = { selectedMember = null },
             showFinancials = showFinancials
+        )
+    }
+
+    if (showLeaveConfirm) {
+        AlertDialog(
+            onDismissRequest = { showLeaveConfirm = false },
+            icon = { Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, tint = dangerColor) },
+            title = { Text(stringResource(R.string.leave_family_confirm_title), fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(R.string.leave_family_confirm_body)) },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.leaveFamily(); showLeaveConfirm = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = dangerColor)
+                ) { Text(stringResource(R.string.leave_family_confirm_action)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLeaveConfirm = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            icon = { Icon(Icons.Default.DeleteForever, contentDescription = null, tint = dangerColor) },
+            title = { Text(stringResource(R.string.delete_family_confirm_title), fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(R.string.delete_family_confirm_body)) },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.deleteFamily(); showDeleteConfirm = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = dangerColor)
+                ) { Text(stringResource(R.string.delete_family_confirm_action)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text(stringResource(R.string.cancel)) }
+            }
         )
     }
 }
@@ -1680,7 +1748,8 @@ fun ChatTab(
 
         if (messages.isEmpty()) {
             // كانت اللستة بتتعرض فاضية تماماً — بس الـ Spacer وعنصر typing indicator لو
-            // موجود، من غير أي حاجة توضح إن ده تشات جديد لسه ملوش رسائل.
+            // موجود، من غير أي حاجة توضح إن ده تشات جديد لسه ملوش رسائل. دلوقتي فيه أفاتار
+            // + عنوان + شيبس تفاعلية (تودي مباشرة لنفس الحوارات اللي شريط الأيقونات تحت بيفتحها).
             Box(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 contentAlignment = Alignment.Center
@@ -1688,7 +1757,26 @@ fun ChatTab(
                 com.example.ui.components.ZadEmptyState(
                     icon = Icons.Default.Chat,
                     title = stringResource(R.string.no_messages_yet_title),
-                    subtitle = stringResource(R.string.no_messages_yet_subtitle)
+                    subtitle = stringResource(R.string.no_messages_yet_subtitle),
+                    action = {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SuggestionChip(
+                                onClick = { showTaskDialog = true },
+                                icon = { Icon(Icons.Default.Assignment, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                                label = { Text(stringResource(R.string.empty_chat_suggest_task)) }
+                            )
+                            SuggestionChip(
+                                onClick = { showGroceryQuickDialog = true },
+                                icon = { Icon(Icons.Default.AddShoppingCart, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                                label = { Text(stringResource(R.string.empty_chat_suggest_grocery)) }
+                            )
+                            SuggestionChip(
+                                onClick = { text = "@Zad " },
+                                icon = { Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                                label = { Text(stringResource(R.string.empty_chat_suggest_ask_zad)) }
+                            )
+                        }
+                    }
                 )
             }
         } else {
@@ -1849,9 +1937,11 @@ fun ChatTab(
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     // شريط أيقونات قابل للتمرير — بعد إضافة مهمة/تسوق بقى ٦ أزرار، تكديسها
                     // في صف ثابت العرض كان هيضغطها/يقصّها؛ التمرير الأفقي يحافظ على ٤٨دp
-                    // (حد أدنى مساحة اللمس) لكل زرار بدل تصغيرها.
+                    // (حد أدنى مساحة اللمس) لكل زرار بدل تصغيرها. widthIn(max) هنا يمنع
+                    // الشريط ده من ابتلاع عرض الصف كله على شاشة ضيقة — كان بيسيب حقل الكتابة
+                    // بعرض شبه معدوم لحد ما تعمل سكرول للأيقونات الأول (تراكب فعلي مع منطقة الشات).
                     Row(
-                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        modifier = Modifier.widthIn(max = 150.dp).horizontalScroll(rememberScrollState()),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                     IconButton(onClick = { showQuickReplies = !showQuickReplies }, modifier = Modifier.pressableScale()) {

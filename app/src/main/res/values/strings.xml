@@ -414,8 +414,19 @@
     <string name="family_tasks">المهام العائلية</string>
     <string name="no_family_tasks_title">لا توجد مهام</string>
     <string name="no_family_tasks_subtitle">ضيف مهمة عشان أفراد العائلة يشاركوا فيها</string>
-    <string name="no_messages_yet_title">ابدأ المحادثة</string>
-    <string name="no_messages_yet_subtitle">لسه مفيش رسائل هنا — ابعت أول رسالة لعائلتك</string>
+    <string name="no_messages_yet_title">لا توجد رسائل بعد</string>
+    <string name="no_messages_yet_subtitle">ابدأ المحادثة بإرسال أول رسالة لعائلتك</string>
+    <string name="empty_chat_suggest_task">أضف مهام</string>
+    <string name="empty_chat_suggest_grocery">اطلب بقالة</string>
+    <string name="empty_chat_suggest_ask_zad">استشر @Zad</string>
+    <string name="leave_family_action">مغادرة العائلة</string>
+    <string name="leave_family_confirm_title">تأكيد المغادرة</string>
+    <string name="leave_family_confirm_body">هتفقد الوصول لشات العائلة والمهام والأرصدة المشتركة. متأكد إنك عايز تغادر العائلة؟</string>
+    <string name="leave_family_confirm_action">مغادرة</string>
+    <string name="delete_family_action">حذف العائلة وإعادة الإنشاء</string>
+    <string name="delete_family_confirm_title">حذف العائلة نهائياً</string>
+    <string name="delete_family_confirm_body">إنت آخر فرد في العائلة دي. حذفها هيمسح الشات والمهام وكل البيانات نهائياً ومينفعش ترجعها، وتقدر تنشئ عائلة جديدة بعد كده.</string>
+    <string name="delete_family_confirm_action">حذف نهائي</string>
     <string name="family_with_code">عائلة %1$s</string>
     <string name="goal_colon">الهدف: %1$s</string>
     <string name="goal_label">الهدف</string>
@@ -696,6 +707,12 @@
     <string name="behavior_analysis_enabled_subtitle">مفعل — يتم تحليل بياناتك لتقديم تنبؤات مخصصة</string>
     <string name="behavior_consent_explanation">زاد يحلل بيانات صرفك واستهلاكك (المعاملات، المخزون، الاشتراكات) لتقديم:\n\n• تنبؤات مخصصة للمصاريف\n• ترشيحات ذكية للمنتجات\n• تحليل أسبوعي للسلوك المالي\n\nهذا مطلوب بموجب نظام حماية البيانات الشخصية السعودي (PDPL).\nيمكنك إلغاء التفعيل في أي وقت.</string>
     <string name="budget_and_payment_methods">الميزانية وطرق الدفع</string>
+    <string name="regional_settings_title">الإعدادات الإقليمية</string>
+    <string name="regional_settings_subtitle">اللغة، البلد، والعملة</string>
+    <string name="language_section_label">اللغة</string>
+    <string name="country_section_label">البلد</string>
+    <string name="currency_section_label">العملة</string>
+    <string name="currency_derived_note">العملة بتتحدد تلقائياً حسب البلد المختار فوق</string>
     <string name="choose_favorite_fruit_avatar">اختر فاكهتك المفضلة كصورة شخصية لك:</string>
     <string name="choose_your_avatar">اختر شخصيتك</string>
     <string name="confirm_delete_account">نعم، احذف الحساب</string>
@@ -861,7 +878,7 @@
     <string name="remaining_quantity_hint">الكمية المتبقية</string>
     <string name="unit_hint">الوحدة</string>
     <string name="daily_dose_hint">جرعات اليوم</string>
-    <string name="expiry_date_hint">تاريخ الانتهاء (YYYY-MM-DD)</string>
+    <string name="expiry_date_hint">تاريخ الانتهاء</string>
     <string name="is_recurring_label">دواء مزمن / روشتة متجددة شهرياً</string>
     <string name="toggle_view_action">تبديل طريقة العرض</string>
     <string name="smart_expiry_tracker_title">قرب الانتهاء — تخلص منها بأمان</string>
@@ -869,7 +886,12 @@
     <string name="renew_order_dialog_title">تجديد طلب %1$s</string>
     <string name="added_quantity_hint">الكمية المضافة (%1$s)</string>
     <string name="assigned_family_member_label">لمين في العائلة</string>
-    <string name="dose_times_hint">مواعيد الجرعة (اختياري، مثال: 08:00, 20:00)</string>
+    <string name="dose_times_hint">مواعيد الجرعة (اختياري)</string>
+    <string name="dose_times_empty_hint">لسه مفيش مواعيد مضافة — مقترح: %1$s</string>
+    <string name="add_dose_time_action">إضافة ميعاد</string>
+    <string name="pick_dose_time_dialog_title">اختر ميعاد الجرعة</string>
+    <string name="pick_expiry_date_placeholder">اضغط لاختيار التاريخ</string>
+    <string name="additional_details_label">تفاصيل إضافية (اختياري)</string>
     <string name="exact_alarm_permission_hint">فعّل \"المنبهات الدقيقة\" من الإعدادات عشان تنبيهات مواعيد الدواء تشتغل بدقة</string>
     <string name="pharmacy_reminder_title">موعد الدواء</string>
     <string name="pharmacy_reminder_body">حان موعد جرعة %1$s</string>
@@ -916,6 +938,7 @@
     <!-- Location Alerts (opt-in real background geofencing — separate from the manual search above) -->
     <string name="location_alerts_toggle_label">تنبيهات ذكية وأنت قريب من متجر</string>
     <string name="location_alerts_toggle_hint">زاد يفكّرك بنواقصك من المؤن أو الدواء تلقائياً لما تكون قريب من سوبرماركت أو صيدلية — يحتاج إذن الموقع في الخلفية، وممكن توقفه في أي وقت.</string>
+    <string name="location_alerts_enabled_hint">مفعّلة — هتوصلك تنبيهات لما تكون قريب من متجر</string>
     <string name="background_location_permission_rationale">عشان زاد يقدر ينبهك وأنت قريب من سوبرماركت حتى لو التطبيق مقفول، محتاج إذن "الموقع طول الوقت" من إعدادات الجهاز.</string>
     <string name="location_alerts_channel_name">زاد — تنبيهات قرب المتجر</string>
     <string name="location_alert_notification_title">أنت قريب من %1$s</string>
