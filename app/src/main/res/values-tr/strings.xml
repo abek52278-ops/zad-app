@@ -845,6 +845,10 @@
     <string name="events_radar_days_until">%1$d gün kaldı</string>
     <string name="events_radar_title">Etkinlik radarı</string>
     <string name="live_search_error_state">Şu anda arama yapılamıyor — birazdan tekrar deneyin</string>
+    <string name="outing_suggestion_distance_km">%1$.1f km uzakta</string>
+    <string name="outing_suggestion_distance_m">%1$d m uzakta</string>
+    <string name="outing_suggestion_subtitle">Bütçen iyi görünüyor — Zad\'ın bir önerisi var:</string>
+    <string name="outing_suggestion_title">Haftanın çıkışı</string>
     <string name="sinking_fund_amount_hint">Tutar</string>
     <string name="sinking_fund_contribute_action">Tutar ekle</string>
     <string name="sinking_fund_create_action">Yeni fon</string>

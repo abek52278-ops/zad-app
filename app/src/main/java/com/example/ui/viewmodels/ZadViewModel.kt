@@ -242,6 +242,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val _availableFigure = MutableStateFlow<Figure?>(null)
     val availableFigure: StateFlow<Figure?> = _availableFigure.asStateFlow()
 
+    /** "خروجة الأسبوع" — مكان أكل/ترفيه قريب واحد، يظهر بس لو المتاح الفعلي لسه صحي. */
+    private val _outingSuggestion = MutableStateFlow<com.example.data.NearbyStore?>(null)
+    val outingSuggestion: StateFlow<com.example.data.NearbyStore?> = _outingSuggestion.asStateFlow()
+
     /** أقرب التزام مؤكد مستحق جوه الدورة الحالية — null لو مفيش، للعرض ("محجوز ٣٠٠ (إيجار بعد ٤ أيام)") */
     private val _nextObligationDue = MutableStateFlow<Pair<ZadObligation, LocalDate>?>(null)
     val nextObligationDue: StateFlow<Pair<ZadObligation, LocalDate>?> = _nextObligationDue.asStateFlow()
@@ -2811,15 +2815,74 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val patterns = dao.getBehaviorPatterns()
-                val prediction = com.example.data.ZadAiRepository.predictExpenses(
+                val aiPrediction = com.example.data.ZadAiRepository.predictExpenses(
                     _transactions.value, _budget.value, patterns
                 )
+                // AI بيرجع أحياناً predicted_total=0/confidence=0 (رد فاضي فعلياً — راجع ملاحظة
+                // thinking-off في CLAUDE.md) — ده كان بيتعرض حرفياً "0 ج.م (ثقة 0%)" بدل ما نستخدم
+                // متوسط تاريخي محلي أو نخفي الكارت. أي واحدة من القيمتين صفر كافية نعتبره رد مرفوض.
+                val prediction = aiPrediction?.takeIf { it.predictedTotal > 0 && it.confidence > 0 }
+                    ?: historicalAverageExpensePrediction(_transactions.value)
                 _expensePrediction.value = prediction
                 if (prediction != null) {
                     Log.d(TAG, "predictNextMonthExpenses() → predicted=${prediction.predictedTotal}, confidence=${prediction.confidence}")
+                } else {
+                    Log.d(TAG, "predictNextMonthExpenses() → no AI prediction and not enough history for a local fallback; hiding card")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "predictNextMonthExpenses() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * احتياطي محلي لما رد الـ AI فاضي أو غير موجود — متوسط آخر 3 شهور مكتملة من المصروفات
+     * الفعلية. لازم شهرين مكتملين فيهم صرف على الأقل، وإلا بيرجع null عشان الكارت يختفي
+     * تماماً بدل ما يعرض توقع 0 وهمي.
+     */
+    private fun historicalAverageExpensePrediction(transactions: List<ZadTransaction>): com.example.data.AiExpensePrediction? {
+        fun txDate(tx: ZadTransaction): LocalDate? = tx.createdAt?.let {
+            try { Instant.parse(it).atZone(ZoneId.systemDefault()).toLocalDate() } catch (e: Exception) { null }
+        }
+        val currentMonth = java.time.YearMonth.now()
+        val monthlyTotals = transactions
+            .filter { it.isExpense }
+            .mapNotNull { tx -> txDate(tx)?.let { java.time.YearMonth.from(it) to tx.amount } }
+            .filter { (month, _) -> month < currentMonth }
+            .groupBy({ it.first }, { it.second })
+            .mapValues { it.value.sum() }
+            .filterValues { it > 0.0 }
+        if (monthlyTotals.size < 2) return null
+        val recentMonths = monthlyTotals.entries.sortedByDescending { it.key }.take(3)
+        val avg = recentMonths.sumOf { it.value } / recentMonths.size
+        // ثقة متواضعة عمداً (٤٥-٦٥٪) — متوسط بسيط، مش تحليل AI حقيقي.
+        val confidence = (0.45 + 0.1 * (recentMonths.size - 2)).coerceIn(0.45, 0.65)
+        return com.example.data.AiExpensePrediction(predictedTotal = avg.asMoney(), confidence = confidence)
+    }
+
+    /**
+     * زاد ليس رقيباً مالياً بس — لو المتاح الفعلي لسه صحي (٣٠٪+ من السقف الشهري)، بيرشح
+     * مطعم/كافيه قريب واحد (أقرب نتيجة). LocationIQ أولاً (نفس أولوية GroceryGeofenceManager)،
+     * Overpass fallback، وبدون صلاحية موقع أو متاح غير كافي الكارت بيفضل مخفي (null).
+     */
+    fun refreshOutingSuggestion() {
+        viewModelScope.launch {
+            val budgetNow = _budget.value
+            val availableNow = _availableFigure.value?.value
+            val healthy = budgetNow > 0 && availableNow != null && availableNow / budgetNow >= 0.3
+            if (!healthy) { _outingSuggestion.value = null; return@launch }
+            try {
+                val location = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    com.example.data.LocationHelper.getCurrentLocation(getApplication())
+                }
+                if (location == null) { _outingSuggestion.value = null; return@launch }
+                val spots = com.example.data.LocationIqRepo.findNearbyOutingSpots(location.latitude, location.longitude)
+                    .ifEmpty { com.example.data.OverpassRepo.findNearbyOutingSpots(location.latitude, location.longitude) }
+                _outingSuggestion.value = spots.firstOrNull()
+                Log.d(TAG, "refreshOutingSuggestion() → ${spots.size} spot(s), picked=${spots.firstOrNull()?.name}")
+            } catch (e: Exception) {
+                Log.e(TAG, "refreshOutingSuggestion() FAILED: ${e.message}")
+                _outingSuggestion.value = null
             }
         }
     }

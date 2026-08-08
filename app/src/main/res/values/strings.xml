@@ -602,6 +602,11 @@
     <string name="event_eid_al_adha">عيد الأضحى</string>
     <string name="event_back_to_school">العودة للمدارس</string>
 
+    <string name="outing_suggestion_title">خروجة الأسبوع</string>
+    <string name="outing_suggestion_subtitle">الميزانية مطمّنة — زاد عنده اقتراح ليك:</string>
+    <string name="outing_suggestion_distance_km">%1$.1f كم منك</string>
+    <string name="outing_suggestion_distance_m">%1$d م منك</string>
+
     <string name="sinking_funds_title">صناديق التجميع</string>
     <string name="sinking_fund_create_action">صندوق جديد</string>
     <string name="sinking_fund_empty_state">لا توجد صناديق تجميع حالياً</string>

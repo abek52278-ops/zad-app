@@ -22,6 +22,9 @@ object LocationIqRepo {
     suspend fun findNearbyPharmacies(lat: Double, lon: Double, radiusMeters: Int = 3000): List<NearbyStore> =
         query(lat, lon, "pharmacy", radiusMeters)
 
+    suspend fun findNearbyOutingSpots(lat: Double, lon: Double, radiusMeters: Int = 3000): List<NearbyStore> =
+        query(lat, lon, "restaurant", radiusMeters)
+
     private suspend fun query(lat: Double, lon: Double, tag: String, radiusMeters: Int): List<NearbyStore> {
         return try {
             val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id.orEmpty()

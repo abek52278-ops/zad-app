@@ -117,6 +117,7 @@ fun HomeScreen(
     val upcomingSeasonalEvents by familyViewModel.upcomingSeasonalEvents.collectAsState()
     val seasonalForecasts by viewModel.seasonalForecasts.collectAsState()
     val expensePrediction by viewModel.expensePrediction.collectAsState()
+    val outingSuggestion by viewModel.outingSuggestion.collectAsState()
     val agentSummary by viewModel.agentSummary.collectAsState()
     val isAgentLoading by viewModel.isAgentLoading.collectAsState()
     val companionState by viewModel.companionState.collectAsState()
@@ -181,6 +182,7 @@ fun HomeScreen(
         viewModel.refreshAutoSuggestions()
         viewModel.predictNextMonthExpenses()
         viewModel.refreshLiveMarketPrices()
+        viewModel.refreshOutingSuggestion()
         viewModel.loadZadInsights()
         familyViewModel.loadUpcomingSeasonalEvents()
         Log.d(TAG_HOME, "HomeScreen loaded — userName=$userNameState, budget=$budget, transactions=${transactions.size}, isChild=$isChild")
@@ -718,6 +720,13 @@ fun HomeScreen(
                 // الدورة — سقف <= 0 يبقى "غير معروف" أصلاً فمفيش كارت يتعرض من غير معنى.
                 if (expensePrediction != null && budget > 0) {
                     PredictionCard(expensePrediction!!, budget)
+                    Spacer(modifier = Modifier.height(18.dp))
+                }
+
+                // زاد مش رقيب مالي بس — لو المتاح لسه صحي، بيرشح خروجة قريبة (OutingSuggestionCard
+                // بتتخفي تلقائياً لو مفيش اقتراح، مافيش حالة "فاضي" تتعرض هنا).
+                outingSuggestion?.let { spot ->
+                    OutingSuggestionCard(spot = spot)
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
@@ -1550,6 +1559,42 @@ fun PredictionCard(prediction: com.example.data.AiExpensePrediction, budget: Dou
                     Spacer(Modifier.width(4.dp))
                     Text(tip, color = onSurfaceVariant, fontSize = 11.sp)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun OutingSuggestionCard(spot: com.example.data.NearbyStore) {
+    val distanceText = if (spot.distanceMeters < 1000) {
+        stringResource(R.string.outing_suggestion_distance_m, spot.distanceMeters)
+    } else {
+        stringResource(R.string.outing_suggestion_distance_km, spot.distanceMeters / 1000.0)
+    }
+    GlassCard(
+        modifier = Modifier.pressableScale(pressedScale = 0.98f, withHaptic = false),
+        containerColor = surface.copy(alpha = 0.9f),
+        borderColor = onSurface.copy(alpha = 0.08f)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Celebration, contentDescription = null, tint = catEntertainIcon, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.outing_suggestion_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(stringResource(R.string.outing_suggestion_subtitle), style = Typography.bodySmall, color = onSurfaceVariant)
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier.size(32.dp).clip(CircleShape).background(catEntertainBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Restaurant, contentDescription = null, tint = catEntertainIcon, modifier = Modifier.size(16.dp))
+            }
+            Spacer(Modifier.width(10.dp))
+            Column {
+                Text(spot.name, style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                Text(distanceText, style = Typography.labelSmall, color = onSurfaceVariant)
             }
         }
     }

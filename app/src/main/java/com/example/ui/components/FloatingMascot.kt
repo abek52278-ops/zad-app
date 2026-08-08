@@ -46,6 +46,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import com.example.ui.theme.Typography
 import com.example.ui.theme.onSurface
 import com.example.ui.viewmodels.ZadViewModel
@@ -155,6 +156,10 @@ fun FloatingMascotCompanion(
     Box(
         modifier = modifier
             .fillMaxSize()
+            // مرسوم كـ sibling بعد الـ Scaffold في MainScreen فعلاً (آخر واحد بيتحط فوق
+            // الكل)، لكن zIndex هنا بيثبّت الأولوية دي بالاسم بدل الاعتماد بس على ترتيب
+            // الإضافة — يضمن الأيجنت يفضل ظاهر فوق أي كارت تاني حتى لو ترتيب MainScreen اتغيّر.
+            .zIndex(100f)
             .navigationBarsPadding()
             .padding(bottom = 94.dp),
         contentAlignment = Alignment.BottomCenter

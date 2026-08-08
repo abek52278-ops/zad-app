@@ -29,6 +29,9 @@ object OverpassRepo {
     suspend fun findNearbyPharmacies(lat: Double, lon: Double, radiusMeters: Int = 1500): List<NearbyStore> =
         query(lat, lon, radiusMeters, """node["amenity"="pharmacy"](around:$radiusMeters,$lat,$lon);""", "findNearbyPharmacies")
 
+    suspend fun findNearbyOutingSpots(lat: Double, lon: Double, radiusMeters: Int = 2000): List<NearbyStore> =
+        query(lat, lon, radiusMeters, """node["amenity"~"restaurant|cafe|fast_food"](around:$radiusMeters,$lat,$lon);""", "findNearbyOutingSpots")
+
     private suspend fun query(lat: Double, lon: Double, radiusMeters: Int, filterClause: String, callerTag: String): List<NearbyStore> =
         withContext(Dispatchers.IO) {
             try {
