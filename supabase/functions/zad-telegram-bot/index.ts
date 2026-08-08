@@ -22,11 +22,13 @@ import {
   reasonForCode, parseDismissCallback, normalizeBindingCode, memoryNoteForDismissal,
   formatBalanceMessage, formatTransactionsMessage, formatInsightTitle,
   confirmSpendKeyboard, parseSpendCallback,
+  confirmMedicationKeyboard, parseMedicationCallback,
   checkInKeyboard, parseCheckInCallback, checkInPromptMessage,
 } from "./telegram.ts";
 import {
   AgentContextInput, agentSystemPrompt, buildAgentContext, clampForTelegram,
   confirmSpendMessage, deriveWebhookSecret, money, parseSpendIntent, spendIntentPrompt,
+  confirmMedicationMessage, medicationIntentPrompt, parseMedicationIntent,
 } from "./context.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -356,9 +358,12 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 }
 
 interface VoiceAgentResult {
-  action: "chat" | "add_expense" | "add_income" | "check_budget" | "add_inventory" | "log_pharmacy_dose";
+  action: "chat" | "add_expense" | "add_income" | "check_budget" | "add_inventory" | "log_pharmacy_dose" | "add_pharmacy";
   message: string;
-  data: { amount?: number; title?: string; category?: string } | null;
+  data: {
+    amount?: number; title?: string; category?: string;
+    dosage?: string; daily_dose_count?: number; dose_times?: string; unit?: string;
+  } | null;
   transcript: string;
 }
 
@@ -481,6 +486,33 @@ bot.on("message:text", async (ctx) => {
     // بيقع على الشات العادي تحت بدل ما يفضل ساكت
   }
 
+  // تاني: هل ده وصف دواء جديد بجدول جرعات؟ (Smart Medication Parsing) — نفس مبدأ
+  // مصروف: تأكيد قبل الكتابة، لأن دواء جديد بيفتح تذكيرات متكررة لما التطبيق يعمل sync.
+  const nowTime = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+  const medIntent = parseMedicationIntent(await askZad(medicationIntentPrompt(nowTime), ctx.message.text));
+  if (medIntent) {
+    const { data: pending, error } = await sb.from("telegram_pending_pharmacy").insert({
+      user_id: userId,
+      chat_id: ctx.chat.id,
+      name: medIntent.name,
+      dosage: medIntent.dosage,
+      daily_dose_count: medIntent.daily_dose_count,
+      dose_times: medIntent.dose_times,
+      unit: medIntent.unit,
+      quantity: medIntent.quantity,
+      category: medIntent.category,
+    }).select("id").single();
+
+    if (!error && pending) {
+      await ctx.reply(confirmMedicationMessage(medIntent), {
+        reply_markup: toGrammyKeyboard(confirmMedicationKeyboard((pending as { id: string }).id)),
+      });
+      return;
+    }
+    console.error("pending pharmacy insert failed:", error);
+    // بيقع على الشات العادي تحت بدل ما يفضل ساكت
+  }
+
   const context = buildAgentContext(await fetchAgentContext(sb, userId));
   const answer = await askZad(
     agentSystemPrompt(),
@@ -557,6 +589,53 @@ bot.on("message:voice", async (ctx) => {
     }
     console.error("voice pending write insert failed:", error);
     await ctx.reply(heard + "معلش، حصلت مشكلة في تسجيل المصروف — جرب تاني.");
+    return;
+  }
+
+  // دواء جديد بجدول جرعات من رسالة صوتية — نفس تأكيد المصروف الصوتي فوق بالظبط
+  // (مش تسجيل مباشر زي add_inventory)، لأن دواء جديد بيفتح تذكيرات متكررة.
+  if (result.action === "add_pharmacy") {
+    const medName = (result.data?.title || "").trim();
+    const doseTimes = (result.data?.dose_times || "").split(",").map((t) => t.trim())
+      .filter((t) => /^([01]\d|2[0-3]):[0-5]\d$/.test(t)).join(",");
+    if (!medName || !doseTimes) {
+      await ctx.reply(heard + (result.message || "معلش، مسمعتش اسم دواء أو مواعيد واضحة."));
+      return;
+    }
+    const rawQty = Number(result.data?.amount);
+    const qty = Number.isFinite(rawQty) && rawQty > 0 ? Math.round(rawQty) : 1;
+    const doseCount = Math.max(1, Math.min(12, doseTimes.split(",").length));
+    const unit = ["قرص", "مل", "كريم"].includes(String(result.data?.unit)) ? String(result.data?.unit) : "قرص";
+    const medIntent = {
+      is_medication: true as const,
+      name: medName.slice(0, 80),
+      dosage: (result.data?.dosage || "").trim().slice(0, 120),
+      daily_dose_count: doseCount,
+      dose_times: doseTimes,
+      unit,
+      quantity: qty,
+      category: "عام",
+      confidence: 1,
+    };
+    const { data: pending, error } = await sb.from("telegram_pending_pharmacy").insert({
+      user_id: userId,
+      chat_id: ctx.chat.id,
+      name: medIntent.name,
+      dosage: medIntent.dosage,
+      daily_dose_count: medIntent.daily_dose_count,
+      dose_times: medIntent.dose_times,
+      unit: medIntent.unit,
+      quantity: medIntent.quantity,
+      category: medIntent.category,
+    }).select("id").single();
+    if (!error && pending) {
+      await ctx.reply(heard + confirmMedicationMessage(medIntent), {
+        reply_markup: toGrammyKeyboard(confirmMedicationKeyboard((pending as { id: string }).id)),
+      });
+      return;
+    }
+    console.error("voice pending pharmacy insert failed:", error);
+    await ctx.reply(heard + "معلش، حصلت مشكلة في تسجيل الدواء — جرب تاني.");
     return;
   }
 
@@ -795,6 +874,77 @@ bot.on("callback_query:data", async (ctx) => {
     const { data: u } = await sb.from("zad_users").select("currency").eq("id", userId).maybeSingle();
     const cur = (u as { currency?: string } | null)?.currency ?? "غير معروف";
     await ctx.reply(`اتسجل ✅ ${row.title} — ${money(row.amount, cur)}`);
+    return;
+  }
+
+  // تأكيد/إلغاء دواء جديد بجدول جرعات (Smart Medication Parsing). الكتابة الوحيدة في
+  // zad_pharmacy_items من الشات بتحصل هنا بس، بعد ضغطة تأكيد صريحة — نفس مبدأ تسجيل
+  // المصروف فوق بالظبط، لأن دواء جديد بيفتح تذكيرات متكررة لما التطبيق يعمل sync.
+  const medication = parseMedicationCallback(data);
+  if (medication) {
+    const { data: pendingRow } = await sb.from("telegram_pending_pharmacy")
+      .select("id,name,dosage,daily_dose_count,dose_times,unit,quantity,category,status,expires_at")
+      .eq("id", medication.pendingId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    const row = pendingRow as {
+      id: string; name: string; dosage: string | null; daily_dose_count: number;
+      dose_times: string | null; unit: string; quantity: number; category: string;
+      status: string; expires_at: string;
+    } | null;
+
+    if (!row) {
+      await ctx.reply("الطلب ده مش موجود أو مش بتاعك.");
+      return;
+    }
+    if (row.status !== "pending") {
+      await ctx.reply("الطلب ده اتعامل معاه قبل كده.");
+      return;
+    }
+    if (new Date(row.expires_at) < new Date()) {
+      await sb.from("telegram_pending_pharmacy").update({ status: "cancelled" }).eq("id", row.id);
+      await ctx.reply("الطلب ده انتهت صلاحيته — ابعت تفاصيل الدواء تاني.");
+      return;
+    }
+
+    if (medication.action === "cancel") {
+      await sb.from("telegram_pending_pharmacy").update({ status: "cancelled" }).eq("id", row.id);
+      await ctx.reply("تمام، ملغي ✖️");
+      return;
+    }
+
+    const { error: claimError } = await sb.from("telegram_pending_pharmacy")
+      .update({ status: "confirmed" })
+      .eq("id", row.id)
+      .eq("status", "pending");
+    if (claimError) {
+      await ctx.reply("حصلت مشكلة، جرب تاني.");
+      return;
+    }
+
+    const { error: insertError } = await sb.from("zad_pharmacy_items").insert({
+      user_id: userId,
+      name: row.name,
+      dosage: row.dosage,
+      daily_dose_count: row.daily_dose_count,
+      dose_times: row.dose_times,
+      unit: row.unit,
+      remaining_quantity: row.quantity,
+      category: row.category,
+    });
+
+    if (insertError) {
+      console.error("telegram add_pharmacy insert failed:", insertError);
+      await sb.from("telegram_pending_pharmacy").update({ status: "pending" }).eq("id", row.id);
+      await ctx.reply("معلش، التسجيل فشل — جرب تاني.");
+      return;
+    }
+
+    // مفيش AlarmManager على السيرفر — التذكيرات الفعلية بتتفعل لما تطبيق زاد يعمل sync
+    // ويلاقي الدواء الجديد في zad_pharmacy_items (نفس آلية PharmacyReminderScheduler
+    // اللي بتشتغل تلقائي عند أي تغيير في قائمة الأدوية).
+    await ctx.reply(`اتسجل ✅ ${row.name} — المواعيد: ${row.dose_times}\nهتلاقي التذكير شغال في التطبيق بعد أول فتح.`);
     return;
   }
 

@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -68,7 +69,8 @@ private fun suggestDoseTimes(dailyDoseCount: Int): String {
 fun PharmacyScreen(
     viewModel: ZadViewModel,
     familyViewModel: FamilyViewModel = viewModel(),
-    onNavigateToCamera: () -> Unit = {}
+    onNavigateToCamera: () -> Unit = {},
+    onNavigateToChat: () -> Unit = {}
 ) {
     val items by viewModel.pharmacyItems.collectAsState()
     val monthlyCost by viewModel.monthlyPharmaCost.collectAsState()
@@ -127,6 +129,20 @@ fun PharmacyScreen(
                     Icon(Icons.Default.CameraAlt, contentDescription = stringResource(R.string.scan_medicine_action), tint = primary)
                 }
             }
+
+            // زر بارز لبدء إضافة دواء بالكلام العادي عبر شات زاد — بيفتح الشات بسؤال دكتور
+            // جاهز بدل ما المستخدم يعبي فورم يدوي (Smart Medication Parsing).
+            Button(
+                onClick = onNavigateToChat,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).pressableScale(),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = primary)
+            ) {
+                Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.smart_pharmacy_chat_action), style = Typography.labelLarge, fontWeight = FontWeight.Bold)
+            }
+            Spacer(modifier = Modifier.height(4.dp))
 
             if (hasScheduledDoses && !exactAlarmGranted) {
                 Box(

@@ -779,7 +779,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
         return """
             === معلومات العميل ===
-            الاسم: ${_userName.value ?: "مستخدم"} | التاريخ اليوم: $today | متبقي على نهاية الدورة الحالية: $daysLeft يوم
+            الاسم: ${_userName.value ?: "مستخدم"} | التاريخ اليوم: $today | الوقت الآن: ${java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))} | متبقي على نهاية الدورة الحالية: $daysLeft يوم
             الميزانية الشهرية: ${if (_budget.value > 0) com.example.data.CurrencyFormatter.format(ctx, _budget.value) else "غير معروف"} | المتبقي (دورة الراتب الحالية): ${_remainingBalance.value?.let { com.example.data.CurrencyFormatter.format(ctx, it) } ?: "غير معروف"} | المحجوز (التزامات+اشتراكات): ${com.example.data.CurrencyFormatter.format(ctx, _committed.value)} | المتاح الفعلي: ${availableNow?.let { com.example.data.CurrencyFormatter.format(ctx, it) } ?: "غير معروف"}
             معدل الصرف اليومي الآمن: ${safeDailySpend?.let { "${com.example.data.CurrencyFormatter.format(ctx, it)}/يوم" } ?: "غير معروف"}
 
@@ -826,6 +826,26 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
     // صنف مقترح من الشات ينتظر تأكيد المستخدم قبل الحقن الفعلي (زي مراجعة الكاميرا بالظبط)
     private var pendingChatAddItem: ZadInventory? = null
+
+    // دواء جديد مقترح من الشات (Smart Medication Parsing) ينتظر تأكيد قبل كتابته وجدولة
+    // منبهاته — نفس منطق pendingChatAddItem بالظبط، لأن دواء جديد بينشئ منبهات متكررة
+    // (AlarmManager) مش مجرد رقم في المخزون، فمحتاج تأكيد صريح برضه قبل الحقن.
+    private var pendingChatAddPharmacy: com.example.data.ZadPharmacyItem? = null
+
+    // نص جاهز تحطه شاشة الصيدلية في صندوق الشات قبل ما تنقل المستخدم لشاشة زاد الذكاء
+    // (زر "إضافة ذكية بالشات 💬") — one-shot: بيتقرا مرة واحدة وبعدين يتصفّر.
+    private val _pendingChatPrefill = MutableStateFlow<String?>(null)
+    val pendingChatPrefill: StateFlow<String?> = _pendingChatPrefill.asStateFlow()
+
+    fun setChatPrefill(text: String) {
+        _pendingChatPrefill.value = text
+    }
+
+    fun consumeChatPrefill(): String? {
+        val text = _pendingChatPrefill.value
+        _pendingChatPrefill.value = null
+        return text
+    }
     private val affirmativeReplyRegex = Regex("""^\s*(أيوه|ايوه|ايه|أه|اه|نعم|تمام|ماشي|أكد|اكد|yes|ok|confirm)\b""", RegexOption.IGNORE_CASE)
     private val negativeReplyRegex = Regex("""^\s*(لا|مش|إلغاء|الغاء|no|cancel)\b""", RegexOption.IGNORE_CASE)
 
@@ -867,6 +887,24 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     )
                     val target = if (existing != null) "لـ ${existing.itemName} (هيبقى ${existing.quantity + amount})" else "$itemName ($amount)"
                     "\n\n🤔 تحب أضيف $target للمخزون؟ اكتب \"أيوه\" للتأكيد."
+                }
+                // دواء جديد بجدول جرعات كامل (Smart Medication Parsing) — بيختلف عن "pharmacy_dose"
+                // اللي بيسجّل أخد جرعة من دواء موجود بالفعل. زي "add" بالظبط: اقتراح ينتظر تأكيد،
+                // مش حقن مباشر، لأن dose_times هنا بتفتح منبهات AlarmManager فعلية.
+                "add_pharmacy" -> {
+                    val doseCount = json.optInt("daily_dose_count", 1).coerceIn(1, 12)
+                    val doseTimes = json.optString("dose_times").trim()
+                    pendingChatAddPharmacy = com.example.data.ZadPharmacyItem(
+                        name = itemName,
+                        dosage = json.optString("dosage").trim().ifBlank { null },
+                        dailyDoseCount = doseCount,
+                        doseTimes = doseTimes.ifBlank { null },
+                        unit = json.optString("unit").ifBlank { "قرص" },
+                        remainingQuantity = amount,
+                        category = json.optString("category").trim().ifBlank { "عام" }
+                    )
+                    val timesText = if (doseTimes.isNotBlank()) " المواعيد: $doseTimes." else ""
+                    "\n\n💊 تحب أضيف \"$itemName\" لجدول الأدوية؟$timesText اكتب \"أيوه\" للتأكيد."
                 }
                 "pharmacy_dose" -> {
                     // نفس درجة الخطورة المنخفضة زي "consume" — تنفيذ فوري بدون تأكيد، بيعيد
@@ -917,6 +955,24 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 return
             }
             // مش تأكيد ولا رفض واضح → اعتبرها اتلغت ضمنياً وكمّل معالجة السؤال الجديد عادي
+        }
+
+        val pendingPharmacy = pendingChatAddPharmacy
+        if (pending == null && pendingPharmacy != null) {
+            pendingChatAddPharmacy = null
+            if (affirmativeReplyRegex.containsMatchIn(userText)) {
+                addPharmacyItem(pendingPharmacy)
+                val timesText = pendingPharmacy.doseTimes?.let { " (المواعيد: $it)" } ?: ""
+                val confirmMsg = AiChatMessage(text = "✅ تم، ضفنا ${pendingPharmacy.name} لجدول الأدوية$timesText.", isUser = false)
+                _aiChatMessages.value = _aiChatMessages.value + confirmMsg
+                persistChatMessage(confirmMsg)
+                return
+            } else if (negativeReplyRegex.containsMatchIn(userText)) {
+                val cancelMsg = AiChatMessage(text = "تمام، ملغيتهاش.", isUser = false)
+                _aiChatMessages.value = _aiChatMessages.value + cancelMsg
+                persistChatMessage(cancelMsg)
+                return
+            }
         }
 
         _isAiTyping.value = true
@@ -978,6 +1034,8 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     7. لو المستخدم قال بشكل صريح إنه استهلك/خلّص/استخدم صنف من المخزون، أضف سطر أخير بالشكل: [[ACTION:{"type":"consume","item":"الاسم بالظبط زي قائمة المخزون فوق","amount":1}]]
                        لو قال بشكل صريح إنه اشترى/ضاف صنف جديد للمخزون، أضف: [[ACTION:{"type":"add","item":"اسم الصنف","amount":1,"unit":"وحدة","category":"فئة"}]]
                        لو قال بشكل صريح إنه خد/استخدم جرعة دواء (مثلاً "خدت حبة الضغط")، أضف: [[ACTION:{"type":"pharmacy_dose","item":"اسم الدواء بالظبط زي القائمة فوق"}]]
+                       لو وصف دواء جديد عايز يتابعه بمواعيد جرعات (مثلاً "باخد دواء ضغط كونكور قرص كل 8 ساعات وفكرني الساعة 5")، احسب مواعيد الجرعات كساعة:دقيقة بنظام 24 ساعة (00:00-23:59، ممنوع 24:00) بناءً على "الوقت الآن" فوق والفاصل أو الميعاد اللي قاله، وأضف:
+                       [[ACTION:{"type":"add_pharmacy","item":"اسم الدواء","dosage":"وصف الجرعة بالظبط زي ما قاله المستخدم","daily_dose_count":عدد الجرعات يومياً,"dose_times":"08:00,16:00,00:00","unit":"قرص أو مل أو كريم","amount":الكمية المتاحة عنده أو 1 لو مذكورش,"category":"عام أو مزمن أو مسكن أو مضاد حيوي أو فيتامين"}]]
                        اكتب ACTION واحد بس عند نية صريحة أكيدة، ومتكتبش أي ACTION على مجرد سؤال أو استفسار عادي (زي "هل عندي أرز؟")
                     8. لو سأل عن خطة سداد الديون، استخدم أرقام قسم === الديون وخطة السداد === فوق بالظبط (الأشهر، الفوائد، الترتيب) — متخترعش خطة مختلفة
                 """.trimIndent()

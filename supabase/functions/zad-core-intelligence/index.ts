@@ -1100,12 +1100,15 @@ Deno.serve(async (req: Request) => {
         }
         console.log("[CoreIntel] voice_agent transcript:", transcript);
 
+        const nowTime = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
         const systemPrompt = dialectPrefix + "You are a voice command processor for a family finance app (ZAD). " +
           "The user spoke a command, possibly with local dialect and colloquial number words. " +
           "Determine the intent and extract structured data. Parse spoken amounts (e.g. \"خمسين ريال\" = 50, \"مية وعشرين\" = 120) into a numeric value. " +
-          "Return ONLY JSON: {\"action\":\"chat|add_expense|add_income|check_budget|add_inventory|log_pharmacy_dose\",\"message\":\"short confirmation reply matching the requested dialect/language\",\"data\":{\"amount\":0,\"title\":\"\",\"category\":\"\"}}. " +
+          "The current time is " + nowTime + " (24h). " +
+          "Return ONLY JSON: {\"action\":\"chat|add_expense|add_income|check_budget|add_inventory|log_pharmacy_dose|add_pharmacy\",\"message\":\"short confirmation reply matching the requested dialect/language\",\"data\":{\"amount\":0,\"title\":\"\",\"category\":\"\",\"dosage\":\"\",\"daily_dose_count\":1,\"dose_times\":\"\",\"unit\":\"\"}}. " +
           "Use action=\"add_expense\" when the user says they spent/paid money, \"add_income\" when they received money, \"check_budget\" when they ask about their budget/balance, \"add_inventory\" when they mention buying/adding a physical item to track, " +
-          "\"log_pharmacy_dose\" when the user says they took/used a medication or pill (put the medication name in data.title, leave data.amount as 0), otherwise \"chat\".";
+          "\"log_pharmacy_dose\" when the user says they took/used a medication they already track (put the medication name in data.title, leave data.amount as 0), " +
+          "\"add_pharmacy\" when the user describes a NEW medication with a dose schedule to start tracking (e.g. \"باخد دواء ضغط كونكور قرص كل 8 ساعات وفكرني الساعة 5\") — put the medicine name in data.title, the free-text dosage description in data.dosage, the number of daily doses in data.daily_dose_count, the computed dose times as comma-separated 24h HH:mm (never 24:00, use 00:00) anchored to the current time in data.dose_times, the unit (قرص/مل/كريم) in data.unit, and the available quantity in data.amount (1 if unspecified), otherwise \"chat\".";
         // Intent parsing off one utterance — routine tier.
         const result = await callJsonModel(systemPrompt, transcript, 1500, "routine");
         return jsonResponse({

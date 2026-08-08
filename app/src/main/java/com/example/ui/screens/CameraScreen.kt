@@ -43,6 +43,8 @@ import androidx.core.content.FileProvider
 import com.airbnb.lottie.compose.LottieConstants
 import com.example.R
 import com.example.data.AiParsedInventoryItem
+import com.example.data.AiParsedReceipt
+import com.example.data.AiParsedReceiptItem
 import com.example.data.ZadAiRepository
 import com.example.data.ZadInventory
 import com.example.ui.components.ZadLottieAsset
@@ -66,6 +68,9 @@ fun CameraScreen(
     var isAnalyzing by remember { mutableStateOf(false) }
     var parsedItems by remember { mutableStateOf<List<AiParsedInventoryItem>>(emptyList()) }
     var showConfirmationDialog by remember { mutableStateOf(false) }
+    var parsedReceipt by remember { mutableStateOf<AiParsedReceipt?>(null) }
+    var showReceiptConfirmationDialog by remember { mutableStateOf(false) }
+    var showReceiptErrorDialog by remember { mutableStateOf(false) }
     var showManualEntry by remember { mutableStateOf(false) }
     var scanMode by remember { mutableStateOf(initialMode) }
     var pulseScale by remember { mutableStateOf(1f) }
@@ -148,39 +153,23 @@ fun CameraScreen(
                     } else {
                         Log.d("CameraScreen", "Sending bitmap to analyzeReceipt")
                         val result = ZadAiRepository.analyzeReceipt(bitmap)
-                        if (result != null) {
-                            viewModel.addTransaction(
-                                com.example.data.ZadTransaction(
-                                    title = result.storeName,
-                                    amount = result.total,
-                                    isExpense = true,
-                                    category = result.category
-                                )
-                            )
-                            // الحقن الذكي: يزوّد الموجود + يشطب من النواقص + يتعلم
-                            viewModel.injectScannedItems(
-                                result.items.map { item ->
-                                    ZadInventory(
-                                        itemName = item.name,
-                                        quantity = maxOf(1, item.quantity.toInt()),
-                                        unit = item.unit,
-                                        category = item.category
-                                    )
-                                }
-                            ) { summary ->
-                                analysisStatus = "فاتورة ${result.storeName} (${com.example.data.CurrencyFormatter.format(context, result.total)}): $summary"
-                            }
-                            analysisStatus = "تم تسجيل فاتورة ${result.storeName} بقيمة ${com.example.data.CurrencyFormatter.format(context, result.total)} والمنتجات في المخزون!"
+                        // result.total defaults to 0.0 on a parse miss — a silent "0 EGP" save is
+                        // worse than an error, so total<=0 with no items read as a failed scan.
+                        if (result != null && (result.total > 0.0 || result.items.isNotEmpty())) {
+                            parsedReceipt = result
+                            showReceiptConfirmationDialog = true
                             try {
                                 val vib = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? Vibrator
                                 if (Build.VERSION.SDK_INT >= 26) {
-                                    vib?.vibrate(VibrationEffect.createOneShot(100, 255))
+                                    vib?.vibrate(VibrationEffect.createOneShot(50, 200))
                                 } else {
-                                    @Suppress("DEPRECATION") vib?.vibrate(100)
+                                    @Suppress("DEPRECATION") vib?.vibrate(50)
                                 }
                             } catch (_: Exception) {}
+                            analysisStatus = "تم استخراج فاتورة ${result.storeName}! راجعها وأكّد"
                         } else {
-                            analysisStatus = "لم أقرأ الفاتورة. جرب تصويرها بشكل مستقيم بإضاءة جيدة"
+                            showReceiptErrorDialog = true
+                            analysisStatus = "لم نتمكن من قراءة الفاتورة، يرجى المحاولة بصورة أوضح"
                         }
                     }
                 } catch (e: Exception) {
@@ -568,6 +557,176 @@ fun CameraScreen(
 
                     LaunchedEffect(editableList) {
                         parsedItems = editableList
+                    }
+                }
+            }
+        )
+    }
+
+    // Receipt Error Dialog — shown instead of a silent 0 ج.م save when the scan comes back
+    // with no readable total AND no items.
+    if (showReceiptErrorDialog) {
+        AlertDialog(
+            onDismissRequest = { showReceiptErrorDialog = false },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showReceiptErrorDialog = false
+                        imageBitmap = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = primary)
+                ) { Text("حسناً") }
+            },
+            icon = { Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = dangerColor) },
+            title = { Text("تعذّرت قراءة الفاتورة", fontWeight = FontWeight.Bold) },
+            text = { Text("لم نتمكن من قراءة الفاتورة، يرجى المحاولة بصورة أوضح") }
+        )
+    }
+
+    // Receipt Confirmation Dialog — same preview-before-write pattern as the inventory
+    // dialog above, so a receipt scan can't silently commit a wrong store/total/items.
+    if (showReceiptConfirmationDialog && parsedReceipt != null) {
+        val receipt = parsedReceipt!!
+        AlertDialog(
+            onDismissRequest = { showReceiptConfirmationDialog = false },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.addTransaction(
+                            com.example.data.ZadTransaction(
+                                title = receipt.storeName,
+                                amount = receipt.total,
+                                isExpense = true,
+                                category = receipt.category
+                            )
+                        )
+                        // الحقن الذكي: يزوّد الموجود + يشطب من النواقص + يتعلم
+                        viewModel.injectScannedItems(
+                            receipt.items.map { item ->
+                                ZadInventory(
+                                    itemName = item.name,
+                                    quantity = maxOf(1, item.quantity.toInt()),
+                                    unit = item.unit,
+                                    category = item.category
+                                )
+                            }
+                        ) { summary ->
+                            analysisStatus = "فاتورة ${receipt.storeName} (${com.example.data.CurrencyFormatter.format(context, receipt.total)}): $summary"
+                        }
+                        analysisStatus = "تم تسجيل فاتورة ${receipt.storeName} بقيمة ${com.example.data.CurrencyFormatter.format(context, receipt.total)} والمنتجات في المخزون!"
+                        showReceiptConfirmationDialog = false
+                        parsedReceipt = null
+                        imageBitmap = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = primary)
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("   تسجيل الفاتورة")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showReceiptConfirmationDialog = false
+                    parsedReceipt = null
+                    analysisStatus = "تم إلغاء الفاتورة"
+                }) {
+                    Text("إلغاء")
+                }
+            },
+            icon = { Icon(Icons.Default.Receipt, contentDescription = null) },
+            title = {
+                Text("تأكيد الفاتورة المستخرجة", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
+                    Text(
+                        "${receipt.storeName}  •  ${com.example.data.CurrencyFormatter.format(context, receipt.total)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "راجع المنتجات قبل التسجيل في المصروفات والمخزون:",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    var editableReceiptItems by remember(receipt) { mutableStateOf(receipt.items) }
+
+                    Column(
+                        modifier = Modifier.verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        editableReceiptItems.forEachIndexed { idx, item ->
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                color = surfaceVariant
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Inventory2,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp),
+                                            tint = primary
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text(item.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                            Text(
+                                                "${item.unit}  •  ${com.example.data.CurrencyFormatter.format(context, item.price)}",
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                        }
+                                    }
+                                    // Quick quantity edit: total ج.م injected stays the parsed
+                                    // receipt total either way, only the inventory quantities move.
+                                    IconButton(
+                                        onClick = {
+                                            editableReceiptItems = editableReceiptItems.toMutableList().apply {
+                                                this[idx] = item.copy(quantity = (item.quantity - 1.0).coerceAtLeast(1.0))
+                                            }
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.Remove, contentDescription = "إنقاص الكمية", modifier = Modifier.size(18.dp))
+                                    }
+                                    Text(
+                                        "${item.quantity.toInt()}",
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 4.dp)
+                                    )
+                                    IconButton(
+                                        onClick = {
+                                            editableReceiptItems = editableReceiptItems.toMutableList().apply {
+                                                this[idx] = item.copy(quantity = item.quantity + 1.0)
+                                            }
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = "زيادة الكمية", modifier = Modifier.size(18.dp))
+                                    }
+                                    IconButton(onClick = {
+                                        editableReceiptItems = editableReceiptItems.filter { it != item }
+                                    }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "حذف", tint = dangerColor)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    LaunchedEffect(editableReceiptItems) {
+                        parsedReceipt = receipt.copy(items = editableReceiptItems)
                     }
                 }
             }

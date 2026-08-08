@@ -10,6 +10,7 @@
     <string name="password">كلمة المرور</string>
     <string name="get_started">ابدأ الآن</string>
     <string name="language_toggle">العربية</string>
+    <string name="session_expired_message">انتهت صلاحية جلستك، برجاء تسجيل الدخول تاني</string>
     
     <!-- Drawer Items -->
     <string name="nav_home">لوحة التحكم</string>
@@ -866,6 +867,8 @@
     <string name="nav_pharmacy">صيدلية العائلة</string>
     <string name="pharmacy_title">صيدلية العائلة</string>
     <string name="scan_medicine_action">مسح الدواء بالكاميرا</string>
+    <string name="smart_pharmacy_chat_action">إضافة ذكية بالشات 💬</string>
+    <string name="smart_pharmacy_chat_prompt">قولي تفاصيل أدوية ومواعيد جرعاتك باللغة العادية وأنا هرتبلك جدول الأدوية وأسجلها فوراً!</string>
     <string name="total_medicines_label">إجمالي الأدوية</string>
     <string name="expiring_soon_label">قرب الانتهاء</string>
     <string name="low_stock_label">مخزون منخفض</string>

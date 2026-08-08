@@ -203,6 +203,104 @@ export function confirmSpendMessage(intent: SpendIntent, currency: string): stri
   ].join("\n");
 }
 
+/** Medication-schedule parsing prompt (Smart Medication Parsing) — same isolation
+ * rationale as spendIntentPrompt: a narrow JSON-only question kept strictly separate
+ * from the conversational prompt, so a normal chat reply is never mistaken for a
+ * write instruction. `nowTime` anchors relative phrasing ("فكرني الساعة 5", "كل 8
+ * ساعات") to an actual clock instead of letting the model guess a time of day. */
+export function medicationIntentPrompt(nowTime: string): string {
+  return [
+    "حلل رسالة المستخدم وقرر: هل بيوصف دواء جديد عايز يتابعه بجدول جرعات؟",
+    `الوقت دلوقتي: ${nowTime} (بنظام 24 ساعة).`,
+    "رد بـ JSON بس، من غير أي نص تاني، بالشكل ده:",
+    '{"is_medication":true|false,"name":"","dosage":"","daily_dose_count":1,"dose_times":"08:00,16:00","unit":"قرص","quantity":1,"category":"عام","confidence":0.0}',
+    "",
+    "قواعد:",
+    '- is_medication=true بس لو الرسالة بتوصف دواء بيوخده أو عايز يتابعه بمواعيد (مثال: "باخد دواء ضغط كونكور قرص كل 8 ساعات وفكرني الساعة 5").',
+    '- is_medication=false لو الرسالة تسجيل أخد جرعة من دواء متابعه بالفعل (مفيش وصف جدول)، أو سؤال، أو أي حاجة تانية.',
+    "- name: اسم الدواء بالظبط زي ما قاله المستخدم.",
+    "- dosage: وصف الجرعة الحر بالظبط زي ما قاله المستخدم (مثلاً \"قرص كل 8 ساعات\").",
+    "- dose_times: مواعيد الجرعات كساعة:دقيقة بنظام 24 ساعة، مفصولة بفاصلة، محسوبة من الوقت دلوقتي والفاصل أو الميعاد المذكور. ممنوع تكتب 24:00 — استخدم 00:00.",
+    "- daily_dose_count: عدد الجرعات يومياً، لازم يطابق عدد المواعيد في dose_times.",
+    "- unit: واحدة من قرص، مل، كريم.",
+    "- category: واحدة من عام، مسكن، مضاد حيوي، فيتامين، مزمن.",
+    "- quantity: الكمية المتاحة لو ذُكرت، وإلا 1.",
+    "- لو مفيش اسم دواء واضح أو مفيش مواعيد قابلة للحساب، is_medication=false.",
+    "- confidence من 0 لـ 1 — قد إيه إنت متأكد إن ده وصف جدول دواء حقيقي.",
+  ].join("\n");
+}
+
+export interface MedicationIntent {
+  is_medication: boolean;
+  name: string;
+  dosage: string;
+  daily_dose_count: number;
+  dose_times: string;
+  unit: string;
+  quantity: number;
+  category: string;
+  confidence: number;
+}
+
+/** Parses the model's JSON and refuses anything that isn't a confident, sane write —
+ * same posture as parseSpendIntent: a misparse here would create a wrong medication
+ * with real AlarmManager reminders once synced to the app, worse than not logging one. */
+export function parseMedicationIntent(raw: string | null): MedicationIntent | null {
+  if (!raw) return null;
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(match[0]);
+  } catch {
+    return null;
+  }
+  if (parsed.is_medication !== true) return null;
+
+  const name = String(parsed.name ?? "").trim().slice(0, 80);
+  if (!name) return null;
+
+  const confidence = Number(parsed.confidence);
+  if (!Number.isFinite(confidence) || confidence < 0.6) return null;
+
+  const doseTimes = String(parsed.dose_times ?? "")
+    .split(",").map((t) => t.trim()).filter((t) => /^([01]\d|2[0-3]):[0-5]\d$/.test(t)).join(",");
+  if (!doseTimes) return null;
+
+  const dailyDoseCount = Math.max(1, Math.min(12, doseTimes.split(",").length));
+  const unit = ["قرص", "مل", "كريم"].includes(String(parsed.unit)) ? String(parsed.unit) : "قرص";
+  const category = ["عام", "مسكن", "مضاد حيوي", "فيتامين", "مزمن"].includes(String(parsed.category))
+    ? String(parsed.category) : "عام";
+  const quantity = Number(parsed.quantity);
+
+  return {
+    is_medication: true,
+    name,
+    dosage: String(parsed.dosage ?? "").trim().slice(0, 120),
+    daily_dose_count: dailyDoseCount,
+    dose_times: doseTimes,
+    unit,
+    quantity: Number.isFinite(quantity) && quantity > 0 ? Math.round(quantity) : 1,
+    category,
+    confidence,
+  };
+}
+
+/** Confirmation text shown before anything is written — every field that will be
+ * saved, so a misparse (or a wrong dose time) is visible to the customer before it
+ * turns into a real, recurring reminder. */
+export function confirmMedicationMessage(intent: MedicationIntent): string {
+  return [
+    `تمام، أضيف "${intent.name}" لجدول الأدوية؟`,
+    "",
+    `الجرعة: ${intent.dosage || "غير محدد"}`,
+    `المواعيد: ${intent.dose_times}`,
+    `الوحدة: ${intent.unit} | الكمية: ${intent.quantity}`,
+    "",
+    "اضغط تأكيد عشان أسجلها وأفعّل تذكير المواعيد.",
+  ].join("\n");
+}
+
 /** The agent's own rules. Kept separate from the data sections so the "everything
  * inside === === is data" instruction is itself outside any data block — a user
  * can't smuggle a new rule in through a transaction title or an inventory item name. */

@@ -839,6 +839,8 @@
     <string name="nav_pharmacy">صيدلية العيلة</string>
     <string name="pharmacy_title">صيدلية العيلة</string>
     <string name="scan_medicine_action">امسح الدوا بالكاميرا</string>
+    <string name="smart_pharmacy_chat_action">إضافة ذكية بالشات 💬</string>
+    <string name="smart_pharmacy_chat_prompt">قولّي تفاصيل الأدوية ومواعيد جرعاتك بالكلام العادي وأنا هرتبلك جدول الأدوية وأسجلها فورًا!</string>
     <string name="total_medicines_label">إجمالي الأدوية</string>
     <string name="expiring_soon_label">قربت تخلص</string>
     <string name="low_stock_label">مخزون قليل</string>

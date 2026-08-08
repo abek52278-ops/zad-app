@@ -76,6 +76,26 @@ export function parseDismissCallback(data: string): { insightId: string; reasonC
   return { insightId: parts[1], reasonCode: parts[2] };
 }
 
+/** Confirm/cancel for a parsed medication schedule (Smart Medication Parsing). Same
+ * "only the pending-row id in callback_data" reasoning as confirmSpendKeyboard — a
+ * "mx:"/"mc:" prefix (distinct from spend's "x:"/"c:") so the callback router can tell
+ * the two pending flows apart before touching either table. */
+export function confirmMedicationKeyboard(pendingId: string): InlineKeyboardButton[][] {
+  return [[
+    { text: "✅ أكد وفعّل التذكير", callback_data: `mx:${pendingId}` },
+    { text: "✖️ إلغاء", callback_data: `mc:${pendingId}` },
+  ]];
+}
+
+/** "mx:<uuid>" (confirm) / "mc:<uuid>" (cancel) */
+export function parseMedicationCallback(data: string): { action: "confirm" | "cancel"; pendingId: string } | null {
+  const parts = data.split(":");
+  if (parts.length !== 2) return null;
+  if (parts[0] !== "mx" && parts[0] !== "mc") return null;
+  if (!/^[0-9a-fA-F-]{36}$/.test(parts[1])) return null;
+  return { action: parts[0] === "mx" ? "confirm" : "cancel", pendingId: parts[1] };
+}
+
 /** Telegram Micro-Checkins — "is <item> still in stock?" prompt buttons. Only the prompt
  * row's id travels in callback_data (same reasoning as confirmSpendKeyboard: a long
  * Arabic item name risks the 64-byte callback_data cap). */

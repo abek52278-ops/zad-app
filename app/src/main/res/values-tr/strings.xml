@@ -10,6 +10,7 @@
     <string name="password">Şifre</string>
     <string name="get_started">Başla</string>
     <string name="language_toggle">Türkçe</string>
+    <string name="session_expired_message">Oturumunuzun süresi doldu, lütfen tekrar giriş yapın</string>
 
     <!-- Drawer Items -->
     <string name="nav_home">Ana sayfa</string>
@@ -864,6 +865,8 @@
     <string name="nav_pharmacy">Aile eczanesi</string>
     <string name="pharmacy_title">Aile eczanesi</string>
     <string name="scan_medicine_action">Kamerayla ilaç tara</string>
+    <string name="smart_pharmacy_chat_action">Sohbetle akıllı ekle 💬</string>
+    <string name="smart_pharmacy_chat_prompt">İlaçlarını ve doz saatlerini normal bir dille anlat, sana ilaç takvimini hazırlayıp hemen kaydedeyim!</string>
     <string name="total_medicines_label">Toplam ilaç</string>
     <string name="expiring_soon_label">Süresi yaklaşan</string>
     <string name="low_stock_label">Stok azaldı</string>

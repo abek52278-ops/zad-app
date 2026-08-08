@@ -91,6 +91,15 @@ fun ZadIntelligenceScreen(
     var chatExpanded by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
+    // نص جاهز جاي من شاشة تانية (مثلاً زر "إضافة ذكية بالشات 💬" في الصيدلية) — يتقرا
+    // مرة واحدة بس ويتحط في صندوق الشات، ومفتوح مباشرة عشان المستخدم يشوفه ويبعته.
+    LaunchedEffect(Unit) {
+        viewModel.consumeChatPrefill()?.let {
+            inputText = it
+            chatExpanded = true
+        }
+    }
+
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
     }
