@@ -358,7 +358,7 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                 com.example.ui.components.FloatingMascotCompanion(
                     viewModel = viewModel,
                     kidsMode = kidsModeEffective,
-                    onNavigateToChat = { go(ZadRoutes.ASSISTANT) }
+                    onNavigateToChat = { goGuarded(ZadRoutes.ASSISTANT) }
                 )
             }
         }
