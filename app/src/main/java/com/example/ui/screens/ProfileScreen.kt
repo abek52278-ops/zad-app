@@ -52,6 +52,7 @@ import com.example.ui.components.zadGlassBlur
 import com.example.ui.theme.*
 import androidx.compose.runtime.*
 import com.example.data.SupabaseRepo
+import com.example.data.findActivity
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.launch
 import com.example.ui.viewmodels.FamilyViewModel
@@ -127,20 +128,19 @@ fun ProfileScreen(
                 } else bitmap
                 ByteArrayOutputStream().apply { scaled.compress(Bitmap.CompressFormat.JPEG, 85, this) }.toByteArray()
             }
-            viewModel.uploadAvatar(jpegBytes, "image/jpeg") { success ->
-                isUploadingAvatar = false
-                if (success) {
-                    showSaveSuccess = true
-                } else {
-                    android.widget.Toast.makeText(context, saveFailedText, android.widget.Toast.LENGTH_LONG).show()
-                }
-            }
+            // الصورة بتتكتب على تخزين التطبيق الداخلي وبتظهر في الواجهة فوراً هنا —
+            // الرفع لـ Supabase بيكمل في الخلفية جوه saveAvatarLocally()، من غير ما
+            // المستخدم يستنى شبكة عشان يشوف الصورة اللي هو لسه واخدها.
+            viewModel.saveAvatarLocally(jpegBytes, "image/jpeg")
+            isUploadingAvatar = false
+            showSaveSuccess = true
         }
     }
     var showEditNameDialog by remember { mutableStateOf(false) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
     var showHelpSupport by remember { mutableStateOf(false) }
     var showBehaviorConsentDialog by remember { mutableStateOf(false) }
+    var showRegionalSettings by remember { mutableStateOf(false) }
 
     LaunchedEffect(showSaveSuccess) {
         if (showSaveSuccess) {
@@ -185,6 +185,15 @@ fun ProfileScreen(
 
     if (showHelpSupport) {
         HelpSupportScreen(onBack = { showHelpSupport = false })
+    }
+
+    if (showRegionalSettings) {
+        RegionalSettingsSheet(
+            viewModel = viewModel,
+            scope = scope,
+            saveFailedText = saveFailedText,
+            onDismiss = { showRegionalSettings = false }
+        )
     }
 
     if (showBehaviorConsentDialog) {
@@ -377,6 +386,11 @@ fun ProfileScreen(
                         onClick = { navController?.navigate(com.example.ZadNav.PAYMENT_BUDGET) }
                     )
                     com.example.ui.components.ZadMenuRow(
+                        title = stringResource(R.string.regional_settings_title),
+                        subtitle = stringResource(R.string.regional_settings_subtitle),
+                        onClick = { showRegionalSettings = true }
+                    )
+                    com.example.ui.components.ZadMenuRow(
                         title = stringResource(R.string.assistant_alerts_title),
                         subtitle = stringResource(R.string.control_smart_alerts),
                         onClick = { navController?.navigate(com.example.ZadNav.ASSISTANT_ALERTS) }
@@ -502,6 +516,89 @@ fun ProfileScreen(
 @Composable
 fun SectionTitle(text: String) {
     Text(text, style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
+}
+
+/** "الإعدادات الإقليمية" — شيت واحد للغة/البلد/العملة بدل ما تكون متفرقة في شاشات مختلفة.
+ * العملة مش قابلة للاختيار المستقل عمداً — كل سوق (Market) بيحدد عملته، فهنا بس عرض
+ * لنتيجة اختيار البلد، مش تحكّم ثالث منفصل (نفس منطق CurrencyFormatter/MarketPrefs). */
+@Composable
+private fun RegionalSettingsSheet(
+    viewModel: ZadViewModel,
+    scope: kotlinx.coroutines.CoroutineScope,
+    saveFailedText: String,
+    onDismiss: () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var isArabic by remember { mutableStateOf(com.example.data.LocaleHelper.isArabic()) }
+    var selectedMarket by remember { mutableStateOf(com.example.data.MarketPrefs.getMarket(context)) }
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            Text(stringResource(R.string.regional_settings_title), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
+            Spacer(Modifier.height(20.dp))
+
+            Text(stringResource(R.string.language_section_label), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface)
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = isArabic,
+                    onClick = {
+                        com.example.data.LocaleHelper.setLanguage("ar")
+                        isArabic = true
+                        context.findActivity()?.recreate()
+                    },
+                    label = { Text("العربية") }
+                )
+                FilterChip(
+                    selected = !isArabic,
+                    onClick = {
+                        com.example.data.LocaleHelper.setLanguage("en")
+                        isArabic = false
+                        context.findActivity()?.recreate()
+                    },
+                    label = { Text("English") }
+                )
+            }
+
+            Spacer(Modifier.height(24.dp))
+            Text(stringResource(R.string.country_section_label), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface)
+            Spacer(Modifier.height(8.dp))
+            com.example.ui.components.MarketPickerGrid(
+                selected = selectedMarket,
+                onSelect = { market ->
+                    val previousMarket = com.example.data.MarketPrefs.currentMarket
+                    selectedMarket = market
+                    com.example.data.MarketPrefs.setMarket(context, market)
+                    viewModel.convertLimitsForMarketChange(context, previousMarket, market)
+                    scope.launch {
+                        val synced = com.example.data.SupabaseRepo.syncMarketProfile(market)
+                        if (!synced) {
+                            android.widget.Toast.makeText(context, saveFailedText, android.widget.Toast.LENGTH_LONG).show()
+                            com.example.data.SyncOutbox.enqueueMarketProfile(context, market.currencyCode, market.countryCode)
+                        }
+                    }
+                    context.findActivity()?.recreate()
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(24.dp))
+            Text(stringResource(R.string.currency_section_label), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "${selectedMarket.currencySymbol} (${selectedMarket.currencyCode})",
+                style = Typography.headlineSmall, fontWeight = FontWeight.Bold, color = primary
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(stringResource(R.string.currency_derived_note), style = Typography.labelSmall, color = onSurfaceVariant)
+        }
+    }
 }
 
 @Composable

@@ -258,8 +258,7 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                                 onNavigateToTasbiha = { go(ZadRoutes.TASBIHA) },
                                 onNavigateToProfile = { go(ZadRoutes.PROFILE) },
                                 onNavigateToPharmacy = { go(ZadRoutes.PHARMACY) },
-                                onNavigateToNotifications = { go(ZadRoutes.NOTIFICATIONS) },
-                                onNavigateToNearby = { go(ZadRoutes.DEALS) }
+                                onNavigateToNotifications = { go(ZadRoutes.NOTIFICATIONS) }
                             )
                         }
                         composable(ZadRoutes.NOTIFICATIONS) {
@@ -284,7 +283,6 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                             )
                         }
                         composable(ZadRoutes.MAINTENANCE) { MaintenanceScreen(viewModel = viewModel) }
-                        composable(ZadRoutes.DEALS) { NearbyDealsScreen(viewModel = viewModel) }
                         composable(ZadRoutes.STATEMENT) { StatementImportScreen() }
                         composable(ZadRoutes.ASSISTANT) {
                             ZadIntelligenceScreen(
@@ -355,7 +353,8 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
             if (chromeVisible) {
                 com.example.ui.components.FloatingMascotCompanion(
                     viewModel = viewModel,
-                    kidsMode = kidsModeEffective
+                    kidsMode = kidsModeEffective,
+                    onNavigateToChat = { go(ZadRoutes.ASSISTANT) }
                 )
             }
         }

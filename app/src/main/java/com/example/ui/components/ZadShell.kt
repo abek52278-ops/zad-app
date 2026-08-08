@@ -61,7 +61,6 @@ object ZadRoutes {
     const val FAMILY = "family"
     const val PHARMACY = "pharmacy"
     const val MAINTENANCE = "maintenance"
-    const val DEALS = "nearby_deals"
     const val PROFILE = "profile"
     const val NOTIFICATIONS = "notifications"
     const val TASBIHA = "tasbiha"
@@ -81,7 +80,6 @@ fun zadScreenTitle(route: String?): String = stringResource(
         ZadRoutes.FAMILY -> R.string.nav_family
         ZadRoutes.PHARMACY -> R.string.screen_title_pharmacy
         ZadRoutes.MAINTENANCE -> R.string.screen_title_maintenance
-        ZadRoutes.DEALS -> R.string.screen_title_deals
         ZadRoutes.PROFILE -> R.string.screen_title_profile
         ZadRoutes.NOTIFICATIONS -> R.string.notifications_title
         ZadRoutes.SUBS -> R.string.subscriptions_title
@@ -466,7 +464,6 @@ fun ZadMoreSheet(onDismiss: () -> Unit, onNavigate: (String) -> Unit) {
         ZadMoreEntry(ZadRoutes.SUBS, Icons.Default.CreditCard, R.string.subscriptions_title, Color(0xFFE8F1FC), tertiary),
         ZadMoreEntry(ZadRoutes.PHARMACY, Icons.Default.LocalPharmacy, R.string.nav_pharmacy, Color(0xFFFCE8ED), dangerColor),
         ZadMoreEntry(ZadRoutes.MAINTENANCE, Icons.Default.Build, R.string.nav_maintenance, Color(0xFFFDF3E1), secondaryDark),
-        ZadMoreEntry(ZadRoutes.DEALS, Icons.Default.LocationOn, R.string.screen_title_deals, Color(0xFFE3F5EC), Color(0xFF0B6B4E)),
         ZadMoreEntry(ZadRoutes.PROFILE, Icons.Default.Person, R.string.screen_title_profile, Color(0xFFEEF0F3), Color(0xFF374151)),
     )
     ModalBottomSheet(
@@ -627,7 +624,6 @@ val zadDrawerEntries = listOf(
     ZadDrawerEntry(ZadRoutes.BUDGET, Icons.Default.BarChart, R.string.nav_budget),
     ZadDrawerEntry(ZadRoutes.PHARMACY, Icons.Default.LocalPharmacy, R.string.nav_pharmacy),
     ZadDrawerEntry(ZadRoutes.MAINTENANCE, Icons.Default.Build, R.string.nav_maintenance),
-    ZadDrawerEntry(ZadRoutes.DEALS, Icons.Default.LocationOn, R.string.screen_title_deals),
     ZadDrawerEntry(ZadRoutes.TASBIHA, Icons.Default.Park, R.string.tasbiha_short_label),
     ZadDrawerEntry(ZadRoutes.REPORTS, Icons.Default.Assessment, R.string.nav_reports),
     ZadDrawerEntry(ZadRoutes.STATEMENT, Icons.Default.UploadFile, R.string.statement_import_title),

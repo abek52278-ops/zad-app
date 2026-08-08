@@ -294,11 +294,49 @@ class PreviewTest {
         composeTestRule.setContent {
             AppTheme {
                 Box(modifier = Modifier.background(background).padding(16.dp)) {
-                    com.example.ui.components.LocationAlertsCard(dismissed = false, onDismiss = {}, onOpenNearby = {})
+                    com.example.ui.components.LocationAlertsCard(dismissed = false, onDismiss = {})
                 }
             }
         }
         composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/location_alerts_card_glass.png")
+    }
+
+    // Kids Mode crash fix — HomeScreen.kt wraps KidsModeContent in its own
+    // Modifier.fillMaxSize().verticalScroll(...) Column. KidsModeContent used to add a
+    // SECOND fillMaxSize().verticalScroll(...) Column inside that, which threw
+    // "IllegalStateException: Vertically scrollable component was measured with an
+    // infinity maximum height constraints" the moment it had enough content to need
+    // scrolling (chores, messages). This reproduces that exact nesting — it would have
+    // crashed before the fix, and composing + capturing without throwing is the proof.
+    @Test
+    fun captureKidsModeContent_noNestedScrollCrash() {
+        val familyState = com.example.ui.viewmodels.FamilyState.Active(
+            familyGroup = com.example.data.FamilyGroup(id = "fam1"),
+            myMemberInfo = com.example.data.FamilyMember(id = "kid1", role = "child", alias = "سارة", balance = 45.0, savingsGoal = 100.0, dailyLimit = 20.0),
+            members = listOf(com.example.data.FamilyMember(id = "kid1", role = "child", alias = "سارة")),
+            messages = listOf(
+                com.example.data.ChatMessage(id = "m1", senderId = "kid1", message = "أهلاً!"),
+                com.example.data.ChatMessage(id = "m2", senderId = "kid1", message = "خلصت شغلي")
+            ),
+            groceries = emptyList(),
+            goals = emptyList(),
+            chores = listOf(
+                com.example.data.Chore(id = "c1", assignedTo = "kid1", title = "رتب أوضتك", rewardAmount = 5.0, isCompleted = false),
+                com.example.data.Chore(id = "c2", assignedTo = "kid1", title = "اعمل واجبك", rewardAmount = 3.0, isCompleted = true),
+                com.example.data.Chore(id = "c3", assignedTo = "kid1", title = "اسقي النبات", rewardAmount = 2.0, isCompleted = false)
+            )
+        )
+        composeTestRule.setContent {
+            AppTheme {
+                Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                    KidsModeContent(
+                        familyState = familyState,
+                        onAddRequest = { _, _ -> }
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/kids_mode_content_no_crash.png")
     }
 
     @Test

@@ -172,7 +172,7 @@ object ZadCentralBrain {
         // — هنا كانت العتبة دي معروضة بس لما المستخدم يفتح شاشة الصيدلية بنفسه، من غير أي
         // تنبيه استباقي زي مخزون الأكل فوق بالظبط. pharmacyItems أصلاً بارامتر موجود في
         // fullAnalysis (كان بيتغذّى بس لـ runAiProactiveActions كسياق للـ LLM، مش لقرار حتمي).
-        val lowStockPharmacy = pharmacyItems.filter { (it.daysOfSupplyLeft() ?: Int.MAX_VALUE) <= 5 }
+        val lowStockPharmacy = pharmacyItems.filter { it.isLowStock() }
         if (lowStockPharmacy.isNotEmpty()) {
             val names = lowStockPharmacy.joinToString(", ") { it.name }
             alerts.add("💊 دواء قارب على النفاد: $names")

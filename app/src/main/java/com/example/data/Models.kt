@@ -251,6 +251,12 @@ data class ZadPharmacyItem(
     }
 
     fun doseTimesList(): List<String> = doseTimes?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() } ?: emptyList()
+
+    // daysOfSupplyLeft() alone reads as "plenty of stock" for any item whose unitsPerDose
+    // isn't known (true for most non-tablet forms — creams/drops aren't dosed "per tablet"),
+    // so an actually-empty بند (remainingQuantity == 0) never counted as low stock. Treat
+    // out-of-stock as low stock regardless of form factor, on top of the days-left threshold.
+    fun isLowStock(): Boolean = remainingQuantity <= 0 || (daysOfSupplyLeft()?.let { it <= 5 } ?: false)
 }
 
 // Task 17.2.2 — per-dose history record (zad_pharmacy_doses). The unique index on

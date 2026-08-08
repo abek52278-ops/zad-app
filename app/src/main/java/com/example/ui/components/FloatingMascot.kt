@@ -64,7 +64,8 @@ import kotlinx.coroutines.launch
 fun FloatingMascotCompanion(
     viewModel: ZadViewModel,
     kidsMode: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onNavigateToChat: () -> Unit = {}
 ) {
     val chatState by viewModel.companionState.collectAsState()
     val brainReport by viewModel.brainReport.collectAsState()
@@ -119,10 +120,9 @@ fun FloatingMascotCompanion(
     }
 
     val vibrator = remember { context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator }
-    var soundEnabled by remember { mutableStateOf(true) }
     val tapScale = remember { Animatable(1f) }
     var showBubble by remember { mutableStateOf(false) }
-    var showToggleHint by remember { mutableStateOf(false) }
+    var blinkTrigger by remember { mutableStateOf(0L) }
 
     fun fireHaptic(durationMs: Long, amplitude: Int) {
         // نفس نمط TasbihaScreen بالظبط: try/catch لازم لأن VibrationEffect مش موجودة
@@ -137,11 +137,17 @@ fun FloatingMascotCompanion(
         } catch (_: Exception) {}
     }
 
-    fun fireChime() {
-        if (!soundEnabled) return
+    // نغمة تختلف بحسب المزاج بدل صفارة واحدة ثابتة — أعلى وأمرح لما المزاج سعيد/احتفال،
+    // أخفض وتحذيرية وقت التنبيه.
+    fun fireChime(mood: CompanionState) {
         try {
             val tone = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 55)
-            tone.startTone(ToneGenerator.TONE_PROP_BEEP, 90)
+            val toneType = when (mood) {
+                CompanionState.Happy, CompanionState.Celebrating -> ToneGenerator.TONE_PROP_ACK
+                CompanionState.Alert -> ToneGenerator.TONE_PROP_NACK
+                else -> ToneGenerator.TONE_PROP_BEEP
+            }
+            tone.startTone(toneType, 90)
             scope.launch { delay(130); tone.release() }
         } catch (_: Exception) {}
     }
@@ -168,11 +174,7 @@ fun FloatingMascotCompanion(
                         .padding(horizontal = 12.dp, vertical = 8.dp)
                 ) {
                     Text(
-                        if (showToggleHint) {
-                            if (soundEnabled) "🔔 الصوت شغال" else "🔇 الصوت متوقف"
-                        } else {
-                            mascotQuickInsight(displayMood, kidsMode, agentSummary, remaining, brainReport, context)
-                        },
+                        mascotQuickInsight(displayMood, kidsMode, agentSummary, remaining, brainReport, context),
                         style = Typography.labelSmall,
                         color = onSurface,
                         fontWeight = FontWeight.SemiBold
@@ -193,13 +195,16 @@ fun FloatingMascotCompanion(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClickLabel = companionStateDescription(displayMood),
-                        onLongClickLabel = "تبديل صوت الأيجنت",
+                        onLongClickLabel = "فتح شات عقل زاد",
                         onLongClick = {
-                            soundEnabled = !soundEnabled
-                            fireHaptic(20, 150)
-                            showToggleHint = true
-                            showBubble = true
-                            scope.launch { delay(1600); showBubble = false }
+                            fireHaptic(25, 180)
+                            showBubble = false
+                            onNavigateToChat()
+                        },
+                        onDoubleClick = {
+                            fireHaptic(25, 180)
+                            showBubble = false
+                            onNavigateToChat()
                         },
                         onClick = {
                             scope.launch {
@@ -207,14 +212,14 @@ fun FloatingMascotCompanion(
                                 tapScale.animateTo(1f, animationSpec = ZadSprings.Press)
                             }
                             fireHaptic(35, 200)
-                            fireChime()
-                            showToggleHint = false
+                            fireChime(displayMood)
+                            blinkTrigger = System.currentTimeMillis()
                             showBubble = true
                             scope.launch { delay(2600); showBubble = false }
                         }
                     )
             ) {
-                CompanionOrb(state = displayMood, size = 64.dp)
+                CompanionOrb(state = displayMood, size = 64.dp, blinkTrigger = blinkTrigger)
             }
         }
     }

@@ -64,7 +64,11 @@ fun CompanionOrb(
     state: CompanionState,
     modifier: Modifier = Modifier,
     size: Dp = 96.dp,
-    animated: Boolean = true
+    animated: Boolean = true,
+    // كل تغيير في القيمة دي (مش القيمة نفسها) بيطلق رمشتين سريعتين فوراً — استخدامها
+    // الوحيد دلوقتي: FloatingMascotCompanion بيغيّرها لحظة الـ tap عشان "تعبير لطيف"
+    // بدل ما ينتظر الرمشة العشوائية العادية (٢٫٢-٥ ثواني).
+    blinkTrigger: Long = 0L
 ) {
     val skyColor by animateColorAsState(state.skyColor, tween(500), label = "orbSky")
     val deepColor by animateColorAsState(state.deepColor, tween(500), label = "orbDeep")
@@ -103,6 +107,16 @@ fun CompanionOrb(
                 eyeOpen = 0.08f
                 delay(110)
                 eyeOpen = 1f
+            }
+        }
+        LaunchedEffect(blinkTrigger) {
+            if (blinkTrigger != 0L) {
+                repeat(2) {
+                    eyeOpen = 0.08f
+                    delay(90)
+                    eyeOpen = 1f
+                    delay(90)
+                }
             }
         }
         eyeOpenAmount = eyeOpenAnimated

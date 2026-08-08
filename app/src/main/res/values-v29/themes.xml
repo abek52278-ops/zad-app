@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- App is Compose-only with one light palette (ui/theme/Color.kt) — no dark scheme.
+         Without this, Android 10+ system dark mode force-inverts light colors (a light
+         8%-alpha tint reads as a near-black bg while text stays dark), which is what made
+         the IntelligenceInsightCard "Alert" tile unreadable. -->
+    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar">
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
+</resources>

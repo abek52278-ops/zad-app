@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import android.util.Log
 import coil.compose.AsyncImage
 import com.example.R
+import com.example.data.findActivity
 import com.example.ui.components.ZadLottieAsset
 import com.example.ui.theme.Typography
 import com.example.ui.theme.primary
@@ -59,6 +60,7 @@ fun OnboardingScreen(
 
     var currentPage by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
     val infiniteTransition = rememberInfiniteTransition(label = "onboard_bg")
     val bgOffset by infiniteTransition.animateFloat(
         initialValue = 0f, targetValue = 1f,
@@ -79,18 +81,19 @@ fun OnboardingScreen(
         ) {
             // Language Toggle
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                var isArabic by remember { mutableStateOf(com.example.data.LocaleHelper.isArabic()) }
                 TextButton(onClick = {
-                    val currentLang = androidx.appcompat.app.AppCompatDelegate.getApplicationLocales().toLanguageTags()
-                    val newLang = if (currentLang == "ar") "en" else "ar"
-                    Log.d("ZAD_TEST", "Language Toggle -> $newLang")
-                    androidx.appcompat.app.AppCompatDelegate.setApplicationLocales(
-                        androidx.core.os.LocaleListCompat.forLanguageTags(newLang)
-                    )
+                    com.example.data.LocaleHelper.toggleLanguage()
+                    isArabic = com.example.data.LocaleHelper.isArabic()
+                    Log.d("ZAD_TEST", "Language Toggle -> ${if (isArabic) "ar" else "en"}")
+                    // MainActivity مش AppCompatActivity — لازم recreate يدوي عشان اتجاه RTL/LTR
+                    // يتطبّق فعلياً على أجهزة أقدم من API 33 (نفس نمط MarketPrefs.setMarket).
+                    context.findActivity()?.recreate()
                 }) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Language, contentDescription = null, tint = primary, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("English", color = primary, fontWeight = FontWeight.Bold)
+                        Text(if (isArabic) "English" else "العربية", color = primary, fontWeight = FontWeight.Bold)
                     }
                 }
             }

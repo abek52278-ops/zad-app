@@ -193,14 +193,21 @@ fun MiniShoppingWidget(shoppingList: List<ZadShoppingItem>, onNavigateToShopping
             if (shoppingList.isEmpty()) {
                 Text("لا يوجد طلبات عاجلة.", style = Typography.bodyMedium, color = Color.Gray)
             } else {
+                // Duplicate names (e.g. "مياه صفا" added three separate times) merge into one
+                // row with a "(xN)" multiplier instead of repeating the same row three times.
+                val aggregated = shoppingList.filter { !it.isPurchased }
+                    .groupBy { it.itemName }
+                    .map { (name, items) -> name to items.sumOf { it.quantity } }
+                    .take(3)
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    shoppingList.filter { !it.isPurchased }.take(3).forEach { item ->
+                    aggregated.forEach { (name, totalQuantity) ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Filled.Circle, contentDescription = null, tint = dangerColor, modifier = Modifier.size(8.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(item.itemName, style = Typography.bodyMedium)
-                            Spacer(modifier = Modifier.weight(1f))
-                            Text("${item.quantity}", style = Typography.bodyMedium, color = Color.Gray)
+                            Text(
+                                if (totalQuantity > 1) "$name (x$totalQuantity)" else name,
+                                style = Typography.bodyMedium
+                            )
                         }
                     }
                 }

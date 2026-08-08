@@ -72,14 +72,13 @@ import kotlinx.coroutines.delay
  * لون واحد. الـ 28dp radius الأصلي أكبر من الـ 24dp المطلوب أصلاً — اتسيب زي ما هو.
  */
 /**
- * Budget Card UI refine — hero number reverted from "متاح" (available, net of committed
- * obligations) back to plain "الرصيد المتبقي" (remaining = monthlyLimit - spent), per direct
- * product instruction. This supersedes the BudgetMath.kt Task 26 comment that named
- * "available" the primary figure specifically to avoid hiding committed obligations behind
- * a bigger-looking number — that risk is addressed here differently: committed stays fully
- * visible (pill + its own progress bar below), just no longer pre-subtracted into the one
- * number the user sees first. `available` is still threaded through only for its confidence/
- * reason (Task 27.1a — unconfirmed bank transactions), now applied to the remaining figure.
+ * Hero number re-reverted back to "متاح" (available = remaining − committed), per direct
+ * product instruction: the Home hero and the @Zad chat's "المتاح الفعلي" were quoting two
+ * different numbers for the same concept (chat already deducted committed; this card didn't),
+ * which reads as the app contradicting itself. This supersedes the previous revert's rationale
+ * — committed still gets its own pill + progress bar below so it isn't hidden, it's just also
+ * subtracted into the headline figure now, matching BudgetScreen's own hero card and the chat
+ * context exactly (same `available` Figure feeds all three).
  */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -125,7 +124,7 @@ fun ZadCardHero(
             }
 
             Text(
-                stringResource(R.string.remaining_balance_label),
+                stringResource(R.string.available_label),
                 style = Typography.labelSmall.copy(fontSize = 11.5.sp, letterSpacing = 0.4.sp),
                 fontWeight = FontWeight.Bold,
                 color = Color.White.copy(alpha = 0.72f)
@@ -136,19 +135,22 @@ fun ZadCardHero(
             var showAvailableReason by remember { mutableStateOf(false) }
             // mockup paints the figure with a white → #D9F2E6 vertical gradient; a negative
             // figure drops the gradient for a flat danger color so it still reads as alarming.
+            // dangerColor itself (#DC5B4B) on this dark green mesh gradient measures ~1.75:1
+            // contrast — fails WCAG AA even for large text. coralLight (#FFA69E) is the same
+            // "alarming red" family but ~3.5:1 here, which clears the large-text 3:1 bar.
             val figureStyle = Typography.displayLarge.copy(
                 fontSize = 44.sp,
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = (-1.2).sp,
-                brush = if (remaining < 0) null else Brush.verticalGradient(
+                brush = if (available.value < 0) null else Brush.verticalGradient(
                     listOf(Color.White, Color(0xFFD9F2E6))
                 )
             )
             Text(
                 (if (!available.confident) "≈ " else "") +
-                    com.example.data.CurrencyFormatter.formatNumber(currencyContext, remaining),
+                    com.example.data.CurrencyFormatter.formatNumber(currencyContext, available.value),
                 style = figureStyle,
-                color = if (remaining < 0) dangerColor else Color.White,
+                color = if (available.value < 0) coralLight else Color.White,
                 modifier = Modifier.combinedClickable(
                     onClick = { if (!available.confident) showAvailableReason = true },
                     onLongClick = onAvailableLongPress
@@ -158,7 +160,7 @@ fun ZadCardHero(
                 AlertDialog(
                     onDismissRequest = { showAvailableReason = false },
                     confirmButton = { TextButton(onClick = { showAvailableReason = false }) { Text(stringResource(R.string.close_action)) } },
-                    title = { Text(stringResource(R.string.remaining_balance_label) + " ≈") },
+                    title = { Text(stringResource(R.string.available_label) + " ≈") },
                     text = { Text(available.reason!!) }
                 )
             }

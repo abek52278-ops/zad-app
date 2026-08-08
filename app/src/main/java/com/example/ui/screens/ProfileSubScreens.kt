@@ -370,8 +370,10 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
             com.example.ui.components.MarketPickerGrid(
                 selected = selectedMarket,
                 onSelect = { market ->
+                    val previousMarket = com.example.data.MarketPrefs.currentMarket
                     selectedMarket = market
                     com.example.data.MarketPrefs.setMarket(context, market)
+                    viewModel.convertLimitsForMarketChange(context, previousMarket, market)
                     scope.launch {
                         val synced = com.example.data.SupabaseRepo.syncMarketProfile(market)
                         if (!synced) {

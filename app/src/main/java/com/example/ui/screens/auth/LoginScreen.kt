@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.data.findActivity
 import com.example.ui.theme.Typography
 import com.example.ui.theme.background
 import com.example.ui.theme.onSurface
@@ -46,7 +47,8 @@ fun LoginScreen(
 
     var showForgotPasswordDialog by remember { mutableStateOf(false) }
     var resetEmail by remember { mutableStateOf("") }
-    
+    val context = androidx.compose.ui.platform.LocalContext.current
+
     val authState by viewModel.authState.collectAsState()
 
     LaunchedEffect(authState) {
@@ -108,9 +110,15 @@ fun LoginScreen(
                         color = MaterialTheme.colorScheme.onBackground,
                         fontWeight = FontWeight.Bold
                     )
-                    // Language Toggle
-                    var isArabic by remember { mutableStateOf(true) }
-                    TextButton(onClick = { isArabic = !isArabic }) {
+                    // Language Toggle — كان زرار شكلي (isArabic محلي بيقلب نص من غير أي
+                    // تأثير فعلي). دلوقتي موصول بـ LocaleHelper (نفس الآلية اللي
+                    // OnboardingScreen بيستخدمها) فيبدّل اتجاه الواجهة RTL/LTR فعلياً.
+                    var isArabic by remember { mutableStateOf(com.example.data.LocaleHelper.isArabic()) }
+                    TextButton(onClick = {
+                        com.example.data.LocaleHelper.toggleLanguage()
+                        isArabic = com.example.data.LocaleHelper.isArabic()
+                        context.findActivity()?.recreate()
+                    }) {
                         Text(if (isArabic) "AR" else "EN", color = primary, fontWeight = FontWeight.Bold)
                     }
                 }

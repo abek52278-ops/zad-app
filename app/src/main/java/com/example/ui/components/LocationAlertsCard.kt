@@ -25,7 +25,6 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -52,21 +51,20 @@ import com.example.ui.theme.*
 /**
  * مرحلة ٥ب-٢ (docs/agent/PLAN_2026_08_06_rebuild.md) — نفس عائلة الزجاج البصرية اللي
  * ابتدت في كارت الميزانية (`ZadCardHero`): زوايا 24dp، بقعة ضوء `zadGlassBlur`، ودبوس
- * مكان "عائم" (شارة دائرية بظل حقيقي) بدل أيقونة مسطّحة. زرار جديد "شوف اللي قريب مني"
- * (`onOpenNearby`) — قبل كده الكارت مكانش بيوصل غير لتفعيل/تجاهل الميزة، مفيش طريق
- * مباشر لشاشة "زاد القريب" (`NearbyDealsScreen`) نفسها من هنا.
+ * مكان "عائم" (شارة دائرية بظل حقيقي) بدل أيقونة مسطّحة.
  *
  * مرحلة ٤ (docs/agent/PLAN_2026_08_06_rebuild.md) — تفعيل تنبيهات الموقع (geofencing)
- * كان مدفون في NearbyDealsScreen بس، مفيش مكان تاني يعرّف المستخدم إن الميزة دي موجودة
- * أصلاً غير لو دخل شاشة "زاد القريب" بنفسه. الكارت ده بيظهر أعلى HomeScreen (نفس نمط
- * NotificationPermissionCard الموجود) لحد ما المستخدم يفعّل أو يتجاهل — تجاهل بيتفتكر
- * دائماً (مش زي التذكير الدوري)، عشان مايبقاش إلحاح على ميزة اختيارية.
+ * كان مدفون في شاشة "زاد القريب" (NearbyDealsScreen) بس. الكارت ده بيظهر أعلى HomeScreen
+ * (نفس نمط NotificationPermissionCard الموجود) لحد ما المستخدم يفعّل أو يتجاهل — تجاهل
+ * بيتفتكر دائماً (مش زي التذكير الدوري)، عشان مايبقاش إلحاح على ميزة اختيارية.
  *
- * التحكم في إيقافها بعد التفعيل لسه في NearbyDealsScreen بس — الكارت ده مسؤوليته الدعوة
- * الأولى بس، مش لوحة تحكم كاملة.
+ * تنظيف الناف — شاشة "زاد القريب" اتشالت من الدرج/قائمة المزيد (كانت غالباً بتفضل فاضية:
+ * مفيش أسعار/عروض حقيقية، بس بحث جغرافي). كان التحكم في إيقاف التنبيهات بعد التفعيل
+ * موجود جوّاها بس — دلوقتي الكارت ده نفسه بيتحول لصف تحكم مصغّر لما تكون التنبيهات
+ * مفعّلة (بدل ما يختفي تماماً)، عشان المستخدم يقدر يوقفها من غير الشاشة اللي اتشالت.
  */
 @Composable
-fun LocationAlertsCard(dismissed: Boolean, onDismiss: () -> Unit, onOpenNearby: () -> Unit = {}) {
+fun LocationAlertsCard(dismissed: Boolean, onDismiss: () -> Unit) {
     val context = LocalContext.current
     var hasLocationPermission by remember {
         mutableStateOf(
@@ -106,7 +104,38 @@ fun LocationAlertsCard(dismissed: Boolean, onDismiss: () -> Unit, onOpenNearby: 
         }
     }
 
-    if (enabled || dismissed) return
+    if (enabled) {
+        // صف تحكم مصغّر — المكان الوحيد دلوقتي لإيقاف التنبيهات بعد ما شاشة "زاد القريب"
+        // اتشالت من الناف.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(surfaceContainerLow)
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.LocationOn, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.location_alerts_toggle_label), fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = onSurface)
+                Text(stringResource(R.string.location_alerts_enabled_hint), fontSize = 11.sp, color = onSurfaceVariant)
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            ZadSwitch(
+                checked = true,
+                onCheckedChange = {
+                    if (!it) {
+                        GroceryGeofenceManager.setEnabled(context, false)
+                        enabled = false
+                    }
+                }
+            )
+        }
+        return
+    }
+
+    if (dismissed) return
 
     val cardShape = RoundedCornerShape(24.dp)
     Box(
@@ -153,11 +182,6 @@ fun LocationAlertsCard(dismissed: Boolean, onDismiss: () -> Unit, onOpenNearby: 
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                OutlinedButton(
-                    onClick = onOpenNearby,
-                    shape = RoundedCornerShape(50),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-                ) { Text(stringResource(R.string.nearby_alerts_view_action), fontSize = 12.sp) }
                 Button(
                     onClick = { onEnableClick() },
                     colors = ButtonDefaults.buttonColors(containerColor = primary),

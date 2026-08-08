@@ -372,6 +372,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 _transactions.value = txs
                 recalculateRemainingBalance(txs, _budget.value)
+                recalculateMonthlyPharmaCost(txs)
                 // Budget Card master refactor req #4 — a real new transaction (bank listener or
                 // manual) changes "متاح"/"المحجوز", so عقل زاد's next answer should reflect it.
                 // Throttled (not on every Room re-emit) — this fires per bank notification, and
@@ -462,7 +463,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             dao.getAllPharmacyItems().collectLatest { items ->
                 Log.d(TAG, "Room pharmacy items updated → count=${items.size}")
                 _pharmacyItems.value = items
-                recalculateMonthlyPharmaCost(items)
+                recalculateMonthlyPharmaCost(_transactions.value)
                 try {
                     val invalidIds = com.example.data.PharmacyReminderScheduler.rescheduleAll(getApplication(), items).toSet()
                     // Task 17.2.3 — flip the flag both ways: newly-malformed items get flagged,
@@ -691,7 +692,9 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         val pharmacyText = _pharmacyItems.value.joinToString("\n") { p ->
-            "- ${p.name}: متبقي ${p.remainingQuantity} ${p.unit}${p.dosage?.takeIf { it.isNotBlank() }?.let { " ($it)" } ?: ""}"
+            val lowStockFlag = if (p.isLowStock()) " [⚠️ قارب على النفاد — يحتاج تجديد]" else ""
+            val expiryFlag = p.expiryDate?.takeIf { it.isNotBlank() }?.let { " [ينتهي: $it]" } ?: ""
+            "- ${p.name}: متبقي ${p.remainingQuantity} ${p.unit}${p.dosage?.takeIf { it.isNotBlank() }?.let { " ($it)" } ?: ""}$lowStockFlag$expiryFlag"
         }
 
         val txText = _transactions.value.sortedByDescending { it.createdAt ?: "" }.take(30).joinToString("\n") {
@@ -1348,6 +1351,25 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * تبديل عملة على حساب فيه بادجت متسجل بالفعل (تبديل يدوي من البروفايل، أو قبول
+     * اقتراح السفر) — بيحوّل السقف الشهري وبادجت كل فئة بمعدل صرف ثابت (CurrencyExchange)
+     * عشان الرقم يفضل معناه القوة الشرائية، مش يفضل نفس الرقم القديم بعملة تانية.
+     * المعاملات المسجلة فعلاً مش بتتحول (قيّدة بعملتها وقت حصولها)؛ المتبقي المشتق منها
+     * بيتصحح لوحده مع أول دورة جديدة بالسقف المحوّل.
+     */
+    fun convertLimitsForMarketChange(context: android.content.Context, from: Market, to: Market) {
+        if (from.currencyCode == to.currencyCode) return
+        val rate = CurrencyExchange.convert(1.0, from.currencyCode, to.currencyCode)
+        if (_budget.value > 0) {
+            updateBudget(_budget.value * rate)
+        }
+        BudgetTracker.STANDARD_CATEGORIES.forEach { cat ->
+            val old = BudgetTracker.getCategoryBudget(context, cat)
+            if (old > 0) BudgetTracker.setCategoryBudget(context, cat, old * rate)
+        }
+    }
+
+    /**
      * تصحيح تصنيف معاملة يدوياً — بيحفظ تصحيح دائم لنفس التاجر (لو معروف) عشان
      * المعاملات الجاية بعدين من نفس التاجر تتصنف صح تلقائياً بدل ما تتكرر الغلطة.
      */
@@ -1973,18 +1995,17 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** التكلفة الشهرية: الأدوية المزمنة/الروشتات المتجددة (isRecurring) باعتبارها تتجدد كل شهر + مشتريات هذا الشهر من باقي الأصناف */
-    private fun recalculateMonthlyPharmaCost(items: List<ZadPharmacyItem>) {
-        val now = java.time.YearMonth.now()
-        val recurringCost = items.filter { it.isRecurring }.sumOf { it.price }
-        val thisMonthOneOff = items.filter { item ->
-            if (item.isRecurring) return@filter false
-            val createdAt = item.createdAt ?: return@filter false
-            try {
-                val itemMonth = java.time.YearMonth.from(Instant.parse(createdAt).atZone(ZoneId.systemDefault()))
-                itemMonth == now
-            } catch (e: Exception) { false }
-        }.sumOf { it.price }
-        _monthlyPharmaCost.value = recurringCost + thisMonthOneOff
+    // Task (pharmacy form fix) — كان بيعيد حساب التكلفة من item.price/createdAt/isRecurring
+    // بدل ما يقرا من نفس دفتر المعاملات اللي addPharmacyItem/refillPharmacyItem بيكتبوا
+    // فيه فعلاً (PHARMACY_BUDGET_CATEGORY). النتيجة: تعبئة دواء غير متجدد في شهر لاحق
+    // (item.createdAt القديم فاضل زي ما هو) كانت مالهاش تأثير على الرقم المعروض، وتعبئتين
+    // في نفس الشهر كان التانية بتمسح سعر الأولى (price بيتكتب فوق مش بيتجمع). نفس مبدأ
+    // BudgetMath (Task 19.0): مصدر واحد للحقيقة، هنا دفتر المعاملات مش حالة العنصر.
+    private fun recalculateMonthlyPharmaCost(transactions: List<ZadTransaction>) {
+        val monthStart = java.time.LocalDate.now().withDayOfMonth(1)
+        _monthlyPharmaCost.value = transactions
+            .filter { it.txnKind == "expense" && it.category == PHARMACY_BUDGET_CATEGORY && (com.example.data.BudgetMath.txDate(it) ?: java.time.LocalDate.now()) >= monthStart }
+            .sumOf { it.amount }
     }
 
     fun addMaintenanceItem(item: ZadMaintenanceItem) {
@@ -2920,6 +2941,29 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.e(TAG, "updateUserProfile() FAILED: ${e.message}")
                 onResult(false)
             }
+        }
+    }
+
+    /** Task (avatar local-save fix) — قبل كده الواجهة كانت بتفضل معلّقة على سبينر لحد ما
+     * الرفع لـ Supabase Storage (شبكة كاملة) يخلص قبل أي تحديث بصري. دلوقتي بتتكتب على
+     * تخزين التطبيق الداخلي فوراً (كتابة قرص، مش شبكة) وبتحدّث الواجهة على طول، والرفع
+     * الفعلي لـ Supabase بيكمل في الخلفية بنفس مسار uploadAvatar() القديم.
+     */
+    fun saveAvatarLocally(bytes: ByteArray, mimeType: String) {
+        val app: Application = getApplication()
+        viewModelScope.launch {
+            val localUri = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val avatarsDir = java.io.File(app.filesDir, "avatars").apply { mkdirs() }
+                // اسم فريد لكل صورة + مسح القديم — لو استخدمنا نفس اسم الملف Coil كان
+                // هيكاش نفس الـ URI ومش هيعرض الصورة الجديدة إلا بعد إعادة تشغيل التطبيق.
+                avatarsDir.listFiles()?.forEach { it.delete() }
+                val file = java.io.File(avatarsDir, "avatar_${System.currentTimeMillis()}.jpg")
+                file.writeBytes(bytes)
+                android.net.Uri.fromFile(file).toString()
+            }
+            _avatarUri.value = localUri
+            Log.d(TAG, "saveAvatarLocally() → saved locally to $localUri, background sync starting")
+            uploadAvatar(bytes, mimeType)
         }
     }
 

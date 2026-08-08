@@ -178,7 +178,10 @@ fun BudgetScreen(
                         fontSize = 34.sp,
                         lineHeight = 40.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (currentBalance < 0) dangerColor else Color.White,
+                        // dangerColor (#DC5B4B) reads at ~1.75:1 against this dark green card —
+                        // fails contrast; coralLight (#FFA69E) is the same alarm-red family at
+                        // ~3.5:1, which clears WCAG's large-text 3:1 bar. Same fix as ZadCardHero.
+                        color = if (currentBalance < 0) coralLight else Color.White,
                         modifier = Modifier.combinedClickable(
                             onClick = { if (!availableFigureValue.confident) showAvailableReason = true },
                             onLongClick = { showWhySheet = true }

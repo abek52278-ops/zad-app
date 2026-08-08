@@ -86,7 +86,6 @@ fun HomeScreen(
     onNavigateToPharmacy: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
     onNavigateToCamera: () -> Unit = {},
-    onNavigateToNearby: () -> Unit = {},
     /** تفعيل يدوي من الأب/الأم (Switch to Kids Mode) — بيفرض واجهة الأطفال حتى لو role الحساب "admin" */
     kidsModeOverride: Boolean = false
 ) {
@@ -269,7 +268,9 @@ fun HomeScreen(
                     com.example.ui.components.TravelBanner(
                         suggestedMarket = suggestedMarket,
                         onSwitch = {
+                            val previousMarket = com.example.data.MarketPrefs.currentMarket
                             com.example.data.MarketPrefs.setMarket(context, suggestedMarket)
+                            viewModel.convertLimitsForMarketChange(context, previousMarket, suggestedMarket)
                             scope.launch {
                                 val synced = com.example.data.SupabaseRepo.syncMarketProfile(suggestedMarket)
                                 if (!synced) {
@@ -312,15 +313,14 @@ fun HomeScreen(
                     mutableStateOf(context.getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
                         .getBoolean("location_alerts_card_dismissed", false))
                 }
-                if (!locationAlertsCardDismissed && !com.example.data.GroceryGeofenceManager.isEnabled(context)) {
+                if (!locationAlertsCardDismissed || com.example.data.GroceryGeofenceManager.isEnabled(context)) {
                     com.example.ui.components.LocationAlertsCard(
                         dismissed = locationAlertsCardDismissed,
                         onDismiss = {
                             locationAlertsCardDismissed = true
                             context.getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
                                 .edit().putBoolean("location_alerts_card_dismissed", true).apply()
-                        },
-                        onOpenNearby = onNavigateToNearby
+                        }
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                 }
@@ -1674,7 +1674,11 @@ fun OfflineBanner() {
 
 @Composable
 fun AiAlertBanner(title: String, description: String) {
-    com.example.ui.components.ZadListCard(containerColor = errorContainer, contentPadding = 0.dp) {
+    // errorContainer (0x1AF87171 — 10% alpha) composited over the light canvas leaves
+    // dangerColor text at ~3.2:1 contrast, under the 4.5:1 AA bar for small text — worse
+    // still once description dropped to 80% alpha on top of that. This card needs its
+    // own solid, opaque tint instead of the shared low-alpha token.
+    com.example.ui.components.ZadListCard(containerColor = Color(0xFFFDECEA), contentPadding = 0.dp) {
         Row(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -1691,7 +1695,7 @@ fun AiAlertBanner(title: String, description: String) {
                 Text(
                     description,
                     fontSize = 12.sp,
-                    color = dangerColor.copy(alpha = 0.8f)
+                    color = dangerColor
                 )
             }
         }
@@ -1954,7 +1958,9 @@ fun KidsModeContent(
     // هدف الادخار اتحقق (الرصيد وصل أو عدى الهدف) — نشغّل confetti مرة واحدة لحظة الوصول
     val savingsGoalReached = mySavingsGoal > 0 && myAllowance >= mySavingsGoal
 
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp).verticalScroll(rememberScrollState())) {
+    // ملحوظة: الأب (الـ Column في HomeScreen) أصلاً بيعمل verticalScroll — سكرول تاني
+    // هنا كان بيسبب IllegalStateException (infinity max height constraints)
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
         Spacer(modifier = Modifier.height(20.dp))
 
         // ── Cute Greeting Header ──

@@ -70,7 +70,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 dao.getAllShoppingItems().first().filter { !it.isPurchased }.map { it.itemName }
             GeofenceCategory.PHARMACY ->
                 // نفس عتبة "قرب يخلص" اللي NearbyDealsScreen بيستخدمها (٥ أيام أو أقل)
-                dao.getAllPharmacyItemsOnce().filter { val d = it.daysOfSupplyLeft(); d != null && d <= 5 }.map { it.name }
+                dao.getAllPharmacyItemsOnce().filter { it.isLowStock() }.map { it.name }
         }
         if (missingItems.isEmpty()) {
             // مفيش نواقص فعلياً — إشعار بلا فايدة أسوأ من مفيش إشعار (AUDIT.md)

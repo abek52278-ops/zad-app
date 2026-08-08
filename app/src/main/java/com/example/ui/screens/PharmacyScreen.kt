@@ -48,17 +48,7 @@ import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
 private val PHARMACY_CATEGORIES = listOf("عام", "مسكن", "مضاد حيوي", "فيتامين", "مزمن")
-
-/** Task 17.2.3 — validate at entry, not just when the scheduler reads it back later. */
-private fun isValidDoseTimesInput(raw: String): Boolean {
-    if (raw.isBlank()) return true
-    return raw.split(",").map { it.trim() }.filter { it.isNotBlank() }.all { t ->
-        try {
-            java.time.LocalTime.parse(if (t.length == 5) t else t.padStart(5, '0'))
-            true
-        } catch (e: Exception) { false }
-    }
-}
+private val PHARMACY_UNITS = listOf("قرص", "مل", "كريم")
 
 /** مواعيد افتراضية مقترحة لو المستخدم سايب حقل المواعيد فاضي — موزّعة على ساعات الصحيان (8ص-10م) */
 private fun suggestDoseTimes(dailyDoseCount: Int): String {
@@ -96,10 +86,7 @@ fun PharmacyScreen(
     }
 
     val expiringSoon = items.filter { val d = daysUntilExpiry(it); d != null && d in 0..30 }.sortedBy { daysUntilExpiry(it) }
-    val lowStock = items.filter { item ->
-        val supply = item.daysOfSupplyLeft()
-        supply != null && supply <= 5
-    }
+    val lowStock = items.filter { it.isLowStock() }
     val expired = items.filter { val d = daysUntilExpiry(it); d != null && d < 0 }
 
     val hasScheduledDoses = items.any { it.doseTimesList().isNotEmpty() }
@@ -388,11 +375,11 @@ private fun PharmacyItemCard(
     val supplyDays = item.daysOfSupplyLeft()
     val isExpired = daysUntilExpiry != null && daysUntilExpiry < 0
     val isExpiringSoon = daysUntilExpiry != null && daysUntilExpiry in 0..30
-    val isLowStock = supplyDays != null && supplyDays <= 5
+    val isLowStock = item.isLowStock()
 
     val statusColor = when {
         isExpired -> dangerColor
-        isLowStock && supplyDays!! <= 3 -> dangerColor
+        item.remainingQuantity <= 0 || (supplyDays != null && supplyDays <= 3) -> dangerColor
         isLowStock || isExpiringSoon -> warningColor
         else -> successColor
     }
@@ -616,10 +603,10 @@ private fun PharmacyItemGridCard(
     val supplyDays = item.daysOfSupplyLeft()
     val isExpired = daysUntilExpiry != null && daysUntilExpiry < 0
     val isExpiringSoon = daysUntilExpiry != null && daysUntilExpiry in 0..30
-    val isLowStock = supplyDays != null && supplyDays <= 5
+    val isLowStock = item.isLowStock()
     val statusColor = when {
         isExpired -> dangerColor
-        isLowStock && supplyDays!! <= 3 -> dangerColor
+        item.remainingQuantity <= 0 || (supplyDays != null && supplyDays <= 3) -> dangerColor
         isLowStock || isExpiringSoon -> warningColor
         else -> successColor
     }
@@ -692,14 +679,17 @@ private fun AddPharmacyItemDialog(
     var category by remember { mutableStateOf(PHARMACY_CATEGORIES.first()) }
     var dosage by remember { mutableStateOf("") }
     var quantity by remember { mutableStateOf("") }
-    var unit by remember { mutableStateOf("قرص") }
+    var unit by remember { mutableStateOf(PHARMACY_UNITS.first()) }
     var dailyDoseCount by remember { mutableStateOf("1") }
-    var doseTimes by remember { mutableStateOf("") }
+    var doseTimesList by remember { mutableStateOf(listOf<String>()) }
+    var showTimePicker by remember { mutableStateOf(false) }
     var expiryDate by remember { mutableStateOf("") }
+    var showDatePicker by remember { mutableStateOf(false) }
     var price by remember { mutableStateOf("") }
     var isRecurring by remember { mutableStateOf(false) }
     var selectedMemberId by remember { mutableStateOf<String?>(null) }
     var memberMenuExpanded by remember { mutableStateOf(false) }
+    var showAdditionalDetails by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
     AlertDialog(
@@ -711,61 +701,125 @@ private fun AddPharmacyItemDialog(
                 modifier = Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState())
             ) {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.medicine_name_hint)) }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = activeIngredient, onValueChange = { activeIngredient = it }, label = { Text(stringResource(R.string.active_ingredient_hint)) }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = dosage, onValueChange = { dosage = it }, label = { Text(stringResource(R.string.dosage_hint)) }, modifier = Modifier.fillMaxWidth())
+
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = quantity, onValueChange = { quantity = it }, label = { Text(stringResource(R.string.remaining_quantity_hint)) }, modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = unit, onValueChange = { unit = it }, label = { Text(stringResource(R.string.unit_hint)) }, modifier = Modifier.weight(1f))
+                    OutlinedTextField(
+                        value = quantity, onValueChange = { quantity = it },
+                        label = { Text(stringResource(R.string.remaining_quantity_hint)) },
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                        modifier = Modifier.weight(1f)
+                    )
                 }
-                OutlinedTextField(value = dailyDoseCount, onValueChange = { dailyDoseCount = it }, label = { Text(stringResource(R.string.daily_dose_hint)) }, modifier = Modifier.fillMaxWidth())
-                // Task 17.2.3 — dose_times used to be validated only when the scheduler read
-                // it back, silently dropping a bad entry with no trace. Reject it at entry
-                // instead, so a typo like "2o:00" can't reach the scheduler at all.
-                val doseTimesValid = remember(doseTimes) { isValidDoseTimesInput(doseTimes) }
-                OutlinedTextField(
-                    value = doseTimes, onValueChange = { doseTimes = it },
-                    label = { Text(stringResource(R.string.dose_times_hint)) },
-                    placeholder = { Text(suggestDoseTimes(dailyDoseCount.toIntOrNull() ?: 1).ifBlank { "08:00, 20:00" }) },
-                    isError = !doseTimesValid,
-                    supportingText = if (!doseTimesValid) {
-                        { Text("وقت مش مفهوم — استخدم صيغة HH:MM زي 08:00", color = dangerColor, style = Typography.labelSmall) }
-                    } else null,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(value = expiryDate, onValueChange = { expiryDate = it }, label = { Text(stringResource(R.string.expiry_date_hint)) }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = price, onValueChange = { price = it }, label = { Text(stringResource(R.string.amount_with_currency_hint, com.example.data.CurrencyFormatter.symbol(context))) }, modifier = Modifier.fillMaxWidth())
-
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Checkbox(checked = isRecurring, onCheckedChange = { isRecurring = it })
-                    Text(stringResource(R.string.is_recurring_label), style = Typography.bodySmall)
-                }
-
-                if (familyMembers.isNotEmpty()) {
-                    ExposedDropdownMenuBox(expanded = memberMenuExpanded, onExpandedChange = { memberMenuExpanded = it }) {
-                        OutlinedTextField(
-                            value = familyMembers.find { it.id == selectedMemberId }?.alias ?: stringResource(R.string.none_option),
-                            onValueChange = {}, readOnly = true,
-                            label = { Text(stringResource(R.string.assigned_family_member_label)) },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = memberMenuExpanded) },
-                            modifier = Modifier.menuAnchor().fillMaxWidth()
-                        )
-                        ExposedDropdownMenu(expanded = memberMenuExpanded, onDismissRequest = { memberMenuExpanded = false }) {
-                            DropdownMenuItem(text = { Text(stringResource(R.string.none_option)) }, onClick = { selectedMemberId = null; memberMenuExpanded = false })
-                            familyMembers.forEach { member ->
-                                DropdownMenuItem(text = { Text(member.alias) }, onClick = { selectedMemberId = member.id; memberMenuExpanded = false })
-                            }
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(stringResource(R.string.unit_hint), style = Typography.labelSmall, color = onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        PHARMACY_UNITS.forEach { u ->
+                            FilterChip(selected = unit == u, onClick = { unit = u }, label = { Text(u, style = Typography.labelSmall) })
                         }
                     }
                 }
 
-                Text(stringResource(R.string.category_hint), style = Typography.labelSmall, color = onSurfaceVariant)
-                androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(PHARMACY_CATEGORIES) { cat ->
-                        FilterChip(
-                            selected = category == cat,
-                            onClick = { category = cat },
-                            label = { Text(cat, style = Typography.labelSmall) }
+                OutlinedTextField(
+                    value = dailyDoseCount, onValueChange = { dailyDoseCount = it },
+                    label = { Text(stringResource(R.string.daily_dose_hint)) },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(stringResource(R.string.dose_times_hint), style = Typography.labelSmall, color = onSurfaceVariant)
+                    if (doseTimesList.isEmpty()) {
+                        Text(
+                            stringResource(R.string.dose_times_empty_hint, suggestDoseTimes(dailyDoseCount.toIntOrNull() ?: 1).ifBlank { "09:00" }),
+                            style = Typography.labelSmall, color = textTertiary
                         )
+                    }
+                    androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(doseTimesList) { time ->
+                            InputChip(
+                                selected = false,
+                                onClick = {},
+                                label = { Text(time, style = Typography.labelSmall) },
+                                trailingIcon = {
+                                    Icon(
+                                        Icons.Default.Close, contentDescription = stringResource(R.string.delete_action),
+                                        modifier = Modifier.size(16.dp).clickable { doseTimesList = doseTimesList - time }
+                                    )
+                                }
+                            )
+                        }
+                        item {
+                            AssistChip(
+                                onClick = { showTimePicker = true },
+                                leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp)) },
+                                label = { Text(stringResource(R.string.add_dose_time_action), style = Typography.labelSmall) }
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = expiryDate, onValueChange = {}, readOnly = true,
+                    label = { Text(stringResource(R.string.expiry_date_hint)) },
+                    placeholder = { Text(stringResource(R.string.pick_expiry_date_placeholder)) },
+                    trailingIcon = { Icon(Icons.Default.CalendarMonth, contentDescription = null) },
+                    modifier = Modifier.fillMaxWidth().clickable { showDatePicker = true }
+                )
+                OutlinedTextField(value = price, onValueChange = { price = it }, label = { Text(stringResource(R.string.amount_with_currency_hint, com.example.data.CurrencyFormatter.symbol(context))) }, modifier = Modifier.fillMaxWidth())
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { showAdditionalDetails = !showAdditionalDetails },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(stringResource(R.string.additional_details_label), style = Typography.labelLarge, fontWeight = FontWeight.SemiBold, color = onSurface)
+                    Icon(
+                        if (showAdditionalDetails) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = null, tint = onSurfaceVariant
+                    )
+                }
+
+                AnimatedVisibility(visible = showAdditionalDetails) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedTextField(value = activeIngredient, onValueChange = { activeIngredient = it }, label = { Text(stringResource(R.string.active_ingredient_hint)) }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = dosage, onValueChange = { dosage = it }, label = { Text(stringResource(R.string.dosage_hint)) }, modifier = Modifier.fillMaxWidth())
+
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Checkbox(checked = isRecurring, onCheckedChange = { isRecurring = it })
+                            Text(stringResource(R.string.is_recurring_label), style = Typography.bodySmall)
+                        }
+
+                        if (familyMembers.isNotEmpty()) {
+                            ExposedDropdownMenuBox(expanded = memberMenuExpanded, onExpandedChange = { memberMenuExpanded = it }) {
+                                OutlinedTextField(
+                                    value = familyMembers.find { it.id == selectedMemberId }?.alias ?: stringResource(R.string.none_option),
+                                    onValueChange = {}, readOnly = true,
+                                    label = { Text(stringResource(R.string.assigned_family_member_label)) },
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = memberMenuExpanded) },
+                                    modifier = Modifier.menuAnchor().fillMaxWidth()
+                                )
+                                ExposedDropdownMenu(expanded = memberMenuExpanded, onDismissRequest = { memberMenuExpanded = false }) {
+                                    DropdownMenuItem(text = { Text(stringResource(R.string.none_option)) }, onClick = { selectedMemberId = null; memberMenuExpanded = false })
+                                    familyMembers.forEach { member ->
+                                        DropdownMenuItem(text = { Text(member.alias) }, onClick = { selectedMemberId = member.id; memberMenuExpanded = false })
+                                    }
+                                }
+                            }
+                        }
+
+                        Text(stringResource(R.string.category_hint), style = Typography.labelSmall, color = onSurfaceVariant)
+                        androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(PHARMACY_CATEGORIES) { cat ->
+                                FilterChip(
+                                    selected = category == cat,
+                                    onClick = { category = cat },
+                                    label = { Text(cat, style = Typography.labelSmall) }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -773,8 +827,10 @@ private fun AddPharmacyItemDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    val finalDoseTimes = doseTimes.ifBlank { suggestDoseTimes(dailyDoseCount.toIntOrNull() ?: 1).ifBlank { null } }
-                    if (name.isNotBlank() && isValidDoseTimesInput(doseTimes)) {
+                    val finalDoseTimes = doseTimesList.ifEmpty {
+                        suggestDoseTimes(dailyDoseCount.toIntOrNull() ?: 1).split(",").map { it.trim() }.filter { it.isNotBlank() }
+                    }.joinToString(",").ifBlank { null }
+                    if (name.isNotBlank()) {
                         onSave(
                             ZadPharmacyItem(
                                 name = name,
@@ -782,7 +838,7 @@ private fun AddPharmacyItemDialog(
                                 category = category,
                                 dosage = dosage.ifBlank { null },
                                 remainingQuantity = quantity.toIntOrNull() ?: 1,
-                                unit = unit.ifBlank { "قرص" },
+                                unit = unit,
                                 dailyDoseCount = dailyDoseCount.toIntOrNull() ?: 1,
                                 doseTimes = finalDoseTimes,
                                 expiryDate = expiryDate.ifBlank { null },
@@ -793,10 +849,53 @@ private fun AddPharmacyItemDialog(
                         )
                     }
                 },
-                enabled = isValidDoseTimesInput(doseTimes),
+                enabled = name.isNotBlank(),
                 modifier = Modifier.pressableScale(),
                 shape = RoundedCornerShape(50)
             ) { Text(stringResource(R.string.save)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
+    )
+
+    if (showTimePicker) {
+        DoseTimePickerDialog(
+            onDismiss = { showTimePicker = false },
+            onConfirm = { time ->
+                if (time !in doseTimesList) doseTimesList = doseTimesList + time
+                showTimePicker = false
+            }
+        )
+    }
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState()
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        expiryDate = java.time.Instant.ofEpochMilli(millis).atZone(java.time.ZoneOffset.UTC).toLocalDate().toString()
+                    }
+                    showDatePicker = false
+                }) { Text(stringResource(R.string.confirm_action_short)) }
+            },
+            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.cancel)) } }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+}
+
+/** M3 مالوش TimePickerDialog جاهز — بنلفه بنفسنا حوالين TimePicker جوه AlertDialog. */
+@Composable
+private fun DoseTimePickerDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    val state = rememberTimePickerState(initialHour = 9, initialMinute = 0, is24Hour = true)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.pick_dose_time_dialog_title)) },
+        text = { TimePicker(state = state) },
+        confirmButton = {
+            TextButton(onClick = { onConfirm("%02d:%02d".format(state.hour, state.minute)) }) { Text(stringResource(R.string.confirm_action_short)) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )
@@ -811,6 +910,7 @@ private fun RefillPharmacyItemDialog(
     var addedQuantity by remember { mutableStateOf("") }
     var newPrice by remember { mutableStateOf("") }
     var newExpiryDate by remember { mutableStateOf(item.expiryDate ?: "") }
+    var showDatePicker by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
     AlertDialog(
@@ -821,6 +921,8 @@ private fun RefillPharmacyItemDialog(
                 OutlinedTextField(
                     value = addedQuantity, onValueChange = { addedQuantity = it },
                     label = { Text(stringResource(R.string.added_quantity_hint, item.unit)) },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
@@ -829,9 +931,11 @@ private fun RefillPharmacyItemDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
-                    value = newExpiryDate, onValueChange = { newExpiryDate = it },
+                    value = newExpiryDate, onValueChange = {}, readOnly = true,
                     label = { Text(stringResource(R.string.expiry_date_hint)) },
-                    modifier = Modifier.fillMaxWidth()
+                    placeholder = { Text(stringResource(R.string.pick_expiry_date_placeholder)) },
+                    trailingIcon = { Icon(Icons.Default.CalendarMonth, contentDescription = null) },
+                    modifier = Modifier.fillMaxWidth().clickable { showDatePicker = true }
                 )
             }
         },
@@ -847,6 +951,24 @@ private fun RefillPharmacyItemDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState()
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        newExpiryDate = java.time.Instant.ofEpochMilli(millis).atZone(java.time.ZoneOffset.UTC).toLocalDate().toString()
+                    }
+                    showDatePicker = false
+                }) { Text(stringResource(R.string.confirm_action_short)) }
+            },
+            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.cancel)) } }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 }
 
 /** The mockup's pharmacy stat card: white, 16dp, small grey label over a bold value. */
