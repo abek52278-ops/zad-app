@@ -60,6 +60,7 @@ import com.example.ui.screens.FamilyScreen
 import com.example.ui.screens.CameraScreen
 import com.example.data.SupabaseRepo
 import io.github.jan.supabase.auth.status.SessionStatus
+import io.github.jan.supabase.auth.status.RefreshFailureCause
 
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -243,6 +244,29 @@ fun AppNavigation(pendingInviteCode: String? = null) {
 
     // Default to LTR for Auth flow (since user requested English auth screens).
     // The main app is RTL, we handle that in MainScreen.
+
+    // كان مفيش أي استجابة لموت الجلسة (refresh token اترفض/مسحوب من السيرفر — auth-kt
+    // بيبعت RefreshFailure(InternalServerError) بعد كده) — التطبيق كان فاضل "مسجل دخول"
+    // شكلياً وكل نداء Supabase بعد كده بيفشل 401 صامت (شات العيلة كان أوضح عرض لها لأنه
+    // بيستطلع كل ٥ ثواني)، من غير أي إشارة للمستخدم إنه لازم يسجل دخول تاني. مقيّدة بـ
+    // route == "main" (المستخدم فعلياً جوه التطبيق) عشان ميتعارضش مع تدفق onLogout العادي
+    // (بيعمل NotAuthenticated(isSignOut=true) بنفسه، مستثناة هنا) ولا مع فحص الجلسة الأولي
+    // في navigateAfterSplash.
+    LaunchedEffect(Unit) {
+        SupabaseRepo.client.auth.sessionStatus.collect { status ->
+            val sessionDiedUnexpectedly = when (status) {
+                is SessionStatus.RefreshFailure -> status.cause is RefreshFailureCause.InternalServerError
+                is SessionStatus.NotAuthenticated -> !status.isSignOut
+                else -> false
+            }
+            if (sessionDiedUnexpectedly && navController.currentDestination?.route == "main") {
+                Log.w("AppNavigation", "Session died unexpectedly ($status) — forcing re-login")
+                SupabaseRepo.signOut()
+                android.widget.Toast.makeText(context, context.getString(R.string.session_expired_message), android.widget.Toast.LENGTH_LONG).show()
+                navController.navigate("login") { popUpTo(0) { inclusive = true } }
+            }
+        }
+    }
 
     val navigateAfterSplash: () -> Unit = navigate@{
         if (!MarketPrefs.hasSelectedMarket(context)) {
