@@ -10,10 +10,11 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 
 /**
- * لحظياً بيبلّغ أي INSERT جديد على zad_transactions لنفس المستخدم — مصدره ممكن يكون بنك
- * listener على جهاز تاني، أو معاملة اتسجلت عبر بوت تليجرام (@ZadhApp_bot)، مش بس نفس
- * الجهاز. من غيره، CashCard كانت بتفضل قديمة لحد أول فتح تطبيق أو TransactionSyncWorker
- * (كل ٣ ساعات). نفس نمط RealtimeFamilySpendingRepo، بس بفلتر user_id مش family_id.
+ * لحظياً بيبلّغ أي INSERT/UPDATE/DELETE على zad_transactions لنفس المستخدم — مصدره ممكن
+ * يكون بنك listener على جهاز تاني، معاملة اتسجلت عبر بوت تليجرام (@ZadhApp_bot)، أو تصحيح/حذف
+ * لاحق، مش بس نفس الجهاز. من غيره، CashCard كانت بتفضل قديمة لحد أول فتح تطبيق أو
+ * TransactionSyncWorker (كل ٣ ساعات). نفس نمط RealtimeFamilySpendingRepo، بس بفلتر user_id
+ * مش family_id، وبالنوع الأساسي PostgresAction (مش .Insert) عشان يسمع الثلاث أنواع في تدفق واحد.
  */
 object RealtimePersonalTransactionsRepo {
 
@@ -25,7 +26,7 @@ object RealtimePersonalTransactionsRepo {
         val channel = SupabaseRepo.client.channel("own_transactions:$userId")
         currentChannel = channel
 
-        val changeFlow = channel.postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
+        val changeFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
             table = "zad_transactions"
             filter("user_id", FilterOperator.EQ, userId)
         }

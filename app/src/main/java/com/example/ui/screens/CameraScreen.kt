@@ -54,6 +54,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 
+private val RECEIPT_TYPE_OPTIONS = listOf(
+    "pharmacy" to "صيدلية",
+    "grocery" to "سوبرماركت",
+    "general" to "مصاريف عامة"
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CameraScreen(
@@ -677,6 +683,27 @@ fun CameraScreen(
                         "راجع المنتجات قبل التسجيل في المصروفات والمخزون:",
                         style = MaterialTheme.typography.bodySmall
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    var editableReceiptType by remember(receipt) { mutableStateOf(receipt.receiptType) }
+                    // بيكتب رجوع في parsedReceipt نفسه، فـ confirmButton (بره الـ text lambda دي)
+                    // بيقرأ receipt.receiptType المحدّث من غير أي تغيير في منطق التسجيل هناك —
+                    // نفس نمط editableReceiptItems تحت.
+                    LaunchedEffect(editableReceiptType) {
+                        parsedReceipt = receipt.copy(receiptType = editableReceiptType)
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("نوع الفاتورة (زاد صنّفها تلقائياً، وتقدر تغيّرها):", style = MaterialTheme.typography.labelSmall, color = onSurfaceVariant)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            RECEIPT_TYPE_OPTIONS.forEach { (value, label) ->
+                                FilterChip(
+                                    selected = editableReceiptType == value,
+                                    onClick = { editableReceiptType = value },
+                                    label = { Text(label, style = MaterialTheme.typography.labelSmall) }
+                                )
+                            }
+                        }
+                    }
                     Spacer(modifier = Modifier.height(12.dp))
 
                     var editableReceiptItems by remember(receipt) { mutableStateOf(receipt.items) }
