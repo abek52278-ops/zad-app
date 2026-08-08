@@ -765,7 +765,8 @@ bot.on("callback_query:data", async (ctx) => {
   const data = ctx.callbackQuery.data;
 
   if (data === "b") {
-    const { data: user } = await sb.from("zad_users").select("monthly_limit").eq("id", userId).maybeSingle();
+    const { data: user } = await sb.from("zad_users")
+      .select("monthly_limit,limit_confirmed_at").eq("id", userId).maybeSingle();
     const monthStart = new Date();
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
@@ -776,7 +777,10 @@ bot.on("callback_query:data", async (ctx) => {
     const rows = (txs ?? []) as Array<{ amount: number; txn_kind: string }>;
     const spent = rows.filter((t) => t.txn_kind === "expense").reduce((s, t) => s + t.amount, 0);
     const income = rows.filter((t) => t.txn_kind === "income").reduce((s, t) => s + t.amount, 0);
-    await ctx.reply(formatBalanceMessage((user as any)?.monthly_limit ?? 0, spent, income));
+    // limit_confirmed_at IS NULL = captured but never confirmed (SupabaseRepo.getMonthlyLimit's
+    // own contract) — same false-budget bug as the realtime push trigger, don't show it.
+    const confirmedLimit = (user as any)?.limit_confirmed_at ? ((user as any)?.monthly_limit ?? 0) : 0;
+    await ctx.reply(formatBalanceMessage(confirmedLimit, spent, income));
     return;
   }
 

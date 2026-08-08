@@ -336,7 +336,7 @@ object SyncOutbox {
                     "analyze_unparsed_notification" -> {
                         val payload = json.decodeFromString<UnparsedNotificationPayload>(op.payloadJson)
                         val parsed = ZadAiRepository.analyzeBankNotification(payload.title, payload.text)
-                        if (parsed != null && TxDeduplicator.isNewTransaction(context, parsed.amount, parsed.isExpense)) {
+                        if (parsed != null && TxDeduplicator.isNewTransaction(context, parsed.amount, parsed.isExpense, parsed.merchantName ?: parsed.title)) {
                             BankTransactionApplier.apply(context, parsed)
                             dao.deletePendingSyncOp(op.id)
                             Log.d(TAG, "flush: retry parsed '${parsed.title}' — cleared op ${op.id}")

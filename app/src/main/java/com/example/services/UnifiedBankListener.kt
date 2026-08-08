@@ -343,10 +343,19 @@ class UnifiedBankListener : NotificationListenerService() {
             } else {
                 val aiParsed = ZadAiRepository.analyzeBankNotification(title, text)
                 if (aiParsed != null) {
-                    // نفس الحماية من التكرار على مسار الـ AI
-                    if (!TxDeduplicator.isNewTransaction(applicationContext, aiParsed.amount, aiParsed.isExpense)) return
+                    // نفس الحماية من التكرار على مسار الـ AI — التاجر/المصدر بقى مُميّز دلوقتي
+                    // (كان مفقود قبل كده)، زي بالظبط مسار الـ regex فوق.
+                    if (!TxDeduplicator.isNewTransaction(applicationContext, aiParsed.amount, aiParsed.isExpense, aiParsed.merchantName ?: aiParsed.title)) return
                     BankTransactionApplier.apply(applicationContext, aiParsed)
                     Log.d("UnifiedBankListener", "AI-fallback transaction saved: ${aiParsed.title}")
+
+                    // إشعار محلي ذكي يأكد للمستخدم إن الميزانية اتحدثت تلقائياً — مسار الـ AI
+                    // (خلاف رسائل الراتب/الاشتراك تحت) كان بيحصل بصمت تماماً قبل كده.
+                    val verb = if (aiParsed.isExpense) "خصم" else "إيداع"
+                    showSystemNotification(
+                        "تحديث مالي تلقائي",
+                        "✨ تم رصد $verb بقيمة ${com.example.data.CurrencyFormatter.format(applicationContext, aiParsed.amount)} من ${aiParsed.merchantName ?: "مصدر غير معروف"} وتحديث الميزانية تلقائياً!"
+                    )
                 } else {
                     // شكلها إشعار بنكي (عدّت isFinancialNotification) بس محدش من المسارات فهمها
                     SaBankParser.logRejection(applicationContext, SaBankParser.RejectReason.UNPARSED, packageName, "$title $text")

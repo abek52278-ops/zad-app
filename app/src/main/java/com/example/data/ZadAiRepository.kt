@@ -232,15 +232,41 @@ object ZadAiRepository {
         }
     }
 
+    // نفس مجموعة الفئات اللي SaBankParser.classify() فعلياً بيرجعها — لو الـ AI رجّع
+    // تصنيف برا القائمة دي (اختراع/هلوسة)، بترجع لـ "أخرى" بدل ما تدخل فئة وهمية
+    // ميزانيات الفئات في BudgetTracker مش عارفاها أصلاً.
+    private val VALID_BANK_CATEGORIES = setOf(
+        "الراتب", "البقالة", "المطاعم", "الفواتير", "الرعاية الصحية", "المواصلات",
+        "التعليم", "الأقساط", "الاشتراكات", "الوقود", "تحويلات", "أخرى"
+    )
+
+    /**
+     * مسار AI الاحتياطي بس — SaBankParser.detectAndParse بيتنادى الأول دايماً وبيغطي أغلب
+     * الحالات المعروفة مجاناً وبدقة أعلى (regex محدد ومختبر)، ده بيتنادى بس لما ده يفشل.
+     * الرفض أفضل من التخمين (نفس مبدأ SaBankParser نصاً): تحت عتبة الثقة، يرجع null
+     * ويتعامل زي أي رسالة مش مفهومة — بيتحط في outbox لإعادة المحاولة، مش بيتسجل بثقة واهية.
+     */
     suspend fun analyzeBankNotification(title: String, text: String): ZadTransaction? {
         val response = callAction("analyze_bank_notification", mapOf("bank" to title, "sms_text" to text))
         val amount = (response["amount"] as? Number)?.toDouble()?.asMoney() ?: return null
-        val parsedTitle = response["title"] as? String ?: return null
+        if (amount <= 0) return null
+
+        val confidence = (response["confidence"] as? Number)?.toFloat() ?: 0f
+        if (confidence < 0.6f) return null
+
+        val isIncome = (response["type"] as? String) == "INCOME"
+        val merchant = (response["merchant_or_sender"] as? String)?.trim()?.takeIf { it.isNotBlank() }
+        val category = (response["category"] as? String)?.takeIf { it in VALID_BANK_CATEGORIES } ?: "أخرى"
+        val currency = (response["currency"] as? String)?.trim()?.takeIf { it.isNotBlank() }
+
         return ZadTransaction(
             amount = amount,
-            title = parsedTitle,
-            isExpense = response["is_expense"] as? Boolean ?: true,
-            category = response["category"] as? String ?: "عام"
+            title = merchant ?: (if (isIncome) "دخل" else "مصروف"),
+            isExpense = !isIncome,
+            category = category,
+            merchantName = merchant,
+            currency = currency,
+            createdAt = java.time.Instant.now().toString()
         )
     }
 

@@ -646,15 +646,29 @@ Deno.serve(async (req: Request) => {
       // ──────────────────────────────────────────────
       case "analyze_bank_notification": {
         const { bank, sms_text } = payload || {};
-        const systemPrompt = "أنت محلل رسائل بنكية. استخرج معلومات المعاملة من نص الإشعار البنكي. أجب بصيغة JSON: {\"amount\":0.0,\"title\":\"\",\"is_expense\":true,\"category\":\"\"}";
-        const userPrompt = "البنك: " + (bank || "") + " | النص: " + (sms_text || "");
+        // Fallback-only path: SaBankParser's regex already handles every known bank/wallet
+        // format deterministically and for free — this only runs when that fails, so it's
+        // asked for a fuller structured extraction (type/currency/merchant/confidence)
+        // instead of the old amount/title/is_expense/category shape.
+        const systemPrompt = "أنت محلل رسائل بنكية دقيق لتطبيق زاد المالي. استخرج معلومات المعاملة من نص إشعار أو رسالة بنكية/محفظة إلكترونية. " +
+          "لو مش متأكد من رقم أو تصنيف، خفّض confidence بدل ما تخمن — الرفض أفضل من التخمين. " +
+          "أجب بصيغة JSON فقط: {\"type\":\"INCOME\"|\"EXPENSE\",\"amount\":0.0,\"currency\":\"\",\"merchant_or_sender\":\"\",\"category\":\"\",\"confidence\":0.0}. " +
+          "type=\"INCOME\" لو المبلغ دخل للحساب (إيداع/راتب/حوالة واردة/استرداد)، \"EXPENSE\" لو خصم (شراء/سحب/حوالة صادرة/فاتورة/قسط). " +
+          "category لازم تكون بالظبط واحدة من القائمة دي: الراتب، البقالة، المطاعم، الفواتير، الرعاية الصحية، المواصلات، التعليم، الأقساط، الاشتراكات، الوقود، تحويلات، أخرى. " +
+          "currency كود ISO من 3 حروف (مثل EGP أو SAR) لو مذكور صراحة أو واضح من رمز العملة، وإلا سيبها فاضية. " +
+          "merchant_or_sender اسم التاجر أو الجهة المرسلة/المستقبلة بالظبط زي ما ظهر في النص. " +
+          "confidence من 0 لـ 1 — قد إيه إنت متأكد إن الرقم ده قيمة عملية حقيقية (مش رصيد أو رقم بطاقة) وإن الاتجاه صح.";
+        const userPrompt = "البنك/المصدر: " + (bank || "") + " | النص: " + (sms_text || "");
         // Structured extraction from one short SMS — routine tier, not the deep model.
         const result = await callJsonModel(systemPrompt, userPrompt, 1500, "routine");
+        const confidence = Number(result?.confidence);
         return jsonResponse({
-          amount: result?.amount || 0,
-          title: result?.title || "",
-          is_expense: result?.is_expense ?? true,
-          category: result?.category || "عام",
+          type: result?.type === "INCOME" ? "INCOME" : "EXPENSE",
+          amount: Number(result?.amount) || 0,
+          currency: (typeof result?.currency === "string" && result.currency.trim()) || null,
+          merchant_or_sender: (typeof result?.merchant_or_sender === "string" && result.merchant_or_sender.trim()) || "",
+          category: result?.category || "أخرى",
+          confidence: Number.isFinite(confidence) ? confidence : 0,
         });
       }
 
