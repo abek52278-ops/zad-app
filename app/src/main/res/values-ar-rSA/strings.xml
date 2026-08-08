@@ -206,6 +206,26 @@
     <string name="export_monthly_report">تصدير التقرير الشهري</string>
     <string name="avg_every_days">المتوسط: %1$s | كل %2$d يوم</string>
 
+    <!-- ZadIntelligenceScreen: single-scroll dashboard sections (re-architect) -->
+    <string name="intel_section_executive">النظرة التنفيذية</string>
+    <string name="intel_section_charts_radar">الرسوم البيانية ورادار المصروفات</string>
+    <string name="intel_section_ai_tools">توقعات وأدوات ذكية</string>
+    <string name="daily_velocity_title">سرعة الإنفاق اليوم</string>
+    <string name="daily_velocity_subtitle">معدلك اليومي مقابل الحد الآمن</string>
+    <string name="daily_velocity_ahead_pct">أسرع من الحد الآمن بـ %1$d%%</string>
+    <string name="daily_velocity_safe">ضمن حدود الإنفاق الآمن</string>
+    <string name="daily_velocity_no_budget">حدد ميزانية حتى يقيس زاد سرعتك</string>
+    <string name="daily_velocity_pct_suffix">من معدلك الآمن</string>
+    <string name="weekly_trend_title">هذا الأسبوع مقابل الماضي</string>
+    <string name="weekly_trend_subtitle">مقارنة يومية للمصروفات</string>
+    <string name="weekly_trend_this_week">هذا الأسبوع</string>
+    <string name="weekly_trend_last_week">الأسبوع الماضي</string>
+    <string name="weekly_trend_no_data">لا توجد بيانات كافية بعد للمقارنة الأسبوعية</string>
+    <string name="ai_chat_card_title">محادثة مع زاد</string>
+    <string name="ai_chat_card_subtitle">اسأل عن مصروفاتك، مخزونك، أو أي شيء</string>
+    <string name="open_chat_action">افتح المحادثة</string>
+    <string name="collapse_chat_action">إخفاء المحادثة</string>
+
     <!-- InventoryScreen -->
     <string name="search_inventory">ابحث في المخزون...</string>
     <string name="add_to_shopping_list">نزّلها في التسوق</string>

@@ -212,6 +212,26 @@
     <string name="export_monthly_report">Aylık raporu dışa aktar</string>
     <string name="avg_every_days">Ortalama: %1$s | her %2$d günde bir</string>
 
+    <!-- ZadIntelligenceScreen: single-scroll dashboard sections (re-architect) -->
+    <string name="intel_section_executive">Yürütme Genel Bakışı</string>
+    <string name="intel_section_charts_radar">Grafikler ve Harcama Radarı</string>
+    <string name="intel_section_ai_tools">Tahminler ve Akıllı Araçlar</string>
+    <string name="daily_velocity_title">Bugünkü harcama hızı</string>
+    <string name="daily_velocity_subtitle">Günlük ortalaman güvenli sınıra karşı</string>
+    <string name="daily_velocity_ahead_pct">Güvenli sınırdan %1$d%% daha hızlı</string>
+    <string name="daily_velocity_safe">Güvenli harcama sınırları içinde</string>
+    <string name="daily_velocity_no_budget">Zad hızını ölçebilsin diye bütçe belirle</string>
+    <string name="daily_velocity_pct_suffix">güvenli ortalamana göre</string>
+    <string name="weekly_trend_title">Bu hafta geçen haftaya karşı</string>
+    <string name="weekly_trend_subtitle">Günlük harcama karşılaştırması</string>
+    <string name="weekly_trend_this_week">Bu hafta</string>
+    <string name="weekly_trend_last_week">Geçen hafta</string>
+    <string name="weekly_trend_no_data">Haftalık karşılaştırma için henüz yeterli veri yok</string>
+    <string name="ai_chat_card_title">Zad ile sohbet</string>
+    <string name="ai_chat_card_subtitle">Harcamaların, envanterin veya başka bir şey hakkında sor</string>
+    <string name="open_chat_action">Sohbeti aç</string>
+    <string name="collapse_chat_action">Sohbeti gizle</string>
+
     <!-- InventoryScreen -->
     <string name="search_inventory">Envanterde ara...</string>
     <string name="add_to_shopping_list">Alışveriş listesine ekle</string>
