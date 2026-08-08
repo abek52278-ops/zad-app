@@ -410,6 +410,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.d(TAG, "Room inventory updated → count=${inv.size}")
                 _inventory.value = inv
                 checkLowStockItems(inv)
+                removeStaleShoppingEntries(inv)
                 predictStockDepletion(inv)
                 refreshInventoryCheckIns()
                 // Only call AI when inventory size changes to avoid excessive API calls.
@@ -1661,12 +1662,47 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** متوسط سعر حقيقي من معاملات فعلية بنفس الاسم — مش رقم AI مخترع، ومش تقدير يدوي.
+     * 0.0 لو مفيش تاريخ إنفاق على الصنف ده خالص. */
+    private fun estimatePriceFromHistory(itemName: String): Double {
+        val matches = _transactions.value.filter { it.isExpense && it.title.contains(itemName, ignoreCase = true) }
+        return if (matches.isNotEmpty()) matches.map { it.amount }.average() else 0.0
+    }
+
     fun addShoppingItem(item: com.example.data.ZadShoppingItem) {
         viewModelScope.launch {
-            Log.d(TAG, "addShoppingItem() → itemName=${item.itemName}")
-            dao.insertShoppingItem(item)
+            // تجميع: صنف موجود فعلاً (نفس الاسم أو قريب منه، namesMatch — زي "حليب" و"حليب
+            // المراعي") ولسه مش متشطّب بيتحدث بكمية مجمّعة بدل ما يتضاف كصف منفصل تاني.
+            val existing = _shoppingList.value.find {
+                !it.isPurchased && com.example.data.InventoryFlowEngine.namesMatch(it.itemName, item.itemName)
+            }
+            val toSave = if (existing != null) {
+                existing.copy(
+                    quantity = existing.quantity + item.quantity,
+                    estimatedPrice = when {
+                        existing.estimatedPrice > 0 -> existing.estimatedPrice
+                        item.estimatedPrice > 0 -> item.estimatedPrice
+                        else -> estimatePriceFromHistory(existing.itemName)
+                    }
+                )
+            } else if (item.estimatedPrice > 0) {
+                item
+            } else {
+                item.copy(estimatedPrice = estimatePriceFromHistory(item.itemName))
+            }
+            Log.d(TAG, "addShoppingItem() → itemName=${toSave.itemName}" + if (existing != null) " (merged, qty=${toSave.quantity})" else "")
+            dao.insertShoppingItem(toSave) // REPLACE على نفس الـ id — بيحدث الصف الموجود لو existing != null
+            _shoppingList.value = if (existing != null) {
+                _shoppingList.value.map { if (it.id == toSave.id) toSave else it }
+            } else {
+                _shoppingList.value + toSave
+            }
             try {
-                SupabaseRepo.addShoppingItem(item)
+                if (existing != null) {
+                    SupabaseRepo.updateShoppingItemQuantity(toSave.id, toSave.quantity, toSave.estimatedPrice)
+                } else {
+                    SupabaseRepo.addShoppingItem(toSave)
+                }
                 Log.d(TAG, "addShoppingItem() → synced to Supabase table=zad_shopping_list")
             } catch (e: Exception) {
                 Log.e(TAG, "addShoppingItem() Supabase sync FAILED: ${e.message}")
@@ -1679,14 +1715,40 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             val item = _shoppingList.value.find { it.id == id } ?: return@launch
             val newStatus = !item.isPurchased
             Log.d(TAG, "toggleShoppingItemPurchased() → id=$id, was=${item.isPurchased}, now=$newStatus")
-            dao.setShoppingItemPurchased(id, newStatus)
-            _shoppingList.value = _shoppingList.value.map {
-                if (it.id == id) it.copy(isPurchased = newStatus) else it
-            }
-            try {
-                SupabaseRepo.toggleShoppingItemPurchased(id, newStatus)
-            } catch (e: Exception) {
-                Log.e(TAG, "toggleShoppingItemPurchased() Supabase sync FAILED: ${e.message}")
+
+            if (newStatus) {
+                // "تم الشراء" فعلياً بيرجّع الصنف للمخزون النشط (كمية موجودة + جديدة، أو
+                // صنف جديد) وبيسجّل مصروف حقيقي — مش مجرد تشطيب بصري. injectScannedItems
+                // نفس المسار اللي شاشة المخزون بتستخدمه للريستوك، وبيقفل حلقة قائمة
+                // التسوق بنفسه (بيعلّم أي صف بنفس الاسم "مشترى") فمفيش داعي نكرر
+                // dao.setShoppingItemPurchased هنا.
+                injectScannedItems(listOf(
+                    com.example.data.ZadInventory(itemName = item.itemName, quantity = item.quantity)
+                ))
+                val price = if (item.estimatedPrice > 0) item.estimatedPrice * item.quantity else estimatePriceFromHistory(item.itemName)
+                if (price > 0) {
+                    addTransaction(com.example.data.ZadTransaction(
+                        amount = price,
+                        title = item.itemName,
+                        category = "البقالة",
+                        isExpense = true,
+                        createdAt = Instant.now().toString(),
+                        sourceType = "shopping_list_purchase"
+                    ))
+                }
+            } else {
+                // إلغاء تحديد "مشترى" رجوع — بس تشطيب، مفيش تراجع عن المخزون/المصروف
+                // اللي حصل وقت التحديد (تتبع أنهي جرد/معاملة نتجت من أنهي toggle تحديدًا
+                // محتاج ربط أعمق مش موجود دلوقتي، ومحتمل يبقى مفاجئ للمستخدم أكتر من مفيد).
+                dao.setShoppingItemPurchased(id, newStatus)
+                _shoppingList.value = _shoppingList.value.map {
+                    if (it.id == id) it.copy(isPurchased = newStatus) else it
+                }
+                try {
+                    SupabaseRepo.toggleShoppingItemPurchased(id, newStatus)
+                } catch (e: Exception) {
+                    Log.e(TAG, "toggleShoppingItemPurchased() Supabase sync FAILED: ${e.message}")
+                }
             }
         }
     }
@@ -2152,6 +2214,32 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 Log.e(TAG, "checkLowStockItems() FAILED: ${e.message}")
             }
+        }
+    }
+
+    /**
+     * الاتجاه العكسي لـ checkLowStockItems — لو صنف رجع فوق حد التنبيه (المستخدم أعاد
+     * تخزينه من خارج التطبيق مثلاً، مش عن طريق injectScannedItems اللي بيقفل الحلقة
+     * بنفسه أصلاً)، صف قائمة التسوق القديم كان بيفضل عالق للأبد. المطابقة بـ namesMatch
+     * (نفس المستخدمة في قفل الحلقة) مش تطابق حرفي، عشان "حليب المراعي" يتقفل بـ"حليب".
+     */
+    private fun removeStaleShoppingEntries(inv: List<ZadInventory>) {
+        viewModelScope.launch {
+            val stale = _shoppingList.value.filter { shopItem ->
+                !shopItem.isPurchased && inv.any { invItem ->
+                    com.example.data.InventoryFlowEngine.namesMatch(invItem.itemName, shopItem.itemName) &&
+                        invItem.quantity > (invItem.lowStockThreshold ?: 2)
+                }
+            }
+            if (stale.isEmpty()) return@launch
+            stale.forEach { item ->
+                Log.d(TAG, "removeStaleShoppingEntries() → '${item.itemName}' back in stock, clearing from shopping list")
+                dao.deleteShoppingItem(item.id)
+                try { SupabaseRepo.deleteShoppingItem(item.id) } catch (e: Exception) {
+                    Log.e(TAG, "removeStaleShoppingEntries() sync FAILED: ${e.message}")
+                }
+            }
+            _shoppingList.value = _shoppingList.value.filterNot { s -> stale.any { it.id == s.id } }
         }
     }
 

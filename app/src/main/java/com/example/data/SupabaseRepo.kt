@@ -1152,6 +1152,21 @@ object SupabaseRepo {
         }
     }
 
+    /** دمج كميات (aggregation) — تحديث صف موجود، مش addShoppingItem's insert() اللي
+     * كان هيفشل بمفتاح مكرر لو استُخدم على id موجود أصلاً. */
+    suspend fun updateShoppingItemQuantity(id: String, quantity: Int, estimatedPrice: Double) {
+        try {
+            Log.d(TAG, "updateShoppingItemQuantity() → id=$id, quantity=$quantity")
+            client.postgrest["zad_shopping_list"].update(
+                mapOf("quantity" to quantity, "estimated_price" to estimatedPrice)
+            ) { filter { eq("id", id) } }
+            Log.d(TAG, "updateShoppingItemQuantity() SUCCESS")
+        } catch (e: Exception) {
+            Log.e(TAG, "updateShoppingItemQuantity() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
     suspend fun deleteShoppingItem(id: String) {
         try {
             Log.d(TAG, "deleteShoppingItem() → table=zad_shopping_list, id=$id")

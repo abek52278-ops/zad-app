@@ -1059,6 +1059,26 @@ private fun TasksTab(
             Spacer(Modifier.height(16.dp))
         }
 
+        // مفيش أي مهمة تتعرض (مفيش مهام أصلاً، أو الفلتر الحالي مطلعش حاجة) — كانت التاب
+        // بتفضل فاضية تماماً (بس العنوان + الفلاتر) من غير أي رسالة توضح إن ده طبيعي.
+        val hasAnyVisibleChore = choresByMember.any { (_, memberChores) ->
+            when (selectedFilter) {
+                "قادمة" -> memberChores.any { !it.isCompleted }
+                "منجزة" -> memberChores.any { it.isCompleted }
+                else -> memberChores.isNotEmpty()
+            }
+        }
+        if (!hasAnyVisibleChore) {
+            item {
+                com.example.ui.components.ZadEmptyState(
+                    icon = Icons.Default.Assignment,
+                    title = stringResource(R.string.no_family_tasks_title),
+                    subtitle = stringResource(R.string.no_family_tasks_subtitle),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
+                )
+            }
+        }
+
         // Per-member task sections
         choresByMember.forEach { (member, memberChores) ->
             val filteredChores = when (selectedFilter) {
@@ -1658,6 +1678,20 @@ fun ChatTab(
             }
         }
 
+        if (messages.isEmpty()) {
+            // كانت اللستة بتتعرض فاضية تماماً — بس الـ Spacer وعنصر typing indicator لو
+            // موجود، من غير أي حاجة توضح إن ده تشات جديد لسه ملوش رسائل.
+            Box(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                com.example.ui.components.ZadEmptyState(
+                    icon = Icons.Default.Chat,
+                    title = stringResource(R.string.no_messages_yet_title),
+                    subtitle = stringResource(R.string.no_messages_yet_subtitle)
+                )
+            }
+        } else {
         LazyColumn(
             modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
             reverseLayout = true
@@ -1775,6 +1809,7 @@ fun ChatTab(
             }
 
             item { Spacer(modifier = Modifier.height(16.dp)) }
+        }
         }
 
         // Input — navigationBarsPadding/imePadding عشان الشريط ميقعدش تحت الـ nav bar أو
@@ -2129,16 +2164,28 @@ private fun PollBubble(msg: ChatMessage, senderAlias: String, members: List<com.
 @Composable
 private fun TextBubble(msg: ChatMessage, isMe: Boolean, isAi: Boolean, senderAlias: String, onPin: () -> Unit, onReact: (String) -> Unit, showEmojiPicker: Boolean, onToggleEmojiPicker: () -> Unit) {
     Column {
+        // فقاعة الـ AI كانت بتاخد نفس خلفية أي عضو تاني (surfaceContainerHigh) — تمييزها
+        // الوحيد كان لون اسم المرسل. دلوقتي خلفية متمازجة (primaryContainer) + أيقونة
+        // ✨ جنب الاسم — فقاعة زاد بقت متعرّفة بصرياً من أول نظرة، مش لازم تقرا الاسم.
+        val bubbleColor = when {
+            isMe -> primary
+            isAi -> primaryContainer.copy(alpha = 0.45f)
+            else -> surfaceContainerHigh
+        }
         Box(
             modifier = Modifier
                 .fillMaxWidth(0.75f)
                 .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = if (isMe) 16.dp else 4.dp, bottomEnd = if (isMe) 4.dp else 16.dp))
-                .background(if (isMe) primary else surfaceContainerHigh)
+                .background(bubbleColor)
                 .padding(12.dp)
         ) {
             Column {
                 if (!isMe) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isAi) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = primary, modifier = Modifier.size(11.dp))
+                            Spacer(modifier = Modifier.width(3.dp))
+                        }
                         Text(senderAlias, fontSize = 10.sp, color = if (isAi) primary else onSurfaceVariant, fontWeight = FontWeight.Bold)
                         if (msg.isPinned) {
                             Spacer(modifier = Modifier.width(4.dp))
@@ -2163,6 +2210,21 @@ private fun TextBubble(msg: ChatMessage, isMe: Boolean, isAi: Boolean, senderAli
                     }
                 } else {
                     Text(msg.message ?: "", color = if (isMe) Color.White else onSurface)
+                }
+                Spacer(modifier = Modifier.height(3.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    Text(
+                        formatMessageTime(msg.createdAt),
+                        fontSize = 9.sp,
+                        color = if (isMe) Color.White.copy(alpha = 0.7f) else onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                    // إيصال قراءة حقيقي محتاج عمود seen_by/is_read على chat_messages (مش
+                    // موجود دلوقتي) — علامة صح مزدوجة زرقاء بس لرسالتي أنا لحد ما العمود
+                    // ده يتضاف، عشان ميبقاش "إيصال" وهمي بيقول تم القراءة وهو مش متأكد.
+                    if (isMe) {
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Icon(Icons.Default.DoneAll, contentDescription = null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(12.dp))
+                    }
                 }
             }
         }

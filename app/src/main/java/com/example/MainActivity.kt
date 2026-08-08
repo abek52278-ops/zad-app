@@ -115,6 +115,10 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // مفيش وعي بحالة الشبكة كان موجود خالص — SyncOutbox كان بيتصرّف بس كل ٣ ساعات
+        // (TransactionSyncWorker) بغض النظر عن رجوع النت الفعلي. register() idempotent.
+        com.example.data.NetworkMonitor.register(applicationContext)
+
         // Schedule periodic AI analysis (Feature 6)
         val workRequest = PeriodicWorkRequestBuilder<PeriodicAnalysisWorker>(6, TimeUnit.HOURS).build()
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(

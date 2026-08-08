@@ -67,9 +67,6 @@ fun ShoppingListScreen(
     val scope = rememberCoroutineScope()
 
     val unpurchased = shoppingList.filter { !it.isPurchased }
-    val totalPrice = unpurchased.sumOf { it.estimatedPrice * it.quantity }
-    val budgetRemaining = budget - transactions.filter { it.isExpense }.sumOf { it.amount }
-    val budgetPct = if (budget > 0) (totalPrice / budget * 100).toInt().coerceIn(0, 100) else 0
 
     val grocerySuggestions by viewModel.grocerySuggestions.collectAsState()
     val affiliateProducts by viewModel.affiliateProducts.collectAsState()
@@ -97,6 +94,17 @@ fun ShoppingListScreen(
     var isLoadingPrices by remember { mutableStateOf(false) }
     var showPrediction by remember { mutableStateOf(false) }
     var predictionText by remember { mutableStateOf("") }
+
+    // estimatedPrice بيتحسب من متوسط تاريخي حقيقي وقت الإضافة (ZadViewModel.addShoppingItem)،
+    // لكن أي صنف اتضاف بدون تاريخ إنفاق سابق فاضل 0.0 لحد ما تقدير AI (priceEstimates تحت)
+    // يوصله — كان مستبعد تماماً من الإجمالي، فالميزانية المعروضة كانت بتقل عن الحقيقة
+    // لأي صنف جديد كليًا.
+    val totalPrice = unpurchased.sumOf {
+        val perUnit = if (it.estimatedPrice > 0) it.estimatedPrice else priceEstimates[it.itemName]?.avgPrice ?: 0.0
+        perUnit * it.quantity
+    }
+    val budgetRemaining = budget - transactions.filter { it.isExpense }.sumOf { it.amount }
+    val budgetPct = if (budget > 0) (totalPrice / budget * 100).toInt().coerceIn(0, 100) else 0
 
     LaunchedEffect(Unit) {
         viewModel.fetchGrocerySuggestions()

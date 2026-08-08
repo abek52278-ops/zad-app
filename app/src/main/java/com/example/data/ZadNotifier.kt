@@ -50,19 +50,43 @@ object ZadNotifier {
         }
     }
 
+    /**
+     * كان الـ TextToSpeech instance عمره ما بيتعمله shutdown() — كل نداء هنا (من
+     * PeriodicAnalysisWorker كل ٦ ساعات، أو أي HIGH priority notification) بيفتح محرك TTS
+     * جديد وسيبه معلّق للأبد؛ "الـ worker قصير العمر" في التعليق القديم مش حجة — محرك
+     * TTS نفسه بيربط بـ TTS service منفصل عن عمر الـ caller. نفس نمط
+     * PharmacyReminderReceiver.speakReminder: shutdown في onDone/onError + سقف أمان.
+     */
     private fun speakArabic(context: Context, text: String) {
         var tts: TextToSpeech? = null
-        tts = TextToSpeech(context.applicationContext) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                val arabic = Locale("ar")
-                val available = tts?.isLanguageAvailable(arabic) ?: TextToSpeech.LANG_MISSING_DATA
-                if (available >= TextToSpeech.LANG_AVAILABLE) {
-                    tts?.language = arabic
-                    tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "zad_notifier")
-                }
-            }
+        var finished = false
+        fun finishOnce() {
+            if (finished) return
+            finished = true
+            try { tts?.stop(); tts?.shutdown() } catch (e: Exception) { /* ignore */ }
         }
-        // TTS init غير متزامن — نسيب الـ instance يكمل النداء وخلاص؛ الـ worker اللي استدعاه
-        // قصير العمر والمشهد (scene) هنا تنبيه لحظي مش جلسة طويلة.
+
+        tts = TextToSpeech(context.applicationContext) { status ->
+            if (status != TextToSpeech.SUCCESS) {
+                finishOnce()
+                return@TextToSpeech
+            }
+            val arabic = Locale("ar")
+            val available = tts?.isLanguageAvailable(arabic) ?: TextToSpeech.LANG_MISSING_DATA
+            if (available < TextToSpeech.LANG_AVAILABLE) {
+                finishOnce()
+                return@TextToSpeech
+            }
+            tts?.language = arabic
+            tts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) {}
+                override fun onDone(utteranceId: String?) { finishOnce() }
+                @Deprecated("Deprecated in Java")
+                override fun onError(utteranceId: String?) { finishOnce() }
+            })
+            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "zad_notifier")
+        }
+
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ finishOnce() }, 15_000)
     }
 }

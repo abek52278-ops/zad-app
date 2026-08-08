@@ -47,6 +47,8 @@
     <string name="no_transactions">Henüz işlem yok.</string>
     <string name="view_full_history">Tüm geçmişi gör</string>
     <string name="enable_bank_notifications">Banka bildirimlerini etkinleştir</string>
+    <string name="offline_banner_title">İnternet bağlantısı yok</string>
+    <string name="offline_banner_subtitle">Veriler cihazda kaydediliyor, bağlantı geri gelince otomatik senkronize edilecek</string>
     <string name="enable_bank_notifications_desc">SMS ve banka bildirimlerini dinle</string>
     <string name="enable">Etkinleştir</string>
     <string name="close">Kapat</string>
@@ -387,6 +389,10 @@
     <string name="family_members">Aile üyeleri</string>
     <string name="family_poll">Aile oylaması</string>
     <string name="family_tasks">Aile görevleri</string>
+    <string name="no_family_tasks_title">Görev yok</string>
+    <string name="no_family_tasks_subtitle">Aile üyelerinin katılabileceği bir görev ekle</string>
+    <string name="no_messages_yet_title">Sohbete başla</string>
+    <string name="no_messages_yet_subtitle">Henüz mesaj yok — ailene ilk mesajı gönder</string>
     <string name="family_with_code">%1$s ailesi</string>
     <string name="goal_colon">Hedef: %1$s</string>
     <string name="goal_label">Hedef</string>
@@ -436,6 +442,8 @@
     <string name="active_subscriptions_label">Aktif abonelikler</string>
     <string name="behavior_patterns_detected_title">Tespit edilen davranış kalıpları</string>
     <string name="zad_smart_insights_title">Zad akıllı içgörüleri</string>
+    <string name="no_insights_yet_title">Henüz içgörü yok</string>
+    <string name="no_insights_yet_subtitle">Uygulamayı daha çok kullandıkça Zad verilerini analiz edip akıllı içgörüler sunacak</string>
     <string name="renews_today">Bugün yenileniyor</string>
     <string name="expired_since_days">%1$d gündür süresi doldu</string>
     <string name="renews_in_days">%1$d gün sonra yenilenir</string>

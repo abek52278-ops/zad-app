@@ -47,6 +47,8 @@
     <string name="no_transactions">لسه مفيش عمليات.</string>
     <string name="view_full_history">اعرض السجل كامل</string>
     <string name="enable_bank_notifications">فعّل تنبيهات البنك</string>
+    <string name="offline_banner_title">مفيش نت</string>
+    <string name="offline_banner_subtitle">بياناتك بتتحفظ محلياً وهتتزامن أول ما النت يرجع</string>
     <string name="enable_bank_notifications_desc">يسمع الرسايل والتنبيهات بتاعة البنك</string>
     <string name="enable">تفعيل</string>
     <string name="close">قفل</string>
@@ -387,6 +389,10 @@
     <string name="family_members">أفراد العيلة</string>
     <string name="family_poll">تصويت عائلي</string>
     <string name="family_tasks">المهام العائلية</string>
+    <string name="no_family_tasks_title">مفيش مهام</string>
+    <string name="no_family_tasks_subtitle">ضيف مهمة عشان أفراد العيلة يشاركوا فيها</string>
+    <string name="no_messages_yet_title">ابدأ المحادثة</string>
+    <string name="no_messages_yet_subtitle">لسه مفيش رسايل هنا — ابعت أول رسالة لعيلتك</string>
     <string name="family_with_code">عيلة %1$s</string>
     <string name="goal_colon">الهدف: %1$s</string>
     <string name="goal_label">الهدف</string>
@@ -436,6 +442,8 @@
     <string name="active_subscriptions_label">اشتراكات شغالة</string>
     <string name="behavior_patterns_detected_title">أنماط اكتشفناها في صرفك</string>
     <string name="zad_smart_insights_title">ملاحظات زاد الذكية</string>
+    <string name="no_insights_yet_title">لسه مفيش ملاحظات</string>
+    <string name="no_insights_yet_subtitle">زاد هيحلل بياناتك ويطلعلك ملاحظات ذكية أول ما تستخدم التطبيق أكتر</string>
     <string name="renews_today">بيتجدد النهاردة</string>
     <string name="expired_since_days">خلص من %1$d يوم</string>
     <string name="renews_in_days">هيتجدد بعد %1$d يوم</string>

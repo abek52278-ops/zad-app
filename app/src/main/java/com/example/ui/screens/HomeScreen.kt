@@ -291,6 +291,12 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
+                val isOnline by com.example.data.NetworkMonitor.isOnline.collectAsState()
+                if (!isOnline) {
+                    OfflineBanner()
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
                 if (!isNotificationAccessGranted) {
                     NotificationPermissionCard {
                         Log.d(TAG_HOME, "NotificationPermissionCard button clicked")
@@ -1637,6 +1643,30 @@ fun NotificationPermissionCard(onClick: () -> Unit) {
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 Text(stringResource(R.string.enable), fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+/** لا زرار تجاهل — حالة شبكة حقيقية (NetworkMonitor.isOnline) بتختفي وحدها أول ما النت
+ * يرجع، مش تنبيه بيتفتكر زي باقي كروت الهوم القابلة للتجاهل. */
+@Composable
+fun OfflineBanner() {
+    com.example.ui.components.ZadListCard(containerColor = warningColor.copy(alpha = 0.14f), contentPadding = 0.dp) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.CloudOff,
+                contentDescription = null,
+                tint = warningColor,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(stringResource(R.string.offline_banner_title), fontWeight = FontWeight.Bold, color = onSurface)
+                Text(stringResource(R.string.offline_banner_subtitle), fontSize = 12.sp, color = onSurfaceVariant)
             }
         }
     }

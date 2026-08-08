@@ -266,20 +266,32 @@ fun ZadIntelligenceScreen(
             brainReport?.behaviorProfile?.let { bp ->
                 item { BehaviorAnalysisCard(bp) }
             }
-            if (allInsights.isNotEmpty()) {
-                item {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Lightbulb, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            stringResource(R.string.zad_smart_insights_title),
-                            style = Typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = onSurface
-                        )
-                    }
+            // كان القسم كله (العنوان كمان) بيختفي تماماً لما allInsights فاضية — ميزة
+            // اسمها "رؤى زاد الذكية" بتختفي بدل ما تقول "لسه مفيش" كانت بتقرا كأنها مش
+            // موجودة أصلاً، مش كأنها لسه محتاجة بيانات أكتر.
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Lightbulb, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        stringResource(R.string.zad_smart_insights_title),
+                        style = Typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = onSurface
+                    )
                 }
+            }
+            if (allInsights.isNotEmpty()) {
                 items(allInsights.take(8)) { insight -> IntelligenceInsightCard(insight, viewModel) }
+            } else {
+                item {
+                    com.example.ui.components.ZadEmptyState(
+                        icon = Icons.Default.Lightbulb,
+                        title = stringResource(R.string.no_insights_yet_title),
+                        subtitle = stringResource(R.string.no_insights_yet_subtitle),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp)
+                    )
+                }
             }
             item { TasbihaSummaryCard(familyViewModel) }
             item { AmazonPicksSummaryCard(viewModel) }

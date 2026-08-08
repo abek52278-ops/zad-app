@@ -197,18 +197,39 @@ object ZadAlertRouter {
         showSystemNotification(context, title, body)
 
         if (AlertStateStore.canSpeakToday(context)) {
+            // كان الـ TTS instance عمره ما بيتعمله shutdown() — نفس التسريب بالظبط اللي في
+            // ZadNotifier.speakArabic، وده المسار اللي بينادى أكتر (PeriodicAnalysisWorker
+            // كل ٦ ساعات + كل فتح تطبيق + كل دخول geofence). applicationContext هنا كمان
+            // بدل context الخام اللي جاي من الـ caller (ممكن يكون Activity في بعض المسارات).
             var tts: TextToSpeech? = null
-            tts = TextToSpeech(context) { status ->
-                if (status == TextToSpeech.SUCCESS) {
-                    val arabicAvailable = tts?.isLanguageAvailable(java.util.Locale("ar")) ?: TextToSpeech.LANG_NOT_SUPPORTED
-                    if (arabicAvailable >= TextToSpeech.LANG_AVAILABLE) {
-                        tts?.language = java.util.Locale("ar")
-                        tts?.speak("$title. $body", TextToSpeech.QUEUE_FLUSH, null, "zad_brain_alert")
-                    } else {
-                        android.util.Log.w("ZadAlertRouter", "Arabic TTS not available on this device — visual notification only")
-                    }
-                }
+            var finished = false
+            fun finishOnce() {
+                if (finished) return
+                finished = true
+                try { tts?.stop(); tts?.shutdown() } catch (e: Exception) { /* ignore */ }
             }
+
+            tts = TextToSpeech(context.applicationContext) { status ->
+                if (status != TextToSpeech.SUCCESS) {
+                    finishOnce()
+                    return@TextToSpeech
+                }
+                val arabicAvailable = tts?.isLanguageAvailable(java.util.Locale("ar")) ?: TextToSpeech.LANG_NOT_SUPPORTED
+                if (arabicAvailable < TextToSpeech.LANG_AVAILABLE) {
+                    android.util.Log.w("ZadAlertRouter", "Arabic TTS not available on this device — visual notification only")
+                    finishOnce()
+                    return@TextToSpeech
+                }
+                tts?.language = java.util.Locale("ar")
+                tts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {}
+                    override fun onDone(utteranceId: String?) { finishOnce() }
+                    @Deprecated("Deprecated in Java")
+                    override fun onError(utteranceId: String?) { finishOnce() }
+                })
+                tts?.speak("$title. $body", TextToSpeech.QUEUE_FLUSH, null, "zad_brain_alert")
+            }
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ finishOnce() }, 15_000)
         }
     }
 
