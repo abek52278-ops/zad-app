@@ -71,6 +71,16 @@ import kotlinx.coroutines.delay
  * العلوي بتدّي إحساس عمق/زجاج فوق الجراديانت المسطّح اللي كان موجود، بدل ما يفضل لوح
  * لون واحد. الـ 28dp radius الأصلي أكبر من الـ 24dp المطلوب أصلاً — اتسيب زي ما هو.
  */
+/**
+ * Budget Card UI refine — hero number reverted from "متاح" (available, net of committed
+ * obligations) back to plain "الرصيد المتبقي" (remaining = monthlyLimit - spent), per direct
+ * product instruction. This supersedes the BudgetMath.kt Task 26 comment that named
+ * "available" the primary figure specifically to avoid hiding committed obligations behind
+ * a bigger-looking number — that risk is addressed here differently: committed stays fully
+ * visible (pill + its own progress bar below), just no longer pre-subtracted into the one
+ * number the user sees first. `available` is still threaded through only for its confidence/
+ * reason (Task 27.1a — unconfirmed bank transactions), now applied to the remaining figure.
+ */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ZadCardHero(
@@ -80,7 +90,8 @@ fun ZadCardHero(
     committed: Double = 0.0,
     monthlyLimit: Double = 0.0,
     nextObligationText: String? = null,
-    onAvailableLongPress: () -> Unit = {}
+    onAvailableLongPress: () -> Unit = {},
+    onOpenDetail: () -> Unit = {}
 ) {
     val currencyContext = LocalContext.current
     val cardShape = RoundedCornerShape(28.dp)
@@ -90,7 +101,7 @@ fun ZadCardHero(
         shape = cardShape,
         contentPadding = 0.dp
     ) {
-        Box {
+        Box(modifier = Modifier.clickable(onClick = onOpenDetail)) {
             // بقعة ضوء زجاجية أعلى يسار الكارت — API 31+ بس (zadGlassBlur نفسها بترجع
             // no-op تحت كده)، نفس الـ fallback المستخدم في GlassCard الموجودة أصلاً.
             Box(
@@ -104,8 +115,17 @@ fun ZadCardHero(
 
         // mockup: padding 26px top / 24px sides / 22px bottom, 16px gaps.
         Column(modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 26.dp, bottom = 22.dp)) {
+            if (monthlyLimit > 0) {
+                Text(
+                    "${stringResource(R.string.monthly_budget_hero_label)}: ${com.example.data.CurrencyFormatter.format(currencyContext, monthlyLimit)}",
+                    style = Typography.labelSmall.copy(fontSize = 11.sp),
+                    color = Color.White.copy(alpha = 0.55f)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+            }
+
             Text(
-                stringResource(R.string.available_label),
+                stringResource(R.string.remaining_balance_label),
                 style = Typography.labelSmall.copy(fontSize = 11.5.sp, letterSpacing = 0.4.sp),
                 fontWeight = FontWeight.Bold,
                 color = Color.White.copy(alpha = 0.72f)
@@ -120,15 +140,15 @@ fun ZadCardHero(
                 fontSize = 44.sp,
                 fontWeight = FontWeight.ExtraBold,
                 letterSpacing = (-1.2).sp,
-                brush = if (available.value < 0) null else Brush.verticalGradient(
+                brush = if (remaining < 0) null else Brush.verticalGradient(
                     listOf(Color.White, Color(0xFFD9F2E6))
                 )
             )
             Text(
                 (if (!available.confident) "≈ " else "") +
-                    com.example.data.CurrencyFormatter.formatNumber(currencyContext, available.value),
+                    com.example.data.CurrencyFormatter.formatNumber(currencyContext, remaining),
                 style = figureStyle,
-                color = if (available.value < 0) dangerColor else Color.White,
+                color = if (remaining < 0) dangerColor else Color.White,
                 modifier = Modifier.combinedClickable(
                     onClick = { if (!available.confident) showAvailableReason = true },
                     onLongClick = onAvailableLongPress
@@ -138,30 +158,8 @@ fun ZadCardHero(
                 AlertDialog(
                     onDismissRequest = { showAvailableReason = false },
                     confirmButton = { TextButton(onClick = { showAvailableReason = false }) { Text(stringResource(R.string.close_action)) } },
-                    title = { Text(stringResource(R.string.available_label) + " ≈") },
+                    title = { Text(stringResource(R.string.remaining_balance_label) + " ≈") },
                     text = { Text(available.reason!!) }
-                )
-            }
-
-            if (committed > 0) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    if (nextObligationText != null) {
-                        stringResource(
-                            R.string.available_breakdown_with_next,
-                            com.example.data.CurrencyFormatter.format(currencyContext, remaining),
-                            com.example.data.CurrencyFormatter.format(currencyContext, committed),
-                            nextObligationText
-                        )
-                    } else {
-                        stringResource(
-                            R.string.available_breakdown,
-                            com.example.data.CurrencyFormatter.format(currencyContext, remaining),
-                            com.example.data.CurrencyFormatter.format(currencyContext, committed)
-                        )
-                    },
-                    style = Typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.65f)
                 )
             }
 
@@ -200,6 +198,39 @@ fun ZadCardHero(
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     stringResource(R.string.budget_percent_used, (progress * 100).toInt()),
+                    style = Typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.6f)
+                )
+            }
+
+            // شريط تقدّم تاني، منفصل، بس لـ"المحجوز" (التزامات/اشتراكات قادمة) — معلوماتي
+            // بحت، برضه مش بيتخصم من الرقم الكبير فوق. نفس مبدأ عدم الخصم المزدوج
+            // اللي طلبه الريفاين ده، لكن من غير ما يختفي أو يتحط جوه رقم تاني.
+            if (committed > 0 && monthlyLimit > 0) {
+                Spacer(modifier = Modifier.height(10.dp))
+                val committedProgress = (committed / monthlyLimit).toFloat().coerceIn(0f, 1f)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(5.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color.White.copy(alpha = 0.14f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(committedProgress.coerceAtLeast(0.02f))
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(50))
+                            .background(Color(0xFFFF8066))
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    if (nextObligationText != null) {
+                        "${stringResource(R.string.committed_label)}: ${com.example.data.CurrencyFormatter.format(currencyContext, committed)} ($nextObligationText)"
+                    } else {
+                        "${stringResource(R.string.committed_label)}: ${com.example.data.CurrencyFormatter.format(currencyContext, committed)}"
+                    },
                     style = Typography.labelSmall,
                     color = Color.White.copy(alpha = 0.6f)
                 )

@@ -104,6 +104,8 @@ fun HomeScreen(
     val committed by viewModel.committed.collectAsState()
     val nextObligationDue by viewModel.nextObligationDue.collectAsState()
     val daysLeftInCycle by viewModel.daysLeftInCycle.collectAsState()
+    val cycleStart by viewModel.cycleStart.collectAsState()
+    val cycleEnd by viewModel.cycleEnd.collectAsState()
     val showBudgetDialog by viewModel.showBudgetDialog.collectAsState()
     val shoppingList by viewModel.shoppingList.collectAsState()
     val pharmacyItems by viewModel.pharmacyItems.collectAsState()
@@ -370,7 +372,8 @@ fun HomeScreen(
                             committed = committed,
                             monthlyLimit = budget,
                             nextObligationText = nextObligationText,
-                            onAvailableLongPress = { showWhySheet = true }
+                            onAvailableLongPress = { showWhySheet = true },
+                            onOpenDetail = { viewModel.showBudgetDialog() }
                         )
                     } else {
                         // Task 19.0 معيار قبول ٦ — سقف مش مؤكد، نسأل بدل ما نعرض رقم
@@ -736,14 +739,29 @@ fun HomeScreen(
     }
 
     if (showBudgetDialog) {
-        BudgetEditDialog(
+        val cycleExpenseTxs = transactions
+            .filter { tx ->
+                tx.txnKind == "expense" && tx.createdAt?.let { raw ->
+                    try {
+                        val d = java.time.Instant.parse(raw).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                        !d.isBefore(cycleStart) && d.isBefore(cycleEnd)
+                    } catch (e: Exception) { false }
+                } == true
+            }
+            .sortedByDescending { it.createdAt ?: "" }
+        BudgetEditSheet(
             currentBudget = budget,
+            remainingBalance = remainingBalance,
+            committed = committed,
+            expenseTransactions = cycleExpenseTxs,
             onDismiss = { viewModel.hideBudgetDialog() },
             onSave = { newBudget ->
-                Log.d(TAG_HOME, "BudgetEditDialog SAVE → newBudget=$newBudget → calling viewModel.updateBudget()")
+                Log.d(TAG_HOME, "BudgetEditSheet SAVE → newBudget=$newBudget → calling viewModel.updateBudget()")
                 viewModel.updateBudget(newBudget)
                 viewModel.hideBudgetDialog()
-            }
+            },
+            onEditCategory = { id, newCategory -> viewModel.updateTransactionCategory(id, newCategory) },
+            onDeleteTransaction = { id -> viewModel.deleteTransaction(id) }
         )
     }
 
@@ -798,6 +816,9 @@ fun HomeScreen(
     }
 }
 
+/** Plain M3 AlertDialog budget editor — still used by BudgetScreen.kt and BudgetGateScreen.kt.
+ * HomeScreen's own Budget Card uses [BudgetEditSheet] below instead; this one is left as-is
+ * for the other two screens (out of scope for the Budget Card refactor). */
 @Composable
 fun BudgetEditDialog(currentBudget: Double, onDismiss: () -> Unit, onSave: (Double) -> Unit) {
     var budgetStr by remember { mutableStateOf(currentBudget.toInt().toString()) }
@@ -827,6 +848,196 @@ fun BudgetEditDialog(currentBudget: Double, onDismiss: () -> Unit, onSave: (Doub
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
+}
+
+/**
+ * Budget Card master refactor — the Home budget card's editor as an M3 bottom sheet, and
+ * previews "متبقي/محجوز" live as the user types so the effect of a new cap is visible before
+ * Save, not just after (same numbers/formula as BudgetMath.remainingInCycle/availableInCycle
+ * — spentSoFar is derived from the currently loaded remainingBalance, not recomputed
+ * independently, so preview and post-save land on the exact same figure).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BudgetEditSheet(
+    currentBudget: Double,
+    remainingBalance: Double?,
+    committed: Double,
+    expenseTransactions: List<com.example.data.ZadTransaction> = emptyList(),
+    onDismiss: () -> Unit,
+    onSave: (Double) -> Unit,
+    onEditCategory: (String, String) -> Unit = { _, _ -> },
+    onDeleteTransaction: (String) -> Unit = {}
+) {
+    var budgetStr by remember { mutableStateOf(if (currentBudget > 0) currentBudget.toInt().toString() else "") }
+    val context = LocalContext.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var editingCategoryFor by remember { mutableStateOf<com.example.data.ZadTransaction?>(null) }
+
+    val spentSoFar = if (currentBudget > 0 && remainingBalance != null) currentBudget - remainingBalance else 0.0
+    val parsed = budgetStr.toDoubleOrNull()
+    val previewRemaining = parsed?.let { it - spentSoFar }
+    val previewAvailable = previewRemaining?.let { it - committed }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = surface,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 24.dp)
+        ) {
+            Text(stringResource(R.string.edit_monthly_budget), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(stringResource(R.string.budget_save_hint), style = Typography.bodySmall, color = onSurfaceVariant)
+            Spacer(modifier = Modifier.height(20.dp))
+
+            OutlinedTextField(
+                value = budgetStr,
+                onValueChange = { budgetStr = it.filter { c -> c.isDigit() || c == '.' } },
+                label = { Text(stringResource(R.string.budget_with_currency, com.example.data.CurrencyFormatter.symbol(context))) },
+                singleLine = true,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            if (previewRemaining != null && previewAvailable != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    stringResource(
+                        R.string.available_breakdown,
+                        com.example.data.CurrencyFormatter.format(context, previewRemaining),
+                        com.example.data.CurrencyFormatter.format(context, committed)
+                    ),
+                    style = Typography.labelSmall,
+                    color = onSurfaceVariant
+                )
+                Text(
+                    "${stringResource(R.string.available_label)}: ${com.example.data.CurrencyFormatter.format(context, previewAvailable)}",
+                    style = Typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (previewAvailable >= 0) primary else MaterialTheme.colorScheme.error
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.cancel))
+                }
+                Button(
+                    onClick = {
+                        val value = parsed ?: currentBudget
+                        Log.d(TAG_HOME, "BudgetEditSheet confirm → parsed=$value")
+                        onSave(value)
+                    },
+                    enabled = parsed != null && parsed > 0,
+                    modifier = Modifier.weight(1f)
+                ) { Text(stringResource(R.string.save)) }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 20.dp), color = outlineVariant)
+
+            Text(
+                "${stringResource(R.string.spent_label)} · ${com.example.data.CurrencyFormatter.format(context, expenseTransactions.sumOf { it.amount })}",
+                style = Typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = onSurface
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+
+            if (expenseTransactions.isEmpty()) {
+                Text(
+                    stringResource(R.string.no_transactions),
+                    style = Typography.bodySmall,
+                    color = onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 12.dp)
+                )
+            } else {
+                Spacer(modifier = Modifier.height(8.dp))
+                expenseTransactions.forEach { tx ->
+                    BudgetSheetTxRow(
+                        tx = tx,
+                        onEditCategory = { editingCategoryFor = tx },
+                        onDelete = { onDeleteTransaction(tx.id) }
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
+            }
+        }
+    }
+
+    editingCategoryFor?.let { tx ->
+        AlertDialog(
+            onDismissRequest = { editingCategoryFor = null },
+            title = { Text(stringResource(R.string.edit_category_dialog_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    com.example.data.BudgetTracker.STANDARD_CATEGORIES.forEach { cat ->
+                        Text(
+                            cat,
+                            style = Typography.bodyMedium,
+                            color = if (cat == tx.category) primary else onSurface,
+                            fontWeight = if (cat == tx.category) FontWeight.Bold else FontWeight.Normal,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onEditCategory(tx.id, cat)
+                                    editingCategoryFor = null
+                                }
+                                .padding(vertical = 10.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { editingCategoryFor = null }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
+}
+
+@Composable
+private fun BudgetSheetTxRow(
+    tx: com.example.data.ZadTransaction,
+    onEditCategory: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val context = LocalContext.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(background)
+            .clickable(onClick = onEditCategory)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(tx.title, style = Typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = onSurface)
+            Text(tx.category ?: stringResource(R.string.category_label), style = Typography.labelSmall, color = onSurfaceVariant)
+        }
+        Text(
+            com.example.data.CurrencyFormatter.format(context, tx.amount),
+            style = Typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = onSurface
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+            Icon(
+                Icons.Default.DeleteOutline,
+                contentDescription = stringResource(R.string.delete_action),
+                tint = onSurfaceVariant,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
 }
 
 @Composable
