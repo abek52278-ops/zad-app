@@ -8,6 +8,7 @@
     <string name="password">كلمة المرور</string>
     <string name="get_started">ابدأ الآن</string>
     <string name="language_toggle">العربية</string>
+    <string name="session_expired_message">انتهت صلاحية جلستك، يرجى تسجيل الدخول مرة أخرى</string>
 
     <!-- Drawer Items -->
     <string name="nav_home">لوحة التحكم</string>
@@ -888,4 +889,9 @@
     <string name="confirm_action_short">تأكيد</string>
     <string name="affiliate_clicks_recorded">زاد سجّل %1$d نقرة على ترشيحات أمازون</string>
     <string name="affiliate_withdraw_consent">إيقاف الترشيحات</string>
+
+    <string name="outing_suggestion_title">خروجة الأسبوع</string>
+    <string name="outing_suggestion_subtitle">الميزانية جيدة — لدى زاد اقتراح لك:</string>
+    <string name="outing_suggestion_distance_km">على بعد %1$.1f كم</string>
+    <string name="outing_suggestion_distance_m">على بعد %1$d م</string>
 </resources>

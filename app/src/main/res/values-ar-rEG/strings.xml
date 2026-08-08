@@ -10,6 +10,7 @@
     <string name="password">كلمة السر</string>
     <string name="get_started">يلا نبدأ</string>
     <string name="language_toggle">العربية</string>
+    <string name="session_expired_message">خلصت جلستك، سجل دخول تاني</string>
 
     <!-- Drawer Items -->
     <string name="nav_home">الرئيسية</string>
@@ -1013,4 +1014,9 @@
     <string name="confirm_action_short">تأكيد</string>
     <string name="affiliate_clicks_recorded">زاد سجّل %1$d نقرة على ترشيحات أمازون</string>
     <string name="affiliate_withdraw_consent">إيقاف الترشيحات</string>
+
+    <string name="outing_suggestion_title">خروجة الأسبوع</string>
+    <string name="outing_suggestion_subtitle">الميزانية تمام — زاد عنده اقتراح ليك:</string>
+    <string name="outing_suggestion_distance_km">%1$.1f كم منك</string>
+    <string name="outing_suggestion_distance_m">%1$d م منك</string>
 </resources>
