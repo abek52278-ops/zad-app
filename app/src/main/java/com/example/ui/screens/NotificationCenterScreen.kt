@@ -48,7 +48,9 @@ fun NotificationCenterScreen(
     val insights by viewModel.insights.collectAsState()
     val notifications by viewModel.appNotifications.collectAsState()
     val zadInsights by viewModel.zadInsights.collectAsState()
-    val alertInsights = insights.filter { it.type == "Alert" }
+    // "Warning" = budget-at-risk insights (analyzeBudgetOverruns/analyzeSubscriptionUsage) — was
+    // excluded here too, same bug as HomeScreen's alert banner, so they never reached this list.
+    val alertInsights = insights.filter { it.type == "Alert" || it.type == "Warning" }
     // zad-brain's emit_insight(surface="bell") output — was written to zad_insights
     // and never surfaced anywhere; this is its bell-side home now.
     val brainAlerts = zadInsights.filter { it.surface == "bell" }

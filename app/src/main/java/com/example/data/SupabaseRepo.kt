@@ -43,6 +43,13 @@ object SupabaseRepo {
         install(Storage)
     }
 
+    // auth-kt's Auth plugin already persists/restores/refreshes sessions on its own —
+    // alwaysAutoRefresh/autoLoadFromStorage/autoSaveToStorage all default to true, and
+    // Android gets a working context-backed SessionManager for free via an AndroidX
+    // Startup initializer (confirmed by decompiling auth-kt-android-3.0.3; install(Auth)
+    // below never overrides sessionManager, so it resolves to the SDK's own default).
+    // No app-side session persistence code needed — see the removed SessionHelper.
+
     suspend fun signUp(email: String, password: String): Boolean {
         Log.d(TAG, "signUp() → email=$email")
         return try {
@@ -995,8 +1002,10 @@ object SupabaseRepo {
         }
     }
 
-    suspend fun sendMessage(familyId: String, senderId: String, message: String, messageType: String = "TEXT", metadata: String? = null) {
-        try {
+    /** Returns false on failure (caught, not rethrown) — callers must check this instead of
+     * assuming success, since the insert can fail silently otherwise (Task: Chat Send audit). */
+    suspend fun sendMessage(familyId: String, senderId: String, message: String, messageType: String = "TEXT", metadata: String? = null): Boolean {
+        return try {
             Log.d(TAG, "sendMessage() → table=chat_messages, familyId=$familyId, senderId=$senderId, type=$messageType, message=${message.take(30)}")
             val chatMsg = ChatMessage(
                 familyId = familyId,
@@ -1007,9 +1016,11 @@ object SupabaseRepo {
             )
             client.postgrest["chat_messages"].insert(chatMsg)
             Log.d(TAG, "sendMessage() SUCCESS")
+            true
         } catch (e: Exception) {
             Log.e(TAG, "sendMessage() FAILED: ${e.message}")
             e.printStackTrace()
+            false
         }
     }
 

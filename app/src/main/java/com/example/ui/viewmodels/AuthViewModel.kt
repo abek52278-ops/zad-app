@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.SupabaseRepo
-import com.example.data.SessionHelper
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,7 +27,6 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             _authState.value = AuthState.Loading
             val result = SupabaseRepo.signUp(email, pass)
             if (result) {
-                SessionHelper.saveSession(getApplication())
                 com.example.data.CurrentUser.cache(getApplication(), SupabaseRepo.client.auth.currentUserOrNull()?.id)
                 _authState.value = AuthState.Success
             } else {
@@ -42,7 +40,6 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             _authState.value = AuthState.Loading
             val result = SupabaseRepo.signIn(email, pass)
             if (result) {
-                SessionHelper.saveSession(getApplication())
                 com.example.data.CurrentUser.cache(getApplication(), SupabaseRepo.client.auth.currentUserOrNull()?.id)
                 _authState.value = AuthState.Success
             } else {

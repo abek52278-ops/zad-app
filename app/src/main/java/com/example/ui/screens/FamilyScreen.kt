@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -57,6 +58,19 @@ import kotlinx.coroutines.delay
 
 private const val TAG_FAM = "FamilyScreen"
 
+/** HH:mm محلي لعرضه تحت كل فقاعة — مفيش أي وقت كان بيتعرض على الرسائل خالص قبل كده،
+ * msg.createdAt كان مستخدم بس لتجميع فواصل التاريخ (يوم كامل)، مش وقت الرسالة نفسها. */
+private fun formatMessageTime(createdAt: String?): String {
+    if (createdAt.isNullOrBlank()) return ""
+    return try {
+        val instant = java.time.Instant.parse(createdAt)
+        java.time.LocalDateTime.ofInstant(instant, java.time.ZoneId.systemDefault())
+            .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+    } catch (e: Exception) {
+        ""
+    }
+}
+
 @Composable
 fun FamilyScreen(
     pendingInviteCode: String? = null,
@@ -67,6 +81,12 @@ fun FamilyScreen(
     showFinancials: Boolean = true
 ) {
     val state by viewModel.state.collectAsState()
+    val toastContext = LocalContext.current
+    LaunchedEffect(Unit) {
+        viewModel.toastMessage.collect { msg ->
+            android.widget.Toast.makeText(toastContext, msg, android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -193,6 +213,9 @@ fun ActiveFamilyScreen(
     val joinFamilyShareText = stringResource(R.string.join_family_message)
     val inviteCodeColon = stringResource(R.string.invite_code_colon)
     val tapToOpen = stringResource(R.string.tap_to_open)
+    val sosMessageText = stringResource(R.string.sos_message)
+    val headerHaptic = LocalHapticFeedback.current
+    var showSosConfirm by remember { mutableStateOf(false) }
     val tabs = listOf(
         TabData(Icons.Default.Chat, stringResource(R.string.chat_tab)),
         TabData(Icons.Default.Assignment, stringResource(R.string.tasks_tab)),
@@ -235,6 +258,18 @@ fun ActiveFamilyScreen(
                         )
                     }
                     Row {
+                        // نداء طوارئ سريع من أي مكان في الهب — كان قبل كده مدفون جوه زرار
+                        // تاب الشات بس، لازم تفتح المحادثة الأول عشان توصله. تأكيد بضغطة
+                        // واحدة قبل الإرسال — نداء طوارئ حقيقي، مش فعل قابل للتراجع.
+                        IconButton(
+                            onClick = {
+                                headerHaptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                showSosConfirm = true
+                            },
+                            modifier = Modifier.pressableScale()
+                        ) {
+                            Icon(Icons.Default.Warning, contentDescription = stringResource(R.string.sos_message), tint = Color.White)
+                        }
                         IconButton(onClick = { showInviteDialog = true }) {
                             Icon(Icons.Default.PersonAdd, null, tint = Color.White)
                         }
@@ -249,7 +284,60 @@ fun ActiveFamilyScreen(
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // شريط أفاتارات الأعضاء — أول ٦ + شارة "+N" لو زيادة. نفس دايرة الحرف
+                // الأول المستخدمة أصلاً في فقاعات الشات (سطر ~1616) بدل ما نخترع شكل جديد.
+                Row(horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
+                    state.members.take(6).forEach { member ->
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .border(2.dp, primary, CircleShape)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.25f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(member.alias.take(1), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+                    }
+                    if (state.members.size > 6) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .border(2.dp, primary, CircleShape)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.4f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("+${state.members.size - 6}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+                }
             }
+        }
+
+        if (showSosConfirm) {
+            AlertDialog(
+                onDismissRequest = { showSosConfirm = false },
+                icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = dangerColor) },
+                title = { Text(stringResource(R.string.sos_confirm_title), fontWeight = FontWeight.Bold) },
+                text = { Text(stringResource(R.string.sos_confirm_body)) },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            onSendMessage(sosMessageText, "SOS", null)
+                            showSosConfirm = false
+                            selectedTab = 0
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = dangerColor)
+                    ) { Text(stringResource(R.string.sos_send_action)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showSosConfirm = false }) { Text(stringResource(R.string.cancel)) }
+                }
+            )
         }
 
         // The mockup's segmented pill, shared with Zad Mind. Was a
@@ -1531,6 +1619,8 @@ fun ChatTab(
     var text by remember { mutableStateOf("") }
     var showPurchaseDialog by remember { mutableStateOf(false) }
     var showPollDialog by remember { mutableStateOf(false) }
+    var showTaskDialog by remember { mutableStateOf(false) }
+    var showGroceryQuickDialog by remember { mutableStateOf(false) }
     var showEmojiPicker by remember { mutableStateOf<String?>(null) }
     var showQuickReplies by remember { mutableStateOf(false) }
     val sosMessageText = stringResource(R.string.sos_message)
@@ -1687,8 +1777,10 @@ fun ChatTab(
             item { Spacer(modifier = Modifier.height(16.dp)) }
         }
 
-        // Input
-        Box(modifier = Modifier.fillMaxWidth()) {
+        // Input — navigationBarsPadding/imePadding عشان الشريط ميقعدش تحت الـ nav bar أو
+        // لوحة المفاتيح؛ كان معتمد بالكامل على innerPadding بتاعة الـ Scaffold في MainScreen
+        // من غيرهم، وده مش مضمون وقت فتح الكيبورد تحديداً.
+        Box(modifier = Modifier.fillMaxWidth().navigationBarsPadding().imePadding()) {
             Box(modifier = Modifier.matchParentSize().zadGlassBlur(16.dp).background(surface.copy(alpha = 0.9f)))
             Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
             Column {
@@ -1720,6 +1812,13 @@ fun ChatTab(
                 }
 
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    // شريط أيقونات قابل للتمرير — بعد إضافة مهمة/تسوق بقى ٦ أزرار، تكديسها
+                    // في صف ثابت العرض كان هيضغطها/يقصّها؛ التمرير الأفقي يحافظ على ٤٨دp
+                    // (حد أدنى مساحة اللمس) لكل زرار بدل تصغيرها.
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                     IconButton(onClick = { showQuickReplies = !showQuickReplies }, modifier = Modifier.pressableScale()) {
                         Icon(Icons.Default.Add, contentDescription = "Quick Replies", tint = primary)
                     }
@@ -1737,6 +1836,13 @@ fun ChatTab(
                     }
                     IconButton(onClick = { showPollDialog = true }, modifier = Modifier.pressableScale()) {
                         Icon(Icons.Default.BarChart, contentDescription = "Poll", tint = secondary)
+                    }
+                    IconButton(onClick = { showTaskDialog = true }, modifier = Modifier.pressableScale()) {
+                        Icon(Icons.Default.Assignment, contentDescription = stringResource(R.string.tasks_tab), tint = primary)
+                    }
+                    IconButton(onClick = { showGroceryQuickDialog = true }, modifier = Modifier.pressableScale()) {
+                        Icon(Icons.Default.AddShoppingCart, contentDescription = stringResource(R.string.groceries_tab), tint = secondary)
+                    }
                     }
                     Row(
                         modifier = Modifier.weight(1f).clip(RoundedCornerShape(999.dp)).background(surfaceContainerLow).padding(horizontal = 8.dp),
@@ -1827,17 +1933,103 @@ fun ChatTab(
             dismissButton = { TextButton(onClick = { showPollDialog = false }) { Text(stringResource(R.string.cancel)) } }
         )
     }
+
+    // مهمة/عنصر تسوق مباشرة من شريط الشات — كان الوحيد اللي يقدر يضيف عنصر تسوق أصلاً هو
+    // كتابة "أضف حليب" كنص حر (تاب المخزون العائلي مفيهوش زرار إضافة خالص)، ومفيش أي طريقة
+    // لإضافة مهمة من غير الخروج لتاب المهام. الاتنين بيستخدموا نفس المسارات الحقيقية
+    // (viewModel.addChore / quickAddGroceryItem) اللي التابات المنفصلة بتستخدمها.
+    if (showTaskDialog) {
+        var taskTitle by remember { mutableStateOf("") }
+        var selectedAssignee by remember { mutableStateOf(myMemberInfo.id) }
+        var showAssigneeMenu by remember { mutableStateOf(false) }
+        val assigneeAlias = members.find { it.id == selectedAssignee }?.alias ?: myMemberInfo.alias
+        AlertDialog(
+            onDismissRequest = { showTaskDialog = false },
+            title = { Text(stringResource(R.string.add_new_task)) },
+            text = {
+                Column {
+                    OutlinedTextField(value = taskTitle, onValueChange = { taskTitle = it }, label = { Text(stringResource(R.string.task_name)) }, modifier = Modifier.fillMaxWidth())
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(stringResource(R.string.assigned_to_colon), style = Typography.labelMedium, color = onSurface)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Box {
+                        OutlinedTextField(
+                            value = assigneeAlias, onValueChange = {}, readOnly = true, singleLine = true,
+                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null, modifier = Modifier.clickable { showAssigneeMenu = true }) },
+                            modifier = Modifier.fillMaxWidth().clickable { showAssigneeMenu = true }
+                        )
+                        DropdownMenu(expanded = showAssigneeMenu, onDismissRequest = { showAssigneeMenu = false }) {
+                            members.forEach { m ->
+                                DropdownMenuItem(text = { Text(m.alias) }, onClick = { selectedAssignee = m.id; showAssigneeMenu = false })
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    if (taskTitle.isNotBlank()) {
+                        viewModel?.addChore(selectedAssignee, taskTitle.trim(), null, 0.0)
+                        showTaskDialog = false
+                    }
+                }) { Text(stringResource(R.string.add_action)) }
+            },
+            dismissButton = { TextButton(onClick = { showTaskDialog = false }) { Text(stringResource(R.string.cancel)) } }
+        )
+    }
+
+    if (showGroceryQuickDialog) {
+        var groceryName by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showGroceryQuickDialog = false },
+            title = { Text(stringResource(R.string.add_to_shopping_list)) },
+            text = {
+                OutlinedTextField(value = groceryName, onValueChange = { groceryName = it }, placeholder = { Text(stringResource(R.string.eg_milk_placeholder)) }, modifier = Modifier.fillMaxWidth())
+            },
+            confirmButton = {
+                Button(onClick = {
+                    if (groceryName.isNotBlank()) {
+                        viewModel?.quickAddGroceryItem(groceryName.trim())
+                        showGroceryQuickDialog = false
+                    }
+                }) { Text(stringResource(R.string.add_action)) }
+            },
+            dismissButton = { TextButton(onClick = { showGroceryQuickDialog = false }) { Text(stringResource(R.string.cancel)) } }
+        )
+    }
 }
 
+/**
+ * كانت خلفية حمراء مصمتة (Box.background(dangerColor)) — "raw red bubble" بالظبط زي ما
+ * اتوصف. بدّلتها بنفس لغة كارت التنبيه الموجودة أصلاً (InventoryScreen's LowStockBanner):
+ * خلفية دانجر فاتحة + شارة دائرية بلون مصمت للأيقونة + نص ملوّن، مش خلفية كاملة مصمتة —
+ * كارت M3 حقيقي، مش لافتة تحذير خام.
+ */
 @Composable
 private fun SosBubble(msg: ChatMessage, senderAlias: String) {
-    Box(modifier = Modifier.fillMaxWidth(0.85f).clip(RoundedCornerShape(16.dp)).background(dangerColor).padding(16.dp)) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.Warning, contentDescription = "SOS", tint = Color.White, modifier = Modifier.size(32.dp))
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(stringResource(R.string.sos_call_from, senderAlias), color = Color.White, fontWeight = FontWeight.Bold)
+    val shape = RoundedCornerShape(16.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth(0.85f)
+            .clip(shape)
+            .background(dangerColor.copy(alpha = 0.1f))
+            .border(1.dp, dangerColor.copy(alpha = 0.3f), shape)
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier.size(40.dp).clip(CircleShape).background(dangerColor),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Default.Warning, contentDescription = "SOS", tint = Color.White, modifier = Modifier.size(20.dp))
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            Text(stringResource(R.string.sos_call_from, senderAlias), color = dangerColor, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(msg.message ?: "", color = onSurface)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(msg.message ?: "", color = Color.White, textAlign = TextAlign.Center)
+            Text(formatMessageTime(msg.createdAt), style = Typography.labelSmall, color = onSurfaceVariant)
         }
     }
 }
@@ -1894,6 +2086,8 @@ private fun PurchaseBubble(msg: ChatMessage, senderAlias: String, myMemberInfo: 
                     Text(stringResource(R.string.request_rejected), style = Typography.labelMedium, color = dangerColor, fontWeight = FontWeight.Bold)
                 }
             }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(formatMessageTime(msg.createdAt), style = Typography.labelSmall, color = onSurfaceVariant)
         }
     }
 }
@@ -1926,6 +2120,8 @@ private fun PollBubble(msg: ChatMessage, senderAlias: String, members: List<com.
                 }
                 Spacer(modifier = Modifier.height(4.dp))
             }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(formatMessageTime(msg.createdAt), style = Typography.labelSmall, color = onSurfaceVariant)
         }
     }
 }

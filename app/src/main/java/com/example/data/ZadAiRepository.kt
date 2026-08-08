@@ -84,6 +84,10 @@ object ZadAiRepository {
     // "AI succeeded but wrote something callAction's caller doesn't recognize" without
     // fragile prefix-matching on the model's prose formatting.
     const val MEAL_SUGGESTIONS_FALLBACK = "لم أتمكن من إيجاد اقتراحات حالياً."
+    // ZadViewModel._mealSuggestions' initial value before suggestMeals() resolves — exposed so
+    // SmartChefSection can exclude it from "is this a real dish" the same way it already
+    // excludes MEAL_SUGGESTIONS_FALLBACK, instead of treating the loading text as a clickable dish.
+    const val MEAL_SUGGESTIONS_LOADING = "جاري تحليل المخزون..."
 
     // Accurate again as of 2026-08-01: ZadAiGeminiClient really does call Google Gemini,
     // so the name, the SharedPreferences key ("gemini_api_key") and the destination finally

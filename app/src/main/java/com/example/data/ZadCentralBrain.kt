@@ -167,6 +167,35 @@ object ZadCentralBrain {
             ))
         }
 
+        // ====== 3ب. صيدلية — دواء قارب على النفاد ======
+        // نفس عتبة daysOfSupplyLeft() <= 5 المستخدمة أصلاً كبادج في PharmacyScreen (Models.kt)
+        // — هنا كانت العتبة دي معروضة بس لما المستخدم يفتح شاشة الصيدلية بنفسه، من غير أي
+        // تنبيه استباقي زي مخزون الأكل فوق بالظبط. pharmacyItems أصلاً بارامتر موجود في
+        // fullAnalysis (كان بيتغذّى بس لـ runAiProactiveActions كسياق للـ LLM، مش لقرار حتمي).
+        val lowStockPharmacy = pharmacyItems.filter { (it.daysOfSupplyLeft() ?: Int.MAX_VALUE) <= 5 }
+        if (lowStockPharmacy.isNotEmpty()) {
+            val names = lowStockPharmacy.joinToString(", ") { it.name }
+            alerts.add("💊 دواء قارب على النفاد: $names")
+            smartNotifications.add(SmartNotification(
+                type = "PHARMACY_LOW_STOCK",
+                title = "💊 دواء قارب على النفاد",
+                body = "راجع مخزون: $names",
+                priority = "HIGH"
+            ))
+            // رسالة شات العائلة مرة واحدة في اليوم لكل صنف بس (مفتاح SharedPreferences بتاريخ
+            // اليوم) — الـ worker ده كل ٦ ساعات، وده كان هيبعت نفس الرسالة ٤ مرات يومياً
+            // من غير الحد ده.
+            val prefs = context.getSharedPreferences("zad_prefs", Context.MODE_PRIVATE)
+            val alertedKey = "pharmacy_low_stock_alerted_$today"
+            val alerted = prefs.getStringSet(alertedKey, emptySet())?.toMutableSet() ?: mutableSetOf()
+            val newlyAlerted = lowStockPharmacy.filter { it.id !in alerted }
+            if (newlyAlerted.isNotEmpty()) {
+                sendFamilyAlert("💊 دواء قارب على النفاد: ${newlyAlerted.joinToString(", ") { it.name }}")
+                alerted.addAll(newlyAlerted.map { it.id })
+                prefs.edit().putStringSet(alertedKey, alerted).apply()
+            }
+        }
+
         // ====== 4. SUBSCRIPTION INTELLIGENCE ======
         val activeSubs = subscriptions.filter { it.isActive }
         activeSubs.forEach { sub ->
@@ -414,6 +443,23 @@ object ZadCentralBrain {
      *   for a scheduled dose, or null for an ad-hoc "I took it" outside any schedule — ad-hoc
      *   calls are never deduped against each other, each is a genuinely new event.
      */
+    /**
+     * مشترك بين وصول ميعاد الجرعة (PharmacyReminderReceiver)، أخذها (markPharmacyDoseTaken
+     * تحت)، وفواتها (PeriodicAnalysisWorker) — نفس نمط NOTIFY_FAMILY (executeAiAction فوق):
+     * senderId="zad_ai" (FamilyScreen.kt بيتعرف عليه ويعرضه كرسالة زاد، مش عضو حقيقي).
+     * Best effort — فشلها (مفيش عائلة، أو الشبكة واقعة) ميوقفش الفعل الأساسي.
+     */
+    suspend fun sendFamilyAlert(message: String) {
+        try {
+            val familyId = SupabaseRepo.getMyFamilyMember()?.familyId
+            if (familyId != null) {
+                SupabaseRepo.sendMessage(familyId, "zad_ai", message)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "sendFamilyAlert() failed: ${e.message}")
+        }
+    }
+
     suspend fun markPharmacyDoseTaken(context: Context, itemId: String, doseLogId: String? = null, scheduledAt: String? = null): Boolean = withContext(Dispatchers.IO) {
         val dao = com.example.data.local.ZadDatabase.getDatabase(context).zadDao()
         val item = dao.getAllPharmacyItemsOnce().find { it.id == itemId } ?: return@withContext false
@@ -465,6 +511,7 @@ object ZadCentralBrain {
                 Log.e(TAG, "markPharmacyDoseTaken() ad-hoc dose log sync failed: ${e.message}")
             }
         }
+        sendFamilyAlert("✅ ${item.name} — تم أخذ الجرعة")
         true
     }
 

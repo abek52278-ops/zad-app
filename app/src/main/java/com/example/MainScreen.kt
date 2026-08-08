@@ -352,6 +352,12 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                     }
                 }
             }
+            if (chromeVisible) {
+                com.example.ui.components.FloatingMascotCompanion(
+                    viewModel = viewModel,
+                    kidsMode = kidsModeEffective
+                )
+            }
         }
     }
 

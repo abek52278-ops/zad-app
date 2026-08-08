@@ -621,6 +621,9 @@
     <string name="shared_grocery_list_hint">قائمة المشتريات اللي أضافها أفراد العيلة أو اقترحها زاد.</string>
     <string name="sos_call_from">نداء طوارئ من %1$s!</string>
     <string name="sos_message">الرجاء الانتباه، حالة طوارئ!</string>
+    <string name="sos_confirm_title">تأكيد نداء الطوارئ</string>
+    <string name="sos_confirm_body">هيتبعت تنبيه فوري لكل أفراد العيلة إنك محتاج مساعدة. متأكد؟</string>
+    <string name="sos_send_action">ابعت النداء</string>
     <string name="tap_member_for_achievements">دوس على أي عضو تشوف إنجازاته</string>
     <string name="tap_to_open">أو دوس:</string>
     <string name="tasbiha_trees_count">أشجار التسبيح (%1$d)</string>
@@ -704,8 +707,6 @@
     <string name="kick_member">شيل العضو</string>
     <string name="low_inventory_alerts">تنبيهات نقص المخزون</string>
     <string name="low_inventory_alerts_desc">بيبعت إشعار لما منتج أساسي يقرب يخلص</string>
-    <string name="meal_suggestions_alert">اقتراحات الأكل</string>
-    <string name="meal_suggestions_alert_desc">اقتراح أكل يومي بناءً على المخزون الحالي</string>
     <string name="tasbih_reminder_alert">تذكير التسبيح</string>
     <string name="tasbih_reminder_alert_desc">تذكير لطيف الساعة 5 العصر لو لسه ما سبحتش النهاردة</string>
     <string name="bank_reading_status_title">قراءة إشعارات البنك</string>

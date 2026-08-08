@@ -18,6 +18,12 @@ import java.time.LocalDate
  * بتمنع الخصم يتسجل مرتين (نفس شكل مشكلة تكرار استيراد الـ CSV). بيتفحص على شهر التجديد
  * + مبلغ (سماحية ٠.٠٠٥) + (عنوان متطابق جزئياً أو نفس مزوّد الخدمة).
  */
+internal fun nextRenewalDate(from: LocalDate, billingCycle: String?): LocalDate = when (billingCycle?.uppercase()) {
+    "YEARLY", "ANNUAL" -> from.plusYears(1)
+    "WEEKLY" -> from.plusWeeks(1)
+    else -> from.plusMonths(1)
+}
+
 internal fun isSubscriptionAlreadyCharged(tx: ZadTransaction, sub: ZadSubscription, renewal: LocalDate): Boolean {
     val txDate = try { LocalDate.parse((tx.createdAt ?: "").take(10)) } catch (e: Exception) { null } ?: return false
     if (txDate.year != renewal.year || txDate.monthValue != renewal.monthValue) return false
@@ -78,11 +84,7 @@ class SubscriptionAutoDeductWorker(
                     Log.d(TAG, "Skipping auto-deduct for ${sub.title} — bank already reported this charge this cycle")
                 }
 
-                val nextRenewal = when (sub.billingCycle?.uppercase()) {
-                    "YEARLY", "ANNUAL" -> renewal.plusYears(1)
-                    "WEEKLY" -> renewal.plusWeeks(1)
-                    else -> renewal.plusMonths(1)
-                }.toString()
+                val nextRenewal = nextRenewalDate(renewal, sub.billingCycle).toString()
                 dao.insertSubscription(sub.copy(renewalDate = nextRenewal))
                 try { SupabaseRepo.updateSubscriptionRenewalDate(sub.id, nextRenewal) } catch (e: Exception) {
                     Log.e(TAG, "updateSubscriptionRenewalDate sync failed for ${sub.title}: ${e.message}")
@@ -94,6 +96,23 @@ class SubscriptionAutoDeductWorker(
                         "تم خصم ${sub.title} تلقائياً",
                         "${com.example.data.CurrencyFormatter.format(applicationContext, sub.amount)} خُصمت من ميزانيتك — التجديد الجاي ${nextRenewal.take(10)}"
                     )
+                }
+            }
+
+            // اشتراكات من غير auto_deduct (المستخدم بيدفعها بنفسه) كانت مستبعدة تماماً من
+            // أي rollover — renewal_date فاضل عالق في الماضي للأبد لحد ما المستخدم يعدّله
+            // يدوياً بنفسه (مفيش شاشة تعديل تاريخ تجديد أصلاً)، فأي حساب "متبقي X يوم" أو
+            // "بيتجدد اليوم" (ZadCentralBrain.fullAnalysis, ZadViewModel.generateSmartNotifications)
+            // كان بيفضل يكرر نفس التنبيه للأبد. نفس منطق تقديم التاريخ فوق، من غير معاملة
+            // ومن غير إشعار خصم (مفيش خصم حقيقي حصل).
+            subs.filter { it.isActive && !it.autoDeduct && !it.renewalDate.isNullOrBlank() }.forEach { sub ->
+                val renewal = try { LocalDate.parse(sub.renewalDate!!.take(10)) } catch (e: Exception) { null } ?: return@forEach
+                if (renewal.isAfter(today)) return@forEach
+
+                val nextRenewal = nextRenewalDate(renewal, sub.billingCycle).toString()
+                dao.insertSubscription(sub.copy(renewalDate = nextRenewal))
+                try { SupabaseRepo.updateSubscriptionRenewalDate(sub.id, nextRenewal) } catch (e: Exception) {
+                    Log.e(TAG, "updateSubscriptionRenewalDate (non-auto-deduct) sync failed for ${sub.title}: ${e.message}")
                 }
             }
 

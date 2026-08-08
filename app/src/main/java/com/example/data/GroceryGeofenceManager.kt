@@ -42,7 +42,7 @@ object GroceryGeofenceManager {
     private const val KEY_STORE_NAMES = "geofence_store_names" // JSON: { geofenceId: storeName }
     private const val KEY_LAST_NOTIFIED_PREFIX = "last_notified_"
     private const val MAX_GEOFENCES_PER_CATEGORY = 15
-    private const val GEOFENCE_RADIUS_METERS = 200f
+    private const val GEOFENCE_RADIUS_METERS = 100f
     private const val SEARCH_RADIUS_METERS = 3000
     const val NOTIFY_COOLDOWN_MS = 24 * 60 * 60 * 1000L // مرة كل ٢٤ ساعة لنفس المحل، عشان مايبقاش إزعاج
 

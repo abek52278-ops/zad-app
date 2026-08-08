@@ -86,8 +86,13 @@ private data class CategoryDef(
     val fg: Color
 )
 
-/** إيموجي مميز لكل منتج (بدل أيقونة Material العامة) — يُستخدم مع floatingIdle() لإحساس "حي" متحرك لكل صنف في المخزون. */
-private fun getEmojiForItem(itemName: String): String {
+/**
+ * إيموجي مميز لكل منتج (بدل أيقونة Material العامة) — يُستخدم مع floatingIdle() لإحساس "حي"
+ * متحرك لكل صنف في المخزون. لو الاسم مش متعرّف عليه، الفallback بقى إيموجي التصنيف
+ * (🥦 للخضار، 🥫 للبقالة...) بدل صندوق عام واحد للكل — كان كل صنف مش من القايمة اليدوية
+ * دي (زي أي حاجة من مسح AI باسم غير متوقع) بيرجع 📦 بغض النظر عن تصنيفه الفعلي.
+ */
+private fun getEmojiForItem(itemName: String, category: String? = null): String {
     val lower = itemName.lowercase()
     return when {
         "بيض" in lower -> "🥚"
@@ -114,8 +119,19 @@ private fun getEmojiForItem(itemName: String): String {
         "جبن" in lower || "جبنة" in lower -> "🧀"
         "أرز" in lower || "رز" in lower -> "🍚"
         "معكرونة" in lower || "مكرونة" in lower -> "🍝"
-        else -> "📦"
+        else -> emojiForCategory(normalizeCategoryKey(category))
     }
+}
+
+private fun emojiForCategory(categoryKey: String): String = when (categoryKey) {
+    "البقالة" -> "🥫"
+    "الخضار" -> "🥦"
+    "الفواكه" -> "🍎"
+    "اللحوم" -> "🥩"
+    "الألبان" -> "🥛"
+    "المشروبات" -> "🥤"
+    "العناية" -> "🧴"
+    else -> "📦"
 }
 
 private val categoryDefs = listOf(
@@ -130,8 +146,33 @@ private val categoryDefs = listOf(
     CategoryDef("أخرى", "أخرى", Icons.Default.MoreHoriz, Color(0xFFF5F5F5), Color(0xFF757575))
 )
 
+/**
+ * الفئات القادمة من مسح AI (zad-core-intelligence's meal_suggestions/inventory prompts) نص حر
+ * بلا قاموس مقيّد — ممكن ترجع "خضروات" مش "الخضار"، أو "عام" (نفس مثال الـ JSON schema
+ * في الـ prompt) بدل تصنيف حقيقي. من غير التطبيع ده، الصنف كان بيختفي من كل تابات
+ * التصنيف (يفضل يظهر بس تحت "الكل") لأن الفلتر كان بيقارن النص الخام حرفياً. يرجع نفس
+ * مفاتيح [categoryDefs] بالظبط.
+ */
+private fun normalizeCategoryKey(raw: String?): String {
+    val v = raw?.trim().orEmpty()
+    if (v.isEmpty()) return "أخرى"
+    if (categoryDefs.any { it.key == v }) return v
+    val lower = v.lowercase()
+    return when {
+        "خضر" in v || "vegetable" in lower -> "الخضار"
+        "فاكه" in v || "فواك" in v || "fruit" in lower -> "الفواكه"
+        "لحم" in v || "لحوم" in v || "دجاج" in v || "فراخ" in v || "دواجن" in v ||
+            "meat" in lower || "poultry" in lower -> "اللحوم"
+        "لبن" in v || "ألبان" in v || "البان" in v || "جبن" in v || "dairy" in lower -> "الألبان"
+        "مشروب" in v || "عصير" in v || "beverage" in lower || "drink" in lower -> "المشروبات"
+        "عناي" in v || "تنظيف" in v || "نظاف" in v || "hygiene" in lower || "clean" in lower -> "العناية"
+        "بقال" in v || "غذائي" in v || "grocery" in lower || "groceries" in lower -> "البقالة"
+        else -> "أخرى"
+    }
+}
+
 private fun categoryDefFor(key: String?): CategoryDef =
-    categoryDefs.find { it.key == key } ?: categoryDefs.last()
+    categoryDefs.find { it.key == normalizeCategoryKey(key) } ?: categoryDefs.last()
 
 private val units = listOf("حبة", "كيلو", "جرام", "لتر", "علبة", "كيس", "قرشة", "صندوق")
 private val unitLabels = listOf("حبة", "كجم", "جرام", "لتر", "علبة", "كيس", "قرشة", "صندوق")
@@ -175,7 +216,10 @@ fun InventoryScreen(
 
     val filteredItems = remember(allItems, selectedCategory, searchQuery) {
         allItems.filter { item ->
-            val matchesCategory = selectedCategory == "الكل" || item.category == selectedCategory
+            // normalizeCategoryKey — raw item.category (AI-scanned items especially) doesn't
+            // always match a categoryDefs key exactly, so compare on the normalized key, not
+            // the raw string, or a mistagged "خضروات" item would vanish from every tab except "الكل".
+            val matchesCategory = selectedCategory == "الكل" || normalizeCategoryKey(item.category) == selectedCategory
             val matchesSearch = searchQuery.isBlank() || item.itemName.contains(searchQuery, ignoreCase = true)
             matchesCategory && matchesSearch
         }
@@ -232,7 +276,10 @@ fun InventoryScreen(
                 } else {
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(2),
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                        // bottom=100dp clears the floating Add/Scan buttons — same clearance
+                        // EmptyInventoryState/EmptySearchState already use below; the grid
+                        // itself was still using a flat 12dp, so its last row sat under the FABs.
+                        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 100.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize()
@@ -266,7 +313,10 @@ fun InventoryScreen(
                 } else {
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(2),
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                        // bottom=100dp clears the floating Add/Scan buttons — same clearance
+                        // EmptyInventoryState/EmptySearchState already use below; the grid
+                        // itself was still using a flat 12dp, so its last row sat under the FABs.
+                        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 100.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize()
@@ -656,7 +706,7 @@ private fun InventoryItemCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = getEmojiForItem(item.itemName),
+                        text = getEmojiForItem(item.itemName, item.category),
                         fontSize = 20.sp,
                         modifier = Modifier.floatingIdle(amplitude = 2.5f)
                     )
@@ -809,7 +859,7 @@ private fun ShortageItemCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = getEmojiForItem(item.itemName),
+                        text = getEmojiForItem(item.itemName, item.category),
                         fontSize = 18.sp,
                         modifier = Modifier.floatingIdle(amplitude = 2f)
                     )

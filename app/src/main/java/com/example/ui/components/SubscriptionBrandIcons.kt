@@ -2,6 +2,7 @@ package com.example.ui.components
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.LiveTv
@@ -10,6 +11,7 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.SmartDisplay
 import androidx.compose.material.icons.filled.Theaters
+import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -35,7 +37,9 @@ private val subscriptionBrands: List<Pair<List<String>, SubscriptionBrand>> = li
     listOf("apple music", "آبل ميوزك", "icloud", "آيكلاود") to SubscriptionBrand(Icons.Default.Cloud, Color(0xFF555555)),
     listOf("shahid", "شاهد") to SubscriptionBrand(Icons.Default.LiveTv, Color(0xFF00A651)),
     listOf("stc", "موبايلي", "زين", "vodafone", "فودافون", "orange", "اورانج", "إنترنت", "انترنت") to SubscriptionBrand(Icons.Default.Wifi, Color(0xFF3B82F6)),
-    listOf("جيم", "gym", "fitness") to SubscriptionBrand(Icons.Default.FitnessCenter, Color(0xFFF97316))
+    listOf("جيم", "gym", "fitness") to SubscriptionBrand(Icons.Default.FitnessCenter, Color(0xFFF97316)),
+    listOf("مياه", "المياه", "water") to SubscriptionBrand(Icons.Default.WaterDrop, Color(0xFF0EA5E9)),
+    listOf("كهرباء", "الكهرباء", "كهربا", "electricity") to SubscriptionBrand(Icons.Default.Bolt, Color(0xFFF59E0B))
 )
 
 /** بيدوّر في العنوان والمزوّد مع بعض — عشان "Netflix" ممكن تيجي في title أو provider حسب مصدر الاشتراك */

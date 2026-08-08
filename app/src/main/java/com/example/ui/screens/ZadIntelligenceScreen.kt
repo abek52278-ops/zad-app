@@ -20,12 +20,12 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.TrendingFlat
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
@@ -54,7 +54,12 @@ import com.example.data.ZadAiRepository
 import kotlinx.coroutines.launch
 
 // ════════════════════════════════════════════════════════════════
-//  MAIN SCREEN
+//  MAIN SCREEN — single-scroll analytics dashboard (Apple-style).
+//  Replaces the old 3-tab layout (نظرة عامة / السلوك والتوقعات / أدوات ومحادثة):
+//  same underlying cards and calc functions, reorganized into one scroll with
+//  clear hierarchy — executive health at top, charts/radar in the middle, AI
+//  projections + smart tools + chat at the bottom — instead of forcing the user
+//  to switch tabs to compare related numbers.
 // ════════════════════════════════════════════════════════════════
 
 @Composable
@@ -63,6 +68,9 @@ fun ZadIntelligenceScreen(
     familyViewModel: com.example.ui.viewmodels.FamilyViewModel,
     onNavigateToFamily: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val otherCategoryLabel = stringResource(R.string.other_category)
+
     val transactions by viewModel.transactions.collectAsState()
     val inventory by viewModel.inventory.collectAsState()
     val subscriptions by viewModel.subscriptions.collectAsState()
@@ -72,14 +80,15 @@ fun ZadIntelligenceScreen(
     val patterns by viewModel.behaviorPatterns.collectAsState()
     val serverBehaviorProfile by viewModel.behaviorProfile.collectAsState()
     val isRefreshingBehaviorProfile by viewModel.isRefreshingBehaviorProfile.collectAsState()
-    // predictNextMonthExpenses() below already fires this AI call every time the screen
-    // opens — it was collected nowhere in this screen until now, so the real answer sat
-    // unused while BehaviorPredictionsTab showed only the local weighted-average fallback.
+    // predictNextMonthExpenses() below fires this AI call every time the screen opens.
     val expensePrediction by viewModel.expensePrediction.collectAsState()
     val budget by viewModel.budget.collectAsState()
+    val brainReport by viewModel.brainReport.collectAsState()
+    val emergencyFund by viewModel.emergencyFund.collectAsState()
+    val companionState by viewModel.companionState.collectAsState()
 
-    var selectedTab by remember { mutableIntStateOf(0) }
     var inputText by remember { mutableStateOf("") }
+    var chatExpanded by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     LaunchedEffect(messages.size) {
@@ -96,214 +105,19 @@ fun ZadIntelligenceScreen(
         viewModel.refreshBehaviorProfile()
     }
 
-    val brainReport by viewModel.brainReport.collectAsState()
-
-    // Transparent, not `background`: MainScreen paints the mockup's canvas gradient
-    // behind every screen. A white fill here is what made this screen's white cards
-    // read as flat dead blocks (white card on white page, shadow invisible).
-    Column(modifier = Modifier.fillMaxSize()) {
-        val tabs = listOf(
-            stringResource(R.string.tab_overview),
-            stringResource(R.string.tab_behavior_predictions),
-            stringResource(R.string.tab_tools_chat)
-        )
-        com.example.ui.components.ZadSegmentedTabs(
-            tabs = tabs,
-            selectedIndex = selectedTab,
-            onSelect = { selectedTab = it }
-        )
-
-        AnimatedContent(
-            targetState = selectedTab,
-            transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(250)) },
-            label = "tabs"
-        ) { tab ->
-            when (tab) {
-                0 -> OverviewTab(
-                    transactions = transactions,
-                    inventory = inventory,
-                    subscriptions = subscriptions,
-                    report = brainReport,
-                    viewModel = viewModel,
-                    familyViewModel = familyViewModel
-                )
-                1 -> BehaviorPredictionsTab(
-                    transactions = transactions,
-                    inventory = inventory,
-                    subscriptions = subscriptions,
-                    patterns = patterns,
-                    report = brainReport,
-                    serverBehaviorProfile = serverBehaviorProfile,
-                    isRefreshingBehaviorProfile = isRefreshingBehaviorProfile,
-                    onRefreshBehaviorProfile = { viewModel.refreshBehaviorProfile() },
-                    expensePrediction = expensePrediction,
-                    budget = budget,
-                    viewModel = viewModel
-                )
-                else -> ToolsChatTab(
-                    insights = insights,
-                    report = brainReport,
-                    predictedNextMonth = predictNextMonth(computeMonthlyData(transactions, LocalContext.current)),
-                    viewModel = viewModel,
-                    familyViewModel = familyViewModel,
-                    onNavigateToFamily = onNavigateToFamily,
-                    messages = messages,
-                    isTyping = isTyping,
-                    inputText = inputText,
-                    listState = listState,
-                    onInputChange = { inputText = it },
-                    onSend = {
-                        if (inputText.isNotBlank()) {
-                            viewModel.sendAiChatMessage(inputText)
-                            inputText = ""
-                        }
-                    }
-                )
-            }
-        }
-    }
-}
-
-// ════════════════════════════════════════════════════════════════
-//  TAB 1: OVERVIEW (financial health at a glance)
-// ════════════════════════════════════════════════════════════════
-
-@Composable
-fun OverviewTab(
-    transactions: List<ZadTransaction>,
-    inventory: List<ZadInventory>,
-    subscriptions: List<ZadSubscription>,
-    report: com.example.data.ZadCentralBrain.BrainReport? = null,
-    viewModel: ZadViewModel,
-    familyViewModel: com.example.ui.viewmodels.FamilyViewModel
-) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val otherCategoryLabel = stringResource(R.string.other_category)
-    val emergencyFund by viewModel.emergencyFund.collectAsState()
-    val expenses = transactions.filter { it.isExpense }
-    val income = transactions.filter { !it.isExpense }
-    // كانوا totalExpense/totalIncome على كل الوقت، وبيتعرضوا تحت كارت الصحة المالية
-    // اللي بيعرض مصروف الشهر — يعني نفس الشاشة كان فيها رقمين مختلفين اسمهم "مصروف"
-    // من غير ما حاجة تفرّق بينهم. الاتنين بقوا بحدود الدورة، زي الرئيسية والميزانية.
-    val totalExpense by viewModel.spentThisCycle.collectAsState()
-    val totalIncome by viewModel.incomeThisCycle.collectAsState()
-
     // نفس بق دونات الفئات القديم: كان بيجمع كل الوقت بينما الكروت فوقيه (totalExpense) بقت
     // بحدود الدورة — نفس حدود _cycleStart/_cycleEnd اللي الهوم/البادجت/الشات بيستخدموها.
     val cycleStart by viewModel.cycleStart.collectAsState()
     val cycleEnd by viewModel.cycleEnd.collectAsState()
-    val categoryMap = expenses
+    val totalExpense by viewModel.spentThisCycle.collectAsState()
+    val totalIncome by viewModel.incomeThisCycle.collectAsState()
+    val categoryMap = transactions.filter { it.isExpense }
         .filter { tx -> com.example.data.BudgetMath.txDate(tx)?.let { d -> !d.isBefore(cycleStart) && d.isBefore(cycleEnd) } == true }
         .groupBy { it.category ?: otherCategoryLabel }
         .mapValues { it.value.sumOf { t -> t.amount } }
         .toList()
         .sortedByDescending { it.second }
 
-    val monthlyData = computeMonthlyData(transactions, context)
-    val predictedNextMonth = predictNextMonth(monthlyData)
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // ═══ تقرير العقل: نقاط الصحة المالية ═══
-        if (report != null) {
-            item { SpendingPowerGaugeCard(report.spendingPower) }
-            item { HealthScoreCard(report) }
-            item { FinancialStressTestCard(transactions, emergencyFund, onUpdateEmergencyFund = { viewModel.updateEmergencyFund(it) }) }
-            report.monthComparison?.let { mc ->
-                item { MonthComparisonCard(mc) }
-            }
-            if (report.depletionForecasts.isNotEmpty()) {
-                item { DepletionForecastCard(report.depletionForecasts) }
-            }
-            item { ExportReportButton(report) }
-        }
-
-        // بستان التسبيح وترشيحات أمازون — الاتنين بيانات حقيقية موجودة من زمان بس
-        // شاشة عقل زاد ماكانتش بتعرض أي منهم خالص.
-        item { TasbihaSummaryCard(familyViewModel) }
-        item { AmazonPicksSummaryCard(viewModel) }
-
-        // إحصائيات سريعة
-        item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MiniStatCard(
-                    modifier = Modifier.weight(1f),
-                    label = stringResource(R.string.expense_label),
-                    value = com.example.data.CurrencyFormatter.format(context, totalExpense),
-                    icon = Icons.Default.TrendingDown,
-                    iconColor = dangerColor,
-                    bgColor = dangerColor.copy(alpha = 0.08f)
-                )
-                MiniStatCard(
-                    modifier = Modifier.weight(1f),
-                    label = stringResource(R.string.income_label),
-                    value = com.example.data.CurrencyFormatter.format(context, totalIncome),
-                    icon = Icons.Default.TrendingUp,
-                    iconColor = successColor,
-                    bgColor = successColor.copy(alpha = 0.08f)
-                )
-            }
-        }
-
-        item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MiniStatCard(
-                    modifier = Modifier.weight(1f),
-                    label = stringResource(R.string.nav_inventory),
-                    value = stringResource(R.string.inventory_items_count_pill, inventory.size),
-                    icon = Icons.Default.Inventory2,
-                    iconColor = catTransportIcon,
-                    bgColor = catTransportBg
-                )
-                MiniStatCard(
-                    modifier = Modifier.weight(1f),
-                    label = stringResource(R.string.active_subscriptions_label),
-                    value = "${subscriptions.count { it.isActive }}",
-                    icon = Icons.Default.Subscriptions,
-                    iconColor = catBillsIcon,
-                    bgColor = catBillsBg
-                )
-            }
-        }
-
-        // توزيع المصروفات
-        item { ExpenseDonutCard(categoryMap = categoryMap, total = totalExpense) }
-
-        // الرسم البياني الشهري
-        item {
-            MonthlyBarChartCard(
-                monthlyData = monthlyData,
-                predictedNextMonth = predictedNextMonth
-            )
-        }
-
-        item { Spacer(modifier = Modifier.height(80.dp)) }
-    }
-}
-
-// ════════════════════════════════════════════════════════════════
-//  TAB 2: BEHAVIOR & PREDICTIONS
-// ════════════════════════════════════════════════════════════════
-
-@Composable
-fun BehaviorPredictionsTab(
-    transactions: List<ZadTransaction>,
-    inventory: List<ZadInventory>,
-    subscriptions: List<ZadSubscription>,
-    patterns: List<com.example.data.ZadBehaviorPattern>,
-    report: com.example.data.ZadCentralBrain.BrainReport? = null,
-    serverBehaviorProfile: com.example.data.UserBehaviorProfile? = null,
-    isRefreshingBehaviorProfile: Boolean = false,
-    onRefreshBehaviorProfile: () -> Unit = {},
-    expensePrediction: com.example.data.AiExpensePrediction? = null,
-    budget: Double = 0.0,
-    viewModel: ZadViewModel
-) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val otherCategoryLabel = stringResource(R.string.other_category)
     val monthlyData = computeMonthlyData(transactions, context)
     val predictedNextMonth = predictNextMonth(monthlyData)
     val lowStockCount = inventory.count { it.quantity <= (it.lowStockThreshold ?: 2) }
@@ -315,197 +129,200 @@ fun BehaviorPredictionsTab(
         .map { it.first }
         .take(5)
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        report?.behaviorProfile?.let { bp ->
-            item { BehaviorAnalysisCard(bp) }
-        }
+    // رؤى زاد الذكية — ملاحظات التقرير النصية مدموجة مع الرؤى القابلة للتنفيذ في قايمة واحدة.
+    val brainNotes = brainReport?.insights.orEmpty().map { note ->
+        AiInsight(title = "ملاحظة من عقل زاد", description = note, type = "Tip")
+    }
+    val allInsights = brainNotes + insights
 
-        // تحليل سلوكك — بروفايل الخادم + ملاحظة يوم الإنفاق الأعلى + الأنماط
-        // المكتشفة محليا، كلها كانت 3 بطاقات متفرقة بلا رابط بصري، دلوقتي قسم واحد.
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Insights, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    "تحليل سلوكك",
-                    style = Typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = onSurface
-                )
-            }
-        }
-        item {
-            ServerBehaviorProfileCard(
-                profile = serverBehaviorProfile,
-                isRefreshing = isRefreshingBehaviorProfile,
-                onRefresh = onRefreshBehaviorProfile
-            )
-        }
-        if (detectWeekdaySpike(serverBehaviorProfile) != null) {
-            item { BehavioralNudgeCard(serverBehaviorProfile) }
-        }
+    // Transparent, not `background`: MainScreen paints the mockup's canvas gradient
+    // behind every screen. A white fill here is what made this screen's white cards
+    // read as flat dead blocks (white card on white page, shadow invisible).
+    Column(modifier = Modifier.fillMaxSize()) {
+        ActiveSosBanner(familyViewModel = familyViewModel, onOpenFamilyChat = onNavigateToFamily)
 
-        // رادار التضخم الشخصي (Feature 3)
-        item { InflationRadarCard(transactions) }
-
-        // رادار تغيرات الأسعار في السوق — بحث حي حقيقي (Price Shock Predictor)
-        item { PriceShockRadarCard(topExpenseCategories, viewModel) }
-
-        // مؤشر الاستهلاك اليومي — خط زمني بالتواريخ بأسلوب شاشة بورصة
-        item { ConsumptionTickerCard(transactions) }
-
-        // توقعات زاد — كانت 3 بطاقات منفصلة (تنبؤ الصرف، توقيت الشراء، الأنماط
-        // السلوكية) بتعرض كلها اشتقاقات من نفس البيانات المتوقعة. قسم واحد دلوقتي.
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("توقعات زاد", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-            }
-        }
-        // نفس شرط HomeScreen بالظبط (توقع AI حقيقي + سقف معروف) — الفرق إن الشاشة دي
-        // كانت بتستدعي predictNextMonthExpenses() فعلاً (LaunchedEffect فوق) بس النتيجة
-        // ماكانتش بتتقرا هنا خالص، فيبقى نداء شبكة ضايع والكارت المحلي (متوسط مرجّح
-        // بسيط، من غير سبب/ثقة/تحذيرات) هو اللي بيظهر دايماً بدل الأدق.
-        item {
-            if (expensePrediction != null && budget > 0) {
-                PredictionCard(expensePrediction, budget)
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // ═══ TOP: executive financial health + daily spend velocity ═══
+            item { SectionHeader(Icons.Default.Speed, stringResource(R.string.intel_section_executive)) }
+            if (brainReport != null) {
+                item { HealthScoreCard(brainReport!!) }
+                item { DailySpendVelocityCard(brainReport!!.spendingPower) }
+                item { SpendingPowerGaugeCard(brainReport!!.spendingPower) }
             } else {
-                PredictionCard(
-                    predictedAmount = predictedNextMonth,
-                    currentMonthAmount = monthlyData.lastOrNull()?.second ?: 0.0,
-                    lowStockCount = lowStockCount,
-                    subscriptionsCount = subscriptions.count { it.isActive }
-                )
-            }
-        }
-        item { SmartBuyingTimingCard(inventory, serverBehaviorProfile) }
-        if (patterns.isNotEmpty()) {
-            items(patterns.take(5)) { pattern ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                        .background(surface).padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(catBillsBg),
-                        contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Schedule, contentDescription = null, tint = catBillsIcon, modifier = Modifier.size(20.dp))
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(pattern.category, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                        Text(stringResource(R.string.avg_every_days, com.example.data.CurrencyFormatter.format(context, pattern.avgAmount), pattern.frequencyDays), style = Typography.bodySmall, color = onSurfaceVariant)
+                item {
+                    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(20.dp), contentPadding = 0.dp) {
+                        com.example.ui.components.ZadLoadingState(modifier = Modifier.fillMaxWidth().height(140.dp))
                     }
                 }
             }
-        }
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    MiniStatCard(
+                        modifier = Modifier.weight(1f),
+                        label = stringResource(R.string.expense_label),
+                        value = com.example.data.CurrencyFormatter.format(context, totalExpense),
+                        icon = Icons.Default.TrendingDown,
+                        iconColor = dangerColor,
+                        bgColor = dangerColor.copy(alpha = 0.08f)
+                    )
+                    MiniStatCard(
+                        modifier = Modifier.weight(1f),
+                        label = stringResource(R.string.income_label),
+                        value = com.example.data.CurrencyFormatter.format(context, totalIncome),
+                        icon = Icons.Default.TrendingUp,
+                        iconColor = successColor,
+                        bgColor = successColor.copy(alpha = 0.08f)
+                    )
+                }
+            }
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    MiniStatCard(
+                        modifier = Modifier.weight(1f),
+                        label = stringResource(R.string.nav_inventory),
+                        value = stringResource(R.string.inventory_items_count_pill, inventory.size),
+                        icon = Icons.Default.Inventory2,
+                        iconColor = catTransportIcon,
+                        bgColor = catTransportBg
+                    )
+                    MiniStatCard(
+                        modifier = Modifier.weight(1f),
+                        label = stringResource(R.string.active_subscriptions_label),
+                        value = "${subscriptions.count { it.isActive }}",
+                        icon = Icons.Default.Subscriptions,
+                        iconColor = catBillsIcon,
+                        bgColor = catBillsBg
+                    )
+                }
+            }
 
-        item { Spacer(modifier = Modifier.height(80.dp)) }
-    }
-}
+            // ═══ MIDDLE: interactive charts + expense radar ═══
+            item { SectionHeader(Icons.Default.BarChart, stringResource(R.string.intel_section_charts_radar)) }
+            item { WeeklyTrendCard(transactions) }
+            item { ExpenseDonutCard(categoryMap = categoryMap, total = totalExpense) }
+            item { ConsumptionTickerCard(transactions) }
+            brainReport?.monthComparison?.let { mc ->
+                item { MonthComparisonCard(mc) }
+            }
+            item { InflationRadarCard(transactions) }
+            item { PriceShockRadarCard(topExpenseCategories, viewModel) }
+            if (detectWeekdaySpike(serverBehaviorProfile) != null) {
+                item { BehavioralNudgeCard(serverBehaviorProfile) }
+            }
 
-// ════════════════════════════════════════════════════════════════
-//  TAB 4: TOOLS & CHAT (segmented — What-If/Insights, or Chat)
-// ════════════════════════════════════════════════════════════════
+            // ═══ BOTTOM: AI projections + smart tools ═══
+            item { SectionHeader(Icons.Default.AutoAwesome, stringResource(R.string.intel_section_ai_tools)) }
+            // نفس شرط HomeScreen بالظبط (توقع AI حقيقي + سقف معروف) — لو التوقع الحقيقي
+            // مش جاهز لسه، الكارت المحلي (متوسط مرجّح بسيط) هو اللي بيظهر بدل ما الكارت يفضى.
+            item {
+                if (expensePrediction != null && budget > 0) {
+                    PredictionCard(expensePrediction!!, budget)
+                } else {
+                    PredictionCard(
+                        predictedAmount = predictedNextMonth,
+                        currentMonthAmount = monthlyData.lastOrNull()?.second ?: 0.0,
+                        lowStockCount = lowStockCount,
+                        subscriptionsCount = subscriptions.count { it.isActive }
+                    )
+                }
+            }
+            item { MonthlyBarChartCard(monthlyData = monthlyData, predictedNextMonth = predictedNextMonth) }
+            item { FinancialStressTestCard(transactions, emergencyFund, onUpdateEmergencyFund = { viewModel.updateEmergencyFund(it) }) }
+            brainReport?.depletionForecasts?.takeIf { it.isNotEmpty() }?.let { forecasts ->
+                item { DepletionForecastCard(forecasts) }
+            }
+            item { SmartBuyingTimingCard(inventory, serverBehaviorProfile) }
+            if (patterns.isNotEmpty()) {
+                items(patterns.take(5)) { pattern ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                            .background(surface).padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(catBillsBg),
+                            contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Schedule, contentDescription = null, tint = catBillsIcon, modifier = Modifier.size(20.dp))
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(pattern.category, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                            Text(stringResource(R.string.avg_every_days, com.example.data.CurrencyFormatter.format(context, pattern.avgAmount), pattern.frequencyDays), style = Typography.bodySmall, color = onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+            item { WhatIfSimulatorCard(viewModel = viewModel, predictedMonthlySpend = predictedNextMonth) }
+            item {
+                ServerBehaviorProfileCard(
+                    profile = serverBehaviorProfile,
+                    isRefreshing = isRefreshingBehaviorProfile,
+                    onRefresh = { viewModel.refreshBehaviorProfile() }
+                )
+            }
+            brainReport?.behaviorProfile?.let { bp ->
+                item { BehaviorAnalysisCard(bp) }
+            }
+            if (allInsights.isNotEmpty()) {
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Lightbulb, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            stringResource(R.string.zad_smart_insights_title),
+                            style = Typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = onSurface
+                        )
+                    }
+                }
+                items(allInsights.take(8)) { insight -> IntelligenceInsightCard(insight, viewModel) }
+            }
+            item { TasbihaSummaryCard(familyViewModel) }
+            item { AmazonPicksSummaryCard(viewModel) }
+            brainReport?.let { report ->
+                item { ExportReportButton(report) }
+            }
 
-@Composable
-fun ToolsChatTab(
-    insights: List<AiInsight>,
-    report: com.example.data.ZadCentralBrain.BrainReport? = null,
-    predictedNextMonth: Double,
-    viewModel: ZadViewModel,
-    familyViewModel: com.example.ui.viewmodels.FamilyViewModel,
-    onNavigateToFamily: () -> Unit = {},
-    messages: List<AiChatMessage>,
-    isTyping: Boolean,
-    inputText: String,
-    listState: androidx.compose.foundation.lazy.LazyListState,
-    onInputChange: (String) -> Unit,
-    onSend: () -> Unit
-) {
-    var showChat by remember { mutableStateOf(false) }
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        ActiveSosBanner(familyViewModel = familyViewModel, onOpenFamilyChat = onNavigateToFamily)
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FilterChip(
-                selected = !showChat,
-                onClick = { showChat = false },
-                label = { Text(stringResource(R.string.tools_chat_tools_label)) },
-                leadingIcon = { Icon(Icons.Default.Build, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = primaryContainer)
-            )
-            FilterChip(
-                selected = showChat,
-                onClick = { showChat = true },
-                label = { Text(stringResource(R.string.tools_chat_chat_label)) },
-                leadingIcon = { Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = primaryContainer)
-            )
-        }
-
-        AnimatedContent(
-            targetState = showChat,
-            transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
-            label = "toolsChat"
-        ) { onChat ->
-            if (onChat) {
-                val companionState by viewModel.companionState.collectAsState()
-                ChatTab(
+            item {
+                ChatSectionCard(
+                    expanded = chatExpanded,
+                    onToggle = { chatExpanded = !chatExpanded },
                     messages = messages,
                     isTyping = isTyping,
                     companionState = companionState,
                     inputText = inputText,
                     listState = listState,
-                    onInputChange = onInputChange,
-                    onSend = onSend,
+                    onInputChange = { inputText = it },
+                    onSend = {
+                        if (inputText.isNotBlank()) {
+                            viewModel.sendAiChatMessage(inputText)
+                            inputText = ""
+                        }
+                    },
                     onClearChat = { viewModel.clearChatHistory() }
                 )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    // محاكي القرارات المالية (What-If)
-                    item {
-                        WhatIfSimulatorCard(viewModel = viewModel, predictedMonthlySpend = predictedNextMonth)
-                    }
-
-                    // رؤى زاد الذكية — دمجنا هنا ملاحظات التقرير النصية (كانت قبل كدة بطاقة
-                    // منفصلة "ملاحظات زاد" فوق) مع الرؤى القابلة للتنفيذ، عشان العميل يشوف
-                    // كل رؤى العقل في قايمة واحدة بدل قسمين متفرقين لنفس الغرض.
-                    val brainNotes = report?.insights.orEmpty().map { note ->
-                        AiInsight(title = "ملاحظة من عقل زاد", description = note, type = "Tip")
-                    }
-                    val allInsights = brainNotes + insights
-                    if (allInsights.isNotEmpty()) {
-                        item {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Lightbulb, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    stringResource(R.string.zad_smart_insights_title),
-                                    style = Typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = onSurface
-                                )
-                            }
-                        }
-                        items(allInsights.take(8)) { insight -> IntelligenceInsightCard(insight, viewModel) }
-                    }
-
-                    item { Spacer(modifier = Modifier.height(80.dp)) }
-                }
             }
+
+            item { Spacer(modifier = Modifier.height(80.dp)) }
         }
+    }
+}
+
+@Composable
+private fun SectionHeader(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+        Box(
+            modifier = Modifier.size(30.dp).clip(RoundedCornerShape(9.dp)).background(primary.copy(alpha = 0.10f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(17.dp), tint = primary)
+        }
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(title, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
     }
 }
 
@@ -738,9 +555,11 @@ fun ExpenseDonutCard(categoryMap: List<Pair<String, Double>>, total: Double) {
             }
             Spacer(modifier = Modifier.height(16.dp))
             if (categoryMap.isEmpty()) {
-                Box(modifier = Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                    Text(stringResource(R.string.no_transactions), color = onSurfaceVariant)
-                }
+                com.example.ui.components.ZadEmptyState(
+                    icon = Icons.Default.PieChart,
+                    title = stringResource(R.string.no_transactions),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                )
             } else {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.size(160.dp), contentAlignment = Alignment.Center) {
@@ -858,6 +677,221 @@ fun ZadDonutChart(
     }
 }
 
+// ── Daily Spend Velocity — how fast today's spend rate runs vs the safe daily cap ──
+@Composable
+fun DailySpendVelocityCard(power: com.example.data.ZadCentralBrain.SpendingPower?) {
+    val context = LocalContext.current
+
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.daily_velocity_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(stringResource(R.string.daily_velocity_subtitle), style = Typography.bodySmall, color = onSurfaceVariant)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (power == null) {
+                com.example.ui.components.ZadEmptyState(
+                    icon = Icons.Default.Speed,
+                    title = stringResource(R.string.daily_velocity_no_budget),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                )
+            } else {
+                val safePerDay = power.dailySafeSpend
+                val actual = power.currentDailyAvg
+                val ratio = if (safePerDay != null && safePerDay > 0) (actual / safePerDay).toFloat() else null
+                val gaugeColor = when {
+                    ratio == null -> onSurfaceVariant.copy(alpha = 0.35f)
+                    ratio <= 0.8f -> successColor
+                    ratio <= 1.0f -> secondary
+                    else -> dangerColor
+                }
+                val animatedRatio by animateFloatAsState(
+                    targetValue = (ratio ?: 0f).coerceIn(0f, 1.5f),
+                    animationSpec = tween(1000, easing = FastOutSlowInEasing),
+                    label = "velocity"
+                )
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(110.dp), contentAlignment = Alignment.Center) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val strokeWidthPx = 12.dp.toPx()
+                            val startAngle = 150f
+                            val sweepMax = 240f
+                            val arcSize = Size(size.width - strokeWidthPx, size.height - strokeWidthPx)
+                            val topLeftOffset = Offset(strokeWidthPx / 2, strokeWidthPx / 2)
+                            drawArc(
+                                color = gaugeColor.copy(alpha = 0.15f),
+                                startAngle = startAngle,
+                                sweepAngle = sweepMax,
+                                useCenter = false,
+                                topLeft = topLeftOffset,
+                                size = arcSize,
+                                style = Stroke(strokeWidthPx, cap = StrokeCap.Round)
+                            )
+                            if (ratio != null) {
+                                drawArc(
+                                    color = gaugeColor,
+                                    startAngle = startAngle,
+                                    sweepAngle = sweepMax * (animatedRatio / 1.5f).coerceIn(0f, 1f),
+                                    useCenter = false,
+                                    topLeft = topLeftOffset,
+                                    size = arcSize,
+                                    style = Stroke(strokeWidthPx, cap = StrokeCap.Round)
+                                )
+                            }
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                ratio?.let { "${(it * 100).toInt()}%" } ?: "—",
+                                style = Typography.titleLarge, fontWeight = FontWeight.Black, color = gaugeColor
+                            )
+                            Text(stringResource(R.string.daily_velocity_pct_suffix), style = Typography.labelSmall, color = onSurfaceVariant, textAlign = TextAlign.Center)
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Column {
+                            Text(stringResource(R.string.actual_daily_rate), style = Typography.labelSmall, color = onSurfaceVariant)
+                            Text(com.example.data.CurrencyFormatter.format(context, actual), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                        }
+                        Column {
+                            Text(
+                                stringResource(R.string.safe_per_day_suffix, com.example.data.CurrencyFormatter.symbol(context)),
+                                style = Typography.labelSmall, color = onSurfaceVariant
+                            )
+                            Text(
+                                safePerDay?.let { com.example.data.CurrencyFormatter.format(context, it) } ?: stringResource(R.string.budget_unknown_value),
+                                style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface
+                            )
+                        }
+                        if (ratio != null && ratio > 1.0f) {
+                            Text(
+                                stringResource(R.string.daily_velocity_ahead_pct, ((ratio - 1f) * 100).toInt()),
+                                style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = dangerColor
+                            )
+                        } else if (ratio != null) {
+                            Text(stringResource(R.string.daily_velocity_safe), style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = successColor)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Weekly Trend Chart — Canvas grouped bars, this week vs previous week ──────
+@Composable
+fun WeeklyTrendCard(transactions: List<ZadTransaction>) {
+    val context = LocalContext.current
+    val today = java.time.LocalDate.now()
+    val lastWeekEnd = today.minusDays(7)
+
+    val currentWeek = remember(transactions) { computeDailySpendData(transactions, days = 7) }
+    val lastWeek = remember(transactions) { computeDailySpendData(transactions, days = 7, endDate = lastWeekEnd) }
+    val currentTotal = currentWeek.sumOf { it.second }
+    val lastTotal = lastWeek.sumOf { it.second }
+    val hasData = currentTotal > 0.0 || lastTotal > 0.0
+    val changePct = if (lastTotal > 0.0) ((currentTotal - lastTotal) / lastTotal) * 100.0 else if (currentTotal > 0.0) 100.0 else 0.0
+    val trendColor = if (changePct > 0.5) dangerColor else if (changePct < -0.5) successColor else onSurfaceVariant
+    val drawProgress by animateFloatAsState(targetValue = if (hasData) 1f else 0f, animationSpec = tween(1000, easing = FastOutSlowInEasing), label = "weekly_trend")
+
+    val shortDay = mapOf(
+        java.time.DayOfWeek.SATURDAY to "سبت", java.time.DayOfWeek.SUNDAY to "أحد",
+        java.time.DayOfWeek.MONDAY to "اثن", java.time.DayOfWeek.TUESDAY to "ثلا",
+        java.time.DayOfWeek.WEDNESDAY to "أرب", java.time.DayOfWeek.THURSDAY to "خمي",
+        java.time.DayOfWeek.FRIDAY to "جمع"
+    )
+
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CalendarViewWeek, contentDescription = null, modifier = Modifier.size(20.dp), tint = onSurface)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(stringResource(R.string.weekly_trend_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                        Text(stringResource(R.string.weekly_trend_subtitle), style = Typography.labelSmall, color = onSurfaceVariant)
+                    }
+                }
+                if (hasData) {
+                    Surface(shape = RoundedCornerShape(10.dp), color = trendColor.copy(alpha = 0.12f)) {
+                        Text(
+                            "${if (changePct > 0) "+" else ""}${"%.0f".format(changePct)}%",
+                            style = Typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = trendColor,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (!hasData) {
+                com.example.ui.components.ZadEmptyState(
+                    icon = Icons.Default.CalendarViewWeek,
+                    title = stringResource(R.string.weekly_trend_no_data),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                )
+            } else {
+                val maxVal = maxOf(currentWeek.maxOfOrNull { it.second } ?: 0.0, lastWeek.maxOfOrNull { it.second } ?: 0.0, 1.0)
+                Canvas(modifier = Modifier.fillMaxWidth().height(140.dp)) {
+                    val groupWidth = size.width / 7
+                    val barWidth = groupWidth * 0.28f
+                    val gap = barWidth * 0.3f
+                    for (i in 0 until 7) {
+                        val cx = groupWidth * i + groupWidth / 2
+                        val curVal = currentWeek.getOrNull(i)?.second ?: 0.0
+                        val lastVal = lastWeek.getOrNull(i)?.second ?: 0.0
+                        val curH = (((curVal / maxVal) * drawProgress).toFloat().coerceIn(0f, 1f)) * size.height
+                        val lastH = (((lastVal / maxVal) * drawProgress).toFloat().coerceIn(0f, 1f)) * size.height
+                        drawRoundRect(
+                            color = onSurfaceVariant.copy(alpha = 0.25f),
+                            topLeft = Offset(cx - barWidth - gap / 2, size.height - lastH),
+                            size = Size(barWidth, lastH),
+                            cornerRadius = CornerRadius(4.dp.toPx())
+                        )
+                        drawRoundRect(
+                            brush = Brush.verticalGradient(listOf(primary, primaryDark)),
+                            topLeft = Offset(cx + gap / 2, size.height - curH),
+                            size = Size(barWidth, curH),
+                            cornerRadius = CornerRadius(4.dp.toPx())
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    currentWeek.forEach { (date, _) ->
+                        Text(
+                            shortDay[date.dayOfWeek] ?: "",
+                            style = Typography.labelSmall.copy(fontSize = 9.sp),
+                            color = onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(Brush.verticalGradient(listOf(primary, primaryDark))))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(stringResource(R.string.weekly_trend_this_week), style = Typography.labelSmall, color = onSurfaceVariant)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(onSurfaceVariant.copy(alpha = 0.25f)))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(stringResource(R.string.weekly_trend_last_week), style = Typography.labelSmall, color = onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+}
+
 // ── Monthly Bar Chart ─────────────────────────────────────────────────────────
 @Composable
 fun MonthlyBarChartCard(monthlyData: List<Pair<String, Double>>, predictedNextMonth: Double) {
@@ -880,44 +914,52 @@ fun MonthlyBarChartCard(monthlyData: List<Pair<String, Double>>, predictedNextMo
             }
             Spacer(modifier = Modifier.height(16.dp))
 
-            val maxVal = maxOf(monthlyData.maxOfOrNull { it.second } ?: 1.0, predictedNextMonth, 1.0)
-            val predictionLabel = stringResource(R.string.prediction_bar_label)
-            val allData = monthlyData + Pair(predictionLabel, predictedNextMonth)
+            if (monthlyData.isEmpty()) {
+                com.example.ui.components.ZadEmptyState(
+                    icon = Icons.Default.TrendingUp,
+                    title = stringResource(R.string.no_transactions),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                )
+            } else {
+                val maxVal = maxOf(monthlyData.maxOfOrNull { it.second } ?: 1.0, predictedNextMonth, 1.0)
+                val predictionLabel = stringResource(R.string.prediction_bar_label)
+                val allData = monthlyData + Pair(predictionLabel, predictedNextMonth)
 
-            Row(
-                modifier = Modifier.fillMaxWidth().height(140.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.Bottom
-            ) {
-                allData.forEachIndexed { i, (month, value) ->
-                    val isPredict = i == allData.lastIndex
-                    val heightFraction = ((value / maxVal) * animatedProgress).toFloat().coerceIn(0.05f, 1f)
-                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("${value.toInt()}", style = Typography.labelSmall.copy(fontSize = 8.sp), color = onSurfaceVariant, maxLines = 1)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Box(
-                            modifier = Modifier.fillMaxWidth().fillMaxHeight(heightFraction)
-                                .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
-                                .background(
-                                    if (isPredict) Brush.verticalGradient(listOf(secondaryLight, secondary))
-                                    else Brush.verticalGradient(listOf(primary, primaryContainer))
-                                )
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(month.take(3), style = Typography.labelSmall.copy(fontSize = 9.sp), color = if (isPredict) secondary else onSurfaceVariant)
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(140.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    allData.forEachIndexed { i, (month, value) ->
+                        val isPredict = i == allData.lastIndex
+                        val heightFraction = ((value / maxVal) * animatedProgress).toFloat().coerceIn(0.05f, 1f)
+                        Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("${value.toInt()}", style = Typography.labelSmall.copy(fontSize = 8.sp), color = onSurfaceVariant, maxLines = 1)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Box(
+                                modifier = Modifier.fillMaxWidth().fillMaxHeight(heightFraction)
+                                    .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                                    .background(
+                                        if (isPredict) Brush.verticalGradient(listOf(secondaryLight, secondary))
+                                        else Brush.verticalGradient(listOf(primary, primaryContainer))
+                                    )
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(month.take(3), style = Typography.labelSmall.copy(fontSize = 9.sp), color = if (isPredict) secondary else onSurfaceVariant)
+                        }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(primary))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(stringResource(R.string.actual_label), style = Typography.labelSmall, color = onSurfaceVariant)
-                Spacer(modifier = Modifier.width(16.dp))
-                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(secondaryLight))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(stringResource(R.string.zad_forecast_label), style = Typography.labelSmall, color = onSurfaceVariant)
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(primary))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(stringResource(R.string.actual_label), style = Typography.labelSmall, color = onSurfaceVariant)
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(secondaryLight))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(stringResource(R.string.zad_forecast_label), style = Typography.labelSmall, color = onSurfaceVariant)
+                }
             }
         }
     }
@@ -984,6 +1026,7 @@ fun ConsumptionTickerCard(transactions: List<ZadTransaction>) {
 
             if (!hasData) {
                 com.example.ui.components.ZadEmptyState(
+                    icon = Icons.Default.ShowChart,
                     title = stringResource(R.string.no_transactions_for_analysis),
                     modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp)
                 )
@@ -1905,8 +1948,57 @@ fun MiniStatCard(
 }
 
 // ════════════════════════════════════════════════════════════════
-//  TAB 3: CHAT
+//  CHAT — collapsible card at the bottom of the dashboard scroll
 // ════════════════════════════════════════════════════════════════
+
+@Composable
+fun ChatSectionCard(
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    messages: List<AiChatMessage>,
+    isTyping: Boolean,
+    companionState: com.example.ui.components.CompanionState,
+    inputText: String,
+    listState: androidx.compose.foundation.lazy.LazyListState,
+    onInputChange: (String) -> Unit,
+    onSend: () -> Unit,
+    onClearChat: () -> Unit
+) {
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { onToggle() }.padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                com.example.ui.components.CompanionOrb(state = companionState, size = 40.dp, animated = false)
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.ai_chat_card_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                    Text(stringResource(R.string.ai_chat_card_subtitle), style = Typography.bodySmall, color = onSurfaceVariant)
+                }
+                Icon(
+                    if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = stringResource(if (expanded) R.string.collapse_chat_action else R.string.open_chat_action),
+                    tint = onSurfaceVariant
+                )
+            }
+            AnimatedVisibility(visible = expanded) {
+                Box(modifier = Modifier.fillMaxWidth().height(560.dp)) {
+                    ChatTab(
+                        messages = messages,
+                        isTyping = isTyping,
+                        companionState = companionState,
+                        inputText = inputText,
+                        listState = listState,
+                        onInputChange = onInputChange,
+                        onSend = onSend,
+                        onClearChat = onClearChat
+                    )
+                }
+            }
+        }
+    }
+}
 
 @Composable
 fun ChatTab(
@@ -2174,13 +2266,6 @@ fun predictNextMonth(monthlyData: List<Pair<String, Double>>): Double {
 /**
  * Spending power, as the mockup's Zad Mind overview card: the dark `#052E16` panel with a
  * mint title, the percentage at 30/800, and one flat 8dp meter.
- *
- * What stood here was a hand-drawn semicircular gauge — four tinted background arcs, a
- * progress arc, a rotating needle and a hub — about 70 lines of Canvas for one number the
- * design states as a percentage and a bar. The three figures underneath it (safe daily
- * spend, actual daily rate, days left) are real data the mockup's hardcoded card has no
- * equivalent for, so they stay, restyled as the panel's muted footer row rather than as
- * three columns competing with the gauge.
  */
 @Composable
 private fun SpendingPowerGaugeCard(power: com.example.data.ZadCentralBrain.SpendingPower) {

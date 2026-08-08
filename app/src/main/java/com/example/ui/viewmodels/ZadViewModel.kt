@@ -143,7 +143,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val _weeklyAdherencePercent = MutableStateFlow<Int?>(null)
     val weeklyAdherencePercent: StateFlow<Int?> = _weeklyAdherencePercent.asStateFlow()
 
-    private val _mealSuggestions = MutableStateFlow<String>("جاري تحليل المخزون...")
+    private val _mealSuggestions = MutableStateFlow<String>(ZadAiRepository.MEAL_SUGGESTIONS_LOADING)
     val mealSuggestions: StateFlow<String> = _mealSuggestions.asStateFlow()
 
     private val _grocerySuggestions = MutableStateFlow<List<GrocerySuggestion>>(emptyList())
@@ -284,13 +284,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Search query for inventory
+    // Search query for inventory — InventoryScreen filters `inventory` locally (remember{})
+    // keyed on this + category, so there is no separate filtered-list StateFlow to keep in sync.
     private val _inventorySearchQuery = MutableStateFlow("")
     val inventorySearchQuery: StateFlow<String> = _inventorySearchQuery.asStateFlow()
-
-    // Filtered inventory based on search
-    val filteredInventory: StateFlow<List<ZadInventory>> get() = _filteredInventory
-    private val _filteredInventory = MutableStateFlow<List<ZadInventory>>(emptyList())
 
     // Global Avatar state
     private val _avatarUri = MutableStateFlow<String?>(null)
@@ -412,15 +409,23 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 val inv = rawInv - bogus.toSet()
                 Log.d(TAG, "Room inventory updated → count=${inv.size}")
                 _inventory.value = inv
-                updateFilteredInventory(inv, _inventorySearchQuery.value)
                 checkLowStockItems(inv)
                 predictStockDepletion(inv)
                 refreshInventoryCheckIns()
-                // Only call AI when inventory size changes to avoid excessive API calls
+                // Only call AI when inventory size changes to avoid excessive API calls.
+                // KEY_MEAL_SUGGESTIONS used to gate this call itself — but it's the only place
+                // شيف زاد's content is ever computed, and no notification is ever posted from
+                // it (grepped: zero other usages of KEY_MEAL_SUGGESTIONS besides the Settings
+                // toggle screen). With the toggle off, the Home card was stuck on the initial
+                // "جاري تحليل المخزون..." placeholder forever. AlertPrefs's own toggle screen is
+                // titled "تنبيهات المساعد" (Assistant *Alerts*) — it should gate a notification,
+                // not the card's core content, so the gate is dropped here.
                 if (inv.size != lastMealSuggestInventorySize) {
                     lastMealSuggestInventorySize = inv.size
-                    if (com.example.ui.screens.AlertPrefs.isEnabled(getApplication(), com.example.ui.screens.AlertPrefs.KEY_MEAL_SUGGESTIONS)) {
-                        _mealSuggestions.value = ZadAiRepository.suggestMeals(inv)
+                    _mealSuggestions.value = if (inv.any { it.quantity > 0 }) {
+                        ZadAiRepository.suggestMeals(inv)
+                    } else {
+                        "" // empty inventory → ZadChefCard shows chef_card_empty_hint, no AI call
                     }
                 }
                 // العقل → الوصفات: يفحص كل تحديث مخزون على أصناف هتخلص/تنتهي (بدون استدعاء AI مكرر بفضل lastUrgentRecipeKey)
@@ -543,15 +548,9 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun updateFilteredInventory(all: List<ZadInventory>, query: String) {
-        _filteredInventory.value = if (query.isBlank()) all
-        else all.filter { it.itemName.contains(query, ignoreCase = true) }
-    }
-
     fun setSearchQuery(query: String) {
         Log.d(TAG, "setSearchQuery() → query='$query'")
         _inventorySearchQuery.value = query
-        updateFilteredInventory(_inventory.value, query)
     }
 
     // Sync with Supabase (Background)

@@ -53,6 +53,12 @@ const WEBHOOK_SECRET_ENV = Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ?? undefined;
 // this environment to provision a new Supabase project secret remotely.
 const CHECKIN_CRON_SECRET = "5bbebc0b2acb1099e758e822be15144f9bf30175da67a459dd8511b0139c8ec5";
 
+// Same rationale as CHECKIN_CRON_SECRET immediately above (plain literal, not a project
+// secret — this endpoint runs with verify_jwt=false so it needs its own gate) but its own
+// distinct value, not reused: a leaked secret here should only ever be able to trigger
+// subscription alerts, not the check-in job too. Gates ?job=subscription_alerts below.
+const SUBSCRIPTION_CRON_SECRET = "2ceb272a5a1b12cce797b99f3e6d07a79b540cb95a5823ac9155588269214d55";
+
 function toGrammyKeyboard(rows: InlineKeyboardButton[][]): InlineKeyboard {
   const kb = new InlineKeyboard();
   for (const row of rows) {
@@ -161,6 +167,49 @@ async function runDailyCheckins(sb: SupabaseClient): Promise<{ usersChecked: num
   }
 
   return { usersChecked: rows.length, promptsSent };
+}
+
+/**
+ * Daily cron: DMs any Telegram-bound user whose active subscription/bill renews within
+ * the next 3 days (same window as the in-app renewal reminder — ZadCentralBrain.fullAnalysis
+ * / ZadViewModel.generateSmartNotifications, which do daysLeft in 0..3). This is the piece
+ * that was entirely missing: those two only ever produce an in-app row or a local Android
+ * notification, nothing reaches Telegram. Same net.http_post + secret-header pattern as
+ * runDailyCheckins (see telegram_checkin_pipeline migration) — no per-day dedup table like
+ * check-ins have, since a subscription only enters the 0..3 day window once per renewal
+ * cycle, so a user gets at most ~4 daily pings per bill, not an unbounded repeat.
+ */
+async function runDailySubscriptionAlerts(sb: SupabaseClient): Promise<{ usersChecked: number; alertsSent: number }> {
+  const { data: bindings } = await sb.from("telegram_bindings")
+    .select("user_id,chat_id")
+    .not("bound_at", "is", null)
+    .not("chat_id", "is", null);
+
+  const rows = (bindings ?? []) as Array<{ user_id: string; chat_id: number }>;
+  let alertsSent = 0;
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+
+  for (const b of rows) {
+    const { data: subs } = await sb.from("zad_subscriptions")
+      .select("title,amount,renewal_date,currency")
+      .eq("user_id", b.user_id)
+      .eq("is_active", true)
+      .not("renewal_date", "is", null);
+
+    for (const sub of (subs ?? []) as Array<{ title: string; amount: number; renewal_date: string; currency: string | null }>) {
+      const renewal = new Date(sub.renewal_date);
+      if (isNaN(renewal.getTime())) continue;
+      const daysLeft = Math.round((renewal.getTime() - today.getTime()) / 86400000);
+      if (daysLeft < 0 || daysLeft > 3) continue;
+      const amountText = `${sub.amount}${sub.currency ? " " + sub.currency : ""}`;
+      const when = daysLeft === 0 ? "اليوم" : `خلال ${daysLeft} يوم`;
+      await sendTelegramMessage(b.chat_id, `🔔 ${sub.title} يتجدد ${when} (${amountText})`);
+      alertsSent++;
+    }
+  }
+
+  return { usersChecked: rows.length, alertsSent };
 }
 
 /** Pulls the same picture of the customer the in-app chat gets. Every query is
@@ -887,6 +936,24 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ ok: true, ...result }), { headers: { "Content-Type": "application/json" } });
     } catch (e) {
       console.error("runDailyCheckins failed:", e);
+      return new Response(JSON.stringify({ ok: false, error: String(e) }), { status: 500 });
+    }
+  }
+  // Daily subscription/bill renewal cron trigger — same shape as daily_checkins above,
+  // own secret (SUBSCRIPTION_CRON_SECRET).
+  if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "subscription_alerts") {
+    if (req.headers.get("X-Subscription-Cron-Secret") !== SUBSCRIPTION_CRON_SECRET) {
+      return new Response("unauthorized", { status: 401 });
+    }
+    if (!BOT_CONFIGURED) {
+      return new Response(JSON.stringify({ ok: false, reason: "bot not configured" }), { status: 503 });
+    }
+    try {
+      const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+      const result = await runDailySubscriptionAlerts(sb);
+      return new Response(JSON.stringify({ ok: true, ...result }), { headers: { "Content-Type": "application/json" } });
+    } catch (e) {
+      console.error("runDailySubscriptionAlerts failed:", e);
       return new Response(JSON.stringify({ ok: false, error: String(e) }), { status: 500 });
     }
   }

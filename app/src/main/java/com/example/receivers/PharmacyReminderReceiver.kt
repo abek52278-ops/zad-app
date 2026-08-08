@@ -70,6 +70,9 @@ class PharmacyReminderReceiver : BroadcastReceiver() {
                 Log.e(TAG, "handleTrigger() dose log insert failed: ${e.message}")
             }
             showReminderNotification(context, itemId, itemName, doseTime, notificationId, doseLogId, scheduledAtIso)
+            // sendFamilyAlert is itself best-effort (catches internally) — no family or a
+            // network failure here must not block the notification/TTS below.
+            com.example.data.ZadCentralBrain.sendFamilyAlert("⏰ حان موعد جرعة $itemName")
             speakReminder(context, itemName, pendingResult)
         }
         // بيتجدد يومياً لنفس الميعاد فور ما يطلق — عشان يفضل شغال من غير ما يحتاج تدخل يدوي

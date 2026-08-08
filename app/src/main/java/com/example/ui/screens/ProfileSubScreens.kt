@@ -420,7 +420,6 @@ object AlertPrefs {
     private const val PREFS = "zad_alert_prefs"
     const val KEY_LOW_INVENTORY = "alert_low_inventory"
     const val KEY_BUDGET_OVERRUN = "alert_budget_overrun"
-    const val KEY_MEAL_SUGGESTIONS = "alert_meal_suggestions"
     const val KEY_TASBIH_REMINDER = "alert_tasbih_reminder"
 
     fun isEnabled(context: android.content.Context, key: String): Boolean =
@@ -437,7 +436,6 @@ fun AssistantAlertsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     var lowInventoryAlerts by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_LOW_INVENTORY)) }
     var budgetOverrunAlerts by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_BUDGET_OVERRUN)) }
-    var mealSuggestions by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_MEAL_SUGGESTIONS)) }
     var tasbihReminder by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_TASBIH_REMINDER)) }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -452,10 +450,6 @@ fun AssistantAlertsScreen(onBack: () -> Unit) {
             AlertSwitchItem(stringResource(R.string.budget_overrun_alerts), stringResource(R.string.budget_overrun_alerts_desc), budgetOverrunAlerts) {
                 budgetOverrunAlerts = it
                 AlertPrefs.setEnabled(context, AlertPrefs.KEY_BUDGET_OVERRUN, it)
-            }
-            AlertSwitchItem(stringResource(R.string.meal_suggestions_alert), stringResource(R.string.meal_suggestions_alert_desc), mealSuggestions) {
-                mealSuggestions = it
-                AlertPrefs.setEnabled(context, AlertPrefs.KEY_MEAL_SUGGESTIONS, it)
             }
             AlertSwitchItem(stringResource(R.string.tasbih_reminder_alert), stringResource(R.string.tasbih_reminder_alert_desc), tasbihReminder) {
                 tasbihReminder = it

@@ -453,7 +453,6 @@ fun ProfileScreen(
                         scope.launch {
                             try {
                                 SupabaseRepo.client.auth.signOut()
-                                com.example.data.SessionHelper.saveSession(context)
                                 Log.d(TAG_PROF, "Logout success")
                             } catch (e: Exception) {
                                 Log.e(TAG_PROF, "Logout error: ${e.message}")

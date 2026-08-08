@@ -11,6 +11,7 @@ import io.github.jan.supabase.auth.auth
 import com.example.data.buildZadFamilyState
 import com.example.data.local.ZadDatabase
 import kotlinx.coroutines.flow.first
+import java.time.Instant
 
 class PeriodicAnalysisWorker(
     appContext: Context,
@@ -80,6 +81,8 @@ class PeriodicAnalysisWorker(
                 Log.d("ZadWorker", "${brainResult.autoActions.size} auto-actions generated")
             }
 
+            checkMissedDoses(dao)
+
             Log.d("ZadWorker", "Analysis complete — ${brainResult.smartNotifications.size} smart notifications sent")
             return Result.success()
         } catch (e: Exception) {
@@ -91,5 +94,32 @@ class PeriodicAnalysisWorker(
     private fun showNotification(title: String, message: String, priority: Int = NotificationCompat.PRIORITY_DEFAULT, speak: Boolean = false) {
         ZadNotifier.send(applicationContext, title, message, priority, speak)
         Log.d("ZadWorker", "Notification sent: $title — $message")
+    }
+
+    /**
+     * جرعة اتطلق منبهها (PharmacyReminderReceiver عمل insertDoseLog) وعدّت ٩٠ دقيقة من
+     * غير ما حد يعلّمها "تم أخذها" (takenAt لسه null) = فاتت. مفيش عمود "missed" في
+     * zad_dose_log نفسه (كان محتاج migration) — بدل كده نفس نمط PharmacyReminderScheduler's
+     * SharedPreferences-tracked keys: مجموعة IDs اتنبّهنا عليها قبل كده، عشان الـ worker
+     * ده كل ٦ ساعات ميبعتش نفس رسالة "فاتت الجرعة" أكتر من مرة لكل جرعة.
+     */
+    private suspend fun checkMissedDoses(dao: com.example.data.local.ZadDao) {
+        val graceMs = 90 * 60 * 1000L
+        val nowMs = Instant.now().toEpochMilli()
+        val prefs = applicationContext.getSharedPreferences("zad_prefs", Context.MODE_PRIVATE)
+        val alertedKey = "missed_dose_alerted_ids"
+        val alerted = prefs.getStringSet(alertedKey, emptySet())?.toMutableSet() ?: mutableSetOf()
+        var changed = false
+
+        dao.getAllDoseLogs().first().forEach { log ->
+            if (log.takenAt != null || log.id in alerted) return@forEach
+            val scheduledMs = try { Instant.parse(log.scheduledAt).toEpochMilli() } catch (e: Exception) { return@forEach }
+            if (nowMs - scheduledMs < graceMs) return@forEach
+            com.example.data.ZadCentralBrain.sendFamilyAlert("⚠️ فاتت جرعة ${log.itemName} (${log.scheduledAt.take(16)})")
+            alerted.add(log.id)
+            changed = true
+        }
+
+        if (changed) prefs.edit().putStringSet(alertedKey, alerted).apply()
     }
 }

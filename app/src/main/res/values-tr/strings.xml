@@ -621,6 +621,9 @@
     <string name="shared_grocery_list_hint">Aile üyelerinin eklediği veya Zad\'ın önerdiği alışveriş listesi.</string>
     <string name="sos_call_from">%1$s\'den acil durum çağrısı!</string>
     <string name="sos_message">Lütfen dikkat, acil durum!</string>
+    <string name="sos_confirm_title">Acil durum çağrısını onayla</string>
+    <string name="sos_confirm_body">Tüm aile üyelerine yardıma ihtiyacın olduğuna dair anında bir bildirim gönderilecek. Emin misin?</string>
+    <string name="sos_send_action">Çağrıyı gönder</string>
     <string name="tap_member_for_achievements">Başarılarını görmek için bir üyeye dokun</string>
     <string name="tap_to_open">veya dokun:</string>
     <string name="tasbiha_trees_count">Zikir ağaçları (%1$d)</string>
@@ -704,8 +707,6 @@
     <string name="kick_member">Üyeyi çıkar</string>
     <string name="low_inventory_alerts">Düşük stok bildirimleri</string>
     <string name="low_inventory_alerts_desc">Temel bir ürün tükenmek üzereyken bildirim gönderir</string>
-    <string name="meal_suggestions_alert">Yemek önerileri</string>
-    <string name="meal_suggestions_alert_desc">Mevcut envantere göre günlük yemek önerisi</string>
     <string name="tasbih_reminder_alert">Zikir hatırlatıcısı</string>
     <string name="tasbih_reminder_alert_desc">Bugün henüz zikir yapmadıysan saat 17:00\'de nazik bir hatırlatma</string>
     <string name="bank_reading_status_title">Banka bildirimlerini okuma</string>

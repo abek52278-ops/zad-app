@@ -220,6 +220,14 @@ class FamilyViewModel(application: Application) : AndroidViewModel(application) 
     fun sendMessage(message: String, type: String = "TEXT", meta: String? = null) {
         viewModelScope.launch {
             val curr = _state.value
+            if (curr !is FamilyState.Active) {
+                // كان بيرجع من غير أي إشارة — الرسالة بتختفي من غير ما حد يعرف ليه (بيانات
+                // العائلة لسه بتتحمّل، أو فشلت). التوست ده أقل حاجة تخلي المستخدم يعرف إنها
+                // ما اتبعتتش، بدل ما يفتكر إنها راحت وهي فعلياً اتلغت بصمت.
+                android.util.Log.w("FamilyViewModel", "sendMessage() SKIPPED — state is ${curr::class.simpleName}, not Active")
+                _toastMessage.emit("تعذر إرسال الرسالة، جاري تحميل بيانات العائلة...")
+                return@launch
+            }
             if (curr is FamilyState.Active) {
                 // رسالة عادية مكتوبة بخط اليد (مش زر SOS/طلب مصروف/تصويت الجاهزين) بنفحصها محلياً
                 // قبل الإرسال — لو فيها نية طوارئ أو طلب مصروف واضح بمبلغ، بنرفعها لنوعها الصح تلقائياً.
@@ -238,7 +246,12 @@ class FamilyViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
 
-                SupabaseRepo.sendMessage(curr.familyGroup.id, curr.myMemberInfo.id, message, finalType, finalMeta)
+                val sent = SupabaseRepo.sendMessage(curr.familyGroup.id, curr.myMemberInfo.id, message, finalType, finalMeta)
+                if (!sent) {
+                    android.util.Log.e("FamilyViewModel", "sendMessage() → SupabaseRepo insert FAILED, aborting downstream (SOS notify/AI reply/grocery)")
+                    _toastMessage.emit("فشل إرسال الرسالة، تحقق من الاتصال بالإنترنت")
+                    return@launch
+                }
 
                 if (finalType == "SOS") {
                     curr.members.filter { it.role == "admin" }.forEach { admin ->
@@ -250,35 +263,103 @@ class FamilyViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
 
-                // If the message mentions the AI
+                // If the message mentions the AI — كان دايماً بيروح لسؤال/جواب عام (askFamilyAssistant)
+                // من غير أي بيانات عيلة حقيقية معاه (رصيد/مهام/تسوق)، وكان مستحيل يضيف مهمة أو
+                // عنصر تسوق حتى لو اتقاله بوضوح لأن الـ else-if تحت كانت بتستبعد أي رسالة فيها @Zad.
                 if (finalType == "TEXT" && (message.contains("@Zad", ignoreCase = true) || message.contains("@زاد"))) {
                     val cleanMessage = message.replace(Regex("@(Zad|زاد)\\s*"), "").trim()
                     val effectiveRole = if (kidsModePreviewOverride) "child" else curr.myMemberInfo.role
-                    val aiResponse = com.example.data.ZadAiRepository.askFamilyAssistant(cleanMessage, effectiveRole)
-                    SupabaseRepo.sendMessage(curr.familyGroup.id, "zad_ai", aiResponse, "TEXT", null)
-                } else if (finalType == "TEXT" && (message.contains("أضف") || message.contains("نقص") || message.contains("شراء"))) {
-                    val cleanMsg = message.replace(Regex("(أضف|نقص|احتاج|شراء|إلى القائمة|للقائمة)"), "").trim()
-                    if (cleanMsg.isNotEmpty()) {
-                        val newItem = com.example.data.SharedGroceryItem(
-                            familyId = curr.familyGroup.id,
-                            addedBy = curr.myMemberInfo.id,
-                            itemName = cleanMsg,
-                            category = "عام",
-                            isPurchased = false
-                        )
-                        val inserted = SupabaseRepo.addGroceryItem(newItem)
-                        if (inserted != null) {
-                            SupabaseRepo.sendMessage(curr.familyGroup.id, "zad_ai", "تم إضافة '$cleanMsg' إلى قائمة التسوق بنجاح ✅", "TEXT", null)
-                            val updatedGroceries = curr.groceries + inserted
-                            _state.value = curr.copy(groceries = updatedGroceries)
-                        } else {
-                            SupabaseRepo.sendMessage(curr.familyGroup.id, "zad_ai", "عذراً، حدث خطأ أثناء إضافة '$cleanMsg' ❌", "TEXT", null)
-                        }
+                    if (cleanMessage.contains("أضف") || cleanMessage.contains("نقص") || cleanMessage.contains("شراء")) {
+                        addGroceryItemFromChat(curr, cleanMessage)
                     } else {
-                        SupabaseRepo.sendMessage(curr.familyGroup.id, "zad_ai", "الرجاء تحديد اسم العنصر بوضوح. مثال: 'أضف حليب'", "TEXT", null)
+                        handleZadTaskOrQuery(curr, cleanMessage, effectiveRole)
                     }
+                } else if (finalType == "TEXT" && (message.contains("أضف") || message.contains("نقص") || message.contains("شراء"))) {
+                    addGroceryItemFromChat(curr, message)
                 }
             }
+        }
+    }
+
+    /** استخراج مشترك — نفس المنطق اللي كان مكرر جوه sendMessage، دلوقتي مستخدم من مسارين:
+     * كتابة "أضف حليب" عادي، و"@Zad أضف حليب". */
+    private suspend fun addGroceryItemFromChat(curr: FamilyState.Active, rawMessage: String) {
+        val cleanMsg = rawMessage.replace(Regex("(أضف|نقص|احتاج|شراء|إلى القائمة|للقائمة)"), "").trim()
+        if (cleanMsg.isNotEmpty()) {
+            val newItem = com.example.data.SharedGroceryItem(
+                familyId = curr.familyGroup.id,
+                addedBy = curr.myMemberInfo.id,
+                itemName = cleanMsg,
+                category = "عام",
+                isPurchased = false
+            )
+            val inserted = SupabaseRepo.addGroceryItem(newItem)
+            if (inserted != null) {
+                SupabaseRepo.sendMessage(curr.familyGroup.id, "zad_ai", "تم إضافة '$cleanMsg' إلى قائمة التسوق بنجاح ✅", "TEXT", null)
+                val latest = _state.value
+                if (latest is FamilyState.Active) _state.value = latest.copy(groceries = latest.groceries + inserted)
+            } else {
+                SupabaseRepo.sendMessage(curr.familyGroup.id, "zad_ai", "عذراً، حدث خطأ أثناء إضافة '$cleanMsg' ❌", "TEXT", null)
+            }
+        } else {
+            SupabaseRepo.sendMessage(curr.familyGroup.id, "zad_ai", "الرجاء تحديد اسم العنصر بوضوح. مثال: 'أضف حليب'", "TEXT", null)
+        }
+    }
+
+    /** بديل مباشر لـ addGroceryItemFromChat لكارت "أضف للتسوق" في شريط الشات السريع —
+     * اسم صنف نضيف زي ما هو، من غير استخراج كلمات مفتاحية (الاسم أصلاً جاي من حقل نص مخصص). */
+    fun quickAddGroceryItem(name: String) {
+        val clean = name.trim()
+        if (clean.isBlank()) return
+        viewModelScope.launch {
+            val curr = _state.value
+            if (curr is FamilyState.Active) addGroceryItemFromChat(curr, clean)
+        }
+    }
+
+    /**
+     * "@Zad" بدون كلمات تسوق — يتفرّع لتكليف مهمة ("كلف <اسم> <المهمة>") لو أدمن، وإلا
+     * سؤال عام بيتجاوب عليه بالـ AI لكن مع بيانات العائلة الحقيقية محقونة كسياق (نفس مبدأ
+     * === SECTION === المستخدم في buildFullChatContext — البيانات جوه قسم واضح، تعليمات
+     * الـ system prompt الأصلية (server-side) فاضلة هي الأعلى سلطة، مش بتتغير هنا).
+     */
+    private suspend fun handleZadTaskOrQuery(curr: FamilyState.Active, cleanMessage: String, role: String) {
+        val taskMatch = Regex("^(?:كلف|مهمة)\\s+(.+)").find(cleanMessage.trim())
+        if (taskMatch != null && role == "admin") {
+            val rest = taskMatch.groupValues[1].trim()
+            val firstWord = rest.substringBefore(" ")
+            val matchedMember = curr.members.find { it.alias.equals(firstWord, ignoreCase = true) || it.alias.contains(firstWord) }
+            // لو الاسم مش متعرّف عليه، بنكلّف اللي بعت الرسالة نفسه — مش بنسقط الطلب صامت
+            val assignee = matchedMember?.id ?: curr.myMemberInfo.id
+            val title = if (matchedMember != null) rest.removePrefix(firstWord).trim() else rest
+            if (title.isNotBlank()) {
+                addChore(assignee, title, null, 0.0)
+                val assigneeName = matchedMember?.alias ?: curr.myMemberInfo.alias
+                SupabaseRepo.sendMessage(curr.familyGroup.id, "zad_ai", "تم إضافة مهمة لـ $assigneeName: '$title' ✅", "TEXT", null)
+                return
+            }
+        }
+        val context = buildFamilyContextBlock(curr)
+        val aiResponse = com.example.data.ZadAiRepository.askFamilyAssistant("$context\n\nسؤال العضو: $cleanMessage", role)
+        SupabaseRepo.sendMessage(curr.familyGroup.id, "zad_ai", aiResponse, "TEXT", null)
+    }
+
+    private fun buildFamilyContextBlock(curr: FamilyState.Active): String {
+        val me = curr.myMemberInfo
+        val pendingChores = curr.chores.filter { !it.isCompleted }
+        val pendingGroceries = curr.groceries.filter { !it.isPurchased }
+        return buildString {
+            appendLine("=== بيانات العائلة الحقيقية (استخدمها في إجابتك، متختلقش أرقام تانية) ===")
+            appendLine("اسم السائل: ${me.alias} | الدور: ${me.role}")
+            appendLine("رصيده: ${me.balance}")
+            if (me.dailyLimit != null) appendLine("حد الصرف اليومي: ${me.dailyLimit}")
+            if (me.weeklyLimit != null) appendLine("حد الصرف الأسبوعي: ${me.weeklyLimit}")
+            appendLine("عدد أفراد العائلة: ${curr.members.size}")
+            appendLine("المهام المعلقة (${pendingChores.size}): " + pendingChores.take(10).joinToString("، ") {
+                "${it.title} (${curr.members.find { m -> m.id == it.assignedTo }?.alias ?: "?"})"
+            }.ifBlank { "لا يوجد" })
+            appendLine("عناصر التسوق المطلوبة (${pendingGroceries.size}): " + pendingGroceries.take(15).joinToString("، ") { it.itemName }.ifBlank { "لا يوجد" })
+            appendLine("=== نهاية البيانات ===")
         }
     }
     

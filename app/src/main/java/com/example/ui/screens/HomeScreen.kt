@@ -92,6 +92,10 @@ fun HomeScreen(
 ) {
     val inventory by viewModel.inventory.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
+    // عرض بس: بعض البنوك بتسجل إشعارات إعلانية (عروض 4G وغيرها) كمعاملة بقيمة 0 جنيه —
+    // سطر زيرو مايغيرش أي مجموع أصلاً، فالمجاميع/التحليل لسه بيشتغلوا على transactions
+    // الكاملة؛ الفلترة هنا للقايمة المعروضة بس عشان مايبانش كإدخال مالي حقيقي.
+    val visibleTransactions = transactions.filter { it.amount != 0.0 }
     val subscriptions by viewModel.subscriptions.collectAsState()
     val mealSuggestions by viewModel.mealSuggestions.collectAsState()
     val insights by viewModel.insights.collectAsState()
@@ -626,7 +630,7 @@ fun HomeScreen(
 
                 // ── 10. Recent transactions ──
                 PremiumTransactionsRow(
-                    transactions = transactions,
+                    transactions = visibleTransactions,
                     onSeeAllClick = { showAllTransactionsDialog = true }
                 )
                 Spacer(modifier = Modifier.height(24.dp))
@@ -682,7 +686,12 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                val alerts = insights.filter { it.type == "Alert" }
+                // "Warning" = budget-at-risk (analyzeBudgetOverruns/analyzeSubscriptionUsage),
+                // "Alert" = anomaly spending — both belong on "الميزانية في خطر"'s banner, not
+                // just Alert. Was filtering Warning out entirely, so budget-at-risk content was
+                // computed correctly but never shown here (only visible in ZadIntelligenceScreen).
+                val alerts = insights.filter { it.type == "Alert" || it.type == "Warning" }
+                    .sortedBy { if (it.type == "Alert") 0 else 1 }
                 if (alerts.isNotEmpty()) {
                     AiAlertBanner(title = alerts.first().title, description = alerts.first().description)
                     Spacer(modifier = Modifier.height(18.dp))
@@ -771,7 +780,7 @@ fun HomeScreen(
             title = { Text(stringResource(R.string.recent_transactions_full_log)) },
             text = {
                 androidx.compose.foundation.lazy.LazyColumn {
-                    items(transactions.reversed()) { tx ->
+                    items(visibleTransactions.reversed()) { tx ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1218,7 +1227,8 @@ fun SmartChefSection(
     // real model output is plain prose ("يمكنك تحضير وجبة دجاج..."), never numbered/
     // bulleted. Net effect: isRealAi was false for every real AI response.
     val isRealAi = suggestions.isNotBlank() &&
-        suggestions != com.example.data.ZadAiRepository.MEAL_SUGGESTIONS_FALLBACK
+        suggestions != com.example.data.ZadAiRepository.MEAL_SUGGESTIONS_FALLBACK &&
+        suggestions != com.example.data.ZadAiRepository.MEAL_SUGGESTIONS_LOADING
 
     val dish = if (isRealAi) {
         suggestions.split("\n").firstOrNull { it.isNotBlank() }?.trim()

@@ -210,6 +210,26 @@
     <string name="export_monthly_report">تصدير التقرير الشهري</string>
     <string name="avg_every_days">المتوسط: %1$s | كل %2$d يوم</string>
 
+    <!-- ZadIntelligenceScreen: single-scroll dashboard sections (re-architect) -->
+    <string name="intel_section_executive">النظرة التنفيذية</string>
+    <string name="intel_section_charts_radar">الرسوم البيانية ورادار المصروفات</string>
+    <string name="intel_section_ai_tools">توقعات وأدوات ذكية</string>
+    <string name="daily_velocity_title">سرعة الصرف اليوم</string>
+    <string name="daily_velocity_subtitle">معدلك اليومي مقابل الحد الآمن</string>
+    <string name="daily_velocity_ahead_pct">أسرع من الحد الآمن بـ %1$d%%</string>
+    <string name="daily_velocity_safe">ضمن حدود الصرف الآمن</string>
+    <string name="daily_velocity_no_budget">حدد ميزانية عشان زاد يقيس سرعتك</string>
+    <string name="daily_velocity_pct_suffix">من معدلك الآمن</string>
+    <string name="weekly_trend_title">الأسبوع ده مقابل اللي فات</string>
+    <string name="weekly_trend_subtitle">مقارنة يومية للمصروفات</string>
+    <string name="weekly_trend_this_week">الأسبوع ده</string>
+    <string name="weekly_trend_last_week">الأسبوع اللي فات</string>
+    <string name="weekly_trend_no_data">لسه مفيش بيانات كفاية للمقارنة الأسبوعية</string>
+    <string name="ai_chat_card_title">محادثة مع زاد</string>
+    <string name="ai_chat_card_subtitle">اسأل عن مصاريفك، مخزونك، أو أي حاجة</string>
+    <string name="open_chat_action">افتح المحادثة</string>
+    <string name="collapse_chat_action">إخفاء المحادثة</string>
+
     <!-- InventoryScreen -->
     <string name="search_inventory">ابحث في المخزون...</string>
     <string name="add_to_shopping_list">نزّلها في التسوق</string>
@@ -641,6 +661,9 @@
     <string name="shared_grocery_list_hint">قائمة المشتريات التي تمت إضافتها من قبل أفراد العائلة أو اقترحها زاد.</string>
     <string name="sos_call_from">نداء طوارئ من %1$s!</string>
     <string name="sos_message">الرجاء الانتباه، حالة طوارئ!</string>
+    <string name="sos_confirm_title">تأكيد نداء الطوارئ</string>
+    <string name="sos_confirm_body">هيتبعت تنبيه فوري لكل أفراد العائلة إنك محتاج مساعدة. متأكد؟</string>
+    <string name="sos_send_action">أرسل النداء</string>
     <string name="tap_member_for_achievements">اضغط على أي عضو لتفاصيل إنجازاته</string>
     <string name="tap_to_open">أو اضغط:</string>
     <string name="tasbiha_trees_count">أشجار التسبيحة (%1$d)</string>
@@ -726,8 +749,6 @@
     <string name="kick_member">طرد العضو</string>
     <string name="low_inventory_alerts">تنبيهات نقص المخزون</string>
     <string name="low_inventory_alerts_desc">يرسل إشعاراً عند اقتراب نفاذ منتج أساسي</string>
-    <string name="meal_suggestions_alert">اقتراحات الوجبات</string>
-    <string name="meal_suggestions_alert_desc">اقتراح وجبات يومية بناءً على المخزون الحالي</string>
     <string name="tasbih_reminder_alert">تذكير التسبيح</string>
     <string name="tasbih_reminder_alert_desc">تذكير لطيف الساعة 5 عصراً لو لسه ما سبّحتش النهاردة</string>
     <string name="bank_reading_status_title">قراءة إشعارات البنك</string>

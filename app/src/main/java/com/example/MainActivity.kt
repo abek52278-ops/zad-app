@@ -59,7 +59,6 @@ import com.example.ui.screens.InventoryScreen
 import com.example.ui.screens.FamilyScreen
 import com.example.ui.screens.CameraScreen
 import com.example.data.SupabaseRepo
-import com.example.data.SessionHelper
 import io.github.jan.supabase.auth.status.SessionStatus
 
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -94,14 +93,13 @@ class MainActivity : ComponentActivity() {
 
         MarketPrefs.applyStoredLocale(this)
 
-        // Keep the persisted session in sync with every SDK-driven token refresh, not just
-        // explicit sign-in/out — otherwise the refresh token cached in SharedPreferences goes
-        // stale (Supabase rotates it on each refresh) and the next cold start silently fails
-        // to restore the session, forcing a re-login the user never asked for.
+        // Session persistence/refresh is entirely handled by auth-kt's own Auth plugin
+        // (autoLoadFromStorage/autoSaveToStorage/alwaysAutoRefresh default to true) — no
+        // app-side save/restore code needed. This collector only reacts to the resulting
+        // Authenticated status to sync pending alerts.
         lifecycleScope.launch {
             SupabaseRepo.client.auth.sessionStatus.collect { status ->
                 if (status is SessionStatus.Authenticated) {
-                    SessionHelper.saveSession(applicationContext)
                     // أول ما المستخدم يفتح التطبيق والجلسة تتعرف، اسحب رؤى العقل الـ pending
                     // اللي لسه نازلة (حرجة) وحوّلها إشعارات + صوت. كنا بنستنى الـ workers
                     // (كل 6 ساعات/يومياً) بس، فالرؤية كانت بتتأخر أو تختفي نهائياً.
@@ -323,8 +321,9 @@ fun SplashScreen(onTimeout: () -> Unit) {
     }
     LaunchedEffect(key1 = true) {
         startAnimation = true
-        com.example.data.SessionHelper.loadSession(context)
-        
+        // Session restore is handled by auth-kt's own Auth plugin (autoLoadFromStorage) —
+        // awaitInitialization() below just waits for that to finish.
+
         // Load AI API key from SharedPreferences so it works in ALL screens (not just Camera)
         val savedApiKey = context.getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
             .getString("gemini_api_key", "") ?: ""

@@ -183,10 +183,13 @@ fun SubscriptionsScreen(
                 }
             }
 
-            // مخطط سداد الديون — نفس ترتيب تاب "الاشتراكات والفرص" القديم جوه عقل زاد:
-            // مجموعتين "التزامات شهرية متكررة" مباشرة بعد اشتراكات الذكاء الاصطناعي المعلّقة.
-            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                DebtPayoffPlannerCard(debts, viewModel)
+            // مخطط سداد الديون — بس في تاب "الكل"، مش في الاشتراكات/الفواتير/الأقساط
+            // المفلترة: مستخدم بيدوس على تاب "فواتير" بالذات عايز الفواتير بس، مش
+            // ديون+فرص+صناديق مقحمة معاها. كانت بتظهر بغض النظر عن التاب المختار.
+            if (selectedTab == 0) {
+                Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    DebtPayoffPlannerCard(debts, viewModel)
+                }
             }
 
             // List
@@ -234,25 +237,28 @@ fun SubscriptionsScreen(
                     }
                 }
 
-                // فرص واقتصاد
-                item {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.LocalOffer, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("فرص واقتصاد", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                // فرص واقتصاد — نفس منطق DebtPayoffPlannerCard فوق: بس في تاب "الكل"،
+                // مش مقحمة تحت تابات الاشتراكات/الفواتير/الأقساط المفلترة.
+                if (selectedTab == 0) {
+                    item {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.LocalOffer, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("فرص واقتصاد", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                        }
                     }
+                    // العروض المتاحة لنواقصك — بحث حي حقيقي (Deal Matcher)
+                    item {
+                        LiveDealsCard(
+                            shortageItems = inventory.filter { it.quantity <= (it.lowStockThreshold ?: 2) }.map { it.itemName },
+                            viewModel = viewModel
+                        )
+                    }
+                    // تحديات العائلة المالية
+                    item { FinancialChallengesCard(familyViewModel) }
+                    // صناديق التجميع للمناسبات الموسمية
+                    item { SinkingFundsCard(familyViewModel) }
                 }
-                // العروض المتاحة لنواقصك — بحث حي حقيقي (Deal Matcher)
-                item {
-                    LiveDealsCard(
-                        shortageItems = inventory.filter { it.quantity <= (it.lowStockThreshold ?: 2) }.map { it.itemName },
-                        viewModel = viewModel
-                    )
-                }
-                // تحديات العائلة المالية
-                item { FinancialChallengesCard(familyViewModel) }
-                // صناديق التجميع للمناسبات الموسمية
-                item { SinkingFundsCard(familyViewModel) }
 
                 item { Spacer(modifier = Modifier.height(72.dp)) }
             }
