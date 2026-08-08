@@ -359,8 +359,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 // سؤال "ضيف إيه للمخزون؟". لازم يقارن بالقايمة القديمة قبل ما تتكتب فوق —
                 // وأول تحميل للتطبيق (transactionsBaselineEstablished لسه false) مايتحسبش
                 // "جديد"، وإلا كل تاريخ البقالة القديم كان هيفتح السؤال ده مرة واحدة عند أول فتح.
+                var hasNewSpendTransaction = false
                 if (transactionsBaselineEstablished) {
                     val previousIds = _transactions.value.map { it.id }.toSet()
+                    hasNewSpendTransaction = txs.any { it.id !in previousIds }
                     txs.firstOrNull { tx ->
                         tx.id !in previousIds && tx.id !in groceryPromptedTxIds &&
                             tx.category == "البقالة" && tx.txnKind == "expense"
@@ -373,6 +375,12 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 _transactions.value = txs
                 recalculateRemainingBalance(txs, _budget.value)
+                // Budget Card master refactor req #4 — a real new transaction (bank listener or
+                // manual) changes "متاح"/"المحجوز", so عقل زاد's next answer should reflect it.
+                // Throttled (not on every Room re-emit) — this fires per bank notification, and
+                // an unthrottled call here would be an LLM call outside any screen-open/user-tap
+                // event, the exact pattern CLAUDE.md's UI-thread/screen-open rule exists to avoid.
+                if (hasNewSpendTransaction) maybeAutoRefreshAgentSummary()
                 recalculateBudgetSuggestion(txs, _budget.value)
                 updateBehaviorPatterns(txs)
                 val baseInsights = if (txs.isEmpty() && _inventory.value.isEmpty()) {
@@ -755,10 +763,18 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             }
         } else "لا توجد ديون مسجلة."
 
+        // نفس الأرقام بالظبط اللي كارت الميزانية في الهوم بيعرضها (BudgetMath.availableInCycle/
+        // committedInCycle + CycleMath.daysLeft، عبر recalculateRemainingBalance) — عشان زاد
+        // في الشات ميقولش رقم "متاح"/"محجوز"/"أيام متبقية" مختلف عن اللي المستخدم شايفه فوق.
+        val daysLeft = _daysLeftInCycle.value
+        val availableNow = _availableFigure.value?.value
+        val safeDailySpend = if (daysLeft > 0 && availableNow != null && availableNow > 0) availableNow / daysLeft else null
+
         return """
             === معلومات العميل ===
-            الاسم: ${_userName.value ?: "مستخدم"} | التاريخ اليوم: $today
-            الميزانية الشهرية: ${if (_budget.value > 0) com.example.data.CurrencyFormatter.format(ctx, _budget.value) else "غير معروف"} | المتبقي (دورة الراتب الحالية): ${_remainingBalance.value?.let { com.example.data.CurrencyFormatter.format(ctx, it) } ?: "غير معروف"}
+            الاسم: ${_userName.value ?: "مستخدم"} | التاريخ اليوم: $today | متبقي على نهاية الدورة الحالية: $daysLeft يوم
+            الميزانية الشهرية: ${if (_budget.value > 0) com.example.data.CurrencyFormatter.format(ctx, _budget.value) else "غير معروف"} | المتبقي (دورة الراتب الحالية): ${_remainingBalance.value?.let { com.example.data.CurrencyFormatter.format(ctx, it) } ?: "غير معروف"} | المحجوز (التزامات+اشتراكات): ${com.example.data.CurrencyFormatter.format(ctx, _committed.value)} | المتاح الفعلي: ${availableNow?.let { com.example.data.CurrencyFormatter.format(ctx, it) } ?: "غير معروف"}
+            معدل الصرف اليومي الآمن: ${safeDailySpend?.let { "${com.example.data.CurrencyFormatter.format(ctx, it)}/يوم" } ?: "غير معروف"}
 
             === مخزون المنزل (بتنبؤات النفاد) ===
             ${invText.ifBlank { "لا يوجد عناصر حالياً." }}
@@ -1315,6 +1331,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             _budget.value = newBudget
             _budgetConfirmed.value = true
             recalculateRemainingBalance(_transactions.value, newBudget)
+            // Budget Card master refactor req #4 — a manual cap edit is a deliberate user
+            // action, so عقل زاد's context refreshes right away (bypasses the cooldown that
+            // guards the transaction-triggered path above).
+            maybeAutoRefreshAgentSummary(force = true)
 
             val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
             val success = if (userId != null) SupabaseRepo.setMonthlyLimit(userId, newBudget) else false
@@ -2709,6 +2729,24 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 Log.e(TAG, "loadSeasonalForecast() FAILED: ${e.message}")
             }
+        }
+    }
+
+    private var lastAgentSummaryAutoRefreshAt = 0L
+    private val AGENT_SUMMARY_AUTO_REFRESH_COOLDOWN_MS = 5 * 60 * 1000L
+
+    /**
+     * Budget Card master refactor req #4 — auto-triggered refreshAgentSummary(), distinct from
+     * the user-tapped one on AgentSummaryCard. `force=true` (manual budget edit save) always
+     * fires — one user action, one call. Without force (new transaction from the bank listener,
+     * which can post many times a day) a 5-minute cooldown caps it to avoid an unbounded
+     * background LLM call per notification.
+     */
+    private fun maybeAutoRefreshAgentSummary(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (force || now - lastAgentSummaryAutoRefreshAt >= AGENT_SUMMARY_AUTO_REFRESH_COOLDOWN_MS) {
+            lastAgentSummaryAutoRefreshAt = now
+            refreshAgentSummary()
         }
     }
 
