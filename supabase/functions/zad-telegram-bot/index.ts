@@ -59,6 +59,15 @@ const CHECKIN_CRON_SECRET = "5bbebc0b2acb1099e758e822be15144f9bf30175da67a459dd8
 // subscription alerts, not the check-in job too. Gates ?job=subscription_alerts below.
 const SUBSCRIPTION_CRON_SECRET = "2ceb272a5a1b12cce797b99f3e6d07a79b540cb95a5823ac9155588269214d55";
 
+// Same rationale again, own distinct value. Gates ?job=realtime_push below — fired by a
+// Postgres trigger (not cron) the moment a transaction is inserted or a budget threshold
+// is crossed, matching this repo's existing pattern of the client/DB detecting the
+// real-world event and this function only doing delivery (see GeofenceBroadcastReceiver's
+// zad-brain call for the same split on the Android side). This endpoint does NOT recompute
+// anything — the caller (a SQL trigger) sends pre-formatted title/body text, so no budget
+// math is duplicated here or in SQL beyond what notify_parents_on_child_spend() already does.
+const REALTIME_PUSH_CRON_SECRET = "7e78ce0aa8d2e83f67fbe48c39b5c39c17e54d32f781ccf79a1bd1000aaa7094";
+
 function toGrammyKeyboard(rows: InlineKeyboardButton[][]): InlineKeyboard {
   const kb = new InlineKeyboard();
   for (const row of rows) {
@@ -78,6 +87,18 @@ async function resolveUserId(sb: SupabaseClient, chatId: number): Promise<string
     .not("bound_at", "is", null)
     .maybeSingle();
   return (data as { user_id: string } | null)?.user_id ?? null;
+}
+
+/** Reverse of resolveUserId — the realtime_push job only knows user_id (from a DB trigger
+ * row), never chat_id. Returns null for an unbound user, which the caller treats as a
+ * silent no-op (most users won't have Telegram linked at all). */
+async function resolveChatId(sb: SupabaseClient, userId: string): Promise<number | null> {
+  const { data } = await sb.from("telegram_bindings")
+    .select("chat_id")
+    .eq("user_id", userId)
+    .not("bound_at", "is", null)
+    .maybeSingle();
+  return (data as { chat_id: number } | null)?.chat_id ?? null;
 }
 
 /** Direct Telegram API call, not a grammY ctx.reply — this fires OUTSIDE any inbound
@@ -954,6 +975,35 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ ok: true, ...result }), { headers: { "Content-Type": "application/json" } });
     } catch (e) {
       console.error("runDailySubscriptionAlerts failed:", e);
+      return new Response(JSON.stringify({ ok: false, error: String(e) }), { status: 500 });
+    }
+  }
+
+  // Real-time push — fired by a Postgres trigger (zad_transactions AFTER INSERT), not
+  // cron. Payload is pre-formatted title/body text; this endpoint only resolves the
+  // chat_id and delivers, no calculation happens here. Missing binding is a silent
+  // no-op (200), not an error — most rows won't belong to a Telegram-linked user.
+  if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "realtime_push") {
+    if (req.headers.get("X-Realtime-Push-Secret") !== REALTIME_PUSH_CRON_SECRET) {
+      return new Response("unauthorized", { status: 401 });
+    }
+    if (!BOT_CONFIGURED) {
+      return new Response(JSON.stringify({ ok: false, reason: "bot not configured" }), { status: 503 });
+    }
+    try {
+      const { user_id, title, body } = await req.json() as { user_id?: string; title?: string; body?: string };
+      if (!user_id || !title || !body) {
+        return new Response(JSON.stringify({ ok: false, reason: "missing user_id/title/body" }), { status: 400 });
+      }
+      const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+      const chatId = await resolveChatId(sb, user_id);
+      if (chatId === null) {
+        return new Response(JSON.stringify({ ok: true, delivered: false, reason: "not linked" }), { headers: { "Content-Type": "application/json" } });
+      }
+      await sendTelegramMessage(chatId, `${title}\n\n${body}`);
+      return new Response(JSON.stringify({ ok: true, delivered: true }), { headers: { "Content-Type": "application/json" } });
+    } catch (e) {
+      console.error("realtime_push failed:", e);
       return new Response(JSON.stringify({ ok: false, error: String(e) }), { status: 500 });
     }
   }
