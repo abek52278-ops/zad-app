@@ -47,7 +47,10 @@ data class AiParsedReceipt(
     val total: Double,
     val category: String,
     val storeName: String,
-    val items: List<AiParsedReceiptItem>
+    val items: List<AiParsedReceiptItem>,
+    // "pharmacy" | "grocery" | "general" — pharmacy routes items to zad_pharmacy_items
+    // instead of general inventory (see CameraScreen's receipt confirm handler).
+    val receiptType: String = "grocery"
 )
 
 @kotlinx.serialization.Serializable
@@ -112,6 +115,7 @@ object ZadAiRepository {
             val total = (response["total"] as? Number)?.toDouble()?.asMoney() ?: 0.0
             val category = response["category"] as? String ?: ""
             val storeName = response["storeName"] as? String ?: ""
+            val receiptType = response["receiptType"] as? String ?: "grocery"
             val items = itemsRaw?.mapNotNull { item ->
                 val map = item as? Map<*, *> ?: return@mapNotNull null
                 AiParsedReceiptItem(
@@ -122,7 +126,7 @@ object ZadAiRepository {
                     category = map["category"] as? String ?: "عام"
                 )
             } ?: emptyList()
-            AiParsedReceipt(total = total, category = category, storeName = storeName, items = items)
+            AiParsedReceipt(total = total, category = category, storeName = storeName, items = items, receiptType = receiptType)
         } as? AiParsedReceipt
     }
 

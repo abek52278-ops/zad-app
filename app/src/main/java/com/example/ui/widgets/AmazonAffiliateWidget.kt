@@ -69,7 +69,7 @@ fun ZadAmazonDealCard(
                 .background(surfaceContainerLow),
             contentAlignment = Alignment.Center
         ) {
-            if (!product.imageUrl.isNullOrBlank() && product.asinVerified) {
+            if (!product.imageUrl.isNullOrBlank()) {
                 AsyncImage(
                     model = product.imageUrl,
                     contentDescription = product.productNameAr,
@@ -144,7 +144,7 @@ fun AffiliateProductCard(
                     .clip(RoundedCornerShape(16.dp))
                     .background(surfaceContainerLow)
             ) {
-                if (!product.imageUrl.isNullOrBlank() && product.asinVerified) {
+                if (!product.imageUrl.isNullOrBlank()) {
                     AsyncImage(
                         model = product.imageUrl,
                         contentDescription = product.productNameAr,

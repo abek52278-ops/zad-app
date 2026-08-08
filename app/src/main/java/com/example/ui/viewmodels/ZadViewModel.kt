@@ -527,6 +527,21 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.e(TAG, "refreshLocaleConfig() FAILED: ${e.message}")
             }
         }
+
+        // معاملة جديدة من بوت تليجرام أو جهاز تاني كانت مش بتوصل لـ CashCard إلا بعد
+        // فتح تطبيق تاني أو TransactionSyncWorker (كل ٣ ساعات). قناة Realtime بتخلي
+        // syncData() تتنادى فوراً بمجرد ما الصف يتضاف على zad_transactions.
+        viewModelScope.launch {
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return@launch
+            try {
+                com.example.data.RealtimePersonalTransactionsRepo.subscribeToOwnTransactions(userId).collect {
+                    Log.d(TAG, "Realtime own-transaction insert → syncData()")
+                    syncData()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "subscribeToOwnTransactions() FAILED: ${e.message}")
+            }
+        }
     }
 
     private fun persistChatMessage(msg: AiChatMessage) {

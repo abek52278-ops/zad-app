@@ -239,11 +239,15 @@ object ZadAiGeminiClient {
             Read every line item with its own price and keep item names exactly as printed.
             `total` is the final amount actually paid (after VAT and any discount), a number with no currency symbol.
             If a field is genuinely unreadable, leave it empty or 0 rather than guessing.
+            Also classify `receiptType`: "pharmacy" if this is a pharmacy/drugstore receipt
+            (medicine names, dosages like "500mg", tablet/syrup/capsule units), "general" for
+            non-grocery non-pharmacy receipts (restaurants, fuel, services), otherwise "grocery".
             Extract the data into ONLY a JSON object (no markdown, no backticks) with this structure:
             {
               "storeName": "Store Name in Arabic",
               "total": 150.5,
               "category": "grocery",
+              "receiptType": "grocery",
               "items": [
                 { "name": "Item name", "quantity": 1.0, "price": 10.0, "unit": "حبة", "category": "grocery" }
               ]

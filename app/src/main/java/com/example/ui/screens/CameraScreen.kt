@@ -592,28 +592,55 @@ fun CameraScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.addTransaction(
-                            com.example.data.ZadTransaction(
-                                title = receipt.storeName,
-                                amount = receipt.total,
-                                isExpense = true,
-                                category = receipt.category
-                            )
-                        )
-                        // الحقن الذكي: يزوّد الموجود + يشطب من النواقص + يتعلم
-                        viewModel.injectScannedItems(
-                            receipt.items.map { item ->
-                                ZadInventory(
-                                    itemName = item.name,
-                                    quantity = maxOf(1, item.quantity.toInt()),
-                                    unit = item.unit,
-                                    category = item.category
+                        if (receipt.receiptType == "pharmacy" && receipt.items.isNotEmpty()) {
+                            // فاتورة صيدلية: كل صنف بيتحقن في الصيدلية نفسها (مش المخزون العام)،
+                            // و addPharmacyItem بيسجّل مصروفه الخاص — مفيش addTransaction هنا
+                            // عشان الفاتورة ماتتحسبش مرتين.
+                            receipt.items.forEach { item ->
+                                viewModel.addPharmacyItem(
+                                    com.example.data.ZadPharmacyItem(
+                                        name = item.name,
+                                        remainingQuantity = maxOf(1, item.quantity.toInt()),
+                                        unit = item.unit,
+                                        price = item.price
+                                    )
                                 )
                             }
-                        ) { summary ->
-                            analysisStatus = "فاتورة ${receipt.storeName} (${com.example.data.CurrencyFormatter.format(context, receipt.total)}): $summary"
+                            analysisStatus = "تم تسجيل فاتورة ${receipt.storeName} (${com.example.data.CurrencyFormatter.format(context, receipt.total)}) في الصيدلية!"
+                        } else if (receipt.receiptType == "pharmacy") {
+                            viewModel.addTransaction(
+                                com.example.data.ZadTransaction(
+                                    title = receipt.storeName,
+                                    amount = receipt.total,
+                                    isExpense = true,
+                                    category = "الرعاية الصحية"
+                                )
+                            )
+                            analysisStatus = "تم تسجيل فاتورة ${receipt.storeName} بقيمة ${com.example.data.CurrencyFormatter.format(context, receipt.total)}!"
+                        } else {
+                            viewModel.addTransaction(
+                                com.example.data.ZadTransaction(
+                                    title = receipt.storeName,
+                                    amount = receipt.total,
+                                    isExpense = true,
+                                    category = receipt.category
+                                )
+                            )
+                            // الحقن الذكي: يزوّد الموجود + يشطب من النواقص + يتعلم
+                            viewModel.injectScannedItems(
+                                receipt.items.map { item ->
+                                    ZadInventory(
+                                        itemName = item.name,
+                                        quantity = maxOf(1, item.quantity.toInt()),
+                                        unit = item.unit,
+                                        category = item.category
+                                    )
+                                }
+                            ) { summary ->
+                                analysisStatus = "فاتورة ${receipt.storeName} (${com.example.data.CurrencyFormatter.format(context, receipt.total)}): $summary"
+                            }
+                            analysisStatus = "تم تسجيل فاتورة ${receipt.storeName} بقيمة ${com.example.data.CurrencyFormatter.format(context, receipt.total)} والمنتجات في المخزون!"
                         }
-                        analysisStatus = "تم تسجيل فاتورة ${receipt.storeName} بقيمة ${com.example.data.CurrencyFormatter.format(context, receipt.total)} والمنتجات في المخزون!"
                         showReceiptConfirmationDialog = false
                         parsedReceipt = null
                         imageBitmap = null

@@ -733,9 +733,12 @@ Deno.serve(async (req: Request) => {
           "Read every line item with its own price; keep the item names exactly as printed. " +
           "`total` is the final amount actually paid (after VAT and any discount), as a number with no currency symbol. " +
           "If a field is genuinely unreadable, leave it empty or 0 rather than guessing. " +
+          "Also classify `receiptType`: \"pharmacy\" if this is a pharmacy/drugstore receipt " +
+          "(medicine names, dosages like 500mg, tablet/syrup/capsule units), \"general\" for " +
+          "non-grocery non-pharmacy receipts (restaurants, fuel, services), otherwise \"grocery\". " +
           "Return ONLY a JSON object, no markdown and no commentary: " +
-          "{\"total\":0.0,\"category\":\"\",\"storeName\":\"\",\"items\":[{\"name\":\"\",\"price\":0.0,\"quantity\":1.0,\"unit\":\"قطعة\",\"category\":\"عام\"}]}";
-        const userPrompt = "Extract the store name, the total paid, a spending category, and every line item from this receipt.";
+          "{\"total\":0.0,\"category\":\"\",\"storeName\":\"\",\"receiptType\":\"grocery\",\"items\":[{\"name\":\"\",\"price\":0.0,\"quantity\":1.0,\"unit\":\"قطعة\",\"category\":\"عام\"}]}";
+        const userPrompt = "Extract the store name, the total paid, a spending category, the receipt type, and every line item from this receipt.";
         // callVisionModel rotates the whole Gemini key pool internally; images never hit Groq.
         const visionResult = await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg");
         if (visionResult) {
@@ -747,12 +750,13 @@ Deno.serve(async (req: Request) => {
                 total: parsed.total || 0,
                 category: parsed.category || "",
                 storeName: parsed.storeName || "",
+                receiptType: parsed.receiptType || "grocery",
                 items: parsed.items || [],
               });
             } catch { /* fall through */ }
           }
         }
-        return jsonResponse({ total: 0, category: "", storeName: "", items: [] });
+        return jsonResponse({ total: 0, category: "", storeName: "", receiptType: "grocery", items: [] });
       }
 
       // ──────────────────────────────────────────────

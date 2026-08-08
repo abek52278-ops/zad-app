@@ -13,7 +13,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -42,6 +41,21 @@ private data class ParsedRecipe(
     val ingredients: List<String>,
     val steps: List<String>
 )
+
+/** Static keyword→emoji map so recipe headers show a relevant dish glyph without any network image. */
+private fun dishEmojiFor(title: String): String = when {
+    title.contains("بيض") -> "🍳"
+    title.contains("تونة") || title.contains("سمك") -> "🐟"
+    title.contains("دجاج") || title.contains("فراخ") -> "🍗"
+    title.contains("لحم") || title.contains("كفتة") -> "🥩"
+    title.contains("أرز") || title.contains("رز") -> "🍚"
+    title.contains("سلطة") -> "🥗"
+    title.contains("مكرونة") || title.contains("باستا") -> "🍝"
+    title.contains("شوربة") -> "🍲"
+    title.contains("خبز") || title.contains("عيش") -> "🍞"
+    title.contains("فاكهة") || title.contains("موز") || title.contains("تفاح") -> "🍎"
+    else -> "🍽️"
+}
 
 private fun parseRecipeContent(text: String): ParsedRecipe {
     val lines = text.lines()
@@ -177,11 +191,8 @@ fun RecipeDetailDialog(
                             .fillMaxWidth()
                             .height(200.dp)
                     ) {
-                        // الصورة دي كانت hotlink لـ source.unsplash.com — خدمة اتقفلت، فكانت
-                        // بتتعرض فاضية/عشوائية وللأكل العربي مش بترجع حاجة خالص. اتستبدلت
-                        // بهيدر متدرج ثابت (نفس ستايل ZadChefCard) بيرندر دايمًا من غير شبكة،
-                        // بدل صورة مزيفة مش حقيقية. الصور الحقيقية للوصفات محتاجة مصدر متفق
-                        // عليه (Spoonacular/صور مولّدة) — ده خارج إصلاح الـ hotlink.
+                        // hotlink لـ source.unsplash.com اتقفل، فمفيش صورة شبكة هنا — إيموجي
+                        // ثابت حسب نوع الطبق (dishEmojiFor) بدل صورة مزيفة أو مكررة.
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -195,23 +206,10 @@ fun RecipeDetailDialog(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    Icons.Default.Restaurant,
-                                    contentDescription = null,
-                                    tint = primaryFixed,
-                                    modifier = Modifier.size(56.dp)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = recipeTitle,
-                                    style = com.example.ui.theme.Typography.titleLarge,
-                                    color = primaryFixed,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier.padding(horizontal = 24.dp)
-                                )
-                            }
+                            Text(
+                                text = dishEmojiFor(recipeTitle),
+                                fontSize = 72.sp
+                            )
                         }
                         Box(
                             modifier = Modifier
@@ -243,7 +241,7 @@ fun RecipeDetailDialog(
                                 .padding(16.dp)
                         ) {
                             Text(
-                                text = "\uD83C\uDF73",
+                                text = dishEmojiFor(recipeTitle),
                                 style = Typography.headlineMedium
                             )
                             Text(
