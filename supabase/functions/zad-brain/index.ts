@@ -1003,6 +1003,32 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       }
       return `اتسجلت جرعة ${match.name} — فاضل ${newQty} ${match.unit ?? ""}`;
     }
+    case "delete_pharmacy_item": {
+      // W7 — نفس مسار DeletePharmacyItemUseCase على الكلاينت (نفس الجدول، نفس شرط
+      // الملكية). البحث بالاسم مش id لنفس سبب log_pharmacy_dose فوق — الـ snapshot
+      // مايدّيش الموديل أي id لأدوية الصيدلية.
+      const spoken = String(input.name ?? "").trim();
+      const { data: items } = await sb.from("zad_pharmacy_items").select("*").eq("user_id", userId);
+      const rows = (items ?? []) as Array<{ id: string; name: string }>;
+      const match = rows.find((r) => {
+        const a = r.name.trim().toLowerCase();
+        const b = spoken.toLowerCase();
+        return a.includes(b) || b.includes(a);
+      });
+      if (!match) return `مرفوض: مفيش دواء اسمه "${spoken}" في قايمة العميل — عدّل وحاول تاني.`;
+      const w = await writeRows(
+        sb.from("zad_pharmacy_items").delete().eq("id", match.id).eq("user_id", userId).select("id"),
+        "حذف الدواء",
+      );
+      if (!w.ok) return `مرفوض: ${w.reason}`;
+      ctx.mutationCount++;
+      ctx.mutations.push({ tool: name, old: match, new: null });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "zad_pharmacy_items", targetId: match.id,
+        previous: match, next: null,
+      });
+      return `اتحذف "${match.name}" من قايمة الصيدلية`;
+    }
     case "query_family": {
       const { data: membership } = await sb.from("family_members")
         .select("family_id").eq("user_id", userId).maybeSingle();
@@ -1316,6 +1342,20 @@ const CHAT_TOOLS: ToolDef[] = [
   {
     name: "log_pharmacy_dose",
     description: "سجّل إن العميل خد جرعة من دواء موجود بالفعل في قايمته (مثال: \"خدت حبة الضغط\"). بينقّص المتبقي ويضيف الدوا لقائمة التسوق لو قرّب يخلص.",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "اسم الدواء زي ما قاله العميل" },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    // W7 — قايمة الأدوات كانت من غير أي أداة حذف صيدلية خالص، رغم إن زرار الحذف
+    // (سلة المهملات) موجود في PharmacyScreen من زمان. نفس مبدأ log_pharmacy_dose:
+    // الاسم مش الـ id، لأن الـ snapshot مايدّيش الموديل أي id لأدوية الصيدلية أصلاً.
+    name: "delete_pharmacy_item",
+    description: "احذف دواء من قايمة الصيدلية بتاعة العميل خالص (مش نفاد كمية — حذف كامل). استخدمها لما العميل يقول \"مش محتاج الدوا ده تاني\" أو \"احذف كذا من الأدوية\".",
     input_schema: {
       type: "object",
       properties: {

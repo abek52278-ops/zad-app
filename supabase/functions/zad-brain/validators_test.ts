@@ -17,6 +17,7 @@ import {
   VALIDATORS,
   freshContext,
   validateLogPharmacyDose,
+  validateDeletePharmacyItem,
   validateAddInventoryItem,
   validateAddPharmacyItem,
   validateAddShoppingItem,
@@ -684,4 +685,21 @@ Deno.test("log_pharmacy_dose counts as a mutation and is not confirm-gated", () 
   // خصم جرعة تعديل حقيقي، بس مش فلوس — نفس تصنيف المخزون بالظبط.
   assert(MUTATING_TOOLS.includes("log_pharmacy_dose"));
   assert(!CONFIRM_REQUIRED_TOOLS.includes("log_pharmacy_dose"));
+});
+
+// W7 — أول أداة وكيل مقابلة لزرار كان موجود من غير أداة (زرار حذف الصيدلية في
+// PharmacyScreen). نفس شكل تحقق log_pharmacy_dose بالظبط — الاسم مش id.
+Deno.test("delete_pharmacy_item rejects a name too short to match anything", async () => {
+  assertEquals((await validateDeletePharmacyItem({ name: "" }, {}, freshContext("u"))).ok, false);
+  assertEquals((await validateDeletePharmacyItem({ name: "ك" }, {}, freshContext("u"))).ok, false);
+  assertEquals((await validateDeletePharmacyItem({ name: "كونكور" }, {}, freshContext("u"))).ok, true);
+});
+
+Deno.test("delete_pharmacy_item counts as a mutation, is not confirm-gated, and caps at 3 per turn", async () => {
+  assert(MUTATING_TOOLS.includes("delete_pharmacy_item"));
+  assert(!CONFIRM_REQUIRED_TOOLS.includes("delete_pharmacy_item"));
+  const ctx = freshContext("u");
+  ctx.counts["delete_pharmacy_item"] = 3;
+  const v = await validateDeletePharmacyItem({ name: "بنادول" }, {}, ctx);
+  assertEquals(v.ok, false);
 });

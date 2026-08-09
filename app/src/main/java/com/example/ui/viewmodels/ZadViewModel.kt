@@ -2489,7 +2489,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             Log.d(TAG, "deletePharmacyItem() → id=$id")
             dao.deletePharmacyItem(id)
             try {
-                SupabaseRepo.deletePharmacyItem(id)
+                // W7 — نفس المسار اللي أداة الوكيل delete_pharmacy_item بتنفّذه على
+                // السيرفر (نفس الجدول، نفس شرط الملكية). Room فوق ده كاش أوفلاين
+                // بيخص الكلاينت بس، مش جزء من العقد المشترك.
+                com.example.domain.usecases.DeletePharmacyItemUseCase.invoke(id)
                 Log.d(TAG, "deletePharmacyItem() → synced to Supabase table=zad_pharmacy_items")
             } catch (e: Exception) {
                 Log.e(TAG, "deletePharmacyItem() Supabase sync FAILED: ${e.message}")
