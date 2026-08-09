@@ -2,8 +2,9 @@
 
 > ⚠️ **تحديث 2026-08-01 — اقرأ ده الأول:**
 >
-> - الدالة المستخدمة فعلياً اسمها **`zad-core-intelligence`**، مش `zad-ai-proxy`. `zad-ai-proxy`
->   كود ميت — العميل مابينادهوش خالص غير في اختبار androidTest متمثّل.
+> - الدالة المستخدمة فعلياً اسمها **`zad-core-intelligence`**. `zad-ai-proxy` **اتحذفت من
+>   الريبو خالص** — مفيش مجلد ليها تحت `supabase/functions/`. أي أمر تحت في الملف ده بينشرها
+>   أو بينده عليها بقى تأريخ، متنفذهوش.
 > - المزوّد الأساسي بقى **Gemini** عن طريق pool من ٥ مفاتيح (`ZAD_API_KEY_1..5`) بنداء
 >   `generateContent` الأصلي. Groq بقى fallback **للنصوص/JSON بس**.
 > - **الصور عمرها ما بتروح لـ Groq.** Groq بيرفض JSON mode على أي طلب فيه صورة (400)، وكل
@@ -14,13 +15,17 @@
 > - `gemini-2.5-flash` مات: بيرجّع 404 "no longer available to new users" (لسه بيظهر في قائمة
 >   الموديلات، بس مابينفعش يتنادى). ده بالظبط اللي كان مكسّر الماسح الذكي.
 >
+> - المحادثة (تطبيق + بوت تليجرام) بقت بتعدي على **`zad-brain`** عبر `agent_turn`/`agent_confirm`
+>   — استدعاء أدوات حقيقي. راجع `docs/agent/AGENT_GAP_ANALYSIS.md`.
+>
 > باقي الملف تحت لسه فيه خطوات قديمة بأسماء `zad-ai-proxy`/`GEMINI_API_KEY` المفرد — سيبناها
-> كتأريخ، بس اتبع قسم "النشر الحالي" اللي بعد ده مباشرة.
+> كتأريخ، بس اتبع قسم "النشر الحالي" اللي بعد ده مباشرة. **الأوامر اللي فيها `zad-ai-proxy`
+> هتفشل** لأن الدالة دي مش موجودة.
 
 ## ملخص الإصلاحات
 
 ### 1. توجيه AI عبر Edge Function
-- تم تعديل `ZadAiProxyClient.kt` لاستخدام `SupabaseRepo.client.functions.invoke("zad-ai-proxy")` بدلاً من الاتصال المباشر بـ Gemini API
+- (تأريخ) `ZadAiProxyClient.kt` كان بينادي `zad-ai-proxy` بدل Gemini مباشرة. الملف والدالة الاتنين مش موجودين دلوقتي
 - الـ Edge Function الآن تدعم 11 نوع طلب:
   `receipt_analysis`, `meal_suggestions`, `spending_insights`, `bank_sms_parsing`,
   `subscription_detection`, `grocery_suggestions`, `chat`, `inventory_scan`,
@@ -57,7 +62,8 @@ npx supabase login
 npx supabase link --project-ref YOUR_PROJECT_REF
 
 # انشر الدالة
-npx supabase functions deploy zad-ai-proxy --project-ref YOUR_PROJECT_REF
+# ⚠️ تأريخ — zad-ai-proxy محذوفة. الأمر الحالي:
+npx supabase functions deploy zad-core-intelligence --project-ref YOUR_PROJECT_REF
 
 # ضع مفتاح Gemini API في Supabase Secrets
 npx supabase secrets set GEMINI_API_KEY="YOUR_GEMINI_API_KEY" --project-ref YOUR_PROJECT_REF
@@ -65,7 +71,8 @@ npx supabase secrets set GEMINI_API_KEY="YOUR_GEMINI_API_KEY" --project-ref YOUR
 
 ### الخطوة 3: التحقق
 ```bash
-curl -X POST "https://YOUR_PROJECT_REF.functions.supabase.co/zad-ai-proxy" \
+# ⚠️ تأريخ — العنوان ده مش موجود. استبدله بـ zad-core-intelligence
+curl -X POST "https://YOUR_PROJECT_REF.functions.supabase.co/zad-core-intelligence" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_ANON_KEY" \
   -d '{

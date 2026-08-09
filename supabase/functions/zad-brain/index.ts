@@ -1332,12 +1332,46 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
   let modelText = "";
   let anyToolAttempted = false;
 
+  // أثر دائم لكل لفة محادثة، مش console.error بس. لوجز الفانكشن بتروح بعد فترة، والصف ده
+  // هو اللي بيخلي فشل النشر الأول مرئي وقت حصوله بدل ما نستنى حد يشتكي.
+  // trigger='chat' لأن الـ CHECK constraint على العمود بيسمح بـ daily/event/chat بس —
+  // قيمة جديدة كانت هتحتاج migration، والقيمة دي بتوصف اللفة دي بالظبط أصلاً.
+  const { data: runRow } = await sb.from("zad_brain_runs")
+    .insert({ user_id: userId, trigger: "chat", status: "running" }).select("id").single();
+  const runId = (runRow as { id: string } | null)?.id;
+
+  const finishRun = async (status: "success" | "failed", error?: string) => {
+    if (!runId) return;
+    await sb.from("zad_brain_runs").update({
+      status, finished_at: new Date().toISOString(),
+      mutations: ctx.mutations, rejections: ctx.rejections, error: error ?? null,
+    }).eq("id", runId);
+  };
+
   for (let turn = 0; turn < 2; turn++) {
     let reply;
     try {
       reply = await callModel({ model: MODEL_ROUTINE, system: systemPrompt, tools: CHAT_TOOLS, history, maxTokens: 1200 });
     } catch (e) {
       console.error("agent_turn callModel failed:", e);
+      await finishRun("failed", String(e));
+      // خطر حقيقي هنا: لو لفة سابقة نفّذت كتابات فعلاً، الرجوع بـ ok:false بيخلي
+      // الكلاينت يقع على بروتوكول [[ACTION]] القديم — واللي ممكن يكتب **نفس** الحاجة
+      // تاني، فالمخزون يتزود مرتين على رسالة واحدة. الكتابات دي حصلت وخلاص ومفيش تراجع
+      // عنها من هنا، فالتصرف الوحيد الصح إننا نبلّغ بيها بدل ما نرميها.
+      if (executed.length > 0 || proposals.length > 0) {
+        return new Response(JSON.stringify({
+          ok: true,
+          reply: modelText.trim(),
+          executed,
+          proposals,
+          tool_attempted: true,
+          partial: true,
+          rejections: ctx.rejections,
+          observations: ctx.observations,
+        }), { headers: CORS_HEADERS });
+      }
+      // مفيش أي كتابة حصلت — آمن إن الكلاينت يقع على المسار القديم.
       return new Response(
         JSON.stringify({ ok: false, error: "model_unavailable", reply: "" }),
         { status: 200, headers: CORS_HEADERS },
@@ -1389,6 +1423,7 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
   // ضد "وهم التنفيذ": لو الموديل قال "ضفتلك اللحمة" ومنداش أي أداة، مفيش تنفيذ يتأكد
   // وبالتالي مفيش كارت تأكيد يتعرض — والنص اللي بيتعرض هو نصه هو، من غير ادعاء.
   const reply = modelText.trim();
+  await finishRun("success");
 
   return new Response(JSON.stringify({
     ok: true,

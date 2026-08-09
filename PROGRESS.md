@@ -48,7 +48,7 @@
 12. **Supabase CRUD كامل:** ✅
     - ملف `SupabaseRepo.kt` (625 سطر) لجميع العمليات
 
-13. **Edge Function zad-ai-proxy:** ✅
+13. **Edge Function (كانت zad-ai-proxy، اتشالت):** ✅ — الدالة دي اتحذفت من الريبو؛ بديلها `zad-core-intelligence`
     - 17 نوع طلب عبر Groq AI (Llama 3.3 70B)
 
 14. **FamilyViewModel + FamilyScreen كاملين:** ✅
@@ -179,6 +179,6 @@
 
 - **البناء:** `assembleDebug` يعلق في الساندبوكس. يجب البناء من Android Studio.
 - **المفاتيح:** `SUPABASE_URL` و `SUPABASE_ANON_KEY` في `.env` → `BuildConfig` → `SupabaseRepo`
-- **Groq:** `GROQ_API_KEY` في Edge Function `zad-ai-proxy`
+- **Groq:** `GROQ_API_KEY` في Edge Function `zad-core-intelligence` (كان مكتوب `zad-ai-proxy` — دالة محذوفة)
 - **السوق:** السعودية فقط (SAR)، النصوص باللهجة السعودية
 - **الاختبار:** تشغيل `compileDebugKotlin` من Android Studio محلياً للتحقق من عدم وجود أخطاء
