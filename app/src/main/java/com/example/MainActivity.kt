@@ -236,6 +236,9 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** كام فشل تحديث توكن متتالي نقبله قبل ما نعتبر الجلسة ماتت فعلاً ونطلب تسجيل دخول. */
+private const val MAX_REFRESH_FAILURES_BEFORE_LOGOUT = 3
+
 @Composable
 fun AppNavigation(pendingInviteCode: String? = null) {
     val navController = rememberNavController()
@@ -252,10 +255,23 @@ fun AppNavigation(pendingInviteCode: String? = null) {
     // route == "main" (المستخدم فعلياً جوه التطبيق) عشان ميتعارضش مع تدفق onLogout العادي
     // (بيعمل NotAuthenticated(isSignOut=true) بنفسه، مستثناة هنا) ولا مع فحص الجلسة الأولي
     // في navigateAfterSplash.
+    // عدّاد فشل التحديث المتتالي. RefreshFailure(InternalServerError) مش دليل قاطع إن
+    // الجلسة ماتت — أي 5xx عابر من خدمة الـ auth بيوصل بنفس السبب بالظبط، وauth-kt بيفضل
+    // بيحاول لوحده بعدها. تسجيل خروج من أول واحدة كان بيطلّع المستخدم من حسابه في نص
+    // استخدامه على عطل لحظي (وده اللي المستخدمين بلّغوا عنه: "بيخرج لوحده من الأكونت").
+    // بنستنى تلات فشل ورا بعض قبل ما نجبره يسجل دخول تاني؛ أي نجاح بيصفّر العداد.
+    var consecutiveRefreshFailures by remember { mutableStateOf(0) }
     LaunchedEffect(Unit) {
         SupabaseRepo.client.auth.sessionStatus.collect { status ->
+            if (status is SessionStatus.Authenticated) consecutiveRefreshFailures = 0
             val sessionDiedUnexpectedly = when (status) {
-                is SessionStatus.RefreshFailure -> status.cause is RefreshFailureCause.InternalServerError
+                is SessionStatus.RefreshFailure -> {
+                    if (status.cause is RefreshFailureCause.InternalServerError) {
+                        consecutiveRefreshFailures++
+                        Log.w("AppNavigation", "Token refresh failed ($consecutiveRefreshFailures/$MAX_REFRESH_FAILURES_BEFORE_LOGOUT)")
+                        consecutiveRefreshFailures >= MAX_REFRESH_FAILURES_BEFORE_LOGOUT
+                    } else false // NetworkError — أوفلاين، مش جلسة ميتة
+                }
                 is SessionStatus.NotAuthenticated -> !status.isSignOut
                 else -> false
             }

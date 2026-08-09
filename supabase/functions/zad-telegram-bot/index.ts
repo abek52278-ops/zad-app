@@ -29,6 +29,7 @@ import {
   AgentContextInput, agentSystemPrompt, buildAgentContext, clampForTelegram,
   confirmSpendMessage, deriveWebhookSecret, money, parseSpendIntent, spendIntentPrompt,
   confirmMedicationMessage, medicationIntentPrompt, parseMedicationIntent,
+  isolate, sanitizeName,
 } from "./context.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -184,7 +185,7 @@ async function runDailyCheckins(sb: SupabaseClient): Promise<{ usersChecked: num
         console.error("checkin prompt insert failed:", error?.message);
         continue;
       }
-      await sendTelegramMessage(b.chat_id, checkInPromptMessage(item.item_name), checkInKeyboard((prompt as { id: string }).id));
+      await sendTelegramMessage(b.chat_id, checkInPromptMessage(isolate(sanitizeName(item.item_name))), checkInKeyboard((prompt as { id: string }).id));
       promptsSent++;
     }
   }
@@ -227,7 +228,7 @@ async function runDailySubscriptionAlerts(sb: SupabaseClient): Promise<{ usersCh
       if (daysLeft < 0 || daysLeft > 3) continue;
       const amountText = `${sub.amount}${sub.currency ? " " + sub.currency : ""}`;
       const when = daysLeft === 0 ? "اليوم" : `خلال ${daysLeft} يوم`;
-      await sendTelegramMessage(b.chat_id, `🔔 ${sub.title} يتجدد ${when} (${amountText})`);
+      await sendTelegramMessage(b.chat_id, `🔔 ${isolate(sanitizeName(sub.title))} يتجدد ${when} (${isolate(amountText)})`);
       alertsSent++;
     }
   }
@@ -241,7 +242,13 @@ async function runDailySubscriptionAlerts(sb: SupabaseClient): Promise<{ usersCh
 async function fetchAgentContext(sb: SupabaseClient, userId: string): Promise<AgentContextInput> {
   const today = new Date().toISOString().slice(0, 10);
 
-  const [user, txs, inv, subs, obligations, debts, pharmacy, shopping, insights, tasbiha, memory] = await Promise.all([
+  // العيلة بتتجاب على خطوتين لأن family_members مالهاش عمود بيربط عضو بعضو مباشرة: الأول
+  // نلاقي عضوية المستخدم عشان نعرف family_id، وبعدين نجيب كل أعضاء العيلة دي.
+  const { data: myMembership } = await sb.from("family_members")
+    .select("family_id").eq("user_id", userId).maybeSingle();
+  const familyId = (myMembership as { family_id: string } | null)?.family_id ?? null;
+
+  const [user, txs, inv, subs, obligations, debts, pharmacy, shopping, insights, tasbiha, memory, family] = await Promise.all([
     sb.from("zad_users").select("name,monthly_limit,currency,country").eq("id", userId).maybeSingle(),
     // Pull a deep-enough window (200 newest) rather than just the 30 the prompt shows:
     // monthTotals/categoryBreakdown run over this same list, so a heavy month with more
@@ -257,6 +264,9 @@ async function fetchAgentContext(sb: SupabaseClient, userId: string): Promise<Ag
     sb.from("zad_insights").select("title,body").eq("user_id", userId).eq("status", "pending").limit(8),
     sb.from("family_tasbiha").select("garden_name,tree_emoji,level,score,total_clicks,streak_days").eq("user_id", userId).limit(10),
     sb.from("zad_memory").select("scope,note").eq("user_id", userId).limit(20),
+    familyId
+      ? sb.from("family_members").select("role,alias,balance,savings_goal").eq("family_id", familyId).limit(20)
+      : Promise.resolve({ data: [] as unknown[] }),
   ]);
 
   return {
@@ -268,6 +278,7 @@ async function fetchAgentContext(sb: SupabaseClient, userId: string): Promise<Ag
     currency: (user.data as any)?.currency ?? "غير معروف",
     country: (user.data as any)?.country ?? null,
     today,
+    family: (family.data ?? []) as any,
     transactions: (txs.data ?? []) as any,
     inventory: (inv.data ?? []) as any,
     subscriptions: (subs.data ?? []) as any,
@@ -665,7 +676,7 @@ bot.on("message:voice", async (ctx) => {
       return;
     }
     await sb.rpc("zad_record_observation", { p_user: userId, p_item: itemName, p_qty: qty, p_source: "purchase" });
-    await ctx.reply(heard + `✅ اتضاف "${itemName}" للمخزون (${qty}).`);
+    await ctx.reply(heard + `✅ اتضاف "${isolate(sanitizeName(itemName))}" للمخزون (${qty}).`);
     return;
   }
 
@@ -937,7 +948,7 @@ bot.on("callback_query:data", async (ctx) => {
 
     const { data: u } = await sb.from("zad_users").select("currency").eq("id", userId).maybeSingle();
     const cur = (u as { currency?: string } | null)?.currency ?? "غير معروف";
-    await ctx.reply(`اتسجل ✅ ${row.title} — ${money(row.amount, cur)}`);
+    await ctx.reply(`اتسجل ✅ ${isolate(sanitizeName(row.title))} — ${isolate(money(row.amount, cur))}`);
     return;
   }
 
@@ -1008,7 +1019,7 @@ bot.on("callback_query:data", async (ctx) => {
     // مفيش AlarmManager على السيرفر — التذكيرات الفعلية بتتفعل لما تطبيق زاد يعمل sync
     // ويلاقي الدواء الجديد في zad_pharmacy_items (نفس آلية PharmacyReminderScheduler
     // اللي بتشتغل تلقائي عند أي تغيير في قائمة الأدوية).
-    await ctx.reply(`اتسجل ✅ ${row.name} — المواعيد: ${row.dose_times}\nهتلاقي التذكير شغال في التطبيق بعد أول فتح.`);
+    await ctx.reply(`اتسجل ✅ ${isolate(sanitizeName(row.name))} — المواعيد: ${isolate(row.dose_times ?? "")}\nهتلاقي التذكير شغال في التطبيق بعد أول فتح.`);
     return;
   }
 
@@ -1054,7 +1065,7 @@ bot.on("callback_query:data", async (ctx) => {
       .update({ status: checkin.stillInStock ? "answered_yes" : "answered_no", answered_at: new Date().toISOString() })
       .eq("id", prompt.id);
 
-    await ctx.reply(checkin.stillInStock ? "تمام ✅ هفتكر إني سألت عنه." : `سجلتها خلصت ✅ ${prompt.item_name}`);
+    await ctx.reply(checkin.stillInStock ? "تمام ✅ هفتكر إني سألت عنه." : `سجلتها خلصت ✅ ${isolate(sanitizeName(prompt.item_name))}`);
     return;
   }
 

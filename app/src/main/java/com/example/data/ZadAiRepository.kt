@@ -509,18 +509,20 @@ object ZadAiRepository {
     // number below is already computed locally in ZadIntelligenceScreen.kt;
     // these calls never invent figures, only phrase them in Arabic) ──
 
+    /** [coverageDays] = null معناها مفيش معدل صرف يومي معروف، فالقسمة مالهاش معنى — بيتبعت
+     *  للموديل كـ "غير محسوبة" عشان مايقراش صفر ويقول للمستخدم إنه مكشوف وهو مش مكشوف. */
     suspend fun narrateStressTest(
-        coverageDays: Int,
+        coverageDays: Int?,
         avgDailySpend: Double,
         liquidSavings: Double,
         targetDays: Int,
         suggestedMonthlySaving: Double,
         status: String
     ): String? {
-        val systemPrompt = "أنت محلل مالي شخصي داخل تطبيق زاد. لخص وضع صمود المستخدم المالي في جملة أو جملتين بالعربي، بدون اختراع أرقام غير الموجودة في البيانات."
+        val systemPrompt = "أنت محلل مالي شخصي داخل تطبيق زاد. لخص وضع صمود المستخدم المالي في جملة أو جملتين بالعربي، بدون اختراع أرقام غير الموجودة في البيانات. لو أيام التغطية 'غير محسوبة'، قول إنها لسه محتاجة مصروفات مسجلة أكتر — وممنوع تعتبرها صفر أو تقول إن المستخدم مكشوف."
         val userPrompt = """
             === بيانات اختبار الصمود المالي ===
-            أيام التغطية عند الطوارئ: $coverageDays
+            أيام التغطية عند الطوارئ: ${coverageDays?.toString() ?: "غير محسوبة (مفيش معدل صرف يومي مرصود)"}
             متوسط الصرف اليومي: $avgDailySpend
             رصيد الطوارئ الحالي: $liquidSavings
             الهدف: $targetDays يوم تغطية

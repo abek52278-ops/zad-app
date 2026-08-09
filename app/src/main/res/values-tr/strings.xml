@@ -545,6 +545,18 @@
     <string name="stress_test_status_critical">Kritik</string>
     <string name="stress_test_status_low">Düşük</string>
     <string name="stress_test_status_healthy">Sağlıklı</string>
+    <string name="stress_test_status_unknown">Henüz hesaplanmadı</string>
+    <string name="tx_edit_title">İşlemi düzenle</string>
+    <string name="tx_edit_title_label">Açıklama</string>
+    <string name="tx_edit_amount_label">Tutar</string>
+    <string name="tx_edit_kind_label">Tür</string>
+    <string name="tx_edit_kind_expense">Gider</string>
+    <string name="tx_edit_kind_income">Gelir</string>
+    <string name="tx_edit_category_label">Kategori</string>
+    <string name="tx_edit_cd">İşlemi düzenle</string>
+    <string name="tx_delete_cd">İşlemi sil</string>
+    <string name="stress_test_coverage_unknown">Kapsam günleri henüz hesaplanmadı</string>
+    <string name="stress_test_coverage_unknown_hint">Günlük harcama hızınızı hesaplamak için yeterli kayıtlı gider yok. Birkaç gün giderlerinizi kaydedin, acil durum fonunuzun ne kadar yeteceğini söyleyelim.</string>
 
     <string name="debt_planner_title">Borç Ödeme Planlayıcı</string>
     <string name="debt_planner_subtitle">Sana uygun ödeme stratejisini seç</string>

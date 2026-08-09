@@ -1,7 +1,8 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import {
   AgentContextInput, agentSystemPrompt, buildAgentContext, categoryBreakdown,
-  clampForTelegram, confirmSpendMessage, deriveWebhookSecret, monthTotals, parseSpendIntent,
+  clampForTelegram, confirmMedicationMessage, confirmSpendMessage, deriveWebhookSecret,
+  isolate, monthTotals, parseSpendIntent, sanitizeName,
 } from "./context.ts";
 
 function emptyInput(overrides: Partial<AgentContextInput> = {}): AgentContextInput {
@@ -9,11 +10,14 @@ function emptyInput(overrides: Partial<AgentContextInput> = {}): AgentContextInp
     userName: "سارة",
     monthlyLimit: 5000,
     currency: "ر.س",
+    country: null,
     today: "2026-07-31",
+    family: [],
     transactions: [],
     inventory: [],
     subscriptions: [],
     obligations: [],
+    debts: [],
     pharmacy: [],
     shopping: [],
     insights: [],
@@ -208,4 +212,99 @@ Deno.test("clampForTelegram truncates past the limit and marks the cut", () => {
   const out = clampForTelegram(long);
   assert(out.length <= 3902, `unexpected length ${out.length}`);
   assert(out.endsWith("…"));
+});
+
+// ── العائلة والأولاد ────────────────────────────────────────────────────────
+// تغطية للفيكس: fetchAgentContext مكانش بيستعلم family_members خالص، فقسم العائلة
+// مكانش موجود في السياق أصلاً والبوت كان بيرد "مفيش حاجة عن الأولاد في البيانات"
+// لمستخدم عنده عيلة وأطفال مسجلين فعلاً في التطبيق.
+
+Deno.test("buildAgentContext always emits a family section", () => {
+  const text = buildAgentContext(emptyInput());
+  assert(text.includes("=== العائلة والأولاد ==="));
+});
+
+Deno.test("family section counts kids separately from adults", () => {
+  const text = buildAgentContext(emptyInput({
+    family: [
+      { role: "admin", alias: "بابا", balance: null, savings_goal: null },
+      { role: "child", alias: "يوسف", balance: 50, savings_goal: 200 },
+      { role: "child", alias: "مريم", balance: 30, savings_goal: null },
+    ],
+  }));
+  assert(text.includes("إجمالي أفراد العيلة: 3"));
+  assert(text.includes("1 كبار، 2 أطفال"));
+  assert(text.includes("يوسف"));
+  assert(text.includes("مريم"));
+});
+
+Deno.test("family section says 'not joined' rather than staying silent", () => {
+  const text = buildAgentContext(emptyInput({ family: [] }));
+  assert(text.includes("مش منضم لعيلة"));
+});
+
+Deno.test("agent prompt tells the model the family data exists", () => {
+  assert(agentSystemPrompt().includes("العائلة والأولاد"));
+});
+
+Deno.test("agent prompt no longer claims to be read-only", () => {
+  // القاعدة القديمة كانت: "إنت للقراءة والتحليل بس دلوقتي" — وده بقى غلط بعد ما اتضاف
+  // تسجيل المصروف والدواء بزر تأكيد. المهم إنه لسه ممنوع يدّعي تسجيل من نفسه.
+  const prompt = agentSystemPrompt();
+  assert(!prompt.includes("للقراءة والتحليل بس"));
+  assert(prompt.includes("بعد ما العميل يضغط تأكيد"));
+});
+
+// ── تنظيف الأسماء وعزل اتجاه النص ──────────────────────────────────────────
+// الشكوى كانت "مشكلة ترميز UTF-16" — وهي مش كده: البايتات في الداتابيز عربي سليم.
+// اللي بيحصل إن أسماء متسجلة بمسافات زايدة ("كريم ") بتتلخبط بصرياً مع الأرقام
+// وعلامات الترقيم حواليها في خوارزمية اتجاه النص.
+
+Deno.test("sanitizeName strips the trailing whitespace real rows carry", () => {
+  assertEquals(sanitizeName("كريم "), "كريم");
+  assertEquals(sanitizeName("  كونكور  "), "كونكور");
+  assertEquals(sanitizeName("بيتادرم"), "بيتادرم");
+});
+
+Deno.test("sanitizeName collapses internal whitespace runs", () => {
+  assertEquals(sanitizeName("فيتامين   د"), "فيتامين د");
+});
+
+Deno.test("sanitizeName removes embedded bidi control characters", () => {
+  // لو حد حقن RLO في اسم صنف، مكانش هيلخبط اسمه بس — كان هيقلب باقي الرسالة معاه.
+  assertEquals(sanitizeName("‮كريم"), "كريم");
+  assertEquals(sanitizeName("⁦كريم⁩"), "كريم");
+});
+
+Deno.test("sanitizeName tolerates null and undefined", () => {
+  assertEquals(sanitizeName(null), "");
+  assertEquals(sanitizeName(undefined), "");
+});
+
+Deno.test("isolate wraps a value in FSI/PDI so it cannot reorder its surroundings", () => {
+  assertEquals(isolate("كريم"), "⁨كريم⁩");
+  assertEquals(isolate(12), "⁨12⁩");
+});
+
+Deno.test("pharmacy context lines use sanitized names", () => {
+  const text = buildAgentContext(emptyInput({
+    pharmacy: [{ name: "كريم ", remaining_quantity: 0, unit: "قرص", dosage: "كل 10 دقايق" }],
+  }));
+  assert(text.includes("- كريم: متبقي 0 قرص"));
+});
+
+Deno.test("confirmation messages isolate the medicine name", () => {
+  const message = confirmMedicationMessage({
+    is_medication: true,
+    name: "كونكور ",
+    dosage: "قرص كل 8 ساعات",
+    daily_dose_count: 3,
+    dose_times: "08:00,16:00,00:00",
+    unit: "قرص",
+    quantity: 20,
+    category: "مزمن",
+    confidence: 0.9,
+  });
+  assert(message.includes("⁨كونكور⁩"));
+  assert(!message.includes("كونكور "));
 });

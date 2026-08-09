@@ -1333,10 +1333,11 @@ fun WhatIfSimulatorCard(viewModel: ZadViewModel, predictedMonthlySpend: Double) 
 // ════════════════════════════════════════════════════════════════
 
 // ── Feature 1: Financial Stress Test ──────────────────────────────────────────
-enum class StressTestStatus { CRITICAL, LOW, HEALTHY }
+enum class StressTestStatus { UNKNOWN, CRITICAL, LOW, HEALTHY }
 
 data class StressTestResult(
-    val coverageDays: Int,
+    /** null = لا يمكن الحساب (مفيش معدل صرف معروف) — مختلفة تماماً عن 0 (رصيد طوارئ فاضي). */
+    val coverageDays: Int?,
     val avgDailySpend: Double,
     val liquidSavings: Double,
     val targetDays: Int,
@@ -1344,7 +1345,20 @@ data class StressTestResult(
     val status: StressTestStatus
 )
 
-/** أيام التغطية = رصيد الطوارئ ÷ متوسط الصرف اليومي (آخر 30 يوم). التوفير الشهري المقترح يقفل الفجوة حتى الهدف على مدار 6 أشهر. */
+/**
+ * أيام التغطية = رصيد الطوارئ ÷ متوسط الصرف اليومي. التوفير الشهري المقترح يقفل الفجوة
+ * حتى الهدف على مدار 6 أشهر.
+ *
+ * قسمة المصروف على [windowDays] ثابتة كانت بتغلط في اتجاهين لمستخدم لسه جديد: تاريخه
+ * أقصر من النافذة، فمعدله اليومي بيطلع مخفّف بنسبة (عمره ÷ 30) وأيام التغطية بتتضخم.
+ * دلوقتي المقام هو المدى المرصود فعلاً (من أقدم معاملة في النافذة لحد النهارده)، بحد
+ * أدنى يوم واحد.
+ *
+ * والأهم: لما مفيش أي مصروف مرصود، معدل الصرف = 0 والقسمة مالهاش معنى. قبل كده ده كان
+ * بيرجع `coverageDays = 0` — نفس رقم "مفيش رصيد طوارئ خالص" بالظبط — فمستخدم عنده 50,000
+ * جنيه كان بيتقاله "0 يوم تغطية" وحالته CRITICAL. دلوقتي بترجع null وحالة UNKNOWN،
+ * والواجهة بتقول إن الرقم لسه مش محسوب بدل ما تخترع صفر.
+ */
 fun calculateStressTest(
     transactions: List<ZadTransaction>,
     liquidSavings: Double,
@@ -1352,15 +1366,36 @@ fun calculateStressTest(
     windowDays: Int = 30,
     savingHorizonMonths: Int = 6
 ): StressTestResult {
-    val cutoff = java.time.Instant.now().minusSeconds(windowDays * 86400L)
-    val recentExpenseTotal = transactions
+    val now = java.time.Instant.now()
+    val cutoff = now.minusSeconds(windowDays * 86400L)
+    val recentExpenses = transactions
         .filter { it.isExpense }
-        .filter { tx -> try { java.time.Instant.parse(tx.createdAt ?: "") >= cutoff } catch (e: Exception) { false } }
-        .sumOf { it.amount }
-    val avgDailySpend = recentExpenseTotal / windowDays
-    val coverageDays = if (avgDailySpend > 0) (liquidSavings / avgDailySpend).toInt().coerceAtLeast(0) else 0
+        .mapNotNull { tx ->
+            val at = try { java.time.Instant.parse(tx.createdAt ?: "") } catch (e: Exception) { null }
+            if (at != null && at >= cutoff) at to tx.amount else null
+        }
+    val recentExpenseTotal = recentExpenses.sumOf { it.second }
+    // المدى المرصود فعلاً، مش طول النافذة الاسمية.
+    val observedDays = recentExpenses.minOfOrNull { it.first }
+        ?.let { java.time.Duration.between(it, now).toDays() + 1 }
+        ?.coerceIn(1L, windowDays.toLong())
+        ?: windowDays.toLong()
+    val avgDailySpend = if (recentExpenseTotal > 0) recentExpenseTotal / observedDays else 0.0
+
+    if (avgDailySpend <= 0.0) {
+        return StressTestResult(
+            coverageDays = null,
+            avgDailySpend = 0.0,
+            liquidSavings = liquidSavings,
+            targetDays = targetDays,
+            suggestedMonthlySaving = 0.0,
+            status = StressTestStatus.UNKNOWN
+        )
+    }
+
+    val coverageDays = (liquidSavings / avgDailySpend).toInt().coerceAtLeast(0)
     val gapDays = (targetDays - coverageDays).coerceAtLeast(0)
-    val suggestedMonthlySaving = if (gapDays > 0 && avgDailySpend > 0) (gapDays * avgDailySpend) / savingHorizonMonths else 0.0
+    val suggestedMonthlySaving = if (gapDays > 0) (gapDays * avgDailySpend) / savingHorizonMonths else 0.0
     val status = when {
         coverageDays < 30 -> StressTestStatus.CRITICAL
         coverageDays < targetDays -> StressTestStatus.LOW
@@ -1449,6 +1484,7 @@ fun FinancialStressTestCard(transactions: List<ZadTransaction>, emergencyFund: D
     var isLoadingNarrative by remember { mutableStateOf(false) }
 
     val (statusColor, statusLabel) = when (result.status) {
+        StressTestStatus.UNKNOWN -> onSurfaceVariant to stringResource(R.string.stress_test_status_unknown)
         StressTestStatus.CRITICAL -> dangerColor to stringResource(R.string.stress_test_status_critical)
         StressTestStatus.LOW -> warningColor to stringResource(R.string.stress_test_status_low)
         StressTestStatus.HEALTHY -> successColor to stringResource(R.string.stress_test_status_healthy)
@@ -1467,20 +1503,30 @@ fun FinancialStressTestCard(transactions: List<ZadTransaction>, emergencyFund: D
             Text(stringResource(R.string.stress_test_subtitle), style = Typography.bodySmall, color = onSurfaceVariant)
             Spacer(modifier = Modifier.height(16.dp))
 
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(stringResource(R.string.stress_test_coverage_days, result.coverageDays), style = Typography.displaySmall, fontWeight = FontWeight.Bold, color = statusColor)
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(stringResource(R.string.stress_test_target_label, result.targetDays), style = Typography.labelSmall, color = onSurfaceVariant)
-            Spacer(modifier = Modifier.height(10.dp))
+            val coverage = result.coverageDays
+            if (coverage == null) {
+                // مفيش معدل صرف معروف — نقول كده صراحة بدل ما نعرض "0 يوم تغطية"، اللي كان
+                // بيقرا كإفلاس لمستخدم رصيد طوارئه مليان.
+                Text(stringResource(R.string.stress_test_coverage_unknown), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = statusColor)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(stringResource(R.string.stress_test_coverage_unknown_hint), style = Typography.bodySmall, color = onSurfaceVariant)
+                Spacer(modifier = Modifier.height(12.dp))
+            } else {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(stringResource(R.string.stress_test_coverage_days, coverage), style = Typography.displaySmall, fontWeight = FontWeight.Bold, color = statusColor)
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(stringResource(R.string.stress_test_target_label, result.targetDays), style = Typography.labelSmall, color = onSurfaceVariant)
+                Spacer(modifier = Modifier.height(10.dp))
 
-            LinearProgressIndicator(
-                progress = { (result.coverageDays.toFloat() / result.targetDays.toFloat()).coerceIn(0f, 1f) },
-                modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
-                color = statusColor,
-                trackColor = statusColor.copy(alpha = 0.15f)
-            )
-            Spacer(modifier = Modifier.height(12.dp))
+                LinearProgressIndicator(
+                    progress = { (coverage.toFloat() / result.targetDays.toFloat()).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+                    color = statusColor,
+                    trackColor = statusColor.copy(alpha = 0.15f)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
