@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(claude mcp *)",
+      "Bash(npm search *)",
+      "Bash(npm view *)",
+      "Bash(./gradlew --no-daemon :app:testDebugUnitTest)",
+      "Bash(awk -F'\"' '{t+=$2; s+=$4; f+=$6; e+=$8} END{print \"total=\"t\" skipped=\"s\" failures=\"f\" errors=\"e}')",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "mcp__supabase__get_advisors",
+      "mcp__supabase__list_tables",
+      "Bash(deno --version)",
+      "Bash(python3 -c ' *)",
+      "mcp__supabase__execute_sql",
+      "Bash(./gradlew --no-daemon :app:compileDebugKotlin :app:compileDebugUnitTestKotlin)",
+      "mcp__supabase__get_logs",
+      "Read(//tmp/authkt_inspect/**)",
+      "Bash(javap -p 'extracted/io/github/jan/supabase/auth/status/SessionStatus$RefreshFailure.class')",
+      "Bash(javap -p 'extracted/io/github/jan/supabase/auth/status/SessionStatus$NotAuthenticated.class')",
+      "Bash(./gradlew --no-daemon :app:compileDebugUnitTestKotlin)",
+      "Bash(ps aux *)",
+      "Bash(kill -9 244499 249237 243284 248009)",
+      "Bash(pkill -9 -f \"GradleDaemon\")",
+      "Bash(pkill -9 -f \"gradle-wrapper.jar\")",
+      "Bash(dmesg)",
+      "Read(//sys/fs/cgroup/**)",
+      "Read(//sys/fs/cgroup/memory/**)",
+      "Bash(pkill -9 -f \"KotlinCompileDaemon\")",
+      "Bash(./gradlew --no-daemon --max-workers=1 :app:compileDebugUnitTestKotlin)"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
+}
