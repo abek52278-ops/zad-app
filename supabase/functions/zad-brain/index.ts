@@ -57,6 +57,7 @@ import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { CONFIRM_REQUIRED_TOOLS, freshContext, RunContext, validateTool } from "./validators.ts";
 import { callModel, smokeTestTools, Turn, ToolDef } from "./callModel.ts";
 import { decideOnBrainFailure, hasRecentMutatingRun } from "./shared.ts";
+import { AgentSource, AuditScope, recordAction, writeRows } from "./audit.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -578,7 +579,7 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
 // Tool execution — actual DB writes, only reached after validation passes
 // ═══════════════════════════════════════════════════════════
 
-async function executeTool(sb: SupabaseClient, userId: string, name: string, input: any, snap: any, ctx: RunContext): Promise<string> {
+async function executeTool(sb: SupabaseClient, userId: string, name: string, input: any, snap: any, ctx: RunContext, scope: AuditScope): Promise<string> {
   switch (name) {
     case "emit_insight": {
       const { error } = await sb.from("zad_insights").upsert({
@@ -619,10 +620,19 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
     }
     case "update_inventory_qty": {
       const { data: before } = await sb.from("zad_inventory").select("id,quantity").eq("user_id", userId).eq("item_name", input.item_name).maybeSingle();
-      const { error } = await sb.from("zad_inventory").update({ quantity: input.new_qty }).eq("user_id", userId).eq("item_name", input.item_name);
-      if (error) return `فشل التعديل: ${error.message}`;
+      if (!before) return "مرفوض: الصنف مش موجود في مخزون العميل ده — عدّل وحاول تاني.";
+      const w = await writeRows(
+        sb.from("zad_inventory").update({ quantity: input.new_qty })
+          .eq("id", before.id).eq("user_id", userId).select("id,quantity"),
+        "تعديل الكمية",
+      );
+      if (!w.ok) return `مرفوض: ${w.reason}`;
       ctx.mutationCount++;
-      ctx.mutations.push({ tool: name, old: before?.quantity, new: input.new_qty });
+      ctx.mutations.push({ tool: name, old: before.quantity, new: input.new_qty });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "zad_inventory", targetId: before.id,
+        previous: { quantity: before.quantity }, next: w.rows[0],
+      });
 
       // Task 18 Fault B: the quantity write alone left the item in stock_unknown forever, so
       // the brain re-asked about it daily and the answer taught the system nothing. Recording
@@ -648,10 +658,18 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
     case "set_transaction_category": {
       const { data: before } = await sb.from("zad_transactions").select("category").eq("id", input.transaction_id).eq("user_id", userId).maybeSingle();
       if (!before) return "مرفوض: المعاملة مش بتاعت العميل ده — عدّل وحاول تاني.";
-      const { error } = await sb.from("zad_transactions").update({ category: input.category }).eq("id", input.transaction_id).eq("user_id", userId);
-      if (error) return `فشل التعديل: ${error.message}`;
+      const w = await writeRows(
+        sb.from("zad_transactions").update({ category: input.category })
+          .eq("id", input.transaction_id).eq("user_id", userId).select("category"),
+        "التصنيف",
+      );
+      if (!w.ok) return `مرفوض: ${w.reason}`;
       ctx.mutationCount++;
       ctx.mutations.push({ tool: name, old: before.category, new: input.category });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "zad_transactions", targetId: input.transaction_id,
+        previous: { category: before.category }, next: w.rows[0],
+      });
       return "اتصنفت المعاملة";
     }
     case "suggest_budget_change": {
@@ -665,10 +683,19 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       return "اقتراح الميزانية اتسجل كرؤية يأكدها العميل — العقل ميغيّرش الرقم لوحده";
     }
     case "merge_duplicate_expense": {
-      const { error } = await sb.from("zad_transactions").delete().eq("id", input.drop_id).eq("user_id", userId);
-      if (error) return `فشل الدمج: ${error.message}`;
+      const { data: dropped } = await sb.from("zad_transactions").select("*").eq("id", input.drop_id).eq("user_id", userId).maybeSingle();
+      if (!dropped) return "مرفوض: المعاملة المطلوب حذفها مش بتاعت العميل ده — عدّل وحاول تاني.";
+      const w = await writeRows(
+        sb.from("zad_transactions").delete().eq("id", input.drop_id).eq("user_id", userId).select("id"),
+        "الدمج",
+      );
+      if (!w.ok) return `مرفوض: ${w.reason}`;
       ctx.mutationCount++;
       ctx.mutations.push({ tool: name, old: input.drop_id, new: input.keep_id });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "zad_transactions", targetId: input.drop_id,
+        previous: dropped, next: null,
+      });
       return "اتدمجت العملية المكررة";
     }
     case "reconcile_cash_balance": {
@@ -684,19 +711,26 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       const delta = input.reported_amount - current;
       if (Math.abs(delta) < 0.01) return "الرصيد اللي قاله العميل مطابق للمحسوب فعلاً — مفيش تصحيح لازم";
       const isIncrease = delta > 0;
-      const { error } = await sb.from("zad_transactions").insert({
-        user_id: userId,
-        amount: Math.round(Math.abs(delta) * 100) / 100,
-        title: "تسوية كاش أسبوعية (تقريبية)",
-        category: isIncrease ? "تحويلات" : "أخرى",
-        is_expense: true,
-        txn_kind: isIncrease ? "transfer" : "expense",
-        transfer_to: isIncrease ? "cash" : null,
-        wallet: "cash",
-      });
-      if (error) return `فشل تسجيل التسوية: ${error.message}`;
+      const w = await writeRows(
+        sb.from("zad_transactions").insert({
+          user_id: userId,
+          amount: Math.round(Math.abs(delta) * 100) / 100,
+          title: "تسوية كاش أسبوعية (تقريبية)",
+          category: isIncrease ? "تحويلات" : "أخرى",
+          is_expense: true,
+          txn_kind: isIncrease ? "transfer" : "expense",
+          transfer_to: isIncrease ? "cash" : null,
+          wallet: "cash",
+        }).select("id,amount"),
+        "تسجيل التسوية",
+      );
+      if (!w.ok) return `مرفوض: ${w.reason}`;
       ctx.mutationCount++;
       ctx.mutations.push({ tool: name, old: current, new: input.reported_amount });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "zad_transactions", targetId: (w.rows[0] as any).id,
+        previous: null, next: w.rows[0],
+      });
       return `اتسجل تصحيح ${Math.abs(delta).toFixed(2)} (${isIncrease ? "زيادة" : "نقصان"}) عشان الكاش يطابق كلام العميل`;
     }
     case "confirm_cycle_start": {
@@ -704,10 +738,18 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       // بيفضل 'day_of_month' (الافتراضي) دايماً هنا — الاكتشاف هنا بيقترح يوم بس، مش نوع
       // anchor، وده مقصود يفضل بسيط. الحدود نفسها بتتحسب في zad_cycle_bounds() في
       // Postgres، واللي بتحترم last_working_day لو العميل ظبطه من الإعدادات.
-      const { error } = await sb.from("zad_users").update({ cycle_start_day: input.cycle_start_day }).eq("id", userId);
-      if (error) return `فشل حفظ دورة الراتب: ${error.message}`;
+      const { data: cycleBefore } = await sb.from("zad_users").select("cycle_start_day").eq("id", userId).maybeSingle();
+      const w = await writeRows(
+        sb.from("zad_users").update({ cycle_start_day: input.cycle_start_day }).eq("id", userId).select("cycle_start_day"),
+        "حفظ دورة الراتب",
+      );
+      if (!w.ok) return `مرفوض: ${w.reason}`;
       ctx.mutationCount++;
-      ctx.mutations.push({ tool: name, old: null, new: input.cycle_start_day });
+      ctx.mutations.push({ tool: name, old: cycleBefore?.cycle_start_day ?? null, new: input.cycle_start_day });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "zad_users", targetId: userId,
+        previous: { cycle_start_day: cycleBefore?.cycle_start_day ?? null }, next: w.rows[0],
+      });
       return `اتظبطت دورة الراتب على يوم ${input.cycle_start_day} — كل حساب "متبقي"/"متاح" هيبقى على أساسها من دلوقتي`;
     }
     case "confirm_obligation": {
@@ -716,13 +758,20 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       // مش يعيد كتابة رقم/اسم ممكن يغلط فيه. الصف بيتسجل confirmed=true من الأول —
       // مفيش صف pending وسيط، الاكتشاف والتأكيد بيحصلوا في نداء واحد.
       const det = snap.obligation_detection;
-      const { error } = await sb.from("zad_obligations").insert({
-        user_id: userId, title: det.title, amount: det.amount, kind: input.kind,
-        due_day: det.due_day, recurrence: "monthly", auto_detected: true, confirmed: true, active: true,
-      });
-      if (error) return `فشل حفظ الالتزام: ${error.message}`;
+      const w = await writeRows(
+        sb.from("zad_obligations").insert({
+          user_id: userId, title: det.title, amount: det.amount, kind: input.kind,
+          due_day: det.due_day, recurrence: "monthly", auto_detected: true, confirmed: true, active: true,
+        }).select("id,title,amount,kind"),
+        "حفظ الالتزام",
+      );
+      if (!w.ok) return `مرفوض: ${w.reason}`;
       ctx.mutationCount++;
       ctx.mutations.push({ tool: name, old: null, new: { title: det.title, amount: det.amount, kind: input.kind } });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "zad_obligations", targetId: (w.rows[0] as any).id,
+        previous: null, next: w.rows[0],
+      });
       return `اتسجل الالتزام "${det.title}" (${det.amount}) كـ${input.kind} — هيتحسب في "المتاح" من دلوقتي`;
     }
     // ═══════════════════════════════════════════════════════════
@@ -732,20 +781,27 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
     // ═══════════════════════════════════════════════════════════
     case "log_transaction": {
       const isExpense = input.txn_kind === "expense";
-      const { error } = await sb.from("zad_transactions").insert({
-        user_id: userId,
-        amount: Math.round(input.amount * 100) / 100,
-        title: String(input.title).trim().slice(0, 80),
-        category: input.category ? String(input.category).trim().slice(0, 40) : null,
-        // العمودين الاتنين مع بعض دايماً: الكلاينت بيقرا is_expense والـ edge functions
-        // بتقرا txn_kind، فكتابة واحد من غير التاني بتسيب المعاملة متناقضة مع نفسها.
-        is_expense: isExpense,
-        txn_kind: input.txn_kind,
-        wallet: input.wallet === "cash" ? "cash" : "card",
-      });
-      if (error) return `فشل تسجيل المعاملة: ${error.message}`;
+      const w = await writeRows(
+        sb.from("zad_transactions").insert({
+          user_id: userId,
+          amount: Math.round(input.amount * 100) / 100,
+          title: String(input.title).trim().slice(0, 80),
+          category: input.category ? String(input.category).trim().slice(0, 40) : null,
+          // العمودين الاتنين مع بعض دايماً: الكلاينت بيقرا is_expense والـ edge functions
+          // بتقرا txn_kind، فكتابة واحد من غير التاني بتسيب المعاملة متناقضة مع نفسها.
+          is_expense: isExpense,
+          txn_kind: input.txn_kind,
+          wallet: input.wallet === "cash" ? "cash" : "card",
+        }).select("id,amount,title,category,txn_kind"),
+        "تسجيل المعاملة",
+      );
+      if (!w.ok) return `مرفوض: ${w.reason}`;
       ctx.mutationCount++;
       ctx.mutations.push({ tool: name, old: null, new: { amount: input.amount, title: input.title } });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "zad_transactions", targetId: (w.rows[0] as any).id,
+        previous: null, next: w.rows[0],
+      });
       return `اتسجلت المعاملة: ${input.title} — ${input.amount}`;
     }
     case "update_transaction": {
@@ -760,39 +816,62 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
         patch.txn_kind = input.txn_kind;
         patch.is_expense = input.txn_kind === "expense";
       }
-      const { error } = await sb.from("zad_transactions").update(patch)
-        .eq("id", input.transaction_id).eq("user_id", userId);
-      if (error) return `فشل تعديل المعاملة: ${error.message}`;
+      const w = await writeRows(
+        sb.from("zad_transactions").update(patch)
+          .eq("id", input.transaction_id).eq("user_id", userId).select("amount,title,category,txn_kind"),
+        "تعديل المعاملة",
+      );
+      if (!w.ok) return `مرفوض: ${w.reason}`;
       ctx.mutationCount++;
       ctx.mutations.push({ tool: name, old: before, new: patch });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "zad_transactions", targetId: input.transaction_id,
+        previous: before, next: w.rows[0],
+      });
       return "اتعدلت المعاملة";
     }
     case "set_monthly_limit": {
       // limit_confirmed_at بيتكتب هنا لأن ده فعل مستخدم مباشر بتأكيد صريح — نفس عقد
       // SupabaseRepo.setMonthlyLimit بالظبط. سقف من غير التاريخ ده بيتقرا "غير مؤكد"
       // وبيخلي شاشة تحديد السقف تفضل تطلع فوق رقم موجود فعلاً.
-      const { error } = await sb.from("zad_users").update({
-        monthly_limit: Math.round(input.monthly_limit * 100) / 100,
-        limit_confirmed_at: new Date().toISOString(),
-      }).eq("id", userId);
-      if (error) return `فشل حفظ السقف: ${error.message}`;
+      const { data: limitBefore } = await sb.from("zad_users").select("monthly_limit,limit_confirmed_at").eq("id", userId).maybeSingle();
+      const w = await writeRows(
+        sb.from("zad_users").update({
+          monthly_limit: Math.round(input.monthly_limit * 100) / 100,
+          limit_confirmed_at: new Date().toISOString(),
+        }).eq("id", userId).select("monthly_limit,limit_confirmed_at"),
+        "حفظ السقف",
+      );
+      if (!w.ok) return `مرفوض: ${w.reason}`;
       ctx.mutationCount++;
       ctx.mutations.push({ tool: name, old: snap.budget ?? null, new: input.monthly_limit });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "zad_users", targetId: userId,
+        previous: limitBefore ?? null, next: w.rows[0],
+      });
       return `اتظبط السقف الشهري على ${input.monthly_limit}`;
     }
     case "add_inventory_item": {
       const itemName = String(input.item_name).trim();
-      const { error } = await sb.from("zad_inventory").insert({
-        user_id: userId,
-        item_name: itemName,
-        quantity: input.quantity,
-        unit: input.unit ? String(input.unit).trim() : "حبة",
-        category: input.category ? String(input.category).trim() : null,
-        expiry_date: input.expiry_date ?? null,
-      });
-      if (error) return `فشل إضافة الصنف: ${error.message}`;
+      const w = await writeRows(
+        sb.from("zad_inventory").insert({
+          user_id: userId,
+          item_name: itemName,
+          quantity: input.quantity,
+          unit: input.unit ? String(input.unit).trim() : "حبة",
+          category: input.category ? String(input.category).trim() : null,
+          expiry_date: input.expiry_date ?? null,
+        }).select("id,item_name,quantity"),
+        "إضافة الصنف",
+      );
+      if (!w.ok) return `مرفوض: ${w.reason}`;
+      const newRow = w.rows[0] as any;
       ctx.mutationCount++;
       ctx.mutations.push({ tool: name, old: null, new: { item: itemName, qty: input.quantity } });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "zad_inventory", targetId: newRow.id,
+        previous: null, next: newRow,
+      });
       // نفس السبب اللي في update_inventory_qty بالظبط: أي كمية معروفة هي بيانات تعلّم
       // مجانية لمعدل الاستهلاك، والتسجيل هنا غير مشروط مش أداة منفصلة الموديل ممكن
       // ينساها.
@@ -812,19 +891,27 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
     case "add_pharmacy_item": {
       const medName = String(input.name).trim();
       const doseTimes = input.dose_times ? String(input.dose_times).trim() : null;
-      const { error } = await sb.from("zad_pharmacy_items").insert({
-        user_id: userId,
-        name: medName,
-        dosage: input.dosage ? String(input.dosage).trim() : null,
-        daily_dose_count: input.daily_dose_count ?? (doseTimes ? doseTimes.split(",").length : 1),
-        dose_times: doseTimes,
-        unit: input.unit ?? "قرص",
-        remaining_quantity: input.quantity ?? 1,
-        category: input.category ?? "عام",
-      });
-      if (error) return `فشل إضافة الدواء: ${error.message}`;
+      const w = await writeRows(
+        sb.from("zad_pharmacy_items").insert({
+          user_id: userId,
+          name: medName,
+          dosage: input.dosage ? String(input.dosage).trim() : null,
+          daily_dose_count: input.daily_dose_count ?? (doseTimes ? doseTimes.split(",").length : 1),
+          dose_times: doseTimes,
+          unit: input.unit ?? "قرص",
+          remaining_quantity: input.quantity ?? 1,
+          category: input.category ?? "عام",
+        }).select("id,name,dose_times"),
+        "إضافة الدواء",
+      );
+      if (!w.ok) return `مرفوض: ${w.reason}`;
+      const newRow = w.rows[0] as any;
       ctx.mutationCount++;
       ctx.mutations.push({ tool: name, old: null, new: { name: medName, dose_times: doseTimes } });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "zad_pharmacy_items", targetId: newRow.id,
+        previous: null, next: newRow,
+      });
       // مفيش AlarmManager على السيرفر — المنبهات بتتفعّل لما التطبيق يعمل sync ويلاقي
       // الدواء الجديد (نفس آلية PharmacyReminderScheduler).
       return doseTimes
@@ -832,12 +919,19 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
         : `اتسجل "${medName}" في الصيدلية`;
     }
     case "set_market": {
-      const { error } = await sb.from("zad_users").update({
-        currency: input.currency, country: input.country,
-      }).eq("id", userId);
-      if (error) return `فشل حفظ البلد والعملة: ${error.message}`;
+      const w = await writeRows(
+        sb.from("zad_users").update({
+          currency: input.currency, country: input.country,
+        }).eq("id", userId).select("currency,country"),
+        "حفظ البلد والعملة",
+      );
+      if (!w.ok) return `مرفوض: ${w.reason}`;
       ctx.mutationCount++;
       ctx.mutations.push({ tool: name, old: { currency: snap.currency, country: snap.country }, new: { currency: input.currency, country: input.country } });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "zad_users", targetId: userId,
+        previous: { currency: snap.currency, country: snap.country }, next: w.rows[0],
+      });
       return `اتسجل إن العميل في ${input.country} وعملته ${input.currency} — مش هسأل عنها تاني`;
     }
     case "log_pharmacy_dose": {
@@ -867,11 +961,18 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       }
 
       const newQty = Math.max(0, (match.remaining_quantity ?? 0) - 1);
-      const { error: qtyErr } = await sb.from("zad_pharmacy_items")
-        .update({ remaining_quantity: newQty }).eq("id", match.id).eq("user_id", userId);
-      if (qtyErr) return `اتسجلت الجرعة بس الكمية ماتعدلتش: ${qtyErr.message}`;
+      const w = await writeRows(
+        sb.from("zad_pharmacy_items").update({ remaining_quantity: newQty })
+          .eq("id", match.id).eq("user_id", userId).select("remaining_quantity"),
+        "تعديل الكمية",
+      );
+      if (!w.ok) return `اتسجلت الجرعة بس الكمية ماتعدلتش: ${w.reason}`;
       ctx.mutationCount++;
       ctx.mutations.push({ tool: name, old: match.remaining_quantity, new: newQty });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "zad_pharmacy_items", targetId: match.id,
+        previous: { remaining_quantity: match.remaining_quantity }, next: w.rows[0],
+      });
 
       // قرّب يخلص؟ حطه في قائمة التسوق — نفس عتبة الكلاينت (يوم واحد من الاستهلاك).
       const perDay = match.daily_dose_count ?? 1;
@@ -904,11 +1005,11 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
   }
 }
 
-async function runTool(sb: SupabaseClient, userId: string, name: string, input: any, snap: any, ctx: RunContext): Promise<string> {
+async function runTool(sb: SupabaseClient, userId: string, name: string, input: any, snap: any, ctx: RunContext, scope: AuditScope): Promise<string> {
   const v = await validateTool(name, input, snap, ctx);
   if (!v.ok) return `مرفوض: ${v.reason} — عدّل وحاول تاني.`;
   ctx.counts[name] = (ctx.counts[name] ?? 0) + 1;
-  return await executeTool(sb, userId, name, input, snap, ctx);
+  return await executeTool(sb, userId, name, input, snap, ctx, scope);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1311,6 +1412,10 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
     return new Response(JSON.stringify({ error: "message required" }), { status: 400, headers: CORS_HEADERS });
   }
 
+  // تصنيف عرضي بس (تسمية الفعل في agent_actions/سجل زاد) — مش أداة أمان. مصدره جسم
+  // الطلب، فأي قيمة غير معروفة بترجع للافتراضي بدل ما تتقبل عمياني وتكسر الـ CHECK.
+  const declaredSource = body.source === "telegram" ? "telegram" as const : "app_chat" as const;
+
   const snap = await buildSnapshot(sb, userId);
   const ctx: RunContext = freshContext(userId);
   const systemPrompt = buildChatSystemPrompt(snap);
@@ -1338,6 +1443,7 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
   const { data: runRow } = await sb.from("zad_brain_runs")
     .insert({ user_id: userId, trigger: "chat", status: "running" }).select("id").single();
   const runId = (runRow as { id: string } | null)?.id;
+  const scope: AuditScope = { source: declaredSource, runId };
 
   const finishRun = async (status: "success" | "failed", error?: string) => {
     if (!runId) return;
@@ -1405,7 +1511,7 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
         continue;
       }
 
-      const result = await runTool(sb, userId, call.name, call.input, snap, ctx);
+      const result = await runTool(sb, userId, call.name, call.input, snap, ctx, scope);
       const rejected = result.startsWith("مرفوض:");
       if (rejected) anyRejection = true;
       else executed.push({ tool: call.name, ok: true, summary: result });
@@ -1454,7 +1560,8 @@ async function handleAgentConfirm(sb: SupabaseClient, userId: string, body: any)
 
   const snap = await buildSnapshot(sb, userId);
   const ctx: RunContext = freshContext(userId);
-  const result = await runTool(sb, userId, tool, input, snap, ctx);
+  const scope: AuditScope = { source: "confirm", runId: null };
+  const result = await runTool(sb, userId, tool, input, snap, ctx, scope);
   const rejected = result.startsWith("مرفوض:");
 
   return new Response(JSON.stringify({
@@ -1612,6 +1719,11 @@ Deno.serve(async (req: Request) => {
 
     const { data: runRow } = await sb.from("zad_brain_runs").insert({ user_id: userId, trigger, status: "running" }).select("id").single();
     const runId = runRow?.id;
+    // trigger مكتوب Trigger بس مش متحقق وقت التشغيل — نداءات زي geofence_enter بتوصل
+    // بقيمة مش في ("daily"|"event"|"chat") فعلاً. أي حاجة غير "daily" بترجع "event"،
+    // عشان تفضل جوه allowlist agent_actions.source (نفس منطق zad_brain_runs.trigger's
+    // CHECK constraint اللي بيرفض أي حاجة غيرهم أصلاً).
+    const scope: AuditScope = { source: trigger === "daily" ? "daily" : "event", runId };
 
     const snap = await buildSnapshot(sb, userId);
     const ctx: RunContext = freshContext(userId);
@@ -1652,7 +1764,7 @@ Deno.serve(async (req: Request) => {
       const turnRejections: string[] = [];
       const toolResults: Array<{ id: string; name: string; content: string }> = [];
       for (const call of reply.toolCalls) {
-        const result = await runTool(sb, userId, call.name, call.input, snap, ctx);
+        const result = await runTool(sb, userId, call.name, call.input, snap, ctx, scope);
         toolResults.push({ id: call.id, name: call.name, content: result });
         if (result.startsWith("مرفوض:")) turnRejections.push(`${call.name}: ${result}`);
         else executedSummaries.push(result);
@@ -1690,7 +1802,7 @@ Deno.serve(async (req: Request) => {
         outputTokens += forced.usage.outTok;
         const rememberCalls = forced.toolCalls.filter((c) => c.name === "remember");
         for (const call of rememberCalls) {
-          const result = await runTool(sb, userId, call.name, { ...call.input, scope: "self" }, snap, ctx);
+          const result = await runTool(sb, userId, call.name, { ...call.input, scope: "self" }, snap, ctx, scope);
           if (!result.startsWith("مرفوض:")) executedSummaries.push(result);
         }
         if (rememberCalls.length === 0) {

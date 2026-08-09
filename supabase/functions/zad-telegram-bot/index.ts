@@ -349,7 +349,10 @@ async function agentTurn(userId: string, message: string): Promise<AgentTurnResu
     const res = await fetch(`${SUPABASE_URL}/functions/v1/zad-brain`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
-      body: JSON.stringify({ action: "agent_turn", user_id: userId, message }),
+      // source: "telegram" — تصنيف عرضي بس لـ agent_actions (أي فعل يتنفّذ يتوسم إنه
+      // جه من القناة دي)، مش أداة أمان: الهوية أصلاً محسومة بمفتاح service-role +
+      // userId من telegram_bindings، مش من الحقل ده.
+      body: JSON.stringify({ action: "agent_turn", user_id: userId, message, source: "telegram" }),
     });
     if (!res.ok) {
       console.error("agentTurn: zad-brain returned", res.status);
