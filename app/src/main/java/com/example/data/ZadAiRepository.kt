@@ -12,6 +12,15 @@ import java.io.ByteArrayOutputStream
 private const val TAG_REPO = "ZadAiRepo"
 private const val CENTRAL_FUNCTION = "zad-core-intelligence"
 
+/** العقل — بقى نقطة الدخول للمحادثة كمان (agent_turn/agent_confirm)، مش التحليل الخلفي بس. */
+private const val BRAIN_FUNCTION = "zad-brain"
+
+/**
+ * لفة المحادثة ممكن تعمل لفتين نداء موديل + عدة كتابات داتابيز، فمهلتها أطول من الـ ٣٠
+ * ثانية الافتراضية. لسه محدودة — في عميل مستني قدام الشاشة.
+ */
+private const val AGENT_TURN_TIMEOUT_MS = 60_000L
+
 @kotlinx.serialization.Serializable
 data class AiParsedTransaction(
     val amount: Double,
@@ -505,22 +514,109 @@ object ZadAiRepository {
         return callGeminiText(systemPrompt, userPrompt)
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    //  المرحلة ٢-ج — المحادثة عبر zad-brain (استدعاء أدوات حقيقي)
+    //
+    //  بديل بروتوكول [[ACTION]] النصي: زاد بينادي أدوات فعلية سيرفر-سايد، والرد اللي
+    //  بيتعرض مبني على نتيجة التنفيذ مش على كلام الموديل. الفرق العملي إن "ضفتلك
+    //  اللحمة" مابقاش ينفع يتقال من غير ما اللحمة تتضاف فعلاً.
+    // ══════════════════════════════════════════════════════════════════════
+
+    /** أداة اتنفذت فعلاً على السيرفر (مخزون/صيدلية/تسوق/بلد وعملة). */
+    data class AgentExecuted(val tool: String, val summary: String)
+
+    /** كتابة على فلوس حقيقية مستنية تأكيد صريح — لسه ماحصلتش. */
+    data class AgentProposal(val tool: String, val summary: String, val input: Map<String, Any?>)
+
+    data class AgentTurnResult(
+        val reply: String,
+        val executed: List<AgentExecuted>,
+        val proposals: List<AgentProposal>,
+        /** الموديل حاول ينادي أداة (حتى لو اترفضت) — بيفرق عن رد كلام عادي. */
+        val toolAttempted: Boolean
+    )
+
+    /**
+     * لفة محادثة كاملة. بترجع null لو النداء نفسه فشل، عشان الكولر يقدر يقع على مسار
+     * الشات القديم بدل ما المستخدم يشوف رسالة خطأ.
+     *
+     * مفيش `user_id` في الجسم عن قصد: `agent_turn` بياخد هوية المستخدم من الـ JWT اللي
+     * `callEdgeFunction` بيبعته أصلاً. الحاجة دي بتكتب معاملات مالية، فهوية من الجسم
+     * كانت هتخلي أي حد معاه توكن صالح يكتب في دفتر حد تاني.
+     */
+    @Suppress("UNCHECKED_CAST")
+    suspend fun agentTurn(message: String, history: List<Pair<String, String>>): AgentTurnResult? {
+        return try {
+            val response = SupabaseRepo.callEdgeFunction(
+                BRAIN_FUNCTION,
+                mapOf(
+                    "action" to "agent_turn",
+                    "message" to message,
+                    "history" to history.map { (role, text) -> mapOf("role" to role, "text" to text) }
+                ),
+                timeoutMs = AGENT_TURN_TIMEOUT_MS
+            )
+            if (response["ok"] != true) {
+                Log.e(TAG_REPO, "agentTurn() server reported failure: ${response["error"]}")
+                return null
+            }
+            val executed = (response["executed"] as? List<Map<String, Any?>> ?: emptyList()).mapNotNull { row ->
+                val summary = row["summary"] as? String ?: return@mapNotNull null
+                AgentExecuted(tool = row["tool"] as? String ?: "", summary = summary)
+            }
+            val proposals = (response["proposals"] as? List<Map<String, Any?>> ?: emptyList()).mapNotNull { row ->
+                val tool = row["tool"] as? String ?: return@mapNotNull null
+                val input = row["input"] as? Map<String, Any?> ?: return@mapNotNull null
+                AgentProposal(tool = tool, summary = row["summary"] as? String ?: tool, input = input)
+            }
+            AgentTurnResult(
+                reply = (response["reply"] as? String).orEmpty().trim(),
+                executed = executed,
+                proposals = proposals,
+                toolAttempted = response["tool_attempted"] == true
+            )
+        } catch (e: Exception) {
+            Log.e(TAG_REPO, "agentTurn() FAILED: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * تنفيذ اقتراح بعد موافقة المستخدم. الكلاينت مبيكتبش في الداتابيز بنفسه — بيرجّع
+     * الاقتراح للسيرفر اللي بيعيد التحقق منه وينفذه بنفس مسار أي أداة تانية.
+     */
+    suspend fun agentConfirm(proposal: AgentProposal): Pair<Boolean, String> {
+        return try {
+            val response = SupabaseRepo.callEdgeFunction(
+                BRAIN_FUNCTION,
+                mapOf("action" to "agent_confirm", "tool" to proposal.tool, "input" to proposal.input)
+            )
+            val ok = response["ok"] == true
+            ok to ((response["summary"] as? String).orEmpty())
+        } catch (e: Exception) {
+            Log.e(TAG_REPO, "agentConfirm() FAILED: ${e.message}")
+            false to ""
+        }
+    }
+
     // ── Zad Intelligence: 6 new features (narrative layer only — every
     // number below is already computed locally in ZadIntelligenceScreen.kt;
     // these calls never invent figures, only phrase them in Arabic) ──
 
+    /** [coverageDays] = null معناها مفيش معدل صرف يومي معروف، فالقسمة مالهاش معنى — بيتبعت
+     *  للموديل كـ "غير محسوبة" عشان مايقراش صفر ويقول للمستخدم إنه مكشوف وهو مش مكشوف. */
     suspend fun narrateStressTest(
-        coverageDays: Int,
+        coverageDays: Int?,
         avgDailySpend: Double,
         liquidSavings: Double,
         targetDays: Int,
         suggestedMonthlySaving: Double,
         status: String
     ): String? {
-        val systemPrompt = "أنت محلل مالي شخصي داخل تطبيق زاد. لخص وضع صمود المستخدم المالي في جملة أو جملتين بالعربي، بدون اختراع أرقام غير الموجودة في البيانات."
+        val systemPrompt = "أنت محلل مالي شخصي داخل تطبيق زاد. لخص وضع صمود المستخدم المالي في جملة أو جملتين بالعربي، بدون اختراع أرقام غير الموجودة في البيانات. لو أيام التغطية 'غير محسوبة'، قول إنها لسه محتاجة مصروفات مسجلة أكتر — وممنوع تعتبرها صفر أو تقول إن المستخدم مكشوف."
         val userPrompt = """
             === بيانات اختبار الصمود المالي ===
-            أيام التغطية عند الطوارئ: $coverageDays
+            أيام التغطية عند الطوارئ: ${coverageDays?.toString() ?: "غير محسوبة (مفيش معدل صرف يومي مرصود)"}
             متوسط الصرف اليومي: $avgDailySpend
             رصيد الطوارئ الحالي: $liquidSavings
             الهدف: $targetDays يوم تغطية

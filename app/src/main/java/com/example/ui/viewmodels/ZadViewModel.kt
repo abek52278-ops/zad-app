@@ -26,7 +26,14 @@ data class AiChatMessage(
     val id: String = java.util.UUID.randomUUID().toString(),
     val text: String,
     val isUser: Boolean,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    /**
+     * مش null يعني الرسالة دي بتأكد كتابة فعلية حصلت في المخزون، وينفع يتراجع عنها من
+     * زرار في نفس الفقاعة. مقصود إنه في الذاكرة بس (مش بيتخزن مع الرسالة): التراجع
+     * منطقي في نفس الجلسة، مش بعد ما التطبيق يتقفل ويتفتح والمخزون يكون اتغير من مسارات
+     * تانية (كاميرا، بوت، تشيك-إن).
+     */
+    val undoableCommitId: String? = null
 )
 
 private const val TAG = "ZadViewModel"
@@ -860,10 +867,11 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         """.trimIndent()
     }
 
-    private val chatActionRegex = Regex("""\[\[ACTION:(\{.*?\})\]\]""", RegexOption.DOT_MATCHES_ALL)
-
-    // صنف مقترح من الشات ينتظر تأكيد المستخدم قبل الحقن الفعلي (زي مراجعة الكاميرا بالظبط)
-    private var pendingChatAddItem: ZadInventory? = null
+    // أصناف مقترحة من الشات تنتظر تأكيد المستخدم قبل الحقن الفعلي (زي مراجعة الكاميرا
+    // بالظبط). قايمة مش صنف واحد: المستخدم بيكتب مشترياته الأسبوعية في رسالة واحدة
+    // ("فراخ ولحمة وطماطم ومكرونة")، وقبل كده applyChatAction كانت بتقرا أول [[ACTION]] بس
+    // فيتسجّل صنف واحد والباقي يضيع — والرد كان بيقرا كإن كله اتسجّل.
+    private var pendingChatAddItems: List<ZadInventory> = emptyList()
 
     // دواء جديد مقترح من الشات (Smart Medication Parsing) ينتظر تأكيد قبل كتابته وجدولة
     // منبهاته — نفس منطق pendingChatAddItem بالظبط، لأن دواء جديد بينشئ منبهات متكررة
@@ -888,79 +896,297 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val negativeReplyRegex = Regex("""^\s*(لا|مش|إلغاء|الغاء|no|cancel)\b""", RegexOption.IGNORE_CASE)
 
     /**
-     * يقرأ [[ACTION:{...}]] لو زاد كتبه في رده وينفذه على المخزون.
-     * "consume" بينفذ فوراً (بيعدّل صنف موجود فعلاً، مفيش خطر بيانات وهمية).
-     * "add" بيولّد اقتراح فقط وينتظر تأكيد المستخدم في رده الجاي (زي شاشة تأكيد الكاميرا)
-     * بدل الحقن المباشر من نص LLM غير موثوق — ده اللي كان بيسمح بدخول أسماء وهمية للمخزون.
-     * أي فشل في القراءة أو الصنف مش موجود → يتجاهل بأمان.
+     * يقرأ كل [[ACTION:{...}]] كتبها زاد في رده وينفذها على المخزون/الصيدلية.
+     *
+     * "consume" و"pharmacy_dose" بينفذوا فوراً (بيعدّلوا صنف موجود فعلاً، مفيش خطر بيانات
+     * وهمية). "add" و"add_pharmacy" بيولّدوا اقتراح وينتظروا تأكيد المستخدم في رده الجاي
+     * (زي شاشة تأكيد الكاميرا) بدل الحقن المباشر من نص LLM غير موثوق.
+     *
+     * بيقرا **كل** الـ actions مش أول واحدة بس: رسالة زي "سجّل مشتريات الأسبوع: فراخ
+     * ولحمة وطماطم ومكرونة" لازم تولّد أربع إضافات في تأكيد واحد. قبل كده كانت `find()`
+     * بترجع أول match، فالتلاتة الباقيين كانوا بيتشالوا من النص من غير ما يتنفذوا خالص —
+     * والرد كان بيقرا كإن كله اتسجّل.
+     *
+     * أي فشل في قراءة action واحدة بيتجاهلها لوحدها ويكمّل الباقي، مش بيرمي الرسالة كلها.
      */
     private fun applyChatAction(rawResponse: String): String {
-        val match = chatActionRegex.find(rawResponse) ?: return rawResponse
-        val cleanText = rawResponse.replace(match.value, "").trim()
-        return try {
-            val json = org.json.JSONObject(match.groupValues[1])
-            val itemName = json.optString("item").trim()
-            val amount = json.optInt("amount", 1).coerceIn(1, 999)
-            if (itemName.isBlank()) return cleanText
+        val parsed = com.example.data.ChatActionParser.parse(rawResponse)
+        if (parsed.actions.isEmpty()) return parsed.cleanText
 
-            val confirmation = when (json.optString("type")) {
-                "consume" -> {
+        val cleanText = parsed.cleanText
+        val queuedAdds = mutableListOf<ZadInventory>()
+        val immediateNotes = mutableListOf<String>()
+
+        parsed.actions.forEach { action ->
+            val itemName = action.itemName
+            val amount = action.amount
+            when (action.type) {
+                com.example.data.ChatActionParser.Type.CONSUME -> {
                     val existing = _inventory.value.firstOrNull {
                         com.example.data.InventoryFlowEngine.namesMatch(it.itemName, itemName)
                     }
-                    if (existing != null) {
+                    immediateNotes += if (existing != null) {
                         consumeInventoryItem(existing, amount)
-                        "\n\n✅ خصمنا $amount من ${existing.itemName} (متبقي ${(existing.quantity - amount).coerceAtLeast(0)})"
-                    } else "\n\n⚠️ مش لاقي \"$itemName\" في مخزونك."
+                        "✅ خصمنا $amount من ${existing.itemName} (متبقي ${(existing.quantity - amount).coerceAtLeast(0)})"
+                    } else "⚠️ مش لاقي \"$itemName\" في مخزونك."
                 }
-                "add" -> {
-                    val existing = _inventory.value.firstOrNull {
+                com.example.data.ChatActionParser.Type.ADD -> {
+                    // دمج التكرار: لو الموديل كتب نفس الصنف مرتين في نفس الرد، مرة واحدة
+                    // بمجموع الكمية — أفضل من سؤال المستخدم عن نفس الحاجة مرتين.
+                    val duplicate = queuedAdds.indexOfFirst {
                         com.example.data.InventoryFlowEngine.namesMatch(it.itemName, itemName)
                     }
-                    pendingChatAddItem = com.example.data.ZadInventory(
-                        itemName = itemName,
-                        quantity = amount,
-                        unit = json.optString("unit").ifBlank { "حبة" },
-                        category = json.optString("category").ifBlank { null }
-                    )
-                    val target = if (existing != null) "لـ ${existing.itemName} (هيبقى ${existing.quantity + amount})" else "$itemName ($amount)"
-                    "\n\n🤔 تحب أضيف $target للمخزون؟ اكتب \"أيوه\" للتأكيد."
+                    if (duplicate >= 0) {
+                        val prev = queuedAdds[duplicate]
+                        queuedAdds[duplicate] = prev.copy(quantity = (prev.quantity + amount).coerceAtMost(999))
+                    } else {
+                        queuedAdds += com.example.data.ZadInventory(
+                            itemName = itemName,
+                            quantity = amount,
+                            unit = action.unit ?: "حبة",
+                            category = action.category
+                        )
+                    }
                 }
-                // دواء جديد بجدول جرعات كامل (Smart Medication Parsing) — بيختلف عن "pharmacy_dose"
-                // اللي بيسجّل أخد جرعة من دواء موجود بالفعل. زي "add" بالظبط: اقتراح ينتظر تأكيد،
-                // مش حقن مباشر، لأن dose_times هنا بتفتح منبهات AlarmManager فعلية.
-                "add_pharmacy" -> {
-                    val doseCount = json.optInt("daily_dose_count", 1).coerceIn(1, 12)
-                    val doseTimes = json.optString("dose_times").trim()
+                // دواء جديد بجدول جرعات كامل (Smart Medication Parsing) — بيختلف عن
+                // PHARMACY_DOSE اللي بيسجّل أخد جرعة من دواء موجود بالفعل. زي ADD بالظبط:
+                // اقتراح ينتظر تأكيد، مش حقن مباشر، لأن dose_times هنا بتفتح منبهات
+                // AlarmManager فعلية. واحد بس في الرسالة الواحدة (الأول يفوز) — جدول جرعات
+                // محتاج مراجعة مواعيده واحد واحد، مش تأكيد جماعي.
+                com.example.data.ChatActionParser.Type.ADD_PHARMACY -> {
+                    if (pendingChatAddPharmacy != null) return@forEach
                     pendingChatAddPharmacy = com.example.data.ZadPharmacyItem(
                         name = itemName,
-                        dosage = json.optString("dosage").trim().ifBlank { null },
-                        dailyDoseCount = doseCount,
-                        doseTimes = doseTimes.ifBlank { null },
-                        unit = json.optString("unit").ifBlank { "قرص" },
+                        dosage = action.dosage,
+                        dailyDoseCount = action.dailyDoseCount,
+                        doseTimes = action.doseTimes,
+                        unit = action.unit ?: "قرص",
                         remainingQuantity = amount,
-                        category = json.optString("category").trim().ifBlank { "عام" }
+                        category = action.category ?: "عام"
                     )
-                    val timesText = if (doseTimes.isNotBlank()) " المواعيد: $doseTimes." else ""
-                    "\n\n💊 تحب أضيف \"$itemName\" لجدول الأدوية؟$timesText اكتب \"أيوه\" للتأكيد."
+                    val timesText = action.doseTimes?.let { " المواعيد: $it." } ?: ""
+                    immediateNotes += "💊 تحب أضيف \"$itemName\" لجدول الأدوية؟$timesText اكتب \"أيوه\" للتأكيد."
                 }
-                "pharmacy_dose" -> {
-                    // نفس درجة الخطورة المنخفضة زي "consume" — تنفيذ فوري بدون تأكيد، بيعيد
+                com.example.data.ChatActionParser.Type.PHARMACY_DOSE -> {
+                    // نفس درجة الخطورة المنخفضة زي CONSUME — تنفيذ فوري بدون تأكيد، بيعيد
                     // استخدام نفس السلسلة اللي بيستخدمها الأمر الصوتي (خصم مخزون → فحص نقص →
                     // إضافة لقائمة التسوق) عشان الشات والصوت يتصرفوا بنفس الطريقة بالظبط
-                    if (markPharmacyDoseTakenByName(itemName)) {
-                        "\n\n✅ سجّلنا إنك خدت $itemName."
+                    immediateNotes += if (markPharmacyDoseTakenByName(itemName)) {
+                        "✅ سجّلنا إنك خدت $itemName."
                     } else {
-                        "\n\n⚠️ مش لاقي دواء اسمه \"$itemName\" في قائمتك."
+                        "⚠️ مش لاقي دواء اسمه \"$itemName\" في قائمتك."
                     }
                 }
-                else -> ""
             }
-            cleanText + confirmation
-        } catch (e: Exception) {
-            Log.e(TAG, "applyChatAction() parse failed: ${e.message}")
-            cleanText
         }
+
+        pendingChatAddItems = queuedAdds
+        val addPrompt = buildInventoryConfirmPrompt(queuedAdds)
+        val suffix = (immediateNotes + listOfNotNull(addPrompt)).joinToString("\n")
+        return if (suffix.isBlank()) cleanText else "$cleanText\n\n$suffix"
+    }
+
+    /**
+     * حالة المخزون قبل كتابة جاية من الشات، عشان زرار "تراجع" في نفس الفقاعة يقدر يرجّعها.
+     * [previousQuantities] = الكمية القديمة لكل صنف كان موجود قبل الإضافة؛ أي صنف مش
+     * فيها يبقى اتعمل جديد بالكتابة دي ولازم يتشال بالكامل عند التراجع.
+     */
+    private data class InventoryCommitSnapshot(
+        val itemNames: List<String>,
+        val previousQuantities: Map<String, Int>
+    )
+
+    private val undoableInventoryCommits = mutableMapOf<String, InventoryCommitSnapshot>()
+
+    /** بيتصوّر المخزون قبل الكتابة ويرجّع مُعرّف الكتابة عشان يتربط برسالة التأكيد. */
+    private fun beginUndoableInventoryCommit(items: List<ZadInventory>): String {
+        val commitId = java.util.UUID.randomUUID().toString()
+        val previous = mutableMapOf<String, Int>()
+        items.forEach { item ->
+            _inventory.value.firstOrNull {
+                com.example.data.InventoryFlowEngine.namesMatch(it.itemName, item.itemName)
+            }?.let { previous[item.itemName] = it.quantity }
+        }
+        undoableInventoryCommits[commitId] = InventoryCommitSnapshot(items.map { it.itemName }, previous)
+        return commitId
+    }
+
+    /**
+     * تراجع عن كتابة مخزون جات من الشات. الصنف اللي كان موجود بيرجع لكميته القديمة،
+     * والصنف اللي الكتابة دي أنشأته بيتشال.
+     *
+     * بيقرا المخزون الحالي وقت التراجع مش وقت الكتابة، فلو المستخدم عدّل الصنف بنفسه
+     * في الوقت ده، التراجع بيرجّع الكمية المسجّلة قبل الكتابة — وهو المقصود: "الغي اللي
+     * زاد عمله"، مش "ارجع بالزمن".
+     */
+    fun undoInventoryCommit(commitId: String) {
+        val snapshot = undoableInventoryCommits.remove(commitId) ?: return
+        viewModelScope.launch {
+            snapshot.itemNames.forEach { name ->
+                val current = _inventory.value.firstOrNull {
+                    com.example.data.InventoryFlowEngine.namesMatch(it.itemName, name)
+                } ?: return@forEach
+                val previousQty = snapshot.previousQuantities[name]
+                if (previousQty == null) {
+                    deleteInventory(current.id)
+                } else {
+                    val restored = current.copy(quantity = previousQty)
+                    dao.insertInventoryItem(restored)
+                    _inventory.value = _inventory.value.map { if (it.id == current.id) restored else it }
+                    if (!SupabaseRepo.upsertInventory(restored)) {
+                        com.example.data.SyncOutbox.enqueueInventoryUpsert(getApplication(), restored)
+                    }
+                }
+            }
+            // الرسالة بتفضل مكانها بس من غير زرار — عشان سجل المحادثة يبان فيه إن حاجة
+            // اتضافت واترجعت، مش تختفي كإنها معملتش.
+            _aiChatMessages.value = _aiChatMessages.value.map {
+                if (it.undoableCommitId == commitId) {
+                    it.copy(text = "↩️ اترجعنا عن الإضافة دي — المخزون زي ما كان.", undoableCommitId = null)
+                } else it
+            }
+        }
+    }
+
+    /** سؤال تأكيد واحد لكل الأصناف اللي زاد فهمها من الرسالة، بأسمائها وكمياتها — عشان
+     *  أي غلط في الفهم يبان قبل ما يتكتب، بنفس مبدأ مراجعة مسح الكاميرا. */
+    private fun buildInventoryConfirmPrompt(items: List<ZadInventory>): String? {
+        if (items.isEmpty()) return null
+        fun describe(item: ZadInventory): String {
+            val existing = _inventory.value.firstOrNull {
+                com.example.data.InventoryFlowEngine.namesMatch(it.itemName, item.itemName)
+            }
+            return if (existing != null) {
+                "${existing.itemName} +${item.quantity} (هيبقى ${existing.quantity + item.quantity})"
+            } else {
+                "${item.itemName} (${item.quantity} ${item.unit ?: "حبة"})"
+            }
+        }
+        return if (items.size == 1) {
+            "🤔 تحب أضيف ${describe(items.first())} للمخزون؟ اكتب \"أيوه\" للتأكيد."
+        } else {
+            "🤔 تحب أضيف الأصناف دي للمخزون؟\n" +
+                items.joinToString("\n") { "• ${describe(it)}" } +
+                "\nاكتب \"أيوه\" للتأكيد."
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  المرحلة ٢-ج — المحادثة عبر zad-brain
+    // ══════════════════════════════════════════════════════════════════════
+
+    /** كتابات مالية اقترحها الوكيل ومستنية "أيوه" من المستخدم. فاضية = مفيش اقتراح معلّق. */
+    private var pendingAgentProposals: List<com.example.data.ZadAiRepository.AgentProposal> = emptyList()
+
+    /**
+     * بينادي `agent_turn` ويعرض نتيجته. بيرجع true لو اللفة اتعالجت بالكامل (رد اتعرض)،
+     * وfalse لو النداء فشل عشان الكولر يقع على مسار الشات القديم.
+     *
+     * الرد المعروض بيتبني من نتيجة التنفيذ الفعلية: `executed` (حصل خلاص) و`proposals`
+     * (مستني موافقة). كلام الموديل الحر بيتعرض زي ما هو من غير ما يتصدق في ادعاء تنفيذ —
+     * ده الفرق اللي البروتوكول النصي القديم مكانش بيقدر يضمنه.
+     */
+    private suspend fun tryAgentTurn(userText: String): Boolean {
+        val history = _aiChatMessages.value.dropLast(1).takeLast(8)
+            .map { (if (it.isUser) "user" else "assistant") to it.text }
+
+        val result = com.example.data.ZadAiRepository.agentTurn(userText, history) ?: return false
+
+        val lines = mutableListOf<String>()
+        if (result.reply.isNotBlank()) lines += result.reply
+        result.executed.forEach { lines += "✅ ${it.summary}" }
+
+        pendingAgentProposals = result.proposals
+        if (result.proposals.isNotEmpty()) {
+            lines += buildString {
+                appendLine(if (result.proposals.size == 1) "🤔 أأكد ده؟" else "🤔 أأكد دول؟")
+                result.proposals.forEach { appendLine("• ${it.summary}") }
+                append("اكتب \"أيوه\" للتأكيد.")
+            }.trim()
+        }
+
+        // مفيش رد ولا تنفيذ — نتعامل معاها كفشل ونقع على المسار القديم بدل ما نعرض
+        // فقاعة فاضية.
+        if (lines.isEmpty()) return false
+
+        val msg = AiChatMessage(text = lines.joinToString("\n\n"), isUser = false)
+        _aiChatMessages.value = _aiChatMessages.value + msg
+        persistChatMessage(msg)
+        _companionState.value = com.example.ui.components.companionStateForMessage(msg.text)
+
+        // الكتابات حصلت سيرفر-سايد، فالحالة المحلية بقت قديمة. بنعيد تحميل اللي اتغيّر
+        // بس، مش كل حاجة.
+        if (result.executed.isNotEmpty()) refreshAfterAgentWrites(result.executed)
+        return true
+    }
+
+    /**
+     * إعادة تحميل الحالة المحلية بعد ما أدوات الوكيل كتبت على السيرفر.
+     *
+     * كل الـ StateFlows هنا مصدرها Room (تدفقات `dao.getAll*()`)، مش نداء شبكة — فكتابة
+     * سيرفر-سايد مش بتظهر في الواجهة لحد ما Room نفسها تتحدّث. [syncData] هي المسار
+     * الموجود بالفعل لده، فبنعيد استخدامه بدل ما نخترع مسار تاني ممكن يفرق عنه.
+     */
+    private fun refreshAfterAgentWrites(executed: List<com.example.data.ZadAiRepository.AgentExecuted>) {
+        val tools = executed.map { it.tool }.toSet()
+        val touchedSyncedTables = tools.any {
+            it in setOf(
+                "add_inventory_item", "update_inventory_qty", "add_pharmacy_item",
+                "add_shopping_item", "set_transaction_category", "log_transaction", "update_transaction"
+            )
+        }
+        if (touchedSyncedTables) syncData()
+        if (tools.contains("set_monthly_limit")) loadBudget()
+        if (tools.contains("set_market")) {
+            viewModelScope.launch {
+                try {
+                    SupabaseRepo.ensureMarketProfileSynced(getApplication())
+                } catch (e: Exception) {
+                    Log.e(TAG, "refreshAfterAgentWrites() market reload failed: ${e.message}")
+                }
+            }
+        }
+    }
+
+    /**
+     * المستخدم رد على اقتراح مالي معلّق. بيرجع true لو الرد اتعالج كتأكيد/رفض، وfalse
+     * لو مش رد واضح — ساعتها الرسالة بتتعامل كسؤال جديد عادي.
+     *
+     * التنفيذ الفعلي بيحصل سيرفر-سايد (`agent_confirm`) اللي بيعيد التحقق من الاقتراح.
+     * الكلاينت مبيكتبش المعاملة بنفسه.
+     */
+    private suspend fun handleAgentProposalReply(userText: String): Boolean {
+        val proposals = pendingAgentProposals
+        if (proposals.isEmpty()) return false
+
+        if (negativeReplyRegex.containsMatchIn(userText)) {
+            pendingAgentProposals = emptyList()
+            val cancelMsg = AiChatMessage(text = "تمام، ملغيتهاش.", isUser = false)
+            _aiChatMessages.value = _aiChatMessages.value + cancelMsg
+            persistChatMessage(cancelMsg)
+            return true
+        }
+        if (!affirmativeReplyRegex.containsMatchIn(userText)) return false
+
+        pendingAgentProposals = emptyList()
+        val results = proposals.map { com.example.data.ZadAiRepository.agentConfirm(it) }
+        val succeeded = results.count { it.first }
+        val text = if (succeeded == results.size) {
+            results.joinToString("\n") { "✅ ${it.second}" }
+        } else {
+            "معلش، بعض الحاجات مانفعتش تتسجل — جرب تاني.\n" +
+                results.joinToString("\n") { (ok, summary) -> "${if (ok) "✅" else "⚠️"} $summary" }
+        }
+        val confirmMsg = AiChatMessage(text = text, isUser = false)
+        _aiChatMessages.value = _aiChatMessages.value + confirmMsg
+        persistChatMessage(confirmMsg)
+        if (succeeded > 0) {
+            // نفس السبب في [refreshAfterAgentWrites]: المعاملة اتكتبت سيرفر-سايد، وRoom
+            // هي مصدر الواجهة.
+            syncData()
+            loadBudget()
+        }
+        return true
     }
 
     /** Ceiling on any pre-request context warmup in the chat path — see sendAiChatMessage. */
@@ -976,13 +1202,19 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         _aiChatMessages.value = _aiChatMessages.value + userMsg
         persistChatMessage(userMsg)
 
-        // فيه اقتراح إضافة مخزون معلّق من رد سابق؟ الرد ده تأكيد أو رفض ليه، مش سؤال جديد
-        val pending = pendingChatAddItem
-        if (pending != null) {
-            pendingChatAddItem = null
+        // فيه أصناف مخزون معلّقة من رد سابق؟ الرد ده تأكيد أو رفض ليها، مش سؤال جديد
+        val pending = pendingChatAddItems
+        if (pending.isNotEmpty()) {
+            pendingChatAddItems = emptyList()
             if (affirmativeReplyRegex.containsMatchIn(userText)) {
-                injectScannedItems(listOf(pending))
-                val confirmMsg = AiChatMessage(text = "✅ تم، ضفنا ${pending.itemName} (${pending.quantity}) للمخزون.", isUser = false)
+                val commitId = beginUndoableInventoryCommit(pending)
+                injectScannedItems(pending)
+                val added = pending.joinToString("، ") { "${it.itemName} (${it.quantity})" }
+                val confirmMsg = AiChatMessage(
+                    text = "📦 اتضاف للمخزون: $added",
+                    isUser = false,
+                    undoableCommitId = commitId
+                )
                 _aiChatMessages.value = _aiChatMessages.value + confirmMsg
                 persistChatMessage(confirmMsg)
                 return
@@ -996,7 +1228,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         val pendingPharmacy = pendingChatAddPharmacy
-        if (pending == null && pendingPharmacy != null) {
+        if (pending.isEmpty() && pendingPharmacy != null) {
             pendingChatAddPharmacy = null
             if (affirmativeReplyRegex.containsMatchIn(userText)) {
                 addPharmacyItem(pendingPharmacy)
@@ -1016,7 +1248,39 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         _isAiTyping.value = true
         _companionState.value = com.example.ui.components.CompanionState.Focused
 
+        // اقتراح مالي معلّق من لفة وكيل سابقة؟ الرد ده تأكيده أو رفضه، مش سؤال جديد.
+        // بيتفحص جوه coroutine لأن التنفيذ نفسه نداء شبكة.
+        if (pendingAgentProposals.isNotEmpty()) {
+            viewModelScope.launch {
+                try {
+                    if (!handleAgentProposalReply(userText)) {
+                        pendingAgentProposals = emptyList()
+                        runChatTurn(userText)
+                    }
+                } finally {
+                    _isAiTyping.value = false
+                }
+            }
+            return
+        }
+
         viewModelScope.launch {
+            try {
+                runChatTurn(userText)
+            } finally {
+                _isAiTyping.value = false
+            }
+        }
+    }
+
+    /**
+     * لفة شات واحدة: بتجرب مسار الوكيل (zad-brain + استدعاء أدوات) الأول، وتقع على
+     * بروتوكول [[ACTION]] النصي القديم لو فشل.
+     *
+     * اتفصلت عن [sendAiChatMessage] عشان مسار الرد على اقتراح معلّق يقدر يعيد استخدامها
+     * لما الرد يطلع مش تأكيد ولا رفض — من غير كده كان لازم يتكرر الجسم كله.
+     */
+    private suspend fun runChatTurn(userText: String) {
             try {
                 // لو تقرير العقل مش جاهز، احسبه عشان الشات يكون عارف كل حاجة.
                 //
@@ -1047,6 +1311,15 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     } catch (_: Exception) {}
                 }
 
+                // المرحلة ٢-ج — المسار الأساسي: zad-brain باستدعاء أدوات حقيقي. السيرفر
+                // بيبني السياق من الداتابيز بنفسه (buildSnapshot)، فمفيش حقن سياق من هنا.
+                //
+                // بروتوكول [[ACTION]] تحت بقى fallback بس: لو النداء ده فشل (نت، مهلة،
+                // موديل مش متاح)، الشات بيفضل شغال بالسلوك القديم بدل ما يقع في وش
+                // المستخدم. الفرق إن المسار الجديد مايقدرش يدّعي تنفيذ محصلش — الرد
+                // مبني على نتيجة الأدوات الفعلية.
+                if (tryAgentTurn(userText)) return
+
                 // ذاكرة المحادثة: آخر 8 رسائل عشان يفهم سياق الحوار
                 val history = _aiChatMessages.value.dropLast(1).takeLast(8)
                     .joinToString("\n") { "${if (it.isUser) "العميل" else "زاد"}: ${it.text}" }
@@ -1074,7 +1347,9 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                        لو قال بشكل صريح إنه خد/استخدم جرعة دواء (مثلاً "خدت حبة الضغط")، أضف: [[ACTION:{"type":"pharmacy_dose","item":"اسم الدواء بالظبط زي القائمة فوق"}]]
                        لو وصف دواء جديد عايز يتابعه بمواعيد جرعات (مثلاً "باخد دواء ضغط كونكور قرص كل 8 ساعات وفكرني الساعة 5")، احسب مواعيد الجرعات كساعة:دقيقة بنظام 24 ساعة (00:00-23:59، ممنوع 24:00) بناءً على "الوقت الآن" فوق والفاصل أو الميعاد اللي قاله، وأضف:
                        [[ACTION:{"type":"add_pharmacy","item":"اسم الدواء","dosage":"وصف الجرعة بالظبط زي ما قاله المستخدم","daily_dose_count":عدد الجرعات يومياً,"dose_times":"08:00,16:00,00:00","unit":"قرص أو مل أو كريم","amount":الكمية المتاحة عنده أو 1 لو مذكورش,"category":"عام أو مزمن أو مسكن أو مضاد حيوي أو فيتامين"}]]
-                       اكتب ACTION واحد بس عند نية صريحة أكيدة، ومتكتبش أي ACTION على مجرد سؤال أو استفسار عادي (زي "هل عندي أرز؟")
+                       لو المستخدم ذكر أكتر من صنف في رسالة واحدة (زي "سجّل مشتريات الأسبوع: فراخ ولحمة وطماطم ومكرونة")، اكتب ACTION منفصل لكل صنف، كل واحد في سطر لوحده — ممنوع تجمّع أكتر من صنف في ACTION واحدة، وممنوع تسيب أي صنف ذكره من غير ACTION.
+                       ACTION عند نية صريحة أكيدة بس، ومتكتبش أي ACTION على مجرد سؤال أو استفسار عادي (زي "هل عندي أرز؟")
+                       متقولش في كلامك إنك سجّلت أو ضفت حاجة — الـ ACTION هي اللي بتنفّذ فعلاً والتطبيق هو اللي بيرد بالتأكيد، فاكتفِ بالرد على كلامه من غير ما تدّعي إنك كتبت في المخزون
                     8. لو سأل عن خطة سداد الديون، استخدم أرقام قسم === الديون وخطة السداد === فوق بالظبط (الأشهر، الفوائد، الترتيب) — متخترعش خطة مختلفة
                     9. "الميزانية الشهرية" هي السقف الكلي، مش أي رقم تاني. "المحجوز (التزامات+اشتراكات)" رقم منفصل تماماً — لو سأل عن العجز أو الميزانية، قوله رقم "الميزانية الشهرية" بالظبط ومتستبدلوش برقم "المحجوز" أو "المتاح الفعلي" أبداً
                 """.trimIndent()
@@ -1105,10 +1380,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 _aiChatMessages.value = _aiChatMessages.value + errMsg
                 persistChatMessage(errMsg)
                 _companionState.value = com.example.ui.components.CompanionState.Idle
-            } finally {
-                _isAiTyping.value = false
             }
-        }
     }
 
     fun loadNotifications() {
@@ -1373,7 +1645,15 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
-            val (limit, confirmedAt) = if (userId != null) SupabaseRepo.getMonthlyLimit(userId) else Pair(null, null)
+            if (userId == null) {
+                // الجلسة لسه ما اتحمّلتش من التخزين. الكود القديم كان بيكمّل ويكتب
+                // UNKNOWN_BUDGET (صفر) وbudgetConfirmed=false، فالمستخدم كان يشوف ميزانيته
+                // "٠ ج.م" وشاشة تحديد السقف بتطلع فوق سقف مؤكد بالفعل. مفيش سبب نستنتج
+                // "مفيش سقف" من "مفيش جلسة" — بنسيب الحالة زي ما هي والتحميل يتعاد بعدين.
+                Log.w(TAG, "loadBudget() → no session yet, leaving budget state untouched")
+                return@launch
+            }
+            val (limit, confirmedAt) = SupabaseRepo.getMonthlyLimit(userId)
 
             if (limit != null) {
                 _budget.value = limit
@@ -1432,6 +1712,28 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Task 19.0 — فعل مستخدم مباشر = تأكيد فوري. بيكتب monthly_limit، مش العمود الميت budget. */
+    /**
+     * الإعداد الأولي في خطوة واحدة (BudgetGateScreen): السوق والسقف مع بعض.
+     *
+     * السوق بيتكتب الأول عشان [updateBudget] يحسب ويعرض بالعملة الصح من أول لحظة. الكتابة
+     * دي مقصودة إنها تتكرر هنا حتى لو المستخدم اختار سوقه في شاشة ما قبل التسجيل: هناك
+     * مكانش في جلسة، فالرفع للسيرفر فشل بصمت وzad_users.currency فضلت null.
+     */
+    fun completeInitialSetup(budget: Double, market: Market) {
+        val context = getApplication<Application>()
+        val previous = MarketPrefs.getMarket(context)
+        if (previous != market) {
+            MarketPrefs.setMarket(context, market)
+        }
+        viewModelScope.launch {
+            if (!SupabaseRepo.syncMarketProfile(market.currencyCode, market.countryCode)) {
+                Log.e(TAG, "completeInitialSetup() market sync FAILED — queued for retry")
+                com.example.data.SyncOutbox.enqueueMarketProfile(context, market.currencyCode, market.countryCode)
+            }
+        }
+        updateBudget(budget)
+    }
+
     fun updateBudget(newBudgetRaw: Double) {
         val newBudget = newBudgetRaw.asMoney()
         viewModelScope.launch {
@@ -1496,6 +1798,55 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 Log.e(TAG, "updateTransactionCategory() Supabase sync FAILED: ${e.message}")
             }
+        }
+    }
+
+    /**
+     * تعديل معاملة موجودة من شاشة الميزانية. بيكتب محلياً الأول (Room + الـ StateFlow) عشان
+     * الواجهة تتحدث فوراً، وبعدين يزامن السيرفر — نفس ترتيب [updateTransactionCategory].
+     *
+     * بيعيد حساب "المتبقي" بعد الكتابة لأن المبلغ أو الاتجاه ممكن يكونوا اتغيّروا، والرقم
+     * ده مشتق من مجموع المعاملات — من غير إعادة الحساب الكارت فوق يفضل على الرقم القديم.
+     */
+    fun updateTransaction(
+        id: String,
+        title: String,
+        amount: Double,
+        category: String?,
+        isExpense: Boolean,
+        onResult: (Boolean) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            Log.d(TAG, "updateTransaction() → id=$id, amount=$amount, isExpense=$isExpense")
+            val target = _transactions.value.find { it.id == id }
+            if (target == null) {
+                onResult(false)
+                return@launch
+            }
+            val updated = target.copy(
+                title = title,
+                amount = amount.asMoney(),
+                category = category,
+                isExpense = isExpense
+            )
+            dao.insertTransaction(updated)
+            _transactions.value = _transactions.value.map { if (it.id == id) updated else it }
+            recalculateRemainingBalance(_transactions.value, _budget.value)
+
+            // نفس تعلّم التصنيف اللي في updateTransactionCategory: تصحيح المستخدم لتاجر
+            // معروف بيتحفظ عشان معاملاته الجاية تتصنف صح من غير تدخل.
+            if (!target.merchantName.isNullOrBlank() && !category.isNullOrBlank() && category != target.category) {
+                MerchantCategoryOverrides.set(getApplication(), target.merchantName, category)
+            }
+
+            val synced = try {
+                SupabaseRepo.updateTransaction(id, title, updated.amount, category, isExpense)
+            } catch (e: Exception) {
+                Log.e(TAG, "updateTransaction() Supabase sync FAILED: ${e.message}")
+                false
+            }
+            com.example.widgets.TransactionWidget.updateAllWidgets(getApplication())
+            onResult(synced)
         }
     }
 
@@ -1773,6 +2124,38 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.d(TAG, "runAutoReplenish() → added ${added.size} items to shopping list")
             } catch (e: Exception) {
                 Log.e(TAG, "runAutoReplenish() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * تعديل صنف مخزون قايم (الاسم/الكمية/الوحدة). قبل كده الكارت كان فيه زرار مسح بس،
+     * فتصحيح كمية غلط كان معناه مسح الصنف وإعادة إدخاله — وده بيضيّع معدل الاستهلاك
+     * المتعلّم للصنف ده معاه.
+     *
+     * الكمية الجديدة بتتسجّل كـ observation زي أي مصدر كمية تاني (مسح كاميرا، رد
+     * تشيك-إن)، عشان معدل الاستهلاك يتعلم من تصحيح المستخدم بدل ما يتجاهله.
+     */
+    fun updateInventoryItem(item: ZadInventory, newName: String, newQuantity: Int, newUnit: String?) {
+        viewModelScope.launch {
+            val updated = item.copy(
+                itemName = newName.trim().ifBlank { item.itemName },
+                quantity = newQuantity.coerceIn(0, 9999),
+                unit = newUnit?.trim()?.ifBlank { null } ?: item.unit
+            )
+            Log.d(TAG, "updateInventoryItem() → id=${item.id}, qty=${updated.quantity}")
+            dao.insertInventoryItem(updated)
+            _inventory.value = _inventory.value.map { if (it.id == item.id) updated else it }
+
+            if (!SupabaseRepo.upsertInventory(updated)) {
+                com.example.data.SyncOutbox.enqueueInventoryUpsert(getApplication(), updated)
+            }
+            if (updated.quantity != item.quantity) {
+                if (!SupabaseRepo.recordInventoryObservation(updated.itemName, updated.quantity, "manual_edit")) {
+                    com.example.data.SyncOutbox.enqueueInventoryObservation(
+                        getApplication(), updated.itemName, updated.quantity, "manual_edit"
+                    )
+                }
             }
         }
     }
@@ -3080,6 +3463,14 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     val session = SupabaseRepo.client.auth.currentSessionOrNull()
                     val emailName = session?.user?.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() }
                     _userName.value = emailName ?: "مستخدم جديد"
+                }
+                // اختيار السوق بيحصل في شاشة قبل التسجيل، فرفعه للسيرفر ساعتها بيفشل
+                // (مفيش جلسة). دي أول نقطة مضمون فيها إن في مستخدم مسجّل — من غيرها
+                // zad_users.currency بيفضل null والبوت يسأل عن العملة كل مرة.
+                try {
+                    SupabaseRepo.ensureMarketProfileSynced(getApplication())
+                } catch (e: Exception) {
+                    Log.e(TAG, "ensureMarketProfileSynced() FAILED: ${e.message}")
                 }
                 Log.d(TAG, "loadUserProfile() → userName=${_userName.value}, avatarUri=${_avatarUri.value}")
             } catch (e: Exception) {

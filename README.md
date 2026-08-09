@@ -18,7 +18,7 @@
 1. افتح المشروع في Android Studio ودع IDE يزامن Gradle.
 2. أنشئ ملف `.env` في جذر المشروع (انسخ من `.env.example`) وحط فيه:
    - `SUPABASE_URL` و `SUPABASE_ANON_KEY` — **مطلوبين** (من إعدادات مشروعك في Supabase)
-   - `GEMINI_API_KEY` — **اختياري**، سيبه زي ما هو. كل ميزات الذكاء الاصطناعي (شات، تحليل، مسح فواتير بالصور) شغالة بمفتاح `GROQ_API_KEY` واحد مُسجّل سيرفر-سايد في Supabase Secrets (Edge Function `zad-ai-proxy`)، مش هنا.
+   - `GEMINI_API_KEY` — **اختياري**، سيبه زي ما هو. كل ميزات الذكاء الاصطناعي (شات، تحليل، مسح فواتير بالصور) شغالة بمفاتيح مُسجّلة سيرفر-سايد في Supabase Secrets (`ZAD_API_KEY_1..5` لـ Gemini، و`GROQ_API_KEY` كـ fallback للنصوص) — مش هنا. راجع CLAUDE.md لتفاصيل توزيع المزوّدين.
 3. شغّل قاعدة البيانات: نفّذ ملفات `supabase/migrations/*.sql` بالترتيب في Supabase SQL Editor.
 4. شغّل التطبيق على محاكي أو جهاز حقيقي (`minSdk 24`).
 

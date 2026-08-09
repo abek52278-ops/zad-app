@@ -12,8 +12,19 @@
 
 import { assert, assertEquals, assertRejects, assertStringIncludes } from "jsr:@std/assert@1";
 import {
+  CONFIRM_REQUIRED_TOOLS,
+  MUTATING_TOOLS,
+  VALIDATORS,
   freshContext,
+  validateLogPharmacyDose,
+  validateAddInventoryItem,
+  validateAddPharmacyItem,
   validateAddShoppingItem,
+  validateLogTransaction,
+  validateQueryFamily,
+  validateSetMarket,
+  validateSetMonthlyLimit,
+  validateUpdateTransaction,
   validateAskUser,
   validateConfirmCycleStart,
   validateConfirmObligation,
@@ -420,4 +431,257 @@ Deno.test("emit_insight allows critical priority when available is zero even if 
     snap, freshContext("u1"),
   );
   assertEquals(v.ok, true);
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// المرحلة ٢-ب — أدوات المحادثة.
+//
+// الحارس الأهم اللي بتغطيه الاختبارات دي: أدوات الفلوس التلاتة موجودة في
+// CONFIRM_REQUIRED_TOOLS، يعني حلقة agent_turn مابتنفذهاش أبداً — بتحوّلها لاقتراح
+// مستني تأكيد. لو حد شال أداة من القايمة دي بالغلط، الكتابة على دفتر العميل هتحصل من
+// غير موافقته، والاختبار ده هو اللي بيمسك الحالة دي.
+// ════════════════════════════════════════════════════════════════════════════
+
+Deno.test("every money-writing tool stays behind explicit confirmation", () => {
+  for (const tool of ["log_transaction", "update_transaction", "set_monthly_limit"]) {
+    assert(
+      CONFIRM_REQUIRED_TOOLS.includes(tool),
+      `${tool} بيكتب على فلوس حقيقية ولازم يفضل ورا تأكيد صريح`,
+    );
+  }
+});
+
+Deno.test("inventory and pharmacy stay direct-write, matching the existing risk split", () => {
+  for (const tool of ["add_inventory_item", "add_pharmacy_item", "update_inventory_qty", "set_market"]) {
+    assert(!CONFIRM_REQUIRED_TOOLS.includes(tool), `${tool} المفروض يفضل كتابة مباشرة`);
+  }
+});
+
+Deno.test("every confirm-required tool is also counted as a mutation", () => {
+  for (const tool of CONFIRM_REQUIRED_TOOLS) {
+    assert(MUTATING_TOOLS.includes(tool), `${tool} لازم يتحسب في سقف التعديلات`);
+  }
+});
+
+// ── log_transaction ─────────────────────────────────────────────────────────
+
+Deno.test("log_transaction accepts a well-formed expense", async () => {
+  const v = await validateLogTransaction(
+    { amount: 50, txn_kind: "expense", title: "بقالة", category: "بقالة" }, {}, freshContext("u"),
+  );
+  assertEquals(v.ok, true);
+});
+
+Deno.test("log_transaction rejects non-positive, absurd, and non-numeric amounts", async () => {
+  for (const amount of [0, -20, 5_000_000, "خمسين", null, NaN]) {
+    const v = await validateLogTransaction(
+      { amount, txn_kind: "expense", title: "x" }, {}, freshContext("u"),
+    );
+    assertEquals(v.ok, false, `amount=${amount}`);
+  }
+});
+
+Deno.test("log_transaction rejects an unknown txn_kind", async () => {
+  const v = await validateLogTransaction(
+    { amount: 50, txn_kind: "transfer", title: "x" }, {}, freshContext("u"),
+  );
+  assertEquals(v.ok, false);
+});
+
+Deno.test("log_transaction rejects a blank title", async () => {
+  const v = await validateLogTransaction(
+    { amount: 50, txn_kind: "expense", title: "   " }, {}, freshContext("u"),
+  );
+  assertEquals(v.ok, false);
+});
+
+Deno.test("log_transaction caps how many transactions one turn can propose", async () => {
+  const ctx = freshContext("u");
+  ctx.counts["log_transaction"] = 5;
+  const v = await validateLogTransaction({ amount: 50, txn_kind: "expense", title: "x" }, {}, ctx);
+  assertEquals(v.ok, false);
+});
+
+// ── update_transaction ──────────────────────────────────────────────────────
+
+const snapWithTx = { recent_transaction_ids: ["tx-1", "tx-2"] };
+
+Deno.test("update_transaction accepts a known id with a real change", async () => {
+  const v = await validateUpdateTransaction({ transaction_id: "tx-1", amount: 120 }, snapWithTx, freshContext("u"));
+  assertEquals(v.ok, true);
+});
+
+Deno.test("update_transaction rejects an id that is not in the customer's snapshot", async () => {
+  // ده الحارس اللي بيمنع الموديل يخترع معرّف — أو يمس معاملة عميل تاني.
+  const v = await validateUpdateTransaction({ transaction_id: "tx-999", amount: 120 }, snapWithTx, freshContext("u"));
+  assertEquals(v.ok, false);
+});
+
+Deno.test("update_transaction rejects a call that changes nothing", async () => {
+  const v = await validateUpdateTransaction({ transaction_id: "tx-1" }, snapWithTx, freshContext("u"));
+  assertEquals(v.ok, false);
+});
+
+Deno.test("update_transaction rejects a missing id outright", async () => {
+  const v = await validateUpdateTransaction({ amount: 120 }, snapWithTx, freshContext("u"));
+  assertEquals(v.ok, false);
+});
+
+// ── set_monthly_limit ───────────────────────────────────────────────────────
+
+Deno.test("set_monthly_limit accepts a positive ceiling once per turn", async () => {
+  const ctx = freshContext("u");
+  assertEquals((await validateSetMonthlyLimit({ monthly_limit: 20000 }, {}, ctx)).ok, true);
+  ctx.counts["set_monthly_limit"] = 1;
+  assertEquals((await validateSetMonthlyLimit({ monthly_limit: 20000 }, {}, ctx)).ok, false);
+});
+
+Deno.test("set_monthly_limit rejects zero, negative, and absurd ceilings", async () => {
+  for (const monthly_limit of [0, -100, 200_000_000, "كتير"]) {
+    assertEquals((await validateSetMonthlyLimit({ monthly_limit }, {}, freshContext("u"))).ok, false);
+  }
+});
+
+// ── add_inventory_item ──────────────────────────────────────────────────────
+
+const snapWithStock = { stock: [{ name: "لبن", qty: 3 }] };
+
+Deno.test("add_inventory_item accepts a genuinely new item", async () => {
+  const v = await validateAddInventoryItem({ item_name: "فراخ", quantity: 2 }, snapWithStock, freshContext("u"));
+  assertEquals(v.ok, true);
+});
+
+Deno.test("add_inventory_item refuses an item that already exists", async () => {
+  // الفصل ده هو اللي بيمنع "الإضافة" تدهس كمية صنف قايم بدل ما تزودها.
+  const v = await validateAddInventoryItem({ item_name: "لبن", quantity: 2 }, snapWithStock, freshContext("u"));
+  assertEquals(v.ok, false);
+  assertStringIncludes((v as { reason: string }).reason, "update_inventory_qty");
+});
+
+Deno.test("add_inventory_item rejects a too-short name and an out-of-range quantity", async () => {
+  assertEquals((await validateAddInventoryItem({ item_name: "ل", quantity: 1 }, snapWithStock, freshContext("u"))).ok, false);
+  assertEquals((await validateAddInventoryItem({ item_name: "فراخ", quantity: 0 }, snapWithStock, freshContext("u"))).ok, false);
+  assertEquals((await validateAddInventoryItem({ item_name: "فراخ", quantity: 1000 }, snapWithStock, freshContext("u"))).ok, false);
+});
+
+Deno.test("add_inventory_item allows a whole grocery run in one turn", async () => {
+  // السلوك اللي البروتوكول القديم مكانش بيقدر عليه: أربع أصناف في رسالة واحدة.
+  const ctx = freshContext("u");
+  for (const item of ["فراخ", "لحمة", "طماطم", "مكرونة"]) {
+    const v = await validateAddInventoryItem({ item_name: item, quantity: 2 }, snapWithStock, ctx);
+    assertEquals(v.ok, true, item);
+    ctx.counts["add_inventory_item"] = (ctx.counts["add_inventory_item"] ?? 0) + 1;
+  }
+});
+
+// ── add_pharmacy_item ───────────────────────────────────────────────────────
+
+Deno.test("add_pharmacy_item accepts a valid 24-hour schedule", async () => {
+  const v = await validateAddPharmacyItem(
+    { name: "كونكور", dose_times: "08:00,16:00,00:00", daily_dose_count: 3, unit: "قرص" }, {}, freshContext("u"),
+  );
+  assertEquals(v.ok, true);
+});
+
+Deno.test("add_pharmacy_item rejects 24:00 and other malformed times", async () => {
+  for (const dose_times of ["24:00", "8:00", "08:60", "صباحاً"]) {
+    const v = await validateAddPharmacyItem({ name: "دوا", dose_times }, {}, freshContext("u"));
+    assertEquals(v.ok, false, dose_times);
+  }
+});
+
+Deno.test("add_pharmacy_item rejects a dose count that disagrees with the schedule", async () => {
+  // منبهات متكررة فعلية — العميل اللي اتقاله "٣ مرات" مايوصلوش منبهين.
+  const v = await validateAddPharmacyItem(
+    { name: "كونكور", dose_times: "08:00,20:00", daily_dose_count: 3 }, {}, freshContext("u"),
+  );
+  assertEquals(v.ok, false);
+});
+
+Deno.test("add_pharmacy_item rejects an unknown unit", async () => {
+  const v = await validateAddPharmacyItem({ name: "دوا", unit: "زجاجة" }, {}, freshContext("u"));
+  assertEquals(v.ok, false);
+});
+
+// ── set_market ──────────────────────────────────────────────────────────────
+
+Deno.test("set_market accepts ISO country and currency codes", async () => {
+  assertEquals((await validateSetMarket({ currency: "EGP", country: "EG" }, {}, freshContext("u"))).ok, true);
+  assertEquals((await validateSetMarket({ currency: "SAR", country: "SA" }, {}, freshContext("u"))).ok, true);
+});
+
+Deno.test("set_market rejects free-text country and currency names", async () => {
+  // "مصر" و"الجنيه" هما بالظبط اللي العميل بيكتبه — الموديل شغلته يترجمهم لأكواد،
+  // والـ validator هو اللي بيضمن إنه عملها قبل ما حاجة تتكتب.
+  assertEquals((await validateSetMarket({ currency: "الجنيه", country: "مصر" }, {}, freshContext("u"))).ok, false);
+  assertEquals((await validateSetMarket({ currency: "egp", country: "eg" }, {}, freshContext("u"))).ok, false);
+  assertEquals((await validateSetMarket({ currency: "EGP", country: "EGY" }, {}, freshContext("u"))).ok, false);
+});
+
+// ── query_family ────────────────────────────────────────────────────────────
+
+Deno.test("query_family is read-only and never counts as a mutation", () => {
+  assert(!MUTATING_TOOLS.includes("query_family"));
+});
+
+Deno.test("query_family stops repeating itself within one turn", async () => {
+  const ctx = freshContext("u");
+  assertEquals((await validateQueryFamily({}, {}, ctx)).ok, true);
+  ctx.counts["query_family"] = 2;
+  assertEquals((await validateQueryFamily({}, {}, ctx)).ok, false);
+});
+
+// ── the shared gate still applies to the new tools ──────────────────────────
+
+Deno.test("validateTool applies the mutation cap to the new chat tools", async () => {
+  const ctx = freshContext("u");
+  ctx.mutationCount = 5;
+  const v = await validateTool("add_inventory_item", { item_name: "فراخ", quantity: 1 }, snapWithStock, ctx);
+  assertEquals(v.ok, false);
+  assertStringIncludes((v as { reason: string }).reason, "الحد الأقصى");
+});
+
+Deno.test("validateTool aborts a new tool after three rejections", async () => {
+  const ctx = freshContext("u");
+  for (let i = 0; i < 3; i++) {
+    await validateTool("set_market", { currency: "bad", country: "bad" }, {}, ctx);
+  }
+  const v = await validateTool("set_market", { currency: "EGP", country: "EG" }, {}, ctx);
+  assertEquals(v.ok, false);
+  assertStringIncludes((v as { reason: string }).reason, "اتوقفت");
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// تغطية بروتوكول [[ACTION]] القديم.
+//
+// السبب إن الاختبار ده موجود: ZadViewModel.tryAgentTurn بيرجع true لأي رد، فالبروتوكول
+// القديم مابيشتغلش خالص لما الوكيل ينجح. يعني أي عملية موجودة في البروتوكول القديم ومش
+// موجودة كأداة هنا مش بتبقى "بتقع على المسار القديم" — بتضيع بالكامل والعميل ياخد رد
+// كلام بدل تنفيذ. ده بالظبط اللي حصل مع pharmacy_dose قبل ما تتضاف log_pharmacy_dose.
+// ════════════════════════════════════════════════════════════════════════════
+
+Deno.test("every [[ACTION]] type has an equivalent chat tool", () => {
+  // consume → update_inventory_qty، add → add_inventory_item،
+  // add_pharmacy → add_pharmacy_item، pharmacy_dose → log_pharmacy_dose
+  const equivalents: Record<string, string> = {
+    consume: "update_inventory_qty",
+    add: "add_inventory_item",
+    add_pharmacy: "add_pharmacy_item",
+    pharmacy_dose: "log_pharmacy_dose",
+  };
+  for (const [legacy, tool] of Object.entries(equivalents)) {
+    assert(tool in VALIDATORS, `[[ACTION:${legacy}]] مالوش أداة مكافئة (${tool}) — العملية دي هتضيع`);
+  }
+});
+
+Deno.test("log_pharmacy_dose rejects a name too short to match anything", async () => {
+  assertEquals((await validateLogPharmacyDose({ name: "" }, {}, freshContext("u"))).ok, false);
+  assertEquals((await validateLogPharmacyDose({ name: "ك" }, {}, freshContext("u"))).ok, false);
+  assertEquals((await validateLogPharmacyDose({ name: "كونكور" }, {}, freshContext("u"))).ok, true);
+});
+
+Deno.test("log_pharmacy_dose counts as a mutation and is not confirm-gated", () => {
+  // خصم جرعة تعديل حقيقي، بس مش فلوس — نفس تصنيف المخزون بالظبط.
+  assert(MUTATING_TOOLS.includes("log_pharmacy_dose"));
+  assert(!CONFIRM_REQUIRED_TOOLS.includes("log_pharmacy_dose"));
 });

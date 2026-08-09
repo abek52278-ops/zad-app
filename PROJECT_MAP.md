@@ -3,7 +3,7 @@
 ## TECH_STACK
 - **Frontend:** Android (Kotlin, Compose UI, Material3)
 - **Backend:** Supabase (PostgreSQL, PostgREST, Realtime, Auth, Edge Functions)
-- **AI:** OpenRouter + Groq split, via Edge Function `zad-core-intelligence` (**not** `zad-ai-proxy` — that one is dead code, never called by the client outside a mocked androidTest). `OPENROUTER_API_KEY` runs nearly every AI feature — chat, insights, predictions, recipes, vision/OCR (`openai/gpt-oss-20b:free` text/JSON, `nvidia/nemotron-nano-12b-v2-vl:free` vision). `GROQ_API_KEY` is Whisper audio transcription + `groq/compound-mini` web-search actions only (Deal Matcher, Price Shock Predictor, Zad Live Market Ticker). Corrects an earlier version of this file that said "Groq only" — see git history `d478a97`/`8a9e950` for the migration. (This line was previously stale/wrong here despite CLAUDE.md already flagging the correction — fixed 2026-07-24.)
+- **AI:** Edge Function `zad-core-intelligence` for per-action AI, and `zad-brain` for the tool-calling agent (`agent_turn`/`agent_confirm`, the path both the in-app chat and the Telegram bot now go through). `zad-ai-proxy` no longer exists in this repo — the directory is gone; if you find it named anywhere else, that reference is stale. `OPENROUTER_API_KEY` runs nearly every AI feature — chat, insights, predictions, recipes, vision/OCR (`openai/gpt-oss-20b:free` text/JSON, `nvidia/nemotron-nano-12b-v2-vl:free` vision). `GROQ_API_KEY` is Whisper audio transcription + `groq/compound-mini` web-search actions only (Deal Matcher, Price Shock Predictor, Zad Live Market Ticker). Corrects an earlier version of this file that said "Groq only" — see git history `d478a97`/`8a9e950` for the migration. (This line was previously stale/wrong here despite CLAUDE.md already flagging the correction — fixed 2026-07-24.)
 - **AI Client SDK:** none — all AI calls go through `ZadAiRepository`/`SupabaseRepo.callEdgeFunction` (raw `HttpURLConnection`) to the Edge Function, never a client-side AI SDK
 - **Local DB:** Room (SQLite, cache layer)
 - **Build:** Gradle (Kotlin DSL, KSP, Secrets Gradle Plugin)
@@ -98,7 +98,7 @@ MainActivity
 | zad-core-intelligence | meal_suggestions, grocery_suggestions, spending_insights, agent_summary, analyze_bank_notification, analyze_inventory_image, analyze_receipt, family_assistant, estimate_price, detect_subscriptions, recipe_details, behavior_analysis, expense_prediction, bill_classification, family_analysis, auto_suggest, family_goals_suggest, fetch_live_deals, fetch_price_shock_warnings, fetch_live_market_prices, ai_text, brain_evaluate, voice_agent, seasonal_forecast | ✅ 24/24, v40 as of 2026-07-24 |
 | update-behavior-profile | (pg_cron scheduled) | ✅ OK |
 | amazon-creators-search | (Amazon affiliate catalog search) | ✅ OK |
-| ~~zad-ai-proxy~~ | — | dead code, not deployed/called; do not resurrect without checking CLAUDE.md first |
+| ~~zad-ai-proxy~~ | — | deleted — no source directory in `supabase/functions/`. Do not resurrect; `zad-core-intelligence` and `zad-brain` are the two live functions |
 
 ### Key Architecture Decisions
 1. **Room as single source of truth** for personal data (sync from Supabase)

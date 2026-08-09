@@ -193,6 +193,7 @@ fun InventoryScreen(
     val searchQuery by viewModel.inventorySearchQuery.collectAsState()
     var selectedCategory by remember { mutableStateOf("الكل") }
     var showAddDialog by remember { mutableStateOf(false) }
+    var editingItem by remember { mutableStateOf<ZadInventory?>(null) }
     var selectedTab by remember { mutableStateOf(if (InventoryNavState.openShortagesTab) 1 else 0) }
 
     LaunchedEffect(Unit) {
@@ -326,6 +327,7 @@ fun InventoryScreen(
                                 InventoryItemCard(
                                     item = item,
                                     onDelete = { viewModel.deleteInventory(item.id) },
+                                    onEdit = { editingItem = item },
                                     onConsume = { viewModel.consumeInventoryItem(item) },
                                     onRestock = { viewModel.injectScannedItems(listOf(item.copy(quantity = 1))) }
                                 )
@@ -380,6 +382,87 @@ fun InventoryScreen(
             }
         )
     }
+
+    editingItem?.let { item ->
+        EditInventoryDialog(
+            item = item,
+            onDismiss = { editingItem = null },
+            onSave = { name, qty, unit ->
+                viewModel.updateInventoryItem(item, name, qty, unit)
+                editingItem = null
+            }
+        )
+    }
+}
+
+/**
+ * تعديل سريع لصنف مخزون قايم: الاسم والكمية والوحدة. متعمد إنه أبسط من
+ * [AddInventoryDialog] — التصنيف وتاريخ الانتهاء اتحددوا وقت الإضافة، واللي بيتصحح
+ * عملياً هو الكمية.
+ */
+@Composable
+private fun EditInventoryDialog(
+    item: ZadInventory,
+    onDismiss: () -> Unit,
+    onSave: (name: String, quantity: Int, unit: String?) -> Unit
+) {
+    var name by remember { mutableStateOf(item.itemName) }
+    var quantityText by remember { mutableStateOf(item.quantity.toString()) }
+    var unit by remember { mutableStateOf(item.unit ?: "") }
+
+    val quantity = quantityText.toIntOrNull()
+    val canSave = name.isNotBlank() && quantity != null && quantity >= 0
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                stringResource(R.string.inventory_edit_title),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text(stringResource(R.string.product_name)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = quantityText,
+                        onValueChange = { input -> quantityText = input.filter { it.isDigit() } },
+                        label = { Text(stringResource(R.string.quantity_label)) },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        ),
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        isError = quantityText.isNotBlank() && quantity == null
+                    )
+                    OutlinedTextField(
+                        value = unit,
+                        onValueChange = { unit = it },
+                        label = { Text(stringResource(R.string.unit_label)) },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = canSave,
+                onClick = { onSave(name.trim(), quantity ?: item.quantity, unit.trim().ifBlank { null }) }
+            ) { Text(stringResource(R.string.save)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
+    )
 }
 
 /**
@@ -671,6 +754,7 @@ private fun EmptySearchState() {
 private fun InventoryItemCard(
     item: ZadInventory,
     onDelete: () -> Unit,
+    onEdit: () -> Unit = {},
     onConsume: () -> Unit = {},
     onRestock: () -> Unit = {}
 ) {
@@ -823,16 +907,31 @@ private fun InventoryItemCard(
                     Spacer(modifier = Modifier.width(1.dp))
                 }
 
-                IconButton(
-                    onClick = onDelete,
-                    modifier = Modifier.size(28.dp).pressableScale()
-                ) {
-                    Icon(
-                        Icons.Default.DeleteOutline,
-                        contentDescription = stringResource(R.string.delete_cd),
-                        tint = outline,
-                        modifier = Modifier.size(16.dp)
-                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // تعديل جنب المسح — تصحيح كمية غلط مكانش ليه طريق غير المسح وإعادة
+                    // الإدخال، واللي بيضيّع معدل الاستهلاك المتعلّم للصنف.
+                    IconButton(
+                        onClick = onEdit,
+                        modifier = Modifier.size(28.dp).pressableScale()
+                    ) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = stringResource(R.string.inventory_edit_title),
+                            tint = outline,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(28.dp).pressableScale()
+                    ) {
+                        Icon(
+                            Icons.Default.DeleteOutline,
+                            contentDescription = stringResource(R.string.delete_cd),
+                            tint = outline,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
         }

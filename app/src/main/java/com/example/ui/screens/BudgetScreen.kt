@@ -9,6 +9,10 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -82,6 +86,7 @@ fun BudgetScreen(
     var categoryCardsRefresh by remember { mutableIntStateOf(0) }
     var editingCategory by remember { mutableStateOf<String?>(null) }
     var insightCategory by remember { mutableStateOf<String?>(null) }
+    var editingTransaction by remember { mutableStateOf<ZadTransaction?>(null) }
     // المصروف الفعلي بيتحسب من المعاملات مباشرة (يشمل اليدوية + البنكية) — الميزانية من BudgetTracker
     val categoryCards = remember(transactions, categoryCardsRefresh) {
         val now = java.time.LocalDate.now()
@@ -566,7 +571,8 @@ fun BudgetScreen(
                         ) {
                             TxRowItem(
                                 tx = tx,
-                                onDelete = { viewModel.deleteTransaction(tx.id) }
+                                onDelete = { viewModel.deleteTransaction(tx.id) },
+                                onEdit = { editingTransaction = tx }
                             )
                         }
                     }
@@ -662,6 +668,17 @@ fun BudgetScreen(
                 com.example.data.BudgetTracker.setCategoryBudget(context, chosenCategory, amount)
                 categoryCardsRefresh++
                 editingCategory = null
+            }
+        )
+    }
+
+    editingTransaction?.let { tx ->
+        TransactionEditDialog(
+            tx = tx,
+            onDismiss = { editingTransaction = null },
+            onSave = { title, amount, category, isExpense ->
+                viewModel.updateTransaction(tx.id, title, amount, category, isExpense)
+                editingTransaction = null
             }
         )
     }
@@ -922,7 +939,7 @@ private fun TxDateHeader(dateStr: String, txList: List<ZadTransaction>) {
 }
 
 @Composable
-private fun TxRowItem(tx: ZadTransaction, onDelete: () -> Unit) {
+private fun TxRowItem(tx: ZadTransaction, onDelete: () -> Unit, onEdit: () -> Unit) {
     val context = LocalContext.current
     val isExpense = tx.isExpense
     val categoryIcon = when (tx.category?.lowercase()) {
@@ -966,7 +983,9 @@ private fun TxRowItem(tx: ZadTransaction, onDelete: () -> Unit) {
             .format(DateTimeFormatter.ofPattern("HH:mm"))
     } catch (e: Exception) { "" }
 
-    var showDelete by remember { mutableStateOf(false) }
+    // ضغطة على الصف بتفتح أزرار التعديل والمسح مع بعض. المسح لوحده كان بيخلي تصحيح رقم
+    // غلط يعني مسح المعاملة وإعادة إدخالها من الأول (وضياع تاريخها ومصدرها البنكي معاها).
+    var showActions by remember { mutableStateOf(false) }
     val txRowShape = RoundedCornerShape(18.dp)
 
     Row(
@@ -976,7 +995,7 @@ private fun TxRowItem(tx: ZadTransaction, onDelete: () -> Unit) {
             .shadow(elevation = 4.dp, shape = txRowShape, spotColor = categoryiconColor.copy(alpha = 0.14f))
             .clip(txRowShape)
             .background(surface)
-            .clickable { showDelete = !showDelete }
+            .clickable { showActions = !showActions }
             .pressableScale()
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -1039,23 +1058,140 @@ private fun TxRowItem(tx: ZadTransaction, onDelete: () -> Unit) {
             )
         }
 
-        if (showDelete) {
+        if (showActions) {
+            IconButton(
+                onClick = {
+                    onEdit()
+                    showActions = false
+                },
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    Icons.Default.Edit,
+                    contentDescription = stringResource(R.string.tx_edit_cd),
+                    tint = onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
             IconButton(
                 onClick = {
                     onDelete()
-                    showDelete = false
+                    showActions = false
                 },
                 modifier = Modifier.size(32.dp)
             ) {
                 Icon(
                     Icons.Default.DeleteOutline,
-                    contentDescription = "Delete",
+                    contentDescription = stringResource(R.string.tx_delete_cd),
                     tint = dangerColor,
                     modifier = Modifier.size(18.dp)
                 )
             }
         }
     }
+}
+
+/**
+ * تعديل معاملة موجودة: المبلغ، الوصف، الفئة، ونوعها (مصروف/دخل).
+ *
+ * الفئات المعروضة هي [com.example.data.BudgetTracker.STANDARD_CATEGORIES] نفسها اللي
+ * كروت ميزانيات الفئات بتستخدمها، مع الفئة الحالية للمعاملة لو كانت خارجها (معاملات
+ * بنكية بتيجي بفئات مقروءة من الإشعار) — عشان فتح التعديل ميغيّرش تصنيفها من غير قصد.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TransactionEditDialog(
+    tx: ZadTransaction,
+    onDismiss: () -> Unit,
+    onSave: (title: String, amount: Double, category: String?, isExpense: Boolean) -> Unit
+) {
+    var title by remember { mutableStateOf(tx.title) }
+    var amountStr by remember { mutableStateOf(if (tx.amount > 0) tx.amount.toString() else "") }
+    var category by remember { mutableStateOf(tx.category) }
+    var isExpense by remember { mutableStateOf(tx.isExpense) }
+
+    val categories = remember(tx.category) {
+        (com.example.data.BudgetTracker.STANDARD_CATEGORIES +
+            listOfNotNull(tx.category?.takeIf { it.isNotBlank() })).distinct()
+    }
+    val amount = amountStr.toDoubleOrNull()
+    val canSave = title.isNotBlank() && amount != null && amount > 0
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                stringResource(R.string.tx_edit_title),
+                style = Typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text(stringResource(R.string.tx_edit_title_label)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = amountStr,
+                    onValueChange = { input -> amountStr = input.filter { it.isDigit() || it == '.' } },
+                    label = { Text(stringResource(R.string.tx_edit_amount_label)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    isError = amountStr.isNotBlank() && amount == null
+                )
+
+                Text(
+                    stringResource(R.string.tx_edit_kind_label),
+                    style = Typography.labelMedium,
+                    color = onSurfaceVariant
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = isExpense,
+                        onClick = { isExpense = true },
+                        label = { Text(stringResource(R.string.tx_edit_kind_expense)) }
+                    )
+                    FilterChip(
+                        selected = !isExpense,
+                        onClick = { isExpense = false },
+                        label = { Text(stringResource(R.string.tx_edit_kind_income)) }
+                    )
+                }
+
+                Text(
+                    stringResource(R.string.tx_edit_category_label),
+                    style = Typography.labelMedium,
+                    color = onSurfaceVariant
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    categories.forEach { cat ->
+                        FilterChip(
+                            selected = category == cat,
+                            onClick = { category = if (category == cat) null else cat },
+                            label = { Text(cat, style = Typography.labelSmall) }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = canSave,
+                onClick = { onSave(title.trim(), amount ?: 0.0, category, isExpense) }
+            ) { Text(stringResource(R.string.save)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
+    )
 }
 
 /**

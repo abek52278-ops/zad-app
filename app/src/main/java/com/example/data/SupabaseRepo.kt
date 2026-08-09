@@ -139,7 +139,15 @@ object SupabaseRepo {
         syncMarketProfile(market.currencyCode, market.countryCode)
 
     /** String-code version — lets SyncOutbox retry a queued market sync without needing to
-     * reconstruct a Market enum (not @Serializable) from a stored payload. */
+     * reconstruct a Market enum (not @Serializable) from a stored payload.
+     *
+     * بيقرا الصف تاني بعد الكتابة قبل ما يقول "نجح". السبب: `update` مفلترة بـ id على صف
+     * مش موجود لسه بترجع 200 وهي مأثرتش على أي صف — والحالة دي بتحصل فعلاً هنا، لأن اختيار
+     * السوق بيحصل **قبل** التسجيل (شاشة market_selection قبل login في AppNavigation)، فصف
+     * zad_users نفسه ممكن يكون لسه ما اتعملش. نجاح كاذب هنا كان بيخلي SyncOutbox يمسح
+     * العملية من الطابور وتضيع للأبد — وده اللي سايب currency/country = null في حسابات
+     * حقيقية رغم إن المستخدم اختار مصر/الجنيه، فالبوت فضل يسأله عن عملته كل مرة.
+     */
     suspend fun syncMarketProfile(currencyCode: String, countryCode: String): Boolean {
         val userId = client.auth.currentUserOrNull()?.id ?: return false
         repeat(2) { attempt ->
@@ -150,14 +158,61 @@ object SupabaseRepo {
                         "country" to countryCode
                     )
                 ) { filter { eq("id", userId) } }
-                Log.d(TAG, "syncMarketProfile() SUCCESS → userId=$userId, currency=$currencyCode")
-                return true
+                val (storedCurrency, _) = getMarketProfile(userId)
+                if (storedCurrency == currencyCode) {
+                    Log.d(TAG, "syncMarketProfile() SUCCESS → userId=$userId, currency=$currencyCode")
+                    return true
+                }
+                Log.w(TAG, "syncMarketProfile() wrote but read back '$storedCurrency' (attempt ${attempt + 1}/2) — row likely missing")
             } catch (e: Exception) {
                 Log.e(TAG, "syncMarketProfile() FAILED (attempt ${attempt + 1}/2): ${e.message}")
-                if (attempt == 0) kotlinx.coroutines.delay(1000)
             }
+            if (attempt == 0) kotlinx.coroutines.delay(1000)
         }
         return false
+    }
+
+    @Serializable
+    private data class MarketProfileRow(
+        val currency: String? = null,
+        val country: String? = null
+    )
+
+    /** العملة/البلد المخزّنين على السيرفر — دول اللي العقل والبوت بيقروهم، مش
+     *  MarketPrefs المحلي. Pair(null, null) لو مش متسجلين أو القراءة فشلت. */
+    suspend fun getMarketProfile(userId: String): Pair<String?, String?> {
+        return try {
+            val row = client.postgrest["zad_users"]
+                .select(Columns.list("currency", "country")) {
+                    filter { eq("id", userId) }
+                }
+                .decodeSingleOrNull<MarketProfileRow>()
+            Pair(row?.currency?.takeIf { it.isNotBlank() }, row?.country?.takeIf { it.isNotBlank() })
+        } catch (e: Exception) {
+            Log.e(TAG, "getMarketProfile() FAILED: ${e.message}")
+            Pair(null, null)
+        }
+    }
+
+    /**
+     * يضمن إن اختيار السوق المحلي وصل السيرفر فعلاً. بيتنادى عند كل تحميل بروفايل، مش
+     * عند اختيار السوق بس: الكتابة وقت الاختيار بتحصل قبل ما يكون في جلسة أصلاً، فدي هي
+     * النقطة الوحيدة اللي مضمون فيها إن المستخدم مسجّل دخول.
+     *
+     * بيكتب بس لو العمود فاضي — سوق متخزّن على السيرفر بيفوز على المحلي (المستخدم ممكن
+     * يكون غيّره من جهاز تاني)، فمبنعملش دهس على اختيار أحدث بقيمة قديمة على الجهاز ده.
+     */
+    suspend fun ensureMarketProfileSynced(context: android.content.Context): Boolean {
+        val userId = client.auth.currentUserOrNull()?.id ?: return false
+        val (storedCurrency, storedCountry) = getMarketProfile(userId)
+        if (storedCurrency != null && storedCountry != null) return true
+        val market = MarketPrefs.getMarket(context)
+        Log.d(TAG, "ensureMarketProfileSynced() → server has currency=$storedCurrency, backfilling ${market.currencyCode}/${market.countryCode}")
+        val synced = syncMarketProfile(market.currencyCode, market.countryCode)
+        if (!synced) {
+            SyncOutbox.enqueueMarketProfile(context, market.currencyCode, market.countryCode)
+        }
+        return synced
     }
 
     /**
@@ -400,6 +455,42 @@ object SupabaseRepo {
         } catch (e: Exception) {
             Log.e(TAG, "updateTransactionCategory() FAILED: ${e.message}")
             e.printStackTrace()
+        }
+    }
+
+    /**
+     * تعديل معاملة موجودة (المبلغ/العنوان/الفئة/الاتجاه). قبل كده الشاشة كانت بتعرف تمسح
+     * بس، فأي غلطة في رقم كانت لازم تتمسح وتتعاد — والمسح بيضيّع تاريخ المعاملة ومصدرها.
+     *
+     * `is_expense` و`txn_kind` بيتكتبوا مع بعض دايماً: العمودين الاتنين بيتقروا في أماكن
+     * مختلفة (الكلاينت بيقرا is_expense، الـ edge functions والبوت بيقروا txn_kind)، فتغيير
+     * واحد من غير التاني بيسيب المعاملة متناقضة مع نفسها حسب مين بيقراها.
+     */
+    suspend fun updateTransaction(
+        id: String,
+        title: String,
+        amount: Double,
+        category: String?,
+        isExpense: Boolean
+    ): Boolean {
+        return try {
+            Log.d(TAG, "updateTransaction() → table=zad_transactions, id=$id, amount=$amount, isExpense=$isExpense")
+            client.postgrest["zad_transactions"].update(
+                mapOf(
+                    "title" to title,
+                    "amount" to amount,
+                    "category" to category,
+                    "is_expense" to isExpense,
+                    "txn_kind" to if (isExpense) "expense" else "income"
+                )
+            ) {
+                filter { eq("id", id) }
+            }
+            Log.d(TAG, "updateTransaction() SUCCESS")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "updateTransaction() FAILED: ${e.message}")
+            false
         }
     }
 
