@@ -63,6 +63,20 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const MODEL_ROUTINE = Deno.env.get("ZAD_MODEL_ROUTINE") ?? "openai/gpt-oss-20b:free";
 
+// المرحلة ٣ (حلقة الأدوات متعددة الخطوات) — سقف اللفات وسقف التوكنز الإجمالي، مشتركين
+// بين حلقة الشات (agent_turn) وحلقة التحليل الخلفي (daily/event). كانت اللفات محدودة بـ٢
+// (نداء أول + لفة تصحيح واحدة بس)، وده كان بيقطع أي طلب متسلسل حقيقي — "راجع مصاريف
+// الأسبوع وقلل السقف" محتاج على الأقل ٣ نداءات موديل (أداة قراءة، أداة كتابة، رد نهائي
+// يلخّص الاتنين)، وكان بيتقطع بعد التاني من غير ما الموديل يقدر يصيغ رد نهائي واعي
+// بنتيجة الأداة التانية. ٨ لفات كحد أقصى (مش ٦ زي ما مقترحات تانية بتقول — طلب المستخدم
+// صراحة "up to 8").
+const MAX_AGENT_TURNS = 8;
+// حارس منفصل عن سقف اللفات: لفة هربانة (الموديل بينادي أدوات باستمرار من غير ما يوصل
+// لسبب واضح يوقف عنده) بتتوقف بيه قبل ما توصل للفة الـ٨ وهي مستهلكة تكلفة فعلية. الرقم
+// أكبر بكتير من أي حوار طبيعي (لفة أو اتنين، ~1200-2500 توكن) عشان مايأثرش على أي طلب
+// حقيقي، ومحسوب على مجموع كل نداءات الموديل في اللفة دي (input+output).
+const MAX_AGENT_TOKENS_PER_RUN = 20000;
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -1450,10 +1464,16 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
     await sb.from("zad_brain_runs").update({
       status, finished_at: new Date().toISOString(),
       mutations: ctx.mutations, rejections: ctx.rejections, error: error ?? null,
+      // كانت مسجلة صفر دايماً هنا — العداد بتاع التوكنز موجود بس في حلقة التحليل
+      // الخلفي، مش في حلقة الشات، رغم إن الشات هو القناة الأساسية اللي المستخدم
+      // بيتكلم منها فعلاً. inputTokens/outputTokens متعرّفين قبل استدعاء finishRun
+      // بيحصل فعلياً (let معرّف قبل الحلقة)، فمفيش TDZ هنا.
+      input_tokens: inputTokens, output_tokens: outputTokens,
     }).eq("id", runId);
   };
 
-  for (let turn = 0; turn < 2; turn++) {
+  let inputTokens = 0, outputTokens = 0;
+  for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
     let reply;
     try {
       reply = await callModel({ model: MODEL_ROUTINE, system: systemPrompt, tools: CHAT_TOOLS, history, maxTokens: 1200 });
@@ -1483,20 +1503,20 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
       );
     }
 
+    inputTokens += reply.usage.inTok;
+    outputTokens += reply.usage.outTok;
     if (reply.text) modelText = reply.text;
     if (reply.toolCalls.length === 0) break;
     anyToolAttempted = true;
     history.push({ role: "assistant", text: reply.text || undefined, toolCalls: reply.toolCalls });
 
     const toolResults: Array<{ id: string; name: string; content: string }> = [];
-    let anyRejection = false;
 
     for (const call of reply.toolCalls) {
       if (CONFIRM_REQUIRED_TOOLS.includes(call.name)) {
         // الحارس: أدوات الفلوس مابتتنفذش هنا مهما كان. بتتحقق بس، وبتتحوّل لاقتراح.
         const v = await validateTool(call.name, call.input, snap, ctx);
         if (!v.ok) {
-          anyRejection = true;
           toolResults.push({ id: call.id, name: call.name, content: `مرفوض: ${v.reason} — عدّل وحاول تاني.` });
           continue;
         }
@@ -1512,16 +1532,19 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
       }
 
       const result = await runTool(sb, userId, call.name, call.input, snap, ctx, scope);
-      const rejected = result.startsWith("مرفوض:");
-      if (rejected) anyRejection = true;
-      else executed.push({ tool: call.name, ok: true, summary: result });
+      if (!result.startsWith("مرفوض:")) executed.push({ tool: call.name, ok: true, summary: result });
       toolResults.push({ id: call.id, name: call.name, content: result });
     }
 
     history.push({ role: "tool", results: toolResults });
-    // لفة تصحيح واحدة بس لو حاجة اترفضت، وإلا لفة تانية عشان الموديل يصيغ رده النهائي
-    // وهو عارف نتيجة الأدوات — من غيرها الرد بيتكتب قبل ما يعرف نجحت ولا لأ.
-    if (!anyRejection && turn === 1) break;
+    // من غير break مبكّر هنا عن قصد: كان فيه break إجباري بعد أول لفة تصحيح حتى لو
+    // الموديل لسه بينادي أدوات بنجاح (طلب متسلسل زي "راجع مصاريف الأسبوع وقلل السقف"
+    // بيحتاج أكتر من أداة واحدة بالتتابع). دلوقتي اللفة بتكمل طالما لسه فيه نداءات أدوات
+    // وتحت سقف اللفات/التوكنز — النهاية الطبيعية هي reply.toolCalls.length === 0 فوق.
+    if (inputTokens + outputTokens >= MAX_AGENT_TOKENS_PER_RUN) {
+      // سقف التوكنز — وقف الاستدعاء بس سيب اللي اتنفذ فعلاً زي ما هو، مش نلغيه.
+      break;
+    }
   }
 
   // الرد المعروض مبني على نتيجة التنفيذ الفعلية، مش على كلام الموديل الحر. ده الحارس
@@ -1737,10 +1760,10 @@ Deno.serve(async (req: Request) => {
 
     const history: Turn[] = [{ role: "user", text: userMessage ?? `trigger: ${trigger}` }];
 
-    // نداء أدوات حقيقي دلوقتي (مش JSON مكتوب في نص) — التصحيح الذاتي لسه round-trip
-    // تاني بس لو فيه رفض، عن طريق turn حقيقي role:"tool" مش نص بنعيد صياغته يدوي.
-    // أقصى حاجة دورتين، مش ٦.
-    for (let turn = 0; turn < 2; turn++) {
+    // نداء أدوات حقيقي دلوقتي (مش JSON مكتوب في نص)، عن طريق turn حقيقي role:"tool" مش
+    // نص بنعيد صياغته يدوي. سقف اللفات/التوكنز مشترك مع agent_turn — انظر تعليق
+    // MAX_AGENT_TURNS فوق.
+    for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
       let reply;
       try {
         reply = await callModel({ model: MODEL_ROUTINE, system: systemPrompt, tools: TOOLS, history, maxTokens: 1200 });
@@ -1771,9 +1794,12 @@ Deno.serve(async (req: Request) => {
       }
       allTurnRejections.push(...turnRejections);
 
-      if (turnRejections.length === 0) break;
-      // دورة تصحيح واحدة بس — نرجّع نتيجة كل نداء (بما فيها الرفض وسببه) كـ tool_result
-      // حقيقي ونسيبه يصحح اللي اترفض بس، مش نكرر لانهائي.
+      // من غير break مبكّر هنا لو صفر رفضات عن قصد — كان بيقطع أي تسلسل أدوات ناجح بعد
+      // أول لفة (مثلاً اكتشاف شذوذ → suggest_budget_change) حتى لو الموديل لسه شغال.
+      // النهاية الطبيعية دلوقتي reply.toolCalls.length === 0 فوق، أو سقف اللفات/التوكنز.
+      if (inputTokens + outputTokens >= MAX_AGENT_TOKENS_PER_RUN) break;
+      // نرجّع نتيجة كل نداء (بما فيها الرفض وسببه، لو حصل) كـ tool_result حقيقي ونسيب
+      // الموديل يصحح اللي اترفض أو يكمل التسلسل، مش نكرر النص يدوي.
       history.push({ role: "tool", results: toolResults });
     }
 
