@@ -1206,3 +1206,63 @@ chat surface, Undo) were not attempted this session — out of scope for Phase 0
 Phase 1 in particular substantially overlaps work already in flight under
 `AGENT_GAP_ANALYSIS.md`'s `agent_turn` unification (see the Phase 2 entry above), which
 should be reconciled with rather than duplicated under a new name.
+
+## Agentic transformation, reconciled — W1 through W8 (2026-08-09)
+
+Follow-up session to the entry above: the user pasted the full 9-phase transformation
+prompt again and asked for it to be executed. Audited the repo first rather than
+building blind — most of Phases 0–3 and pieces of 5 already existed
+(`zad_budget_state()`, `agent_turn`/`agent_confirm` with 24 real tools, confirm-tier
+gating, `UnifiedBankListener` as the notification listener, geofencing, `zad_memory`,
+per-tool mutation caps). Reconciled the spec against that reality instead of
+re-implementing it, and closed the genuine gaps as W1–W8, one commit each:
+
+- **W1** `1004616` — `agent_actions` table (`previous_state`/`new_state` snapshots,
+  monotonic `seq` column — `created_at` alone ties within one Postgres transaction,
+  caught by the undo-ordering test) + `zad_agent_undo()` RPC (table allowlist,
+  ownership check, "newer action on the same row" guard). Live-tested all 5 cases
+  (insert/update/delete undo, stale-undo block, non-allowlisted table) via a
+  throwaway SQL harness, cleaned up after.
+- **W2** (same commit) — `audit.ts`: `writeRows()` (read-after-write — 0 rows changed
+  is now a hard failure back to the model, not a false "done") + `recordAction()`,
+  wired into every mutating tool.
+- **W3** `10b6096` — both `zad-brain` tool loops raised from a hard 2-turn cap to 8,
+  with a 20k-token budget backstop; removed the forced early-break that was cutting
+  off any chained multi-tool request after one round.
+- **W4** `719b1f8` — `agent_usage` daily cap (60 requests / 200k tokens per user per
+  day, env-configurable), checked before `buildSnapshot`/`callModel` so a blocked
+  request costs nothing. Live-verified: pre-seeded-at-cap request got the Arabic
+  rate-limit message with zero model calls; under-cap request proceeded normally.
+- **W5** `f22605b` — "سجل تعديلات زاد" screen (`AgentActionLogScreen.kt`), reachable
+  from Profile → Settings, listing `agent_actions` with an Undo button wired to
+  `zad_agent_undo()`.
+- **W6** `da05808` — `ZadAgentOverlay`: rather than add a second competing floating
+  bubble next to the existing `FloatingMascotCompanion`, gave it an optional
+  `onQuickChat` callback (long-press opens an inline chat sheet instead of full
+  navigation; default `null` preserves old behavior everywhere else).
+- **W7** `22b6c47` — first `domain/usecases` extraction (`DeletePharmacyItemUseCase`)
+  + matching `delete_pharmacy_item` chat tool, establishing the client/agent
+  same-contract pattern (they're different runtimes — Kotlin vs Deno — so it's the
+  contract that's shared, not literal code). Also delivered the honest button↔tool
+  audit the spec's Phase 4.5 asks for when full coverage isn't realistic in one pass:
+  grepped all 128 mutating `SupabaseRepo` functions against the 24 tools and listed
+  every orphaned one (subscriptions cancel/pause — the spec's own named example —
+  debts, maintenance, family balances/chores, shopping-quantity/delete, insight
+  dismissal). Not claimed as "100% parity" because it isn't yet.
+- **W8** `eedb70e` — `agent_tasks` deferred-task queue + `pg_cron` processor (every 5
+  min, secret-header-gated like the existing telegram cron jobs) + `schedule_task`
+  chat tool. Live-verified end to end: a seeded due task was picked up, actually run
+  through a real model call (Gemini's quota had recovered by this point in the
+  session), and delivered as a real `app_notifications` row; `schedule_task` called
+  live through `agent_turn` created both the task and its `agent_actions` audit row.
+
+**Known rough edge, not fixed:** `schedule_task`'s confirmation string displays the
+stored UTC instant with a hardcoded UTC label instead of the user's local time — found
+live-testing W8 ("بكرة الساعة ٩" echoed back as "٠٦:٠٠"). Timezone-display question,
+not an `agent_tasks` bug; worth a follow-up once it's clear how the rest of the app
+resolves user-local time.
+
+**Deliberately not attempted:** Phase 6 (`github_code_agent`) — the transformation
+prompt itself says to confirm before starting it even when included; Phase 4.6
+(household/family coordination) — `family_groups`/`family_members` already exist, so
+this is an extension once W7's audit list is worked through, not new ground.
