@@ -18,6 +18,7 @@ import {
   freshContext,
   validateLogPharmacyDose,
   validateDeletePharmacyItem,
+  validateScheduleTask,
   validateAddInventoryItem,
   validateAddPharmacyItem,
   validateAddShoppingItem,
@@ -701,5 +702,29 @@ Deno.test("delete_pharmacy_item counts as a mutation, is not confirm-gated, and 
   const ctx = freshContext("u");
   ctx.counts["delete_pharmacy_item"] = 3;
   const v = await validateDeletePharmacyItem({ name: "بنادول" }, {}, ctx);
+  assertEquals(v.ok, false);
+});
+
+// W8 — agent_tasks (schedule_task): تأجيل صحيح مستقبلي يعدي، ماضي أو تاريخ فاسد
+// أو تأجيل أبعد من ٣٠ يوم يترفض.
+Deno.test("schedule_task validates run_at and description bounds", async () => {
+  const future = new Date(Date.now() + 3600_000).toISOString();
+  const past = new Date(Date.now() - 3600_000).toISOString();
+  const tooFar = new Date(Date.now() + 40 * 86_400_000).toISOString();
+
+  assertEquals((await validateScheduleTask({ task_description: "قصير", run_at: future }, {}, freshContext("u"))).ok, false);
+  assertEquals((await validateScheduleTask({ task_description: "راجع مصاريف الأسبوع ده", run_at: "مش تاريخ" }, {}, freshContext("u"))).ok, false);
+  assertEquals((await validateScheduleTask({ task_description: "راجع مصاريف الأسبوع ده", run_at: past }, {}, freshContext("u"))).ok, false);
+  assertEquals((await validateScheduleTask({ task_description: "راجع مصاريف الأسبوع ده", run_at: tooFar }, {}, freshContext("u"))).ok, false);
+  assertEquals((await validateScheduleTask({ task_description: "راجع مصاريف الأسبوع ده", run_at: future }, {}, freshContext("u"))).ok, true);
+});
+
+Deno.test("schedule_task counts as a mutation, is not confirm-gated, and caps at 3 per turn", async () => {
+  assert(MUTATING_TOOLS.includes("schedule_task"));
+  assert(!CONFIRM_REQUIRED_TOOLS.includes("schedule_task"));
+  const ctx = freshContext("u");
+  ctx.counts["schedule_task"] = 3;
+  const future = new Date(Date.now() + 3600_000).toISOString();
+  const v = await validateScheduleTask({ task_description: "راجع مصاريف الأسبوع ده", run_at: future }, {}, ctx);
   assertEquals(v.ok, false);
 });

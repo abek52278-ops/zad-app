@@ -62,6 +62,9 @@ import { AgentSource, AuditScope, recordAction, writeRows } from "./audit.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const MODEL_ROUTINE = Deno.env.get("ZAD_MODEL_ROUTINE") ?? "openai/gpt-oss-20b:free";
+// W8 — بيحرس action=process_agent_tasks (pg_cron بينادي ده، مش عميل بـ JWT). لازم
+// يطابق السيكريت المكتوب في migration الـ agent_tasks (cron.schedule command).
+const AGENT_TASKS_CRON_SECRET = Deno.env.get("ZAD_AGENT_TASKS_CRON_SECRET") ?? "";
 
 // المرحلة ٣ (حلقة الأدوات متعددة الخطوات) — سقف اللفات وسقف التوكنز الإجمالي، مشتركين
 // بين حلقة الشات (agent_turn) وحلقة التحليل الخلفي (daily/event). كانت اللفات محدودة بـ٢
@@ -1029,6 +1032,26 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       });
       return `اتحذف "${match.name}" من قايمة الصيدلية`;
     }
+    case "schedule_task": {
+      const w = await writeRows(
+        sb.from("agent_tasks").insert({
+          user_id: userId,
+          task_description: String(input.task_description).trim(),
+          scheduled_for: new Date(input.run_at).toISOString(),
+        }).select("id,scheduled_for"),
+        "جدولة المهمة",
+      );
+      if (!w.ok) return `مرفوض: ${w.reason}`;
+      const newRow = w.rows[0] as any;
+      ctx.mutationCount++;
+      ctx.mutations.push({ tool: name, old: null, new: { task_description: input.task_description, run_at: input.run_at } });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "agent_tasks", targetId: newRow.id,
+        previous: null, next: newRow,
+      });
+      const when = new Date(newRow.scheduled_for).toLocaleString("ar-EG", { timeZone: "UTC", hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" });
+      return `تمام، هعمل ده الساعة ${when} وهبعتلك النتيجة`;
+    }
     case "query_family": {
       const { data: membership } = await sb.from("family_members")
         .select("family_id").eq("user_id", userId).maybeSingle();
@@ -1365,6 +1388,21 @@ const CHAT_TOOLS: ToolDef[] = [
     },
   },
   {
+    // W8 — يخلي طلب زي "راجعلي مصاريف الأسبوع وابعتلي تقرير الساعة ٩" يتنفذ فعلاً وقت
+    // ما العميل طلبه، مش وقت اللفة الحالية بس. النتيجة بتوصل كإشعار (processDueAgentTasks)
+    // مش كرد شات هيختفي قبل ما يوصل وقته.
+    name: "schedule_task",
+    description: "أجّل تنفيذ طلب لوقت لاحق (بدل الحالا) — لما العميل يقول \"فكرني بكذا الساعة X\" أو \"راجعلي كذا بكرة الصبح\". الطلب بيتنفذ فعلياً في وقته المحدد ونتيجته بتوصل كإشعار.",
+    input_schema: {
+      type: "object",
+      properties: {
+        task_description: { type: "string", description: "وصف الطلب بالظبط زي ما هيتقال لك وقت التنفيذ (مثال: \"راجع مصاريف الأسبوع ده وقولي لو محتاج أقلل السقف\")" },
+        run_at: { type: "string", description: "تاريخ ووقت التنفيذ بصيغة ISO 8601 (مثال: 2026-08-10T09:00:00Z)" },
+      },
+      required: ["task_description", "run_at"],
+    },
+  },
+  {
     name: "query_family",
     description: "اقرا حالة العيلة والأولاد (عددهم، أدوارهم، أرصدتهم). نادِها لما العميل يسأل عن عيلته أو أولاده.",
     input_schema: { type: "object", properties: {} },
@@ -1457,6 +1495,75 @@ function describeProposal(tool: string, input: any, currency: string): string {
     default:
       return tool;
   }
+}
+
+/**
+ * W8 — بيجيب كل agent_tasks الـ pending اللي وقتها جه (scheduled_for <= الآن)، وبينفّذ
+ * كل واحدة زي لفة agent_turn مصغّرة: نفس CHAT_TOOLS/buildSnapshot/validateTool/runTool
+ * بالظبط، مفيش منطق موازي. الفرق الوحيد: مفيش عميل قاعد مستني رد، فالنتيجة بتتسجل
+ * وبتتبعت كإشعار حقيقي (app_notifications) بدل ما ترجع في جسم رد HTTP محدش هيشوفه.
+ *
+ * أدوات الفلوس (CONFIRM_REQUIRED_TOOLS) بترفض هنا دايماً مهما كانت النتيجة — مفيش
+ * عميل حاضر يأكد، فمفيش تنفيذ. الموديل بياخد رسالة توضيحية عشان يعرف يقول للعميل
+ * إن الجزء ده محتاج تأكيده هو لما يفتح التطبيق، مش يتجاهله بصمت.
+ */
+async function processDueAgentTasks(sb: SupabaseClient): Promise<{ processed: number; failed: number }> {
+  const { data: due } = await sb.from("agent_tasks")
+    .select("id,user_id,task_description")
+    .eq("status", "pending")
+    .lte("scheduled_for", new Date().toISOString())
+    .order("scheduled_for", { ascending: true })
+    .limit(20);
+
+  let processed = 0, failed = 0;
+  for (const task of (due ?? []) as Array<{ id: string; user_id: string; task_description: string }>) {
+    await sb.from("agent_tasks").update({ status: "running", updated_at: new Date().toISOString() }).eq("id", task.id);
+    try {
+      const snap = await buildSnapshot(sb, task.user_id);
+      const systemPrompt = buildChatSystemPrompt(snap);
+      const ctx: RunContext = freshContext(task.user_id);
+      const scope: AuditScope = { source: "event", runId: null };
+      const history: Turn[] = [{ role: "user", text: task.task_description }];
+      let resultText = "";
+
+      for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
+        const reply = await callModel({ model: MODEL_ROUTINE, system: systemPrompt, tools: CHAT_TOOLS, history, maxTokens: 1200 });
+        if (reply.text) resultText = reply.text;
+        if (reply.toolCalls.length === 0) break;
+        history.push({ role: "assistant", text: reply.text || undefined, toolCalls: reply.toolCalls });
+
+        const toolResults: Array<{ id: string; name: string; content: string }> = [];
+        for (const call of reply.toolCalls) {
+          if (CONFIRM_REQUIRED_TOOLS.includes(call.name)) {
+            toolResults.push({
+              id: call.id, name: call.name,
+              content: "مرفوض: الأداة دي بتلمس فلوس حقيقية ومحتاجة تأكيد صريح من العميل — مفيش عميل حاضر دلوقتي (مهمة مجدولة). قول في ردك إن ده محتاج تأكيده هو لما يفتح التطبيق.",
+            });
+            continue;
+          }
+          const result = await runTool(sb, task.user_id, call.name, call.input, snap, ctx, scope);
+          toolResults.push({ id: call.id, name: call.name, content: result });
+        }
+        history.push({ role: "tool", results: toolResults });
+      }
+
+      const finalText = resultText.trim() || "خلصت المهمة من غير رد نصي.";
+      await sb.from("agent_tasks").update({
+        status: "done", result: finalText, updated_at: new Date().toISOString(),
+      }).eq("id", task.id);
+      await sb.from("app_notifications").insert({
+        user_id: task.user_id, title: "زاد خلّص مهمة كنت طلبتها", message: finalText,
+      });
+      processed++;
+    } catch (e) {
+      console.error("processDueAgentTasks failed for task", task.id, e);
+      await sb.from("agent_tasks").update({
+        status: "failed", result: String(e), updated_at: new Date().toISOString(),
+      }).eq("id", task.id);
+      failed++;
+    }
+  }
+  return { processed, failed };
 }
 
 /**
@@ -1772,6 +1879,18 @@ Deno.serve(async (req: Request) => {
       } catch (e) {
         return new Response(JSON.stringify({ ok: false, error: String(e) }), { status: 200, headers: CORS_HEADERS });
       }
+    }
+
+    // W8 — معالج طابور المهام المؤجلة. مش هوية مستخدم (JWT) — pg_cron هو اللي بينادي
+    // ده كل ٥ دقايق، فالتحقق بسيكريت هيدر مخصص، نفس نمط X-Checkin-Cron-Secret/
+    // X-Subscription-Cron-Secret في zad-telegram-bot بالظبط.
+    if (body.action === "process_agent_tasks") {
+      if (req.headers.get("X-Agent-Tasks-Cron-Secret") !== AGENT_TASKS_CRON_SECRET) {
+        return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: CORS_HEADERS });
+      }
+      const sbTasks = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+      const result = await processDueAgentTasks(sbTasks);
+      return new Response(JSON.stringify({ ok: true, ...result }), { headers: CORS_HEADERS });
     }
 
     // ── المرحلة ٢: مسار المحادثة ──────────────────────────────────────────────

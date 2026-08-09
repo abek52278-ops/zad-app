@@ -325,6 +325,26 @@ export const validateDeletePharmacyItem: Validator = (input, _snap, ctx) => {
   return { ok: true };
 };
 
+/** أقصى مدة تأجيل — ٣٠ يوم. أبعد من كده أقرب لتذكير سنوي مش "مهمة مؤجلة"، ومهام
+ *  متراكمة من غير سقف زمني بتفضل قاعدة وبتتنسى فعلياً. */
+const MAX_SCHEDULE_DAYS_AHEAD = 30;
+/** سماحية دقيقتين للماضي — الموديل والعميل ممكن يقولوا "دلوقتي" وبينهم فرق ثواني
+ *  عن وقت وصول الطلب فعلاً؛ رفض أي حاجة فاتت عليها أكتر من كده بجد فات وقتها. */
+const PAST_GRACE_MINUTES = 2;
+
+export const validateScheduleTask: Validator = (input, _snap, ctx) => {
+  if ((ctx.counts["schedule_task"] ?? 0) >= 3) return { ok: false, reason: "وصلت لحد أقصى ٣ مهام مؤجلة في المرة" };
+  const desc = String(input.task_description ?? "").trim();
+  if (desc.length < 10) return { ok: false, reason: "وصف المهمة قصير أوي، وضّح المطلوب أكتر" };
+  if (desc.length > 300) return { ok: false, reason: "وصف المهمة طويل أوي، لخّصه" };
+  const runAt = new Date(String(input.run_at ?? ""));
+  if (Number.isNaN(runAt.getTime())) return { ok: false, reason: "run_at لازم يكون تاريخ ووقت صحيح بصيغة ISO 8601" };
+  const now = Date.now();
+  if (runAt.getTime() < now - PAST_GRACE_MINUTES * 60_000) return { ok: false, reason: "الوقت ده فات بالفعل — حدد وقت في المستقبل" };
+  if (runAt.getTime() > now + MAX_SCHEDULE_DAYS_AHEAD * 86_400_000) return { ok: false, reason: `أقصى تأجيل ${MAX_SCHEDULE_DAYS_AHEAD} يوم` };
+  return { ok: true };
+};
+
 export const validateQueryFamily: Validator = (_input, _snap, ctx) => {
   if ((ctx.counts["query_family"] ?? 0) >= 2) return { ok: false, reason: "استعلمت عن العيلة بالفعل في اللفة دي" };
   return { ok: true };
@@ -339,6 +359,7 @@ export const VALIDATORS: Record<string, Validator> = {
   set_market: validateSetMarket,
   log_pharmacy_dose: validateLogPharmacyDose,
   delete_pharmacy_item: validateDeletePharmacyItem,
+  schedule_task: validateScheduleTask,
   query_family: validateQueryFamily,
   emit_insight: validateEmitInsight,
   ask_user: validateAskUser,
@@ -364,6 +385,7 @@ export const MUTATING_TOOLS = [
   // المرحلة ٢-ب
   "log_transaction", "update_transaction", "set_monthly_limit",
   "add_inventory_item", "add_pharmacy_item", "set_market", "log_pharmacy_dose", "delete_pharmacy_item",
+  "schedule_task",
 ];
 
 /**
