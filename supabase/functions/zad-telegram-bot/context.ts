@@ -14,6 +14,7 @@ export interface AgentTx { title: string | null; amount: number; txn_kind: strin
 export interface AgentInventory { item_name: string; quantity: number; unit: string | null; expiry_date: string | null }
 export interface AgentSubscription { title: string; amount: number; renewal_date: string | null; is_active: boolean }
 export interface AgentObligation { title: string; amount: number; due_date: string | null; status: string | null }
+export interface AgentDebt { name: string; remaining_balance: number; interest_rate: number; minimum_payment: number; due_day: number | null }
 export interface AgentPharmacy { name: string; remaining_quantity: number; unit: string | null; dosage: string | null }
 export interface AgentShoppingItem { item_name: string; is_purchased: boolean }
 export interface AgentInsight { title: string; body: string | null }
@@ -30,6 +31,7 @@ export interface AgentContextInput {
   inventory: AgentInventory[];
   subscriptions: AgentSubscription[];
   obligations: AgentObligation[];
+  debts: AgentDebt[];
   pharmacy: AgentPharmacy[];
   shopping: AgentShoppingItem[];
   insights: AgentInsight[];
@@ -94,6 +96,10 @@ export function buildAgentContext(input: AgentContextInput): string {
     `- ${o.title}: ${money(o.amount, c)}${o.due_date ? ` (يستحق ${o.due_date.slice(0, 10)})` : ""}${o.status ? ` — ${o.status}` : ""}`
   ).join("\n");
 
+  const debtText = input.debts.map((d) =>
+    `- ${d.name}: متبقي ${money(d.remaining_balance, c)}, فائدة ${d.interest_rate}%, حد أدنى شهري ${money(d.minimum_payment, c)}${d.due_day ? ` (يوم ${d.due_day} من الشهر)` : ""}`
+  ).join("\n");
+
   const pharmText = input.pharmacy.map((p) =>
     `- ${p.name}: متبقي ${p.remaining_quantity} ${p.unit ?? ""}${p.dosage ? ` (${p.dosage})` : ""}`
   ).join("\n");
@@ -120,6 +126,7 @@ export function buildAgentContext(input: AgentContextInput): string {
     section("مصروف الشهر حسب الفئة", catText, "لا يوجد مصروف مسجل هذا الشهر."),
     section("آخر 30 معاملة", txText, "لا توجد معاملات."),
     section("الالتزامات", obText, "لا توجد التزامات مسجلة."),
+    section("الديون وخطة السداد", debtText, "لا توجد ديون مسجلة."),
     section("مخزون المنزل", invText, "لا يوجد عناصر حالياً."),
     section("الاشتراكات النشطة", subText, "لا توجد اشتراكات."),
     section("أدوية الصيدلية", pharmText, "لا توجد أدوية مسجلة."),
@@ -318,6 +325,7 @@ export function agentSystemPrompt(): string {
     "6. إنت للقراءة والتحليل بس دلوقتي — متأكدش إنك سجلت أو غيّرت أي حاجة، لأنك فعلاً مبتعملش كده من هنا.",
     "7. لو العميل سأل عن حاجة مش في البيانات خالص (زي أخبار أو أسعار السوق)، قوله إنك مبتشوفش الحاجات دي من تليجرام.",
     "8. متكتبش أرقام حسابات أو بيانات حساسة في الرد.",
+    "9. 'الميزانية الشهرية' في قسم معلومات العميل هي السقف الكلي، مش أي رقم تاني. الالتزامات هي التزامات منفصلة تماماً — لو سُئلت عن الميزانية أو العجز، رد برقم 'الميزانية الشهرية' بالظبط ومتستبدلوش بمجموع الالتزامات أو أي رقم فرعي تاني.",
   ].join("\n");
 }
 
@@ -345,7 +353,10 @@ export async function deriveWebhookSecret(botToken: string): Promise<string> {
  * never gets rejected outright by the API. */
 export function clampForTelegram(text: string, limit = 3900): string {
   if (text.length <= limit) return text;
-  const cut = text.slice(0, limit);
+  let cut = text.slice(0, limit);
+  // A hard cut can land inside a UTF-16 surrogate pair (emoji, some Arabic presentation
+  // forms) and mangle the last character — drop the dangling high surrogate.
+  if (/[\uD800-\uDBFF]$/.test(cut)) cut = cut.slice(0, -1);
   const lastBreak = cut.lastIndexOf("\n");
   return (lastBreak > limit * 0.6 ? cut.slice(0, lastBreak) : cut) + "\n…";
 }

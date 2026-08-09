@@ -241,7 +241,7 @@ async function runDailySubscriptionAlerts(sb: SupabaseClient): Promise<{ usersCh
 async function fetchAgentContext(sb: SupabaseClient, userId: string): Promise<AgentContextInput> {
   const today = new Date().toISOString().slice(0, 10);
 
-  const [user, txs, inv, subs, obligations, pharmacy, shopping, insights, tasbiha, memory] = await Promise.all([
+  const [user, txs, inv, subs, obligations, debts, pharmacy, shopping, insights, tasbiha, memory] = await Promise.all([
     sb.from("zad_users").select("name,monthly_limit,currency,country").eq("id", userId).maybeSingle(),
     // Pull a deep-enough window (200 newest) rather than just the 30 the prompt shows:
     // monthTotals/categoryBreakdown run over this same list, so a heavy month with more
@@ -251,6 +251,7 @@ async function fetchAgentContext(sb: SupabaseClient, userId: string): Promise<Ag
     sb.from("zad_inventory").select("item_name,quantity,unit,expiry_date").eq("user_id", userId).limit(60),
     sb.from("zad_subscriptions").select("title,amount,renewal_date,is_active").eq("user_id", userId).limit(30),
     sb.from("zad_obligations").select("title,amount,due_date,status").eq("user_id", userId).limit(30),
+    sb.from("zad_debts").select("name,remaining_balance,interest_rate,minimum_payment,due_day").eq("user_id", userId).eq("is_active", true).limit(30),
     sb.from("zad_pharmacy_items").select("name,remaining_quantity,unit,dosage").eq("user_id", userId).limit(30),
     sb.from("zad_shopping_list").select("item_name,is_purchased").eq("user_id", userId).limit(40),
     sb.from("zad_insights").select("title,body").eq("user_id", userId).eq("status", "pending").limit(8),
@@ -271,6 +272,7 @@ async function fetchAgentContext(sb: SupabaseClient, userId: string): Promise<Ag
     inventory: (inv.data ?? []) as any,
     subscriptions: (subs.data ?? []) as any,
     obligations: (obligations.data ?? []) as any,
+    debts: (debts.data ?? []) as any,
     pharmacy: (pharmacy.data ?? []) as any,
     shopping: (shopping.data ?? []) as any,
     insights: (insights.data ?? []) as any,
