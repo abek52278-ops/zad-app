@@ -259,9 +259,17 @@ begin
   v_committed := v_obligations + v_subscriptions;
   v_available := case when v_remaining is null then null else v_remaining - v_committed end;
 
-  -- The itemised list behind `committed`, so a caller can name the obligations without
+  -- The itemised list behind `committed`, so a caller can name the charges without
   -- re-deriving which ones fall inside the cycle — the brain used to keep its own copy of
   -- that filter and could therefore print a list whose sum was not the committed total.
+  --
+  -- BOTH halves of `committed` are listed here, obligations AND subscriptions, filtered by
+  -- exactly the predicates that produced v_obligations and v_subscriptions above. Listing
+  -- only the obligations reproduces the very defect this list exists to prevent: the first
+  -- live account checked after this migration had committed = 500 coming entirely from one
+  -- active subscription (ايجار, due 2026-08-24), and returned an empty items array next to
+  -- it — so the brain was handed "500 محجوز" with nothing to name, and next_obligation_due
+  -- was null on a cycle that very much had a next charge coming.
   select coalesce(jsonb_agg(x order by x->>'next_due'), '[]'::jsonb) into v_items from (
     select jsonb_build_object(
       'title', title, 'amount', round(amount::numeric, 2), 'kind', kind,
@@ -270,6 +278,18 @@ begin
     where user_id = p_user and active and confirmed
       and public.zad_obligation_next_due(recurrence, due_day, due_date, v_asof) is not null
       and public.zad_obligation_next_due(recurrence, due_day, due_date, v_asof) <= v_end
+    union all
+    -- kind='subscription' rather than the row's own `category`: the consumer is deciding
+    -- how to phrase a committed charge, and "اشتراك" is the fact that matters there, not
+    -- whether the user filed it under ترفيه.
+    select jsonb_build_object(
+      'title', title, 'amount', round(amount::numeric, 2), 'kind', 'subscription',
+      'next_due', substring(renewal_date from 1 for 10)::date) as x
+    from public.zad_subscriptions
+    where user_id = p_user and is_active
+      and renewal_date is not null and renewal_date <> ''
+      and substring(renewal_date from 1 for 10) ~ '^\d{4}-\d{2}-\d{2}$'
+      and substring(renewal_date from 1 for 10)::date <= v_end
   ) s;
 
   v_next_due := v_items -> 0;

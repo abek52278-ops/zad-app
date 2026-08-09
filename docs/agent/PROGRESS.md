@@ -1179,6 +1179,27 @@ customer reading three different "المتبقي" numbers depending which screen
   posture as the rest of this file; only the Postgres migration is live. Deploy
   `zad-brain` and `zad-telegram-bot` once the user confirms.
 
+- **Follow-up fix, same day** — `committed_items` listed obligations only, while
+  `committed` summed obligations **and** subscriptions, so the itemisation could not add
+  up to the total printed next to it: exactly the defect the list was added to prevent.
+  Caught by calling the deployed function on a real account rather than by a test — the
+  first live user checked had `committed = 500` sourced entirely from one active
+  subscription (ايجار, due 2026-08-24) and got `committed_items: []` with
+  `next_obligation_due: null`, so `zad-brain` was handed "500 محجوز" and nothing to name
+  it with, on a cycle that did have a charge coming. Both halves are now listed, under
+  the same predicates that produce their sums, subscriptions tagged `kind:"subscription"`.
+  Verified live: items sum == `committed`, and repo-vs-deployed function bodies hash
+  identically once comments are stripped. Note there is no SQL test harness in this repo,
+  so this invariant is held by that manual check and the migration's comment, not by a
+  test — a `sum(committed_items) = committed` assertion is the obvious thing to add
+  whenever a Postgres test path appears.
+- **Known carried-over behaviour, not introduced here:** the subscription filter has no
+  lower date bound (`renewal_date <= cycle_end`), so an active subscription whose
+  `renewal_date` was never rolled forward counts toward `committed` indefinitely. This is
+  the same predicate the old `zad-brain` used; preserving it keeps Phase 0 a pure
+  consistency change rather than one that also moves everyone's numbers. Worth revisiting
+  separately.
+
 Phases 1–5 of the transformation prompt (a `zad-agent` Anthropic-tool-use core,
 `NotificationListenerService` auto-capture, geofencing, a persistent `ZadAgentOverlay`
 chat surface, Undo) were not attempted this session — out of scope for Phase 0, and
