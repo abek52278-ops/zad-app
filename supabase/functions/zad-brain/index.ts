@@ -841,6 +841,48 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       ctx.mutations.push({ tool: name, old: { currency: snap.currency, country: snap.country }, new: { currency: input.currency, country: input.country } });
       return `اتسجل إن العميل في ${input.country} وعملته ${input.currency} — مش هسأل عنها تاني`;
     }
+    case "log_pharmacy_dose": {
+      // مكافئ pharmacy_dose في بروتوكول [[ACTION]] القديم، ومرآة
+      // ZadCentralBrain.markPharmacyDoseTaken على الكلاينت: سجّل الجرعة، نقّص المتبقي،
+      // ولو قرّب يخلص حطه في قائمة التسوق. من غير الأداة دي كان "خدت حبة الضغط" في
+      // الشات يرجع كلام بس، لأن مسار الوكيل بيسبق البروتوكول القديم ومابيقعش عليه.
+      const spoken = String(input.name ?? "").trim();
+      const { data: items } = await sb.from("zad_pharmacy_items")
+        .select("id,name,remaining_quantity,unit,daily_dose_count").eq("user_id", userId);
+      const rows = (items ?? []) as Array<{ id: string; name: string; remaining_quantity: number; unit: string | null; daily_dose_count: number | null }>;
+      const match = rows.find((r) => {
+        const a = r.name.trim().toLowerCase();
+        const b = spoken.toLowerCase();
+        return a.includes(b) || b.includes(a);
+      });
+      if (!match) return `مرفوض: مفيش دواء اسمه "${spoken}" في قايمة العميل — عدّل وحاول تاني.`;
+
+      const nowIso = new Date().toISOString();
+      const { error: doseErr } = await sb.from("zad_pharmacy_doses").insert({
+        user_id: userId, item_id: match.id, taken_at: nowIso, status: "taken", units: 1,
+      });
+      if (doseErr) {
+        // نفس منطق الكلاينت: تكرار نفس الجرعة المجدولة مايتخصمش تاني.
+        if (String(doseErr.message).includes("duplicate")) return "الجرعة دي متسجلة قبل كده";
+        console.error("log_pharmacy_dose insert failed:", doseErr.message);
+      }
+
+      const newQty = Math.max(0, (match.remaining_quantity ?? 0) - 1);
+      const { error: qtyErr } = await sb.from("zad_pharmacy_items")
+        .update({ remaining_quantity: newQty }).eq("id", match.id).eq("user_id", userId);
+      if (qtyErr) return `اتسجلت الجرعة بس الكمية ماتعدلتش: ${qtyErr.message}`;
+      ctx.mutationCount++;
+      ctx.mutations.push({ tool: name, old: match.remaining_quantity, new: newQty });
+
+      // قرّب يخلص؟ حطه في قائمة التسوق — نفس عتبة الكلاينت (يوم واحد من الاستهلاك).
+      const perDay = match.daily_dose_count ?? 1;
+      if (newQty > 0 && newQty <= perDay) {
+        await sb.from("zad_shopping_list")
+          .insert({ user_id: userId, item_name: match.name, quantity: 1, is_purchased: false });
+        return `اتسجلت الجرعة — فاضل ${newQty} ${match.unit ?? ""} بس، فحطيت "${match.name}" في قائمة التسوق`;
+      }
+      return `اتسجلت جرعة ${match.name} — فاضل ${newQty} ${match.unit ?? ""}`;
+    }
     case "query_family": {
       const { data: membership } = await sb.from("family_members")
         .select("family_id").eq("user_id", userId).maybeSingle();
@@ -1149,6 +1191,17 @@ const CHAT_TOOLS: ToolDef[] = [
         country: { type: "string", description: "كود ISO من حرفين كابيتال: EG, SA, AE, TR..." },
       },
       required: ["currency", "country"],
+    },
+  },
+  {
+    name: "log_pharmacy_dose",
+    description: "سجّل إن العميل خد جرعة من دواء موجود بالفعل في قايمته (مثال: \"خدت حبة الضغط\"). بينقّص المتبقي ويضيف الدوا لقائمة التسوق لو قرّب يخلص.",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "اسم الدواء زي ما قاله العميل" },
+      },
+      required: ["name"],
     },
   },
   {

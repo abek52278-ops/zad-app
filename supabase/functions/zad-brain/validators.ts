@@ -310,6 +310,12 @@ export const validateSetMarket: Validator = (input, _snap, ctx) => {
   return { ok: true };
 };
 
+export const validateLogPharmacyDose: Validator = (input, _snap, ctx) => {
+  if ((ctx.counts["log_pharmacy_dose"] ?? 0) >= 5) return { ok: false, reason: "وصلت لحد أقصى ٥ جرعات في المرة" };
+  if (String(input.name ?? "").trim().length < 2) return { ok: false, reason: "اسم الدواء قصير أوي" };
+  return { ok: true };
+};
+
 export const validateQueryFamily: Validator = (_input, _snap, ctx) => {
   if ((ctx.counts["query_family"] ?? 0) >= 2) return { ok: false, reason: "استعلمت عن العيلة بالفعل في اللفة دي" };
   return { ok: true };
@@ -322,6 +328,7 @@ export const VALIDATORS: Record<string, Validator> = {
   add_inventory_item: validateAddInventoryItem,
   add_pharmacy_item: validateAddPharmacyItem,
   set_market: validateSetMarket,
+  log_pharmacy_dose: validateLogPharmacyDose,
   query_family: validateQueryFamily,
   emit_insight: validateEmitInsight,
   ask_user: validateAskUser,
@@ -346,7 +353,7 @@ export const MUTATING_TOOLS = [
   "reconcile_cash_balance", "confirm_cycle_start", "confirm_obligation",
   // المرحلة ٢-ب
   "log_transaction", "update_transaction", "set_monthly_limit",
-  "add_inventory_item", "add_pharmacy_item", "set_market",
+  "add_inventory_item", "add_pharmacy_item", "set_market", "log_pharmacy_dose",
 ];
 
 /**

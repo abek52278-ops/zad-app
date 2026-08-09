@@ -14,7 +14,9 @@ import { assert, assertEquals, assertRejects, assertStringIncludes } from "jsr:@
 import {
   CONFIRM_REQUIRED_TOOLS,
   MUTATING_TOOLS,
+  VALIDATORS,
   freshContext,
+  validateLogPharmacyDose,
   validateAddInventoryItem,
   validateAddPharmacyItem,
   validateAddShoppingItem,
@@ -647,4 +649,39 @@ Deno.test("validateTool aborts a new tool after three rejections", async () => {
   const v = await validateTool("set_market", { currency: "EGP", country: "EG" }, {}, ctx);
   assertEquals(v.ok, false);
   assertStringIncludes((v as { reason: string }).reason, "اتوقفت");
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// تغطية بروتوكول [[ACTION]] القديم.
+//
+// السبب إن الاختبار ده موجود: ZadViewModel.tryAgentTurn بيرجع true لأي رد، فالبروتوكول
+// القديم مابيشتغلش خالص لما الوكيل ينجح. يعني أي عملية موجودة في البروتوكول القديم ومش
+// موجودة كأداة هنا مش بتبقى "بتقع على المسار القديم" — بتضيع بالكامل والعميل ياخد رد
+// كلام بدل تنفيذ. ده بالظبط اللي حصل مع pharmacy_dose قبل ما تتضاف log_pharmacy_dose.
+// ════════════════════════════════════════════════════════════════════════════
+
+Deno.test("every [[ACTION]] type has an equivalent chat tool", () => {
+  // consume → update_inventory_qty، add → add_inventory_item،
+  // add_pharmacy → add_pharmacy_item، pharmacy_dose → log_pharmacy_dose
+  const equivalents: Record<string, string> = {
+    consume: "update_inventory_qty",
+    add: "add_inventory_item",
+    add_pharmacy: "add_pharmacy_item",
+    pharmacy_dose: "log_pharmacy_dose",
+  };
+  for (const [legacy, tool] of Object.entries(equivalents)) {
+    assert(tool in VALIDATORS, `[[ACTION:${legacy}]] مالوش أداة مكافئة (${tool}) — العملية دي هتضيع`);
+  }
+});
+
+Deno.test("log_pharmacy_dose rejects a name too short to match anything", async () => {
+  assertEquals((await validateLogPharmacyDose({ name: "" }, {}, freshContext("u"))).ok, false);
+  assertEquals((await validateLogPharmacyDose({ name: "ك" }, {}, freshContext("u"))).ok, false);
+  assertEquals((await validateLogPharmacyDose({ name: "كونكور" }, {}, freshContext("u"))).ok, true);
+});
+
+Deno.test("log_pharmacy_dose counts as a mutation and is not confirm-gated", () => {
+  // خصم جرعة تعديل حقيقي، بس مش فلوس — نفس تصنيف المخزون بالظبط.
+  assert(MUTATING_TOOLS.includes("log_pharmacy_dose"));
+  assert(!CONFIRM_REQUIRED_TOOLS.includes("log_pharmacy_dose"));
 });
