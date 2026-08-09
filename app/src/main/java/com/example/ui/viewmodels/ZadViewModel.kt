@@ -1071,6 +1071,124 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    //  المرحلة ٢-ج — المحادثة عبر zad-brain
+    // ══════════════════════════════════════════════════════════════════════
+
+    /** كتابات مالية اقترحها الوكيل ومستنية "أيوه" من المستخدم. فاضية = مفيش اقتراح معلّق. */
+    private var pendingAgentProposals: List<com.example.data.ZadAiRepository.AgentProposal> = emptyList()
+
+    /**
+     * بينادي `agent_turn` ويعرض نتيجته. بيرجع true لو اللفة اتعالجت بالكامل (رد اتعرض)،
+     * وfalse لو النداء فشل عشان الكولر يقع على مسار الشات القديم.
+     *
+     * الرد المعروض بيتبني من نتيجة التنفيذ الفعلية: `executed` (حصل خلاص) و`proposals`
+     * (مستني موافقة). كلام الموديل الحر بيتعرض زي ما هو من غير ما يتصدق في ادعاء تنفيذ —
+     * ده الفرق اللي البروتوكول النصي القديم مكانش بيقدر يضمنه.
+     */
+    private suspend fun tryAgentTurn(userText: String): Boolean {
+        val history = _aiChatMessages.value.dropLast(1).takeLast(8)
+            .map { (if (it.isUser) "user" else "assistant") to it.text }
+
+        val result = com.example.data.ZadAiRepository.agentTurn(userText, history) ?: return false
+
+        val lines = mutableListOf<String>()
+        if (result.reply.isNotBlank()) lines += result.reply
+        result.executed.forEach { lines += "✅ ${it.summary}" }
+
+        pendingAgentProposals = result.proposals
+        if (result.proposals.isNotEmpty()) {
+            lines += buildString {
+                appendLine(if (result.proposals.size == 1) "🤔 أأكد ده؟" else "🤔 أأكد دول؟")
+                result.proposals.forEach { appendLine("• ${it.summary}") }
+                append("اكتب \"أيوه\" للتأكيد.")
+            }.trim()
+        }
+
+        // مفيش رد ولا تنفيذ — نتعامل معاها كفشل ونقع على المسار القديم بدل ما نعرض
+        // فقاعة فاضية.
+        if (lines.isEmpty()) return false
+
+        val msg = AiChatMessage(text = lines.joinToString("\n\n"), isUser = false)
+        _aiChatMessages.value = _aiChatMessages.value + msg
+        persistChatMessage(msg)
+        _companionState.value = com.example.ui.components.companionStateForMessage(msg.text)
+
+        // الكتابات حصلت سيرفر-سايد، فالحالة المحلية بقت قديمة. بنعيد تحميل اللي اتغيّر
+        // بس، مش كل حاجة.
+        if (result.executed.isNotEmpty()) refreshAfterAgentWrites(result.executed)
+        return true
+    }
+
+    /**
+     * إعادة تحميل الحالة المحلية بعد ما أدوات الوكيل كتبت على السيرفر.
+     *
+     * كل الـ StateFlows هنا مصدرها Room (تدفقات `dao.getAll*()`)، مش نداء شبكة — فكتابة
+     * سيرفر-سايد مش بتظهر في الواجهة لحد ما Room نفسها تتحدّث. [syncData] هي المسار
+     * الموجود بالفعل لده، فبنعيد استخدامه بدل ما نخترع مسار تاني ممكن يفرق عنه.
+     */
+    private fun refreshAfterAgentWrites(executed: List<com.example.data.ZadAiRepository.AgentExecuted>) {
+        val tools = executed.map { it.tool }.toSet()
+        val touchedSyncedTables = tools.any {
+            it in setOf(
+                "add_inventory_item", "update_inventory_qty", "add_pharmacy_item",
+                "add_shopping_item", "set_transaction_category", "log_transaction", "update_transaction"
+            )
+        }
+        if (touchedSyncedTables) syncData()
+        if (tools.contains("set_monthly_limit")) loadBudget()
+        if (tools.contains("set_market")) {
+            viewModelScope.launch {
+                try {
+                    SupabaseRepo.ensureMarketProfileSynced(getApplication())
+                } catch (e: Exception) {
+                    Log.e(TAG, "refreshAfterAgentWrites() market reload failed: ${e.message}")
+                }
+            }
+        }
+    }
+
+    /**
+     * المستخدم رد على اقتراح مالي معلّق. بيرجع true لو الرد اتعالج كتأكيد/رفض، وfalse
+     * لو مش رد واضح — ساعتها الرسالة بتتعامل كسؤال جديد عادي.
+     *
+     * التنفيذ الفعلي بيحصل سيرفر-سايد (`agent_confirm`) اللي بيعيد التحقق من الاقتراح.
+     * الكلاينت مبيكتبش المعاملة بنفسه.
+     */
+    private suspend fun handleAgentProposalReply(userText: String): Boolean {
+        val proposals = pendingAgentProposals
+        if (proposals.isEmpty()) return false
+
+        if (negativeReplyRegex.containsMatchIn(userText)) {
+            pendingAgentProposals = emptyList()
+            val cancelMsg = AiChatMessage(text = "تمام، ملغيتهاش.", isUser = false)
+            _aiChatMessages.value = _aiChatMessages.value + cancelMsg
+            persistChatMessage(cancelMsg)
+            return true
+        }
+        if (!affirmativeReplyRegex.containsMatchIn(userText)) return false
+
+        pendingAgentProposals = emptyList()
+        val results = proposals.map { com.example.data.ZadAiRepository.agentConfirm(it) }
+        val succeeded = results.count { it.first }
+        val text = if (succeeded == results.size) {
+            results.joinToString("\n") { "✅ ${it.second}" }
+        } else {
+            "معلش، بعض الحاجات مانفعتش تتسجل — جرب تاني.\n" +
+                results.joinToString("\n") { (ok, summary) -> "${if (ok) "✅" else "⚠️"} $summary" }
+        }
+        val confirmMsg = AiChatMessage(text = text, isUser = false)
+        _aiChatMessages.value = _aiChatMessages.value + confirmMsg
+        persistChatMessage(confirmMsg)
+        if (succeeded > 0) {
+            // نفس السبب في [refreshAfterAgentWrites]: المعاملة اتكتبت سيرفر-سايد، وRoom
+            // هي مصدر الواجهة.
+            syncData()
+            loadBudget()
+        }
+        return true
+    }
+
     /** Ceiling on any pre-request context warmup in the chat path — see sendAiChatMessage. */
     private val WARMUP_TIMEOUT_MS = 3_000L
 
@@ -1130,7 +1248,39 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         _isAiTyping.value = true
         _companionState.value = com.example.ui.components.CompanionState.Focused
 
+        // اقتراح مالي معلّق من لفة وكيل سابقة؟ الرد ده تأكيده أو رفضه، مش سؤال جديد.
+        // بيتفحص جوه coroutine لأن التنفيذ نفسه نداء شبكة.
+        if (pendingAgentProposals.isNotEmpty()) {
+            viewModelScope.launch {
+                try {
+                    if (!handleAgentProposalReply(userText)) {
+                        pendingAgentProposals = emptyList()
+                        runChatTurn(userText)
+                    }
+                } finally {
+                    _isAiTyping.value = false
+                }
+            }
+            return
+        }
+
         viewModelScope.launch {
+            try {
+                runChatTurn(userText)
+            } finally {
+                _isAiTyping.value = false
+            }
+        }
+    }
+
+    /**
+     * لفة شات واحدة: بتجرب مسار الوكيل (zad-brain + استدعاء أدوات) الأول، وتقع على
+     * بروتوكول [[ACTION]] النصي القديم لو فشل.
+     *
+     * اتفصلت عن [sendAiChatMessage] عشان مسار الرد على اقتراح معلّق يقدر يعيد استخدامها
+     * لما الرد يطلع مش تأكيد ولا رفض — من غير كده كان لازم يتكرر الجسم كله.
+     */
+    private suspend fun runChatTurn(userText: String) {
             try {
                 // لو تقرير العقل مش جاهز، احسبه عشان الشات يكون عارف كل حاجة.
                 //
@@ -1160,6 +1310,15 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     } catch (_: Exception) {}
                 }
+
+                // المرحلة ٢-ج — المسار الأساسي: zad-brain باستدعاء أدوات حقيقي. السيرفر
+                // بيبني السياق من الداتابيز بنفسه (buildSnapshot)، فمفيش حقن سياق من هنا.
+                //
+                // بروتوكول [[ACTION]] تحت بقى fallback بس: لو النداء ده فشل (نت، مهلة،
+                // موديل مش متاح)، الشات بيفضل شغال بالسلوك القديم بدل ما يقع في وش
+                // المستخدم. الفرق إن المسار الجديد مايقدرش يدّعي تنفيذ محصلش — الرد
+                // مبني على نتيجة الأدوات الفعلية.
+                if (tryAgentTurn(userText)) return
 
                 // ذاكرة المحادثة: آخر 8 رسائل عشان يفهم سياق الحوار
                 val history = _aiChatMessages.value.dropLast(1).takeLast(8)
@@ -1221,10 +1380,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 _aiChatMessages.value = _aiChatMessages.value + errMsg
                 persistChatMessage(errMsg)
                 _companionState.value = com.example.ui.components.CompanionState.Idle
-            } finally {
-                _isAiTyping.value = false
             }
-        }
     }
 
     fun loadNotifications() {
