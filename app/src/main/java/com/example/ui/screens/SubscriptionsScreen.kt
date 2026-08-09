@@ -84,102 +84,119 @@ fun SubscriptionsScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Title moved to ZadTopHeader — the active/all filter is all that stays.
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row {
-                    FilterChip(
-                        selected = !showInactive,
-                        onClick = { showInactive = false },
-                        label = { Text(stringResource(R.string.active_filter), style = Typography.labelSmall) },
-                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = primaryContainer),
-                        modifier = Modifier.height(32.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    FilterChip(
-                        selected = showInactive,
-                        onClick = { showInactive = true },
-                        label = { Text(stringResource(R.string.filter_all), style = Typography.labelSmall) },
-                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = surfaceContainerHigh),
-                        modifier = Modifier.height(32.dp)
-                    )
-                }
-            }
-
-            // Summary Banner
-            com.example.ui.components.AppearOnEntry {
-            Box {
-            // بقعة ضوء زجاجية — نفس أداة ZadCardHero، هنا بس لأن البانر ده عنصر واحد في
-            // الشاشة (مش صف متكرر في LazyColumn زي كروت الاشتراكات تحت، فمفيش تكلفة أداء
-            // من تكرار الـ blur على عناصر كتير في قايمة بتتمرر)
-            Box(
-                modifier = Modifier
-                    .size(120.dp)
-                    .align(Alignment.TopStart)
-                    .padding(horizontal = 16.dp)
-                    .offset(x = (-20).dp, y = (-8).dp)
-                    .zadGlassBlur(32.dp)
-                    .background(Color.White.copy(alpha = 0.18f), CircleShape)
-            )
-            ZadScreenBanner(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                contentPadding = 20.dp
-            ) {
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(44.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.18f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.CreditCard, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(stringResource(R.string.total_monthly_subscriptions), style = Typography.labelMedium, color = Color.White.copy(alpha = 0.85f))
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(com.example.data.CurrencyFormatter.format(context, totalMonthly), style = Typography.displaySmall, color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(stringResource(R.string.active_subs_count_label), style = Typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
-                        Text("${activeSubs.size}", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+        // Everything used to be a static Column stacked above the LazyColumn — on short
+        // screens that static stack (banner+tabs+AI banner+pending+debt card) could push
+        // past the bottom nav/camera FAB with nothing to scroll it into view. All of it is
+        // now items() in the one LazyColumn below so the whole screen scrolls together.
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().navigationBarsPadding(),
+            contentPadding = PaddingValues(20.dp, 8.dp, 20.dp, 100.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                // Title moved to ZadTopHeader — the active/all filter is all that stays.
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row {
+                        FilterChip(
+                            selected = !showInactive,
+                            onClick = { showInactive = false },
+                            label = { Text(stringResource(R.string.active_filter), style = Typography.labelSmall) },
+                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = primaryContainer),
+                            modifier = Modifier.height(32.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        FilterChip(
+                            selected = showInactive,
+                            onClick = { showInactive = true },
+                            label = { Text(stringResource(R.string.filter_all), style = Typography.labelSmall) },
+                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = surfaceContainerHigh),
+                            modifier = Modifier.height(32.dp)
+                        )
                     }
                 }
             }
-            }
+
+            item {
+                // Summary Banner
+                com.example.ui.components.AppearOnEntry {
+                Box {
+                // بقعة ضوء زجاجية — نفس أداة ZadCardHero، هنا بس لأن البانر ده عنصر واحد في
+                // الشاشة (مش صف متكرر في LazyColumn زي كروت الاشتراكات تحت، فمفيش تكلفة أداء
+                // من تكرار الـ blur على عناصر كتير في قايمة بتتمرر)
+                Box(
+                    modifier = Modifier
+                        .size(120.dp)
+                        .align(Alignment.TopStart)
+                        .offset(x = (-20).dp, y = (-8).dp)
+                        .zadGlassBlur(32.dp)
+                        .background(Color.White.copy(alpha = 0.18f), CircleShape)
+                )
+                ZadScreenBanner(
+                    modifier = Modifier.padding(vertical = 12.dp),
+                    contentPadding = 20.dp
+                ) {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier.size(44.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.18f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.CreditCard, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.total_monthly_subscriptions), style = Typography.labelMedium, color = Color.White.copy(alpha = 0.85f))
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(com.example.data.CurrencyFormatter.format(context, totalMonthly), style = Typography.displaySmall, color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(stringResource(R.string.active_subs_count_label), style = Typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
+                            Text("${activeSubs.size}", style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    }
+                }
+                }
+                }
             }
 
-            com.example.ui.components.ZadSegmentedTabs(
-                tabs = tabs,
-                selectedIndex = selectedTab,
-                onSelect = { selectedTab = it }
-            )
+            item {
+                com.example.ui.components.ZadSegmentedTabs(
+                    tabs = tabs,
+                    selectedIndex = selectedTab,
+                    onSelect = { selectedTab = it }
+                )
+            }
 
             // AI Detection Banner
             if (selectedTab == 0 && activeSubs.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
-                        .clip(RoundedCornerShape(12.dp)).background(primaryContainer)
-                        .padding(12.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.ai_detecting_subscriptions), style = Typography.bodySmall, color = primary)
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                            .clip(RoundedCornerShape(12.dp)).background(primaryContainer)
+                            .padding(12.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.ai_detecting_subscriptions), style = Typography.bodySmall, color = primary)
+                        }
                     }
                 }
             }
 
             // اشتراكات اكتشفها الذكاء الاصطناعي، لسه محتاجة تأكيد المستخدم قبل ما تتسجل (AUDIT.md)
             if (pendingSubscriptions.isNotEmpty()) {
-                Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    com.example.ui.components.DetectedSubscriptionsSection(
-                        pending = pendingSubscriptions,
-                        onConfirm = { viewModel.confirmDetectedSubscription(it) },
-                        onDismiss = { viewModel.dismissDetectedSubscription(it) }
-                    )
+                item {
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        com.example.ui.components.DetectedSubscriptionsSection(
+                            pending = pendingSubscriptions,
+                            onConfirm = { viewModel.confirmDetectedSubscription(it) },
+                            onDismiss = { viewModel.dismissDetectedSubscription(it) }
+                        )
+                    }
                 }
             }
 
@@ -187,18 +204,14 @@ fun SubscriptionsScreen(
             // المفلترة: مستخدم بيدوس على تاب "فواتير" بالذات عايز الفواتير بس، مش
             // ديون+فرص+صناديق مقحمة معاها. كانت بتظهر بغض النظر عن التاب المختار.
             if (selectedTab == 0) {
-                Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    DebtPayoffPlannerCard(debts, viewModel)
+                item {
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        DebtPayoffPlannerCard(debts, viewModel)
+                    }
                 }
             }
 
-            // List
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(20.dp, 8.dp, 20.dp, 100.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                if (filtered.isEmpty()) {
+            if (filtered.isEmpty()) {
                     item {
                         // بديل الأيقونة الثابتة بـ Lottie متحركة — نفس تسلسل ZadEmptyState (عنوان بولد وسط الشاشة)
                         Column(
@@ -260,8 +273,7 @@ fun SubscriptionsScreen(
                     item { SinkingFundsCard(familyViewModel) }
                 }
 
-                item { Spacer(modifier = Modifier.height(72.dp)) }
-            }
+                item { Spacer(modifier = Modifier.height(100.dp)) }
         }
 
         // Add FAB

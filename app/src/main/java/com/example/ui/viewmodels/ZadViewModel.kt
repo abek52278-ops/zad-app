@@ -1076,6 +1076,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                        [[ACTION:{"type":"add_pharmacy","item":"اسم الدواء","dosage":"وصف الجرعة بالظبط زي ما قاله المستخدم","daily_dose_count":عدد الجرعات يومياً,"dose_times":"08:00,16:00,00:00","unit":"قرص أو مل أو كريم","amount":الكمية المتاحة عنده أو 1 لو مذكورش,"category":"عام أو مزمن أو مسكن أو مضاد حيوي أو فيتامين"}]]
                        اكتب ACTION واحد بس عند نية صريحة أكيدة، ومتكتبش أي ACTION على مجرد سؤال أو استفسار عادي (زي "هل عندي أرز؟")
                     8. لو سأل عن خطة سداد الديون، استخدم أرقام قسم === الديون وخطة السداد === فوق بالظبط (الأشهر، الفوائد، الترتيب) — متخترعش خطة مختلفة
+                    9. "الميزانية الشهرية" هي السقف الكلي، مش أي رقم تاني. "المحجوز (التزامات+اشتراكات)" رقم منفصل تماماً — لو سأل عن العجز أو الميزانية، قوله رقم "الميزانية الشهرية" بالظبط ومتستبدلوش برقم "المحجوز" أو "المتاح الفعلي" أبداً
                 """.trimIndent()
 
                 // Chat is the one AI call with a human waiting on it and no streaming
@@ -1377,7 +1378,13 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             if (limit != null) {
                 _budget.value = limit
                 _budgetConfirmed.value = confirmedAt != null
-                prefs.edit().putFloat("cached_budget", limit.toFloat()).apply()
+                prefs.edit().putFloat("cached_budget", limit.toFloat()).putBoolean("budget_confirmed", confirmedAt != null).apply()
+            } else if (prefs.contains("cached_budget") && prefs.getBoolean("budget_confirmed", false)) {
+                // Network call failed (offline / transient error) or auth session wasn't
+                // restored yet — fall back to the last known-confirmed local state instead
+                // of re-showing the budget gate over a previously confirmed budget.
+                _budget.value = cachedBudget
+                _budgetConfirmed.value = true
             } else {
                 _budget.value = UNKNOWN_BUDGET
                 _budgetConfirmed.value = false
@@ -1430,7 +1437,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             Log.d(TAG, "updateBudget() → newBudget=$newBudget")
             val prefs = getApplication<Application>().getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
-            prefs.edit().putFloat("cached_budget", newBudget.toFloat()).apply()
+            prefs.edit().putFloat("cached_budget", newBudget.toFloat()).putBoolean("budget_confirmed", true).apply()
             _budget.value = newBudget
             _budgetConfirmed.value = true
             recalculateRemainingBalance(_transactions.value, newBudget)
