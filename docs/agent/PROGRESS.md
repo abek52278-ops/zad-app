@@ -1138,3 +1138,50 @@ live model yet, so removing the only path that has ever actually worked would be
 premature. Delete both only after `agent_turn` has proven itself on real traffic.
 
 Not deployed to Supabase as of this entry — committed to `origin/main` only.
+
+## Phase 0 — single authority for every money figure (2026-08-09)
+
+Requested as the first step of a broader "ZAD → agentic assistant" transformation
+prompt the user pasted; only Phase 0 ("fix the ground truth before any agent work") was
+in scope for this session. Root cause, independent of that prompt: the app, `zad-brain`,
+and the Telegram bot each computed budget/spent/remaining/available on their own and
+disagreed — the brain dropped income from `remaining` and read the salary cycle in UTC
+(off by a day for any non-UTC account), an unset budget ceiling computed as `0 - spent`
+and therefore permanently reported `threat=OVER` to every user who never set a budget,
+and the bot's `/balance` button additionally zeroed the ceiling whenever
+`limit_confirmed_at` was null — which `AGENT_GAP_ANALYSIS.md` §6 already documents as
+null on accounts holding a real `monthly_limit`. Three surfaces, three formulas, same
+customer reading three different "المتبقي" numbers depending which screen was open.
+
+- `91409db` — `zad_budget_state(p_user, p_tz)` (migration
+  `20260809120000_single_budget_authority.sql`, **applied to the live project**) is now
+  the one definition of spent/income/remaining/committed/available/velocity/threat, the
+  salary-cycle window, and the per-category split. New helper functions
+  (`zad_market_timezone`, `zad_weekend_dows`, `zad_anchored_day`, `zad_cycle_bounds`,
+  `zad_obligation_next_due`) mirror `CycleMath.kt`/`BudgetMath.nextDueDate` exactly,
+  including `last_working_day` and the Fri/Sat vs Sat/Sun weekend split — the two things
+  the brain's old inline TS mirror got wrong. `zad-brain`'s `buildSnapshot` and
+  `zad-telegram-bot`'s `context.ts`/`/balance` button now call this RPC instead of
+  recomputing; their local TS copies of the cycle/obligation math are deleted, not just
+  unused. Kotlin's `BudgetMath.kt`/`CycleMath.kt` stay as the offline-first mirror
+  (`ZadViewModel.refreshBudgetState()` overwrites their output with the server's once it
+  answers, and logs a warning if the two ever disagree by more than a rounding cent —
+  that log line is the only thing that will catch this drifting apart again).
+  `BudgetAuthorityParityTest.kt` pins the Kotlin math against golden vectors pulled live
+  from the deployed SQL (day-31 salaries, `last_working_day` on a weekend in both
+  weekend conventions, year rollover, `once` vs recurring obligations) — not
+  hand-derived expectations, actual RPC output pasted in.
+  131/131 Deno tests, `deno check` clean on both edge functions, 197/197 Android unit
+  tests (0 failures, 3 pre-existing skips, includes the new parity suite). SDK wasn't
+  present in this container; installed `cmdline-tools` + platform 36 + build-tools 35.0.0
+  to get a real `testDebugUnitTest` run rather than reporting green from a typecheck.
+  **Edge functions not deployed** — same "committed, not deployed until validated"
+  posture as the rest of this file; only the Postgres migration is live. Deploy
+  `zad-brain` and `zad-telegram-bot` once the user confirms.
+
+Phases 1–5 of the transformation prompt (a `zad-agent` Anthropic-tool-use core,
+`NotificationListenerService` auto-capture, geofencing, a persistent `ZadAgentOverlay`
+chat surface, Undo) were not attempted this session — out of scope for Phase 0, and
+Phase 1 in particular substantially overlaps work already in flight under
+`AGENT_GAP_ANALYSIS.md`'s `agent_turn` unification (see the Phase 2 entry above), which
+should be reconciled with rather than duplicated under a new name.
