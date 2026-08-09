@@ -421,6 +421,13 @@ fun ProfileScreen(
                         subtitle = stringResource(R.string.contact_us),
                         onClick = { showHelpSupport = true }
                     )
+                    // W5 — سجل agent_actions + تراجع. مكانه هنا لأنه إعداد/شفافية زي
+                    // باقي الصف، مش فعل يومي بيتكرر.
+                    com.example.ui.components.ZadMenuRow(
+                        title = stringResource(R.string.agent_action_log_title),
+                        subtitle = stringResource(R.string.agent_action_log_subtitle),
+                        onClick = { navController?.navigate(com.example.ZadNav.AGENT_ACTION_LOG) }
+                    )
                     com.example.ui.components.ZadMenuRow(
                         title = stringResource(R.string.terms_of_service_menu_title),
                         subtitle = stringResource(R.string.terms_of_service_menu_subtitle),

@@ -948,14 +948,25 @@ object SupabaseRepo {
         return prim.contentOrNull ?: prim.toString()
     }
 
-    /** اسم عربي مفهوم بدل اسم الأداة التقني — بيغطي بس الأدوات اللي فعلاً بتظهر في mutations (executeTool في zad-brain) */
-    private fun toolLabel(tool: String): String = when (tool) {
+    /**
+     * اسم عربي مفهوم بدل اسم الأداة التقني — بيغطي كل أدوات الكتابة الـ١٣ في
+     * zad-brain/executeTool (المرحلة ٢-ب زوّدت ٧ أدوات جديدة فوق الـ٦ اللي كانت هنا؛
+     * W5 محتاجهم كلهم عشان سجل agent_actions بيغطي القناتين — الشات والتحليل الخلفي).
+     */
+    internal fun toolLabel(tool: String): String = when (tool) {
         "update_inventory_qty" -> "تعديل كمية مخزون"
         "set_transaction_category" -> "تصنيف معاملة"
         "merge_duplicate_expense" -> "دمج معاملة مكررة"
         "reconcile_cash_balance" -> "تسوية الكاش"
         "confirm_cycle_start" -> "تأكيد دورة الراتب"
         "confirm_obligation" -> "تسجيل التزام"
+        "log_transaction" -> "تسجيل معاملة"
+        "update_transaction" -> "تعديل معاملة"
+        "set_monthly_limit" -> "تعديل سقف الميزانية"
+        "add_inventory_item" -> "إضافة صنف للمخزون"
+        "add_pharmacy_item" -> "إضافة دواء"
+        "set_market" -> "تعديل البلد والعملة"
+        "log_pharmacy_dose" -> "تسجيل جرعة دواء"
         else -> tool
     }
 
@@ -991,6 +1002,65 @@ object SupabaseRepo {
         } catch (e: Exception) {
             Log.e(TAG, "getRecentBrainMutations() FAILED: ${e.message}")
             emptyList()
+        }
+    }
+
+    // ─── W5: agent_actions — سجل تعديلات زاد + التراجع ────────────────────
+    // مصدر شاشة "سجل تعديلات زاد": صف حقيقي لكل أداة نفّذها الوكيل (agent_actions،
+    // W1)، بدل getRecentBrainMutations اللي بيقرا zad_brain_runs.mutations (blob لكل
+    // لفة، مش صف لكل فعل، ومفيش فيه previous_state يتراجع بيه).
+
+    @Serializable
+    data class AgentAction(
+        val id: String,
+        @SerialName("tool_name") val toolName: String,
+        val source: String,
+        @SerialName("target_table") val targetTable: String? = null,
+        @SerialName("target_id") val targetId: String? = null,
+        val status: String,
+        @SerialName("result_summary") val resultSummary: String? = null,
+        @SerialName("created_at") val createdAt: String,
+    ) {
+        /** applied + هدف معروف = قابل للتراجع. rejected/undone أو أداة بلا صف هدف (زي query_family) لأ. */
+        val isUndoable: Boolean get() = status == "applied" && targetTable != null && targetId != null
+    }
+
+    suspend fun getAgentActions(limit: Int = 50): List<AgentAction> {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id ?: return emptyList()
+            client.postgrest["agent_actions"]
+                .select {
+                    filter { eq("user_id", userId) }
+                    order("seq", Order.DESCENDING)
+                    limit(limit.toLong())
+                }
+                .decodeList<AgentAction>()
+        } catch (e: Exception) {
+            Log.e(TAG, "getAgentActions() FAILED: ${e.message}")
+            emptyList()
+        }
+    }
+
+    @Serializable
+    private data class UndoActionParams(@SerialName("p_action_id") val actionId: String)
+
+    @Serializable
+    data class UndoActionResult(
+        val ok: Boolean,
+        val error: String? = null,
+        val rows: Int? = null,
+    )
+
+    /** بينادي zad_agent_undo() — نفس التحقق والحراسة اللي في الداتابيز (W1)، الكلاينت مش بيعدّل حاجة بنفسه. */
+    suspend fun undoAgentAction(actionId: String): UndoActionResult {
+        return try {
+            client.postgrest.rpc(
+                "zad_agent_undo",
+                Json.encodeToJsonElement(UndoActionParams(actionId = actionId)).jsonObject
+            ).decodeAs<UndoActionResult>()
+        } catch (e: Exception) {
+            Log.e(TAG, "undoAgentAction() FAILED: ${e.message}")
+            UndoActionResult(ok = false, error = e.message)
         }
     }
 

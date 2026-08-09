@@ -52,6 +52,8 @@ object ZadNav {
     const val ASSISTANT_ALERTS = "assistant_alerts"
     const val TERMS = "terms_of_service"
     const val HELP = "help_support"
+    // W5 — "سجل تعديلات زاد" (agent_actions log + undo), متاحة من إعدادات البروفايل.
+    const val AGENT_ACTION_LOG = "agent_action_log"
 }
 
 /** Routes that own the whole viewport — no shell header, no bottom pill. */
@@ -63,6 +65,7 @@ private val fullScreenRoutes = setOf(
     ZadNav.ASSISTANT_ALERTS,
     ZadNav.TERMS,
     ZadNav.HELP,
+    ZadNav.AGENT_ACTION_LOG,
 )
 
 @Composable
@@ -373,6 +376,9 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
 
                         // Sub-screens — full-viewport, reached from inside a screen
                         composable(ZadNav.HELP) { HelpSupportScreen(onBack = { navController.popBackStack() }) }
+                        composable(ZadNav.AGENT_ACTION_LOG) {
+                            com.example.ui.screens.AgentActionLogScreen(onBack = { navController.popBackStack() })
+                        }
                         composable(ZadNav.EDIT_PROFILE) { EditProfileScreen(viewModel) { navController.popBackStack() } }
                         composable(ZadNav.FAMILY_MANAGEMENT) { FamilyManagementScreen(familyViewModel) { navController.popBackStack() } }
                         composable(ZadNav.PAYMENT_BUDGET) { PaymentAndBudgetScreen(viewModel) { navController.popBackStack() } }
