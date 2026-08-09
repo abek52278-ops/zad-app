@@ -13,7 +13,6 @@
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- الاهتزاز عند التسبيح ونجاح مسح الكاميرا. صلاحية عادية (بتتمنح وقت التثبيت،
          مفيش نافذة طلب) — كانت ناقصة، فكل نداء vibrate() كان بيرمي SecurityException
          ويتبلع في الـ try/catch: الاهتزاز مكانش شغال في أي مكان في التطبيق. -->

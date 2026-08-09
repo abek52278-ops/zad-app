@@ -528,18 +528,41 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // معاملة جديدة من بوت تليجرام أو جهاز تاني كانت مش بتوصل لـ CashCard إلا بعد
-        // فتح تطبيق تاني أو TransactionSyncWorker (كل ٣ ساعات). قناة Realtime بتخلي
-        // syncData() تتنادى فوراً بمجرد ما الصف يتضاف على zad_transactions.
+        // معاملة/صنف مخزون/دواء جديد من بوت تليجرام أو جهاز تاني كان مش بيوصل للكروت
+        // المعتمدة عليه إلا بعد فتح تطبيق تاني أو TransactionSyncWorker (كل ٣ ساعات).
+        // ثلاث قنوات Realtime منفصلة (نفس الحساب، أجهزة مختلفة) بتخلي syncData() تتنادى
+        // فوراً بمجرد ما أي صف يتغير على الجدول المقابل.
         viewModelScope.launch {
             val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return@launch
             try {
-                com.example.data.RealtimePersonalTransactionsRepo.subscribeToOwnTransactions(userId).collect {
-                    Log.d(TAG, "Realtime own-transaction insert → syncData()")
+                com.example.data.RealtimePersonalRepo.subscribeToOwnTransactions(userId).collect {
+                    Log.d(TAG, "Realtime own-transaction change → syncData()")
                     syncData()
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "subscribeToOwnTransactions() FAILED: ${e.message}")
+            }
+        }
+        viewModelScope.launch {
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return@launch
+            try {
+                com.example.data.RealtimePersonalRepo.subscribeToOwnInventory(userId).collect {
+                    Log.d(TAG, "Realtime own-inventory change → syncData()")
+                    syncData()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "subscribeToOwnInventory() FAILED: ${e.message}")
+            }
+        }
+        viewModelScope.launch {
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return@launch
+            try {
+                com.example.data.RealtimePersonalRepo.subscribeToOwnPharmacyItems(userId).collect {
+                    Log.d(TAG, "Realtime own-pharmacy change → syncData()")
+                    syncData()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "subscribeToOwnPharmacyItems() FAILED: ${e.message}")
             }
         }
     }

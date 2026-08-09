@@ -1,7 +1,6 @@
 package com.example.data
 
 import android.content.Context
-import android.os.PowerManager
 import androidx.core.app.NotificationManagerCompat
 
 /**
@@ -25,10 +24,4 @@ object BankReadingStatus {
 
     fun isNotificationListenerEnabled(context: Context): Boolean =
         NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
-
-    /** لو مش مستثنى، دوز/App Standby ممكن يأخر أو يوقف UnifiedBankListener لما التطبيق في الخلفية */
-    fun isIgnoringBatteryOptimizations(context: Context): Boolean {
-        val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-        return pm.isIgnoringBatteryOptimizations(context.packageName)
-    }
 }
