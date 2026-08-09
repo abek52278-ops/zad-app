@@ -33,6 +33,7 @@ import com.example.ui.theme.primary
 import com.example.ui.viewmodels.FamilyState
 import com.example.ui.viewmodels.FamilyViewModel
 import com.example.ui.viewmodels.ZadViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -157,6 +158,21 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
         }
     }
 
+    // A child-role account's PIN unlock is session-scoped, not permanent — re-lock once
+    // they navigate back to the kids-safe zone, or after 3 idle minutes past a guarded
+    // screen, so one correct PIN entry can't stay unlocked for the rest of the session.
+    LaunchedEffect(currentRoute) {
+        if (isChildRole && pinUnlockedOverride && (currentRoute == ZadRoutes.HOME || currentRoute == ZadRoutes.FAMILY)) {
+            pinUnlockedOverride = false
+        }
+    }
+    LaunchedEffect(pinUnlockedOverride, currentRoute) {
+        if (isChildRole && pinUnlockedOverride) {
+            delay(3 * 60 * 1000L)
+            pinUnlockedOverride = false
+        }
+    }
+
     val drawerEntries: List<ZadDrawerEntry> = if (kidsModeEffective) {
         zadDrawerEntries.filter { it.route == ZadRoutes.HOME || it.route == ZadRoutes.FAMILY }
     } else {
@@ -195,6 +211,11 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                     onExitKidsMode = {
                         scope.launch { drawerState.close() }
                         showPinPrompt = true
+                    },
+                    showRelockAction = isChildRole && pinUnlockedOverride,
+                    onRelockKidsMode = {
+                        scope.launch { drawerState.close() }
+                        pinUnlockedOverride = false
                     }
                 )
             }
@@ -216,6 +237,8 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                             onOpenDrawer = { scope.launch { drawerState.open() } },
                             onNotificationsClick = { go(ZadRoutes.NOTIFICATIONS) },
                             onExitKidsMode = { showPinPrompt = true },
+                            showRelockAction = isChildRole && pinUnlockedOverride,
+                            onRelockKidsMode = { pinUnlockedOverride = false },
                             onAvatarClick = { goGuarded(ZadRoutes.PROFILE) }
                         )
                     }

@@ -758,7 +758,6 @@
     <string name="bank_reading_status_title">Banka bildirimlerini okuma</string>
     <string name="bank_reading_status_desc">Gerçek izin durumu — sistem ayarlarından izni kaldırırsan burada hemen görünür</string>
     <string name="notification_reading_status_label">Banka bildirimi okuma</string>
-    <string name="battery_optimization_status_label">Pil optimizasyonu istisnası</string>
     <string name="enable_action">Etkinleştir</string>
     <string name="status_on">Aktif ✓</string>
     <string name="status_off">Aktif değil</string>
@@ -1009,6 +1008,7 @@
     <string name="kids_mode_badge">Çocuk modu</string>
     <string name="kids_mode_exit">Tam mod</string>
     <string name="kids_mode_full_mode">Tam mod 🔒</string>
+    <string name="kids_mode_relock">Çocuk modunu yeniden kilitle</string>
     <string name="default_user_name">Zad kullanıcısı</string>
     <string name="tap_to_view_profile">Profili görmek için dokun</string>
     <!-- Home/Budget bodies — mockup pass -->

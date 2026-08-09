@@ -13,6 +13,12 @@ object KidsModePin {
     private const val PREFS = "zad_kids_mode_pin"
     private const val KEY_HASH = "pin_hash"
     private const val KEY_MANUAL_ACTIVE = "manual_kids_mode_active"
+    private const val BACKOFF_MS = 1500L
+
+    // In-memory, object-scoped (not per-dialog) so closing/reopening the PIN dialog can't
+    // reset the timer — that would defeat the point of a guessing-rate limit.
+    @Volatile
+    private var lastFailedAttemptMs = 0L
 
     /**
      * حالة تبديل "وضع الأطفال اليدوي" (لما الأب/الأم يديوا الجهاز لطفل مؤقتاً) —
@@ -46,8 +52,14 @@ object KidsModePin {
     fun verifyPin(context: Context, pin: String): Boolean {
         val stored = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_HASH, null)
             ?: return false
-        return stored == sha256(pin)
+        val ok = stored == sha256(pin)
+        if (!ok) lastFailedAttemptMs = System.currentTimeMillis()
+        return ok
     }
+
+    /** Milliseconds left before another PIN attempt is allowed; 0 if none pending. */
+    fun backoffRemainingMs(): Long =
+        (BACKOFF_MS - (System.currentTimeMillis() - lastFailedAttemptMs)).coerceAtLeast(0L)
 
     fun clearPin(context: Context) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY_HASH).apply()

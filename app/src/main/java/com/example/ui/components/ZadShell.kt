@@ -103,11 +103,13 @@ fun ZadTopHeader(
     title: String,
     modifier: Modifier = Modifier,
     kidsMode: Boolean = false,
+    showRelockAction: Boolean = false,
     hasUnreadNotifications: Boolean = false,
     avatarUri: String? = null,
     onOpenDrawer: () -> Unit = {},
     onNotificationsClick: () -> Unit = {},
     onExitKidsMode: () -> Unit = {},
+    onRelockKidsMode: () -> Unit = {},
     onAvatarClick: () -> Unit = {},
 ) {
     Column(
@@ -178,6 +180,20 @@ fun ZadTopHeader(
                         .clip(CircleShape)
                         .background(kidsPrimary.copy(alpha = 0.10f))
                         .clickable { onExitKidsMode() }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+            }
+            if (showRelockAction) {
+                Text(
+                    stringResource(R.string.kids_mode_relock),
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = kidsPrimary,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(kidsPrimary.copy(alpha = 0.10f))
+                        .clickable { onRelockKidsMode() }
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 )
                 Spacer(Modifier.width(8.dp))
@@ -641,6 +657,8 @@ fun ZadDrawerContent(
     onProfileClick: () -> Unit,
     kidsMode: Boolean = false,
     onExitKidsMode: () -> Unit = {},
+    showRelockAction: Boolean = false,
+    onRelockKidsMode: () -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -719,6 +737,25 @@ fun ZadDrawerContent(
                     Spacer(Modifier.width(14.dp))
                     Text(
                         stringResource(R.string.kids_mode_full_mode),
+                        fontSize = 14.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = textSecondary
+                    )
+                }
+            }
+            if (showRelockAction) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { onRelockKidsMode() }
+                        .padding(horizontal = 14.dp, vertical = 13.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Lock, contentDescription = null, tint = onSurfaceVariant, modifier = Modifier.size(19.dp))
+                    Spacer(Modifier.width(14.dp))
+                    Text(
+                        stringResource(R.string.kids_mode_relock),
                         fontSize = 14.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = textSecondary

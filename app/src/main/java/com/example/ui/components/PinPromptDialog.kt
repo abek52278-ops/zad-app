@@ -11,6 +11,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.example.data.KidsModePin
 import com.example.ui.theme.dangerColor
 import com.example.ui.theme.onSurfaceVariant
+import kotlinx.coroutines.delay
 
 /**
  * PIN موحّد لدخول/خروج وضع الأطفال. أول استخدام = تحديد PIN جديد (مع تأكيد)،
@@ -36,8 +38,19 @@ fun PinPromptDialog(onDismiss: () -> Unit, onUnlocked: () -> Unit) {
     var pin by remember { mutableStateOf("") }
     var firstEntry by remember { mutableStateOf("") }
     var errorMsg by remember { mutableStateOf<String?>(null) }
+    var lockRemainingMs by remember { mutableStateOf(KidsModePin.backoffRemainingMs()) }
+
+    // Polls the object-level backoff timer so rapid automated PIN guessing gets throttled
+    // even across dialog recompositions.
+    LaunchedEffect(Unit) {
+        while (true) {
+            lockRemainingMs = KidsModePin.backoffRemainingMs()
+            delay(100)
+        }
+    }
 
     fun submit() {
+        if (lockRemainingMs > 0) return
         if (pin.length < 4) {
             errorMsg = "أدخل 4 أرقام على الأقل"
             return
@@ -49,6 +62,7 @@ fun PinPromptDialog(onDismiss: () -> Unit, onUnlocked: () -> Unit) {
                 } else {
                     errorMsg = "PIN غلط، حاول تاني"
                     pin = ""
+                    lockRemainingMs = KidsModePin.backoffRemainingMs()
                 }
             }
             "setup_enter" -> {
@@ -91,6 +105,7 @@ fun PinPromptDialog(onDismiss: () -> Unit, onUnlocked: () -> Unit) {
                     onValueChange = { new -> pin = new.filter { it.isDigit() }.take(6); errorMsg = null },
                     label = { Text("PIN") },
                     singleLine = true,
+                    enabled = lockRemainingMs <= 0,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                     modifier = Modifier.fillMaxWidth()
@@ -99,9 +114,13 @@ fun PinPromptDialog(onDismiss: () -> Unit, onUnlocked: () -> Unit) {
                     Spacer(Modifier.height(4.dp))
                     Text(errorMsg!!, style = androidx.compose.ui.text.TextStyle(color = dangerColor))
                 }
+                if (lockRemainingMs > 0) {
+                    Spacer(Modifier.height(4.dp))
+                    Text("استنى ثانية وحاول تاني", style = androidx.compose.ui.text.TextStyle(color = onSurfaceVariant))
+                }
             }
         },
-        confirmButton = { Button(onClick = { submit() }) { Text("تأكيد") } },
+        confirmButton = { Button(onClick = { submit() }, enabled = lockRemainingMs <= 0) { Text("تأكيد") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
     )
 }
