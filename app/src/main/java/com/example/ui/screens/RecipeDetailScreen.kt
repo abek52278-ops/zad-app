@@ -25,6 +25,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -241,14 +242,12 @@ fun RecipeDetailDialog(
                                 .padding(16.dp)
                         ) {
                             Text(
-                                text = dishEmojiFor(recipeTitle),
-                                style = Typography.headlineMedium
-                            )
-                            Text(
                                 text = recipeTitle,
                                 style = Typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = Color.White,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -272,13 +271,6 @@ fun RecipeDetailDialog(
                             text = "شيف زاد يجهز لك الوصفة...",
                             style = Typography.bodyLarge,
                             color = onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = recipeTitle,
-                            style = Typography.bodyMedium,
-                            color = primary,
-                            fontWeight = FontWeight.Bold
                         )
                     }
                 } else if (errorMessage != null) {
