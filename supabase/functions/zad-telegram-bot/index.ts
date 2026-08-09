@@ -27,8 +27,8 @@ import {
 } from "./telegram.ts";
 import {
   AgentContextInput, agentSystemPrompt, buildAgentContext, clampForTelegram,
-  confirmSpendMessage, deriveWebhookSecret, money, parseSpendIntent, spendIntentPrompt,
-  confirmMedicationMessage, medicationIntentPrompt, parseMedicationIntent,
+  confirmSpendMessage, deriveWebhookSecret, money,
+  confirmMedicationMessage,
   isolate, sanitizeName,
 } from "./context.ts";
 
@@ -314,6 +314,46 @@ async function askZad(systemPrompt: string, userPrompt: string): Promise<string 
   }
 }
 
+/** أداة اتنفذت فعلاً سيرفر-سايد، أو اقتراح مالي مستني تأكيد — نفس شكل رد agent_turn. */
+interface AgentExecuted { tool: string; summary: string }
+interface AgentProposal { tool: string; summary: string; input: Record<string, unknown> }
+interface AgentTurnResult {
+  ok: boolean;
+  reply: string;
+  executed: AgentExecuted[];
+  proposals: AgentProposal[];
+}
+
+/**
+ * المرحلة ٢-د — لفة محادثة عبر zad-brain باستدعاء أدوات حقيقي.
+ *
+ * بتحل محل برومبتات تصنيف النية المنفصلة (spendIntentPrompt/medicationIntentPrompt) اللي
+ * كانت بتشوف الرسالة تلات مرات بتلات أسئلة ضيقة. دلوقتي الموديل شايف الرسالة مرة واحدة
+ * ومعاه كل الأدوات، فرسالة زي "صرفت ٥٠ بقالة وضيف لبن للمخزون" بتتعامل كاملة بدل ما
+ * تتقسم على مسارين مايعرفوش بعض.
+ *
+ * `user_id` في الجسم مقبول هنا لأن النداء بمفتاح service-role — راجع resolveAuthedUserId
+ * في zad-brain. الهوية نفسها جاية من telegram_bindings، مش من أي حاجة العميل بيدّعيها.
+ */
+async function agentTurn(userId: string, message: string): Promise<AgentTurnResult | null> {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/zad-brain`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
+      body: JSON.stringify({ action: "agent_turn", user_id: userId, message }),
+    });
+    if (!res.ok) {
+      console.error("agentTurn: zad-brain returned", res.status);
+      return null;
+    }
+    const json = await res.json() as AgentTurnResult;
+    return json?.ok === false ? null : json;
+  } catch (e) {
+    console.error("agentTurn failed:", e);
+    return null;
+  }
+}
+
 /** Generic version of askZad's fetch for any zad-core-intelligence action (voice_agent,
  * analyze_receipt, ...) that returns a structured JSON body rather than a plain string. */
 async function callCoreIntelligence<T>(action: string, payload: Record<string, unknown>): Promise<T | null> {
@@ -474,60 +514,64 @@ bot.on("message:text", async (ctx) => {
 
   await ctx.replyWithChatAction("typing");
 
-  // أولاً: هل ده تسجيل مصروف/دخل فعلي؟ لو أيوه، نعرض تأكيد الأول — مفيش كتابة في
-  // zad_transactions من غير ضغطة تأكيد صريحة، عشان أي خطأ في الفهم يبان للعميل
-  // قبل ما يتسجل في دفتره الحقيقي.
-  const intent = parseSpendIntent(await askZad(spendIntentPrompt(), ctx.message.text));
-  if (intent) {
-    const currency = (await sb.from("zad_users").select("currency").eq("id", userId).maybeSingle())
-      .data?.currency ?? "غير معروف";
-    const { data: pending, error } = await sb.from("telegram_pending_writes").insert({
-      user_id: userId,
-      chat_id: ctx.chat.id,
-      txn_kind: intent.kind,
-      amount: intent.amount,
-      title: intent.title,
-      category: intent.category,
-      confidence: intent.confidence,
-    }).select("id").single();
+  // المرحلة ٢-د — نداء واحد بكل الأدوات، بدل تلات مرات تصنيف نية منفصلة. الأدوات
+  // المباشرة (مخزون/صيدلية/تسوق/بلد وعملة) بتكون اتنفذت خلاص لما الرد ده يوصل؛ أدوات
+  // الفلوس بترجع كاقتراح لسه ماحصلش، وبيتحوّل لنفس زر التأكيد الموجود من الأول.
+  const turn = await agentTurn(userId, ctx.message.text);
 
-    if (!error && pending) {
-      await ctx.reply(confirmSpendMessage(intent, currency), {
-        reply_markup: toGrammyKeyboard(confirmSpendKeyboard((pending as { id: string }).id)),
-      });
+  if (turn) {
+    const lines: string[] = [];
+    if (turn.reply.trim()) lines.push(turn.reply.trim());
+    for (const done of turn.executed) lines.push(`✅ ${isolate(sanitizeName(done.summary))}`);
+
+    // اقتراح مالي واحد بس بيتحوّل لزر تأكيد في الرسالة الواحدة — زر واحد لكل رسالة هو
+    // اللي شكل الـ callback_data الحالي بيسمح بيه، وطلبين فلوس في رسالة واحدة نادرة
+    // بالدرجة اللي متستاهلش تدفق أعقد. الباقي بيتقال للعميل عشان يبعته لوحده.
+    const money = turn.proposals.find((p) => p.tool === "log_transaction");
+    const rest = turn.proposals.filter((p) => p !== money);
+    for (const extra of rest) lines.push(`ℹ️ ${extra.summary} — ابعتها لوحدها عشان أأكدها معاك.`);
+
+    if (money) {
+      const amount = Number(money.input.amount);
+      const kind = money.input.txn_kind === "income" ? "income" : "expense";
+      const title = String(money.input.title ?? "مصروف").slice(0, 80);
+      const category = String(money.input.category ?? "أخرى").slice(0, 40);
+      const currency = (await sb.from("zad_users").select("currency").eq("id", userId).maybeSingle())
+        .data?.currency ?? "غير معروف";
+      const { data: pending, error } = await sb.from("telegram_pending_writes").insert({
+        user_id: userId,
+        chat_id: ctx.chat.id,
+        txn_kind: kind,
+        amount,
+        title,
+        category,
+        // الثقة بقت من التحقق سيرفر-سايد مش من رقم الموديل — الاقتراح وصل هنا يعني عدّى
+        // validateLogTransaction أصلاً. العمود nullable وبيتعرضش للعميل.
+        confidence: null,
+      }).select("id").single();
+
+      if (!error && pending) {
+        const confirmText = confirmSpendMessage(
+          { is_spend: true, kind, amount, title, category, confidence: 1 },
+          currency,
+        );
+        await ctx.reply(clampForTelegram([...lines, confirmText].join("\n\n")), {
+          reply_markup: toGrammyKeyboard(confirmSpendKeyboard((pending as { id: string }).id)),
+        });
+        return;
+      }
+      console.error("pending write insert failed:", error);
+      lines.push("معلش، مقدرتش أجهّز تأكيد المصروف — جرب تاني.");
+    }
+
+    if (lines.length > 0) {
+      await ctx.reply(clampForTelegram(lines.join("\n\n")));
       return;
     }
-    console.error("pending write insert failed:", error);
-    // بيقع على الشات العادي تحت بدل ما يفضل ساكت
   }
 
-  // تاني: هل ده وصف دواء جديد بجدول جرعات؟ (Smart Medication Parsing) — نفس مبدأ
-  // مصروف: تأكيد قبل الكتابة، لأن دواء جديد بيفتح تذكيرات متكررة لما التطبيق يعمل sync.
-  const nowTime = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
-  const medIntent = parseMedicationIntent(await askZad(medicationIntentPrompt(nowTime), ctx.message.text));
-  if (medIntent) {
-    const { data: pending, error } = await sb.from("telegram_pending_pharmacy").insert({
-      user_id: userId,
-      chat_id: ctx.chat.id,
-      name: medIntent.name,
-      dosage: medIntent.dosage,
-      daily_dose_count: medIntent.daily_dose_count,
-      dose_times: medIntent.dose_times,
-      unit: medIntent.unit,
-      quantity: medIntent.quantity,
-      category: medIntent.category,
-    }).select("id").single();
-
-    if (!error && pending) {
-      await ctx.reply(confirmMedicationMessage(medIntent), {
-        reply_markup: toGrammyKeyboard(confirmMedicationKeyboard((pending as { id: string }).id)),
-      });
-      return;
-    }
-    console.error("pending pharmacy insert failed:", error);
-    // بيقع على الشات العادي تحت بدل ما يفضل ساكت
-  }
-
+  // fallback: الوكيل مش متاح (نت/موديل/مهلة) — الرد القرائي القديم أحسن من صمت.
+  // بيتشال في المرحلة ٢-هـ بعد ما agent_turn يثبت نفسه على مستخدمين حقيقيين.
   const context = buildAgentContext(await fetchAgentContext(sb, userId));
   const answer = await askZad(
     agentSystemPrompt(),

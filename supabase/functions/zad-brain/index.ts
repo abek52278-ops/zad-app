@@ -1181,18 +1181,30 @@ const CHAT_TOOLS: ToolDef[] = [
  * مايلاقيش حاجة. دلوقتي الرد اللي بيتعرض مبني على نتيجة التنفيذ الفعلية.
  */
 /**
- * هوية المستخدم من الـ JWT، مش من جسم الطلب. بترجع null لو مفيش توكن صالح.
+ * هوية المستخدم لمسارات الوكيل. بترجع null لو مفيش هوية موثوقة.
  *
- * `getUser(jwt)` بيتحقق من التوقيع سيرفر-سايد — مش بس بيفك الترميز — فتوكن متزوّر أو
- * منتهي بيرجع null. ده الحارس الوحيد اللي بيمنع عميل يكتب في دفتر عميل تاني.
+ * حالتين مختلفتين تماماً:
+ *
+ * 1. **توكن مستخدم** (تطبيق أندرويد): الهوية بتتاخد من التوكن نفسه، و`body.user_id`
+ *    بيتجاهل تماماً. `getUser(jwt)` بيتحقق من التوقيع سيرفر-سايد مش بس بيفك الترميز.
+ *    ده الحارس اللي بيمنع عميل معاه توكن صالح يكتب في دفتر عميل تاني بمجرد إنه يبعت
+ *    الـ id بتاعه.
+ *
+ * 2. **مفتاح service-role** (بوت تليجرام): بياخد `body.user_id` زي ما هو. مش تساهل —
+ *    اللي معاه المفتاح ده يقدر يكتب في أي جدول لأي مستخدم مباشرة من غير ما يعدي من
+ *    هنا أصلاً، فالتحقق هنا مش هيضيف أي حماية. البوت بيحدد المستخدم من جدول
+ *    telegram_bindings (chat_id ↔ user_id)، وده الحارس الحقيقي في المسار ده.
  */
-async function resolveAuthedUserId(req: Request): Promise<string | null> {
+async function resolveAuthedUserId(req: Request, body: any): Promise<string | null> {
   const header = req.headers.get("Authorization") ?? "";
   const token = header.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : "";
   if (!token) return null;
-  // مفتاح الـ service-role نفسه بيعدي من verify_jwt بس مش بيمثّل مستخدم — لازم نرفضه هنا
-  // صراحة، وإلا أي مسار داخلي بيستخدمه هيبقى "مستخدم" بلا هوية.
-  if (token === SERVICE_ROLE_KEY) return null;
+
+  if (token === SERVICE_ROLE_KEY) {
+    const claimed = typeof body?.user_id === "string" ? body.user_id.trim() : "";
+    return claimed.length > 0 ? claimed : null;
+  }
+
   try {
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
     const { data, error } = await sb.auth.getUser(token);
@@ -1479,7 +1491,7 @@ Deno.serve(async (req: Request) => {
     // ده بيكتب معاملات مالية، فبياخد الهوية من الـ JWT بس. لو أخدها من الجسم كان أي حد
     // معاه توكن صالح يقدر يكتب في دفتر أي مستخدم تاني بمجرد إنه يبعت الـ id بتاعه.
     if (body.action === "agent_turn" || body.action === "agent_confirm") {
-      const authedUserId = await resolveAuthedUserId(req);
+      const authedUserId = await resolveAuthedUserId(req, body);
       if (!authedUserId) {
         return new Response(
           JSON.stringify({ error: "unauthorized: agent actions require a user JWT" }),
