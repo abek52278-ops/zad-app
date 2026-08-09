@@ -351,7 +351,14 @@ async function callTextModel(
   if (gemini.ok) return gemini.content;
   console.warn("[CoreIntel] Gemini pool exhausted for text — falling back to Groq");
   const groq = await callGroqPool({ model: GROQ_TEXT_MODEL, systemPrompt, content: userPrompt, temperature, maxTokens });
-  return groq.content;
+  if (groq.ok) return groq.content;
+  // Both providers' whole key pools just failed in this one request — already the slow,
+  // degraded path, so one more delayed Gemini sweep costs little extra relative to what
+  // already happened, and a per-minute quota often clears in that window.
+  console.warn("[CoreIntel] Groq pool also exhausted for text — one delayed retry before failing");
+  await new Promise((r) => setTimeout(r, 1500));
+  const geminiRetry = await callGeminiPool({ model, systemPrompt, content: userPrompt, temperature, maxTokens, thinkingBudget });
+  return geminiRetry.content;
 }
 
 async function callJsonModel(
@@ -362,10 +369,20 @@ async function callJsonModel(
   const thinkingBudget = tier === "routine" ? 0 : undefined;
   const gemini = await callGeminiPool({ model, systemPrompt, content: userPrompt, temperature: 0.2, maxTokens, jsonMode: true, thinkingBudget });
   let raw = gemini.content;
+  let groqOk = true;
   if (!gemini.ok) {
     console.warn("[CoreIntel] Gemini pool exhausted for JSON — falling back to Groq");
     const groq = await callGroqPool({ model: GROQ_TEXT_MODEL, systemPrompt, content: userPrompt, temperature: 0.2, maxTokens, jsonMode: true });
     raw = groq.content;
+    groqOk = groq.ok;
+  }
+  if (!raw && !groqOk) {
+    // Same reasoning as callTextModel: both pools just failed in this one request, already
+    // the slow path, so one delayed Gemini re-sweep has a real shot before failing honestly.
+    console.warn("[CoreIntel] Groq pool also exhausted for JSON — one delayed retry before failing");
+    await new Promise((r) => setTimeout(r, 1500));
+    const geminiRetry = await callGeminiPool({ model, systemPrompt, content: userPrompt, temperature: 0.2, maxTokens, jsonMode: true, thinkingBudget });
+    raw = geminiRetry.content;
   }
   if (!raw) return null;
   try { return JSON.parse(raw); } catch (e) {
@@ -385,13 +402,22 @@ async function callVisionModel(systemPrompt: string, userPrompt: string, imageBa
     { type: "text", text: userPrompt },
     { type: "image_url", image_url: { url: "data:" + mimeType + ";base64," + imageBase64 } },
   ];
-  const gemini = await callGeminiPool({
+  const attempt = () => callGeminiPool({
     model: GEMINI_MODEL_ROUTINE, systemPrompt, content, temperature: 0.2,
     // 4000, not 2000: a long receipt's line items are the output here, and thinking is off
     // so the whole budget is available for the JSON itself.
     maxTokens: 4000, jsonMode: true, thinkingBudget: 0,
   });
-  if (!gemini.ok) console.error("[CoreIntel] callVisionModel: Gemini pool exhausted; images are never routed to Groq");
+  let gemini = await attempt();
+  // Vision has no Groq fallback (see file header) — the whole pool exhausting is the single
+  // point of failure. A 429/quota hit is often per-minute and clears on its own, so one
+  // delayed re-sweep of the same 5-key pool has a real chance of succeeding where an
+  // immediate single pass didn't, instead of failing honestly on the first pass alone.
+  if (!gemini.ok) {
+    await new Promise((r) => setTimeout(r, 1500));
+    gemini = await attempt();
+  }
+  if (!gemini.ok) console.error("[CoreIntel] callVisionModel: Gemini pool exhausted after retry; images are never routed to Groq");
   return gemini.content;
 }
 
@@ -734,8 +760,12 @@ Deno.serve(async (req: Request) => {
           "`total` is the final amount actually paid (after VAT and any discount), as a number with no currency symbol. " +
           "If a field is genuinely unreadable, leave it empty or 0 rather than guessing. " +
           "Also classify `receiptType`: \"pharmacy\" if this is a pharmacy/drugstore receipt " +
-          "(medicine names, dosages like 500mg, tablet/syrup/capsule units), \"general\" for " +
-          "non-grocery non-pharmacy receipts (restaurants, fuel, services), otherwise \"grocery\". " +
+          "(medicine names, dosages like 500mg, tablet/syrup/capsule units); \"budget_card\" if " +
+          "this is NOT an itemized purchase receipt at all but a bank/salary/wallet balance " +
+          "screenshot or summary card (account balance, salary deposit notice, monthly spending " +
+          "summary) — for this type `items` should be empty and `total` should be the single " +
+          "balance/salary figure shown, if any; \"general\" for non-grocery non-pharmacy " +
+          "itemized receipts (restaurants, fuel, services); otherwise \"grocery\". " +
           "Return ONLY a JSON object, no markdown and no commentary: " +
           "{\"total\":0.0,\"category\":\"\",\"storeName\":\"\",\"receiptType\":\"grocery\",\"items\":[{\"name\":\"\",\"price\":0.0,\"quantity\":1.0,\"unit\":\"قطعة\",\"category\":\"عام\"}]}";
         const userPrompt = "Extract the store name, the total paid, a spending category, the receipt type, and every line item from this receipt.";

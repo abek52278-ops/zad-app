@@ -684,6 +684,20 @@ private fun PharmacyItemGridCard(
     }
 }
 
+/** يعرض تاريخ الانتهاء بصيغة محلية ("٩ أغسطس ٢٠٢٦") بدل الـ ISO الخام المخزّن — نفس نمط
+ *  BudgetScreen's date formatting. الخام (yyyy-MM-dd) لما يترسم في حقل RTL بيختلط أرقامه
+ *  اللاتينية مع خط التسمية العربي بشكل مش متسق، وهو ده اللي بيبان كأنه "خط غلط". */
+private fun formatExpiryForDisplay(iso: String): String {
+    if (iso.isBlank()) return ""
+    return try {
+        LocalDate.parse(iso).format(
+            java.time.format.DateTimeFormatter.ofPattern("d MMMM yyyy", com.example.data.MarketPrefs.currentMarket.toLocale())
+        )
+    } catch (e: Exception) {
+        iso
+    }
+}
+
 @Composable
 private fun AddPharmacyItemDialog(
     familyMembers: List<com.example.data.FamilyMember>,
@@ -777,7 +791,8 @@ private fun AddPharmacyItemDialog(
                 }
 
                 OutlinedTextField(
-                    value = expiryDate, onValueChange = {}, readOnly = true,
+                    value = formatExpiryForDisplay(expiryDate), onValueChange = {}, readOnly = true,
+                    singleLine = true,
                     label = { Text(stringResource(R.string.expiry_date_hint)) },
                     placeholder = { Text(stringResource(R.string.pick_expiry_date_placeholder)) },
                     trailingIcon = { Icon(Icons.Default.CalendarMonth, contentDescription = null) },
@@ -947,7 +962,8 @@ private fun RefillPharmacyItemDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
-                    value = newExpiryDate, onValueChange = {}, readOnly = true,
+                    value = formatExpiryForDisplay(newExpiryDate), onValueChange = {}, readOnly = true,
+                    singleLine = true,
                     label = { Text(stringResource(R.string.expiry_date_hint)) },
                     placeholder = { Text(stringResource(R.string.pick_expiry_date_placeholder)) },
                     trailingIcon = { Icon(Icons.Default.CalendarMonth, contentDescription = null) },

@@ -371,6 +371,8 @@ interface AnalyzeReceiptResult {
   total: number;
   category: string;
   storeName: string;
+  // "pharmacy" | "grocery" | "general" — see zad-core-intelligence's analyze_receipt.
+  receiptType: string;
   items: Array<{ name: string; price: number; quantity: number; unit: string; category: string }>;
 }
 
@@ -697,6 +699,62 @@ bot.on("message:photo", async (ctx) => {
   });
   if (!result || (result.items.length === 0 && (!result.total || result.total <= 0))) {
     await ctx.reply("معلش، مقدرتش أقرا حاجة واضحة في الصورة دي — جرب صورة أوضح.");
+    return;
+  }
+
+  // كارت ميزانية/رصيد (سكرين شوت راتب أو رصيد حساب، مش فاتورة مقاضي فعلية): مفيش أصناف
+  // نحقنها، ومفيش مصروف نسجله — كتابة monthly_limit من رقم OCR بدون تأكيد صريح خطر (رقم
+  // غلط بيكسر كل حسابات الميزانية). أقصى حاجة آمنة: نعرض الرقم اللي اتقرا ونوجّه المستخدم
+  // يأكده بجملة عادية في الشات، اللي عنده مسار تأكيد فعلي بالفعل (voice_agent/chat actions).
+  if (result.receiptType === "budget_card") {
+    // مفيش مسار كتابة لـ monthly_limit من الشات/الصوت حالياً (check_budget قراءة بس) —
+    // مينفعش نعد المستخدم بأمر نصي بيسجلها، فبس نوضح إنها مش فاتورة ونوجهه للتطبيق.
+    const amountHint = result.total > 0
+      ? `قريت رقم ${result.total} في الصورة دي، بس شكلها كارت رصيد أو راتب مش فاتورة مقاضي — مقريتش منها أصناف. لو عايز تحدد ميزانيتك، ده من تطبيق زاد.`
+      : "الصورة دي شكلها كارت رصيد أو راتب مش فاتورة، فمقريتش منها أصناف.";
+    await ctx.reply(amountHint);
+    return;
+  }
+
+  // فاتورة صيدلية: كل صنف بيتحقن في zad_pharmacy_items بسعره الخاص، مش zad_inventory —
+  // نفس التصنيف والمنطق اللي في CameraScreen.kt (تطبيق الموبايل). كل صنف بيسجل مصروفه
+  // فوراً هنا (بدون زر تأكيد منفصل، زي حقن المخزون العادي تحت) عشان الفاتورة ماتتحسبش
+  // مرتين، فمفيش pending write لإجمالي الفاتورة في المسار ده.
+  if (result.receiptType === "pharmacy" && result.items.length > 0) {
+    let addedCount = 0;
+    for (const item of result.items) {
+      if (!item.name?.trim()) continue;
+      const qty = Number.isFinite(item.quantity) && item.quantity > 0 ? Math.round(item.quantity) : 1;
+      const { error } = await sb.from("zad_pharmacy_items").insert({
+        user_id: userId,
+        name: item.name.trim(),
+        remaining_quantity: qty,
+        unit: item.unit || "قرص",
+        price: item.price || 0,
+      });
+      if (error) {
+        console.error("photo pharmacy insert failed:", error);
+        continue;
+      }
+      addedCount++;
+      if (item.price > 0) {
+        const { error: txError } = await sb.from("zad_transactions").insert({
+          user_id: userId,
+          amount: item.price,
+          title: item.name.trim(),
+          category: "الرعاية الصحية",
+          is_expense: true,
+          txn_kind: "expense",
+          wallet: "card",
+        });
+        if (txError) console.error("photo pharmacy transaction insert failed:", txError);
+      }
+    }
+    await ctx.reply(
+      addedCount > 0
+        ? `✅ اتضاف ${addedCount} صنف للصيدلية${result.storeName ? ` من ${result.storeName}` : ""}.`
+        : "معلش، ملقتش أصناف واضحة في الصورة دي.",
+    );
     return;
   }
 
