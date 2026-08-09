@@ -324,7 +324,8 @@ fun ZadIntelligenceScreen(
                             inputText = ""
                         }
                     },
-                    onClearChat = { viewModel.clearChatHistory() }
+                    onClearChat = { viewModel.clearChatHistory() },
+                    onUndoCommit = { viewModel.undoInventoryCommit(it) }
                 )
             }
 
@@ -2029,7 +2030,8 @@ fun ChatSectionCard(
     listState: androidx.compose.foundation.lazy.LazyListState,
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
-    onClearChat: () -> Unit
+    onClearChat: () -> Unit,
+    onUndoCommit: (String) -> Unit
 ) {
     com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
         Column {
@@ -2059,7 +2061,8 @@ fun ChatSectionCard(
                         listState = listState,
                         onInputChange = onInputChange,
                         onSend = onSend,
-                        onClearChat = onClearChat
+                        onClearChat = onClearChat,
+                        onUndoCommit = onUndoCommit
                     )
                 }
             }
@@ -2076,7 +2079,8 @@ fun ChatTab(
     listState: androidx.compose.foundation.lazy.LazyListState,
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
-    onClearChat: () -> Unit = {}
+    onClearChat: () -> Unit = {},
+    onUndoCommit: (String) -> Unit = {}
 ) {
     val quickPrompts = listOf(
         Icons.Default.Restaurant to stringResource(R.string.quick_prompt_recipe),
@@ -2164,7 +2168,9 @@ fun ChatTab(
                 }
             }
 
-            items(messages, key = { it.id }) { msg -> ZadIntChatBubble(msg) }
+            items(messages, key = { it.id }) { msg ->
+                ZadIntChatBubble(msg, onUndo = onUndoCommit)
+            }
 
             if (isTyping) {
                 item { ZadIntTypingIndicator() }
@@ -2203,7 +2209,7 @@ fun ChatTab(
 }
 
 @Composable
-private fun ZadIntChatBubble(msg: AiChatMessage) {
+private fun ZadIntChatBubble(msg: AiChatMessage, onUndo: (String) -> Unit = {}) {
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = if (msg.isUser) Alignment.CenterEnd else Alignment.CenterStart
@@ -2229,6 +2235,21 @@ private fun ZadIntChatBubble(msg: AiChatMessage) {
                     Spacer(modifier = Modifier.height(4.dp))
                 }
                 Text(msg.text, color = if (msg.isUser) Color.White else onSurface, style = Typography.bodyMedium)
+                // كتابة فعلية حصلت في المخزون — الزرار ده بيرجّعها. موجود جوه نفس
+                // الفقاعة عشان التراجع يبقى في نفس مكان التأكيد، من غير ما المستخدم
+                // يضطر يفتح شاشة المخزون ويصلّح بإيده.
+                msg.undoableCommitId?.let { commitId ->
+                    Spacer(modifier = Modifier.height(4.dp))
+                    TextButton(
+                        onClick = { onUndo(commitId) },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        modifier = Modifier.heightIn(min = 44.dp)
+                    ) {
+                        Icon(Icons.Default.Undo, contentDescription = null, modifier = Modifier.size(16.dp), tint = primary)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(stringResource(R.string.chat_undo_action), style = Typography.labelMedium, color = primary)
+                    }
+                }
             }
         }
     }

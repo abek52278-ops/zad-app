@@ -549,6 +549,12 @@
     <string name="tx_edit_category_label">الفئة</string>
     <string name="tx_edit_cd">تعديل العملية</string>
     <string name="tx_delete_cd">حذف العملية</string>
+    <string name="chat_undo_action">تراجع</string>
+    <string name="budget_gate_market_label">الدولة والعملة</string>
+    <string name="budget_gate_change_market">تغيير</string>
+    <string name="budget_gate_amount_label">سقف الصرف الشهري</string>
+    <string name="budget_gate_start_action">لنبدأ</string>
+    <string name="inventory_edit_title">تعديل الصنف</string>
     <string name="stress_test_coverage_unknown">أيام التغطية لم تُحسب بعد</string>
     <string name="stress_test_coverage_unknown_hint">لا توجد مصروفات مسجلة كافية لحساب معدل صرفك اليومي. سجّل مصروفاتك بضعة أيام وسنخبرك كم يكفيك رصيد الطوارئ.</string>
 

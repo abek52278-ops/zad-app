@@ -555,6 +555,12 @@
     <string name="tx_edit_category_label">Kategori</string>
     <string name="tx_edit_cd">İşlemi düzenle</string>
     <string name="tx_delete_cd">İşlemi sil</string>
+    <string name="chat_undo_action">Geri al</string>
+    <string name="budget_gate_market_label">Ülke ve para birimi</string>
+    <string name="budget_gate_change_market">Değiştir</string>
+    <string name="budget_gate_amount_label">Aylık harcama tavanı</string>
+    <string name="budget_gate_start_action">Başlayalım</string>
+    <string name="inventory_edit_title">Ürünü düzenle</string>
     <string name="stress_test_coverage_unknown">Kapsam günleri henüz hesaplanmadı</string>
     <string name="stress_test_coverage_unknown_hint">Günlük harcama hızınızı hesaplamak için yeterli kayıtlı gider yok. Birkaç gün giderlerinizi kaydedin, acil durum fonunuzun ne kadar yeteceğini söyleyelim.</string>
 

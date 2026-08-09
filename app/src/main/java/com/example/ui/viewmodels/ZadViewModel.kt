@@ -26,7 +26,14 @@ data class AiChatMessage(
     val id: String = java.util.UUID.randomUUID().toString(),
     val text: String,
     val isUser: Boolean,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    /**
+     * مش null يعني الرسالة دي بتأكد كتابة فعلية حصلت في المخزون، وينفع يتراجع عنها من
+     * زرار في نفس الفقاعة. مقصود إنه في الذاكرة بس (مش بيتخزن مع الرسالة): التراجع
+     * منطقي في نفس الجلسة، مش بعد ما التطبيق يتقفل ويتفتح والمخزون يكون اتغير من مسارات
+     * تانية (كاميرا، بوت، تشيك-إن).
+     */
+    val undoableCommitId: String? = null
 )
 
 private const val TAG = "ZadViewModel"
@@ -979,6 +986,68 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         return if (suffix.isBlank()) cleanText else "$cleanText\n\n$suffix"
     }
 
+    /**
+     * حالة المخزون قبل كتابة جاية من الشات، عشان زرار "تراجع" في نفس الفقاعة يقدر يرجّعها.
+     * [previousQuantities] = الكمية القديمة لكل صنف كان موجود قبل الإضافة؛ أي صنف مش
+     * فيها يبقى اتعمل جديد بالكتابة دي ولازم يتشال بالكامل عند التراجع.
+     */
+    private data class InventoryCommitSnapshot(
+        val itemNames: List<String>,
+        val previousQuantities: Map<String, Int>
+    )
+
+    private val undoableInventoryCommits = mutableMapOf<String, InventoryCommitSnapshot>()
+
+    /** بيتصوّر المخزون قبل الكتابة ويرجّع مُعرّف الكتابة عشان يتربط برسالة التأكيد. */
+    private fun beginUndoableInventoryCommit(items: List<ZadInventory>): String {
+        val commitId = java.util.UUID.randomUUID().toString()
+        val previous = mutableMapOf<String, Int>()
+        items.forEach { item ->
+            _inventory.value.firstOrNull {
+                com.example.data.InventoryFlowEngine.namesMatch(it.itemName, item.itemName)
+            }?.let { previous[item.itemName] = it.quantity }
+        }
+        undoableInventoryCommits[commitId] = InventoryCommitSnapshot(items.map { it.itemName }, previous)
+        return commitId
+    }
+
+    /**
+     * تراجع عن كتابة مخزون جات من الشات. الصنف اللي كان موجود بيرجع لكميته القديمة،
+     * والصنف اللي الكتابة دي أنشأته بيتشال.
+     *
+     * بيقرا المخزون الحالي وقت التراجع مش وقت الكتابة، فلو المستخدم عدّل الصنف بنفسه
+     * في الوقت ده، التراجع بيرجّع الكمية المسجّلة قبل الكتابة — وهو المقصود: "الغي اللي
+     * زاد عمله"، مش "ارجع بالزمن".
+     */
+    fun undoInventoryCommit(commitId: String) {
+        val snapshot = undoableInventoryCommits.remove(commitId) ?: return
+        viewModelScope.launch {
+            snapshot.itemNames.forEach { name ->
+                val current = _inventory.value.firstOrNull {
+                    com.example.data.InventoryFlowEngine.namesMatch(it.itemName, name)
+                } ?: return@forEach
+                val previousQty = snapshot.previousQuantities[name]
+                if (previousQty == null) {
+                    deleteInventory(current.id)
+                } else {
+                    val restored = current.copy(quantity = previousQty)
+                    dao.insertInventoryItem(restored)
+                    _inventory.value = _inventory.value.map { if (it.id == current.id) restored else it }
+                    if (!SupabaseRepo.upsertInventory(restored)) {
+                        com.example.data.SyncOutbox.enqueueInventoryUpsert(getApplication(), restored)
+                    }
+                }
+            }
+            // الرسالة بتفضل مكانها بس من غير زرار — عشان سجل المحادثة يبان فيه إن حاجة
+            // اتضافت واترجعت، مش تختفي كإنها معملتش.
+            _aiChatMessages.value = _aiChatMessages.value.map {
+                if (it.undoableCommitId == commitId) {
+                    it.copy(text = "↩️ اترجعنا عن الإضافة دي — المخزون زي ما كان.", undoableCommitId = null)
+                } else it
+            }
+        }
+    }
+
     /** سؤال تأكيد واحد لكل الأصناف اللي زاد فهمها من الرسالة، بأسمائها وكمياتها — عشان
      *  أي غلط في الفهم يبان قبل ما يتكتب، بنفس مبدأ مراجعة مسح الكاميرا. */
     private fun buildInventoryConfirmPrompt(items: List<ZadInventory>): String? {
@@ -1020,9 +1089,14 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         if (pending.isNotEmpty()) {
             pendingChatAddItems = emptyList()
             if (affirmativeReplyRegex.containsMatchIn(userText)) {
+                val commitId = beginUndoableInventoryCommit(pending)
                 injectScannedItems(pending)
                 val added = pending.joinToString("، ") { "${it.itemName} (${it.quantity})" }
-                val confirmMsg = AiChatMessage(text = "✅ تم، ضفنا $added للمخزون.", isUser = false)
+                val confirmMsg = AiChatMessage(
+                    text = "📦 اتضاف للمخزون: $added",
+                    isUser = false,
+                    undoableCommitId = commitId
+                )
                 _aiChatMessages.value = _aiChatMessages.value + confirmMsg
                 persistChatMessage(confirmMsg)
                 return
@@ -1482,6 +1556,28 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Task 19.0 — فعل مستخدم مباشر = تأكيد فوري. بيكتب monthly_limit، مش العمود الميت budget. */
+    /**
+     * الإعداد الأولي في خطوة واحدة (BudgetGateScreen): السوق والسقف مع بعض.
+     *
+     * السوق بيتكتب الأول عشان [updateBudget] يحسب ويعرض بالعملة الصح من أول لحظة. الكتابة
+     * دي مقصودة إنها تتكرر هنا حتى لو المستخدم اختار سوقه في شاشة ما قبل التسجيل: هناك
+     * مكانش في جلسة، فالرفع للسيرفر فشل بصمت وzad_users.currency فضلت null.
+     */
+    fun completeInitialSetup(budget: Double, market: Market) {
+        val context = getApplication<Application>()
+        val previous = MarketPrefs.getMarket(context)
+        if (previous != market) {
+            MarketPrefs.setMarket(context, market)
+        }
+        viewModelScope.launch {
+            if (!SupabaseRepo.syncMarketProfile(market.currencyCode, market.countryCode)) {
+                Log.e(TAG, "completeInitialSetup() market sync FAILED — queued for retry")
+                com.example.data.SyncOutbox.enqueueMarketProfile(context, market.currencyCode, market.countryCode)
+            }
+        }
+        updateBudget(budget)
+    }
+
     fun updateBudget(newBudgetRaw: Double) {
         val newBudget = newBudgetRaw.asMoney()
         viewModelScope.launch {
@@ -1872,6 +1968,38 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.d(TAG, "runAutoReplenish() → added ${added.size} items to shopping list")
             } catch (e: Exception) {
                 Log.e(TAG, "runAutoReplenish() FAILED: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * تعديل صنف مخزون قايم (الاسم/الكمية/الوحدة). قبل كده الكارت كان فيه زرار مسح بس،
+     * فتصحيح كمية غلط كان معناه مسح الصنف وإعادة إدخاله — وده بيضيّع معدل الاستهلاك
+     * المتعلّم للصنف ده معاه.
+     *
+     * الكمية الجديدة بتتسجّل كـ observation زي أي مصدر كمية تاني (مسح كاميرا، رد
+     * تشيك-إن)، عشان معدل الاستهلاك يتعلم من تصحيح المستخدم بدل ما يتجاهله.
+     */
+    fun updateInventoryItem(item: ZadInventory, newName: String, newQuantity: Int, newUnit: String?) {
+        viewModelScope.launch {
+            val updated = item.copy(
+                itemName = newName.trim().ifBlank { item.itemName },
+                quantity = newQuantity.coerceIn(0, 9999),
+                unit = newUnit?.trim()?.ifBlank { null } ?: item.unit
+            )
+            Log.d(TAG, "updateInventoryItem() → id=${item.id}, qty=${updated.quantity}")
+            dao.insertInventoryItem(updated)
+            _inventory.value = _inventory.value.map { if (it.id == item.id) updated else it }
+
+            if (!SupabaseRepo.upsertInventory(updated)) {
+                com.example.data.SyncOutbox.enqueueInventoryUpsert(getApplication(), updated)
+            }
+            if (updated.quantity != item.quantity) {
+                if (!SupabaseRepo.recordInventoryObservation(updated.itemName, updated.quantity, "manual_edit")) {
+                    com.example.data.SyncOutbox.enqueueInventoryObservation(
+                        getApplication(), updated.itemName, updated.quantity, "manual_edit"
+                    )
+                }
             }
         }
     }

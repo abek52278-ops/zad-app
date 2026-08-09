@@ -119,7 +119,11 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
     val budgetLoaded by viewModel.budgetLoaded.collectAsState()
     val budgetConfirmedForGate by viewModel.budgetConfirmed.collectAsState()
     if (!kidsModeEffective && budgetLoaded && !budgetConfirmedForGate) {
-        com.example.ui.screens.BudgetGateScreen(onSetBudget = { viewModel.updateBudget(it) })
+        com.example.ui.screens.BudgetGateScreen(onComplete = { budget, market ->
+            // البلد/العملة بتتكتبوا هنا كمان مش في شاشة اختيار السوق بس — دي أول نقطة
+            // مضمون فيها إن في جلسة، فالكتابة بتوصل السيرفر فعلاً والبوت يبطّل يسأل.
+            viewModel.completeInitialSetup(budget, market)
+        })
         return
     }
 

@@ -284,6 +284,30 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
   // فضل يشوف صفر معاملة في كل تشغيلة ويقول spent=0 / threat=SAFE وهو مطمّن.
   // دلوقتي أي مصدر بيفشل بيتسجل، وبيتحقن جوه الـ snapshot نفسه تحت data_errors عشان
   // الموديل يعرف إن نظرته ناقصة بدل ما يفسّر الفراغ على إنه "مفيش حاجة".
+  // اسم كل مصدر بالعربي زي ما العميل بيعرفه في التطبيق — مفيش اسم جدول بيوصل للموديل.
+  const SOURCE_LABELS: Record<string, string> = {
+    "zad_users": "إعدادات حسابك",
+    "zad_transactions": "معاملاتك المالية",
+    "zad_inventory": "مخزون البيت",
+    "zad_subscriptions": "اشتراكاتك",
+    "zad_pharmacy_items": "أدوية الصيدلية",
+    "zad_shopping_list": "قائمة التسوق",
+    "zad_consumption": "معدلات استهلاكك",
+    "zad_memory": "اللي زاد اتعلمه عنك",
+    "zad_insights.dismissed": "التنبيهات اللي رفضتها",
+    "zad_brain_self_review": "مراجعة زاد لنفسه",
+    "zad_insights.asked": "الأسئلة المعلقة",
+    "zad_memory.self": "ملاحظات زاد عن نفسه",
+    "zad_cash_balance": "رصيد الكاش",
+    "zad_insights.cash_asked": "أسئلة الكاش المعلقة",
+    "zad_obligations": "التزاماتك الثابتة",
+    "zad_debts": "ديونك",
+    "zad_maintenance_items": "صيانة البيت",
+    "user_behavior_profile": "ملف سلوكك في الصرف",
+    "app_notifications": "الإشعارات اللي اتبعتت",
+    "zad_dose_log": "سجل جرعات الدوا",
+  };
+
   const sources: Array<[string, { error?: unknown } | null]> = [
     ["zad_users", userRes], ["zad_transactions", txRes], ["zad_inventory", invRes],
     ["zad_subscriptions", subRes], ["zad_pharmacy_items", pharmRes], ["zad_shopping_list", shopRes],
@@ -294,13 +318,20 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     ["zad_debts", debtRes], ["zad_maintenance_items", maintRes],
     ["user_behavior_profile", behaviorRes], ["app_notifications", notifRes], ["zad_dose_log", doseRes],
   ];
-  const dataErrors: Array<{ source: string; message: string }> = [];
+  const dataErrors: Array<{ source: string }> = [];
   for (const [name, res] of sources) {
     const err = (res as any)?.error;
     if (err) {
       const message = String(err.message ?? err);
+      // اللوج بياخد الاسم التقني والرسالة الكاملة — ده اللي بيتصلح بيه العطل.
       console.error(`[zad-brain] SNAPSHOT SOURCE FAILED: ${name} — ${message}`);
-      dataErrors.push({ source: name, message });
+      // الـ snapshot بياخد اسم بالعربي للعميل، من غير اسم جدول ولا رسالة Postgres.
+      // السبب: الموديل مأمور إنه يصدر emit_insight لما يلاقي data_errors، والرؤية دي
+      // بتوصل للعميل في الجرس والصفحة الرئيسية. لما كان بيشوف "zad_users" كان بيكتبها
+      // حرفياً، فالعميل كان بيقرا "خطأ تحميل جدولي zad_users والعملة" — رسالة مالهاش
+      // معنى بالنسبة له ومش هيقدر يعمل بيها حاجة. مفيش سبب يخلي الموديل يشوف الاسم
+      // التقني أصلاً: هو محتاج يعرف *أنهي جزء* من صورته ناقص، مش اسم الجدول.
+      dataErrors.push({ source: SOURCE_LABELS[name] ?? name });
     }
   }
 
@@ -857,7 +888,7 @@ function buildSystemPrompt(snap: any): string {
 - كل حاجة تقولها في ردك النصي إنك عملتها لازم يكون فعلاً نداء أداة حقيقي في نفس الرد — مينفعش تقول "سجلت/عدّلت/ضفت" من غير ما تنادي الأداة المقابلة فعلاً.
 - أي تحذير أو رؤية عن الميزانية لازم يبني على available (رقم "متاح")، مش remaining — remaining بيتجاهل الالتزامات الثابتة القادمة (إيجار/قسط/اشتراكات)، available هو اللي بيحسبها.
 - dismissal_reasons جوه الـ snapshot بيقولك ليه العميل رفض حاجة قبل كده: wrong_data معناها الرقم/البيانات غلط فعلاً — لو شايف نفس الموضوع تاني، ماتفترضش إنه صح من غير سبب جديد. not_relevant معناها الموضوع مش مهم له، مش إن البيانات غلط — منفعش تتوقف عن رصد نفس النوع في مواضيع تانية بس عشان ده اتقفل.
-- **data_errors**: لو المصفوفة دي مش فاضية، يبقى فيه مصادر فشل تحميلها — البيانات بتاعتها **مجهولة مش فاضية**. ممنوع منعاً باتاً تبني أي رقم أو تحذير على مصدر موجود في data_errors. مثال: لو zad_transactions فيها، يبقى spent=0 و remaining=البادجت كله أرقام كاذبة، مينفعش تقول "مصرفتش حاجة الشهر ده". في الحالة دي نادِ emit_insight بـ priority="low" تقول فيها إن جزء من البيانات ماوصلش وإيه اللي مقدرتش تحلله وليه، وماتصدرش أي تحذير مالي تاني في التشغيلة دي.
+- **data_errors**: لو المصفوفة دي مش فاضية، يبقى فيه مصادر فشل تحميلها — البيانات بتاعتها **مجهولة مش فاضية**. ممنوع منعاً باتاً تبني أي رقم أو تحذير على مصدر موجود في data_errors. مثال: لو "معاملاتك المالية" فيها، يبقى spent=0 و remaining=البادجت كله أرقام كاذبة، مينفعش تقول "مصرفتش حاجة الشهر ده". في الحالة دي نادِ emit_insight بـ priority="low" تقول فيها إن جزء من البيانات ماوصلش وإيه اللي مقدرتش تحلله. **اكتبها بلغة العميل**: قول "مقدرتش أقرا معاملاتك دلوقتي، فأرقام الشهر ناقصة — هحاول تاني" ومتكتبش أي اسم تقني (اسم جدول، اسم عمود، رسالة خطأ، كود). العميل مش هيعرف يعمل حاجة باسم جدول، والرؤية دي بتظهرله في الجرس والصفحة الرئيسية.
 - الحد الأدنى لسداد الديون (debts[].min_payment) التزام ثابت زي الإيجار بالظبط — ممنوع تقترح تقليله أو تأجيله، وممنوع تحسب "متاح" وكأنه فلوس اختيارية.
 - notifications_sent هو اللي التطبيق قاله للعميل فعلاً آخر أسبوع (من مسارات تانية غيرك). لو موضوعك اتقال فيه بالفعل، ماتكررهوش — العميل شايفه أصلاً. read=false برضه بيتحسب اتقال.
 - behavior_profile أرقام محسوبة من معاملات حقيقية سيرفر-سايد. لو رقمك مختلف عنها اختلاف كبير، الغلط الأرجح عندك انت — راجع حسابك قبل ما تنبّه.
