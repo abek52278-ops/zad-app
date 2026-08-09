@@ -77,6 +77,12 @@ const MAX_AGENT_TURNS = 8;
 // حقيقي، ومحسوب على مجموع كل نداءات الموديل في اللفة دي (input+output).
 const MAX_AGENT_TOKENS_PER_RUN = 20000;
 
+// W4 — سقف استخدام يومي لكل مستخدم عبر قناة الشات (agent_turn). الخطر الأصلي اللي ده
+// بيحميه: ingestion تلقائي (إشعارات بنكية) ممكن يستهلك نداءات موديل بلا حدود لو بق
+// بلوب. env-configurable عشان يتغيّر من الإعدادات من غير نشر كود جديد.
+const DAILY_REQUEST_CAP = Number(Deno.env.get("ZAD_AGENT_DAILY_REQUEST_CAP") ?? "60");
+const DAILY_TOKEN_CAP = Number(Deno.env.get("ZAD_AGENT_DAILY_TOKEN_CAP") ?? "200000");
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -1430,6 +1436,22 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
   // الطلب، فأي قيمة غير معروفة بترجع للافتراضي بدل ما تتقبل عمياني وتكسر الـ CHECK.
   const declaredSource = body.source === "telegram" ? "telegram" as const : "app_chat" as const;
 
+  // W4 — بوابة السقف اليومي. اتحطت هنا قبل buildSnapshot/أي نداء موديل عن قصد: لو
+  // العميل واصل لسقفه، مفيش داعي نستهلك استعلامات أو توكنز إضافية أصلاً. usage_date في
+  // الجدول UTC (نفس افتراضي العمود)، فالمقارنة هنا بتستخدم نفس اليوم بالظبط.
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: usageRow } = await sb.from("agent_usage")
+    .select("request_count,input_tokens,output_tokens")
+    .eq("user_id", userId).eq("usage_date", today).maybeSingle();
+  if (usageRow && (usageRow.request_count >= DAILY_REQUEST_CAP ||
+      (usageRow.input_tokens + usageRow.output_tokens) >= DAILY_TOKEN_CAP)) {
+    return new Response(JSON.stringify({
+      ok: true,
+      reply: "وصلت لحد أقصى من طلباتي معاك النهاردة — عشان أفضل مستقر وما أستهلكش فوق طاقتي. جرب تاني بكرة 🙏",
+      executed: [], proposals: [], tool_attempted: false, rate_limited: true,
+    }), { headers: CORS_HEADERS });
+  }
+
   const snap = await buildSnapshot(sb, userId);
   const ctx: RunContext = freshContext(userId);
   const systemPrompt = buildChatSystemPrompt(snap);
@@ -1460,6 +1482,16 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
   const scope: AuditScope = { source: declaredSource, runId };
 
   const finishRun = async (status: "success" | "failed", error?: string) => {
+    // W4 — تسجيل الاستخدام مستقل عن runId (سقف الاستخدام مبني عليه، مش على
+    // zad_brain_runs)، وبيتسجل حتى لو صفر توكنز (لسه بيعدّ كطلب واحد ضد request_count).
+    // مايرميش لو فشل: فشل تسجيل الاستخدام ميصحش يكسر رد فعلي وصل للعميل بالفعل.
+    try {
+      await sb.rpc("zad_agent_usage_record", {
+        p_user: userId, p_input_tokens: inputTokens, p_output_tokens: outputTokens,
+      });
+    } catch (e) {
+      console.error("zad_agent_usage_record failed:", e);
+    }
     if (!runId) return;
     await sb.from("zad_brain_runs").update({
       status, finished_at: new Date().toISOString(),
