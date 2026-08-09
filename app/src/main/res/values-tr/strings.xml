@@ -1056,4 +1056,11 @@
     <string name="confirm_action_short">Onayla</string>
     <string name="affiliate_clicks_recorded">Zad, Amazon önerilerinde %1$d tıklama kaydetti</string>
     <string name="affiliate_withdraw_consent">Önerileri kapat</string>
+
+    <!-- W5 — Zad değişiklik günlüğü -->
+    <string name="agent_action_log_title">Zad değişiklik günlüğü</string>
+    <string name="agent_action_log_subtitle">Zad\'ın kaydettiği veya değiştirdiği her şey</string>
+    <string name="agent_action_log_empty_title">Henüz değişiklik yok</string>
+    <string name="agent_action_log_empty_subtitle">Zad\'ın kaydettiği veya değiştirdiği her şey burada görünür</string>
+    <string name="agent_action_log_undo">Geri al</string>
 </resources>

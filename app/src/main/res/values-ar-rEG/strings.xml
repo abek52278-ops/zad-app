@@ -1037,4 +1037,11 @@
     <string name="outing_suggestion_subtitle">الميزانية تمام — زاد عنده اقتراح ليك:</string>
     <string name="outing_suggestion_distance_km">%1$.1f كم منك</string>
     <string name="outing_suggestion_distance_m">%1$d م منك</string>
+
+    <!-- W5 — سجل تعديلات زاد -->
+    <string name="agent_action_log_title">سجل تعديلات زاد</string>
+    <string name="agent_action_log_subtitle">كل حاجة زاد سجّلها أو عدّلها لك</string>
+    <string name="agent_action_log_empty_title">لسه مفيش تعديلات</string>
+    <string name="agent_action_log_empty_subtitle">أي حاجة زاد يسجّلها أو يعدّلها هتظهر هنا</string>
+    <string name="agent_action_log_undo">تراجع</string>
 </resources>
