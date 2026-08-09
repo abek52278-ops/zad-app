@@ -533,7 +533,11 @@ object ZadAiRepository {
         val executed: List<AgentExecuted>,
         val proposals: List<AgentProposal>,
         /** الموديل حاول ينادي أداة (حتى لو اترفضت) — بيفرق عن رد كلام عادي. */
-        val toolAttempted: Boolean
+        val toolAttempted: Boolean,
+        /** لفة فشلت بعد ما نفّذت كتابات فعلاً. الوقوع على بروتوكول [[ACTION]] هنا بيكرر
+         *  نفس الكتابة، فده لازم يتعرض ويترفض معاملته كفشل عادي — حقل صريح بدل ما نستنتجه
+         *  من إن [executed]/[proposals] مش فاضيين. */
+        val partial: Boolean
     )
 
     /**
@@ -573,7 +577,8 @@ object ZadAiRepository {
                 reply = (response["reply"] as? String).orEmpty().trim(),
                 executed = executed,
                 proposals = proposals,
-                toolAttempted = response["tool_attempted"] == true
+                toolAttempted = response["tool_attempted"] == true,
+                partial = response["partial"] == true
             )
         } catch (e: Exception) {
             Log.e(TAG_REPO, "agentTurn() FAILED: ${e.message}")

@@ -57,6 +57,42 @@ private const val DEFAULT_BUDGET_SENTINEL = 3500.0
 private const val UNKNOWN_BUDGET = 0.0
 private var lastMealSuggestInventorySize = -1
 
+/**
+ * نص الرد اللي يتعرض من نتيجة `agent_turn`، أو `null` لو لازم نقع على بروتوكول
+ * `[[ACTION]]` القديم.
+ *
+ * `result.partial` بيتفحص صراحة بدل الاعتماد الضمني على `lines.isEmpty()` — من غيره،
+ * الحماية ضد تكرار الكتابة (نداء أول نفّذ فعلاً وبعدين فشل نداء تاني في نفس اللفة)
+ * كانت هتتبني على ضمان جانبي من السيرفر (إن partial:true دايماً بييجي مع executed أو
+ * proposals مش فاضيين) بدل عقد صريح بين الطرفين. مستخرجة كدالة top-level مستقلة عن
+ * الـ ViewModel عشان تتعمللها اختبار وحدة بدون الحاجة لـ Application/Room context.
+ */
+internal fun buildAgentTurnReply(result: com.example.data.ZadAiRepository.AgentTurnResult): String? {
+    val lines = mutableListOf<String>()
+    if (result.reply.isNotBlank()) lines += result.reply
+    result.executed.forEach { lines += "✅ ${it.summary}" }
+    if (result.proposals.isNotEmpty()) {
+        lines += buildString {
+            appendLine(if (result.proposals.size == 1) "🤔 أأكد ده؟" else "🤔 أأكد دول؟")
+            result.proposals.forEach { appendLine("• ${it.summary}") }
+            append("اكتب \"أيوه\" للتأكيد.")
+        }.trim()
+    }
+
+    if (result.partial) {
+        // لفة فشلت بعد ما نفّذت كتابات فعلاً — لازم تتعرض وترجع نص دايمًا، حتى لو
+        // نظريًا lines فضلت فاضية (مش ممكن دلوقتي لأن السيرفر بيضمن executed أو
+        // proposals مش فاضيين في حالة partial، بس ماتفرضش الضمان ده هنا).
+        if (lines.isEmpty()) lines += "✅ اتنفذ جزء من الطلب، بس معرفتش أكمل الرد."
+        return lines.joinToString("\n\n")
+    }
+
+    // مفيش رد ولا تنفيذ ولا اقتراح ولا partial — نتعامل معاها كفشل ونقع على المسار
+    // القديم بدل ما نعرض فقاعة فاضية.
+    if (lines.isEmpty()) return null
+    return lines.joinToString("\n\n")
+}
+
 class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val database = ZadDatabase.getDatabase(application)
     private val dao = database.zadDao()
@@ -1092,24 +1128,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
         val result = com.example.data.ZadAiRepository.agentTurn(userText, history) ?: return false
 
-        val lines = mutableListOf<String>()
-        if (result.reply.isNotBlank()) lines += result.reply
-        result.executed.forEach { lines += "✅ ${it.summary}" }
-
         pendingAgentProposals = result.proposals
-        if (result.proposals.isNotEmpty()) {
-            lines += buildString {
-                appendLine(if (result.proposals.size == 1) "🤔 أأكد ده؟" else "🤔 أأكد دول؟")
-                result.proposals.forEach { appendLine("• ${it.summary}") }
-                append("اكتب \"أيوه\" للتأكيد.")
-            }.trim()
-        }
+        val text = buildAgentTurnReply(result) ?: return false
 
-        // مفيش رد ولا تنفيذ — نتعامل معاها كفشل ونقع على المسار القديم بدل ما نعرض
-        // فقاعة فاضية.
-        if (lines.isEmpty()) return false
-
-        val msg = AiChatMessage(text = lines.joinToString("\n\n"), isUser = false)
+        val msg = AiChatMessage(text = text, isUser = false)
         _aiChatMessages.value = _aiChatMessages.value + msg
         persistChatMessage(msg)
         _companionState.value = com.example.ui.components.companionStateForMessage(msg.text)
