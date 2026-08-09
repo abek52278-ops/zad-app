@@ -1092,3 +1092,49 @@ Ran with `--no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx768m`: the contai
 second concurrent Claude Code session running its own Gradle build this session, which
 OOM-killed the daemon twice at default settings before the capped-memory retry succeeded.
 Pushed to `origin/main` (fast-forward, `5e9bf11..34ff482`).
+
+## Phase 2 — agent_turn unifies the three agents — steps 1-4 DONE, step 5 partial (2026-08-09)
+Based on `docs/agent/AGENT_GAP_ANALYSIS.md` (`269737f`): the app had three agents with
+three different execution mechanisms, and the only one with real tool calling
+(`zad-brain`) was the one the user never talked to. In-app chat and the Telegram bot now
+both go through the same `agent_turn`/`agent_confirm` endpoint instead of the old
+`[[ACTION]]` text protocol / separate intent-classifier prompts.
+
+- `ff76f01` — `agent_turn`/`agent_confirm` added to `zad-brain`, plus the seven missing
+  chat tools (`log_transaction`, `update_transaction`, `set_monthly_limit`,
+  `add_inventory_item` — distinct from `update_inventory_qty`, one refuses an item that
+  exists and the other refuses one that doesn't — `add_pharmacy_item`, `set_market`,
+  `query_family`). Money-writing tools (`CONFIRM_REQUIRED_TOOLS`) are guarded in the loop
+  itself, never by prompt instruction: they validate and return a proposal, they never
+  execute inside `agent_turn`. 70/70 Deno tests, `deno check` clean. Not deployed.
+- `19f10f1` — `ZadViewModel.sendAiChatMessage` calls `agent_turn` first; `[[ACTION]]`
+  stays only as a fallback for when that call fails. The visible reply is now built from
+  what tools actually returned (executed → ✅ lines, money → an explicit unconfirmed
+  proposal) instead of trusting the model's own prose. 186/186 Android tests. Not deployed.
+- `80ffea3` — the Telegram bot's three separate per-message model calls (spend classifier,
+  medication classifier, reply) collapsed into one `agent_turn` call with the full tool
+  set. The `telegram_pending_writes` confirm button is unchanged — same guard, new source.
+  128/128 Deno tests. Not deployed.
+- `df2faf1` — added `log_pharmacy_dose`, the last tool needed for `[[ACTION]]`'s four
+  legacy types to have a 1:1 replacement (found because `tryAgentTurn` returning `true`
+  on any successful reply means a missing tool fails *silently*, not as a visible gap).
+  A test now asserts every legacy `[[ACTION]]` type has an equivalent tool. 131/131 Deno,
+  186/186 Android.
+- `497ddec` — found while answering "what happens when `agent_turn` fails on a live
+  call": if turn 1 already executed writes and turn 2's `callModel` then threw, the
+  handler returned `ok:false` regardless, which makes the client fall back to
+  `[[ACTION]]` and can duplicate the write that already committed. Fixed: writes already
+  executed → `ok:true, partial:true` + the executed list (client renders it, does not
+  fall back); nothing executed → `ok:false` as before (safe, nothing to duplicate). Also
+  added durable `zad_brain_runs` logging per turn so a first-deploy failure is visible in
+  the table, not just in ephemeral function console logs. Same commit cleaned the
+  remaining `zad-ai-proxy` references in `DEPLOY.md`, `PROJECT_MAP.md`, `README.md`
+  (the directory itself was already gone before this phase started).
+
+**Deliberately not done (Phase 2-هـ, gated on live validation):** the `[[ACTION]]` text
+protocol in `ZadViewModel` and the Telegram bot's old `askZad` read-only path both stay
+as fallbacks. Every commit above says "Not deployed" — none of this has run against a
+live model yet, so removing the only path that has ever actually worked would be
+premature. Delete both only after `agent_turn` has proven itself on real traffic.
+
+Not deployed to Supabase as of this entry — committed to `origin/main` only.
