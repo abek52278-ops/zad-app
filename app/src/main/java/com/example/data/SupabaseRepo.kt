@@ -1594,6 +1594,41 @@ object SupabaseRepo {
         }
     }
 
+    @Serializable
+    private data class BudgetStateParams(
+        @SerialName("p_user") val user: String,
+        @SerialName("p_tz") val tz: String,
+    )
+
+    /**
+     * Phase 0 — the authoritative budget figures, shared with `zad-brain` and the Telegram
+     * bot (see [BudgetState] and migration `20260809120000_single_budget_authority.sql`).
+     *
+     * `p_tz` is the device's own zone, so the cycle window the server slices on is the same
+     * calendar day the customer is living in — including for a traveller, whose device zone
+     * is more current than the country stored on their profile.
+     *
+     * Returns null on any failure, and the caller keeps whatever [BudgetMath] derived from
+     * Room. That is deliberate: offline is the normal case for this app, not an error, and
+     * a screen that blanks its balance because a request timed out is worse than a screen
+     * showing the locally derived one.
+     */
+    suspend fun getBudgetState(): BudgetState? {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id ?: return null
+            val tz = java.time.ZoneId.systemDefault().id
+            val state = client.postgrest.rpc(
+                "zad_budget_state",
+                Json.encodeToJsonElement(BudgetStateParams(user = userId, tz = tz)).jsonObject
+            ).decodeAs<BudgetState>()
+            Log.d(TAG, "getBudgetState() → remaining=${state.remaining}, available=${state.available}, threat=${state.threat}, at=${state.computedAt}")
+            state
+        } catch (e: Exception) {
+            Log.e(TAG, "getBudgetState() FAILED: ${e.message}")
+            null
+        }
+    }
+
     /** Task 20 — (نافذة الساعات، نسبة التسامح٪) لبلد معين، أو null لو فشل/مش موجود */
     suspend fun getLocaleConfig(country: String): Pair<Int, Double>? {
         return try {

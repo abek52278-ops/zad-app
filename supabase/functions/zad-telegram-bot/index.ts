@@ -20,7 +20,7 @@ import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import {
   InlineKeyboardButton, mainMenuKeyboard, dismissKeyboard,
   reasonForCode, parseDismissCallback, normalizeBindingCode, memoryNoteForDismissal,
-  formatBalanceMessage, formatTransactionsMessage, formatInsightTitle,
+  formatBalanceMessage, type BudgetStateRow, formatTransactionsMessage, formatInsightTitle,
   confirmSpendKeyboard, parseSpendCallback,
   confirmMedicationKeyboard, parseMedicationCallback,
   checkInKeyboard, parseCheckInCallback, checkInPromptMessage,
@@ -248,11 +248,12 @@ async function fetchAgentContext(sb: SupabaseClient, userId: string): Promise<Ag
     .select("family_id").eq("user_id", userId).maybeSingle();
   const familyId = (myMembership as { family_id: string } | null)?.family_id ?? null;
 
-  const [user, txs, inv, subs, obligations, debts, pharmacy, shopping, insights, tasbiha, memory, family] = await Promise.all([
+  const [user, txs, inv, subs, obligations, debts, pharmacy, shopping, insights, tasbiha, memory, family, budget] = await Promise.all([
     sb.from("zad_users").select("name,monthly_limit,currency,country").eq("id", userId).maybeSingle(),
-    // Pull a deep-enough window (200 newest) rather than just the 30 the prompt shows:
-    // monthTotals/categoryBreakdown run over this same list, so a heavy month with more
-    // than 30 transactions would otherwise report totals that are silently too low.
+    // The 200-newest window is what the prompt's "آخر 30 معاملة" section is sliced from.
+    // It is no longer what any total is computed over — totals come from the RPC below,
+    // which sees every row regardless of this limit, so a heavy month can no longer
+    // silently under-report.
     sb.from("zad_transactions").select("title,amount,txn_kind,category,created_at")
       .eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
     sb.from("zad_inventory").select("item_name,quantity,unit,expiry_date").eq("user_id", userId).limit(60),
@@ -267,11 +268,19 @@ async function fetchAgentContext(sb: SupabaseClient, userId: string): Promise<Ag
     familyId
       ? sb.from("family_members").select("role,alias,balance,savings_goal").eq("family_id", familyId).limit(20)
       : Promise.resolve({ data: [] as unknown[] }),
+    // Phase 0 — the single authority for every budget figure the bot states. Shared with
+    // the app's own screens and with zad-brain; see
+    // migrations/20260809120000_single_budget_authority.sql.
+    sb.rpc("zad_budget_state", { p_user: userId }),
   ]);
+
+  if ((budget as any)?.error) {
+    console.error(`[zad-telegram-bot] zad_budget_state FAILED: ${String((budget as any).error.message ?? (budget as any).error)}`);
+  }
 
   return {
     userName: (user.data as any)?.name ?? null,
-    monthlyLimit: Number((user.data as any)?.monthly_limit) || 0,
+    budget: ((budget as any)?.data ?? null) as any,
     // "غير معروف" بدل "ر.س" — كان افتراض ميت خلّى البوت يرد على عميل في مصر "مفيش
     // ولا ريال" وهو فلوسه بالمصري. لو العمود موجود، قيمته الحقيقية (EGP/SAR/TRY)
     // هي اللي بتوصل من الكلاينت (MarketPrefs → syncMarketProfile).
@@ -880,22 +889,19 @@ bot.on("callback_query:data", async (ctx) => {
   const data = ctx.callbackQuery.data;
 
   if (data === "b") {
-    const { data: user } = await sb.from("zad_users")
-      .select("monthly_limit,limit_confirmed_at").eq("id", userId).maybeSingle();
-    const monthStart = new Date();
-    monthStart.setDate(1);
-    monthStart.setHours(0, 0, 0, 0);
-    const { data: txs } = await sb.from("zad_transactions")
-      .select("amount,txn_kind,created_at")
-      .eq("user_id", userId)
-      .gte("created_at", monthStart.toISOString());
-    const rows = (txs ?? []) as Array<{ amount: number; txn_kind: string }>;
-    const spent = rows.filter((t) => t.txn_kind === "expense").reduce((s, t) => s + t.amount, 0);
-    const income = rows.filter((t) => t.txn_kind === "income").reduce((s, t) => s + t.amount, 0);
-    // limit_confirmed_at IS NULL = captured but never confirmed (SupabaseRepo.getMonthlyLimit's
-    // own contract) — same false-budget bug as the realtime push trigger, don't show it.
-    const confirmedLimit = (user as any)?.limit_confirmed_at ? ((user as any)?.monthly_limit ?? 0) : 0;
-    await ctx.reply(formatBalanceMessage(confirmedLimit, spent, income));
+    // Phase 0 — the same RPC row the app's budget card and zad-brain read. This button
+    // used to run its own calendar-month sum AND blank the ceiling whenever
+    // limit_confirmed_at was null, which is null on accounts that do hold a real
+    // monthly_limit (AGENT_GAP_ANALYSIS.md §6) — so it told those customers their budget
+    // was 0. Both behaviours are gone: one query, one formula, salary-cycle aware.
+    const { data: state, error } = await sb.rpc("zad_budget_state", { p_user: userId });
+    if (error || !state) {
+      console.error(`[zad-telegram-bot] /balance zad_budget_state FAILED: ${String(error?.message ?? error)}`);
+      await ctx.reply("مقدرتش أحسب الرصيد دلوقتي — جرب تاني بعد شوية.");
+      return;
+    }
+    const { data: user } = await sb.from("zad_users").select("currency").eq("id", userId).maybeSingle();
+    await ctx.reply(formatBalanceMessage(state as BudgetStateRow, (user as any)?.currency ?? ""));
     return;
   }
 

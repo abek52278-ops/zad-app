@@ -259,6 +259,19 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val _cashOnHand = MutableStateFlow(0.0)
     val cashOnHand: StateFlow<Double> = _cashOnHand.asStateFlow()
 
+    /**
+     * Phase 0 — the server's authoritative figures, when they have arrived. Null means the
+     * app has not managed to reach `zad_budget_state()` yet (cold start, offline), and
+     * every flow above is showing the [BudgetMath] mirror computed from Room.
+     *
+     * Exposed mainly so a screen can show *when* the number was last agreed with the
+     * server. The individual flows (remaining/committed/available/…) are overwritten in
+     * place by [refreshBudgetState], so a screen reading `remainingBalance` gets the
+     * authoritative value without having to know whether it came from Room or Postgres.
+     */
+    private val _budgetState = MutableStateFlow<BudgetState?>(null)
+    val budgetState: StateFlow<BudgetState?> = _budgetState.asStateFlow()
+
     /** اقتراح تعديل الميزانية بناء على متوسط آخر شهرين مكتملين فعلياً — اقتراح بس، محتاج موافقة المستخدم، مفيش تطبيق تلقائي */
     private val _suggestedBudget = MutableStateFlow<Double?>(null)
     val suggestedBudget: StateFlow<Double?> = _suggestedBudget.asStateFlow()
@@ -1948,6 +1961,53 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         _daysLeftInCycle.value = CycleMath.daysLeft(asOf, cycleEnd)
 
         Log.d(TAG, "recalculateRemainingBalance → Budget: $currentBudget, Spent: $spent, Remaining: $remaining, Committed: $committed, Available: $available, Cash: ${_cashOnHand.value}")
+
+        // Everything above is the offline mirror: instant, Room-only, no network. Now ask
+        // the authority. See BudgetState's docblock for why both exist.
+        viewModelScope.launch { refreshBudgetState() }
+    }
+
+    /**
+     * Phase 0 — overwrite the locally derived figures with `zad_budget_state()`, the single
+     * authority shared with `zad-brain` and the Telegram bot.
+     *
+     * On failure this returns having changed nothing, so the screen keeps the [BudgetMath]
+     * numbers rather than blanking. Offline is the normal case here, not an error state.
+     *
+     * Any gap between the two is logged rather than silently smoothed over: a mirror that
+     * has drifted from the original is a bug in `BudgetMath.kt`, and the only way anyone
+     * finds out is if the disagreement is written down when it happens.
+     */
+    suspend fun refreshBudgetState() {
+        val state = SupabaseRepo.getBudgetState() ?: return
+        _budgetState.value = state
+
+        val localRemaining = _remainingBalance.value
+        val localAvailable = _availableFigure.value?.value
+        if (localRemaining != null && state.remaining != null && kotlin.math.abs(localRemaining - state.remaining) > 0.01) {
+            Log.w(TAG, "BUDGET DRIFT — BudgetMath said remaining=$localRemaining, zad_budget_state says ${state.remaining} (at ${state.computedAt}). The SQL is authoritative; BudgetMath.kt needs to match it.")
+        }
+        if (localAvailable != null && state.available != null && kotlin.math.abs(localAvailable - state.available) > 0.01) {
+            Log.w(TAG, "BUDGET DRIFT — BudgetMath said available=$localAvailable, zad_budget_state says ${state.available} (at ${state.computedAt}).")
+        }
+
+        _spentThisMonth.value = state.spent
+        _incomeThisCycle.value = state.income
+        _remainingBalance.value = state.remaining
+        _committed.value = state.committed
+        _cashOnHand.value = state.cashOnHand
+        _daysLeftInCycle.value = state.daysLeft
+        state.cycleStartDate()?.let { _cycleStart.value = it }
+        state.cycleEndDate()?.let { _cycleEnd.value = it }
+        // Task 27.1(a)'s confidence rule is unchanged — only its input moved to the server,
+        // which counts every unverified row in the cycle rather than only the synced ones.
+        _availableFigure.value = state.available?.let {
+            Figure(
+                value = it,
+                confident = state.unverifiedCount == 0,
+                reason = if (state.unverifiedCount > 0) "فيه ${state.unverifiedCount} معاملة من الدورة دي لسه ما اتأكدتش (رسايل بنكية أو مصادر تانية غير مباشرة)" else null
+            )
+        }
     }
 
     /** نسبة الجرعات اللي اتاخدت من إجمالي الجرعات المجدولة آخر 7 أيام — null لو مفيش بيانات كفاية */

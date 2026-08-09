@@ -42,6 +42,13 @@
 // 2026-08-02 additions to the snapshot (all previously invisible to the brain despite
 // existing in the DB): zad_debts, zad_maintenance_items, user_behavior_profile,
 // app_notifications (the outbound side — what the app already told the user), zad_dose_log.
+// 2026-08-09 (Phase 0): every money figure in the snapshot — budget, spent, income,
+// remaining, committed, available, velocity, threat, the cycle window and the per-category
+// split — is now READ from the zad_budget_state(p_user) RPC, not computed here. This file
+// must never recompute them again; the three surfaces (app, brain, Telegram bot) had three
+// disagreeing formulas and the customer could read three different "remaining" figures for
+// the same month. See migrations/20260809120000_single_budget_authority.sql for the rules
+// and for what each of the three used to get wrong.
 //
 // Validators (Task 16.1/16.2) live in validators.ts — untouched, still the sole gate
 // before any tool executes. Model adapter (STEP 0) lives in callModel.ts.
@@ -83,30 +90,15 @@ function isoWeekKey(d: Date): string {
   return `cash_reconciliation_${date.getUTCFullYear()}_w${weekNo}`;
 }
 
-// Task 25 (PRODUCT_PLAN.md) — دورة الراتب بدل الشهر التقويمي. مرآة مبسّطة لـ CycleMath.kt
-// (الكلاينت): نفس منطق anchoredDay/cycleStart/cycleEnd، لكن **من غير last_working_day
-// الفعلي** — هنا بيتعامل مع cycle_anchor='last_working_day' زي day_of_month بالظبط
-// (تبسيط متعمّد، السيرفر مش عارف سوق/عطلة نهاية أسبوع المستخدم زي ما الكلاينت عارف عن
-// طريق MarketPrefs). موثّق كفجوة معروفة، مش سهو — انظر PROGRESS.md.
-function anchoredDate(year: number, monthIndex: number, day: number): Date {
-  const lastDay = new Date(year, monthIndex + 1, 0).getDate();
-  return new Date(year, monthIndex, Math.min(day, lastDay));
-}
-
-function cycleBoundaries(now: Date, cycleStartDay: number | null): { start: Date; end: Date } {
-  if (cycleStartDay === null) {
-    return {
-      start: new Date(now.getFullYear(), now.getMonth(), 1),
-      end: new Date(now.getFullYear(), now.getMonth() + 1, 1),
-    };
-  }
-  const thisMonthAnchor = anchoredDate(now.getFullYear(), now.getMonth(), cycleStartDay);
-  const start = now < thisMonthAnchor
-    ? anchoredDate(now.getFullYear(), now.getMonth() - 1, cycleStartDay)
-    : thisMonthAnchor;
-  const end = anchoredDate(start.getFullYear(), start.getMonth() + 1, cycleStartDay);
-  return { start, end };
-}
+// Task 25 (PRODUCT_PLAN.md) — دورة الراتب بدل الشهر التقويمي.
+//
+// The TS mirror of CycleMath that used to live here (anchoredDate/cycleBoundaries) is
+// gone. It was documented as a deliberate simplification — it ignored last_working_day
+// and ran on the Deno runtime's UTC clock — but "deliberate" did not stop it being a
+// second answer to a question that must have one: the app and the brain disagreed about
+// which day the salary cycle started for anyone outside UTC or on a last_working_day
+// anchor. Both now read zad_cycle_bounds() in Postgres, which honours the anchor and the
+// account's own timezone (migration 20260809120000).
 
 // Task 26 (PRODUCT_PLAN.md) — dedupe_key محسوب هنا (مش من الموديل) نفس مبدأ isoWeekKey/
 // cycle_start_confirm_ فوق: مفتاح ثابت لكل (تاجر، مبلغ)، مش hash عشوائي، عشان upsert/رفض
@@ -123,30 +115,11 @@ interface ObligationRow {
   confirmed: boolean; active: boolean;
 }
 
-/**
- * الاستحقاق الجاي لالتزام — 'once' بيرجع due_date نفسه (لو فات، مش محسوب محجوز، افتراض
- * إنه اتدفع فعلاً). monthly/quarterly/yearly بتتحسب من due_day مع تقديم للشهر الجاي لو
- * فات، وبعدين خطوة الدورية (٣/١٢ شهر) لو لسه فات حتى بعد كده — تبسيط متعمد: مفيش
- * due_month في الجدول، فـ quarterly/yearly بيتعاملوا كـ"كل ما يجيله الشهر ده تاني" مش
- * ربع/سنة فلكية دقيقة. الحالة العملية الوحيدة اللي الاكتشاف التلقائي بينتجها هي monthly.
- */
-function nextDueDate(ob: ObligationRow, now: Date): Date | null {
-  if (ob.recurrence === "once") {
-    if (!ob.due_date) return null;
-    const d = new Date(ob.due_date);
-    return d < now ? null : d;
-  }
-  if (ob.due_day == null) return null;
-  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  let next = new Date(now.getFullYear(), now.getMonth(), Math.min(ob.due_day, lastDay));
-  const stepMonths = ob.recurrence === "quarterly" ? 3 : ob.recurrence === "yearly" ? 12 : 1;
-  while (next < now) {
-    const y = next.getFullYear(), m = next.getMonth() + stepMonths;
-    const ld = new Date(y, m + 1, 0).getDate();
-    next = new Date(y, m, Math.min(ob.due_day, ld));
-  }
-  return next;
-}
+// nextDueDate() moved to Postgres as zad_obligation_next_due() — same rules ('once' that
+// already passed is assumed paid; a recurring obligation with no due_day is refused
+// rather than guessed; quarterly/yearly step 3/12 months off due_day because the table
+// has no due_month), but now shared with the `committed` total instead of being a second
+// copy that could select a different set of obligations than the sum it sat next to.
 
 /**
  * تجميع مصاريف بنفس (تاجر، مبلغ) على ٣ شهور مختلفة على الأقل خلال آخر ٤ شهور = مرشح
@@ -216,7 +189,7 @@ function detectCycleStartDay(incomeTx: Array<{ created_at: string }>): number | 
 
 async function buildSnapshot(sb: SupabaseClient, userId: string) {
   const cashKey = isoWeekKey(new Date());
-  const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes, askedRes, selfMemRes, cashBalRes, cashAskedRes, obligRes, debtRes, maintRes, behaviorRes, notifRes, doseRes] =
+  const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes, askedRes, selfMemRes, cashBalRes, cashAskedRes, obligRes, debtRes, maintRes, behaviorRes, notifRes, doseRes, budgetRes] =
     await Promise.all([
       sb.from("zad_users").select("monthly_limit,cycle_start_day,cycle_anchor,currency,country").eq("id", userId).maybeSingle(),
       // `id` مضاف عشان set_transaction_category و update_transaction يقدروا يشاوروا على
@@ -278,6 +251,16 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
       // التزام الدوا — جرعات مجدولة آخر أسبوعين واتاخدت ولا لأ.
       sb.from("zad_dose_log").select("item_name,scheduled_at,taken_at")
         .eq("user_id", userId).gte("scheduled_at", new Date(Date.now() - 14 * 86400000).toISOString()),
+      // Phase 0 — every money figure below (budget/spent/remaining/committed/available/
+      // velocity/threat/cycle bounds/by-category) now comes from here and nowhere else.
+      // The brain used to compute all of it locally and disagreed with the app on three
+      // separate points: it dropped income from `remaining`, it treated a missing ceiling
+      // as zero (so a user with no budget got a permanent threat=OVER), and it read cycle
+      // boundaries in UTC while the client read them in the customer's own timezone.
+      // See migration 20260809120000_single_budget_authority.sql. No local fallback on
+      // purpose: a second formula here is exactly the defect this closed, so a failed RPC
+      // becomes a loud data_errors entry instead of a quietly different number.
+      sb.rpc("zad_budget_state", { p_user: userId }),
     ]);
 
   // ── الحاجة اللي خلّت كل ده يفضل مستخبي سنة ──────────────────────────────
@@ -309,6 +292,7 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     "user_behavior_profile": "ملف سلوكك في الصرف",
     "app_notifications": "الإشعارات اللي اتبعتت",
     "zad_dose_log": "سجل جرعات الدوا",
+    "zad_budget_state": "حساب ميزانيتك",
   };
 
   const sources: Array<[string, { error?: unknown } | null]> = [
@@ -320,6 +304,7 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     ["zad_insights.cash_asked", cashAskedRes], ["zad_obligations", obligRes],
     ["zad_debts", debtRes], ["zad_maintenance_items", maintRes],
     ["user_behavior_profile", behaviorRes], ["app_notifications", notifRes], ["zad_dose_log", doseRes],
+    ["zad_budget_state", budgetRes],
   ];
   const dataErrors: Array<{ source: string }> = [];
   for (const [name, res] of sources) {
@@ -338,30 +323,43 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     }
   }
 
-  // Task 19.0 — zad_users.budget كان بيتنقّص بمعاملة معاملة، فبيتقرا هنا وبيتطرح منه
-  // المصروف تاني (السطر تحت)، يعني الطرح بيحصل مرتين. monthly_limit سقف ثابت مايتلمسش
-  // إلا من فعل مستخدم مباشر.
-  const budget = userRes.data?.monthly_limit ?? 0;
   const transactions = txRes.data ?? [];
   const now = new Date();
 
-  // Task 25 — دورة الراتب بدل الشهر التقويمي. cycle_start_day=null يرجّع cycleBoundaries
-  // نفسها لحدود شهر تقويمي عادي (نفس السلوك القديم بالظبط)، فمفيش تغيير سلوك لمستخدم
-  // لسه ما اتكشفلوش دورة راتب.
+  // Phase 0 — the money figures are read, not computed. zad_budget_state() is the single
+  // authority (migration 20260809120000); BudgetMath.kt is its offline mirror on the
+  // device. Nothing below may re-derive `remaining`, `available`, `velocity`, `threat` or
+  // the cycle window from `transactions` — that is precisely how the app, the brain and
+  // the Telegram bot ended up showing three different numbers for the same month.
+  //
+  // budget = null means "no ceiling set", which is NOT zero: threat comes back as
+  // 'UNKNOWN' and every ceiling-dependent figure is null, instead of the old
+  // `0 - spent` that told a budget-less user they were over budget.
+  const budgetState = (budgetRes.data ?? {}) as Record<string, any>;
+  const budget: number | null = budgetState.monthly_limit ?? null;
+  const spent: number = budgetState.spent ?? 0;
+  const income: number = budgetState.income ?? 0;
+  const remaining: number | null = budgetState.remaining ?? null;
+  const dailyAllowanceLeft: number | null = budgetState.daily_allowance_left ?? null;
+  const velocity: number | null = budgetState.velocity ?? null;
+  const threat: string = budgetState.threat ?? "UNKNOWN";
+  const committed: number = budgetState.committed ?? 0;
+  const available: number | null = budgetState.available ?? null;
   const cycleStartDay: number | null = userRes.data?.cycle_start_day ?? null;
-  const { start: cycleStart, end: cycleEnd } = cycleBoundaries(now, cycleStartDay);
-  const cycleTx = transactions.filter((t) => new Date(t.created_at) >= cycleStart && new Date(t.created_at) < cycleEnd);
-  // Task 19.3 — txn_kind، مش is_expense. سحب ATM كان is_expense=true بس دلوقتي
-  // txn_kind="transfer" بعد الـ backfill، فمينفعش يتحسب مصروف تاني (نفس بق 19.1).
-  const spent = cycleTx.filter((t) => t.txn_kind === "expense").reduce((s, t) => s + t.amount, 0);
-  const remaining = budget - spent;
-
-  const cycleLengthDays = Math.round((cycleEnd.getTime() - cycleStart.getTime()) / 86400000);
-  const daysElapsedInCycle = Math.floor((now.getTime() - cycleStart.getTime()) / 86400000) + 1;
-  const daysLeftInCycle = Math.max(0, Math.round((cycleEnd.getTime() - now.getTime()) / 86400000));
-  const dailyAllowanceLeft = daysLeftInCycle > 0 ? remaining / daysLeftInCycle : remaining;
-  const velocity = budget > 0 ? spent / (budget * (daysElapsedInCycle / cycleLengthDays)) : 0;
-  const threat = remaining < 0 ? "OVER" : velocity > 1.3 ? "DANGER" : velocity > 1.05 ? "WATCH" : "SAFE";
+  // Dates, not Date objects: the boundaries are calendar days in the customer's timezone,
+  // and turning them back into UTC instants here would reintroduce the off-by-a-day the
+  // RPC exists to remove. `cycleTx` is only used for anomaly history and category-free
+  // slices below; the authoritative per-category split is budgetState.by_category.
+  const cycleStart: string = budgetState.cycle_start ?? new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const cycleEnd: string = budgetState.cycle_end ?? new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString().slice(0, 10);
+  const cycleLengthDays: number = budgetState.cycle_length_days ?? 30;
+  const daysElapsedInCycle: number = budgetState.days_elapsed ?? 1;
+  const daysLeftInCycle: number = budgetState.days_left ?? 0;
+  const cycleTx = transactions.filter((t) => {
+    const d = String(t.created_at).slice(0, 10);
+    return d >= cycleStart && d < cycleEnd;
+  });
+  const byCategory: Record<string, number> = budgetState.by_category ?? {};
 
   // لسه محتاج يتكتشف؟ بس لو مفيش cycle_start_day متسجل أصلاً — لو موجود بالفعل مفيش داعي
   // نقترح تاني (حتى لو معاملات الدخل الحديثة بتقترح يوم مختلف شوية، ده حساسية عادية
@@ -383,20 +381,18 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     }
   }
 
-  // Task 26 — الالتزامات الثابتة ورقم "متاح". committed بيجمع التزامات مؤكدة+نشطة
-  // مستحقة قبل نهاية الدورة + اشتراكات نشطة كذلك. available ممكن يبقى سالب —
-  // مقصود، إخفاؤه وراء صفر هو بالظبط أخطر حاجة ممكن الميزة دي تعملها (PRODUCT_PLAN).
+  // Task 26 — الالتزامات الثابتة ورقم "متاح". `committed`/`available` came from the RPC
+  // above; what is left here is only the *list* behind that total, which the RPC also
+  // returns so the itemisation and the sum can never disagree (they used to: this file
+  // filtered obligations with its own nextDueDate() and subscriptions without checking
+  // is_active, against a UTC cycleEnd).
   const obligationRows: ObligationRow[] = (obligRes.data ?? []) as ObligationRow[];
-  const obligationsCommitted = obligationRows
-    .filter((o) => o.confirmed)
-    .map((o) => ({ ...o, next_due: nextDueDate(o, now) }))
-    .filter((o): o is ObligationRow & { next_due: Date } => o.next_due !== null && o.next_due <= cycleEnd);
-  const subscriptionsCommitted = (subRes.data ?? [])
-    .filter((s) => s.renewal_date && new Date(s.renewal_date) <= cycleEnd);
-  const committed = obligationsCommitted.reduce((s, o) => s + o.amount, 0) +
-    subscriptionsCommitted.reduce((s, sub) => s + sub.amount, 0);
-  const available = remaining - committed;
-  const nextObligationDue = [...obligationsCommitted].sort((a, b) => a.next_due.getTime() - b.next_due.getTime())[0] ?? null;
+  const obligationsCommitted = (budgetState.committed_items ?? []) as Array<
+    { title: string; amount: number; kind: string; next_due: string }
+  >;
+  const nextObligationDue = (budgetState.next_obligation_due ?? null) as
+    | { title: string; amount: number; next_due: string }
+    | null;
 
   // اكتشاف التزام جديد (إيجار/قسط) — مرشح واحد بس في المرة، نفس مبدأ cycle_detection فوق.
   let obligationDetection: { needs_ask: boolean; title: string | null; amount: number | null; due_day: number | null; dedupe_key: string | null } = {
@@ -415,12 +411,9 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     };
   }
 
-  const byCategory: Record<string, number> = {};
-  for (const t of cycleTx) {
-    if (!t.is_expense) continue;
-    byCategory[t.category ?? "أخرى"] = (byCategory[t.category ?? "أخرى"] ?? 0) + t.amount;
-  }
-
+  // byCategory now comes from zad_budget_state (declared above). It used to be built here
+  // from is_expense while `spent` next to it used txn_kind, so an ATM withdrawal appeared
+  // in the category split but not in the total it was supposed to add up to.
   const ninetyDaysAgo = new Date(now.getTime() - 90 * 86400000);
   const historical = transactions.filter((t) => t.is_expense && new Date(t.created_at) >= ninetyDaysAgo);
   const byCategoryHistory: Record<string, number[]> = {};
@@ -463,19 +456,19 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
   return {
     // العملة والبلد دلوقتي من zad_users (بييجي من اختيار السوق في الكلاينت عبر
     // syncMarketProfile). "غير معروف" بدل افتراض ر.س — الموديل ممنوع يخترع عملة.
-    currency: userRes.data?.currency ?? "غير معروف",
-    country: userRes.data?.country ?? "غير معروف",
-    budget, spent, remaining, dailyAllowanceLeft, velocity, threat,
+    currency: budgetState.currency ?? userRes.data?.currency ?? "غير معروف",
+    country: budgetState.country ?? userRes.data?.country ?? "غير معروف",
+    budget, spent, income, remaining, dailyAllowanceLeft, velocity, threat,
+    // Phase 0 — the stamp every surface renders alongside the figure. Two screens showing
+    // different numbers is then a stale-cache question (different computed_at), not an
+    // unanswerable "which formula ran where".
+    computed_at: budgetState.computed_at ?? null,
     // Task 26 — رقم "متاح" (available). كل تحذير/رؤية عن الميزانية لازم يبني على ده مش
     // على remaining — remaining بيتجاهل الالتزامات الثابتة (إيجار/قسط/اشتراكات) القادمة
     // قبل نهاية الدورة، فبيدي إحساس أمان كاذب.
     available, committed,
-    obligations: obligationsCommitted.map((o) => ({
-      title: o.title, amount: o.amount, kind: o.kind, next_due: o.next_due.toISOString().slice(0, 10),
-    })),
-    next_obligation: nextObligationDue
-      ? { title: nextObligationDue.title, amount: nextObligationDue.amount, next_due: nextObligationDue.next_due.toISOString().slice(0, 10) }
-      : null,
+    obligations: obligationsCommitted,
+    next_obligation: nextObligationDue,
     // اكتشاف التزام جديد لسه محتاج تأكيد — انظر تعليمات confirm_obligation تحت.
     obligation_detection: obligationDetection,
     // Task 25 — دورة الراتب. cycle_start_day=null يعني cycle_start/cycle_end دول حدود شهر
@@ -483,10 +476,15 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     cycle: {
       start_day: cycleStartDay,
       anchor: userRes.data?.cycle_anchor ?? "day_of_month",
-      cycle_start: cycleStart.toISOString().slice(0, 10),
-      cycle_end: cycleEnd.toISOString().slice(0, 10),
+      cycle_start: cycleStart,
+      cycle_end: cycleEnd,
+      length_days: cycleLengthDays,
       days_elapsed: daysElapsedInCycle,
       days_left: daysLeftInCycle,
+      // The timezone the boundaries were resolved in — derived from the account's country,
+      // not from the Deno runtime's UTC clock, which is what used to shift the cycle edge
+      // by a day relative to what the app showed.
+      timezone: budgetState.timezone ?? "UTC",
     },
     // اقتراح دورة راتب لسه محتاج تأكيد العميل — انظر تعليمات confirm_cycle_start تحت.
     // suggested_day=null يعني مفيش تجمّع دخل واضح لسه (بيانات مش كفاية، أو دخل غير منتظم).
@@ -704,7 +702,8 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
     case "confirm_cycle_start": {
       // Task 25 — بعد ما العميل يأكد "أيوة" على سؤال cycle_start_confirm. cycle_anchor
       // بيفضل 'day_of_month' (الافتراضي) دايماً هنا — الاكتشاف هنا بيقترح يوم بس، مش نوع
-      // anchor، وده مقصود يفضل بسيط (انظر تعليق cycleBoundaries فوق).
+      // anchor، وده مقصود يفضل بسيط. الحدود نفسها بتتحسب في zad_cycle_bounds() في
+      // Postgres، واللي بتحترم last_working_day لو العميل ظبطه من الإعدادات.
       const { error } = await sb.from("zad_users").update({ cycle_start_day: input.cycle_start_day }).eq("id", userId);
       if (error) return `فشل حفظ دورة الراتب: ${error.message}`;
       ctx.mutationCount++;

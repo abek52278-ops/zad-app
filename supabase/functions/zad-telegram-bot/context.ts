@@ -22,9 +22,32 @@ export interface AgentTasbiha { garden_name: string; tree_emoji: string; level: 
 export interface AgentMemory { scope: string; note: string }
 export interface AgentFamilyMember { role: string | null; alias: string | null; balance: number | null; savings_goal: number | null }
 
+/** The zad_budget_state(p_user) row, verbatim. Every money figure the bot states about
+ * the customer's budget comes from here and is never recomputed — see
+ * migrations/20260809120000_single_budget_authority.sql. Null when the RPC failed, in
+ * which case the prompt says so instead of quietly substituting a locally-derived total.
+ * `monthly_limit`/`remaining`/`available` are themselves null when no ceiling is set:
+ * that is "غير معروف", not zero. */
+export interface AgentBudgetState {
+  monthly_limit: number | null;
+  spent: number;
+  income: number;
+  remaining: number | null;
+  committed: number;
+  available: number | null;
+  cash_on_hand: number;
+  cycle_start: string;
+  cycle_end: string;
+  days_left: number;
+  daily_allowance_left: number | null;
+  threat: string;
+  by_category: Record<string, number>;
+  computed_at: string;
+}
+
 export interface AgentContextInput {
   userName: string | null;
-  monthlyLimit: number;
+  budget: AgentBudgetState | null;
   currency: string;
   country: string | null;
   today: string;
@@ -82,38 +105,22 @@ export function isolate(value: string | number): string {
   return `⁨${value}⁩`;
 }
 
-/** Calendar-month totals. Deliberately NOT the app's cycle-aware "available" figure —
- * salary-cycle boundaries (Task 25/26) live in the Kotlin client's BudgetMath, and
- * re-deriving them here from partial data would produce a number that silently
- * disagrees with the app. The reply labels this as calendar-month on purpose. */
-export function monthTotals(txs: AgentTx[], today: string): { spent: number; income: number } {
-  const month = today.slice(0, 7);
-  let spent = 0, income = 0;
-  for (const t of txs) {
-    if (!t.created_at || t.created_at.slice(0, 7) !== month) continue;
-    if (t.txn_kind === "expense") spent += t.amount;
-    else if (t.txn_kind === "income") income += t.amount;
-  }
-  return { spent, income };
-}
-
-export function categoryBreakdown(txs: AgentTx[], today: string): Array<{ category: string; total: number }> {
-  const month = today.slice(0, 7);
-  const byCat = new Map<string, number>();
-  for (const t of txs) {
-    if (t.txn_kind !== "expense" || !t.created_at || t.created_at.slice(0, 7) !== month) continue;
-    const key = t.category?.trim() || "أخرى";
-    byCat.set(key, (byCat.get(key) ?? 0) + t.amount);
-  }
-  return [...byCat.entries()]
+/** Phase 0 — the per-category split, ordered biggest first for the prompt. The amounts
+ * themselves are not computed here: they arrive already summed by zad_budget_state(),
+ * over the same cycle window and the same txn_kind filter as `spent`. The old local
+ * monthTotals()/categoryBreakdown() pair used calendar months while the app used the
+ * salary cycle, so the bot answered "المتبقي" with a different number than the screen
+ * the customer had just been looking at. */
+export function categoryBreakdown(byCategory: Record<string, number>): Array<{ category: string; total: number }> {
+  return Object.entries(byCategory)
     .map(([category, total]) => ({ category, total }))
     .sort((a, b) => b.total - a.total);
 }
 
 export function buildAgentContext(input: AgentContextInput): string {
   const c = input.currency;
-  const { spent, income } = monthTotals(input.transactions, input.today);
-  const cats = categoryBreakdown(input.transactions, input.today);
+  const b = input.budget;
+  const cats = categoryBreakdown(b?.by_category ?? {});
 
   const section = (title: string, body: string, empty: string) =>
     `=== ${title} ===\n${body.trim() || empty}`;
@@ -174,10 +181,24 @@ export function buildAgentContext(input: AgentContextInput): string {
     section("معلومات العميل",
       `الاسم: ${input.userName ?? "مستخدم"} | التاريخ اليوم: ${input.today}\n` +
       `البلد: ${input.country ?? "غير معروف"} | العملة: ${input.currency}\n` +
-      `الميزانية الشهرية: ${money(input.monthlyLimit, c)}\n` +
-      `مصروف الشهر التقويمي: ${money(spent, c)} | دخل الشهر: ${money(income, c)}\n` +
-      `المتبقي بحساب الشهر التقويمي: ${money(input.monthlyLimit - spent + income, c)}`, ""),
-    section("مصروف الشهر حسب الفئة", catText, "لا يوجد مصروف مسجل هذا الشهر."),
+      (b
+        // Identical wording and identical numbers to what the app's own screen shows —
+        // both sides render the one zad_budget_state() row. "متاح" (after fixed
+        // obligations) is stated before "متبقي" deliberately: it is the number the
+        // customer can actually act on, and it may legitimately be negative.
+        ? `دورة الراتب الحالية: من ${b.cycle_start} لحد ${b.cycle_end} (فاضل ${b.days_left} يوم)\n` +
+          `الميزانية الشهرية: ${b.monthly_limit === null ? "غير محددة" : money(b.monthly_limit, c)}\n` +
+          `مصروف الدورة: ${money(b.spent, c)} | دخل الدورة: ${money(b.income, c)}\n` +
+          `المتبقي: ${b.remaining === null ? "غير معروف (مفيش سقف متسجل)" : money(b.remaining, c)}\n` +
+          `المحجوز (التزامات + اشتراكات): ${money(b.committed, c)}\n` +
+          `المتاح الفعلي: ${b.available === null ? "غير معروف (مفيش سقف متسجل)" : money(b.available, c)}\n` +
+          `كاش تحت اليد: ${money(b.cash_on_hand, c)}\n` +
+          `محسوب في: ${b.computed_at}`
+        // Loud, not silently zero. A missing figure must read as missing so the model asks
+        // instead of asserting a total it does not have.
+        : "أرقام الميزانية مش متاحة دلوقتي — متقولش أي رقم عن الميزانية أو المتبقي، وقول للعميل إن الحساب مش راضي يتحمّل."),
+      ""),
+    section("مصروف الدورة حسب الفئة", catText, "لا يوجد مصروف مسجل في الدورة الحالية."),
     section("آخر 30 معاملة", txText, "لا توجد معاملات."),
     section("الالتزامات", obText, "لا توجد التزامات مسجلة."),
     section("الديون وخطة السداد", debtText, "لا توجد ديون مسجلة."),

@@ -119,12 +119,41 @@ export function checkInPromptMessage(itemName: string): string {
   return `تذكير سريع: ${itemName} لسه موجود عندك ولا خلص؟`;
 }
 
-export function formatBalanceMessage(budget: number, spent: number, income: number): string {
-  const remaining = budget - spent + income;
-  // "الرصيد المتبقي" هنا شهر تقويمي بسيط عمدًا — مش نفس "متاح" اللي في التطبيق (دورة
-  // راتب + التزامات ثابتة، BudgetMath.availableInCycle/buildSnapshot's available). دمج
-  // نفس الحساب هنا محتاج استخراج المنطق لموديول مشترك، مؤجل عمدًا — انظر PROGRESS.md.
-  return `الرصيد المتبقي الشهر ده: ${remaining.toFixed(2)}\n(الميزانية: ${budget.toFixed(2)} — المصروف: ${spent.toFixed(2)})`;
+/** The zad_budget_state() row this button renders. Only the fields the message uses. */
+export interface BudgetStateRow {
+  monthly_limit: number | null;
+  spent: number;
+  remaining: number | null;
+  committed: number;
+  available: number | null;
+  days_left: number;
+}
+
+/**
+ * Phase 0 — a renderer, not a calculator. It used to take (budget, spent, income) and do
+ * `budget - spent + income` over a calendar month, which is not the figure the app shows:
+ * the app is salary-cycle aware and subtracts fixed obligations to reach "المتاح". The
+ * customer could therefore read one number in the app and a different one in Telegram for
+ * the same day. Every value here now arrives already computed by zad_budget_state().
+ *
+ * A null ceiling prints "مش محدد" — never 0. Telling someone with no budget set that they
+ * have 0 left is a different (and worse) statement than telling them it is unknown.
+ */
+export function formatBalanceMessage(s: BudgetStateRow, currency: string): string {
+  const unit = currency && currency !== "غير معروف" ? ` ${currency}` : "";
+  const fmt = (n: number | null) => n === null ? "غير معروف" : `${n.toFixed(2)}${unit}`;
+  if (s.monthly_limit === null) {
+    return [
+      `مصروف الدورة دي: ${fmt(s.spent)}`,
+      "الميزانية الشهرية مش محددة، فمقدرش أقولك فاضل كام.",
+      "ظبّطها من التطبيق وأنا أحسبهالك.",
+    ].join("\n");
+  }
+  return [
+    `المتاح الفعلي: ${fmt(s.available)}`,
+    `(الميزانية: ${fmt(s.monthly_limit)} — المصروف: ${fmt(s.spent)} — المحجوز لالتزامات: ${fmt(s.committed)})`,
+    `المتبقي قبل خصم الالتزامات: ${fmt(s.remaining)} — فاضل ${s.days_left} يوم في الدورة.`,
+  ].join("\n");
 }
 
 export function formatTransactionsMessage(txs: Array<{ title: string; amount: number; txn_kind: string; created_at: string | null }>): string {

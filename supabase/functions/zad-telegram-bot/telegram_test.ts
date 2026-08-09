@@ -65,9 +65,28 @@ Deno.test("memoryNoteForDismissal returns null for an unknown reason", () => {
   assertEquals(memoryNoteForDismissal("snoozed", "x"), null);
 });
 
-Deno.test("formatBalanceMessage computes remaining as budget minus spent plus income", () => {
-  const msg = formatBalanceMessage(1000, 300, 50);
-  assert(msg.includes("750.00"));
+Deno.test("formatBalanceMessage leads with available, not remaining", () => {
+  // Phase 0: these numbers arrive from zad_budget_state(), already cycle-aware and already
+  // net of fixed obligations. The customer's actionable figure is المتاح (150), not المتبقي
+  // (750) — showing the larger number first is what made the app and the bot feel like two
+  // different products quoting two different balances.
+  const msg = formatBalanceMessage({
+    monthly_limit: 1000, spent: 300, remaining: 750, committed: 600, available: 150, days_left: 12,
+  }, "ر.س");
+  assert(msg.includes("المتاح الفعلي: 150.00 ر.س"));
+  assert(msg.includes("المتبقي قبل خصم الالتزامات: 750.00 ر.س"));
+  assert(msg.includes("فاضل 12 يوم"));
+});
+
+Deno.test("formatBalanceMessage says the ceiling is unset instead of reporting zero left", () => {
+  const msg = formatBalanceMessage({
+    monthly_limit: null, spent: 300, remaining: null, committed: 0, available: null, days_left: 12,
+  }, "ر.س");
+  assert(msg.includes("الميزانية الشهرية مش محددة"));
+  assert(msg.includes("مصروف الدورة دي: 300.00 ر.س"));
+  // No balance line at all, rather than a balance line reading zero.
+  assert(!msg.includes("المتاح الفعلي"));
+  assert(!msg.includes("المتبقي"));
 });
 
 Deno.test("formatTransactionsMessage reports the empty case in Arabic instead of a blank message", () => {
