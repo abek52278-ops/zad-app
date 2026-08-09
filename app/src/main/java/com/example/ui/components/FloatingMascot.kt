@@ -66,7 +66,14 @@ fun FloatingMascotCompanion(
     viewModel: ZadViewModel,
     kidsMode: Boolean,
     modifier: Modifier = Modifier,
-    onNavigateToChat: () -> Unit = {}
+    onNavigateToChat: () -> Unit = {},
+    // W6 — سطح محادثة سريع من غير خروج من الشاشة (Phase 4: "persistent chat entry
+    // point available on every screen"). المكوّن ده أصلاً موجود على كل شاشة chromeVisible
+    // (MainScreen.kt) وبيفتح الشات الكامل بالضغط المزدوج/الطويل — مفيش داعي لفقاعة
+    // عائمة تانية تتكرر معاه. onQuickChat لو معدّى بيحل محل onNavigateToChat في الضغط
+    // الطويل بس (الضغط المزدوج فاضل بيروح للشات الكامل زي ما هو)؛ لو مش معدّى (null،
+    // الافتراضي) السلوك القديم زي ما هو بالظبط — أي استدعاء تاني للمكوّن ده متأثرش.
+    onQuickChat: (() -> Unit)? = null,
 ) {
     val chatState by viewModel.companionState.collectAsState()
     val brainReport by viewModel.brainReport.collectAsState()
@@ -200,11 +207,11 @@ fun FloatingMascotCompanion(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClickLabel = companionStateDescription(displayMood),
-                        onLongClickLabel = "فتح شات عقل زاد",
+                        onLongClickLabel = "فتح شات سريع",
                         onLongClick = {
                             fireHaptic(25, 180)
                             showBubble = false
-                            onNavigateToChat()
+                            if (onQuickChat != null) onQuickChat() else onNavigateToChat()
                         },
                         onDoubleClick = {
                             fireHaptic(25, 180)

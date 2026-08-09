@@ -147,6 +147,8 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
 
     var showMoreSheet by remember { mutableStateOf(false) }
     var showCameraSheet by remember { mutableStateOf(false) }
+    // W6 — سطح المحادثة السريع (ZadAgentOverlay)، بيتفتح بضغطة طويلة على المسكوت.
+    var showAgentOverlay by remember { mutableStateOf(false) }
 
     fun go(route: String) {
         navController.navigate(route) {
@@ -391,9 +393,19 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                 com.example.ui.components.FloatingMascotCompanion(
                     viewModel = viewModel,
                     kidsMode = kidsModeEffective,
-                    onNavigateToChat = { goGuarded(ZadRoutes.ASSISTANT) }
+                    onNavigateToChat = { goGuarded(ZadRoutes.ASSISTANT) },
+                    onQuickChat = { showAgentOverlay = true }
                 )
             }
+            com.example.ui.components.ZadAgentOverlay(
+                visible = showAgentOverlay,
+                viewModel = viewModel,
+                onDismiss = { showAgentOverlay = false },
+                onOpenFullChat = {
+                    showAgentOverlay = false
+                    goGuarded(ZadRoutes.ASSISTANT)
+                }
+            )
         }
     }
 
