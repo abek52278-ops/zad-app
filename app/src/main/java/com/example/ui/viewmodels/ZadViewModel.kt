@@ -1688,7 +1688,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.w(TAG, "loadBudget() → no session yet, leaving budget state untouched")
                 return@launch
             }
-            val (limit, confirmedAt) = SupabaseRepo.getMonthlyLimit(userId)
+            val (limit, confirmedAt, fetchSucceeded) = SupabaseRepo.getMonthlyLimit(userId)
 
             if (limit != null) {
                 _budget.value = limit
@@ -1700,6 +1700,14 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 // of re-showing the budget gate over a previously confirmed budget.
                 _budget.value = cachedBudget
                 _budgetConfirmed.value = true
+            } else if (!fetchSucceeded) {
+                // فشل الشبكة (لا رفض صريح، ولا كاش محلي مؤكد بعد — أول تحميل على جهاز جديد
+                // مثلاً). ده مش دليل إن السقف مش متسجل — بس معرفناش. لو أكدنا ٠/مش مؤكد هنا
+                // زي أي فشل تاني، مستخدم عنده سقف حقيقي على السيرفر هيتقاله "حدد ميزانيتك"
+                // لمجرد إن الشبكة اتلخبطت لحظة التحميل. نسيب الحالة زي ما هي وننتظر نداء
+                // لاحق (loadBudget() بتتنادى كذا مرة على مدار حياة الشاشة) يصححها.
+                Log.w(TAG, "loadBudget() → network fetch failed with no confirmed local cache, leaving state for a later retry")
+                return@launch
             } else {
                 _budget.value = UNKNOWN_BUDGET
                 _budgetConfirmed.value = false

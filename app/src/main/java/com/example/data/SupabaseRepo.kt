@@ -1593,18 +1593,26 @@ object SupabaseRepo {
         @SerialName("limit_confirmed_at") val limitConfirmedAt: String? = null
     )
 
-    /** Task 19.0 — null معناها لسه متسجلش. مفيش حاجة تعرض أو تحسب على ده قبل التأكيد. */
-    suspend fun getMonthlyLimit(userId: String): Pair<Double?, String?> {
+    /**
+     * Task 19.0 — null معناها لسه متسجلش. مفيش حاجة تعرض أو تحسب على ده قبل التأكيد.
+     *
+     * القيمة التالتة (fetchSucceeded) بتفرّق بين حالتين كانوا قبل كده بيرجعوا نفس الشكل
+     * بالظبط (null, null): "الصف موجود وmonthly_limit فعلاً null" مقابل "النداء فشل
+     * (شبكة/timeout) ومعرفناش الحقيقة أصلاً". من غير الفرق ده، loadBudget() كان بيتعامل
+     * مع فشل شبكة عابر على جهاز جديد (مفيش كاش محلي بعد) كأنه "مفيش ميزانية مسجلة"،
+     * ويعرض ٠ ج.م لمستخدم عنده سقف حقيقي على السيرفر.
+     */
+    suspend fun getMonthlyLimit(userId: String): Triple<Double?, String?, Boolean> {
         return try {
             val row = client.postgrest["zad_users"]
                 .select(Columns.list("monthly_limit", "limit_confirmed_at")) {
                     filter { eq("id", userId) }
                 }
                 .decodeSingleOrNull<MonthlyLimitRow>()
-            Pair(row?.monthlyLimit, row?.limitConfirmedAt)
+            Triple(row?.monthlyLimit, row?.limitConfirmedAt, true)
         } catch (e: Exception) {
             Log.e(TAG, "getMonthlyLimit() FAILED: ${e.message}")
-            Pair(null, null)
+            Triple(null, null, false)
         }
     }
 
@@ -1723,7 +1731,7 @@ object SupabaseRepo {
      */
     suspend fun captureMonthlyLimit(userId: String, limit: Double): Boolean {
         return try {
-            val (existing, _) = getMonthlyLimit(userId)
+            val (existing, _, _) = getMonthlyLimit(userId)
             if (existing != null) {
                 Log.d(TAG, "captureMonthlyLimit() skipped — already set to $existing")
                 return false
