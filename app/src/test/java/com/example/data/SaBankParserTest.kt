@@ -205,6 +205,31 @@ class SaBankParserTest {
     }
 
     @Test
+    fun `detectAndParse ignores a conditional future charge that has not happened yet`() {
+        // Bug: Vodafone SMS "لا يوجد رصيد كافي لتجديد خدمة DSL... سيتم تجديد الخدمة تلقائياً
+        // في حالة وجود رصيد كافي" (no deduction — renewal is conditional on a future balance)
+        // used to slip past declinedKeywords (no exact "رصيد غير كاف" substring) and get
+        // recorded as a real 530.1 expense.
+        val result = SaBankParser.detectAndParse(
+            "vodafone", "Vodafone",
+            "لا يوجد رصيد كافي لتجديد خدمة DSL بمبلغ 530.1 جنيه. سيتم تجديد الخدمة تلقائياً في حالة وجود رصيد كافي"
+        )
+        assertNull(result)
+        assertEquals(
+            SaBankParser.RejectReason.PENDING,
+            SaBankParser.rejectionReason("لا يوجد رصيد كافي لتجديد خدمة DSL. سيتم تجديد الخدمة تلقائياً في حالة وجود رصيد كافي")
+        )
+    }
+
+    @Test
+    fun `detectAndParse still ignores insufficient-balance phrasing without the conditional clause`() {
+        assertEquals(
+            SaBankParser.RejectReason.PENDING,
+            SaBankParser.rejectionReason("عذراً، لا يوجد رصيد كافٍ لإتمام عملية الشراء بمبلغ 90 جنيه")
+        )
+    }
+
+    @Test
     fun `detectAndParse returns null when no explicit tx type keyword`() {
         val result = SaBankParser.detectAndParse("unknown", "تنبيه", "بمبلغ 75.00 ريال")
         assertNull(result)

@@ -73,6 +73,26 @@ object SaBankParser {
         "başarısız", "reddedildi", "yetersiz bakiye", "işlem gerçekleşmedi"
     )
 
+    // رسالة بتصف خصم لسه ماحصلش — بشرط توفر رصيد لاحقاً، أو رصيد غير كافي بصيغة تانية عن
+    // declinedKeywords ("غير كاف" بس، مش "لا يوجد ... كافي"). مثال حقيقي سبّب Bug 1: رسالة
+    // Vodafone "لا يوجد رصيد كافي لتجديد خدمة DSL... سيتم تجديد الخدمة تلقائياً في حالة وجود
+    // رصيد كافي" — مفيهاش أي كلمة من declinedKeywords، فعدّت فحص الضجيج وانسجلت كمعاملة فعلية
+    // بمبلغ 530.1 رغم إن الرسالة نفسها بتقول صراحة إن الخصم مشروط وماحصلش.
+    private val pendingKeywords = listOf(
+        "لا يوجد رصيد كافي", "لا يوجد رصيد كافٍ", "رصيد غير كافي", "رصيد غير كافٍ",
+        "عدم كفاية الرصيد", "insufficient balance", "insufficient funds", "not enough balance",
+        "bakiye yetersiz",
+    )
+
+    // صيغة الشرط المستقبلي: "سيتم ... في حالة/عند توفر/لو توفر رصيد" — الفعل لسه معلّق على
+    // شرط لسه مش متحقق، مش خصم حصل. مفحوصة كزوج شرطين (مش substring واحد) عشان مانمنعش
+    // رسائل شرعية فيها "سيتم" لوحدها (تأكيد إيداع "سيتم إضافة المبلغ لحسابك" مثلاً).
+    private val conditionalFutureMarkers = listOf("سيتم", "will be", "will only")
+    private val conditionOnBalanceMarkers = listOf(
+        "في حالة وجود رصيد", "عند توفر", "عند توفّر", "لو توفر", "لو توفّر", "متى ما توفر",
+        "if sufficient balance", "once balance", "if funds become available",
+    )
+
     private val expiredKeywords = listOf(
         "انتهت صلاحية", "انتهت صلاحيتها", "منتهية الصلاحية", "بطاقة منتهية",
         "expired", "has expired", "card expired",
@@ -92,13 +112,15 @@ object SaBankParser {
      * بتسجلها كده صراحة (مش من rejectionReason)، عشان تبقى مادة خام لقاعدة جديدة في
      * bank_rules.json لاحقاً.
      */
-    enum class RejectReason { OTP, DECLINED, EXPIRED, PROMO, UNPARSED }
+    enum class RejectReason { OTP, DECLINED, EXPIRED, PROMO, PENDING, UNPARSED }
 
     fun rejectionReason(text: String): RejectReason? {
         val t = text.lowercase()
         return when {
             otpKeywords.any { t.contains(it) } -> RejectReason.OTP
             declinedKeywords.any { t.contains(it) } -> RejectReason.DECLINED
+            pendingKeywords.any { t.contains(it) } -> RejectReason.PENDING
+            conditionalFutureMarkers.any { t.contains(it) } && conditionOnBalanceMarkers.any { t.contains(it) } -> RejectReason.PENDING
             expiredKeywords.any { t.contains(it) } -> RejectReason.EXPIRED
             promoKeywords.any { t.contains(it) } -> RejectReason.PROMO
             else -> null
