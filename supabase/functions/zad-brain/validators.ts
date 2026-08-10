@@ -320,6 +320,106 @@ export const validateSetMarket: Validator = (input, _snap, ctx) => {
   return { ok: true };
 };
 
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export const validateAddSubscription: Validator = (input, _snap, ctx) => {
+  if ((ctx.counts["add_subscription"] ?? 0) >= 3) return { ok: false, reason: "وصلت لحد أقصى ٣ اشتراكات في المرة" };
+  if (String(input.title ?? "").trim().length < 2) return { ok: false, reason: "اسم الاشتراك قصير أوي" };
+  if (typeof input.amount !== "number" || !Number.isFinite(input.amount) || input.amount <= 0) {
+    return { ok: false, reason: "المبلغ لازم يكون رقم موجب" };
+  }
+  if (input.renewal_date !== undefined && input.renewal_date !== null && !DATE_RE.test(String(input.renewal_date))) {
+    return { ok: false, reason: "تاريخ التجديد لازم بصيغة YYYY-MM-DD" };
+  }
+  if (input.billing_cycle !== undefined && !["MONTHLY", "YEARLY"].includes(input.billing_cycle)) {
+    return { ok: false, reason: "billing_cycle لازم MONTHLY أو YEARLY" };
+  }
+  return { ok: true };
+};
+
+export const validateUpdateSubscription: Validator = (input, _snap, ctx) => {
+  if ((ctx.counts["update_subscription"] ?? 0) >= 3) return { ok: false, reason: "وصلت لحد أقصى ٣ تعديلات اشتراك في المرة" };
+  if (String(input.title ?? "").trim().length < 2) return { ok: false, reason: "اسم الاشتراك مطلوب" };
+  if (input.new_amount !== undefined && (typeof input.new_amount !== "number" || input.new_amount <= 0)) {
+    return { ok: false, reason: "المبلغ الجديد لازم يكون رقم موجب" };
+  }
+  if (input.new_renewal_date !== undefined && !DATE_RE.test(String(input.new_renewal_date))) {
+    return { ok: false, reason: "تاريخ التجديد لازم بصيغة YYYY-MM-DD" };
+  }
+  return { ok: true };
+};
+
+export const validateDeleteSubscription: Validator = (input, _snap, ctx) => {
+  if ((ctx.counts["delete_subscription"] ?? 0) >= 3) return { ok: false, reason: "وصلت لحد أقصى ٣ حذف اشتراكات في المرة" };
+  if (String(input.title ?? "").trim().length < 2) return { ok: false, reason: "اسم الاشتراك قصير أوي" };
+  return { ok: true };
+};
+
+export const validateAddDebt: Validator = (input, _snap, ctx) => {
+  if ((ctx.counts["add_debt"] ?? 0) >= 3) return { ok: false, reason: "وصلت لحد أقصى ٣ ديون في المرة" };
+  if (String(input.name ?? "").trim().length < 2) return { ok: false, reason: "اسم الدين قصير أوي" };
+  if (typeof input.remaining_balance !== "number" || !Number.isFinite(input.remaining_balance) || input.remaining_balance <= 0) {
+    return { ok: false, reason: "الرصيد المتبقي لازم يكون رقم موجب" };
+  }
+  if (input.minimum_payment !== undefined && (typeof input.minimum_payment !== "number" || input.minimum_payment < 0)) {
+    return { ok: false, reason: "الحد الأدنى الشهري ماينفعش سالب" };
+  }
+  if (input.due_day !== undefined && input.due_day !== null && (typeof input.due_day !== "number" || input.due_day < 1 || input.due_day > 31)) {
+    return { ok: false, reason: "يوم الاستحقاق لازم بين ١ و٣١" };
+  }
+  return { ok: true };
+};
+
+export const validateUpdateDebt: Validator = (input, _snap, ctx) => {
+  if ((ctx.counts["update_debt"] ?? 0) >= 3) return { ok: false, reason: "وصلت لحد أقصى ٣ تعديلات دين في المرة" };
+  if (String(input.name ?? "").trim().length < 2) return { ok: false, reason: "اسم الدين مطلوب" };
+  if (input.new_remaining_balance !== undefined && (typeof input.new_remaining_balance !== "number" || input.new_remaining_balance < 0)) {
+    return { ok: false, reason: "الرصيد المتبقي الجديد ماينفعش سالب" };
+  }
+  if (input.new_minimum_payment !== undefined && (typeof input.new_minimum_payment !== "number" || input.new_minimum_payment < 0)) {
+    return { ok: false, reason: "الحد الأدنى الشهري الجديد ماينفعش سالب" };
+  }
+  return { ok: true };
+};
+
+export const validateDeleteDebt: Validator = (input, _snap, ctx) => {
+  if ((ctx.counts["delete_debt"] ?? 0) >= 3) return { ok: false, reason: "وصلت لحد أقصى ٣ حذف ديون في المرة" };
+  if (String(input.name ?? "").trim().length < 2) return { ok: false, reason: "اسم الدين قصير أوي" };
+  return { ok: true };
+};
+
+export const validateAddMaintenanceItem: Validator = (input, _snap, ctx) => {
+  if ((ctx.counts["add_maintenance_item"] ?? 0) >= 3) return { ok: false, reason: "وصلت لحد أقصى ٣ أجهزة في المرة" };
+  if (String(input.name ?? "").trim().length < 2) return { ok: false, reason: "اسم الجهاز قصير أوي" };
+  if (input.warranty_expiry_date !== undefined && input.warranty_expiry_date !== null && !DATE_RE.test(String(input.warranty_expiry_date))) {
+    return { ok: false, reason: "تاريخ انتهاء الضمان لازم بصيغة YYYY-MM-DD" };
+  }
+  if (input.service_interval_days !== undefined && input.service_interval_days !== null && (typeof input.service_interval_days !== "number" || input.service_interval_days <= 0)) {
+    return { ok: false, reason: "الفاصل بين الصيانات لازم رقم موجب" };
+  }
+  return { ok: true };
+};
+
+export const validateUpdateMaintenanceItem: Validator = (input, _snap, ctx) => {
+  if ((ctx.counts["update_maintenance_item"] ?? 0) >= 3) return { ok: false, reason: "وصلت لحد أقصى ٣ تعديلات أجهزة في المرة" };
+  if (String(input.name ?? "").trim().length < 2) return { ok: false, reason: "اسم الجهاز مطلوب" };
+  if (input.last_service_date !== undefined && !DATE_RE.test(String(input.last_service_date))) {
+    return { ok: false, reason: "تاريخ آخر صيانة لازم بصيغة YYYY-MM-DD" };
+  }
+  if (input.warranty_expiry_date !== undefined && !DATE_RE.test(String(input.warranty_expiry_date))) {
+    return { ok: false, reason: "تاريخ انتهاء الضمان لازم بصيغة YYYY-MM-DD" };
+  }
+  return { ok: true };
+};
+
+export const validateUpdateEmergencyFundBalance: Validator = (input, _snap, ctx) => {
+  if ((ctx.counts["update_emergency_fund_balance"] ?? 0) >= 1) return { ok: false, reason: "تعديل واحد بس في المرة" };
+  if (typeof input.new_balance !== "number" || !Number.isFinite(input.new_balance) || input.new_balance < 0) {
+    return { ok: false, reason: "الرصيد لازم يكون رقم غير سالب" };
+  }
+  return { ok: true };
+};
+
 export const validateLogPharmacyDose: Validator = (input, _snap, ctx) => {
   if ((ctx.counts["log_pharmacy_dose"] ?? 0) >= 5) return { ok: false, reason: "وصلت لحد أقصى ٥ جرعات في المرة" };
   if (String(input.name ?? "").trim().length < 2) return { ok: false, reason: "اسم الدواء قصير أوي" };
@@ -383,6 +483,15 @@ export const VALIDATORS: Record<string, Validator> = {
   reconcile_cash_balance: validateReconcileCashBalance,
   confirm_cycle_start: validateConfirmCycleStart,
   confirm_obligation: validateConfirmObligation,
+  add_subscription: validateAddSubscription,
+  update_subscription: validateUpdateSubscription,
+  delete_subscription: validateDeleteSubscription,
+  add_debt: validateAddDebt,
+  update_debt: validateUpdateDebt,
+  delete_debt: validateDeleteDebt,
+  add_maintenance_item: validateAddMaintenanceItem,
+  update_maintenance_item: validateUpdateMaintenanceItem,
+  update_emergency_fund_balance: validateUpdateEmergencyFundBalance,
 };
 
 /**
@@ -397,6 +506,12 @@ export const MUTATING_TOOLS = [
   "log_transaction", "update_transaction", "delete_transaction", "set_monthly_limit",
   "add_inventory_item", "add_pharmacy_item", "set_market", "log_pharmacy_dose", "delete_pharmacy_item",
   "schedule_task",
+  // W9 — تغطية كاملة (اشتراكات/ديون/صيانة/صندوق الطوارئ)، نفس مستوى خطورة المخزون
+  // والصيدلية فوق: بيانات حقيقية بس مش دفتر معاملات فعلي، فمافيش داعي تأكيد بزرار.
+  "add_subscription", "update_subscription", "delete_subscription",
+  "add_debt", "update_debt", "delete_debt",
+  "add_maintenance_item", "update_maintenance_item",
+  "update_emergency_fund_balance",
 ];
 
 /**

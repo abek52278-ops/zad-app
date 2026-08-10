@@ -38,6 +38,15 @@ import {
   validateSuggestBudgetChange,
   validateTool,
   validateUpdateInventoryQty,
+  validateAddSubscription,
+  validateUpdateSubscription,
+  validateDeleteSubscription,
+  validateAddDebt,
+  validateUpdateDebt,
+  validateDeleteDebt,
+  validateAddMaintenanceItem,
+  validateUpdateMaintenanceItem,
+  validateUpdateEmergencyFundBalance,
 } from "./validators.ts";
 import { callModelWithRetry } from "./retry.ts";
 import { decideOnBrainFailure, hasRecentMutatingRun } from "./shared.ts";
@@ -628,6 +637,87 @@ Deno.test("add_pharmacy_item rejects a dose count that disagrees with the schedu
 Deno.test("add_pharmacy_item rejects an unknown unit", async () => {
   const v = await validateAddPharmacyItem({ name: "دوا", unit: "زجاجة" }, {}, freshContext("u"));
   assertEquals(v.ok, false);
+});
+
+// ── add_subscription / update_subscription / delete_subscription ────────────
+
+Deno.test("add_subscription accepts a valid subscription", async () => {
+  const v = await validateAddSubscription({ title: "نتفلكس", amount: 200 }, {}, freshContext("u"));
+  assertEquals(v.ok, true);
+});
+
+Deno.test("add_subscription rejects a non-positive amount and a bad renewal_date", async () => {
+  assertEquals((await validateAddSubscription({ title: "نتفلكس", amount: 0 }, {}, freshContext("u"))).ok, false);
+  assertEquals((await validateAddSubscription({ title: "نتفلكس", amount: 200, renewal_date: "10/8/2026" }, {}, freshContext("u"))).ok, false);
+});
+
+Deno.test("update_subscription requires at least a title and rejects a bad amount", async () => {
+  assertEquals((await validateUpdateSubscription({ title: "نتفلكس", new_amount: 250 }, {}, freshContext("u"))).ok, true);
+  assertEquals((await validateUpdateSubscription({ title: "", new_amount: 250 }, {}, freshContext("u"))).ok, false);
+  assertEquals((await validateUpdateSubscription({ title: "نتفلكس", new_amount: -5 }, {}, freshContext("u"))).ok, false);
+});
+
+Deno.test("delete_subscription rejects a too-short title", async () => {
+  assertEquals((await validateDeleteSubscription({ title: "ن" }, {}, freshContext("u"))).ok, false);
+});
+
+// ── add_debt / update_debt / delete_debt ─────────────────────────────────────
+
+Deno.test("add_debt accepts a valid debt and rejects a non-positive balance", async () => {
+  assertEquals((await validateAddDebt({ name: "قرض سيارة", remaining_balance: 50000 }, {}, freshContext("u"))).ok, true);
+  assertEquals((await validateAddDebt({ name: "قرض سيارة", remaining_balance: 0 }, {}, freshContext("u"))).ok, false);
+});
+
+Deno.test("add_debt rejects an out-of-range due_day", async () => {
+  const v = await validateAddDebt({ name: "قرض", remaining_balance: 1000, due_day: 45 }, {}, freshContext("u"));
+  assertEquals(v.ok, false);
+});
+
+Deno.test("update_debt allows zeroing the remaining balance and rejects a negative one", async () => {
+  assertEquals((await validateUpdateDebt({ name: "قرض", new_remaining_balance: 0 }, {}, freshContext("u"))).ok, true);
+  assertEquals((await validateUpdateDebt({ name: "قرض", new_remaining_balance: -10 }, {}, freshContext("u"))).ok, false);
+});
+
+Deno.test("delete_debt rejects a too-short name", async () => {
+  assertEquals((await validateDeleteDebt({ name: "ق" }, {}, freshContext("u"))).ok, false);
+});
+
+// ── add_maintenance_item / update_maintenance_item ───────────────────────────
+
+Deno.test("add_maintenance_item accepts a valid item and rejects a bad warranty date", async () => {
+  assertEquals((await validateAddMaintenanceItem({ name: "تكييف الصالة" }, {}, freshContext("u"))).ok, true);
+  assertEquals((await validateAddMaintenanceItem({ name: "تكييف الصالة", warranty_expiry_date: "بكرة" }, {}, freshContext("u"))).ok, false);
+});
+
+Deno.test("update_maintenance_item requires a name and validates dates", async () => {
+  assertEquals((await validateUpdateMaintenanceItem({ name: "تكييف الصالة", last_service_date: "2026-08-01" }, {}, freshContext("u"))).ok, true);
+  assertEquals((await validateUpdateMaintenanceItem({ name: "" }, {}, freshContext("u"))).ok, false);
+});
+
+// ── update_emergency_fund_balance ────────────────────────────────────────────
+
+Deno.test("update_emergency_fund_balance accepts a non-negative balance and rejects a negative one", async () => {
+  assertEquals((await validateUpdateEmergencyFundBalance({ new_balance: 5000 }, {}, freshContext("u"))).ok, true);
+  assertEquals((await validateUpdateEmergencyFundBalance({ new_balance: -1 }, {}, freshContext("u"))).ok, false);
+});
+
+Deno.test("update_emergency_fund_balance allows only one call per turn", async () => {
+  const ctx = freshContext("u");
+  ctx.counts["update_emergency_fund_balance"] = 1;
+  const v = await validateUpdateEmergencyFundBalance({ new_balance: 5000 }, {}, ctx);
+  assertEquals(v.ok, false);
+});
+
+Deno.test("all nine new mutation tools are registered as direct-write, not confirm-gated", () => {
+  for (const tool of [
+    "add_subscription", "update_subscription", "delete_subscription",
+    "add_debt", "update_debt", "delete_debt",
+    "add_maintenance_item", "update_maintenance_item",
+    "update_emergency_fund_balance",
+  ]) {
+    assert(MUTATING_TOOLS.includes(tool), `${tool} لازم يتحسب في سقف الـ ٥ تعديلات`);
+    assert(!CONFIRM_REQUIRED_TOOLS.includes(tool), `${tool} المفروض يفضل كتابة مباشرة زي المخزون/الصيدلية`);
+  }
 });
 
 // ── set_market ──────────────────────────────────────────────────────────────
