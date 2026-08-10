@@ -1,3 +1,4 @@
+
 name: Artifact Cleanup (one-time)
 
 # One-time maintenance workflow: deletes ALL artifacts in this repository to free
@@ -7,6 +8,11 @@ name: Artifact Cleanup (one-time)
 # Delete this file after it has run successfully.
 
 on:
+  # push trigger included because the Codespaces integration token cannot call
+  # workflow_dispatch (403); this lets the cleanup self-execute on the next push.
+  # This file is removed immediately after a successful run.
+  push:
+    branches: [main]
   workflow_dispatch: {}
 
 permissions:
