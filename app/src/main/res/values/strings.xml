@@ -543,6 +543,7 @@
     <string name="stress_test_coverage_days">%1$d يوم تغطية</string>
     <string name="stress_test_target_label">الهدف: %1$d يوم</string>
     <string name="stress_test_emergency_fund_label">رصيد صندوق الطوارئ</string>
+    <string name="stress_test_available_balance_label">رصيدك المتاح حالياً (لسه محددتش صندوق طوارئ)</string>
     <string name="stress_test_edit_fund_action">تحديث الرصيد</string>
     <string name="stress_test_suggested_saving_label">وفّر %1$s شهرياً للوصول للهدف</string>
     <string name="stress_test_status_critical">حرج</string>

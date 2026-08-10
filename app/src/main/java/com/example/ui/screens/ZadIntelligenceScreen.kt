@@ -85,6 +85,8 @@ fun ZadIntelligenceScreen(
     val budget by viewModel.budget.collectAsState()
     val brainReport by viewModel.brainReport.collectAsState()
     val emergencyFund by viewModel.emergencyFund.collectAsState()
+    val resilienceAvailableFigure by viewModel.availableFigure.collectAsState()
+    val resilienceRemainingBalance by viewModel.remainingBalance.collectAsState()
     val companionState by viewModel.companionState.collectAsState()
 
     var inputText by remember { mutableStateOf("") }
@@ -240,7 +242,14 @@ fun ZadIntelligenceScreen(
                 }
             }
             item { MonthlyBarChartCard(monthlyData = monthlyData, predictedNextMonth = predictedNextMonth) }
-            item { FinancialStressTestCard(transactions, emergencyFund, onUpdateEmergencyFund = { viewModel.updateEmergencyFund(it) }) }
+            item {
+                FinancialStressTestCard(
+                    transactions,
+                    emergencyFund,
+                    availableBalance = resilienceAvailableFigure?.value ?: resilienceRemainingBalance ?: 0.0,
+                    onUpdateEmergencyFund = { viewModel.updateEmergencyFund(it) },
+                )
+            }
             brainReport?.depletionForecasts?.takeIf { it.isNotEmpty() }?.let { forecasts ->
                 item { DepletionForecastCard(forecasts) }
             }
@@ -1476,10 +1485,15 @@ fun calculateBuyingTiming(inventory: List<ZadInventory>, profile: com.example.da
 
 // ── Feature 1 card ─────────────────────────────────────────────────────────
 @Composable
-fun FinancialStressTestCard(transactions: List<ZadTransaction>, emergencyFund: Double, onUpdateEmergencyFund: (Double) -> Unit) {
+fun FinancialStressTestCard(transactions: List<ZadTransaction>, emergencyFund: Double, availableBalance: Double = 0.0, onUpdateEmergencyFund: (Double) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val result = remember(transactions, emergencyFund) { calculateStressTest(transactions, emergencyFund) }
+    // لو المستخدم مادّيش رصيد طوارئ مخصص (الحالة الشائعة — الحقل ده نادراً ما بيتملى)، بنرجع
+    // للرصيد المتاح الفعلي (zad_budget_state) بدل ما نعرض "0 يوم تغطية" لمستخدم عنده فلوس
+    // فعلاً. usingFallbackBalance بيتحكم في تسمية الرقم في الواجهة تحت.
+    val usingFallbackBalance = emergencyFund <= 0.0 && availableBalance > 0.0
+    val effectiveSavings = if (emergencyFund > 0.0) emergencyFund else availableBalance
+    val result = remember(transactions, effectiveSavings) { calculateStressTest(transactions, effectiveSavings) }
     var showEditDialog by remember { mutableStateOf(false) }
     var aiNarrative by remember(result) { mutableStateOf<String?>(null) }
     var isLoadingNarrative by remember { mutableStateOf(false) }
@@ -1531,7 +1545,10 @@ fun FinancialStressTestCard(transactions: List<ZadTransaction>, emergencyFund: D
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
-                    Text(stringResource(R.string.stress_test_emergency_fund_label), style = Typography.labelSmall, color = onSurfaceVariant)
+                    Text(
+                        stringResource(if (usingFallbackBalance) R.string.stress_test_available_balance_label else R.string.stress_test_emergency_fund_label),
+                        style = Typography.labelSmall, color = onSurfaceVariant
+                    )
                     Text(com.example.data.CurrencyFormatter.format(context, result.liquidSavings), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface)
                 }
                 Surface(shape = RoundedCornerShape(10.dp), color = statusColor.copy(alpha = 0.12f)) {

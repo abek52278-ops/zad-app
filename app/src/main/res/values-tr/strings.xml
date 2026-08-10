@@ -540,6 +540,7 @@
     <string name="stress_test_coverage_days">%1$d gün kapsam</string>
     <string name="stress_test_target_label">Hedef: %1$d gün</string>
     <string name="stress_test_emergency_fund_label">Acil durum fonu</string>
+    <string name="stress_test_available_balance_label">Mevcut bakiyeniz (henüz acil durum fonu belirlemediniz)</string>
     <string name="stress_test_edit_fund_action">Fonu güncelle</string>
     <string name="stress_test_suggested_saving_label">Hedefe ulaşmak için ayda %1$s biriktir</string>
     <string name="stress_test_status_critical">Kritik</string>
