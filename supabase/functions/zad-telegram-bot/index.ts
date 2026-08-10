@@ -344,7 +344,10 @@ interface AgentTurnResult {
  * `user_id` في الجسم مقبول هنا لأن النداء بمفتاح service-role — راجع resolveAuthedUserId
  * في zad-brain. الهوية نفسها جاية من telegram_bindings، مش من أي حاجة العميل بيدّعيها.
  */
-async function agentTurn(userId: string, message: string): Promise<AgentTurnResult | null> {
+/** errorReason is set only when the agent path failed and the caller fell back to the
+ * read-only prose reply — it's what tells the Telegram user (and the logs) why their
+ * "عدّل"/"ذكرني" request silently became a plain answer instead of an executed action. */
+async function agentTurn(userId: string, message: string): Promise<{ result: AgentTurnResult | null; errorReason?: string }> {
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/zad-brain`, {
       method: "POST",
@@ -355,14 +358,21 @@ async function agentTurn(userId: string, message: string): Promise<AgentTurnResu
       body: JSON.stringify({ action: "agent_turn", user_id: userId, message, source: "telegram" }),
     });
     if (!res.ok) {
-      console.error("agentTurn: zad-brain returned", res.status);
-      return null;
+      const bodyText = await res.text().catch(() => "");
+      const reason = `zad-brain HTTP ${res.status}${bodyText ? `: ${bodyText.slice(0, 200)}` : ""}`;
+      console.error("agentTurn: zad-brain returned", res.status, bodyText);
+      return { result: null, errorReason: reason };
     }
     const json = await res.json() as AgentTurnResult;
-    return json?.ok === false ? null : json;
+    if (json?.ok === false) {
+      console.error("agentTurn: zad-brain replied ok:false", json);
+      return { result: null, errorReason: "zad-brain rejected the turn (ok:false)" };
+    }
+    return { result: json };
   } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
     console.error("agentTurn failed:", e);
-    return null;
+    return { result: null, errorReason: reason };
   }
 }
 
@@ -529,7 +539,7 @@ bot.on("message:text", async (ctx) => {
   // المرحلة ٢-د — نداء واحد بكل الأدوات، بدل تلات مرات تصنيف نية منفصلة. الأدوات
   // المباشرة (مخزون/صيدلية/تسوق/بلد وعملة) بتكون اتنفذت خلاص لما الرد ده يوصل؛ أدوات
   // الفلوس بترجع كاقتراح لسه ماحصلش، وبيتحوّل لنفس زر التأكيد الموجود من الأول.
-  const turn = await agentTurn(userId, ctx.message.text);
+  const { result: turn, errorReason } = await agentTurn(userId, ctx.message.text);
 
   if (turn) {
     const lines: string[] = [];
@@ -584,6 +594,14 @@ bot.on("message:text", async (ctx) => {
 
   // fallback: الوكيل مش متاح (نت/موديل/مهلة) — الرد القرائي القديم أحسن من صمت.
   // بيتشال في المرحلة ٢-هـ بعد ما agent_turn يثبت نفسه على مستخدمين حقيقيين.
+  //
+  // errorReason بيبقى موجود بس هنا (turn === null) — لو أي أمر تنفيذي (عدّل/ذكرني/ضيف)
+  // وقع على المسار ده، لازم العميل يعرف إنه رد قراءة بس ومحصلش تنفيذ فعلي، بدل ما يفتكر
+  // إن التعديل اتسجل وهو ماتسجلش. صمت هنا هو بالظبط الشكوى اللي البلاغ ده بيوصفها.
+  const notice = errorReason
+    ? `⚠️ تعذر تنفيذ الطلب عبر AI Agent (${errorReason}). الرد اللي جاي احتياطي وبيقرا بس — لو كان طلبك تعديل/إضافة/تذكير هو لسه ماتسجّلش، جرب تاني كمان شوية.\n\n`
+    : "";
+
   const context = buildAgentContext(await fetchAgentContext(sb, userId));
   const answer = await askZad(
     agentSystemPrompt(),
@@ -591,9 +609,9 @@ bot.on("message:text", async (ctx) => {
   );
 
   if (answer) {
-    await ctx.reply(clampForTelegram(answer));
+    await ctx.reply(clampForTelegram(notice + answer));
   } else {
-    await ctx.reply("معلش، مش قادر أرد دلوقتي — جرب تاني كمان شوية، أو اختار من القائمة:", {
+    await ctx.reply(clampForTelegram(notice + "معلش، مش قادر أرد دلوقتي — جرب تاني كمان شوية، أو اختار من القائمة:"), {
       reply_markup: toGrammyKeyboard(mainMenuKeyboard()),
     });
   }
