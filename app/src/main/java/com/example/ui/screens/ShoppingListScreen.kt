@@ -64,6 +64,8 @@ fun ShoppingListScreen(
     val shoppingList by viewModel.shoppingList.collectAsState()
     val budget by viewModel.budget.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
+    val availableFigure by viewModel.availableFigure.collectAsState()
+    val remainingBalance by viewModel.remainingBalance.collectAsState()
     val scope = rememberCoroutineScope()
 
     val unpurchased = shoppingList.filter { !it.isPurchased }
@@ -103,7 +105,11 @@ fun ShoppingListScreen(
         val perUnit = if (it.estimatedPrice > 0) it.estimatedPrice else priceEstimates[it.itemName]?.avgPrice ?: 0.0
         perUnit * it.quantity
     }
-    val budgetRemaining = budget - transactions.filter { it.isExpense }.sumOf { it.amount }
+    // Phase 0 — كان ده بيحسب "الميزانية المتبقية" لوحده (budget - كل المصاريف من الأول)
+    // من غير ما يخصم المحجوز (التزامات+اشتراكات) ولا يلتزم بحدود دورة الراتب، فكان بيديله رقم
+    // مختلف عن "المتاح" اللي شاشات تانية بتعرضه بنفس فرق قيمة المحجوز بالظبط. دلوقتي بيقرا
+    // نفس القيمة الموثوقة (zad_budget_state عبر ZadViewModel) اللي الداشبورد والميزانية بيعرضوها.
+    val budgetRemaining = availableFigure?.value ?: remainingBalance ?: (budget - transactions.filter { it.isExpense }.sumOf { it.amount })
     val budgetPct = if (budget > 0) (totalPrice / budget * 100).toInt().coerceIn(0, 100) else 0
 
     LaunchedEffect(Unit) {
