@@ -1,0 +1,46 @@
+name: Artifact Cleanup (one-time)
+
+# One-time maintenance workflow: deletes ALL artifacts in this repository to free
+# up Artifact storage quota immediately. Uses the run-scoped GITHUB_TOKEN with
+# actions:write, which is allowed to delete artifacts (unlike the Codespaces
+# integration token). Safe to re-run; it is a no-op when no artifacts exist.
+# Delete this file after it has run successfully.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  actions: write # required to DELETE /actions/artifacts/{id}
+
+jobs:
+  delete-all-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete all artifacts (paginated)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          echo "Listing artifacts in $REPO ..."
+          total_before=$(gh api "repos/$REPO/actions/artifacts" --jq '.total_count')
+          echo "Artifacts before: $total_before"
+
+          deleted=0
+          # Re-fetch page 1 repeatedly: the list shrinks as we delete.
+          while true; do
+            ids=$(gh api "repos/$REPO/actions/artifacts?per_page=100" --jq '.artifacts[].id')
+            [ -z "$ids" ] && break
+            for id in $ids; do
+              if gh api -X DELETE "repos/$REPO/actions/artifacts/$id" >/dev/null; then
+                deleted=$((deleted + 1))
+              else
+                echo "::warning::Failed to delete artifact $id"
+              fi
+            done
+            echo "Deleted so far: $deleted"
+          done
+
+          total_after=$(gh api "repos/$REPO/actions/artifacts" --jq '.total_count')
+          echo "Deleted: $deleted"
+          echo "Artifacts after: $total_after"
