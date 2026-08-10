@@ -1785,7 +1785,13 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             prefs.edit().putFloat("cached_budget", newBudget.toFloat()).putBoolean("budget_confirmed", true).apply()
             _budget.value = newBudget
             _budgetConfirmed.value = true
-            recalculateRemainingBalance(_transactions.value, newBudget)
+            // Local mirror only here — not the full recalculateRemainingBalance(), which
+            // would also fire refreshBudgetState() and race the setMonthlyLimit() write
+            // below. Losing that race means zad_budget_state() is queried against the OLD
+            // monthly_limit and its answer overwrites the figure this call just set, so the
+            // save appears to silently do nothing. This still updates the card immediately
+            // (Room-only, no network), it just doesn't touch the server-authority figures yet.
+            recalculateLocalBudgetFigures(_transactions.value, newBudget)
             // Budget Card master refactor req #4 — a manual cap edit is a deliberate user
             // action, so عقل زاد's context refreshes right away (bypasses the cooldown that
             // guards the transaction-triggered path above).
@@ -1795,6 +1801,9 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             val success = if (userId != null) SupabaseRepo.setMonthlyLimit(userId, newBudget) else false
             if (success) {
                 Log.d(TAG, "updateBudget() SUCCESS → monthly_limit = $newBudget")
+                // Only now is it safe to pull zad_budget_state() — the write it depends on
+                // has landed.
+                refreshBudgetState()
             } else {
                 Log.e(TAG, "updateBudget() FAILED sync to Supabase — queued for retry")
                 com.example.data.SyncOutbox.enqueueBudgetUpdate(getApplication(), newBudget)
@@ -1934,6 +1943,18 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      * CycleMath لحدود شهر تقويمي عادية — نفس سلوك قبل Task 26 بالظبط لحد ما الدورة تتأكد.
      */
     private fun recalculateRemainingBalance(txs: List<ZadTransaction>, currentBudget: Double) {
+        recalculateLocalBudgetFigures(txs, currentBudget)
+        // Everything above is the offline mirror: instant, Room-only, no network. Now ask
+        // the authority. See BudgetState's docblock for why both exist.
+        viewModelScope.launch { refreshBudgetState() }
+    }
+
+    /**
+     * The offline-mirror half of [recalculateRemainingBalance], split out so [updateBudget]
+     * can show the new figure immediately without also firing [refreshBudgetState] before the
+     * write that figure depends on has reached the server — see updateBudget()'s comment.
+     */
+    private fun recalculateLocalBudgetFigures(txs: List<ZadTransaction>, currentBudget: Double) {
         val market = MarketPrefs.getMarket(getApplication())
         val asOf = LocalDate.now()
         val cycleStart = CycleMath.cycleStart(asOf, cycleStartDay, cycleAnchor, market)
@@ -1969,10 +1990,6 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         _daysLeftInCycle.value = CycleMath.daysLeft(asOf, cycleEnd)
 
         Log.d(TAG, "recalculateRemainingBalance → Budget: $currentBudget, Spent: $spent, Remaining: $remaining, Committed: $committed, Available: $available, Cash: ${_cashOnHand.value}")
-
-        // Everything above is the offline mirror: instant, Room-only, no network. Now ask
-        // the authority. See BudgetState's docblock for why both exist.
-        viewModelScope.launch { refreshBudgetState() }
     }
 
     /**

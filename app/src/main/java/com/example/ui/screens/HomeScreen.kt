@@ -845,7 +845,9 @@ fun HomeScreen(
  * for the other two screens (out of scope for the Budget Card refactor). */
 @Composable
 fun BudgetEditDialog(currentBudget: Double, onDismiss: () -> Unit, onSave: (Double) -> Unit) {
-    var budgetStr by remember { mutableStateOf(currentBudget.toInt().toString()) }
+    // currentBudget == 0.0 means "unknown" (UNKNOWN_BUDGET in ZadViewModel), not a real
+    // zero ceiling — showing "0" here would read as a real (wrong) value already saved.
+    var budgetStr by remember { mutableStateOf(if (currentBudget > 0) currentBudget.toInt().toString() else "") }
     val context = LocalContext.current
     AlertDialog(
         onDismissRequest = onDismiss,
