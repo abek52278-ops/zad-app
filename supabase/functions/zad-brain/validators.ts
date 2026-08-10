@@ -242,6 +242,16 @@ export const validateUpdateTransaction: Validator = (input, snap, ctx) => {
   return { ok: true };
 };
 
+export const validateDeleteTransaction: Validator = (input, snap, ctx) => {
+  if ((ctx.counts["delete_transaction"] ?? 0) >= 3) return { ok: false, reason: "وصلت لحد أقصى ٣ حذف معاملات في المرة" };
+  if (!input.transaction_id) return { ok: false, reason: "محتاج transaction_id من قائمة المعاملات" };
+  const known = (snap.recent_transaction_ids ?? []);
+  if (known.length > 0 && !known.includes(input.transaction_id)) {
+    return { ok: false, reason: "المعاملة دي مش في معاملات العميل الأخيرة" };
+  }
+  return { ok: true };
+};
+
 export const validateSetMonthlyLimit: Validator = (input, _snap, ctx) => {
   if ((ctx.counts["set_monthly_limit"] ?? 0) >= 1) return { ok: false, reason: "تعديل سقف واحد بس في المرة" };
   if (typeof input.monthly_limit !== "number" || !Number.isFinite(input.monthly_limit) || input.monthly_limit <= 0) {
@@ -353,6 +363,7 @@ export const validateQueryFamily: Validator = (_input, _snap, ctx) => {
 export const VALIDATORS: Record<string, Validator> = {
   log_transaction: validateLogTransaction,
   update_transaction: validateUpdateTransaction,
+  delete_transaction: validateDeleteTransaction,
   set_monthly_limit: validateSetMonthlyLimit,
   add_inventory_item: validateAddInventoryItem,
   add_pharmacy_item: validateAddPharmacyItem,
@@ -383,7 +394,7 @@ export const MUTATING_TOOLS = [
   "update_inventory_qty", "set_transaction_category", "merge_duplicate_expense",
   "reconcile_cash_balance", "confirm_cycle_start", "confirm_obligation",
   // المرحلة ٢-ب
-  "log_transaction", "update_transaction", "set_monthly_limit",
+  "log_transaction", "update_transaction", "delete_transaction", "set_monthly_limit",
   "add_inventory_item", "add_pharmacy_item", "set_market", "log_pharmacy_dose", "delete_pharmacy_item",
   "schedule_task",
 ];
@@ -393,7 +404,7 @@ export const MUTATING_TOOLS = [
  * لاقتراح ينتظر ضغطة تأكيد صريحة من العميل، وبعدين بتتنفذ من agent_confirm بنفس مسار
  * التحقق والتنفيذ. حارس أمان، مش تفصيل تقني.
  */
-export const CONFIRM_REQUIRED_TOOLS = ["log_transaction", "update_transaction", "set_monthly_limit"];
+export const CONFIRM_REQUIRED_TOOLS = ["log_transaction", "update_transaction", "delete_transaction", "set_monthly_limit"];
 
 /** بوابة الفحص العامة — الحدود المشتركة (mutation cap, 3-strikes abort) قبل ما توصل للـ validator المتخصص */
 export async function validateTool(name: string, input: any, snap: any, ctx: RunContext): Promise<Validation> {

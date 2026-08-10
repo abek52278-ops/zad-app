@@ -27,6 +27,7 @@ import {
   validateSetMarket,
   validateSetMonthlyLimit,
   validateUpdateTransaction,
+  validateDeleteTransaction,
   validateAskUser,
   validateConfirmCycleStart,
   validateConfirmObligation,
@@ -445,7 +446,7 @@ Deno.test("emit_insight allows critical priority when available is zero even if 
 // ════════════════════════════════════════════════════════════════════════════
 
 Deno.test("every money-writing tool stays behind explicit confirmation", () => {
-  for (const tool of ["log_transaction", "update_transaction", "set_monthly_limit"]) {
+  for (const tool of ["log_transaction", "update_transaction", "delete_transaction", "set_monthly_limit"]) {
     assert(
       CONFIRM_REQUIRED_TOOLS.includes(tool),
       `${tool} بيكتب على فلوس حقيقية ولازم يفضل ورا تأكيد صريح`,
@@ -526,6 +527,30 @@ Deno.test("update_transaction rejects a call that changes nothing", async () => 
 
 Deno.test("update_transaction rejects a missing id outright", async () => {
   const v = await validateUpdateTransaction({ amount: 120 }, snapWithTx, freshContext("u"));
+  assertEquals(v.ok, false);
+});
+
+// ── delete_transaction ──────────────────────────────────────────────────────
+
+Deno.test("delete_transaction accepts a known id", async () => {
+  const v = await validateDeleteTransaction({ transaction_id: "tx-1" }, snapWithTx, freshContext("u"));
+  assertEquals(v.ok, true);
+});
+
+Deno.test("delete_transaction rejects an id that is not in the customer's snapshot", async () => {
+  const v = await validateDeleteTransaction({ transaction_id: "tx-999" }, snapWithTx, freshContext("u"));
+  assertEquals(v.ok, false);
+});
+
+Deno.test("delete_transaction rejects a missing id outright", async () => {
+  const v = await validateDeleteTransaction({}, snapWithTx, freshContext("u"));
+  assertEquals(v.ok, false);
+});
+
+Deno.test("delete_transaction caps at 3 per turn", async () => {
+  const ctx = freshContext("u");
+  ctx.counts["delete_transaction"] = 3;
+  const v = await validateDeleteTransaction({ transaction_id: "tx-1" }, snapWithTx, ctx);
   assertEquals(v.ok, false);
 });
 
