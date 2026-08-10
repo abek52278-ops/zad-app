@@ -88,6 +88,7 @@ fun ZadIntelligenceScreen(
     val resilienceAvailableFigure by viewModel.availableFigure.collectAsState()
     val resilienceRemainingBalance by viewModel.remainingBalance.collectAsState()
     val companionState by viewModel.companionState.collectAsState()
+    val pendingAgentProposals by viewModel.pendingAgentProposals.collectAsState()
 
     var inputText by remember { mutableStateOf("") }
     var chatExpanded by remember { mutableStateOf(false) }
@@ -334,7 +335,10 @@ fun ZadIntelligenceScreen(
                         }
                     },
                     onClearChat = { viewModel.clearChatHistory() },
-                    onUndoCommit = { viewModel.undoInventoryCommit(it) }
+                    onUndoCommit = { viewModel.undoInventoryCommit(it) },
+                    pendingAgentProposals = pendingAgentProposals,
+                    onConfirmAgentProposals = { viewModel.confirmPendingAgentProposals() },
+                    onCancelAgentProposals = { viewModel.cancelPendingAgentProposals() }
                 )
             }
 
@@ -2048,7 +2052,10 @@ fun ChatSectionCard(
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
     onClearChat: () -> Unit,
-    onUndoCommit: (String) -> Unit
+    onUndoCommit: (String) -> Unit,
+    pendingAgentProposals: List<com.example.data.ZadAiRepository.AgentProposal> = emptyList(),
+    onConfirmAgentProposals: () -> Unit = {},
+    onCancelAgentProposals: () -> Unit = {}
 ) {
     com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
         Column {
@@ -2079,7 +2086,10 @@ fun ChatSectionCard(
                         onInputChange = onInputChange,
                         onSend = onSend,
                         onClearChat = onClearChat,
-                        onUndoCommit = onUndoCommit
+                        onUndoCommit = onUndoCommit,
+                        pendingAgentProposals = pendingAgentProposals,
+                        onConfirmAgentProposals = onConfirmAgentProposals,
+                        onCancelAgentProposals = onCancelAgentProposals
                     )
                 }
             }
@@ -2097,7 +2107,10 @@ fun ChatTab(
     onInputChange: (String) -> Unit,
     onSend: () -> Unit,
     onClearChat: () -> Unit = {},
-    onUndoCommit: (String) -> Unit = {}
+    onUndoCommit: (String) -> Unit = {},
+    pendingAgentProposals: List<com.example.data.ZadAiRepository.AgentProposal> = emptyList(),
+    onConfirmAgentProposals: () -> Unit = {},
+    onCancelAgentProposals: () -> Unit = {}
 ) {
     val quickPrompts = listOf(
         Icons.Default.Restaurant to stringResource(R.string.quick_prompt_recipe),
@@ -2196,6 +2209,15 @@ fun ChatTab(
             item { Spacer(modifier = Modifier.height(8.dp)) }
         }
 
+        if (pendingAgentProposals.isNotEmpty()) {
+            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                com.example.ui.components.AgentProposalsCard(
+                    proposals = pendingAgentProposals,
+                    onConfirm = onConfirmAgentProposals,
+                    onCancel = onCancelAgentProposals
+                )
+            }
+        }
         Row(
             modifier = Modifier.fillMaxWidth().background(surface).padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically

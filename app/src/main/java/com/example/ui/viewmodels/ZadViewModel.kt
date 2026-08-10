@@ -1124,8 +1124,17 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     //  المرحلة ٢-ج — المحادثة عبر zad-brain
     // ══════════════════════════════════════════════════════════════════════
 
-    /** كتابات مالية اقترحها الوكيل ومستنية "أيوه" من المستخدم. فاضية = مفيش اقتراح معلّق. */
-    private var pendingAgentProposals: List<com.example.data.ZadAiRepository.AgentProposal> = emptyList()
+    /**
+     * كتابات مالية اقترحها الوكيل ومستنية تأكيد المستخدم. فاضية = مفيش اقتراح معلّق.
+     * StateFlow عام عشان الواجهة تعرض كارت تأكيد حقيقي (زرار) بدل ما التأكيد يعتمد
+     * بس على المستخدم يكتب "أيوه" في الشات — الكتابة النصية لسه شغالة كمان (backward
+     * compatible) عن طريق [handleAgentProposalReply].
+     */
+    private val _pendingAgentProposals = MutableStateFlow<List<com.example.data.ZadAiRepository.AgentProposal>>(emptyList())
+    val pendingAgentProposals: StateFlow<List<com.example.data.ZadAiRepository.AgentProposal>> = _pendingAgentProposals.asStateFlow()
+    private var pendingAgentProposalsValue: List<com.example.data.ZadAiRepository.AgentProposal>
+        get() = _pendingAgentProposals.value
+        set(value) { _pendingAgentProposals.value = value }
 
     /**
      * بينادي `agent_turn` ويعرض نتيجته. بيرجع true لو اللفة اتعالجت بالكامل (رد اتعرض)،
@@ -1141,7 +1150,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
         val result = com.example.data.ZadAiRepository.agentTurn(userText, history) ?: return false
 
-        pendingAgentProposals = result.proposals
+        pendingAgentProposalsValue = result.proposals
         val text = buildAgentTurnReply(result) ?: return false
 
         val msg = AiChatMessage(text = text, isUser = false)
@@ -1191,19 +1200,26 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      * الكلاينت مبيكتبش المعاملة بنفسه.
      */
     private suspend fun handleAgentProposalReply(userText: String): Boolean {
-        val proposals = pendingAgentProposals
+        val proposals = pendingAgentProposalsValue
         if (proposals.isEmpty()) return false
 
         if (negativeReplyRegex.containsMatchIn(userText)) {
-            pendingAgentProposals = emptyList()
-            val cancelMsg = AiChatMessage(text = "تمام، ملغيتهاش.", isUser = false)
-            _aiChatMessages.value = _aiChatMessages.value + cancelMsg
-            persistChatMessage(cancelMsg)
+            cancelPendingAgentProposals()
             return true
         }
         if (!affirmativeReplyRegex.containsMatchIn(userText)) return false
 
-        pendingAgentProposals = emptyList()
+        confirmAgentProposals(proposals)
+        return true
+    }
+
+    /**
+     * تنفيذ اقتراحات مالية معلّقة فعلياً — عن طريق `agent_confirm` سيرفر-سايد، مش كتابة
+     * محلية. مشتركة بين مسار الرد النصي ("أيوه" في الشات) وكارت التأكيد في الواجهة
+     * ([confirmPendingAgentProposals])، عشان الاتنين ينفذوا نفس المسار بالظبط.
+     */
+    private suspend fun confirmAgentProposals(proposals: List<com.example.data.ZadAiRepository.AgentProposal>) {
+        pendingAgentProposalsValue = emptyList()
         val results = proposals.map { com.example.data.ZadAiRepository.agentConfirm(it) }
         val succeeded = results.count { it.first }
         val text = if (succeeded == results.size) {
@@ -1221,7 +1237,22 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             syncData()
             loadBudget()
         }
-        return true
+    }
+
+    /** زرار "تأكيد" في كارت الاقتراح على الشاشة — بديل واضح لكتابة "أيوه". */
+    fun confirmPendingAgentProposals() {
+        val proposals = pendingAgentProposalsValue
+        if (proposals.isEmpty()) return
+        viewModelScope.launch { confirmAgentProposals(proposals) }
+    }
+
+    /** زرار "إلغاء" في كارت الاقتراح على الشاشة — بديل واضح لكتابة "لا". */
+    fun cancelPendingAgentProposals() {
+        if (pendingAgentProposalsValue.isEmpty()) return
+        pendingAgentProposalsValue = emptyList()
+        val cancelMsg = AiChatMessage(text = "تمام، ملغيتهاش.", isUser = false)
+        _aiChatMessages.value = _aiChatMessages.value + cancelMsg
+        persistChatMessage(cancelMsg)
     }
 
     /** Ceiling on any pre-request context warmup in the chat path — see sendAiChatMessage. */
@@ -1285,11 +1316,11 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
         // اقتراح مالي معلّق من لفة وكيل سابقة؟ الرد ده تأكيده أو رفضه، مش سؤال جديد.
         // بيتفحص جوه coroutine لأن التنفيذ نفسه نداء شبكة.
-        if (pendingAgentProposals.isNotEmpty()) {
+        if (pendingAgentProposalsValue.isNotEmpty()) {
             viewModelScope.launch {
                 try {
                     if (!handleAgentProposalReply(userText)) {
-                        pendingAgentProposals = emptyList()
+                        pendingAgentProposalsValue = emptyList()
                         runChatTurn(userText)
                     }
                 } finally {

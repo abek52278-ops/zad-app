@@ -792,6 +792,9 @@
     <string name="detected_subscription_title">زاد لاحظ اشتراك محتمل</string>
     <string name="detected_subscription_confirm">تأكيد الإضافة</string>
     <string name="detected_subscription_dismiss">مو اشتراك</string>
+    <string name="agent_proposal_title_single">زاد مستني تأكيدك</string>
+    <string name="agent_proposal_title_plural">زاد مستني تأكيدك على دي</string>
+    <string name="agent_proposal_confirm_action">تأكيد</string>
     <string name="nav_subscriptions_installments">الاشتراكات والأقساط</string>
 
     <!-- Location Alerts (opt-in real background geofencing — separate from the manual search above) -->

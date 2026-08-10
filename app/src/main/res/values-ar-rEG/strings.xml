@@ -806,6 +806,9 @@
     <string name="detected_subscription_title">زاد لاحظ اشتراك محتمل</string>
     <string name="detected_subscription_confirm">تأكيد الإضافة</string>
     <string name="detected_subscription_dismiss">مش اشتراك</string>
+    <string name="agent_proposal_title_single">زاد مستني تأكيدك</string>
+    <string name="agent_proposal_title_plural">زاد مستني تأكيدك على دول</string>
+    <string name="agent_proposal_confirm_action">تأكيد</string>
     <string name="no_items_in_category">مفيش عناصر في التصنيف ده</string>
     <string name="expired_days_ago">خلص من %1$d يوم</string>
     <string name="disable">توقيف</string>
