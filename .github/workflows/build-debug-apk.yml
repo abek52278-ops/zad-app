@@ -51,22 +51,24 @@ jobs:
 
       - name: Upload test results
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: unit-test-results
           path: app/build/reports/tests/testDebugUnitTest/
-          retention-days: 30
+          retention-days: 1
 
       - name: Lint
         run: ./gradlew lintDebug --no-daemon
 
       - name: Upload lint report
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: lint-report
           path: app/build/reports/lint-results-debug.html
-          retention-days: 30
+          retention-days: 1
 
       - name: Check dependency alignment
         run: |
@@ -79,8 +81,9 @@ jobs:
         run: ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK artifact
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: zad-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 30
+          retention-days: 1
