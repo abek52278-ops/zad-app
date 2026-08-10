@@ -796,24 +796,28 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         val txText = _transactions.value.sortedByDescending { it.createdAt ?: "" }.take(30).joinToString("\n") {
-            "- ${it.title}: ${com.example.data.CurrencyFormatter.format(ctx, it.amount)} (${if (it.isExpense) "مصروف" else "دخل"}${it.category?.let { c -> "، $c" } ?: ""}${it.createdAt?.take(10)?.let { d -> "، $d" } ?: ""})"
+            val kind = when (it.txnKind) {
+                "expense" -> "مصروف"
+                "income" -> "دخل"
+                else -> "تحويل"
+            }
+            "- ${it.title}: ${com.example.data.CurrencyFormatter.format(ctx, it.amount)} ($kind${it.category?.let { c -> "، $c" } ?: ""}${it.createdAt?.take(10)?.let { d -> "، $d" } ?: ""})"
         }
 
-        // المصروف الفعلي بيتحسب من المعاملات مباشرة (بيشمل اليدوية + البنكية)، الميزانية من BudgetTracker
-        // — بحدود الدورة الحالية (CycleMath) مش الشهر التقويمي، نفس سبب تعديل "المتبقي" فوق.
-        val spentByCategoryInCycle = _transactions.value.filter { tx ->
-            if (!tx.isExpense) return@filter false
-            try {
-                val d = java.time.Instant.parse(tx.createdAt ?: "").atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-                !d.isBefore(cycleStart) && d.isBefore(cycleEnd)
-            } catch (e: Exception) { false }
-        }.groupBy { it.category ?: "أخرى" }.mapValues { (_, txs) -> txs.sumOf { it.amount } }
-        val catBudgets = com.example.data.BudgetTracker.STANDARD_CATEGORIES
-            .map { cat -> Triple(cat, com.example.data.BudgetTracker.getCategoryBudget(ctx, cat), spentByCategoryInCycle[cat] ?: 0.0) }
-            .filter { it.second > 0 || it.third > 0 }
-            .joinToString("\n") { (cat, catBudget, spent) ->
-                "- $cat: صرف ${com.example.data.CurrencyFormatter.format(ctx, spent)}" + if (catBudget > 0) " من ميزانية ${com.example.data.CurrencyFormatter.format(ctx, catBudget)}" else " (بدون ميزانية محددة)"
-            }
+        // في وضع الاتصال نأخذ التجميع حرفياً من نفس RPC الذي يجيب عليه zad-brain
+        // وTelegram. في وضع عدم الاتصال فقط نستخدم مرآة BudgetMath المحلية، وبـ txnKind
+        // وليس isExpense حتى لا يظهر سحب ATM كمصروف ثانٍ.
+        val categorySpend = _budgetState.value?.byCategory?.takeIf { it.isNotEmpty() }
+            ?: _transactions.value
+                .filter { tx ->
+                    tx.txnKind == "expense" &&
+                        com.example.data.BudgetMath.txDate(tx)?.let { d -> !d.isBefore(cycleStart) && d.isBefore(cycleEnd) } == true
+                }
+                .groupBy { it.category ?: "أخرى" }
+                .mapValues { (_, rows) -> rows.sumOf { it.amount } }
+        val categorySpendText = categorySpend.entries.sortedByDescending { it.value }.joinToString("\n") { (category, spent) ->
+            "- $category: صرف ${com.example.data.CurrencyFormatter.format(ctx, spent)}"
+        }
 
         val subText = _subscriptions.value.filter { it.isActive }.joinToString("\n") { sub ->
             "- ${sub.title}: ${com.example.data.CurrencyFormatter.format(ctx, sub.amount)}/شهر" + (sub.renewalDate?.take(10)?.let { " (يتجدد $it)" } ?: "")
@@ -886,8 +890,8 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             === آخر 30 معاملة ===
             ${txText.ifBlank { "لا توجد معاملات." }}
 
-            === ميزانيات الفئات ===
-            ${catBudgets.ifBlank { "لم تحدد ميزانيات فئات." }}
+            === مصروف الدورة حسب الفئة ===
+            ${categorySpendText.ifBlank { "لا يوجد مصروف مسجل في الدورة الحالية." }}
 
             === الاشتراكات النشطة ===
             ${subText.ifBlank { "لا توجد اشتراكات." }}

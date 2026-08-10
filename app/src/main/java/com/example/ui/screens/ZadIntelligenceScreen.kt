@@ -123,7 +123,7 @@ fun ZadIntelligenceScreen(
     val cycleEnd by viewModel.cycleEnd.collectAsState()
     val totalExpense by viewModel.spentThisCycle.collectAsState()
     val totalIncome by viewModel.incomeThisCycle.collectAsState()
-    val categoryMap = transactions.filter { it.isExpense }
+    val categoryMap = transactions.filter { it.txnKind == "expense" }
         .filter { tx -> com.example.data.BudgetMath.txDate(tx)?.let { d -> !d.isBefore(cycleStart) && d.isBefore(cycleEnd) } == true }
         .groupBy { it.category ?: otherCategoryLabel }
         .mapValues { it.value.sumOf { t -> t.amount } }
@@ -133,7 +133,7 @@ fun ZadIntelligenceScreen(
     val monthlyData = computeMonthlyData(transactions, context)
     val predictedNextMonth = predictNextMonth(monthlyData)
     val lowStockCount = inventory.count { it.quantity <= (it.lowStockThreshold ?: 2) }
-    val topExpenseCategories = transactions.filter { it.isExpense }
+    val topExpenseCategories = transactions.filter { it.txnKind == "expense" }
         .groupBy { it.category ?: otherCategoryLabel }
         .mapValues { it.value.sumOf { t -> t.amount } }
         .toList()
@@ -1383,7 +1383,7 @@ fun calculateStressTest(
     val now = java.time.Instant.now()
     val cutoff = now.minusSeconds(windowDays * 86400L)
     val recentExpenses = transactions
-        .filter { it.isExpense }
+        .filter { it.txnKind == "expense" }
         .mapNotNull { tx ->
             val at = try { java.time.Instant.parse(tx.createdAt ?: "") } catch (e: Exception) { null }
             if (at != null && at >= cutoff) at to tx.amount else null
@@ -1430,7 +1430,7 @@ fun calculateInflationRadar(transactions: List<ZadTransaction>, context: android
     val trailingKeys = (1..trailingMonths).map { monthKey(now.minusMonths(it.toLong())) }.toSet()
 
     data class Bucket(val category: String, val monthKey: String, val amount: Double)
-    val buckets = transactions.filter { it.isExpense }.mapNotNull { tx ->
+    val buckets = transactions.filter { it.txnKind == "expense" }.mapNotNull { tx ->
         try {
             val zdt = java.time.Instant.parse(tx.createdAt ?: "").atZone(java.time.ZoneId.systemDefault())
             Bucket(tx.category ?: otherLabel, monthKey(zdt), tx.amount)
@@ -2323,7 +2323,7 @@ fun computeMonthlyData(transactions: List<ZadTransaction>, context: android.cont
     val monthNames = context.resources.getStringArray(R.array.month_names_short).toList()
 
     val grouped = transactions
-        .filter { it.isExpense }
+        .filter { it.txnKind == "expense" }
         .groupBy { tx ->
             try {
                 val instant = java.time.Instant.parse(tx.createdAt ?: "")
@@ -2361,7 +2361,7 @@ fun computeDailySpendData(
     val startDate = today.minusDays((days - 1).toLong())
 
     val byDay = mutableMapOf<java.time.LocalDate, Double>()
-    transactions.filter { it.isExpense }.forEach { tx ->
+    transactions.filter { it.txnKind == "expense" }.forEach { tx ->
         val date = tx.createdAt?.let {
             runCatching { java.time.Instant.parse(it).atZone(java.time.ZoneId.systemDefault()).toLocalDate() }.getOrNull()
         } ?: return@forEach

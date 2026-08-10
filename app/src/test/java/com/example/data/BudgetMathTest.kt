@@ -183,6 +183,19 @@ class BudgetMathTest {
         assertEquals(100.0, allowance!!, 0.001)
     }
 
+    @Test
+    fun `daily allowance reserves committed charges before dividing days left`() {
+        val allowance = BudgetMath.dailyAllowanceInCycle(
+            monthlyLimit = 1000.0,
+            transactions = emptyList(),
+            cycleStart = LocalDate.of(2026, 7, 1),
+            cycleEnd = LocalDate.of(2026, 7, 11),
+            asOf = LocalDate.of(2026, 7, 1),
+            committed = 300.0,
+        )
+        assertEquals(70.0, allowance!!, 0.001)
+    }
+
     // ── Task 26 — الالتزامات الثابتة ورقم "متاح" ────────────────────────────────
 
     private fun obligation(
@@ -236,6 +249,18 @@ class BudgetMathTest {
             obligations, emptyList(), LocalDate.of(2026, 8, 10), LocalDate.of(2026, 7, 10)
         )
         assertEquals(0.0, committed, 0.001)
+    }
+
+    @Test
+    fun `commitment on the next cycle first day is not reserved twice`() {
+        val cycleEnd = LocalDate.of(2026, 8, 10)
+        val obligations = listOf(obligation(amount = 400.0, dueDay = 10))
+        val subscriptions = listOf(sub(amount = 100.0, renewalDate = "2026-08-10"))
+        assertEquals(
+            0.0,
+            BudgetMath.committedInCycle(obligations, subscriptions, cycleEnd, LocalDate.of(2026, 8, 1)),
+            0.001,
+        )
     }
 
     @Test

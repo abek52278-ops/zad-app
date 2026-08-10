@@ -47,6 +47,8 @@ data class BudgetState(
     @SerialName("daily_allowance_left") val dailyAllowanceLeft: Double? = null,
     val velocity: Double? = null,
     val threat: String = "UNKNOWN",
+    /** نفس تجميع RPC للدورة وtxn_kind؛ لا تعيد الشاشات جمعه بـ isExpense. */
+    @SerialName("by_category") val byCategory: Map<String, Double> = emptyMap(),
     @SerialName("unverified_count") val unverifiedCount: Int = 0,
     val currency: String? = null,
     val timezone: String? = null,

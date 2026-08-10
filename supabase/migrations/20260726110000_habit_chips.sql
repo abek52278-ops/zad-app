@@ -30,3 +30,12 @@ language sql stable set search_path = public as $$
   order by count(*) desc
   limit 6;
 $$;
+
+-- Consolidated from the former duplicate timestamp migration
+-- 20260726110000_sent_budget_alerts_rls.sql. Keeping both operations under one
+-- version gives fresh environments the complete schema while preserving the
+-- already-normalized production history entry for this timestamp.
+alter table public.sent_budget_alerts enable row level security;
+
+create policy "user_own_sent_budget_alerts" on public.sent_budget_alerts
+  for all using (auth.uid() = user_id);

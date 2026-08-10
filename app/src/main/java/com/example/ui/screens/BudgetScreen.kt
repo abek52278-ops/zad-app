@@ -67,6 +67,8 @@ fun BudgetScreen(
     val obligations by viewModel.obligations.collectAsState()
     val showBudgetDialog by viewModel.showBudgetDialog.collectAsState()
     val suggestedBudget by viewModel.suggestedBudget.collectAsState()
+    val cycleStart by viewModel.cycleStart.collectAsState()
+    val cycleEnd by viewModel.cycleEnd.collectAsState()
 
     // Task 0ب — remainingBalance/availableFigure بقوا nullable (null = السقف لسه مش
     // معروف). الشاشة دي عملياً ما بتتعرضش من غير سقف مؤكد (بوابة MainScreen)، بس الشرط
@@ -88,14 +90,10 @@ fun BudgetScreen(
     var insightCategory by remember { mutableStateOf<String?>(null) }
     var editingTransaction by remember { mutableStateOf<ZadTransaction?>(null) }
     // المصروف الفعلي بيتحسب من المعاملات مباشرة (يشمل اليدوية + البنكية) — الميزانية من BudgetTracker
-    val categoryCards = remember(transactions, categoryCardsRefresh) {
-        val now = java.time.LocalDate.now()
+    val categoryCards = remember(transactions, cycleStart, cycleEnd, categoryCardsRefresh) {
         val spentByCategory = transactions.filter { tx ->
-            if (!tx.isExpense) return@filter false
-            try {
-                val d = Instant.parse(tx.createdAt ?: "").atZone(ZoneId.systemDefault()).toLocalDate()
-                d.monthValue == now.monthValue && d.year == now.year
-            } catch (e: Exception) { false }
+            tx.txnKind == "expense" &&
+                com.example.data.BudgetMath.txDate(tx)?.let { d -> !d.isBefore(cycleStart) && d.isBefore(cycleEnd) } == true
         }.groupBy { it.category ?: "أخرى" }.mapValues { (_, txs) -> txs.sumOf { it.amount } }
 
         com.example.data.BudgetTracker.STANDARD_CATEGORIES
@@ -126,8 +124,8 @@ fun BudgetScreen(
 
     val filteredTx = remember(transactions, selectedFilter) {
         when (selectedFilter) {
-            "المصروفات" -> transactions.filter { it.isExpense }
-            "الدخل" -> transactions.filter { !it.isExpense }
+            "المصروفات" -> transactions.filter { it.txnKind == "expense" }
+            "الدخل" -> transactions.filter { it.txnKind == "income" }
             "البنك" -> transactions.filter { it.sourceType == "bank_sms" || it.sourceType == "bank_notification" }
             else -> transactions
         }.sortedByDescending { it.createdAt ?: "" }
@@ -474,16 +472,11 @@ fun BudgetScreen(
 
             // ── Month total strip ───────────────────────────────────────────
             item {
-                val thisMonthTx = filteredTx.filter { tx ->
-                    try {
-                        val inst = Instant.parse(tx.createdAt ?: "")
-                        val txDate = inst.atZone(ZoneId.systemDefault()).toLocalDate()
-                        val now = java.time.LocalDate.now()
-                        txDate.year == now.year && txDate.month == now.month
-                    } catch (e: Exception) { false }
-                }
-                val monthSpent = thisMonthTx.filter { it.isExpense }.sumOf { it.amount }
-                val monthIncome = thisMonthTx.filter { !it.isExpense }.sumOf { it.amount }
+                // نفس المجاميع المعتمدة التي في كارت الميزانية: دورة الراتب وtxnKind.
+                // لا نعيد جمع المعاملات المرشحة هنا، لأن الفلتر قد يخفي صفوفاً ويحوّل
+                // التحويلات البنكية إلى مصروف بالاعتماد على isExpense القديم.
+                val monthSpent = totalSpent
+                val monthIncome = totalIncome
 
                 Column(
                     modifier = Modifier

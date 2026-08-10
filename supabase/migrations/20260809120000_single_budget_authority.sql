@@ -239,13 +239,14 @@ begin
   v_remaining := case when v_limit is null then null else v_limit - v_spent + v_income end;
 
   -- committed = confirmed+active obligations and active subscriptions that fall due
-  -- before the next salary lands. Both bounds inclusive of cycle_end, matching
-  -- BudgetMath.committedInCycle.
+-- before the next salary lands. `cycle_end` is the first day of the *next* cycle,
+-- so it is exclusive here: a bill due on payday belongs to the newly opened cycle,
+-- not the one that just closed. This matches BudgetMath.committedInCycle.
   select coalesce(sum(amount), 0) into v_obligations
   from public.zad_obligations
   where user_id = p_user and active and confirmed
     and public.zad_obligation_next_due(recurrence, due_day, due_date, v_asof) is not null
-    and public.zad_obligation_next_due(recurrence, due_day, due_date, v_asof) <= v_end;
+    and public.zad_obligation_next_due(recurrence, due_day, due_date, v_asof) < v_end;
 
   -- zad_subscriptions.renewal_date is text, not date — an unparseable value is skipped
   -- rather than allowed to abort the whole figure.
@@ -254,7 +255,7 @@ begin
   where user_id = p_user and is_active
     and renewal_date is not null and renewal_date <> ''
     and substring(renewal_date from 1 for 10) ~ '^\d{4}-\d{2}-\d{2}$'
-    and substring(renewal_date from 1 for 10)::date <= v_end;
+    and substring(renewal_date from 1 for 10)::date < v_end;
 
   v_committed := v_obligations + v_subscriptions;
   v_available := case when v_remaining is null then null else v_remaining - v_committed end;
@@ -277,7 +278,7 @@ begin
     from public.zad_obligations
     where user_id = p_user and active and confirmed
       and public.zad_obligation_next_due(recurrence, due_day, due_date, v_asof) is not null
-      and public.zad_obligation_next_due(recurrence, due_day, due_date, v_asof) <= v_end
+      and public.zad_obligation_next_due(recurrence, due_day, due_date, v_asof) < v_end
     union all
     -- kind='subscription' rather than the row's own `category`: the consumer is deciding
     -- how to phrase a committed charge, and "اشتراك" is the fact that matters there, not
@@ -289,7 +290,7 @@ begin
     where user_id = p_user and is_active
       and renewal_date is not null and renewal_date <> ''
       and substring(renewal_date from 1 for 10) ~ '^\d{4}-\d{2}-\d{2}$'
-      and substring(renewal_date from 1 for 10)::date <= v_end
+      and substring(renewal_date from 1 for 10)::date < v_end
   ) s;
 
   v_next_due := v_items -> 0;
@@ -321,8 +322,8 @@ begin
 
   v_daily := case
     when v_remaining is null then null
-    when v_left > 0 then v_remaining / v_left
-    else v_remaining
+    when v_left > 0 then v_available / v_left
+    else v_available
   end;
 
   -- UNKNOWN, not SAFE and not OVER. The brain used to compute 0 - spent for a user with

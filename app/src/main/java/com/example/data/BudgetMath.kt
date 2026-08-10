@@ -115,8 +115,23 @@ object BudgetMath {
         return spentInCycle(transactions, cycleStart, cycleEnd) / expected
     }
 
-    fun dailyAllowanceInCycle(monthlyLimit: Double, transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate, asOf: LocalDate = LocalDate.now()): Double? {
-        val available = remainingInCycle(monthlyLimit, transactions, cycleStart, cycleEnd) ?: return null
+    /**
+     * المسموح صرفه يومياً لازم يخرج من "المتاح" لا "المتبقي": الالتزامات المؤكدة
+     * القادمة ليست فلوساً قابلة للصرف. القيمة الافتراضية تحفظ توافق الاستدعاءات القديمة
+     * التي لم تكن تعرف الالتزامات، بينما الشاشة/السيرفر يمران الإجمالي الحقيقي.
+     */
+    fun dailyAllowanceInCycle(
+        monthlyLimit: Double,
+        transactions: List<ZadTransaction>,
+        cycleStart: LocalDate,
+        cycleEnd: LocalDate,
+        asOf: LocalDate = LocalDate.now(),
+        committed: Double = 0.0,
+    ): Double? {
+        val available = availableInCycle(
+            remainingInCycle(monthlyLimit, transactions, cycleStart, cycleEnd),
+            committed,
+        ) ?: return null
         val daysLeft = CycleMath.daysLeft(asOf, cycleEnd)
         return if (daysLeft > 0) available / daysLeft else available
     }
@@ -145,7 +160,7 @@ object BudgetMath {
         return next
     }
 
-    /** إجمالي المحجوز: التزامات مؤكدة+نشطة مستحقة قبل نهاية الدورة + اشتراكات نشطة كذلك */
+    /** إجمالي المحجوز: التزامات مؤكدة+نشطة مستحقة قبل نهاية الدورة (النهاية حصرية) + اشتراكات نشطة كذلك */
     fun committedInCycle(
         obligations: List<ZadObligation>,
         subscriptions: List<ZadSubscription>,
@@ -154,12 +169,12 @@ object BudgetMath {
     ): Double {
         val fromObligations = obligations
             .filter { it.active && it.confirmed }
-            .sumOf { ob -> nextDueDate(ob, asOf)?.let { if (!it.isAfter(cycleEnd)) ob.amount else 0.0 } ?: 0.0 }
+            .sumOf { ob -> nextDueDate(ob, asOf)?.let { if (it.isBefore(cycleEnd)) ob.amount else 0.0 } ?: 0.0 }
         val fromSubscriptions = subscriptions
             .filter { it.isActive && !it.renewalDate.isNullOrBlank() }
             .sumOf { sub ->
                 val renewal = try { LocalDate.parse(sub.renewalDate!!.take(10)) } catch (e: Exception) { null }
-                if (renewal != null && !renewal.isAfter(cycleEnd)) sub.amount else 0.0
+                if (renewal != null && renewal.isBefore(cycleEnd)) sub.amount else 0.0
             }
         return fromObligations + fromSubscriptions
     }

@@ -65,6 +65,10 @@ const MODEL_ROUTINE = Deno.env.get("ZAD_MODEL_ROUTINE") ?? "openai/gpt-oss-20b:f
 // W8 — بيحرس action=process_agent_tasks (pg_cron بينادي ده، مش عميل بـ JWT). لازم
 // يطابق السيكريت المكتوب في migration الـ agent_tasks (cron.schedule command).
 const AGENT_TASKS_CRON_SECRET = Deno.env.get("ZAD_AGENT_TASKS_CRON_SECRET") ?? "";
+// W9 — بيحرس action=run_proactive_scan (pg_cron كل ساعة، مش عميل بـ JWT). قيمة
+// منفصلة عن AGENT_TASKS_CRON_SECRET عشان سريان/تسريب أي واحدة ميخليش التانية مكشوفة.
+const PROACTIVE_CRON_SECRET = Deno.env.get("ZAD_PROACTIVE_CRON_SECRET") ??
+  "d4f3a9b8c7e6d5f4102a93b7c8e9d0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2";
 
 // المرحلة ٣ (حلقة الأدوات متعددة الخطوات) — سقف اللفات وسقف التوكنز الإجمالي، مشتركين
 // بين حلقة الشات (agent_turn) وحلقة التحليل الخلفي (daily/event). كانت اللفات محدودة بـ٢
@@ -928,6 +932,17 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       });
       return `اتضاف "${itemName}" (${input.quantity}) للمخزون`;
     }
+    case "delete_inventory_item": {
+      const itemName = String(input.item_name).trim();
+      const { data: before } = await sb.from("zad_inventory").select("*").eq("user_id", userId).eq("item_name", itemName).maybeSingle();
+      if (!before) return `مرفوض: مفيش صنف اسمه "${itemName}" في المخزون.`;
+      const w = await writeRows(sb.from("zad_inventory").delete().eq("id", before.id).eq("user_id", userId).select("id"), "حذف صنف");
+      if (!w.ok) return `مرفوض: ${w.reason}`;
+      ctx.mutationCount++;
+      ctx.mutations.push({ tool: name, old: before, new: null });
+      await recordAction(sb, userId, scope, { tool: name, input, table: "zad_inventory", targetId: before.id, previous: before, next: null });
+      return `اتحذف "${itemName}" من المخزون`;
+    }
     case "add_pharmacy_item": {
       const medName = String(input.name).trim();
       const doseTimes = input.dose_times ? String(input.dose_times).trim() : null;
@@ -957,6 +972,45 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       return doseTimes
         ? `اتسجل "${medName}" — المواعيد: ${doseTimes}. التذكير هيشتغل بعد أول فتح للتطبيق.`
         : `اتسجل "${medName}" في الصيدلية`;
+    }
+    case "update_pharmacy_item": {
+      const spoken = String(input.name).trim().toLowerCase();
+      const { data: items } = await sb.from("zad_pharmacy_items").select("*").eq("user_id", userId);
+      const before = (items ?? []).find((row: any) => row.name.trim().toLowerCase().includes(spoken) || spoken.includes(row.name.trim().toLowerCase()));
+      if (!before) return `مرفوض: مفيش دواء اسمه "${input.name}" في قايمة العميل.`;
+      const patch: Record<string, unknown> = {};
+      if (input.dosage !== undefined) patch.dosage = String(input.dosage).trim();
+      if (input.remaining_quantity !== undefined) patch.remaining_quantity = input.remaining_quantity;
+      if (input.dose_times !== undefined) patch.dose_times = String(input.dose_times).trim();
+      if (input.daily_dose_count !== undefined) patch.daily_dose_count = input.daily_dose_count;
+      const w = await writeRows(sb.from("zad_pharmacy_items").update(patch).eq("id", before.id).eq("user_id", userId).select("id,name,dosage,remaining_quantity,dose_times,daily_dose_count"), "تعديل الدواء");
+      if (!w.ok) return `مرفوض: ${w.reason}`;
+      ctx.mutationCount++;
+      ctx.mutations.push({ tool: name, old: before, new: w.rows[0] });
+      await recordAction(sb, userId, scope, { tool: name, input, table: "zad_pharmacy_items", targetId: before.id, previous: before, next: w.rows[0] });
+      return `اتعدلت بيانات "${before.name}" ومواعيد التذكير هتتحدث بعد مزامنة التطبيق`;
+    }
+    case "complete_shopping_item": {
+      const itemName = String(input.item_name).trim();
+      const { data: before } = await sb.from("zad_shopping_list").select("*").eq("user_id", userId).eq("item_name", itemName).eq("is_purchased", false).maybeSingle();
+      if (!before) return `مرفوض: "${itemName}" مش موجود في قائمة التسوق المفتوحة.`;
+      const w = await writeRows(sb.from("zad_shopping_list").update({ is_purchased: true }).eq("id", before.id).eq("user_id", userId).select("id,is_purchased"), "إتمام شراء");
+      if (!w.ok) return `مرفوض: ${w.reason}`;
+      ctx.mutationCount++;
+      ctx.mutations.push({ tool: name, old: before, new: w.rows[0] });
+      await recordAction(sb, userId, scope, { tool: name, input, table: "zad_shopping_list", targetId: before.id, previous: before, next: w.rows[0] });
+      return `اتشطب "${itemName}" من قائمة التسوق`;
+    }
+    case "delete_shopping_item": {
+      const itemName = String(input.item_name).trim();
+      const { data: before } = await sb.from("zad_shopping_list").select("*").eq("user_id", userId).eq("item_name", itemName).maybeSingle();
+      if (!before) return `مرفوض: "${itemName}" مش موجود في قائمة التسوق.`;
+      const w = await writeRows(sb.from("zad_shopping_list").delete().eq("id", before.id).eq("user_id", userId).select("id"), "حذف من التسوق");
+      if (!w.ok) return `مرفوض: ${w.reason}`;
+      ctx.mutationCount++;
+      ctx.mutations.push({ tool: name, old: before, new: null });
+      await recordAction(sb, userId, scope, { tool: name, input, table: "zad_shopping_list", targetId: before.id, previous: before, next: null });
+      return `اتحذف "${itemName}" من قائمة التسوق`;
     }
     case "set_market": {
       const w = await writeRows(
@@ -1397,6 +1451,11 @@ const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "delete_inventory_item",
+    description: "احذف صنفاً من المخزون نهائياً فقط لو العميل لا يريد تتبعه بعد الآن. لو الصنف خلص استخدم update_inventory_qty واجعل الكمية صفر.",
+    input_schema: { type: "object", properties: { item_name: { type: "string" } }, required: ["item_name"] },
+  },
+  {
     name: "set_transaction_category",
     description: "صحّح تصنيف معاملة موجودة.",
     input_schema: {
@@ -1585,6 +1644,27 @@ const CHAT_TOOLS: ToolDef[] = [
       },
       required: ["item_name", "quantity"],
     },
+  },
+  {
+    name: "update_pharmacy_item",
+    description: "عدّل كمية دواء موجود، وصف الجرعة، أو مواعيد تذكيره. استخدمها عندما يقول العميل إن الجرعة أو الموعد اتغيّر.",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: { type: "string" }, dosage: { type: "string" }, remaining_quantity: { type: "number" },
+        daily_dose_count: { type: "number" }, dose_times: { type: "string", description: "HH:MM مفصولة بفاصلة" },
+      }, required: ["name"],
+    },
+  },
+  {
+    name: "complete_shopping_item",
+    description: "علّم صنفاً في قائمة التسوق أنه تم شراؤه، ولا تضف للمخزون تلقائياً إلا إذا طلب العميل ذلك صراحة.",
+    input_schema: { type: "object", properties: { item_name: { type: "string" } }, required: ["item_name"] },
+  },
+  {
+    name: "delete_shopping_item",
+    description: "احذف صنفاً من قائمة التسوق عندما يلغي العميل الحاجة إليه.",
+    input_schema: { type: "object", properties: { item_name: { type: "string" } }, required: ["item_name"] },
   },
   {
     name: "set_transaction_category",
@@ -2128,7 +2208,13 @@ async function handleAgentConfirm(sb: SupabaseClient, userId: string, body: any)
 
   const snap = await buildSnapshot(sb, userId);
   const ctx: RunContext = freshContext(userId);
-  const scope: AuditScope = { source: "confirm", runId: null };
+  // The confirmation is part of the originating channel, not a third writer.
+  // Keeping Telegram here makes the audit log explain where the money operation
+  // came from while preserving "confirm" as the safe default for older clients.
+  const scope: AuditScope = {
+    source: body.source === "telegram" ? "telegram" : "confirm",
+    runId: null,
+  };
   const result = await runTool(sb, userId, tool, input, snap, ctx, scope);
   const rejected = result.startsWith("مرفوض:");
 
@@ -2137,6 +2223,35 @@ async function handleAgentConfirm(sb: SupabaseClient, userId: string, body: any)
     summary: result,
     mutations: ctx.mutations,
   }), { headers: CORS_HEADERS });
+}
+
+/**
+ * Deterministic ingress for trusted channel parsers (Telegram voice/receipt and
+ * Android notification listeners).  It deliberately accepts only non-financial
+ * household tools: money continues to require agent_confirm, so an OCR or speech
+ * mistake can never create a financial entry without the user's confirmation.
+ */
+const DIRECT_INGRESS_TOOLS = new Set([
+  "add_inventory_item", "update_inventory_qty", "delete_inventory_item",
+  "add_pharmacy_item", "update_pharmacy_item", "delete_pharmacy_item",
+  "add_shopping_item", "complete_shopping_item", "delete_shopping_item",
+]);
+
+async function handleAgentExecute(sb: SupabaseClient, userId: string, body: any): Promise<Response> {
+  const tool = String(body.tool ?? "");
+  if (!DIRECT_INGRESS_TOOLS.has(tool)) {
+    return new Response(JSON.stringify({ ok: false, error: "tool_requires_agent_turn_or_confirmation" }), {
+      status: 400, headers: CORS_HEADERS,
+    });
+  }
+  const snap = await buildSnapshot(sb, userId);
+  const ctx = freshContext(userId);
+  const source: AgentSource = body.source === "telegram" ? "telegram" : "event";
+  const result = await runTool(sb, userId, tool, body.input ?? {}, snap, ctx, { source, runId: null });
+  const rejected = result.startsWith("مرفوض:");
+  return new Response(JSON.stringify({ ok: !rejected, summary: result, mutations: ctx.mutations, observations: ctx.observations }), {
+    headers: CORS_HEADERS,
+  });
 }
 
 function buildChatSystemPrompt(snap: any): string {
@@ -2261,12 +2376,29 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ ok: true, ...result }), { headers: CORS_HEADERS });
     }
 
+    // W9 — فحص التنبيه الاستباقي (معدل الصرف قبل النفاد + متابعة جرعة الدوا). نفس نمط
+    // process_agent_tasks بالظبط: pg_cron بينادي كل ساعة، بسيكريت هيدر مخصص ليه.
+    // المنطق نفسه قاعد في Postgres (agent_proactive_scan، migration
+    // 20260810200000) — هنا بنناديها بس، بنفس فصل "البيانات والقرار في الـ DB والفانكشن
+    // توصيل" اللي realtime_push بيشتغل بيه.
+    if (body.action === "run_proactive_scan") {
+      if (req.headers.get("ZAD-PROACTIVE-CRON-SECRET") !== PROACTIVE_CRON_SECRET) {
+        return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: CORS_HEADERS });
+      }
+      const sbScan = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+      const { error } = await sbScan.rpc("agent_proactive_scan");
+      if (error) {
+        return new Response(JSON.stringify({ ok: false, error: error.message }), { status: 500, headers: CORS_HEADERS });
+      }
+      return new Response(JSON.stringify({ ok: true }), { headers: CORS_HEADERS });
+    }
+
     // ── المرحلة ٢: مسار المحادثة ──────────────────────────────────────────────
     // منفصل عن مسار التحليل تحت، وبيستخدم هوية مختلفة عن قصد. مسار التحليل بياخد
     // user_id من جسم الطلب (سلوك قديم، بيتنادى من workers ومن الكلاينت بجلسته)؛ المسار
     // ده بيكتب معاملات مالية، فبياخد الهوية من الـ JWT بس. لو أخدها من الجسم كان أي حد
     // معاه توكن صالح يقدر يكتب في دفتر أي مستخدم تاني بمجرد إنه يبعت الـ id بتاعه.
-    if (body.action === "agent_turn" || body.action === "agent_confirm") {
+    if (body.action === "agent_turn" || body.action === "agent_confirm" || body.action === "agent_execute") {
       const authedUserId = await resolveAuthedUserId(req, body);
       if (!authedUserId) {
         return new Response(
@@ -2275,9 +2407,9 @@ Deno.serve(async (req: Request) => {
         );
       }
       const sbChat = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-      return body.action === "agent_turn"
-        ? await handleAgentTurn(sbChat, authedUserId, body)
-        : await handleAgentConfirm(sbChat, authedUserId, body);
+      if (body.action === "agent_turn") return await handleAgentTurn(sbChat, authedUserId, body);
+      if (body.action === "agent_confirm") return await handleAgentConfirm(sbChat, authedUserId, body);
+      return await handleAgentExecute(sbChat, authedUserId, body);
     }
 
     const userId: string | undefined = body.user_id;

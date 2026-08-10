@@ -33,7 +33,8 @@ object BankTransactionApplier {
         dao.insertTransaction(classified)
         BankReadingStatus.recordParsed(context)
 
-        if (!SupabaseRepo.addTransaction(classified)) {
+        val syncedToCloud = SupabaseRepo.addTransaction(classified)
+        if (!syncedToCloud) {
             Log.w(TAG, "Supabase sync failed (offline?) — queued for retry")
             SyncOutbox.enqueueTransaction(context, classified)
         }
@@ -51,6 +52,39 @@ object BankTransactionApplier {
 
         if (txType == TxType.WITHDRAWAL) {
             maybeShowCashEducationOnce(context, classified.amount)
+        }
+
+        // The phone is the only place that can hear a bank notification, but it is
+        // not a second decision-maker. Once the transaction reached the shared
+        // database, wake the server brain with an event so Telegram, app insights,
+        // commitments and forecasts all reason from the same updated snapshot.
+        // Offline writes are deliberately deferred: the brain must never analyse a
+        // transaction it cannot yet see in the source of truth.
+        if (syncedToCloud) {
+            notifySharedBrain(classified, txType)
+        }
+    }
+
+    private suspend fun notifySharedBrain(transaction: ZadTransaction, txType: TxType?) {
+        try {
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return
+            val kind = transaction.txnKind ?: if (transaction.isExpense) "expense" else "income"
+            val message = buildString {
+                append("وصل إشعار بنك وتمت مزامنة معاملة موثوقة: ")
+                append(transaction.title.take(80))
+                append("، مبلغ ").append(transaction.amount)
+                append("، النوع ").append(kind)
+                if (txType != null) append("، تصنيف البنك ").append(txType.name)
+                append(". حلّل الأثر على الميزانية والالتزامات والمخزون إن كان مناسباً، ونبّه فقط لو فيه إجراء مفيد.")
+            }
+            SupabaseRepo.callEdgeFunction(
+                "zad-brain",
+                mapOf("user_id" to userId, "trigger" to "event", "user_message" to message)
+            )
+        } catch (e: Exception) {
+            // The money record is already safely synced. Brain analysis is best-effort
+            // and must not cause a bank transaction to be retried or duplicated.
+            Log.e(TAG, "Shared brain bank-event trigger failed: ${e.message}")
         }
     }
 

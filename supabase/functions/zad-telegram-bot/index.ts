@@ -376,6 +376,53 @@ async function agentTurn(userId: string, message: string): Promise<{ result: Age
   }
 }
 
+/**
+ * Telegram never writes a confirmed financial operation itself.  The pending row is
+ * only a UI hand-off for the Telegram button; the actual mutation must go back to
+ * zad-brain so it gets the same validation, audit trail, and budget side effects as
+ * an approval from the in-app chat.
+ */
+async function agentConfirm(userId: string, tool: string, input: Record<string, unknown>): Promise<{ ok: boolean; summary?: string }> {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/zad-brain`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
+      body: JSON.stringify({ action: "agent_confirm", user_id: userId, tool, input, source: "telegram" }),
+    });
+    if (!res.ok) {
+      console.error("agentConfirm: zad-brain returned", res.status, await res.text().catch(() => ""));
+      return { ok: false };
+    }
+    const data = await res.json() as { ok?: boolean; summary?: string };
+    return { ok: data.ok === true, summary: data.summary };
+  } catch (error) {
+    console.error("agentConfirm failed:", error);
+    return { ok: false };
+  }
+}
+
+/** Runs a deterministic, non-financial household tool through the shared brain.
+ * OCR/voice handlers only extract fields; they never mutate inventory or pharmacy
+ * tables themselves, which keeps learning observations and the audit trail unified. */
+async function agentExecute(userId: string, tool: string, input: Record<string, unknown>): Promise<{ ok: boolean; summary?: string }> {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/zad-brain`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_ROLE_KEY}` },
+      body: JSON.stringify({ action: "agent_execute", user_id: userId, tool, input, source: "telegram" }),
+    });
+    if (!res.ok) {
+      console.error("agentExecute: zad-brain returned", res.status, await res.text().catch(() => ""));
+      return { ok: false };
+    }
+    const data = await res.json() as { ok?: boolean; summary?: string };
+    return { ok: data.ok === true, summary: data.summary };
+  } catch (error) {
+    console.error("agentExecute failed:", error);
+    return { ok: false };
+  }
+}
+
 /** Generic version of askZad's fetch for any zad-core-intelligence action (voice_agent,
  * analyze_receipt, ...) that returns a structured JSON body rather than a plain string. */
 async function callCoreIntelligence<T>(action: string, payload: Record<string, unknown>): Promise<T | null> {
@@ -738,18 +785,14 @@ bot.on("message:voice", async (ctx) => {
     // مخصص لـ add_inventory. amount بيتفسر هنا كمية لو رقم منطقي، وإلا واحدة افتراضية.
     const rawQty = Number(result.data?.amount);
     const qty = Number.isFinite(rawQty) && rawQty > 0 ? Math.round(rawQty) : 1;
-    const { error } = await sb.from("zad_inventory").insert({
-      user_id: userId,
-      item_name: itemName,
-      quantity: qty,
-      unit: "قطعة",
+    const added = await agentExecute(userId, "add_inventory_item", {
+      item_name: itemName, quantity: qty, unit: "قطعة",
     });
-    if (error) {
-      console.error("voice add_inventory insert failed:", error);
+    if (!added.ok) {
+      console.error("voice add_inventory through zad-brain failed");
       await ctx.reply(heard + "معلش، مقدرتش أضيف الصنف للمخزون — جرب تاني.");
       return;
     }
-    await sb.rpc("zad_record_observation", { p_user: userId, p_item: itemName, p_qty: qty, p_source: "purchase" });
     await ctx.reply(heard + `✅ اتضاف "${isolate(sanitizeName(itemName))}" للمخزون (${qty}).`);
     return;
   }
@@ -803,45 +846,43 @@ bot.on("message:photo", async (ctx) => {
     return;
   }
 
-  // فاتورة صيدلية: كل صنف بيتحقن في zad_pharmacy_items بسعره الخاص، مش zad_inventory —
-  // نفس التصنيف والمنطق اللي في CameraScreen.kt (تطبيق الموبايل). كل صنف بيسجل مصروفه
-  // فوراً هنا (بدون زر تأكيد منفصل، زي حقن المخزون العادي تحت) عشان الفاتورة ماتتحسبش
-  // مرتين، فمفيش pending write لإجمالي الفاتورة في المسار ده.
+  // OCR only supplies fields. Both pharmacy and inventory mutations are executed by
+  // zad-brain; the receipt total still waits for the normal financial confirmation.
   if (result.receiptType === "pharmacy" && result.items.length > 0) {
     let addedCount = 0;
     for (const item of result.items) {
       if (!item.name?.trim()) continue;
       const qty = Number.isFinite(item.quantity) && item.quantity > 0 ? Math.round(item.quantity) : 1;
-      const { error } = await sb.from("zad_pharmacy_items").insert({
-        user_id: userId,
+      const added = await agentExecute(userId, "add_pharmacy_item", {
         name: item.name.trim(),
-        remaining_quantity: qty,
+        quantity: qty,
         unit: item.unit || "قرص",
-        price: item.price || 0,
+        category: "عام",
       });
-      if (error) {
-        console.error("photo pharmacy insert failed:", error);
+      if (!added.ok) {
+        console.error("photo pharmacy through zad-brain failed");
         continue;
       }
       addedCount++;
-      if (item.price > 0) {
-        const { error: txError } = await sb.from("zad_transactions").insert({
-          user_id: userId,
-          amount: item.price,
-          title: item.name.trim(),
-          category: "الرعاية الصحية",
-          is_expense: true,
-          txn_kind: "expense",
-          wallet: "card",
+    }
+    const summary = addedCount > 0
+      ? `✅ اتضاف ${addedCount} صنف للصيدلية${result.storeName ? ` من ${result.storeName}` : ""}.`
+      : "";
+    if (result.total > 0) {
+      const currency = (await sb.from("zad_users").select("currency").eq("id", userId).maybeSingle()).data?.currency ?? "غير معروف";
+      const title = (result.storeName || "فاتورة صيدلية").slice(0, 80);
+      const { data: pending, error } = await sb.from("telegram_pending_writes").insert({
+        user_id: userId, chat_id: ctx.chat.id, txn_kind: "expense", amount: Math.round(result.total * 100) / 100,
+        title, category: "الرعاية الصحية", confidence: 0.75,
+      }).select("id").single();
+      if (!error && pending) {
+        await ctx.reply(`${summary}${summary ? "\n\n" : ""}` + confirmSpendMessage({ is_spend: true, kind: "expense", amount: result.total, title, category: "الرعاية الصحية", confidence: 0.75 }, currency), {
+          reply_markup: toGrammyKeyboard(confirmSpendKeyboard((pending as { id: string }).id)),
         });
-        if (txError) console.error("photo pharmacy transaction insert failed:", txError);
+        return;
       }
     }
-    await ctx.reply(
-      addedCount > 0
-        ? `✅ اتضاف ${addedCount} صنف للصيدلية${result.storeName ? ` من ${result.storeName}` : ""}.`
-        : "معلش، ملقتش أصناف واضحة في الصورة دي.",
-    );
+    await ctx.reply(summary || "معلش، ملقتش أصناف واضحة في الصورة دي.");
     return;
   }
 
@@ -849,18 +890,16 @@ bot.on("message:photo", async (ctx) => {
   for (const item of result.items) {
     if (!item.name?.trim()) continue;
     const qty = Number.isFinite(item.quantity) && item.quantity > 0 ? Math.round(item.quantity) : 1;
-    const { error } = await sb.from("zad_inventory").insert({
-      user_id: userId,
+    const added = await agentExecute(userId, "add_inventory_item", {
       item_name: item.name.trim(),
       quantity: qty,
       unit: item.unit || "قطعة",
       category: item.category || null,
     });
-    if (!error) {
+    if (added.ok) {
       addedCount++;
-      await sb.rpc("zad_record_observation", { p_user: userId, p_item: item.name.trim(), p_qty: qty, p_source: "purchase" });
     } else {
-      console.error("photo inventory insert failed:", error);
+      console.error("photo inventory through zad-brain failed");
     }
   }
   const itemsSummary = addedCount > 0
@@ -1000,18 +1039,15 @@ bot.on("callback_query:data", async (ctx) => {
       return;
     }
 
-    const { error: insertError } = await sb.from("zad_transactions").insert({
-      user_id: userId,
+    const confirmed = await agentConfirm(userId, "log_transaction", {
       amount: row.amount,
       title: row.title,
-      category: row.category,
-      is_expense: row.txn_kind === "expense",
+      category: row.category ?? undefined,
       txn_kind: row.txn_kind,
       wallet: "card",
     });
-
-    if (insertError) {
-      console.error("telegram expense insert failed:", insertError);
+    if (!confirmed.ok) {
+      console.error("telegram expense confirmation via zad-brain failed");
       await sb.from("telegram_pending_writes").update({ status: "pending" }).eq("id", row.id);
       await ctx.reply("معلش، التسجيل فشل — جرب تاني.");
       return;
@@ -1069,19 +1105,17 @@ bot.on("callback_query:data", async (ctx) => {
       return;
     }
 
-    const { error: insertError } = await sb.from("zad_pharmacy_items").insert({
-      user_id: userId,
+    const added = await agentExecute(userId, "add_pharmacy_item", {
       name: row.name,
       dosage: row.dosage,
       daily_dose_count: row.daily_dose_count,
       dose_times: row.dose_times,
       unit: row.unit,
-      remaining_quantity: row.quantity,
+      quantity: row.quantity,
       category: row.category,
     });
-
-    if (insertError) {
-      console.error("telegram add_pharmacy insert failed:", insertError);
+    if (!added.ok) {
+      console.error("telegram add_pharmacy through zad-brain failed");
       await sb.from("telegram_pending_pharmacy").update({ status: "pending" }).eq("id", row.id);
       await ctx.reply("معلش، التسجيل فشل — جرب تاني.");
       return;
@@ -1124,13 +1158,15 @@ bot.on("callback_query:data", async (ctx) => {
     // كـ observation وتعيد حساب معدل الاستهلاك، وإلا الصنف يفضل "غير معروف" للأبد
     // (Task 18 Fault B) والعقل يسأل عنه تاني وتاني من غير ما يتعلم حاجة.
     const newQty = checkin.stillInStock ? prompt.quantity_at_prompt : 0;
-    if (!checkin.stillInStock) {
-      await sb.from("zad_inventory").update({ quantity: 0 }).eq("user_id", userId).eq("item_name", prompt.item_name);
-    }
-    const { error: obsErr } = await sb.rpc("zad_record_observation", {
-      p_user: userId, p_item: prompt.item_name, p_qty: newQty, p_source: "question_answer",
+    const observed = await agentExecute(userId, "update_inventory_qty", {
+      item_name: prompt.item_name,
+      new_qty: newQty,
+      reason: "إجابة العميل على سؤال متابعة المخزون",
     });
-    if (obsErr) console.error("checkin zad_record_observation failed:", obsErr.message);
+    if (!observed.ok) {
+      await ctx.reply("معلش، مقدرتش أحفظ إجابتك — جرّب تاني.");
+      return;
+    }
 
     await sb.from("telegram_checkin_prompts")
       .update({ status: checkin.stillInStock ? "answered_yes" : "answered_no", answered_at: new Date().toISOString() })

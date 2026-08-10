@@ -278,6 +278,14 @@ export const validateAddInventoryItem: Validator = (input, snap, ctx) => {
   return { ok: true };
 };
 
+/** حذف المخزون مقصود للحالات التي لا يريد فيها العميل تتبع الصنف إطلاقاً؛ النفاد
+ * العادي يستخدم update_inventory_qty إلى صفر حتى يظل التعلم وسجل الاستهلاك موجودين. */
+export const validateDeleteInventoryItem: Validator = (input, _snap, ctx) => {
+  if ((ctx.counts["delete_inventory_item"] ?? 0) >= 3) return { ok: false, reason: "وصلت لحد أقصى ٣ حذف أصناف في المرة" };
+  if (String(input.item_name ?? "").trim().length < 2) return { ok: false, reason: "اسم الصنف قصير أوي" };
+  return { ok: true };
+};
+
 const PHARMACY_UNITS = ["قرص", "مل", "كريم"];
 const DOSE_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -435,6 +443,31 @@ export const validateDeletePharmacyItem: Validator = (input, _snap, ctx) => {
   return { ok: true };
 };
 
+export const validateUpdatePharmacyItem: Validator = (input, _snap, ctx) => {
+  if ((ctx.counts["update_pharmacy_item"] ?? 0) >= 3) return { ok: false, reason: "وصلت لحد أقصى ٣ تعديلات أدوية في المرة" };
+  if (String(input.name ?? "").trim().length < 2) return { ok: false, reason: "اسم الدواء مطلوب" };
+  if (input.remaining_quantity !== undefined && (!Number.isFinite(input.remaining_quantity) || input.remaining_quantity < 0 || input.remaining_quantity > 9999)) return { ok: false, reason: "كمية الدواء لازم تكون بين ٠ و٩٩٩٩" };
+  if (input.dose_times !== undefined) {
+    const times = String(input.dose_times).split(",").map((t: string) => t.trim());
+    if (!times.length || !times.every((t: string) => DOSE_TIME_RE.test(t))) return { ok: false, reason: "المواعيد لازم تكون HH:MM مفصولة بفاصلة" };
+    if (input.daily_dose_count !== undefined && input.daily_dose_count !== times.length) return { ok: false, reason: "عدد الجرعات لازم يساوي عدد المواعيد" };
+  }
+  if (input.dosage === undefined && input.remaining_quantity === undefined && input.dose_times === undefined && input.daily_dose_count === undefined) return { ok: false, reason: "حدد الكمية أو الجرعة أو المواعيد المطلوب تعديلها" };
+  return { ok: true };
+};
+
+export const validateCompleteShoppingItem: Validator = (input, _snap, ctx) => {
+  if ((ctx.counts["complete_shopping_item"] ?? 0) >= 5) return { ok: false, reason: "وصلت لحد أقصى ٥ أصناف في المرة" };
+  if (String(input.item_name ?? "").trim().length < 2) return { ok: false, reason: "اسم الصنف قصير أوي" };
+  return { ok: true };
+};
+
+export const validateDeleteShoppingItem: Validator = (input, _snap, ctx) => {
+  if ((ctx.counts["delete_shopping_item"] ?? 0) >= 5) return { ok: false, reason: "وصلت لحد أقصى ٥ حذف في المرة" };
+  if (String(input.item_name ?? "").trim().length < 2) return { ok: false, reason: "اسم الصنف قصير أوي" };
+  return { ok: true };
+};
+
 /** أقصى مدة تأجيل — ٣٠ يوم. أبعد من كده أقرب لتذكير سنوي مش "مهمة مؤجلة"، ومهام
  *  متراكمة من غير سقف زمني بتفضل قاعدة وبتتنسى فعلياً. */
 const MAX_SCHEDULE_DAYS_AHEAD = 30;
@@ -466,7 +499,9 @@ export const VALIDATORS: Record<string, Validator> = {
   delete_transaction: validateDeleteTransaction,
   set_monthly_limit: validateSetMonthlyLimit,
   add_inventory_item: validateAddInventoryItem,
+  delete_inventory_item: validateDeleteInventoryItem,
   add_pharmacy_item: validateAddPharmacyItem,
+  update_pharmacy_item: validateUpdatePharmacyItem,
   set_market: validateSetMarket,
   log_pharmacy_dose: validateLogPharmacyDose,
   delete_pharmacy_item: validateDeletePharmacyItem,
@@ -478,6 +513,8 @@ export const VALIDATORS: Record<string, Validator> = {
   set_transaction_category: validateSetTransactionCategory,
   suggest_budget_change: validateSuggestBudgetChange,
   add_shopping_item: validateAddShoppingItem,
+  complete_shopping_item: validateCompleteShoppingItem,
+  delete_shopping_item: validateDeleteShoppingItem,
   remember: validateRemember,
   merge_duplicate_expense: () => ({ ok: true }),
   reconcile_cash_balance: validateReconcileCashBalance,
@@ -504,7 +541,8 @@ export const MUTATING_TOOLS = [
   "reconcile_cash_balance", "confirm_cycle_start", "confirm_obligation",
   // المرحلة ٢-ب
   "log_transaction", "update_transaction", "delete_transaction", "set_monthly_limit",
-  "add_inventory_item", "add_pharmacy_item", "set_market", "log_pharmacy_dose", "delete_pharmacy_item",
+  "add_inventory_item", "delete_inventory_item", "add_pharmacy_item", "update_pharmacy_item", "set_market", "log_pharmacy_dose", "delete_pharmacy_item",
+  "add_shopping_item", "complete_shopping_item", "delete_shopping_item",
   "schedule_task",
   // W9 — تغطية كاملة (اشتراكات/ديون/صيانة/صندوق الطوارئ)، نفس مستوى خطورة المخزون
   // والصيدلية فوق: بيانات حقيقية بس مش دفتر معاملات فعلي، فمافيش داعي تأكيد بزرار.
