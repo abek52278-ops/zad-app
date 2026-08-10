@@ -128,6 +128,7 @@
     <string name="no_transactions_recorded">Kayıtlı işlem yok</string>
     <string name="no_transactions_for_analysis">Analiz için gösterilecek işlem yok.</string>
     <string name="zad_prediction_next_month">Zad\'ın gelecek ay tahmini</string>
+    <string name="zad_prediction_total_spend_subtitle">Gelecek ayki toplam harcama tahminin — Ramazan gibi belirli bir etkinlik tahmininden farklı</string>
     <string name="prediction_confidence">Tahmin (güven %%%1$d)</string>
     <string name="zad_chef_suggestions">Zad Şef (akıllı öneriler)</string>
     <string name="suggested_recipes_before_expiry">Son kullanma tarihinden önce önerilen tarifler</string>

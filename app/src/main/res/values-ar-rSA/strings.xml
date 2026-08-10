@@ -126,6 +126,7 @@
     <string name="no_transactions_recorded">لا توجد معاملات مسجلة</string>
     <string name="no_transactions_for_analysis">لا توجد معاملات لعرض التحليل.</string>
     <string name="zad_prediction_next_month">توقع زاد للشهر القادم</string>
+    <string name="zad_prediction_total_spend_subtitle">إجمالي مصروفك المتوقع الشهر القادم كله — مختلف عن توقع مناسبة معينة زي رمضان</string>
     <string name="prediction_confidence">متوقع (ثقة %1$d%%)</string>
     <string name="zad_chef_suggestions">شيف زاد (اقتراحات ذكية)</string>
     <string name="suggested_recipes_before_expiry">وصفات مقترحة قبل لا يخلص</string>

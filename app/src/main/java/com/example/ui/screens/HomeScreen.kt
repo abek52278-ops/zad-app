@@ -1535,6 +1535,9 @@ fun PredictionCard(prediction: com.example.data.AiExpensePrediction, budget: Dou
             Spacer(Modifier.width(8.dp))
             Text(stringResource(R.string.zad_prediction_next_month), style = Typography.titleMedium, fontWeight = FontWeight.Bold)
         }
+        // بيوضّح إن الرقم ده إجمالي الشهر كله، مش توقع مناسبة بعينها — EventsRadarCard جنبه
+        // بيعرض رقم تاني تماماً (توقع مناسبة زي رمضان بس)، وكان بيتقرا كتضارب من غير التمييز ده.
+        Text(stringResource(R.string.zad_prediction_total_spend_subtitle), style = Typography.bodySmall, color = onSurfaceVariant)
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.Bottom) {
             Text(com.example.data.CurrencyFormatter.format(context, prediction.predictedTotal), color = color, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp)
