@@ -131,7 +131,9 @@ fun ZadIntelligenceScreen(
         .sortedByDescending { it.second }
 
     val monthlyData = computeMonthlyData(transactions, context)
-    val predictedNextMonth = predictNextMonth(monthlyData)
+    // All forecast surfaces use the same ViewModel result and confidence gate. Do not
+    // substitute a second weighted-average implementation when the forecast is unavailable.
+    val forecast = expensePrediction?.takeIf { it.predictedTotal > 0.0 && it.confidence > 0.0 }
     val lowStockCount = inventory.count { it.quantity <= (it.lowStockThreshold ?: 2) }
     val topExpenseCategories = transactions.filter { it.txnKind == "expense" }
         .groupBy { it.category ?: otherCategoryLabel }
@@ -230,19 +232,17 @@ fun ZadIntelligenceScreen(
             item { SectionHeader(Icons.Default.AutoAwesome, stringResource(R.string.intel_section_ai_tools)) }
             // نفس شرط HomeScreen بالظبط (توقع AI حقيقي + سقف معروف) — لو التوقع الحقيقي
             // مش جاهز لسه، الكارت المحلي (متوسط مرجّح بسيط) هو اللي بيظهر بدل ما الكارت يفضى.
-            item {
-                if (expensePrediction != null && budget > 0) {
-                    PredictionCard(expensePrediction!!, budget)
-                } else {
+            forecast?.let { prediction ->
+                item {
                     PredictionCard(
-                        predictedAmount = predictedNextMonth,
+                        predictedAmount = prediction.predictedTotal,
                         currentMonthAmount = monthlyData.lastOrNull()?.second ?: 0.0,
                         lowStockCount = lowStockCount,
                         subscriptionsCount = subscriptions.count { it.isActive }
                     )
                 }
             }
-            item { MonthlyBarChartCard(monthlyData = monthlyData, predictedNextMonth = predictedNextMonth) }
+            item { MonthlyBarChartCard(monthlyData = monthlyData, forecast = forecast) }
             item {
                 FinancialStressTestCard(
                     transactions,
@@ -274,7 +274,7 @@ fun ZadIntelligenceScreen(
                     }
                 }
             }
-            item { WhatIfSimulatorCard(viewModel = viewModel, predictedMonthlySpend = predictedNextMonth) }
+            forecast?.let { item { WhatIfSimulatorCard(viewModel = viewModel, predictedMonthlySpend = it.predictedTotal) } }
             item {
                 ServerBehaviorProfileCard(
                     profile = serverBehaviorProfile,
@@ -929,7 +929,7 @@ fun WeeklyTrendCard(transactions: List<ZadTransaction>) {
 
 // ── Monthly Bar Chart ─────────────────────────────────────────────────────────
 @Composable
-fun MonthlyBarChartCard(monthlyData: List<Pair<String, Double>>, predictedNextMonth: Double) {
+fun MonthlyBarChartCard(monthlyData: List<Pair<String, Double>>, forecast: com.example.data.AiExpensePrediction?) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val animatedProgress by animateFloatAsState(targetValue = 1f, animationSpec = tween(1000), label = "bars")
 
@@ -941,10 +941,10 @@ fun MonthlyBarChartCard(monthlyData: List<Pair<String, Double>>, predictedNextMo
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.monthly_spending), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
                 }
-                Box(
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(primaryContainer).padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(stringResource(R.string.predicted_label, com.example.data.CurrencyFormatter.format(context, predictedNextMonth)), style = Typography.labelSmall, color = primary, fontWeight = FontWeight.Bold)
+                forecast?.let {
+                    Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(primaryContainer).padding(horizontal = 8.dp, vertical = 4.dp)) {
+                        Text(stringResource(R.string.predicted_label, com.example.data.CurrencyFormatter.format(context, it.predictedTotal)), style = Typography.labelSmall, color = primary, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
@@ -956,9 +956,8 @@ fun MonthlyBarChartCard(monthlyData: List<Pair<String, Double>>, predictedNextMo
                     modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
                 )
             } else {
-                val maxVal = maxOf(monthlyData.maxOfOrNull { it.second } ?: 1.0, predictedNextMonth, 1.0)
-                val predictionLabel = stringResource(R.string.prediction_bar_label)
-                val allData = monthlyData + Pair(predictionLabel, predictedNextMonth)
+                val maxVal = maxOf(monthlyData.maxOfOrNull { it.second } ?: 1.0, forecast?.predictedTotal ?: 0.0, 1.0)
+                val allData = forecast?.let { monthlyData + Pair(stringResource(R.string.prediction_bar_label), it.predictedTotal) } ?: monthlyData
 
                 Row(
                     modifier = Modifier.fillMaxWidth().height(140.dp),
@@ -2374,16 +2373,6 @@ fun computeDailySpendData(
         val date = startDate.plusDays(offset.toLong())
         date to (byDay[date] ?: 0.0)
     }
-}
-
-fun predictNextMonth(monthlyData: List<Pair<String, Double>>): Double {
-    if (monthlyData.isEmpty()) return 0.0
-    if (monthlyData.size == 1) return monthlyData.first().second
-    val values = monthlyData.map { it.second }
-    val weights = values.indices.map { (it + 1).toDouble() }
-    val weightedSum = values.zip(weights).sumOf { (v, w) -> v * w }
-    val weightTotal = weights.sum()
-    return if (weightTotal > 0) weightedSum / weightTotal else values.average()
 }
 
 // ════════════════════════════════════════════════════════════════

@@ -67,8 +67,7 @@ const MODEL_ROUTINE = Deno.env.get("ZAD_MODEL_ROUTINE") ?? "openai/gpt-oss-20b:f
 const AGENT_TASKS_CRON_SECRET = Deno.env.get("ZAD_AGENT_TASKS_CRON_SECRET") ?? "";
 // W9 — بيحرس action=run_proactive_scan (pg_cron كل ساعة، مش عميل بـ JWT). قيمة
 // منفصلة عن AGENT_TASKS_CRON_SECRET عشان سريان/تسريب أي واحدة ميخليش التانية مكشوفة.
-const PROACTIVE_CRON_SECRET = Deno.env.get("ZAD_PROACTIVE_CRON_SECRET") ??
-  "d4f3a9b8c7e6d5f4102a93b7c8e9d0a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2";
+const PROACTIVE_CRON_SECRET = Deno.env.get("ZAD_PROACTIVE_CRON_SECRET") ?? "";
 
 // المرحلة ٣ (حلقة الأدوات متعددة الخطوات) — سقف اللفات وسقف التوكنز الإجمالي، مشتركين
 // بين حلقة الشات (agent_turn) وحلقة التحليل الخلفي (daily/event). كانت اللفات محدودة بـ٢
