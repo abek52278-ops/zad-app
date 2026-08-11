@@ -90,6 +90,34 @@ const MAX_AGENT_TOKENS_PER_RUN = 20000;
 const DAILY_REQUEST_CAP = Number(Deno.env.get("ZAD_AGENT_DAILY_REQUEST_CAP") ?? "60");
 const DAILY_TOKEN_CAP = Number(Deno.env.get("ZAD_AGENT_DAILY_TOKEN_CAP") ?? "200000");
 
+const PROMISE_DRIFT_PATTERNS: Array<[string, RegExp]> = [
+  ["future_confirmation", /(هتطلعلك|هتوصلك|هتجيلك|ستصلك).{0,80}(رسالة|تأكيد|كارت|بطاقة)/iu],
+  ["future_action", /(هعمل|هبعتلك|هسجل|هضيف|هعدل|هحذف|هتسجل|هيتسجل|اتسجل|اتضاف|اتعدل|اتحذف)/iu],
+  ["invented_schedule", /(المواعيد|الجرعات).{0,80}(\d{1,2}:\d{2}|صباح|مساء)/iu],
+];
+
+async function recordPromiseDrift(
+  sb: SupabaseClient,
+  userId: string,
+  runId: string | null | undefined,
+  source: string,
+  message: string,
+  toolCalls: string[],
+): Promise<void> {
+  if (toolCalls.length > 0 || !message.trim()) return;
+  const matched = PROMISE_DRIFT_PATTERNS.filter(([, pattern]) => pattern.test(message)).map(([name]) => name);
+  if (matched.length === 0) return;
+  const { error } = await sb.from("agent_drift_events").insert({
+    user_id: userId,
+    run_id: runId ?? null,
+    source,
+    message: message.slice(0, 4000),
+    matched_patterns: matched,
+    tool_calls: toolCalls,
+  });
+  if (error) console.error("agent_drift_events insert failed:", error.message);
+}
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -2176,6 +2204,7 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
   // ضد "وهم التنفيذ": لو الموديل قال "ضفتلك اللحمة" ومنداش أي أداة، مفيش تنفيذ يتأكد
   // وبالتالي مفيش كارت تأكيد يتعرض — والنص اللي بيتعرض هو نصه هو، من غير ادعاء.
   const reply = modelText.trim();
+  await recordPromiseDrift(sb, userId, runId, declaredSource, reply, executed.map((x) => x.tool));
   await finishRun("success");
 
   return new Response(JSON.stringify({
@@ -2669,6 +2698,8 @@ Deno.serve(async (req: Request) => {
       : allTurnRejections.length > 0
         ? `معرفتش أنفذ الطلب: ${allTurnRejections.join(" | ")}`
         : anyActionAttempted ? "" : modelOwnMessage;
+
+    await recordPromiseDrift(sb, userId, runId, trigger === "daily" ? "daily" : "event", finalMessage, executedSummaries.length > 0 ? ["executed"] : []);
 
     await sb.from("zad_brain_runs").update({
       status: "success", finished_at: new Date().toISOString(),

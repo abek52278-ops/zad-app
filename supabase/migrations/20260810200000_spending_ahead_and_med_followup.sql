@@ -28,7 +28,9 @@ comment on column public.agent_tasks.kind is
   'نوع المهمة: reminder = طلب العميل بنفسه، spending_ahead/med_followup = تنبيه استباقي تلقائي بيتزرع من الروتينات المجدولة في الملف ده. بيمنع تكرار نفس التنبيه في نفس اليوم عن طريق idx_agent_tasks_proactive_dedup.';
 
 create unique index if not exists idx_agent_tasks_proactive_dedup
-  on public.agent_tasks (user_id, kind, (date_trunc('day', created_at)))
+  -- `date_trunc` on timestamptz is STABLE because it depends on the session
+  -- timezone. Pin the dedupe bucket to UTC so PostgreSQL can index it.
+  on public.agent_tasks (user_id, kind, ((created_at at time zone 'UTC')::date))
   where kind in ('spending_ahead', 'med_followup');
 
 -- UNNECESSARY-INDEX → CONSTRAINT: partial unique index لوحده مش بيدعم
