@@ -2254,6 +2254,134 @@ async function handleAgentExecute(sb: SupabaseClient, userId: string, body: any)
   });
 }
 
+const NOTIFICATION_FAILED_RE =
+  /(لا يوجد رصيد كاف|لا يوجد رصيد كافي|رصيد غير كاف|رصيد غير كافي|عدم كفاية الرصيد|فشل|فشلت|رفض|مرفوض|لم تتم|لم تنجح|غير ناجحة|تعذر|insufficient|declined|failed|unsuccessful|rejected|yetersiz bakiye|başarısız|reddedildi)/i;
+const NOTIFICATION_PENDING_RE =
+  /(سيتم|سوف يتم|will be|will only).{0,80}(في حالة وجود رصيد|عند توفر|عند توفّر|لو توفر|لو توفّر|if sufficient balance|once balance|if funds become available)/i;
+const NOTIFICATION_NOISE_RE =
+  /(رمز التحقق|كود التحقق|otp|verification code|one-time|do not share|عرض خاص|اشترك الآن|promo|campaign|انتهت صلاحية|expired)/i;
+
+function normalizeClientClassification(raw: unknown): "completed" | "failed_or_pending" | "informational" | "ambiguous" {
+  const value = String(raw ?? "").toLowerCase();
+  if (value === "completed_transaction") return "completed";
+  if (value === "failed_or_pending_transaction") return "failed_or_pending";
+  if (value === "informational_only") return "informational";
+  return "ambiguous";
+}
+
+async function sha256Hex(text: string): Promise<string> {
+  const bytes = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Server-side gate for Android NotificationListenerService. The phone may parse the bank
+ * format, but this endpoint still re-applies the trust rules before any money write:
+ * failed/pending/informational text never writes; ambiguous text waits for confirmation;
+ * only a client-completed parse with high confidence becomes a transaction, and that write
+ * is audited in agent_actions with source=event and the raw notification in input.
+ */
+async function handleNotificationIngest(sb: SupabaseClient, userId: string, body: any): Promise<Response> {
+  const packageName = String(body.package_name ?? "").trim();
+  const title = String(body.title ?? "").trim();
+  const text = String(body.text ?? "").trim();
+  const rawText = `${title} ${text}`.trim();
+  if (!packageName || !rawText) {
+    return new Response(JSON.stringify({ ok: false, status: "ignored", reason: "empty_notification" }), {
+      status: 400, headers: CORS_HEADERS,
+    });
+  }
+
+  const dedupeHash = await sha256Hex(`${userId}\n${packageName}\n${rawText}`);
+  const { error: dedupeErr } = await sb.from("zad_notification_ingest_events").insert({
+    user_id: userId,
+    dedupe_hash: dedupeHash,
+    package_name: packageName,
+    title,
+    body: text,
+    client_classification: String(body.client_classification ?? null),
+    status: "received",
+  });
+  if (dedupeErr) {
+    const code = (dedupeErr as any)?.code;
+    if (code === "23505") {
+      return new Response(JSON.stringify({ ok: true, status: "ignored", reason: "duplicate" }), { headers: CORS_HEADERS });
+    }
+    console.error("notification dedupe insert failed:", dedupeErr.message);
+  }
+
+  const mark = async (status: string, reason?: string, transactionId?: string | null) => {
+    await sb.from("zad_notification_ingest_events")
+      .update({ status, rejection_reason: reason ?? null, transaction_id: transactionId ?? null, updated_at: new Date().toISOString() })
+      .eq("user_id", userId).eq("dedupe_hash", dedupeHash);
+  };
+
+  if (NOTIFICATION_NOISE_RE.test(rawText)) {
+    await mark("ignored", "informational_only");
+    return new Response(JSON.stringify({ ok: true, status: "ignored", classification: "informational_only" }), { headers: CORS_HEADERS });
+  }
+  if (NOTIFICATION_FAILED_RE.test(rawText) || NOTIFICATION_PENDING_RE.test(rawText)) {
+    await mark("ignored", "failed_or_pending_transaction");
+    return new Response(JSON.stringify({ ok: true, status: "ignored", classification: "failed_or_pending_transaction" }), { headers: CORS_HEADERS });
+  }
+
+  const parsed = body.parsed ?? {};
+  const clientClassification = normalizeClientClassification(body.client_classification);
+  const amount = Number(parsed.amount);
+  const confidence = Number(parsed.confidence ?? 0);
+  if (clientClassification !== "completed" || !Number.isFinite(amount) || amount <= 0 || confidence < 0.9) {
+    await mark("ambiguous", "needs_confirmation");
+    return new Response(JSON.stringify({ ok: true, status: "ambiguous", classification: "ambiguous" }), { headers: CORS_HEADERS });
+  }
+
+  const txnKind = parsed.txn_kind === "transfer" ? "transfer" : (parsed.txn_kind === "income" || parsed.is_expense === false ? "income" : "expense");
+  const isExpense = txnKind !== "income";
+  const row = {
+    user_id: userId,
+    amount: Math.round(amount * 100) / 100,
+    title: String(parsed.title ?? title).trim().slice(0, 80),
+    category: String(parsed.category ?? (txnKind === "income" ? "دخل" : "أخرى")).trim().slice(0, 40),
+    is_expense: isExpense,
+    txn_kind: txnKind,
+    transfer_to: txnKind === "transfer" ? "cash" : null,
+    wallet: "card",
+    merchant_name: String(parsed.merchant_name ?? parsed.bank_name ?? packageName).trim().slice(0, 80),
+    bank_name: String(parsed.bank_name ?? packageName).trim().slice(0, 80),
+    source_type: "notification_listener",
+    is_verified: true,
+    currency: String(parsed.currency ?? "").trim() || null,
+  };
+
+  const w = await writeRows(
+    sb.from("zad_transactions").insert(row).select("id,amount,title,category,txn_kind,merchant_name,bank_name,source_type,is_verified,currency"),
+    "تسجيل معاملة إشعار البنك",
+  );
+  if (!w.ok) {
+    await mark("rejected", w.reason);
+    return new Response(JSON.stringify({ ok: false, status: "rejected", reason: w.reason }), { headers: CORS_HEADERS });
+  }
+
+  const transactionId = (w.rows[0] as any).id as string;
+  await recordAction(sb, userId, { source: "event", runId: null }, {
+    tool: "parse_notification_payload",
+    input: { package_name: packageName, title, text, client_classification: body.client_classification, parsed },
+    table: "zad_transactions",
+    targetId: transactionId,
+    previous: null,
+    next: w.rows[0],
+    summary: "سجل إشعار بنك مكتمل بعد فحص الثقة",
+  });
+  await mark("logged", undefined, transactionId);
+
+  return new Response(JSON.stringify({
+    ok: true,
+    status: "logged",
+    classification: "completed_transaction",
+    transaction_id: transactionId,
+  }), { headers: CORS_HEADERS });
+}
+
 function buildChatSystemPrompt(snap: any): string {
   return `إنت "زاد" — مساعد مالي وإدارة منزل ذكي. ردودك قصيرة ومباشرة من غير رغي، وبتستخدم إيموچي بحساب.
 
@@ -2398,7 +2526,7 @@ Deno.serve(async (req: Request) => {
     // user_id من جسم الطلب (سلوك قديم، بيتنادى من workers ومن الكلاينت بجلسته)؛ المسار
     // ده بيكتب معاملات مالية، فبياخد الهوية من الـ JWT بس. لو أخدها من الجسم كان أي حد
     // معاه توكن صالح يقدر يكتب في دفتر أي مستخدم تاني بمجرد إنه يبعت الـ id بتاعه.
-    if (body.action === "agent_turn" || body.action === "agent_confirm" || body.action === "agent_execute") {
+    if (body.action === "agent_turn" || body.action === "agent_confirm" || body.action === "agent_execute" || body.action === "notification_ingest") {
       const authedUserId = await resolveAuthedUserId(req, body);
       if (!authedUserId) {
         return new Response(
@@ -2409,6 +2537,7 @@ Deno.serve(async (req: Request) => {
       const sbChat = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
       if (body.action === "agent_turn") return await handleAgentTurn(sbChat, authedUserId, body);
       if (body.action === "agent_confirm") return await handleAgentConfirm(sbChat, authedUserId, body);
+      if (body.action === "notification_ingest") return await handleNotificationIngest(sbChat, authedUserId, body);
       return await handleAgentExecute(sbChat, authedUserId, body);
     }
 

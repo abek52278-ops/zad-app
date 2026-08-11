@@ -20,6 +20,25 @@ enum class TxType(val isExpense: Boolean, val arabicLabel: String) {
     REFUND(false, "استرداد")
 }
 
+/**
+ * The decision made before notification ingestion can write anything.  Parsing a number is
+ * not itself proof that money moved: failed renewals and informational balance messages often
+ * contain an amount too.  Keep this classification separate from [ParsedBankTx] so callers
+ * cannot accidentally treat a non-null parse as permission to auto-record a transaction.
+ */
+enum class NotificationClassification {
+    COMPLETED_TRANSACTION,
+    FAILED_OR_PENDING_TRANSACTION,
+    INFORMATIONAL_ONLY,
+    AMBIGUOUS
+}
+
+data class NotificationParseResult(
+    val classification: NotificationClassification,
+    val transaction: ParsedBankTx? = null,
+    val rejectionReason: SaBankParser.RejectReason? = null
+)
+
 data class ParsedBankTx(
     val amount: Double,
     val isExpense: Boolean,
@@ -56,6 +75,44 @@ data class ParsedBankTx(
  * 4. اتجاه العملية يتحدد بكلمات صريحة — مفيش "افتراضي مصروف"
  */
 object SaBankParser {
+
+    /**
+     * The one entry point notification receivers must use before writing.  Only a completed,
+     * high-confidence parse carries a transaction.  An amount with no explicit completed
+     * transaction type is deliberately ambiguous, never an invitation to an AI auto-write.
+     */
+    fun classifyNotification(
+        source: String,
+        title: String,
+        text: String,
+        context: Context? = null,
+        minimumAutoWriteConfidence: Float = 0.9f
+    ): NotificationParseResult {
+        val fullText = "$title $text".trim()
+        rejectionReason(fullText)?.let { reason ->
+            return NotificationParseResult(
+                classification = if (reason == RejectReason.PENDING || reason == RejectReason.DECLINED) {
+                    NotificationClassification.FAILED_OR_PENDING_TRANSACTION
+                } else {
+                    NotificationClassification.INFORMATIONAL_ONLY
+                },
+                rejectionReason = reason
+            )
+        }
+
+        val parsed = detectAndParse(source, title, text, context)
+        if (parsed != null && parsed.confidence >= minimumAutoWriteConfidence) {
+            return NotificationParseResult(NotificationClassification.COMPLETED_TRANSACTION, parsed)
+        }
+
+        return NotificationParseResult(
+            classification = if (extractAmount(fullText) == null) {
+                NotificationClassification.INFORMATIONAL_ONLY
+            } else {
+                NotificationClassification.AMBIGUOUS
+            }
+        )
+    }
 
     // ─── 1) فلاتر الضجيج — رسائل تُتجاهل نهائياً ─────────────────
 

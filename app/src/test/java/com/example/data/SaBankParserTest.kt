@@ -17,6 +17,19 @@ import org.robolectric.annotation.Config
 @Config(manifest = Config.NONE)
 class SaBankParserTest {
 
+    @Test
+    fun vodafoneInsufficientBalanceRenewal_isFailedPendingAndNeverProducesTransaction() {
+        val result = SaBankParser.classifyNotification(
+            source = "com.vodafone",
+            title = "Vodafone",
+            text = "لا يوجد رصيد كافي لتجديد خدمة DSL بقيمة 530.1 ج.م. سيتم تجديد الخدمة تلقائياً في حالة وجود رصيد كافي"
+        )
+
+        assertEquals(NotificationClassification.FAILED_OR_PENDING_TRANSACTION, result.classification)
+        assertNull(result.transaction)
+        assertEquals(SaBankParser.RejectReason.PENDING, result.rejectionReason)
+    }
+
     // ─── extractAmount ─────────────────────────────────────────────
 
     @Test

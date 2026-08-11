@@ -267,15 +267,53 @@ class UnifiedBankListener : NotificationListenerService() {
 
     private suspend fun processAndTrackNotification(packageName: String, title: String, text: String) {
         try {
-            // فلترة الضجيج أولاً: OTP / مرفوضة / منتهية / عروض — تتجاهل نهائياً، مع تسجيل السبب
-            SaBankParser.rejectionReason("$title $text")?.let { reason ->
-                SaBankParser.logRejection(applicationContext, reason, packageName, "$title $text")
-                return
+            // A notification must be classified before it can reach the write path.  In
+            // particular, failed/pending renewals can mention an amount but are not debits.
+            val result = SaBankParser.classifyNotification(packageName, title, text, applicationContext)
+
+            when (result.classification) {
+                NotificationClassification.FAILED_OR_PENDING_TRANSACTION,
+                NotificationClassification.INFORMATIONAL_ONLY -> {
+                    result.rejectionReason?.let { reason ->
+                        SaBankParser.logRejection(applicationContext, reason, packageName, "$title $text")
+                    }
+                    Log.d("UnifiedBankListener", "Notification ignored: ${result.classification}")
+                    return
+                }
+                NotificationClassification.AMBIGUOUS -> {
+                    // Never let the AI fallback manufacture a completed transaction from an
+                    // unclear message. Keep it for review/retry only; Stage 2 will present an
+                    // explicit confirmation tier backed by the server agent.
+                    SaBankParser.logRejection(applicationContext, SaBankParser.RejectReason.UNPARSED, packageName, "$title $text")
+                    if (SaBankParser.extractAmount("$title $text") != null) {
+                        SyncOutbox.enqueueUnparsedNotification(applicationContext, packageName, title, text)
+                    }
+                    Log.d("UnifiedBankListener", "Notification requires confirmation: $title")
+                    return
+                }
+                NotificationClassification.COMPLETED_TRANSACTION -> Unit
             }
 
-            val parsed = SaBankParser.detectAndParse(packageName, title, text, applicationContext)
-
-            if (parsed != null) {
+            val parsed = result.transaction ?: return
+            val serverDecision = sendNotificationToSharedBrain(packageName, title, text, result.classification, parsed)
+            when (serverDecision) {
+                "logged", "ignored" -> {
+                    Log.d("UnifiedBankListener", "zad-brain handled notification as $serverDecision")
+                    return
+                }
+                "ambiguous" -> {
+                    SyncOutbox.enqueueUnparsedNotification(applicationContext, packageName, title, text)
+                    Log.d("UnifiedBankListener", "zad-brain requested confirmation for notification")
+                    return
+                }
+                null -> {
+                    Log.w("UnifiedBankListener", "zad-brain notification ingest unavailable — using local fallback")
+                }
+                else -> {
+                    Log.w("UnifiedBankListener", "zad-brain notification ingest returned $serverDecision — using local fallback")
+                }
+            }
+            run {
                 // منع الخصم المزدوج (نفس العملية توصل SMS + إشعار)، مع اسم التاجر كمُميّز —
                 // نفس المنطق المستخدم في UnifiedSmsReceiver عشان القناتين يتفقوا على نفس البصمة
                 if (!TxDeduplicator.isNewTransaction(applicationContext, parsed.amount, parsed.isExpense, parsed.merchantName ?: parsed.bankName, parsed.externalRef, parsed.confidence)) {
@@ -340,37 +378,60 @@ class UnifiedBankListener : NotificationListenerService() {
                         Log.e("UnifiedBankListener", "Subscription notification failed: ${e.message}")
                     }
                 }
-            } else {
-                val aiParsed = ZadAiRepository.analyzeBankNotification(title, text)
-                if (aiParsed != null) {
-                    // نفس الحماية من التكرار على مسار الـ AI — التاجر/المصدر بقى مُميّز دلوقتي
-                    // (كان مفقود قبل كده)، زي بالظبط مسار الـ regex فوق.
-                    if (!TxDeduplicator.isNewTransaction(applicationContext, aiParsed.amount, aiParsed.isExpense, aiParsed.merchantName ?: aiParsed.title)) return
-                    BankTransactionApplier.apply(applicationContext, aiParsed)
-                    Log.d("UnifiedBankListener", "AI-fallback transaction saved: ${aiParsed.title}")
-
-                    // إشعار محلي ذكي يأكد للمستخدم إن الميزانية اتحدثت تلقائياً — مسار الـ AI
-                    // (خلاف رسائل الراتب/الاشتراك تحت) كان بيحصل بصمت تماماً قبل كده.
-                    val verb = if (aiParsed.isExpense) "خصم" else "إيداع"
-                    showSystemNotification(
-                        "تحديث مالي تلقائي",
-                        "✨ تم رصد $verb بقيمة ${com.example.data.CurrencyFormatter.format(applicationContext, aiParsed.amount)} من ${aiParsed.merchantName ?: "مصدر غير معروف"} وتحديث الميزانية تلقائياً!"
-                    )
-                } else {
-                    // شكلها إشعار بنكي (عدّت isFinancialNotification) بس محدش من المسارات فهمها
-                    SaBankParser.logRejection(applicationContext, SaBankParser.RejectReason.UNPARSED, packageName, "$title $text")
-
-                    // لو فيه مبلغ واضح في النص، الأرجح إنها معاملة حقيقية فشل تحليلها (شبكة/AI
-                    // مؤقتاً) مش ضجيج — تتحط في outbox عشان TransactionSyncWorker يعيد المحاولة
-                    if (SaBankParser.extractAmount("$title $text") != null) {
-                        SyncOutbox.enqueueUnparsedNotification(applicationContext, packageName, title, text)
-                    }
-                }
             }
         } catch (e: Exception) {
             Log.e("UnifiedBankListener", "Error processing: ${e.message}")
         }
     }
+
+    /**
+     * Server-first notification ingestion. The listener can hear notifications, but the
+     * shared brain is the writer of record so Telegram, Android and Supabase all pass through
+     * the same validation/audit path. Returning null means transport failure only; semantic
+     * decisions from the server are terminal and must not fall back to a second local write.
+     */
+    private suspend fun sendNotificationToSharedBrain(
+        packageName: String,
+        title: String,
+        text: String,
+        classification: NotificationClassification,
+        parsed: ParsedBankTx
+    ): String? {
+        return try {
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return null
+            val response = SupabaseRepo.callEdgeFunction(
+                "zad-brain",
+                mapOf(
+                    "action" to "notification_ingest",
+                    "user_id" to userId,
+                    "source" to "notification_listener",
+                    "package_name" to packageName,
+                    "title" to title,
+                    "text" to text,
+                    "client_classification" to classification.name.lowercase(),
+                    "parsed" to mapOf(
+                        "amount" to parsed.amount,
+                        "is_expense" to parsed.isExpense,
+                        "title" to parsed.title,
+                        "category" to parsed.category,
+                        "merchant_name" to (parsed.merchantName ?: parsed.bankName),
+                        "bank_name" to parsed.bankName,
+                        "txn_kind" to if (parsed.txType == TxType.WITHDRAWAL) "transfer" else if (parsed.isExpense) "expense" else "income",
+                        "tx_type" to parsed.txType.name,
+                        "currency" to (parsed.currency ?: ""),
+                        "confidence" to parsed.confidence.toDouble(),
+                        "external_ref" to (parsed.externalRef ?: "")
+                    )
+                ),
+                timeoutMs = 20_000L
+            )
+            response["status"]?.toString()
+        } catch (e: Exception) {
+            Log.e("UnifiedBankListener", "notification_ingest failed: ${e.message}")
+            null
+        }
+    }
+
     private fun showSystemNotification(title: String, message: String) {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channelId = "zad_smart_alerts"

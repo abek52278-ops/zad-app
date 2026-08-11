@@ -95,6 +95,21 @@ Deno.test("buildAgentContext states the RPC's figures verbatim and never re-deri
   assert(!text.includes("- بقالة: 240 ر.س"));
 });
 
+Deno.test("buildAgentContext never substitutes subscription cost for the monthly budget", () => {
+  // Regression for the live report where a 500 EGP subscription was presented as the
+  // 10,000 EGP monthly ceiling. The subscription list is context only; the ceiling must
+  // always come verbatim from zad_budget_state.monthly_limit.
+  const text = buildAgentContext(emptyInput({
+    currency: "EGP",
+    budget: budgetState({ monthly_limit: 10000, remaining: 9363.78, committed: 500, available: 8863.78 }),
+    subscriptions: [{ title: "اشتراك", amount: 500, renewal_date: "2026-08-24", is_active: true }],
+  }));
+  assert(text.includes("الميزانية الشهرية: 10000 EGP"));
+  assert(text.includes("المحجوز (التزامات + اشتراكات): 500 EGP"));
+  assert(text.includes("- اشتراك: 500 EGP/شهر"));
+  assert(!text.includes("الميزانية الشهرية: 500 EGP"));
+});
+
 Deno.test("buildAgentContext says a missing ceiling is unknown, never zero", () => {
   const text = buildAgentContext(emptyInput({
     budget: budgetState({ monthly_limit: null, remaining: null, available: null, threat: "UNKNOWN" }),

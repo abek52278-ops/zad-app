@@ -621,6 +621,74 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.e(TAG, "subscribeToOwnPharmacyItems() FAILED: ${e.message}")
             }
         }
+        viewModelScope.launch {
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return@launch
+            try {
+                com.example.data.RealtimePersonalRepo.subscribeToOwnShoppingList(userId).collect {
+                    Log.d(TAG, "Realtime own-shopping change → syncData()")
+                    syncData()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "subscribeToOwnShoppingList() FAILED: ${e.message}")
+            }
+        }
+        viewModelScope.launch {
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return@launch
+            try {
+                com.example.data.RealtimePersonalRepo.subscribeToOwnSubscriptions(userId).collect {
+                    Log.d(TAG, "Realtime own-subscription change → syncData()")
+                    syncData()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "subscribeToOwnSubscriptions() FAILED: ${e.message}")
+            }
+        }
+        viewModelScope.launch {
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return@launch
+            try {
+                com.example.data.RealtimePersonalRepo.subscribeToOwnObligations(userId).collect {
+                    Log.d(TAG, "Realtime own-obligation change → syncData()")
+                    syncData()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "subscribeToOwnObligations() FAILED: ${e.message}")
+            }
+        }
+        viewModelScope.launch {
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return@launch
+            try {
+                com.example.data.RealtimePersonalRepo.subscribeToOwnDebts(userId).collect {
+                    Log.d(TAG, "Realtime own-debt change → syncData()")
+                    syncData()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "subscribeToOwnDebts() FAILED: ${e.message}")
+            }
+        }
+        viewModelScope.launch {
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return@launch
+            try {
+                com.example.data.RealtimePersonalRepo.subscribeToOwnMaintenanceItems(userId).collect {
+                    Log.d(TAG, "Realtime own-maintenance change → syncData()")
+                    syncData()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "subscribeToOwnMaintenanceItems() FAILED: ${e.message}")
+            }
+        }
+        viewModelScope.launch {
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return@launch
+            try {
+                com.example.data.RealtimePersonalRepo.subscribeToOwnUserProfile(userId).collect {
+                    Log.d(TAG, "Realtime own-user profile change → loadBudget()/loadUserProfile()")
+                    loadBudget()
+                    loadUserProfile()
+                    loadCycleSettings()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "subscribeToOwnUserProfile() FAILED: ${e.message}")
+            }
+        }
     }
 
     private fun persistChatMessage(msg: AiChatMessage) {

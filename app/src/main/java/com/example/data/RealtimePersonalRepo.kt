@@ -26,6 +26,12 @@ object RealtimePersonalRepo {
     private var transactionsChannel: RealtimeChannel? = null
     private var inventoryChannel: RealtimeChannel? = null
     private var pharmacyChannel: RealtimeChannel? = null
+    private var shoppingChannel: RealtimeChannel? = null
+    private var subscriptionsChannel: RealtimeChannel? = null
+    private var obligationsChannel: RealtimeChannel? = null
+    private var debtsChannel: RealtimeChannel? = null
+    private var maintenanceChannel: RealtimeChannel? = null
+    private var userChannel: RealtimeChannel? = null
 
     suspend fun subscribeToOwnTransactions(userId: String): Flow<Unit> = subscribe(
         channelName = "own_transactions:$userId", table = "zad_transactions", userId = userId,
@@ -42,10 +48,49 @@ object RealtimePersonalRepo {
         existing = pharmacyChannel, store = { pharmacyChannel = it }
     )
 
+    suspend fun subscribeToOwnShoppingList(userId: String): Flow<Unit> = subscribe(
+        channelName = "own_shopping:$userId", table = "zad_shopping_list", userId = userId,
+        existing = shoppingChannel, store = { shoppingChannel = it }
+    )
+
+    suspend fun subscribeToOwnSubscriptions(userId: String): Flow<Unit> = subscribe(
+        channelName = "own_subscriptions:$userId", table = "zad_subscriptions", userId = userId,
+        existing = subscriptionsChannel, store = { subscriptionsChannel = it }
+    )
+
+    suspend fun subscribeToOwnObligations(userId: String): Flow<Unit> = subscribe(
+        channelName = "own_obligations:$userId", table = "zad_obligations", userId = userId,
+        existing = obligationsChannel, store = { obligationsChannel = it }
+    )
+
+    suspend fun subscribeToOwnDebts(userId: String): Flow<Unit> = subscribe(
+        channelName = "own_debts:$userId", table = "zad_debts", userId = userId,
+        existing = debtsChannel, store = { debtsChannel = it }
+    )
+
+    suspend fun subscribeToOwnMaintenanceItems(userId: String): Flow<Unit> = subscribe(
+        channelName = "own_maintenance:$userId", table = "zad_maintenance_items", userId = userId,
+        existing = maintenanceChannel, store = { maintenanceChannel = it }
+    )
+
+    suspend fun subscribeToOwnUserProfile(userId: String): Flow<Unit> = subscribe(
+        channelName = "own_user:$userId", table = "zad_users", column = "id", value = userId,
+        existing = userChannel, store = { userChannel = it }
+    )
+
     private suspend fun subscribe(
         channelName: String,
         table: String,
         userId: String,
+        existing: RealtimeChannel?,
+        store: (RealtimeChannel) -> Unit
+    ): Flow<Unit> = subscribe(channelName, table, "user_id", userId, existing, store)
+
+    private suspend fun subscribe(
+        channelName: String,
+        table: String,
+        column: String,
+        value: String,
         existing: RealtimeChannel?,
         store: (RealtimeChannel) -> Unit
     ): Flow<Unit> {
@@ -56,7 +101,7 @@ object RealtimePersonalRepo {
 
         val changeFlow = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
             this.table = table
-            filter("user_id", FilterOperator.EQ, userId)
+            filter(column, FilterOperator.EQ, value)
         }
         channel.subscribe()
 
@@ -69,8 +114,20 @@ object RealtimePersonalRepo {
         transactionsChannel?.unsubscribe()
         inventoryChannel?.unsubscribe()
         pharmacyChannel?.unsubscribe()
+        shoppingChannel?.unsubscribe()
+        subscriptionsChannel?.unsubscribe()
+        obligationsChannel?.unsubscribe()
+        debtsChannel?.unsubscribe()
+        maintenanceChannel?.unsubscribe()
+        userChannel?.unsubscribe()
         transactionsChannel = null
         inventoryChannel = null
         pharmacyChannel = null
+        shoppingChannel = null
+        subscriptionsChannel = null
+        obligationsChannel = null
+        debtsChannel = null
+        maintenanceChannel = null
+        userChannel = null
     }
 }
