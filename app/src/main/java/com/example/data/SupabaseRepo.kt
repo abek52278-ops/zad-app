@@ -930,6 +930,53 @@ object SupabaseRepo {
         }
     }
 
+    suspend fun addObligation(obligation: ZadObligation) {
+        try {
+            val userId = client.auth.currentUserOrNull()?.id
+            val obWithUser = obligation.copy(userId = userId, confirmed = true)
+            Log.d(TAG, "addObligation() → table=zad_obligations, title=${obWithUser.title}, amount=${obWithUser.amount}, userId=$userId")
+            client.postgrest["zad_obligations"].insert(obWithUser)
+            Log.d(TAG, "addObligation() SUCCESS — id=${obWithUser.id}")
+        } catch (e: Exception) {
+            Log.e(TAG, "addObligation() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun updateObligation(id: String, title: String, amount: Double, kind: String, dueDay: Int?, recurrence: String) {
+        try {
+            Log.d(TAG, "updateObligation() → table=zad_obligations, id=$id, title=$title, amount=$amount")
+            client.postgrest["zad_obligations"].update(
+                mapOf(
+                    "title" to title,
+                    "amount" to amount,
+                    "kind" to kind,
+                    "due_day" to dueDay,
+                    "recurrence" to recurrence
+                )
+            ) {
+                filter { eq("id", id) }
+            }
+            Log.d(TAG, "updateObligation() SUCCESS")
+        } catch (e: Exception) {
+            Log.e(TAG, "updateObligation() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    suspend fun deleteObligation(id: String) {
+        try {
+            Log.d(TAG, "deleteObligation() → table=zad_obligations, id=$id")
+            client.postgrest["zad_obligations"].delete {
+                filter { eq("id", id) }
+            }
+            Log.d(TAG, "deleteObligation() SUCCESS")
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteObligation() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
     // ─── Task 27.2 — "why did this number change" ────────────────────────────────
     // zad_brain_runs.mutations already records every automated write (Task 16/18) with
     // old/new values; this is the first client read of that table (was write-only from

@@ -347,6 +347,35 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun addObligation(obligation: com.example.data.ZadObligation) {
+        viewModelScope.launch {
+            Log.d(TAG, "addObligation() → title=${obligation.title}, amount=${obligation.amount}")
+            SupabaseRepo.addObligation(obligation)
+            loadObligations()
+        }
+    }
+
+    fun updateObligation(id: String, title: String, amount: Double, kind: String, dueDay: Int?, recurrence: String) {
+        viewModelScope.launch {
+            Log.d(TAG, "updateObligation() → id=$id, title=$title, amount=$amount")
+            // Optimistic local update فـ ObligationCard يعكس التعديل فوراً من غير استنى round-trip
+            _obligations.value = _obligations.value.map {
+                if (it.id == id) it.copy(title = title, amount = amount, kind = kind, dueDay = dueDay, recurrence = recurrence) else it
+            }
+            recalculateRemainingBalance(_transactions.value, _budget.value)
+            SupabaseRepo.updateObligation(id, title, amount, kind, dueDay, recurrence)
+        }
+    }
+
+    fun deleteObligation(id: String) {
+        viewModelScope.launch {
+            Log.d(TAG, "deleteObligation() → id=$id")
+            _obligations.value = _obligations.value.filter { it.id != id }
+            recalculateRemainingBalance(_transactions.value, _budget.value)
+            SupabaseRepo.deleteObligation(id)
+        }
+    }
+
     // Search query for inventory — InventoryScreen filters `inventory` locally (remember{})
     // keyed on this + category, so there is no separate filtered-list StateFlow to keep in sync.
     private val _inventorySearchQuery = MutableStateFlow("")

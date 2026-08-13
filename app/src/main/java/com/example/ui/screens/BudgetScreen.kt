@@ -89,6 +89,9 @@ fun BudgetScreen(
     var editingCategory by remember { mutableStateOf<String?>(null) }
     var insightCategory by remember { mutableStateOf<String?>(null) }
     var editingTransaction by remember { mutableStateOf<ZadTransaction?>(null) }
+    var showAddObligationDialog by remember { mutableStateOf(false) }
+    var editingObligation by remember { mutableStateOf<com.example.data.ZadObligation?>(null) }
+    var deletingObligation by remember { mutableStateOf<com.example.data.ZadObligation?>(null) }
     // المصروف الفعلي بيتحسب من المعاملات مباشرة (يشمل اليدوية + البنكية) — الميزانية من BudgetTracker
     val categoryCards = remember(transactions, cycleStart, cycleEnd, categoryCardsRefresh) {
         val spentByCategory = transactions.filter { tx ->
@@ -245,12 +248,17 @@ fun BudgetScreen(
                         fontWeight = FontWeight.SemiBold,
                         color = textSecondary
                     )
-                    Text(
-                        com.example.data.CurrencyFormatter.format(context, obligationsTotal),
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = secondaryDark
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            com.example.data.CurrencyFormatter.format(context, obligationsTotal),
+                            fontSize = 19.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = secondaryDark
+                        )
+                        IconButton(onClick = { showAddObligationDialog = true }, modifier = Modifier.size(28.dp)) {
+                            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_obligation_action), tint = secondaryDark, modifier = Modifier.size(20.dp))
+                        }
+                    }
                 }
             }
 
@@ -270,7 +278,11 @@ fun BudgetScreen(
                 }
             } else {
                 items(obligations, key = { it.id }) { obligation ->
-                    ObligationCard(obligation = obligation)
+                    ObligationCard(
+                        obligation = obligation,
+                        onEdit = { editingObligation = obligation },
+                        onDelete = { deletingObligation = obligation }
+                    )
                 }
             }
 
@@ -682,6 +694,53 @@ fun BudgetScreen(
             transactions = transactions,
             patterns = behaviorPatterns,
             onDismiss = { insightCategory = null }
+        )
+    }
+
+    if (showAddObligationDialog) {
+        AddEditObligationDialog(
+            obligation = null,
+            onDismiss = { showAddObligationDialog = false },
+            onSave = { title, amount, kind, dueDay, recurrence ->
+                viewModel.addObligation(
+                    com.example.data.ZadObligation(
+                        title = title,
+                        amount = amount,
+                        kind = kind,
+                        dueDay = dueDay,
+                        recurrence = recurrence
+                    )
+                )
+                showAddObligationDialog = false
+            }
+        )
+    }
+
+    editingObligation?.let { obligation ->
+        AddEditObligationDialog(
+            obligation = obligation,
+            onDismiss = { editingObligation = null },
+            onSave = { title, amount, kind, dueDay, recurrence ->
+                viewModel.updateObligation(obligation.id, title, amount, kind, dueDay, recurrence)
+                editingObligation = null
+            }
+        )
+    }
+
+    deletingObligation?.let { obligation ->
+        AlertDialog(
+            onDismissRequest = { deletingObligation = null },
+            title = { Text(stringResource(R.string.delete_action), fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(R.string.delete_obligation_confirm, obligation.title)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteObligation(obligation.id)
+                    deletingObligation = null
+                }) { Text(stringResource(R.string.delete_action), color = dangerColor) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletingObligation = null }) { Text(stringResource(R.string.cancel)) }
+            }
         )
     }
 }
@@ -1197,7 +1256,11 @@ private fun TransactionEditDialog(
  * bar shows how far through the cycle that occurrence is.
  */
 @Composable
-internal fun ObligationCard(obligation: com.example.data.ZadObligation) {
+internal fun ObligationCard(
+    obligation: com.example.data.ZadObligation,
+    onEdit: () -> Unit = {},
+    onDelete: () -> Unit = {}
+) {
     val context = LocalContext.current
     val today = java.time.LocalDate.now()
     // BudgetMath.nextDueDate هي نفس الدالة اللي "محجوز" و"الاستحقاق الجاي" في الهيرو
@@ -1245,6 +1308,7 @@ internal fun ObligationCard(obligation: com.example.data.ZadObligation) {
             .zadCardShadow(RoundedCornerShape(18.dp))
             .clip(RoundedCornerShape(18.dp))
             .background(surface)
+            .clickable(onClick = onEdit)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
@@ -1265,6 +1329,14 @@ internal fun ObligationCard(obligation: com.example.data.ZadObligation) {
                 fontWeight = FontWeight.Bold,
                 color = textPrimary
             )
+            IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+                Icon(
+                    Icons.Default.DeleteOutline,
+                    contentDescription = stringResource(R.string.delete_action),
+                    tint = textTertiary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -1304,4 +1376,113 @@ internal fun ObligationCard(obligation: com.example.data.ZadObligation) {
             )
         }
     }
+}
+
+private val obligationKinds = listOf("rent", "installment", "debt", "tuition", "utility", "other")
+
+@Composable
+private fun obligationKindLabel(kind: String): String = when (kind) {
+    "rent" -> stringResource(R.string.obligation_kind_rent)
+    "installment" -> stringResource(R.string.obligation_kind_installment)
+    "debt" -> stringResource(R.string.obligation_kind_debt)
+    "tuition" -> stringResource(R.string.obligation_kind_tuition)
+    "utility" -> stringResource(R.string.obligation_kind_utility)
+    else -> stringResource(R.string.obligation_kind_other)
+}
+
+private val obligationRecurrences = listOf("monthly", "quarterly", "yearly", "once")
+
+@Composable
+private fun obligationRecurrenceLabel(recurrence: String): String = when (recurrence) {
+    "monthly" -> stringResource(R.string.obligation_recurrence_monthly)
+    "quarterly" -> stringResource(R.string.obligation_recurrence_quarterly)
+    "yearly" -> stringResource(R.string.obligation_recurrence_yearly)
+    else -> stringResource(R.string.obligation_recurrence_once)
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AddEditObligationDialog(
+    obligation: com.example.data.ZadObligation?,
+    onDismiss: () -> Unit,
+    onSave: (title: String, amount: Double, kind: String, dueDay: Int?, recurrence: String) -> Unit
+) {
+    var title by remember { mutableStateOf(obligation?.title ?: "") }
+    var amountStr by remember { mutableStateOf(obligation?.amount?.let { if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString() } ?: "") }
+    var kind by remember { mutableStateOf(obligation?.kind ?: "rent") }
+    var dueDayStr by remember { mutableStateOf(obligation?.dueDay?.toString() ?: "") }
+    var recurrence by remember { mutableStateOf(obligation?.recurrence ?: "monthly") }
+    val context = LocalContext.current
+    val amount = amountStr.toDoubleOrNull()
+    val canSave = title.isNotBlank() && amount != null && amount > 0.0
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                stringResource(if (obligation == null) R.string.add_obligation_dialog_title else R.string.edit_obligation_dialog_title),
+                style = Typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text(stringResource(R.string.obligation_name_hint)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = amountStr,
+                    onValueChange = { amountStr = it },
+                    label = { Text(stringResource(R.string.amount_with_currency_hint, com.example.data.CurrencyFormatter.symbol(context))) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    isError = amountStr.isNotBlank() && amount == null
+                )
+                OutlinedTextField(
+                    value = dueDayStr,
+                    onValueChange = { dueDayStr = it.filter { c -> c.isDigit() }.take(2) },
+                    label = { Text(stringResource(R.string.obligation_due_day_hint)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+
+                Text(stringResource(R.string.obligation_kind_label), style = Typography.labelMedium, color = onSurfaceVariant)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    obligationKinds.forEach { k ->
+                        FilterChip(
+                            selected = kind == k,
+                            onClick = { kind = k },
+                            label = { Text(obligationKindLabel(k), style = Typography.labelSmall) }
+                        )
+                    }
+                }
+
+                Text(stringResource(R.string.obligation_recurrence_label), style = Typography.labelMedium, color = onSurfaceVariant)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    obligationRecurrences.forEach { r ->
+                        FilterChip(
+                            selected = recurrence == r,
+                            onClick = { recurrence = r },
+                            label = { Text(obligationRecurrenceLabel(r), style = Typography.labelSmall) }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = canSave,
+                onClick = { onSave(title.trim(), amount ?: 0.0, kind, dueDayStr.toIntOrNull(), recurrence) },
+                modifier = Modifier.pressableScale(),
+                shape = RoundedCornerShape(50)
+            ) { Text(stringResource(R.string.save)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
+    )
 }
