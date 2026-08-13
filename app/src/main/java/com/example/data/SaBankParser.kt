@@ -375,7 +375,9 @@ object SaBankParser {
         TypeRule(TxType.TRANSFER_OUT, listOf("حوالة صادرة", "تحويل صادر", "تحويل الى", "تحويل إلى", "حوالة الى", "حوالة إلى", "transfer to", "sent to", "تحويل مبلغ", "gönderilen havale", "havale gönderildi")),
         TypeRule(TxType.WITHDRAWAL, listOf("سحب نقدي", "سحب من الصراف", "صراف آلي", "atm", "سحب مبلغ", "withdrawal", "cash withdrawal", "nakit çekme", "para çekme")),
         TypeRule(TxType.BILL_PAYMENT, listOf("سداد", "فاتورة", "sadad", "bill payment", "دفع فاتورة", "fatura ödemesi", "fatura")),
-        TypeRule(TxType.INSTALLMENT, listOf("قسط", "أقساط", "دفعة من", "installment", "تابي", "تمارة", "tabby", "tamara", "taksit")),
+        // فاليو (مصر) كانت غايبة تماماً — تابي وتمارة بس هما اللي كانوا متعرفين، رغم إن
+        // فاليو منصة تقسيط مصرية شائعة بنفس درجة الاتنين دول بالظبط.
+        TypeRule(TxType.INSTALLMENT, listOf("قسط", "أقساط", "دفعة من", "installment", "تابي", "تمارة", "فاليو", "tabby", "tamara", "valu", "taksit")),
         TypeRule(TxType.FEE, listOf("رسوم", "عمولة", "fee", "charges", "vat", "ücret", "komisyon")),
         TypeRule(TxType.PURCHASE, listOf("شراء", "مشتريات", "عملية شراء", "نقاط البيع", "خصم", "دفع", "تم الدفع", "مدين", "قيد مدين", "purchase", "pos", "debited", "payment", "paid", "spent", "مدفوعات", "مدفوعة", "أبل باي", "apple pay", "mada", "مدى", "satın alma", "harcama", "ödeme", "kartınızdan"))
     )
@@ -399,7 +401,7 @@ object SaBankParser {
         "الرعاية الصحية" to listOf("علاج", "صيدلية", "مستشفى", "عيادة", "دواء", "النهدي", "الدواء", "nahdi", "pharmacy", "hospital", "clinic"),
         "المواصلات" to listOf("مواصلات", "أوبر", "كريم", "uber", "careem", "taxi", "نقل", "طيران", "باص", "قطار", "flight", "المطار"),
         "التعليم" to listOf("تعليم", "مدرسة", "جامعة", "دورة", "تدريب", "منصة تعليم", "school", "university", "course", "udemy"),
-        "الأقساط" to listOf("تابي", "تمارة", "قسط", "أقساط", "tabby", "tamara", "installment", "دفعة من"),
+        "الأقساط" to listOf("تابي", "تمارة", "فاليو", "قسط", "أقساط", "tabby", "tamara", "valu", "installment", "دفعة من"),
         "الاشتراكات" to listOf("نتفلكس", "netflix", "شاهد", "shahid", "spotify", "youtube premium", "apple music", "اشتراك شهري", "اشتراك سنوي", "subscription", "anghami", "أنغامي", "osn", "prime"),
         "الوقود" to listOf("محطة", "بنزين", "وقود", "ديزل", "ساسكو", "الدريس", "نفط", "petrol", "fuel", "sasco", "aldrees", "naft"),
         "تحويلات" to listOf("حوالة", "تحويل", "transfer", "stc pay")
@@ -458,6 +460,7 @@ object SaBankParser {
         BankDef("stc pay", listOf("stcpay", "stc pay")),
         BankDef("تابي", listOf("tabby", "تابي")),
         BankDef("تمارة", listOf("tamara", "تمارة")),
+        BankDef("فاليو", listOf("valu", "فاليو")),
         BankDef("urpay", listOf("urpay")),
         BankDef("D360", listOf("d360")),
         // بنوك ومحافظ مصر — أسماء عامة معروفة، idKeywords دي أفضل معرفة مش تجربة فعلية على SMS
@@ -575,9 +578,9 @@ object SaBankParser {
         val bank = identifyBank(source) ?: identifyBank(fullText)
         val bankName = bank?.name ?: "البنك"
 
-        // تابي وتمارة دايماً أقساط
+        // تابي وتمارة وفاليو دايماً أقساط
         val finalType = when (bankName) {
-            "تابي", "تمارة" -> TxType.INSTALLMENT
+            "تابي", "تمارة", "فاليو" -> TxType.INSTALLMENT
             else -> txType
         }
 

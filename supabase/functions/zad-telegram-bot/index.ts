@@ -232,6 +232,12 @@ async function runDailyCheckins(sb: SupabaseClient): Promise<{ usersChecked: num
  * runDailyCheckins (see telegram_checkin_pipeline migration) — no per-day dedup table like
  * check-ins have, since a subscription only enters the 0..3 day window once per renewal
  * cycle, so a user gets at most ~4 daily pings per bill, not an unbounded repeat.
+ *
+ * Also covers zad_obligations (rent/installments incl. تابي/تمارة/فاليو/utilities) — these
+ * had NO due-date reminder anywhere at all until now (unlike subscriptions, which at least
+ * had the in-app/local-notification version). Next-due-date math reuses
+ * zad_obligation_next_due() (SQL, SECURITY INVOKER, pure function) instead of a third
+ * reimplementation of the same recurrence rules already in BudgetMath.kt and zad-brain.
  */
 async function runDailySubscriptionAlerts(sb: SupabaseClient): Promise<{ usersChecked: number; alertsSent: number }> {
   const { data: bindings } = await sb.from("telegram_bindings")
@@ -243,13 +249,22 @@ async function runDailySubscriptionAlerts(sb: SupabaseClient): Promise<{ usersCh
   let alertsSent = 0;
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
+  const todayStr = today.toISOString().slice(0, 10);
 
   for (const b of rows) {
-    const { data: subs } = await sb.from("zad_subscriptions")
-      .select("title,amount,renewal_date,currency")
-      .eq("user_id", b.user_id)
-      .eq("is_active", true)
-      .not("renewal_date", "is", null);
+    const [{ data: subs }, { data: obligations }, { data: userRow }] = await Promise.all([
+      sb.from("zad_subscriptions")
+        .select("title,amount,renewal_date,currency")
+        .eq("user_id", b.user_id)
+        .eq("is_active", true)
+        .not("renewal_date", "is", null),
+      sb.from("zad_obligations")
+        .select("title,amount,kind,recurrence,due_day,due_date")
+        .eq("user_id", b.user_id)
+        .eq("active", true),
+      sb.from("zad_users").select("currency").eq("id", b.user_id).maybeSingle(),
+    ]);
+    const currency = (userRow as { currency: string | null } | null)?.currency ?? null;
 
     for (const sub of (subs ?? []) as Array<{ title: string; amount: number; renewal_date: string; currency: string | null }>) {
       const renewal = new Date(sub.renewal_date);
@@ -259,6 +274,21 @@ async function runDailySubscriptionAlerts(sb: SupabaseClient): Promise<{ usersCh
       const amountText = `${sub.amount}${sub.currency ? " " + sub.currency : ""}`;
       const when = daysLeft === 0 ? "اليوم" : `خلال ${daysLeft} يوم`;
       await sendTelegramMessage(b.chat_id, `🔔 ${isolate(sanitizeName(sub.title))} يتجدد ${when} (${isolate(amountText)})`);
+      alertsSent++;
+    }
+
+    for (const ob of (obligations ?? []) as Array<{ title: string; amount: number; kind: string; recurrence: string; due_day: number | null; due_date: string | null }>) {
+      const { data: nextDue } = await sb.rpc("zad_obligation_next_due", {
+        p_recurrence: ob.recurrence, p_due_day: ob.due_day, p_due_date: ob.due_date, p_asof: todayStr,
+      });
+      if (!nextDue) continue;
+      const dueDate = new Date(nextDue as string);
+      if (isNaN(dueDate.getTime())) continue;
+      const daysLeft = Math.round((dueDate.getTime() - today.getTime()) / 86400000);
+      if (daysLeft < 0 || daysLeft > 3) continue;
+      const amountText = `${ob.amount}${currency ? " " + currency : ""}`;
+      const when = daysLeft === 0 ? "اليوم" : `خلال ${daysLeft} يوم`;
+      await sendTelegramMessage(b.chat_id, `🔔 ${isolate(sanitizeName(ob.title))} مستحق ${when} (${isolate(amountText)})`);
       alertsSent++;
     }
   }
