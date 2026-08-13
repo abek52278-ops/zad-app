@@ -199,6 +199,7 @@ fun HomeScreen(
     val userName = userNameState ?: "..."
 
     var showAllTransactionsDialog by remember { mutableStateOf(false) }
+    var showAddTransactionDialog by remember { mutableStateOf(false) }
     var showWhySheet by remember { mutableStateOf(false) } // Task 27.2 — طول الضغط على "متاح"
     var showTelegramSheet by remember { mutableStateOf(false) } // بوت تليجرام — اتنقل من البروفايل للرئيسية
     var selectedRecipeTitle by remember { mutableStateOf<String?>(null) }
@@ -790,7 +791,37 @@ fun HomeScreen(
             } // closes inner Column
         } // closes else block (line 125)
     } // closes outer Column (line 103)
+
+        // الصفحة الرئيسية كانت من غير FAB خالص رغم إنها أكتر شاشة بيتفتح — مقفولة في وضع
+        // الأطفال لأن طلب الشراء بتاعهم بيحصل من KidsModeContent (onAddRequest) مش من هنا.
+        if (!isChild) {
+            FloatingActionButton(
+                onClick = { showAddTransactionDialog = true },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 20.dp, bottom = 88.dp),
+                containerColor = primary,
+                contentColor = Color.White
+            ) {
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_action))
+            }
+        }
 } // closes Box
+    if (showAddTransactionDialog) {
+        AddTransactionDialog(
+            onDismiss = { showAddTransactionDialog = false },
+            onSave = { amount, title, isExpense, category ->
+                viewModel.addTransaction(
+                    com.example.data.ZadTransaction(
+                        amount = amount, title = title,
+                        isExpense = isExpense, category = category, isVerified = true
+                    )
+                )
+                showAddTransactionDialog = false
+            }
+        )
+    }
+
     if (showTelegramSheet) {
         com.example.ui.components.TelegramBotSheet(onDismiss = { showTelegramSheet = false })
     }
