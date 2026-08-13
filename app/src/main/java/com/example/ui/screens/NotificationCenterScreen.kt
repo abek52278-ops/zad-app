@@ -60,7 +60,11 @@ fun NotificationCenterScreen(
     DisposableEffect(Unit) {
         tts = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                tts?.language = java.util.Locale("ar")
+                // نفس منطق ZadNotifier.speakArabic — لهجة البلد المختار لو الجهاز عنده صوتها،
+                // وإلا عربي عام.
+                val marketLocale = com.example.data.MarketPrefs.getMarket(context).toLocale()
+                val available = tts?.isLanguageAvailable(marketLocale)?.let { it >= TextToSpeech.LANG_AVAILABLE } == true
+                tts?.language = if (available) marketLocale else java.util.Locale("ar")
             }
         }
         onDispose { tts?.shutdown() }

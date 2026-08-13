@@ -729,6 +729,10 @@
     <string name="account_title">الحساب</string>
     <string name="achievements_title">الإنجازات</string>
     <string name="assistant_alerts_title">تنبيهات المساعد الذكي</string>
+    <string name="notification_sound_title">صوت الإشعارات</string>
+    <string name="notification_sound_desc">اختار من أي صوت إشعار مثبّت على جهازك بدل الصوت الافتراضي</string>
+    <string name="notification_sound_default">الصوت الافتراضي</string>
+    <string name="change_action">تغيير</string>
     <string name="behavior_analysis_disabled_subtitle">غير مفعل — فعل لتحصل على تنبؤات ذكية</string>
     <string name="behavior_analysis_enabled_subtitle">مفعل — يتم تحليل بياناتك لتقديم تنبؤات مخصصة</string>
     <string name="behavior_consent_explanation">زاد يحلل بيانات صرفك واستهلاكك (المعاملات، المخزون، الاشتراكات) لتقديم:\n\n• تنبؤات مخصصة للمصاريف\n• ترشيحات ذكية للمنتجات\n• تحليل أسبوعي للسلوك المالي\n\nهذا مطلوب بموجب نظام حماية البيانات الشخصية السعودي (PDPL).\nيمكنك إلغاء التفعيل في أي وقت.</string>

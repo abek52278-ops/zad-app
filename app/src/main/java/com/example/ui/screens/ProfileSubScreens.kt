@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -458,6 +459,11 @@ object AlertPrefs {
     const val KEY_LOW_INVENTORY = "alert_low_inventory"
     const val KEY_BUDGET_OVERRUN = "alert_budget_overrun"
     const val KEY_TASBIH_REMINDER = "alert_tasbih_reminder"
+    private const val KEY_NOTIFICATION_SOUND_URI = "notification_sound_uri"
+    // NotificationChannel.sound مينفعش يتغيّر بعد ما القناة اتعملت (Android O+) — القناة
+    // القديمة بصوتها القديم بتفضل موجودة على الجهاز، والرقم ده بيتزوّد كل مرة يتغيّر فيها
+    // الصوت عشان ZadNotifier ينشئ قناة جديدة (ID مختلف) بدل ما يحاول يعدّل قناة قديمة.
+    private const val KEY_NOTIFICATION_SOUND_VERSION = "notification_sound_version"
 
     fun isEnabled(context: android.content.Context, key: String): Boolean =
         context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
@@ -466,6 +472,24 @@ object AlertPrefs {
     fun setEnabled(context: android.content.Context, key: String, enabled: Boolean) =
         context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
             .edit().putBoolean(key, enabled).apply()
+
+    /** null = لسه محددش صوت مخصص، النظام هيستخدم صوت قناة الإشعارات الافتراضي. */
+    fun getNotificationSoundUri(context: android.content.Context): String? =
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+            .getString(KEY_NOTIFICATION_SOUND_URI, null)
+
+    fun setNotificationSoundUri(context: android.content.Context, uri: String?) {
+        val prefs = context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+        val version = prefs.getInt(KEY_NOTIFICATION_SOUND_VERSION, 0) + 1
+        prefs.edit()
+            .putString(KEY_NOTIFICATION_SOUND_URI, uri)
+            .putInt(KEY_NOTIFICATION_SOUND_VERSION, version)
+            .apply()
+    }
+
+    fun getNotificationSoundVersion(context: android.content.Context): Int =
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+            .getInt(KEY_NOTIFICATION_SOUND_VERSION, 0)
 }
 
 @Composable
@@ -474,6 +498,16 @@ fun AssistantAlertsScreen(onBack: () -> Unit) {
     var lowInventoryAlerts by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_LOW_INVENTORY)) }
     var budgetOverrunAlerts by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_BUDGET_OVERRUN)) }
     var tasbihReminder by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_TASBIH_REMINDER)) }
+    var soundUri by remember { mutableStateOf(AlertPrefs.getNotificationSoundUri(context)) }
+
+    val soundPickerLauncher = rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val picked = result.data?.getParcelableExtra<android.net.Uri>(android.media.RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+        val pickedStr = picked?.toString()
+        soundUri = pickedStr
+        AlertPrefs.setNotificationSoundUri(context, pickedStr)
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         SubScreenTopBar(stringResource(R.string.assistant_alerts_title), onBack)
@@ -491,6 +525,38 @@ fun AssistantAlertsScreen(onBack: () -> Unit) {
             AlertSwitchItem(stringResource(R.string.tasbih_reminder_alert), stringResource(R.string.tasbih_reminder_alert_desc), tasbihReminder) {
                 tasbihReminder = it
                 AlertPrefs.setEnabled(context, AlertPrefs.KEY_TASBIH_REMINDER, it)
+            }
+
+            HorizontalDivider(color = outlineVariant, modifier = Modifier.padding(vertical = 16.dp))
+
+            Text(stringResource(R.string.notification_sound_title), fontWeight = FontWeight.Bold, color = onSurface)
+            Spacer(Modifier.height(4.dp))
+            Text(stringResource(R.string.notification_sound_desc), fontSize = 12.sp, color = onSurfaceVariant)
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                val currentSoundName = remember(soundUri) {
+                    val uri = soundUri?.let { android.net.Uri.parse(it) }
+                        ?: android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
+                    try {
+                        android.media.RingtoneManager.getRingtone(context, uri)?.getTitle(context)
+                    } catch (e: Exception) { null } ?: context.getString(R.string.notification_sound_default)
+                }
+                Text(currentSoundName, fontSize = 13.sp, color = onSurfaceVariant, modifier = Modifier.weight(1f))
+                TextButton(onClick = {
+                    val intent = android.content.Intent(android.media.RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                        putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_TYPE, android.media.RingtoneManager.TYPE_NOTIFICATION)
+                        putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_TITLE, context.getString(R.string.notification_sound_title))
+                        putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, true)
+                        val existing = soundUri?.let { android.net.Uri.parse(it) }
+                            ?: android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
+                        putExtra(android.media.RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, existing)
+                    }
+                    soundPickerLauncher.launch(intent)
+                }) { Text(stringResource(R.string.change_action)) }
             }
 
             HorizontalDivider(color = outlineVariant, modifier = Modifier.padding(vertical = 16.dp))
