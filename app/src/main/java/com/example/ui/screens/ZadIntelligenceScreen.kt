@@ -66,7 +66,8 @@ import kotlinx.coroutines.launch
 fun ZadIntelligenceScreen(
     viewModel: ZadViewModel,
     familyViewModel: com.example.ui.viewmodels.FamilyViewModel,
-    onNavigateToFamily: () -> Unit = {}
+    onNavigateToFamily: () -> Unit = {},
+    onNavigateToStatementImport: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val otherCategoryLabel = stringResource(R.string.other_category)
@@ -226,7 +227,8 @@ fun ZadIntelligenceScreen(
                     totalIncome = totalIncome,
                     totalExpense = totalExpense,
                     topCategories = categoryMap.take(5),
-                    cycleStart = cycleStart
+                    cycleStart = cycleStart,
+                    onNavigateToStatementImport = onNavigateToStatementImport
                 )
             }
 
@@ -2644,7 +2646,8 @@ private fun MonthlyReportCard(
     totalIncome: Double,
     totalExpense: Double,
     topCategories: List<Pair<String, Double>>,
-    cycleStart: java.time.LocalDate
+    cycleStart: java.time.LocalDate,
+    onNavigateToStatementImport: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var report by remember { mutableStateOf<com.example.data.ZadAiRepository.MonthlyExpenseReport?>(null) }
@@ -2708,6 +2711,11 @@ private fun MonthlyReportCard(
             IconButton(onClick = { generate() }, enabled = !isLoading) {
                 Icon(Icons.Default.Refresh, contentDescription = null, tint = primary)
             }
+        }
+        TextButton(onClick = onNavigateToStatementImport, contentPadding = PaddingValues(0.dp)) {
+            Icon(Icons.Default.UploadFile, contentDescription = null, tint = primary, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(stringResource(R.string.statement_import_title), style = Typography.labelSmall, color = primary)
         }
 
         when {

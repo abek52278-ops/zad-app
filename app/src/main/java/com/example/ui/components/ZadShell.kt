@@ -639,7 +639,6 @@ val zadDrawerEntries = listOf(
     ZadDrawerEntry(ZadRoutes.PHARMACY, Icons.Default.LocalPharmacy, R.string.nav_pharmacy),
     ZadDrawerEntry(ZadRoutes.MAINTENANCE, Icons.Default.Build, R.string.nav_maintenance),
     ZadDrawerEntry(ZadRoutes.TASBIHA, Icons.Default.Park, R.string.tasbiha_short_label),
-    ZadDrawerEntry(ZadRoutes.STATEMENT, Icons.Default.UploadFile, R.string.statement_import_title),
     ZadDrawerEntry(ZadRoutes.PROFILE, Icons.Default.Person, R.string.screen_title_profile),
     ZadDrawerEntry(ZadRoutes.NOTIFICATIONS, Icons.Default.Notifications, R.string.notifications_title),
 )
