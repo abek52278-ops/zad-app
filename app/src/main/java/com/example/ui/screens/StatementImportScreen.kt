@@ -203,6 +203,7 @@ private fun PreviewStep(
     isImporting: Boolean,
     onConfirmImport: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     Column(modifier = Modifier.fillMaxSize()) {
         Text(
             stringResource(R.string.preview_rows_count_hint, rows.size, checkedRows.size),
@@ -234,7 +235,7 @@ private fun PreviewStep(
                         }
                         if (row.amount != null) {
                             Text(
-                                "${if (row.isExpense) "-" else "+"}${"%.2f".format(row.amount)}",
+                                "${if (row.isExpense) "-" else "+"}${com.example.data.CurrencyFormatter.format(context, row.amount)}",
                                 style = Typography.bodyMedium, fontWeight = FontWeight.Bold,
                                 color = if (row.isExpense) dangerColor else successColor
                             )
