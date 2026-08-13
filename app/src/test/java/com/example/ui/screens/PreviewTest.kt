@@ -967,4 +967,58 @@ class PreviewTest {
             filePath = "build/outputs/roborazzi/companion_orb_states.png"
         )
     }
+
+    /** الالتزامات — كارت التزام حقيقي، للتأكد إن الـ FAB/زر الحذف/الحالة بيتعرضوا صح. */
+    @Test
+    fun captureObligationCard() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.background(background).padding(16.dp)) {
+                    ObligationCard(
+                        obligation = com.example.data.ZadObligation(
+                            title = "إيجار الشقة",
+                            amount = 3000.0,
+                            kind = "rent",
+                            dueDay = 5,
+                            recurrence = "monthly"
+                        ),
+                        onEdit = {},
+                        onDelete = {}
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/obligation_card.png")
+    }
+
+    /** حوار إضافة/تعديل التزام — وضع الإضافة (مفيش obligation ممرر). */
+    @Test
+    fun captureAddObligationDialog() {
+        composeTestRule.setContent {
+            AppTheme {
+                AddEditObligationDialog(obligation = null, onDismiss = {}, onSave = { _, _, _, _, _ -> })
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/add_obligation_dialog.png")
+    }
+
+    /** عقل زاد — كارت التقرير الشهري، الحالة الابتدائية (قبل التوليد). */
+    @Test
+    fun captureMonthlyReportCard_empty() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.background(background).padding(16.dp)) {
+                    MonthlyReportCard(
+                        transactions = emptyList(),
+                        budget = 3000.0,
+                        totalIncome = 0.0,
+                        totalExpense = 0.0,
+                        topCategories = emptyList(),
+                        cycleStart = java.time.LocalDate.now()
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/monthly_report_card_empty.png")
+    }
 }

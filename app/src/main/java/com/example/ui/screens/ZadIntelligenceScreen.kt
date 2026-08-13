@@ -2640,7 +2640,7 @@ private fun ExportReportButton(report: com.example.data.ZadCentralBrain.BrainRep
 // ════════════════════════════════════════════════════════════════
 
 @Composable
-private fun MonthlyReportCard(
+internal fun MonthlyReportCard(
     transactions: List<ZadTransaction>,
     budget: Double,
     totalIncome: Double,

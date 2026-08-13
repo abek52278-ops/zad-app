@@ -1402,7 +1402,7 @@ private fun obligationRecurrenceLabel(recurrence: String): String = when (recurr
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun AddEditObligationDialog(
+internal fun AddEditObligationDialog(
     obligation: com.example.data.ZadObligation?,
     onDismiss: () -> Unit,
     onSave: (title: String, amount: Double, kind: String, dueDay: Int?, recurrence: String) -> Unit
