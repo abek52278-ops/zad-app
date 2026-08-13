@@ -44,6 +44,9 @@ import {
   validateAddDebt,
   validateUpdateDebt,
   validateDeleteDebt,
+  validateAddObligation,
+  validateUpdateObligation,
+  validateDeleteObligation,
   validateAddMaintenanceItem,
   validateUpdateMaintenanceItem,
   validateUpdateEmergencyFundBalance,
@@ -695,6 +698,36 @@ Deno.test("update_debt allows zeroing the remaining balance and rejects a negati
 
 Deno.test("delete_debt rejects a too-short name", async () => {
   assertEquals((await validateDeleteDebt({ name: "ق" }, {}, freshContext("u"))).ok, false);
+});
+
+// ── add_obligation / update_obligation / delete_obligation ───────────────────
+// كانت الأداة دي مش موجودة خالص — إيجار/فاتورة/قسط ثابت مكانش عندهم أداة إضافة
+// مباشرة، بس اكتشاف تلقائي (٣ شهور من نفس المبلغ). الاختبارات دي بتغطي الحد الأدنى
+// اللي كان لازم يتوفر عشان العميل يقدر يقول "عندي إيجار ٣٠٠٠" ويتسجل فورًا.
+
+Deno.test("add_obligation accepts a valid rent obligation", async () => {
+  const v = await validateAddObligation({ title: "إيجار الشقة", amount: 3000, kind: "rent" }, {}, freshContext("u"));
+  assertEquals(v.ok, true);
+});
+
+Deno.test("add_obligation rejects a kind outside the allowed set (debt has its own tool)", async () => {
+  const v = await validateAddObligation({ title: "قرض", amount: 1000, kind: "debt" }, {}, freshContext("u"));
+  assertEquals(v.ok, false);
+});
+
+Deno.test("add_obligation rejects a non-positive amount and a bad recurrence/due_day", async () => {
+  assertEquals((await validateAddObligation({ title: "كهرباء", amount: 0, kind: "utility" }, {}, freshContext("u"))).ok, false);
+  assertEquals((await validateAddObligation({ title: "كهرباء", amount: 300, kind: "utility", recurrence: "weekly" }, {}, freshContext("u"))).ok, false);
+  assertEquals((await validateAddObligation({ title: "كهرباء", amount: 300, kind: "utility", due_day: 45 }, {}, freshContext("u"))).ok, false);
+});
+
+Deno.test("update_obligation requires at least one field to change", async () => {
+  assertEquals((await validateUpdateObligation({ title: "إيجار" }, {}, freshContext("u"))).ok, false);
+  assertEquals((await validateUpdateObligation({ title: "إيجار", new_amount: 3200 }, {}, freshContext("u"))).ok, true);
+});
+
+Deno.test("delete_obligation rejects a too-short title", async () => {
+  assertEquals((await validateDeleteObligation({ title: "إ" }, {}, freshContext("u"))).ok, false);
 });
 
 // ── add_maintenance_item / update_maintenance_item ───────────────────────────

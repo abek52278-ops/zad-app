@@ -404,6 +404,50 @@ export const validateDeleteDebt: Validator = (input, _snap, ctx) => {
   return { ok: true };
 };
 
+// إيجار/قسط ثابت/فاتورة/مصاريف دراسية — كان معندهاش أداة إضافة مباشرة خالص، الطريقة
+// الوحيدة كانت الاكتشاف التلقائي (٣ شهور من نفس المبلغ). العميل كان يقول "عندي إيجار
+// ٣٠٠٠" في الشات ومفيش أداة تسجّله فورًا.
+const OBLIGATION_ADD_KINDS = ["rent", "installment", "tuition", "utility", "other"];
+
+export const validateAddObligation: Validator = (input, _snap, ctx) => {
+  if ((ctx.counts["add_obligation"] ?? 0) >= 3) return { ok: false, reason: "وصلت لحد أقصى ٣ التزامات في المرة" };
+  if (String(input.title ?? "").trim().length < 2) return { ok: false, reason: "اسم الالتزام قصير أوي" };
+  if (typeof input.amount !== "number" || !Number.isFinite(input.amount) || input.amount <= 0) {
+    return { ok: false, reason: "المبلغ لازم يكون رقم موجب" };
+  }
+  if (!OBLIGATION_ADD_KINDS.includes(String(input.kind ?? ""))) {
+    return { ok: false, reason: `kind لازم يكون واحد من: ${OBLIGATION_ADD_KINDS.join("، ")} — لو دين برصيد بينقص استخدم add_debt بدلها` };
+  }
+  if (input.recurrence !== undefined && !["monthly", "quarterly", "yearly"].includes(input.recurrence)) {
+    return { ok: false, reason: "recurrence لازم يكون monthly أو quarterly أو yearly" };
+  }
+  if (input.due_day !== undefined && input.due_day !== null && (typeof input.due_day !== "number" || input.due_day < 1 || input.due_day > 31)) {
+    return { ok: false, reason: "يوم الاستحقاق لازم بين ١ و٣١" };
+  }
+  return { ok: true };
+};
+
+export const validateUpdateObligation: Validator = (input, _snap, ctx) => {
+  if ((ctx.counts["update_obligation"] ?? 0) >= 3) return { ok: false, reason: "وصلت لحد أقصى ٣ تعديلات التزام في المرة" };
+  if (String(input.title ?? "").trim().length < 2) return { ok: false, reason: "اسم الالتزام مطلوب" };
+  if (input.new_amount !== undefined && (typeof input.new_amount !== "number" || input.new_amount <= 0)) {
+    return { ok: false, reason: "المبلغ الجديد لازم يكون رقم موجب" };
+  }
+  if (input.new_due_day !== undefined && (typeof input.new_due_day !== "number" || input.new_due_day < 1 || input.new_due_day > 31)) {
+    return { ok: false, reason: "يوم الاستحقاق الجديد لازم بين ١ و٣١" };
+  }
+  if (input.new_amount === undefined && input.new_due_day === undefined) {
+    return { ok: false, reason: "مفيش حاجة تتعدل — حدد المبلغ أو يوم الاستحقاق" };
+  }
+  return { ok: true };
+};
+
+export const validateDeleteObligation: Validator = (input, _snap, ctx) => {
+  if ((ctx.counts["delete_obligation"] ?? 0) >= 3) return { ok: false, reason: "وصلت لحد أقصى ٣ حذف التزامات في المرة" };
+  if (String(input.title ?? "").trim().length < 2) return { ok: false, reason: "اسم الالتزام قصير أوي" };
+  return { ok: true };
+};
+
 export const validateAddMaintenanceItem: Validator = (input, _snap, ctx) => {
   if ((ctx.counts["add_maintenance_item"] ?? 0) >= 3) return { ok: false, reason: "وصلت لحد أقصى ٣ أجهزة في المرة" };
   if (String(input.name ?? "").trim().length < 2) return { ok: false, reason: "اسم الجهاز قصير أوي" };
@@ -534,6 +578,9 @@ export const VALIDATORS: Record<string, Validator> = {
   add_debt: validateAddDebt,
   update_debt: validateUpdateDebt,
   delete_debt: validateDeleteDebt,
+  add_obligation: validateAddObligation,
+  update_obligation: validateUpdateObligation,
+  delete_obligation: validateDeleteObligation,
   add_maintenance_item: validateAddMaintenanceItem,
   update_maintenance_item: validateUpdateMaintenanceItem,
   update_emergency_fund_balance: validateUpdateEmergencyFundBalance,
@@ -556,6 +603,7 @@ export const MUTATING_TOOLS = [
   // والصيدلية فوق: بيانات حقيقية بس مش دفتر معاملات فعلي، فمافيش داعي تأكيد بزرار.
   "add_subscription", "update_subscription", "delete_subscription",
   "add_debt", "update_debt", "delete_debt",
+  "add_obligation", "update_obligation", "delete_obligation",
   "add_maintenance_item", "update_maintenance_item",
   "update_emergency_fund_balance",
 ];

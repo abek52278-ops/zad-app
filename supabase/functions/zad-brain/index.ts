@@ -1291,6 +1291,82 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       });
       return `اتحذف دين "${match.name}"`;
     }
+    case "add_obligation": {
+      const title = String(input.title).trim();
+      const w = await writeRows(
+        sb.from("zad_obligations").insert({
+          user_id: userId,
+          title,
+          amount: Math.round(input.amount * 100) / 100,
+          kind: input.kind,
+          recurrence: input.recurrence ?? "monthly",
+          due_day: input.due_day ?? null,
+          auto_detected: false,
+          confirmed: true,
+          active: true,
+        }).select("id,title,amount,kind"),
+        "إضافة الالتزام",
+      );
+      if (!w.ok) return `مرفوض: ${w.reason}`;
+      const newRow = w.rows[0] as any;
+      ctx.mutationCount++;
+      ctx.mutations.push({ tool: name, old: null, new: { title, amount: input.amount, kind: input.kind } });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "zad_obligations", targetId: newRow.id,
+        previous: null, next: newRow,
+      });
+      return `اتضاف الالتزام "${title}" — هيتحسب في "المتاح" من دلوقتي`;
+    }
+    case "update_obligation": {
+      const spoken = String(input.title ?? "").trim();
+      const { data: obligs } = await sb.from("zad_obligations").select("*").eq("user_id", userId).eq("active", true);
+      const rows = (obligs ?? []) as Array<{ id: string; title: string; amount: number; due_day: number | null }>;
+      const match = rows.find((r) => {
+        const a = r.title.trim().toLowerCase();
+        const b = spoken.toLowerCase();
+        return a.includes(b) || b.includes(a);
+      });
+      if (!match) return `مرفوض: مفيش التزام اسمه "${spoken}" عند العميل — عدّل وحاول تاني.`;
+      const patch: Record<string, unknown> = {};
+      if (input.new_amount !== undefined) patch.amount = Math.round(input.new_amount * 100) / 100;
+      if (input.new_due_day !== undefined) patch.due_day = input.new_due_day;
+      if (Object.keys(patch).length === 0) return "مرفوض: مفيش حاجة تتعدل — حدد المبلغ أو يوم الاستحقاق.";
+      const w = await writeRows(
+        sb.from("zad_obligations").update(patch).eq("id", match.id).eq("user_id", userId).select("id,title,amount"),
+        "تعديل الالتزام",
+      );
+      if (!w.ok) return `مرفوض: ${w.reason}`;
+      ctx.mutationCount++;
+      ctx.mutations.push({ tool: name, old: match, new: patch });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "zad_obligations", targetId: match.id,
+        previous: match, next: w.rows[0],
+      });
+      return `اتعدل الالتزام "${match.title}"`;
+    }
+    case "delete_obligation": {
+      const spoken = String(input.title ?? "").trim();
+      const { data: obligs } = await sb.from("zad_obligations").select("*").eq("user_id", userId).eq("active", true);
+      const rows = (obligs ?? []) as Array<{ id: string; title: string }>;
+      const match = rows.find((r) => {
+        const a = r.title.trim().toLowerCase();
+        const b = spoken.toLowerCase();
+        return a.includes(b) || b.includes(a);
+      });
+      if (!match) return `مرفوض: مفيش التزام اسمه "${spoken}" عند العميل — عدّل وحاول تاني.`;
+      const w = await writeRows(
+        sb.from("zad_obligations").update({ active: false }).eq("id", match.id).eq("user_id", userId).select("id"),
+        "حذف الالتزام",
+      );
+      if (!w.ok) return `مرفوض: ${w.reason}`;
+      ctx.mutationCount++;
+      ctx.mutations.push({ tool: name, old: match, new: null });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "zad_obligations", targetId: match.id,
+        previous: match, next: null,
+      });
+      return `اتلغى الالتزام "${match.title}"`;
+    }
     case "add_maintenance_item": {
       const itemName = String(input.name).trim();
       const w = await writeRows(
@@ -1800,7 +1876,7 @@ const CHAT_TOOLS: ToolDef[] = [
   },
   {
     name: "add_debt",
-    description: "ضيف دين أو قسط جديد (قرض، تقسيط...). لما العميل يقول \"عليا دين/قسط كذا\".",
+    description: "ضيف دين له رصيد متبقي بينقص كل ما العميل يسدد (قرض، رصيد كارت ائتمان، تقسيط بفايدة). لو العميل قال إيجار أو فاتورة أو قسط ثابت المبلغ كل شهر من غير مفهوم \"رصيد بيقل\" (زي قسط عربية ثابت، كهرباء، مصاريف دراسية) استخدم add_obligation بدلها — دي أشهر غلطة تصنيف بين الأداتين.",
     input_schema: {
       type: "object",
       properties: {
@@ -1835,6 +1911,54 @@ const CHAT_TOOLS: ToolDef[] = [
         name: { type: "string", description: "اسم الدين زي ما قاله العميل" },
       },
       required: ["name"],
+    },
+  },
+  {
+    // كان مفيش أداة إضافة مباشرة للالتزامات الثابتة خالص — الطريقة الوحيدة كانت
+    // الاكتشاف التلقائي (٣ شهور من نفس المبلغ عند نفس التاجر) + confirm_obligation.
+    // لو العميل قال "عندي إيجار ٣٠٠٠" أو "دفعت الكهرباء" في الشات، مفيش أداة تسجّله —
+    // ده اللي كان بيخلي العقل "يخلط" بين إيجار/قسط/اشتراك/فاتورة، لأنه كان مضطر
+    // يحاول يحشرها في add_subscription أو add_debt رغم إنها مش أي منهم فعلياً.
+    name: "add_obligation",
+    description: "ضيف التزام ثابت متكرر بمبلغ معروف: إيجار، فاتورة (كهرباء/مياه/غاز/إنترنت)، قسط ثابت المبلغ (عربية مثلاً، مش دين برصيد بينقص)، أو مصاريف دراسية. مختلف عن add_debt (مفيش \"رصيد متبقي\" هنا) ومختلف عن add_subscription (ده مش اشتراك ترفيهي). لما العميل يقول \"عندي إيجار/كهرباء/قسط كذا\" أو \"دفعت فاتورة كذا\".",
+    input_schema: {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        amount: { type: "number" },
+        kind: {
+          type: "string",
+          enum: ["rent", "installment", "tuition", "utility", "other"],
+          description: "rent=إيجار، installment=قسط ثابت المبلغ، tuition=مصاريف دراسية، utility=فاتورة كهرباء/مياه/غاز/إنترنت، other=غير كده",
+        },
+        recurrence: { type: "string", enum: ["monthly", "quarterly", "yearly"], description: "افتراضي monthly لو العميل مذكرش" },
+        due_day: { type: "number", description: "يوم الاستحقاق الشهري 1-31 لو العميل ذكره" },
+      },
+      required: ["title", "amount", "kind"],
+    },
+  },
+  {
+    name: "update_obligation",
+    description: "عدّل مبلغ أو يوم استحقاق التزام ثابت موجود (إيجار/فاتورة/قسط). استخدم اسم الالتزام زي ما قاله العميل.",
+    input_schema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "اسم الالتزام زي ما قاله العميل" },
+        new_amount: { type: "number" },
+        new_due_day: { type: "number" },
+      },
+      required: ["title"],
+    },
+  },
+  {
+    name: "delete_obligation",
+    description: "احذف/ألغِ التزام ثابت — لما العميل يقول \"خلص الإيجار ده\" أو \"مبقتش مطلوب مني الفاتورة دي\".",
+    input_schema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "اسم الالتزام زي ما قاله العميل" },
+      },
+      required: ["title"],
     },
   },
   {
