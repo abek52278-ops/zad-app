@@ -436,6 +436,48 @@ fun HomeScreen(
                 }
                 Spacer(modifier = Modifier.height(18.dp))
 
+                // ── 3c. المخزون/النواقص/التسبيحة/شيف زاد/الصيدلية/الاشتراكات — كانت
+                // مبعثرة على طول الشاشة (بعضها فوق، بعضها تحت في قسم "Beyond the mockup")
+                // فمكانش شكلها مقصود. دلوقتي كتلة واحدة متتالية بنفس الترتيب المنطقي:
+                // إيه عندك، إيه هيخلص، عادتك اليومية (تسبيحة)، اقتراح أكل، وضع الصيدلية
+                // والاشتراكات — بدل ما تكون متناثرة عشوائي.
+                MiniInventoryWidget(inventory = inventory, onNavigateToInventory = onNavigateToInventory)
+                Spacer(modifier = Modifier.height(18.dp))
+
+                if (shortageCount > 0) {
+                    com.example.ui.components.ShortagesSummaryCard(
+                        shortageCount = shortageCount,
+                        onViewShortagesClick = {
+                            InventoryNavState.openShortagesTab = true
+                            onNavigateToInventory()
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(18.dp))
+                }
+
+                TasbihaHomeWidget(
+                    tree = myTasbiha,
+                    onTasbih = { familyViewModel.tasbihaClick() },
+                    onNavigateToTasbiha = onNavigateToTasbiha
+                )
+                Spacer(modifier = Modifier.height(18.dp))
+
+                SmartChefSection(
+                    suggestions = mealSuggestions,
+                    onViewAll = onNavigateToAssistant,
+                    onOpenRecipe = { title ->
+                        selectedRecipeTitle = title
+                        showRecipeDialog = true
+                    }
+                )
+                Spacer(modifier = Modifier.height(18.dp))
+
+                MiniPharmacyWidget(pharmacyItems = pharmacyItems, onNavigateToPharmacy = onNavigateToPharmacy)
+                Spacer(modifier = Modifier.height(18.dp))
+
+                MiniSubscriptionsWidget(subscriptions = subscriptions, onNavigateToSubscriptions = onNavigateToSubscriptions)
+                Spacer(modifier = Modifier.height(18.dp))
+
                 // ── 4. Insights (mockup: translucent glass rows, dot + text + tag) ──
                 // أهم تنبيهات عقل زاد — zad_insights كان مكتوب من زاد-برين وميتقراش
                 // خالص، فالتحليل والتنبيهات ما كانتش توصل هنا. دي أول محطة ليها.
@@ -613,25 +655,7 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                // ── 7. Tasbiha garden ──
-                TasbihaHomeWidget(
-                    tree = myTasbiha,
-                    onTasbih = { familyViewModel.tasbihaClick() },
-                    onNavigateToTasbiha = onNavigateToTasbiha
-                )
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // ── 8. Chef Zad (mockup: one 18dp white row card — 56dp amber tile,
-                // title, one-line suggestion — not a carousel of stock food photos) ──
-                SmartChefSection(
-                    suggestions = mealSuggestions,
-                    onViewAll = onNavigateToAssistant,
-                    onOpenRecipe = { title ->
-                        selectedRecipeTitle = title
-                        showRecipeDialog = true
-                    }
-                )
-                Spacer(modifier = Modifier.height(18.dp))
+                // (المخزون/النواقص/التسبيحة/شيف زاد/الصيدلية/الاشتراكات نقلوا لكتلة ٣c فوق)
 
                 // ── 9. Amazon picks (mockup: 140dp fixed-width cards in a horizontal
                 // rail). AffiliateProductCard is `fillMaxWidth()` + its own 16dp margins,
@@ -706,16 +730,7 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                if (shortageCount > 0) {
-                    com.example.ui.components.ShortagesSummaryCard(
-                        shortageCount = shortageCount,
-                        onViewShortagesClick = {
-                            InventoryNavState.openShortagesTab = true
-                            onNavigateToInventory()
-                        }
-                    )
-                    Spacer(modifier = Modifier.height(18.dp))
-                }
+                // (النواقص نقلت لكتلة ٣c فوق)
 
                 // "Warning" = budget-at-risk (analyzeBudgetOverruns/analyzeSubscriptionUsage),
                 // "Alert" = anomaly spending — both belong on "الميزانية في خطر"'s banner, not
@@ -753,8 +768,7 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                MiniInventoryWidget(inventory = inventory, onNavigateToInventory = onNavigateToInventory)
-                Spacer(modifier = Modifier.height(18.dp))
+                // (المخزون السريع نقل لكتلة ٣c فوق)
 
                 MiniShoppingWidget(shoppingList = shoppingList, onNavigateToShopping = onNavigateToShopping)
                 Spacer(modifier = Modifier.height(18.dp))

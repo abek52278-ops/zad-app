@@ -874,6 +874,68 @@ class PreviewTest {
         )
     }
 
+    /** الويدجتين الجداد (صيدلية/اشتراكات) — حالة فيها بيانات وحالة فاضية، عشان نتأكد
+     *  الشكل صح قبل ما ينزل على جهاز حقيقي (مفيش emulator هنا). */
+    @Test
+    fun captureMiniPharmacyWidget_withLowStock() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.background(background).padding(20.dp)) {
+                    MiniPharmacyWidget(
+                        pharmacyItems = listOf(
+                            com.example.data.ZadPharmacyItem(name = "دواء الضغط", remainingQuantity = 2, dailyDoseCount = 1, unit = "قرص"),
+                            com.example.data.ZadPharmacyItem(name = "فيتامين د", remainingQuantity = 1, dailyDoseCount = 1, unit = "كبسولة")
+                        ),
+                        onNavigateToPharmacy = {}
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/mini_pharmacy_widget_low_stock.png")
+    }
+
+    @Test
+    fun captureMiniPharmacyWidget_empty() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.background(background).padding(20.dp)) {
+                    MiniPharmacyWidget(pharmacyItems = emptyList(), onNavigateToPharmacy = {})
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/mini_pharmacy_widget_empty.png")
+    }
+
+    @Test
+    fun captureMiniSubscriptionsWidget_withUpcoming() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.background(background).padding(20.dp)) {
+                    MiniSubscriptionsWidget(
+                        subscriptions = listOf(
+                            com.example.data.ZadSubscription(title = "نتفليكس", amount = 55.0, renewalDate = LocalDate.now().plusDays(2).toString(), isActive = true),
+                            com.example.data.ZadSubscription(title = "شاهد VIP", amount = 30.0, renewalDate = LocalDate.now().plusDays(5).toString(), isActive = true)
+                        ),
+                        onNavigateToSubscriptions = {}
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/mini_subscriptions_widget_upcoming.png")
+    }
+
+    @Test
+    fun captureMiniSubscriptionsWidget_empty() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.background(background).padding(20.dp)) {
+                    MiniSubscriptionsWidget(subscriptions = emptyList(), onNavigateToSubscriptions = {})
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/mini_subscriptions_widget_empty.png")
+    }
+
     /** Companion orb — the four emotion states side by side, so eye shape and color read
      *  correctly before wiring the real emotion engine on top of it. */
     @Test

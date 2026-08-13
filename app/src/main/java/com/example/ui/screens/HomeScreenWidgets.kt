@@ -216,6 +216,90 @@ fun MiniShoppingWidget(shoppingList: List<ZadShoppingItem>, onNavigateToShopping
     }
 }
 
+/** أدوية قرّب رصيدها ينفد (أقل من ٣ أيام على معدل جرعتها اليومي) — نفس أسلوب
+ *  [MiniInventoryWidget] بالظبط، عشان الرئيسية تبقى فيها نظرة سريعة على الصيدلية زي
+ *  المخزون تماماً، مش لازم تفتح شاشة الصيدلية عشان تعرف إيه اللي محتاج تجديد. */
+@Composable
+fun MiniPharmacyWidget(pharmacyItems: List<com.example.data.ZadPharmacyItem>, onNavigateToPharmacy: () -> Unit) {
+    val lowStock = pharmacyItems.filter { it.remainingQuantity <= it.dailyDoseCount * 3 }
+    com.example.ui.components.ZadListCard(
+        modifier = Modifier.clickable { onNavigateToPharmacy() },
+        shape = RoundedCornerShape(24.dp),
+        contentPadding = 0.dp
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("الصيدلية — قريب من النفاد", style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+                Icon(Icons.Filled.ArrowForward, contentDescription = "View All", tint = primary)
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            if (lowStock.isEmpty()) {
+                Text("كل الأدوية رصيدها كفاية حالياً.", style = Typography.bodyMedium, color = Color.Gray)
+            } else {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(lowStock.take(5)) { item ->
+                        MiniItemChip(name = item.name, quantity = "${item.remainingQuantity} ${item.unit}")
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** اشتراكات هتتجدد خلال ٧ أيام — نفس أسلوب [MiniShoppingWidget] (صف بنقطة + اسم +
+ *  مبلغ)، عشان تجديد قريب يبان قبل ما يتخصم لا بعده. */
+@Composable
+fun MiniSubscriptionsWidget(subscriptions: List<com.example.data.ZadSubscription>, onNavigateToSubscriptions: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val today = java.time.LocalDate.now()
+    val upcoming = subscriptions
+        .filter { it.isActive }
+        .mapNotNull { sub ->
+            val renewal = sub.renewalDate?.let { raw -> try { java.time.LocalDate.parse(raw.take(10)) } catch (e: Exception) { null } }
+            renewal?.let { r -> if (!r.isBefore(today) && r.isBefore(today.plusDays(8))) sub to r else null }
+        }
+        .sortedBy { it.second }
+
+    com.example.ui.components.ZadListCard(
+        modifier = Modifier.clickable { onNavigateToSubscriptions() },
+        shape = RoundedCornerShape(24.dp),
+        contentPadding = 0.dp
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("اشتراكات هتتجدد قريب", style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+                Icon(Icons.Filled.ArrowForward, contentDescription = "View All", tint = primary)
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            if (upcoming.isEmpty()) {
+                Text("لا يوجد تجديد اشتراكات خلال الأسبوع الجاي.", style = Typography.bodyMedium, color = Color.Gray)
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    upcoming.take(3).forEach { (sub, renewal) ->
+                        val daysLeft = java.time.temporal.ChronoUnit.DAYS.between(today, renewal)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Filled.Circle, contentDescription = null, tint = primary, modifier = Modifier.size(8.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("${sub.title} — ${if (daysLeft == 0L) "النهاردة" else "خلال $daysLeft يوم"}", style = Typography.bodyMedium)
+                            }
+                            Text(com.example.data.CurrencyFormatter.format(context, sub.amount), style = Typography.labelSmall, color = onSurfaceVariant, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /**
  * Home's Tasbiha garden card, rebuilt to the mockup's `tasbihaTitle` block:
  * translucent glass, the completion percentage on the trailing edge, the stage
