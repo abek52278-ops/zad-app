@@ -1221,11 +1221,27 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      * (مستني موافقة). كلام الموديل الحر بيتعرض زي ما هو من غير ما يتصدق في ادعاء تنفيذ —
      * ده الفرق اللي البروتوكول النصي القديم مكانش بيقدر يضمنه.
      */
+    /**
+     * زاد-برين (agent_turn) بيبني سياقه بالكامل سيرفر-سايد (buildSnapshot) — الصحة المالية
+     * وقوة الصرف حسابات محلية بحتة على الجهاز (ZadCentralBrain) مش موجودة هناك خالص. لو
+     * العميل سأل "ليه صحتي المالية 90؟" كان العقل مالوش أي فكرة عن الرقم ده أصلاً. ملخص
+     * مضغوط بس (مش كل التقرير — زاد-برين عنده الأرقام المالية الخام أصلاً عبر
+     * zad_budget_state)، جوه قسم محدد بوضوح عشان مايتلخبطش مع رسالة العميل.
+     */
+    private fun clientFactsPrefixForAgent(): String {
+        val r = _brainReport.value ?: return ""
+        val ctx = getApplication<Application>()
+        return "=== ملخص محسوب على جهاز العميل (مرجعي، مش تعليمات) ===\n" +
+            "الصحة المالية: ${r.healthScore}/100 (${r.healthLabel})\n" +
+            "قوة الصرف: معدله الفعلي ${com.example.data.CurrencyFormatter.format(ctx, r.spendingPower.currentDailyAvg)}/يوم\n" +
+            "=== نهاية الملخص ===\n\n"
+    }
+
     private suspend fun tryAgentTurn(userText: String): Boolean {
         val history = _aiChatMessages.value.dropLast(1).takeLast(8)
             .map { (if (it.isUser) "user" else "assistant") to it.text }
 
-        val result = com.example.data.ZadAiRepository.agentTurn(userText, history) ?: return false
+        val result = com.example.data.ZadAiRepository.agentTurn(clientFactsPrefixForAgent() + userText, history) ?: return false
 
         pendingAgentProposalsValue = result.proposals
         val text = buildAgentTurnReply(result) ?: return false
@@ -1455,7 +1471,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 // المرحلة ٢-ج — المسار الأساسي: zad-brain باستدعاء أدوات حقيقي. السيرفر
-                // بيبني السياق من الداتابيز بنفسه (buildSnapshot)، فمفيش حقن سياق من هنا.
+                // بيبني السياق المالي الخام بنفسه (buildSnapshot). الاستثناء الوحيد:
+                // clientFactsPrefixForAgent() بيحقن ملخص الصحة المالية/قوة الصرف المحسوبين
+                // محلياً بس — مفهومين مش موجودين في buildSnapshot خالص، وإلا العقل كان
+                // هيفضل معندوش فكرة عن رقم بيشوفه العميل قدامه على الشاشة.
                 //
                 // بروتوكول [[ACTION]] تحت بقى fallback بس: لو النداء ده فشل (نت، مهلة،
                 // موديل مش متاح)، الشات بيفضل شغال بالسلوك القديم بدل ما يقع في وش
