@@ -990,6 +990,32 @@ Deno.serve(async (req: Request) => {
       }
 
       // ──────────────────────────────────────────────
+      // MONTHLY_EXPENSE_REPORT — Written monthly report + advice.
+      // All figures (budget/income/expense/top_categories) are computed client-side from
+      // real transactions and passed in — this action only narrates and advises on them,
+      // it never invents a number that isn't in the payload (same rule as auto_suggest).
+      // ──────────────────────────────────────────────
+      case "monthly_expense_report": {
+        const { cycle, budget, total_income, total_expense, top_categories, transaction_count, transactions } = payload || {};
+        const systemPrompt = dialectPrefix + "أنت مستشار مالي شخصي. اتلقيت ملخص مصاريف شهر كامل لعميلك، واتلقيت قائمة المعاملات. اكتب تقريراً شهرياً بشري، مش مجرد سرد أرقام. " +
+          "قواعد إلزامية: (١) ممنوع تذكر أي مبلغ أو فئة أو رقم مش موجود حرفياً في المدخلات — لو مش متأكد من رقم متقولوش. " +
+          "(٢) لو transaction_count صفر، قول بوضوح إنه مفيش بيانات كفاية للتحليل، وplan اقترح يسجل معاملات أو يستورد كشف حساب — من غير أي تحليل وهمي. " +
+          "(٣) insights لازم تكون ملاحظات مبنية على الأرقام المُعطاة (زي فئة مستحوذة على جزء كبير من الصرف، أو فرق بين الدخل والمصروف). " +
+          "(٤) recommendations لازم تكون نصايح عملية قابلة للتنفيذ، مش عامة. " +
+          "أجب بصيغة JSON: {\"summary\":\"\",\"insights\":[\"\"],\"recommendations\":[\"\"],\"health_label\":\"\"}";
+        const userPrompt = "الدورة: " + (cycle || "") + " | الميزانية: " + (budget ?? "") + " | إجمالي الدخل: " + (total_income ?? "") +
+          " | إجمالي المصروف: " + (total_expense ?? "") + " | أعلى الفئات: " + (top_categories || "") +
+          " | عدد المعاملات: " + (transaction_count ?? 0) + " | المعاملات: " + (transactions || "");
+        const result = await callJsonModel(systemPrompt, userPrompt, 2500);
+        return jsonResponse({
+          summary: result?.summary || "",
+          insights: result?.insights || [],
+          recommendations: result?.recommendations || [],
+          health_label: result?.health_label || "",
+        });
+      }
+
+      // ──────────────────────────────────────────────
       // AUTO_SUGGEST — Generate smart suggestions
       // ──────────────────────────────────────────────
       case "auto_suggest": {

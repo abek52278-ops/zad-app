@@ -214,6 +214,22 @@ fun ZadIntelligenceScreen(
                 }
             }
 
+            // ═══ التقرير الشهري — ملخص مكتوب + نصايح، مش رقم لوحده. البيانات (المتحصّل/
+            // المصروف/أعلى الفئات) نفسها المستخدمة في كروت الـ Executive فوق، فأي معاملة
+            // اتسجلت يدوي أو جات من استيراد كشف حساب (StatementImportScreen) داخلة هنا
+            // زي أي معاملة تانية — نفس مصدر transactions. ═══
+            item { SectionHeader(Icons.Default.Assessment, stringResource(R.string.nav_reports)) }
+            item {
+                MonthlyReportCard(
+                    transactions = transactions,
+                    budget = budget,
+                    totalIncome = totalIncome,
+                    totalExpense = totalExpense,
+                    topCategories = categoryMap.take(5),
+                    cycleStart = cycleStart
+                )
+            }
+
             // ═══ MIDDLE: interactive charts + expense radar ═══
             item { SectionHeader(Icons.Default.BarChart, stringResource(R.string.intel_section_charts_radar)) }
             item { WeeklyTrendCard(transactions) }
@@ -2610,6 +2626,137 @@ private fun ExportReportButton(report: com.example.data.ZadCentralBrain.BrainRep
             }
             Spacer(modifier = Modifier.width(8.dp))
             Text(stringResource(R.string.export_monthly_report), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onPrimaryContainer)
+        }
+    }
+}
+
+// ════════════════════════════════════════════════════════════════
+//  MONTHLY REPORT CARD — التقرير الشهري المكتوب (ملخص + نصايح من الذكاء الاصطناعي).
+//  الأرقام (المتحصّل/المصروف/أعلى الفئات) بتتحسب هنا من transactions الحقيقية — نفس
+//  المصدر اللي كروت الـ Executive فوق بتستخدمه، فمعاملات كشف الحساب المستورد
+//  (StatementImportScreen) داخلة في التحليل زي أي معاملة تانية من غير ربط إضافي.
+// ════════════════════════════════════════════════════════════════
+
+@Composable
+private fun MonthlyReportCard(
+    transactions: List<ZadTransaction>,
+    budget: Double,
+    totalIncome: Double,
+    totalExpense: Double,
+    topCategories: List<Pair<String, Double>>,
+    cycleStart: java.time.LocalDate
+) {
+    val context = LocalContext.current
+    var report by remember { mutableStateOf<com.example.data.ZadAiRepository.MonthlyExpenseReport?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+    var loadError by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val cycleLabel = remember(cycleStart) {
+        cycleStart.format(java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy", java.util.Locale("ar")))
+    }
+
+    fun generate() {
+        scope.launch {
+            isLoading = true
+            loadError = false
+            try {
+                report = com.example.data.ZadAiRepository.generateMonthlyExpenseReport(
+                    transactions = transactions,
+                    budget = budget,
+                    totalIncome = totalIncome,
+                    totalExpense = totalExpense,
+                    topCategories = topCategories,
+                    cycleLabel = cycleLabel
+                )
+            } catch (e: Exception) {
+                loadError = true
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(20.dp), contentPadding = 16.dp) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.nav_reports), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                Text(cycleLabel, style = Typography.labelSmall, color = onSurfaceVariant)
+            }
+            val current = report
+            if (current != null) {
+                IconButton(onClick = {
+                    val shareText = buildString {
+                        append(current.summary)
+                        if (current.insights.isNotEmpty()) {
+                            append("\n\n")
+                            current.insights.forEach { append("• $it\n") }
+                        }
+                        if (current.recommendations.isNotEmpty()) {
+                            append("\n")
+                            current.recommendations.forEach { append("✓ $it\n") }
+                        }
+                    }
+                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(android.content.Intent.EXTRA_TEXT, shareText)
+                    }
+                    context.startActivity(android.content.Intent.createChooser(intent, context.getString(R.string.share_zad_report_title)))
+                }) {
+                    Icon(Icons.Default.IosShare, contentDescription = stringResource(R.string.share_zad_report_title), tint = primary)
+                }
+            }
+            IconButton(onClick = { generate() }, enabled = !isLoading) {
+                Icon(Icons.Default.Refresh, contentDescription = null, tint = primary)
+            }
+        }
+
+        when {
+            isLoading -> {
+                Spacer(modifier = Modifier.height(8.dp))
+                com.example.ui.components.ZadLoadingState(modifier = Modifier.fillMaxWidth().height(80.dp))
+            }
+            loadError -> {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(stringResource(R.string.changes_save_failed), style = Typography.bodySmall, color = dangerColor)
+            }
+            report == null -> {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(stringResource(R.string.monthly_report_empty_hint), style = Typography.bodySmall, color = onSurfaceVariant)
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(onClick = { generate() }, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.generate_monthly_report_action))
+                }
+            }
+            else -> {
+                val current = report!!
+                Spacer(modifier = Modifier.height(8.dp))
+                if (current.healthLabel.isNotBlank()) {
+                    Text(current.healthLabel, style = Typography.labelMedium, fontWeight = FontWeight.Bold, color = primary)
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
+                if (current.summary.isNotBlank()) {
+                    Text(current.summary, style = Typography.bodyMedium, color = onSurface)
+                }
+                if (current.insights.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    current.insights.forEach { insight ->
+                        Row(modifier = Modifier.padding(vertical = 2.dp)) {
+                            Text("• ", color = onSurfaceVariant)
+                            Text(insight, style = Typography.bodySmall, color = onSurfaceVariant, modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+                if (current.recommendations.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(stringResource(R.string.recommendations_label), style = Typography.labelMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                    current.recommendations.forEach { rec ->
+                        Row(modifier = Modifier.padding(vertical = 2.dp)) {
+                            Text("✓ ", color = successColor)
+                            Text(rec, style = Typography.bodySmall, color = onSurfaceVariant, modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
         }
     }
 }

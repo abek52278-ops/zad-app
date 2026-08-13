@@ -65,7 +65,6 @@ object ZadRoutes {
     const val NOTIFICATIONS = "notifications"
     const val TASBIHA = "tasbiha"
     const val CAMERA = "camera"
-    const val REPORTS = "reports"
     const val STATEMENT = "statement_import"
 }
 
@@ -85,7 +84,6 @@ fun zadScreenTitle(route: String?): String = stringResource(
         ZadRoutes.SUBS -> R.string.subscriptions_title
         ZadRoutes.TASBIHA -> R.string.tasbiha_short_label
         ZadRoutes.CAMERA -> R.string.camera_sheet_title
-        ZadRoutes.REPORTS -> R.string.nav_reports
         ZadRoutes.STATEMENT -> R.string.statement_import_title
         else -> R.string.screen_title_home
     }
@@ -641,7 +639,6 @@ val zadDrawerEntries = listOf(
     ZadDrawerEntry(ZadRoutes.PHARMACY, Icons.Default.LocalPharmacy, R.string.nav_pharmacy),
     ZadDrawerEntry(ZadRoutes.MAINTENANCE, Icons.Default.Build, R.string.nav_maintenance),
     ZadDrawerEntry(ZadRoutes.TASBIHA, Icons.Default.Park, R.string.tasbiha_short_label),
-    ZadDrawerEntry(ZadRoutes.REPORTS, Icons.Default.Assessment, R.string.nav_reports),
     ZadDrawerEntry(ZadRoutes.STATEMENT, Icons.Default.UploadFile, R.string.statement_import_title),
     ZadDrawerEntry(ZadRoutes.PROFILE, Icons.Default.Person, R.string.screen_title_profile),
     ZadDrawerEntry(ZadRoutes.NOTIFICATIONS, Icons.Default.Notifications, R.string.notifications_title),

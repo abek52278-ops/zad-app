@@ -799,6 +799,13 @@ object ZadAiRepository {
         val emoji: String = "🎯"
     )
 
+    data class MonthlyExpenseReport(
+        val summary: String = "",
+        val insights: List<String> = emptyList(),
+        val recommendations: List<String> = emptyList(),
+        val healthLabel: String = ""
+    )
+
     data class BehaviorAnalysis(
         val insight: String = "",
         val avgSpending: Double = 0.0,
@@ -845,6 +852,41 @@ object ZadAiRepository {
             familyHealthScore = (response["family_health_score"] as? Number)?.toInt() ?: 50,
             suggestedGoal = response["suggested_goal"] as? String ?: "",
             funFact = response["fun_fact"] as? String ?: ""
+        )
+    }
+
+    /**
+     * تقرير شهري مكتوب — النقلة من "زاد بيقول أرقام" (المتاح جوا ZadIntelligenceScreen
+     * أصلاً كروت منفصلة) لـ"زاد بيقرا الأرقام دي ويقول رأيه فيها". كل الأرقام (المتحصّل،
+     * المصروف، أعلى فئات) بتتحسب هنا من transactions الحقيقية قبل ما تتبعت — نفس قاعدة
+     * auto_suggest إن الموديل ممنوع يخترع رقم مش جاله في المدخلات، هو بس بيكتب الملخص/النصايح.
+     */
+    suspend fun generateMonthlyExpenseReport(
+        transactions: List<ZadTransaction>,
+        budget: Double,
+        totalIncome: Double,
+        totalExpense: Double,
+        topCategories: List<Pair<String, Double>>,
+        cycleLabel: String
+    ): MonthlyExpenseReport {
+        val txStr = transactions.takeLast(60).joinToString(", ") { "${it.title}:${it.amount}:${it.category ?: "أخرى"}" }
+        val categoriesStr = topCategories.joinToString(", ") { "${it.first}=${it.second}" }
+        val response = callAction("monthly_expense_report", mapOf(
+            "cycle" to cycleLabel,
+            "budget" to budget,
+            "total_income" to totalIncome,
+            "total_expense" to totalExpense,
+            "top_categories" to categoriesStr,
+            "transaction_count" to transactions.size,
+            "transactions" to txStr
+        ))
+        val insightsRaw = response["insights"] as? List<*> ?: emptyList<Any>()
+        val recsRaw = response["recommendations"] as? List<*> ?: emptyList<Any>()
+        return MonthlyExpenseReport(
+            summary = response["summary"] as? String ?: "",
+            insights = insightsRaw.mapNotNull { it as? String },
+            recommendations = recsRaw.mapNotNull { it as? String },
+            healthLabel = response["health_label"] as? String ?: ""
         )
     }
 

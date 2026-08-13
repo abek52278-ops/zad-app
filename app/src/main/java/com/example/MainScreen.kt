@@ -374,13 +374,6 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                                 onNavigateToAssistant = { go(ZadRoutes.ASSISTANT) }
                             )
                         }
-                        composable(ZadRoutes.REPORTS) {
-                            WeeklyReportScreen(
-                                viewModel = viewModel,
-                                familyViewModel = familyViewModel
-                            )
-                        }
-
                         // Sub-screens — full-viewport, reached from inside a screen
                         composable(ZadNav.HELP) { HelpSupportScreen(onBack = { navController.popBackStack() }) }
                         composable(ZadNav.AGENT_ACTION_LOG) {

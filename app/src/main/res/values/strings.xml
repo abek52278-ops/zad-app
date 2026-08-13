@@ -212,6 +212,9 @@
     <string name="biggest_changes">أكبر التغييرات:</string>
     <string name="zad_knows_you">زاد يعرفك 🧠</string>
     <string name="export_monthly_report">تصدير التقرير الشهري</string>
+    <string name="monthly_report_empty_hint">اضغط على "توليد التقرير" عشان زاد يحلل مصاريفك الشهر ده ويديك تقرير ونصايح</string>
+    <string name="generate_monthly_report_action">توليد التقرير</string>
+    <string name="recommendations_label">نصايح زاد</string>
     <string name="avg_every_days">المتوسط: %1$s | كل %2$d يوم</string>
 
     <!-- ZadIntelligenceScreen: single-scroll dashboard sections (re-architect) -->
