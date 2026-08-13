@@ -71,6 +71,13 @@ const SUBSCRIPTION_CRON_SECRET = "2ceb272a5a1b12cce797b99f3e6d07a79b540cb95a5823
 // math is duplicated here or in SQL beyond what notify_parents_on_child_spend() already does.
 const REALTIME_PUSH_CRON_SECRET = "7e78ce0aa8d2e83f67fbe48c39b5c39c17e54d32f781ccf79a1bd1000aaa7094";
 
+// Same rationale again, own distinct value. Gates ?job=live_checkin below — fired by a
+// zad_inventory AFTER UPDATE trigger the instant an item crosses into low-stock/predicted-
+// depletion territory, instead of waiting for the once-daily runDailyCheckins cron. Shares
+// sendCheckInPrompt()/MAX_CHECKINS_PER_USER_PER_DAY with the daily job so the two paths
+// can't double the user's daily prompt budget between them.
+const LIVE_CHECKIN_CRON_SECRET = "58dda37fa693d2351ab038f07303fb9b621ce983c597046de7c7edc2b6d283a6";
+
 function toGrammyKeyboard(rows: InlineKeyboardButton[][]): InlineKeyboard {
   const kb = new InlineKeyboard();
   for (const row of rows) {
@@ -156,8 +163,37 @@ async function findCheckInCandidates(sb: SupabaseClient, userId: string): Promis
 /** The daily cron entry point. Capped at 2 prompts/user/day — this is a check-in nudge,
  * not a notification flood; a household with many low-stock items still only hears about
  * its two most pressing ones today (candidates aren't ranked beyond DB order — good enough
- * for a cap this small, not worth a scoring pass). */
+ * for a cap this small, not worth a scoring pass). Same cap applies to the real-time
+ * job below (?job=live_checkin) — one shared daily budget, not two separate allowances. */
 const MAX_CHECKINS_PER_USER_PER_DAY = 2;
+
+/** كام prompt اتبعت النهاردة (UTC) للمستخدم ده، بغض النظر عن حالته دلوقتي (pending/
+ *  answered/expired) — العدّاد هو "كام مرة إتقلق النهاردة"، مش "كام لسه مستني رد". */
+async function checkinsSentToday(sb: SupabaseClient, userId: string): Promise<number> {
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const { count } = await sb.from("telegram_checkin_prompts")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .gte("created_at", todayStart.toISOString());
+  return count ?? 0;
+}
+
+/** بيبعت prompt واحد فعلياً — مشترك بين الكرون اليومي والمسار الفوري (live_checkin)
+ *  عشان الاتنين يحترموا نفس السقف اليومي، مش نسختين بمنطق مختلف شوية. بيرجع false
+ *  لو الكتابة فشلت — الكولر بيقرر يعمل إيه بالفشل. */
+async function sendCheckInPrompt(sb: SupabaseClient, userId: string, chatId: number, itemName: string, quantity: number): Promise<boolean> {
+  const { data: prompt, error } = await sb.from("telegram_checkin_prompts")
+    .insert({ user_id: userId, item_name: itemName, quantity_at_prompt: quantity })
+    .select("id")
+    .single();
+  if (error || !prompt) {
+    console.error("checkin prompt insert failed:", error?.message);
+    return false;
+  }
+  await sendTelegramMessage(chatId, checkInPromptMessage(isolate(sanitizeName(itemName))), checkInKeyboard((prompt as { id: string }).id));
+  return true;
+}
 
 async function runDailyCheckins(sb: SupabaseClient): Promise<{ usersChecked: number; promptsSent: number }> {
   // Pending prompts nobody ever answered would otherwise block that item forever.
@@ -175,18 +211,12 @@ async function runDailyCheckins(sb: SupabaseClient): Promise<{ usersChecked: num
   let promptsSent = 0;
 
   for (const b of rows) {
+    const alreadySentToday = await checkinsSentToday(sb, b.user_id);
+    const budget = MAX_CHECKINS_PER_USER_PER_DAY - alreadySentToday;
+    if (budget <= 0) continue;
     const candidates = await findCheckInCandidates(sb, b.user_id);
-    for (const item of candidates.slice(0, MAX_CHECKINS_PER_USER_PER_DAY)) {
-      const { data: prompt, error } = await sb.from("telegram_checkin_prompts")
-        .insert({ user_id: b.user_id, item_name: item.item_name, quantity_at_prompt: item.quantity })
-        .select("id")
-        .single();
-      if (error || !prompt) {
-        console.error("checkin prompt insert failed:", error?.message);
-        continue;
-      }
-      await sendTelegramMessage(b.chat_id, checkInPromptMessage(isolate(sanitizeName(item.item_name))), checkInKeyboard((prompt as { id: string }).id));
-      promptsSent++;
+    for (const item of candidates.slice(0, budget)) {
+      if (await sendCheckInPrompt(sb, b.user_id, b.chat_id, item.item_name, item.quantity)) promptsSent++;
     }
   }
 
@@ -1349,6 +1379,44 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ ok: true, delivered: true }), { headers: { "Content-Type": "application/json" } });
     } catch (e) {
       console.error("realtime_push failed:", e);
+      return new Response(JSON.stringify({ ok: false, error: String(e) }), { status: 500 });
+    }
+  }
+
+  // Real-time check-in — fired by a Postgres trigger (zad_inventory AFTER UPDATE) the
+  // instant an item crosses into low-stock/predicted-depletion territory, instead of
+  // waiting for runDailyCheckins' once-a-day pass. Reuses the exact same prompt-sending
+  // path and daily budget as the cron job — this is not a second, unlimited channel.
+  if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "live_checkin") {
+    if (req.headers.get("X-Live-Checkin-Secret") !== LIVE_CHECKIN_CRON_SECRET) {
+      return new Response("unauthorized", { status: 401 });
+    }
+    if (!BOT_CONFIGURED) {
+      return new Response(JSON.stringify({ ok: false, reason: "bot not configured" }), { status: 503 });
+    }
+    try {
+      const { user_id, item_name, quantity } = await req.json() as { user_id?: string; item_name?: string; quantity?: number };
+      if (!user_id || !item_name || typeof quantity !== "number") {
+        return new Response(JSON.stringify({ ok: false, reason: "missing user_id/item_name/quantity" }), { status: 400 });
+      }
+      const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+      const chatId = await resolveChatId(sb, user_id);
+      if (chatId === null) {
+        return new Response(JSON.stringify({ ok: true, delivered: false, reason: "not linked" }), { headers: { "Content-Type": "application/json" } });
+      }
+      const alreadySentToday = await checkinsSentToday(sb, user_id);
+      if (alreadySentToday >= MAX_CHECKINS_PER_USER_PER_DAY) {
+        return new Response(JSON.stringify({ ok: true, delivered: false, reason: "daily budget spent" }), { headers: { "Content-Type": "application/json" } });
+      }
+      const { data: existingPending } = await sb.from("telegram_checkin_prompts")
+        .select("id").eq("user_id", user_id).eq("item_name", item_name).eq("status", "pending").maybeSingle();
+      if (existingPending) {
+        return new Response(JSON.stringify({ ok: true, delivered: false, reason: "already pending" }), { headers: { "Content-Type": "application/json" } });
+      }
+      const delivered = await sendCheckInPrompt(sb, user_id, chatId, item_name, quantity);
+      return new Response(JSON.stringify({ ok: true, delivered }), { headers: { "Content-Type": "application/json" } });
+    } catch (e) {
+      console.error("live_checkin failed:", e);
       return new Response(JSON.stringify({ ok: false, error: String(e) }), { status: 500 });
     }
   }
