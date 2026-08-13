@@ -892,6 +892,11 @@
     <string name="scan_medicine_action">Kamerayla ilaç tara</string>
     <string name="smart_pharmacy_chat_action">Sohbetle akıllı ekle 💬</string>
     <string name="smart_pharmacy_chat_prompt">İlaçlarını ve doz saatlerini normal bir dille anlat, sana ilaç takvimini hazırlayıp hemen kaydedeyim!</string>
+    <string name="smart_pharmacy_add_dialog_title">Konuşarak ilaç ekle</string>
+    <string name="smart_pharmacy_add_dialog_hint">İlacın adını, dozunu ve saatlerini normal bir dille söyle, Zad ayarlayıp eklesin.</string>
+    <string name="smart_pharmacy_add_dialog_placeholder">Örnek: Parol 500, her 8 saatte bir, saat 8, 4 ve 12\'de</string>
+    <string name="smart_pharmacy_add_dialog_confirm">Ekle</string>
+    <string name="smart_pharmacy_add_submitted">Tamam, Zad şimdi ekliyor — sohbetten takip edebilir ya da az sonra burada görebilirsin.</string>
     <string name="total_medicines_label">Toplam ilaç</string>
     <string name="expiring_soon_label">Süresi yaklaşan</string>
     <string name="low_stock_label">Stok azaldı</string>

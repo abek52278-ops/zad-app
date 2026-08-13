@@ -894,6 +894,11 @@
     <string name="scan_medicine_action">مسح الدواء بالكاميرا</string>
     <string name="smart_pharmacy_chat_action">إضافة ذكية بالشات 💬</string>
     <string name="smart_pharmacy_chat_prompt">قولي تفاصيل أدوية ومواعيد جرعاتك باللغة العادية وأنا هرتبلك جدول الأدوية وأسجلها فوراً!</string>
+    <string name="smart_pharmacy_add_dialog_title">إضافة دواء بالكلام</string>
+    <string name="smart_pharmacy_add_dialog_hint">قول اسم الدواء والجرعة ومواعيدها بشكل عادي، وزاد هيضبطها ويضيفها.</string>
+    <string name="smart_pharmacy_add_dialog_placeholder">مثال: بنادول 500 قرص كل 8 ساعات الساعة 8 و4 و12</string>
+    <string name="smart_pharmacy_add_dialog_confirm">إضافة</string>
+    <string name="smart_pharmacy_add_submitted">تمام، زاد بيضيفه دلوقتي — تقدر تتابع أو تشوفه هنا خلال شوية.</string>
     <string name="total_medicines_label">إجمالي الأدوية</string>
     <string name="expiring_soon_label">قرب الانتهاء</string>
     <string name="low_stock_label">مخزون منخفض</string>

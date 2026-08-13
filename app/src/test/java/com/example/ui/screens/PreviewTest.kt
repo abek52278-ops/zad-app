@@ -936,6 +936,17 @@ class PreviewTest {
         composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/mini_subscriptions_widget_empty.png")
     }
 
+    /** الصيدلية — حوار "إضافة دواء بالكلام" الجديد بدل الانتقال لشاشة عقل زاد. */
+    @Test
+    fun captureSmartAddMedicationDialog() {
+        composeTestRule.setContent {
+            AppTheme {
+                SmartAddMedicationDialog(onDismiss = {}, onSubmit = {})
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/smart_add_medication_dialog.png")
+    }
+
     /** Companion orb — the four emotion states side by side, so eye shape and color read
      *  correctly before wiring the real emotion engine on top of it. */
     @Test

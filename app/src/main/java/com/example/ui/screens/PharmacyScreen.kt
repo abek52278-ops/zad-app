@@ -69,8 +69,7 @@ private fun suggestDoseTimes(dailyDoseCount: Int): String {
 fun PharmacyScreen(
     viewModel: ZadViewModel,
     familyViewModel: FamilyViewModel = viewModel(),
-    onNavigateToCamera: () -> Unit = {},
-    onNavigateToChat: () -> Unit = {}
+    onNavigateToCamera: () -> Unit = {}
 ) {
     val items by viewModel.pharmacyItems.collectAsState()
     val monthlyCost by viewModel.monthlyPharmaCost.collectAsState()
@@ -79,6 +78,11 @@ fun PharmacyScreen(
     val familyMembers = (familyState as? FamilyState.Active)?.members ?: emptyList()
 
     var showAddDialog by remember { mutableStateOf(false) }
+    // كان بيودّي لشاشة "عقل زاد" (ZadRoutes.ASSISTANT) بدل ما يضيف الدوا هنا — العميل
+    // كان بيحس إنه اتنقل لصفحة تانية مالهاش علاقة بالصيدلية. دلوقتي بيفتح حوار على نفس
+    // الشاشة، والنص بيتبعت لنفس مسار العميل الحقيقي (agent_turn → أداة add_pharmacy_item)
+    // اللي بيفهم الاسم والمواعيد من كلام حر ويضيفه فعلاً، من غير ما يسيب الصيدلية خالص.
+    var showSmartAddDialog by remember { mutableStateOf(false) }
     var refillTarget by remember { mutableStateOf<ZadPharmacyItem?>(null) }
     var isGridView by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -130,10 +134,10 @@ fun PharmacyScreen(
                 }
             }
 
-            // زر بارز لبدء إضافة دواء بالكلام العادي عبر شات زاد — بيفتح الشات بسؤال دكتور
-            // جاهز بدل ما المستخدم يعبي فورم يدوي (Smart Medication Parsing).
+            // زر بارز لبدء إضافة دواء بالكلام العادي — حوار على نفس الشاشة (Smart
+            // Medication Parsing)، مش الانتقال لشاشة تانية.
             Button(
-                onClick = onNavigateToChat,
+                onClick = { showSmartAddDialog = true },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).pressableScale(),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = primary)
@@ -328,6 +332,17 @@ fun PharmacyScreen(
                 onSave = { item ->
                     viewModel.addPharmacyItem(item)
                     showAddDialog = false
+                }
+            )
+        }
+
+        if (showSmartAddDialog) {
+            SmartAddMedicationDialog(
+                onDismiss = { showSmartAddDialog = false },
+                onSubmit = { text ->
+                    viewModel.sendAiChatMessage(text)
+                    showSmartAddDialog = false
+                    android.widget.Toast.makeText(context, context.getString(R.string.smart_pharmacy_add_submitted), android.widget.Toast.LENGTH_LONG).show()
                 }
             )
         }
@@ -915,6 +930,40 @@ private fun AddPharmacyItemDialog(
             DatePicker(state = datePickerState)
         }
     }
+}
+
+/** إضافة دواء بالكلام الحر — النص بيتبعت لنفس مسار الوكيل الحقيقي (agent_turn)، فالعقل
+ *  هو اللي بيفهم الاسم والجرعة والمواعيد ويستخدم أداة add_pharmacy_item، مش تحليل محلي
+ *  هنا. الحوار بيقفل فور الإرسال — التأكيد بييجي إما هنا (Toast) أو في الشات لو العقل
+ *  احتاج يسأل توضيح (زي أي معاملة مالية غامضة). */
+@Composable
+internal fun SmartAddMedicationDialog(onDismiss: () -> Unit, onSubmit: (String) -> Unit) {
+    var text by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.smart_pharmacy_add_dialog_title), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.smart_pharmacy_add_dialog_hint), style = Typography.bodySmall, color = onSurfaceVariant)
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    placeholder = { Text(stringResource(R.string.smart_pharmacy_add_dialog_placeholder)) },
+                    minLines = 3,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { if (text.isNotBlank()) onSubmit(text) },
+                enabled = text.isNotBlank(),
+                modifier = Modifier.pressableScale(),
+                shape = RoundedCornerShape(50)
+            ) { Text(stringResource(R.string.smart_pharmacy_add_dialog_confirm)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
+    )
 }
 
 /** M3 مالوش TimePickerDialog جاهز — بنلفه بنفسنا حوالين TimePicker جوه AlertDialog. */

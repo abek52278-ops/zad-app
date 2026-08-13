@@ -320,11 +320,7 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                             PharmacyScreen(
                                 viewModel = viewModel,
                                 familyViewModel = familyViewModel,
-                                onNavigateToCamera = { showCameraSheet = true },
-                                onNavigateToChat = {
-                                    viewModel.setChatPrefill(context.getString(R.string.smart_pharmacy_chat_prompt))
-                                    go(ZadRoutes.ASSISTANT)
-                                }
+                                onNavigateToCamera = { showCameraSheet = true }
                             )
                         }
                         composable(ZadRoutes.MAINTENANCE) { MaintenanceScreen(viewModel = viewModel) }
