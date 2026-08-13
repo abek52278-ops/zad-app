@@ -3518,6 +3518,19 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     fun predictNextMonthExpenses() {
         viewModelScope.launch {
             try {
+                val monthlyTotals = completedMonthlyExpenseTotals(_transactions.value)
+                // كان بيسأل الـ AI يتوقع حتى من غير معاملات خالص — والموديل مش بيرفض سؤال
+                // "توقع"، بيرجّع رقم معقول-الشكل بثقة حقيقية (مش صفر) من عدم، وده بالظبط
+                // اللي كان بيظهر "توقع: 20,000 ج.م" فوق كارت بيقول تحته "لا توجد معاملات
+                // بعد". الحارس القديم (predictedTotal>0 && confidence>0) ما كانش بيمسك
+                // الحالة دي لأن الموديل مش بيرجع صفر، بيرجع تخمين واثق. دلوقتي مش بننادي
+                // الـ AI أصلاً غير لو عندنا شهرين مكتملين فيهم صرف فعلي على الأقل — نفس
+                // العتبة اللي الاحتياطي المحلي تحت كان بيستخدمها بعد النداء، دلوقتي قبله.
+                if (monthlyTotals.size < 2) {
+                    _expensePrediction.value = null
+                    Log.d(TAG, "predictNextMonthExpenses() → not enough completed-month history; skipping AI call, hiding card")
+                    return@launch
+                }
                 val patterns = dao.getBehaviorPatterns()
                 val aiPrediction = com.example.data.ZadAiRepository.predictExpenses(
                     _transactions.value, _budget.value, patterns
@@ -3526,7 +3539,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 // thinking-off في CLAUDE.md) — ده كان بيتعرض حرفياً "0 ج.م (ثقة 0%)" بدل ما نستخدم
                 // متوسط تاريخي محلي أو نخفي الكارت. أي واحدة من القيمتين صفر كافية نعتبره رد مرفوض.
                 val prediction = aiPrediction?.takeIf { it.predictedTotal > 0 && it.confidence > 0 }
-                    ?: historicalAverageExpensePrediction(_transactions.value)
+                    ?: historicalAverageExpensePrediction(monthlyTotals)
                 _expensePrediction.value = prediction
                 if (prediction != null) {
                     Log.d(TAG, "predictNextMonthExpenses() → predicted=${prediction.predictedTotal}, confidence=${prediction.confidence}")
@@ -3539,23 +3552,28 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * احتياطي محلي لما رد الـ AI فاضي أو غير موجود — متوسط آخر 3 شهور مكتملة من المصروفات
-     * الفعلية. لازم شهرين مكتملين فيهم صرف على الأقل، وإلا بيرجع null عشان الكارت يختفي
-     * تماماً بدل ما يعرض توقع 0 وهمي.
-     */
-    private fun historicalAverageExpensePrediction(transactions: List<ZadTransaction>): com.example.data.AiExpensePrediction? {
+    /** شهور تقويمية مكتملة (قبل الشهر الحالي) فيها إجمالي صرف حقيقي > 0 — نفس المدخل
+     *  لبوابة نداء الـ AI فوق ولاحتياطي المتوسط المحلي تحت، عشان الاتنين يتفقوا على
+     *  "عندنا تاريخ كفاية؟" بنفس المعيار بالظبط. */
+    private fun completedMonthlyExpenseTotals(transactions: List<ZadTransaction>): Map<java.time.YearMonth, Double> {
         fun txDate(tx: ZadTransaction): LocalDate? = tx.createdAt?.let {
             try { Instant.parse(it).atZone(ZoneId.systemDefault()).toLocalDate() } catch (e: Exception) { null }
         }
         val currentMonth = java.time.YearMonth.now()
-        val monthlyTotals = transactions
+        return transactions
             .filter { it.isExpense }
             .mapNotNull { tx -> txDate(tx)?.let { java.time.YearMonth.from(it) to tx.amount } }
             .filter { (month, _) -> month < currentMonth }
             .groupBy({ it.first }, { it.second })
             .mapValues { it.value.sum() }
             .filterValues { it > 0.0 }
+    }
+
+    /**
+     * احتياطي محلي لما رد الـ AI فاضي أو غير موجود — متوسط آخر 3 شهور مكتملة من المصروفات
+     * الفعلية. الكولر فوق ضمن بالفعل إن [monthlyTotals] فيها شهرين على الأقل قبل ما يوصل هنا.
+     */
+    private fun historicalAverageExpensePrediction(monthlyTotals: Map<java.time.YearMonth, Double>): com.example.data.AiExpensePrediction? {
         if (monthlyTotals.size < 2) return null
         val recentMonths = monthlyTotals.entries.sortedByDescending { it.key }.take(3)
         val avg = recentMonths.sumOf { it.value } / recentMonths.size
