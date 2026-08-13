@@ -250,8 +250,15 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
       // `id` مضاف عشان set_transaction_category و update_transaction يقدروا يشاوروا على
       // معاملة حقيقية. من غيره الموديل مكانش قدامه غير إنه يخترع معرّف — وأداة
       // set_transaction_category كانت موجودة من غير أي مصدر شرعي للـ transaction_id.
+      // ١٢٠ يوم + سقف صفوف أعلى (مش limit(200) بلا حد تاريخ) — كانت بترجع أحدث ٢٠٠ معاملة
+      // مهما كان تاريخها، وتحت detectObligationCandidate/detectCycleStartDay (١٢٠ يوم)
+      // وتحليل الشذوذ (٩٠ يوم) كلهم بيفلتروا المجموعة دي نفسها. لعميل نشط (٢+ معاملة/يوم)
+      // الـ٢٠٠ صف كانت بتخلص قبل ما توصل ٩٠ يوم فعلياً، فـ"آخر شهرين/تلاتة للتحليل والتنبؤ"
+      // كان بيتقصر بصمت من غير ما حد يلاحظ. ١٢٠ يوم عشان يغطي أطول نافذة مستخدمة (اكتشاف
+      // دورة الراتب/الالتزام الثابت)، مش بس أقصر نافذة (الشذوذ).
       sb.from("zad_transactions").select("id,amount,title,category,is_expense,txn_kind,created_at,merchant_name")
-        .eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
+        .eq("user_id", userId).gte("created_at", new Date(Date.now() - 120 * 86400000).toISOString())
+        .order("created_at", { ascending: false }).limit(600),
       sb.from("zad_inventory").select("item_name,category,quantity,unit,expiry_date,low_stock_threshold,created_at")
         .eq("user_id", userId),
       sb.from("zad_subscriptions").select("title,amount,renewal_date,is_active")
