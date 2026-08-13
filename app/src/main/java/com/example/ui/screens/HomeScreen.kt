@@ -86,6 +86,10 @@ fun HomeScreen(
     onNavigateToPharmacy: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
     onNavigateToCamera: () -> Unit = {},
+    /** فتح شاشة "البلد والعملة" مباشرة — لما رؤية زاد تكون عن عملة/بلد غير معروفين
+     * (زاد-برين بيكتب "غير معروف" ويطلب من العميل يحدده في الإعدادات)، بدل ما نسيب
+     * المستخدم يدوّر بنفسه على الشاشة الصح. */
+    onNavigateToCurrencySettings: () -> Unit = {},
     /** تفعيل يدوي من الأب/الأم (Switch to Kids Mode) — بيفرض واجهة الأطفال حتى لو role الحساب "admin" */
     kidsModeOverride: Boolean = false
 ) {
@@ -483,6 +487,25 @@ fun HomeScreen(
                                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                         Text(insight.title, style = Typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = onSurface)
                                         Text(insight.body, style = Typography.bodyMedium, color = onSurfaceVariant, maxLines = 2)
+                                        // زاد-برين بيكتب الرؤية دي بنص حر ("العملة/البلد غير
+                                        // معروفين") مش عبر actionType مخصص، فمفيش حقل هيكلي
+                                        // نربط عليه — مطابقة كلمات مفتاحية عشان زر "الإعدادات"
+                                        // يودّي المستخدم للشاشة الصح بدل ما يدوّر بنفسه.
+                                        val isCurrencyInsight = remember(insight.id) {
+                                            val haystack = insight.title + " " + insight.body
+                                            haystack.contains("عملة") || haystack.contains("البلد") ||
+                                                haystack.contains("currency", ignoreCase = true) ||
+                                                haystack.contains("country", ignoreCase = true)
+                                        }
+                                        if (isCurrencyInsight) {
+                                            TextButton(
+                                                onClick = onNavigateToCurrencySettings,
+                                                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
+                                                modifier = Modifier.height(28.dp)
+                                            ) {
+                                                Text(stringResource(R.string.country_and_currency), style = Typography.labelMedium, fontWeight = FontWeight.Bold, color = accent)
+                                            }
+                                        }
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
                                     // mockup: a kind tag pill on the trailing edge, tinted to

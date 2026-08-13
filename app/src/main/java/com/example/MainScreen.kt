@@ -121,7 +121,15 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
     // مايوصلش لأي شاشة مالية (goGuarded) ومالوش سلطة يحدد سقف العيلة.
     val budgetLoaded by viewModel.budgetLoaded.collectAsState()
     val budgetConfirmedForGate by viewModel.budgetConfirmed.collectAsState()
-    if (!kidsModeEffective && budgetLoaded && !budgetConfirmedForGate) {
+    // budgetLoaded == false يعني loadBudget() لسه في الطريق — عرض الرئيسية دلوقتي كان
+    // بيفلّش صفر/رقم قديم لحد ما الرد يرجع (السبب اللي "البادجت بيبان فاضي/مش حي").
+    if (!kidsModeEffective && !budgetLoaded) {
+        Box(modifier = Modifier.fillMaxSize().background(background), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = primary)
+        }
+        return
+    }
+    if (!kidsModeEffective && !budgetConfirmedForGate) {
         com.example.ui.screens.BudgetGateScreen(onComplete = { budget, market ->
             // البلد/العملة بتتكتبوا هنا كمان مش في شاشة اختيار السوق بس — دي أول نقطة
             // مضمون فيها إن في جلسة، فالكتابة بتوصل السيرفر فعلاً والبوت يبطّل يسأل.
@@ -290,7 +298,8 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                                 onNavigateToTasbiha = { go(ZadRoutes.TASBIHA) },
                                 onNavigateToProfile = { go(ZadRoutes.PROFILE) },
                                 onNavigateToPharmacy = { go(ZadRoutes.PHARMACY) },
-                                onNavigateToNotifications = { go(ZadRoutes.NOTIFICATIONS) }
+                                onNavigateToNotifications = { go(ZadRoutes.NOTIFICATIONS) },
+                                onNavigateToCurrencySettings = { go(ZadNav.PAYMENT_BUDGET) }
                             )
                         }
                         composable(ZadRoutes.NOTIFICATIONS) {

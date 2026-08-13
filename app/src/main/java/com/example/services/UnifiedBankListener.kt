@@ -63,7 +63,27 @@ class UnifiedBankListener : NotificationListenerService() {
         "com.fawry", "com.vodafone",
         // ── قطر / البحرين (أسماء تطبيقات — أفضل تخمين، غير مختبرة زي مصر/تركيا فوق) ──
         "qnb", "dohabank", "cbq", "qib", "dukhanbank", "alrayan",
-        "nbbonline", "bbkonline", "ahliunited", "alsalambank", "ithmaar", "benefitpay"
+        "nbbonline", "bbkonline", "ahliunited", "alsalambank", "ithmaar", "benefitpay",
+        // ── باقي أسواق مرحلة ٢ (الإمارات/الكويت/عُمان/الأردن/لبنان/العراق/سوريا/اليمن/
+        // فلسطين/ليبيا/السودان/المغرب/تونس/الجزائر) — أسماء بنوك ومحافظ معروفة عامة،
+        // نفس تحذير قطر/البحرين فوق: أفضل معرفة مش تجربة فعلية على إشعار حقيقي من
+        // الجهات دي. حتى لو الاسم هنا غلط أو مش دقيق، fallback الكلمة المفتاحية+المبلغ
+        // في isFinancialNotification لسه بيغطي أي بنك مش في القايمة دي أصلاً — القايمة
+        // دي تسريع بس، مش شرط للالتقاط.
+        "adcb", "fab", "mashreq", // الإمارات (إضافة لـ emiratesnbd الموجودة فوق)
+        "nbk", "kfh", "gulfbank", "boubyan", "knet", // الكويت
+        "bankmuscat", "nbo", "bankdhofar", // عُمان
+        "arabbank", "cabjo", "jkb", "jib", // الأردن
+        "bankaudi", "blombank", "byblosbank", // لبنان
+        "zaincash", "asiahawala", "rafidain", "rasheedbank", // العراق
+        "syriatelcash", "mtncash", // سوريا
+        "cacbank", "alkuraimi", // اليمن
+        "bankofpalestine", "palpay", // فلسطين
+        "saharabank", "wahdabank", "jumhouriabank", // ليبيا
+        "bankofkhartoum", "faisalbanksudan", // السودان
+        "attijari", "banquepopulaire", "cihbank", // المغرب
+        "biat", "banquedetunisie", "attijaritn", // تونس
+        "cpabank", "bnabank", "baridimob" // الجزائر
     )
 
     /**

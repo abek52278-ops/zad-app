@@ -562,12 +562,25 @@ bot.command("tahlil", async (ctx) => {
     return;
   }
   await ctx.replyWithChatAction("typing");
+  // كان بيروح مباشرة لسياق منفصل (fetchAgentContext + askZad) بدل agentTurn — نفس
+  // مسار الرسالة النصية العادية تحت، فالتحليل ممكن يختلف عن رد الشات العادي لأنهم
+  // مبنيين من دالتين مختلفتين لنفس الصورة. دلوقتي بيفضّل الوكيل الموحد الأول، ونفس
+  // fallback بس لو فشل — مش تنفيذ جديد، نفس البنية.
+  const analysisPrompt = "اعملي تحليل سريع لوضعي المالي وحالة البيت: أهم ٣ ملاحظات، وأهم حاجة أعملها دلوقتي.";
+  const { result: turn, errorReason } = await agentTurn(userId, analysisPrompt);
+  if (turn?.reply.trim()) {
+    await ctx.reply(clampForTelegram(turn.reply.trim()));
+    return;
+  }
+  const notice = errorReason
+    ? `⚠️ تعذر الوصول لـ AI Agent (${errorReason}) — رد احتياطي:\n\n`
+    : "";
   const context = buildAgentContext(await fetchAgentContext(sb, userId));
   const answer = await askZad(
     agentSystemPrompt(),
-    `${context}\n\n=== سؤال العميل ===\nاعملي تحليل سريع لوضعي المالي وحالة البيت: أهم ٣ ملاحظات، وأهم حاجة أعملها دلوقتي.`,
+    `${context}\n\n=== سؤال العميل ===\n${analysisPrompt}`,
   );
-  await ctx.reply(answer ? clampForTelegram(answer) : "معلش، التحليل مش متاح دلوقتي — جرب كمان شوية.");
+  await ctx.reply(answer ? clampForTelegram(notice + answer) : clampForTelegram(notice + "معلش، التحليل مش متاح دلوقتي — جرب كمان شوية."));
 });
 
 // المحادثة الحقيقية — أي كلام عادي بيروح لزاد بنفس السياق والشخصية بتوع الشات

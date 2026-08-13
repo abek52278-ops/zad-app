@@ -407,7 +407,42 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
                 val intent = android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
                 context.startActivity(intent)
             }
-            
+
+            // كان مفيش أي طريقة يشوف بيها المستخدم (أو حتى إحنا) ليه إشعار بنك معين
+            // اترفض/محصلش تسجيل — العميل حس "الرقم ثابت والإيجنت أعمى" من غير ما يقدر
+            // يشخّص السبب. دلوقتي آخر الرسائل المرفوضة ظاهرة هنا بسببها ونصها، فلو InstaPay
+            // مثلاً مبيتسجلش، السبب بيبان (صلاحية مقفولة، ولا الرسالة اتفهمت غلط).
+            if (!isBankSyncEnabled) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    stringResource(R.string.bank_sync_disabled_warning),
+                    style = Typography.bodySmall,
+                    color = dangerColor
+                )
+            } else {
+                var rejectedMessages by remember { mutableStateOf<List<com.example.data.RejectedBankMessage>>(emptyList()) }
+                LaunchedEffect(Unit) {
+                    rejectedMessages = com.example.data.local.ZadDatabase.getDatabase(context).zadDao().getRejectedBankMessages()
+                }
+                if (rejectedMessages.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(stringResource(R.string.bank_sync_rejected_title), style = Typography.labelLarge, fontWeight = FontWeight.Bold, color = onSurface)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(stringResource(R.string.bank_sync_rejected_hint), style = Typography.bodySmall, color = onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    rejectedMessages.take(15).forEach { msg ->
+                        Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                Text(msg.source, style = Typography.labelMedium, fontWeight = FontWeight.SemiBold, color = onSurface)
+                                Text(msg.reason, style = Typography.labelSmall, color = dangerColor)
+                            }
+                            Text(msg.rawText, style = Typography.bodySmall, color = onSurfaceVariant, maxLines = 2)
+                        }
+                        HorizontalDivider(color = outlineVariant)
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
             Text(stringResource(R.string.payment_methods_soon), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
             Spacer(modifier = Modifier.height(12.dp))

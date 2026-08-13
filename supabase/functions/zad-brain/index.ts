@@ -2360,6 +2360,20 @@ async function handleNotificationIngest(sb: SupabaseClient, userId: string, body
   const confidence = Number(parsed.confidence ?? 0);
   if (clientClassification !== "completed" || !Number.isFinite(amount) || amount <= 0 || confidence < 0.9) {
     await mark("ambiguous", "needs_confirmation");
+    // كان بيقف هنا — العميل يشوفه بس لو دوّر يدوي على شاشة المعاملات، مفيش سؤال فعلي.
+    // دلوقتي سؤال حقيقي (نفس شكل ask_user) يظهر في "رؤى زاد" فوراً؛ إجابة العميل
+    // بتعدي على answerBrainQuestion → triggerBrainEvent → نفس حلقة الأدوات
+    // (log_transaction) فتتسجل صح، مش تتخمن وتتقفل صامتة.
+    const amountGuess = Number.isFinite(amount) && amount > 0 ? `${Math.round(amount * 100) / 100}` : "غير واضح";
+    await sb.from("zad_insights").upsert({
+      user_id: userId, kind: "question", surface: "home_card", priority: "normal",
+      title: "معاملة بنكية محتاجة تأكيد",
+      body: `وصل إشعار من ${packageName} (المبلغ التقريبي: ${amountGuess}) — مش واضح إيداع ولا سحب. هل ده إيداع (فلوس داخلة)؟ أيوة = إيداع، لأ = سحب/مصروف. النص الأصلي: "${rawText.slice(0, 200)}"`,
+      dedupe_key: `notif_ambiguous_${dedupeHash.slice(0, 24)}`,
+      action_type: "yes_no",
+      about_item: rawText.slice(0, 200),
+      status: "pending", updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id,dedupe_key" });
     return new Response(JSON.stringify({ ok: true, status: "ambiguous", classification: "ambiguous" }), { headers: CORS_HEADERS });
   }
 
@@ -2401,6 +2415,16 @@ async function handleNotificationIngest(sb: SupabaseClient, userId: string, body
     summary: "سجل إشعار بنك مكتمل بعد فحص الثقة",
   });
   await mark("logged", undefined, transactionId);
+
+  // كان لحد دلوقتي pull بس: العقل ميعرفش بمعاملة إشعار البنك دي غير لما المستخدم يفتح
+  // شات/الرئيسية أو يجي دور agent-proactive-scan-hourly. نفس فحص "الإنفاق أسرع من
+  // المتوقع" اللي الكرون الساعة بيعمله لكل المستخدمين (_agent_spending_ahead_for_user)،
+  // بس فوري لصاحب المعاملة دي بس — مش مسح كامل. فشل هنا ميكسرش نجاح تسجيل المعاملة.
+  try {
+    await sb.rpc("_agent_spending_ahead_for_user", { p_user: userId });
+  } catch (e) {
+    console.error("immediate proactive check after notification_ingest failed:", (e as Error).message);
+  }
 
   return new Response(JSON.stringify({
     ok: true,

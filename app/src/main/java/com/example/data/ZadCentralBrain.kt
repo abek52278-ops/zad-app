@@ -237,7 +237,7 @@ object ZadCentralBrain {
         val totalSpent = BudgetMath.spentThisMonth(transactions)
         if (budget > 0) {
             val pct = (totalSpent / budget * 100).toInt()
-            val remaining = budget - totalSpent
+            val remaining = BudgetMath.remaining(budget, transactions) ?: (budget - totalSpent)
             when {
                 pct >= 100 -> alerts.add("🚨 تجاوزت الميزانية! أنفقت ${CurrencyFormatter.format(context, totalSpent)} من ${CurrencyFormatter.format(context, budget)}")
                 pct >= 85 -> {
@@ -388,7 +388,7 @@ object ZadCentralBrain {
             try { Instant.parse(it).atZone(ZoneId.systemDefault()).toLocalDate() } catch (e: Exception) { null }
         }
         fun weekSpend(weekStart: LocalDate): Double = transactions
-            .filter { it.isExpense && (txDate(it)?.let { d -> d >= weekStart && d < weekStart.plusWeeks(1) } ?: false) }
+            .filter { it.txnKind == "expense" && (txDate(it)?.let { d -> d >= weekStart && d < weekStart.plusWeeks(1) } ?: false) }
             .sumOf { it.amount }
 
         val lastWeekEpoch = prefs.getLong(FORECAST_LAST_WEEK_KEY, -1L)
@@ -775,11 +775,13 @@ object ZadCentralBrain {
         }
 
         val monthTx = transactions.filter { (txDate(it) ?: today) >= monthStart }
-        // كروت الفئات وتحليلات تانية تحت لسه بتستخدم isExpense — تحويلات (سحب ATM) لسه
-        // بتظهر في تحليل الفئات/أكتر التجار، مش مشكلة 19.3 (هي رقم "المتبقي" بس)، تتبع
-        // منفصل. totalSpent/totalIncome هنا نفسهم لسه isExpense-based لنفس السبب.
-        val totalSpent = monthTx.filter { it.isExpense }.sumOf { it.amount }
-        val totalIncome = monthTx.filter { !it.isExpense }.sumOf { it.amount }
+        // Task 19.3 convention: totalSpent/totalIncome (المعروضين في "الإنفاق الشهري" على
+        // الرئيسية) لازم يتفقوا مع BudgetMath.spentThisMonth/incomeThisMonth — سحب ATM
+        // (txnKind=transfer) مابيتحسبش مصروف هنا كمان، وإلا يفضل الرقم يختلف عن باقي
+        // الشاشة رغم إنه نفس الشهر. كروت الفئات تحت (spentByCategory) لسه isExpense-based
+        // عمداً — دي تصنيف حركة الفلوس، مش رقم "الإنفاق" نفسه.
+        val totalSpent = BudgetMath.spentThisMonth(transactions, today)
+        val totalIncome = BudgetMath.incomeThisMonth(transactions, today)
         // Task 19.3 — remaining هو الرقم اللي المستخدم بيشوفه (BrainReport.remaining)،
         // فلازم يتفق مع BudgetMath.remaining بالظبط، بما فيها استبعاد التحويلات (سحب ATM).
         val remaining = BudgetMath.remaining(budget, transactions, today)

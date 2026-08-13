@@ -763,6 +763,9 @@
     <string name="eg_father">مثال: الأب</string>
     <string name="enable_bank_sync">تفعيل مزامنة البنوك</string>
     <string name="enable_bank_sync_desc">قراءة إشعارات البنك عشان خصم المشتريات من الميزانية (محتاج صلاحية)</string>
+    <string name="bank_sync_disabled_warning">مزامنة البنوك متوقفة — عشان زاد يقرا إشعارات البنك ويحدّث رصيدك أوتوماتيك، لازم تدي صلاحية الوصول للإشعارات من فوق.</string>
+    <string name="bank_sync_rejected_title">آخر الرسايل اللي اترفضت</string>
+    <string name="bank_sync_rejected_hint">لو بنك أو محفظة معينة مش بتتسجل، هتلاقي السبب هنا (OTP، رسالة معلّقة، أو نص محصلش فهمه).</string>
     <string name="family_invite_code_label">كود دعوة العيلة</string>
     <string name="faq_add_subscription_a">روح صفحة الاشتراكات ودوس على زرار الإضافة العايم تحت الشاشة.</string>
     <string name="faq_add_subscription_q">أضيف اشتراك جديد إزاي؟</string>

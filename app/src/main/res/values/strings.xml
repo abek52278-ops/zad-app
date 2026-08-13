@@ -790,6 +790,9 @@
     <string name="eg_father">مثال: الأب</string>
     <string name="enable_bank_sync">تفعيل مزامنة البنوك</string>
     <string name="enable_bank_sync_desc">قراءة إشعارات البنك لخصم المشتريات من الميزانية (يتطلب منح صلاحية)</string>
+    <string name="bank_sync_disabled_warning">مزامنة البنوك متوقفة — عشان زاد يقرأ إشعارات البنك ويحدّث رصيدك تلقائياً، لازم تمنح صلاحية الوصول للإشعارات من فوق.</string>
+    <string name="bank_sync_rejected_title">آخر الرسائل اللي اترفضت</string>
+    <string name="bank_sync_rejected_hint">لو بنك أو محفظة معينة مش بتتسجل، هتلاقي السبب هنا (OTP، رسالة معلّقة، أو نص محصلش فهمه).</string>
     <string name="family_invite_code_label">كود دعوة العائلة</string>
     <string name="faq_add_subscription_a">اذهب لصفحة الاشتراكات واضغط على زر الإضافة العائم بأسفل الشاشة.</string>
     <string name="faq_add_subscription_q">كيف أضيف اشتراكاً جديداً؟</string>

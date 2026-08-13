@@ -763,6 +763,9 @@
     <string name="eg_father">Örn: Baba</string>
     <string name="enable_bank_sync">Banka senkronizasyonunu etkinleştir</string>
     <string name="enable_bank_sync_desc">Alışverişleri bütçeden düşmek için banka bildirimlerini oku (izin gerekir)</string>
+    <string name="bank_sync_disabled_warning">Banka senkronizasyonu kapalı — Zad\'ın banka bildirimlerini okuyup bakiyeni otomatik güncellemesi için yukarıdan bildirim erişim izni vermen gerekiyor.</string>
+    <string name="bank_sync_rejected_title">Son reddedilen mesajlar</string>
+    <string name="bank_sync_rejected_hint">Belirli bir banka veya cüzdan kaydedilmiyorsa sebebini burada görebilirsin (OTP, bekleyen işlem veya anlaşılamayan metin).</string>
     <string name="family_invite_code_label">Aile davet kodu</string>
     <string name="faq_add_subscription_a">Abonelikler sayfasına git ve ekranın altındaki artı butonuna dokun.</string>
     <string name="faq_add_subscription_q">Yeni bir abonelik nasıl eklerim?</string>

@@ -336,10 +336,14 @@ object SyncOutbox {
                     "analyze_unparsed_notification" -> {
                         val payload = json.decodeFromString<UnparsedNotificationPayload>(op.payloadJson)
                         val parsed = ZadAiRepository.analyzeBankNotification(payload.title, payload.text)
+                        // كان بيسجل المعاملة على طول بمجرد ما الـ AI يرجّع أي تفسير (ثقة ≥ 0.6،
+                        // أقل من الـ 0.9 المعمول بيه في باقي مسارات التسجيل التلقائي) — يعني
+                        // إشعار وصل هنا أصلاً لأن التحليل المحلي فشل يفهمه، وبرضه بيتسجل من
+                        // غير ما حد يتأكد سحب ولا إيداع. دلوقتي بيسأل العميل بدل ما يخمّن.
                         if (parsed != null && TxDeduplicator.isNewTransaction(context, parsed.amount, parsed.isExpense, parsed.merchantName ?: parsed.title)) {
-                            BankTransactionApplier.apply(context, parsed)
+                            askServerToConfirmAmbiguous(payload, parsed)
                             dao.deletePendingSyncOp(op.id)
-                            Log.d(TAG, "flush: retry parsed '${parsed.title}' — cleared op ${op.id}")
+                            Log.d(TAG, "flush: retry parsed '${parsed.title}' but ambiguous — asked in chat, cleared op ${op.id}")
                         } else if (op.attempts + 1 >= MAX_UNPARSED_ATTEMPTS) {
                             dao.deletePendingSyncOp(op.id)
                             Log.w(TAG, "flush: op ${op.id} gave up after ${op.attempts + 1} attempts — genuinely unparseable")
@@ -357,6 +361,41 @@ object SyncOutbox {
             } catch (e: Exception) {
                 Log.e(TAG, "flush: op ${op.id} threw: ${e.message}")
             }
+        }
+    }
+
+    /** بدل التسجيل التلقائي بتخمين الـ AI — بيبعت للعقل المشترك (zad-brain) يكتب سؤال
+     * حقيقي ("سحب ولا إيداع؟") يظهر في "رؤى زاد" على الرئيسية، بدل ما يتسجل بتخمين ثقته
+     * أقل من العتبة المعتمدة في كل مسار تسجيل تلقائي تاني في التطبيق. */
+    private suspend fun askServerToConfirmAmbiguous(payload: UnparsedNotificationPayload, parsed: ZadTransaction) {
+        try {
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return
+            SupabaseRepo.callEdgeFunction(
+                "zad-brain",
+                mapOf(
+                    "action" to "notification_ingest",
+                    "user_id" to userId,
+                    "source" to "notification_listener_retry",
+                    "package_name" to payload.source,
+                    "title" to payload.title,
+                    "text" to payload.text,
+                    "client_classification" to "ambiguous",
+                    "parsed" to mapOf(
+                        "amount" to parsed.amount,
+                        "is_expense" to parsed.isExpense,
+                        "title" to parsed.title,
+                        "category" to parsed.category,
+                        "merchant_name" to (parsed.merchantName ?: parsed.title),
+                        "bank_name" to payload.source,
+                        "txn_kind" to if (parsed.isExpense) "expense" else "income",
+                        "currency" to (parsed.currency ?: ""),
+                        "confidence" to 0.0
+                    )
+                ),
+                timeoutMs = 20_000L
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "askServerToConfirmAmbiguous failed: ${e.message}")
         }
     }
 

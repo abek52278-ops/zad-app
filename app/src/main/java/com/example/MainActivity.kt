@@ -59,6 +59,7 @@ import com.example.ui.screens.InventoryScreen
 import com.example.ui.screens.FamilyScreen
 import com.example.ui.screens.CameraScreen
 import com.example.data.SupabaseRepo
+import com.example.data.Market
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.auth.status.RefreshFailureCause
 
@@ -284,17 +285,36 @@ fun AppNavigation(pendingInviteCode: String? = null) {
         }
     }
 
-    val navigateAfterSplash: () -> Unit = navigate@{
-        if (!MarketPrefs.hasSelectedMarket(context)) {
-            navController.navigate("market_selection") {
-                popUpTo(0) { inclusive = true }
-            }
-            return@navigate
-        }
+    val coroutineScope = rememberCoroutineScope()
+    fun goToMainOrOnboarding() {
         val session = SupabaseRepo.client.auth.currentSessionOrNull()
         navController.navigate(if (session != null) "main" else "onboarding") {
             popUpTo(0) { inclusive = true }
         }
+    }
+    val navigateAfterSplash: () -> Unit = navigate@{
+        if (!MarketPrefs.hasSelectedMarket(context)) {
+            // المحلي فاضي مش دليل إن المستخدم لسه ما اختارش سوق — ممكن يكون بيانات
+            // الجهاز اتمسحت (تحديث/جهاز جديد) بينما السيرفر لسه فاكر اختياره. نسأل
+            // السيرفر الأول قبل ما نجبره يختار تاني.
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
+            if (userId != null) {
+                coroutineScope.launch {
+                    val (_, serverCountry) = SupabaseRepo.getMarketProfile(userId)
+                    val serverMarket = serverCountry?.let { code -> Market.entries.find { it.countryCode == code } }
+                    if (serverMarket != null) {
+                        MarketPrefs.setMarket(context, serverMarket)
+                        goToMainOrOnboarding()
+                    } else {
+                        navController.navigate("market_selection") { popUpTo(0) { inclusive = true } }
+                    }
+                }
+                return@navigate
+            }
+            navController.navigate("market_selection") { popUpTo(0) { inclusive = true } }
+            return@navigate
+        }
+        goToMainOrOnboarding()
     }
 
     NavHost(navController = navController, startDestination = "splash") {
