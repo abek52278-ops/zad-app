@@ -313,8 +313,6 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
     var editMode by remember { mutableStateOf(false) }
     var newBudgetStr by remember { mutableStateOf(budget.toString()) }
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val saveFailedText = stringResource(R.string.changes_save_failed)
 
     LaunchedEffect(budget) {
         Log.d(TAG_SUB_PROF, "PaymentAndBudgetScreen loaded — current budget=$budget")
@@ -360,94 +358,12 @@ fun PaymentAndBudgetScreen(viewModel: ZadViewModel, onBack: () -> Unit) {
                     }
                 }
             }
+            // البلد/العملة بقى مكان واحد بس (الإعدادات الإقليمية جوا البروفايل الرئيسي) —
+            // كان فيه بيكر تاني هنا بيعمل بالظبط نفس المهمة (MarketPrefs.setMarket +
+            // syncMarketProfile)، يعني تغيير من هنا وتغيير من هناك مكانش بينهم فرق، بس
+            // مكانين مختلفين لنفس القرار مربكين.
             Spacer(modifier = Modifier.height(24.dp))
-            Text(stringResource(R.string.country_and_currency), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(stringResource(R.string.country_and_currency_hint), style = Typography.bodySmall, color = onSurfaceVariant)
-            Spacer(modifier = Modifier.height(12.dp))
-            var selectedMarket by remember { mutableStateOf(com.example.data.MarketPrefs.getMarket(context)) }
-            // مرحلة ٢ — ١٩ سوق بدل ٣، فالـ Row متساوي العرض القديم كان بيتكسر (١٩ عمود
-            // ضيّق في صف واحد). نفس مكوّن الشبكة+البحث المستخدم في MarketSelectionScreen.
-            com.example.ui.components.MarketPickerGrid(
-                selected = selectedMarket,
-                onSelect = { market ->
-                    val previousMarket = com.example.data.MarketPrefs.currentMarket
-                    selectedMarket = market
-                    com.example.data.MarketPrefs.setMarket(context, market)
-                    viewModel.convertLimitsForMarketChange(context, previousMarket, market)
-                    scope.launch {
-                        val synced = com.example.data.SupabaseRepo.syncMarketProfile(market)
-                        if (!synced) {
-                            Toast.makeText(context, saveFailedText, Toast.LENGTH_LONG).show()
-                            com.example.data.SyncOutbox.enqueueMarketProfile(context, market.currencyCode, market.countryCode)
-                        }
-                    }
-                    context.findActivity()?.recreate()
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-            Text(stringResource(R.string.auto_bank_sync), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-            Spacer(modifier = Modifier.height(12.dp))
-            fun checkBankSyncGranted() = android.provider.Settings.Secure
-                .getString(context.contentResolver, "enabled_notification_listeners")
-                ?.contains(context.packageName) == true
-            var isBankSyncEnabled by remember { mutableStateOf(checkBankSyncGranted()) }
-            val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
-            DisposableEffect(lifecycleOwner) {
-                val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-                    if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                        isBankSyncEnabled = checkBankSyncGranted()
-                    }
-                }
-                lifecycleOwner.lifecycle.addObserver(observer)
-                onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-            }
-            AlertSwitchItem(stringResource(R.string.enable_bank_sync), stringResource(R.string.enable_bank_sync_desc), isBankSyncEnabled) {
-                val intent = android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-                context.startActivity(intent)
-            }
-
-            // كان مفيش أي طريقة يشوف بيها المستخدم (أو حتى إحنا) ليه إشعار بنك معين
-            // اترفض/محصلش تسجيل — العميل حس "الرقم ثابت والإيجنت أعمى" من غير ما يقدر
-            // يشخّص السبب. دلوقتي آخر الرسائل المرفوضة ظاهرة هنا بسببها ونصها، فلو InstaPay
-            // مثلاً مبيتسجلش، السبب بيبان (صلاحية مقفولة، ولا الرسالة اتفهمت غلط).
-            if (!isBankSyncEnabled) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    stringResource(R.string.bank_sync_disabled_warning),
-                    style = Typography.bodySmall,
-                    color = dangerColor
-                )
-            } else {
-                var rejectedMessages by remember { mutableStateOf<List<com.example.data.RejectedBankMessage>>(emptyList()) }
-                LaunchedEffect(Unit) {
-                    rejectedMessages = com.example.data.local.ZadDatabase.getDatabase(context).zadDao().getRejectedBankMessages()
-                }
-                if (rejectedMessages.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(stringResource(R.string.bank_sync_rejected_title), style = Typography.labelLarge, fontWeight = FontWeight.Bold, color = onSurface)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(stringResource(R.string.bank_sync_rejected_hint), style = Typography.bodySmall, color = onSurfaceVariant)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    rejectedMessages.take(15).forEach { msg ->
-                        Column(modifier = Modifier.padding(vertical = 6.dp)) {
-                            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                Text(msg.source, style = Typography.labelMedium, fontWeight = FontWeight.SemiBold, color = onSurface)
-                                Text(msg.reason, style = Typography.labelSmall, color = dangerColor)
-                            }
-                            Text(msg.rawText, style = Typography.bodySmall, color = onSurfaceVariant, maxLines = 2)
-                        }
-                        HorizontalDivider(color = outlineVariant)
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-            Text(stringResource(R.string.payment_methods_soon), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(stringResource(R.string.card_linking_soon), color = onSurfaceVariant)
+            BankReadingStatusSection()
         }
         }
     }
@@ -558,9 +474,8 @@ fun AssistantAlertsScreen(onBack: () -> Unit) {
                     soundPickerLauncher.launch(intent)
                 }) { Text(stringResource(R.string.change_action)) }
             }
-
-            HorizontalDivider(color = outlineVariant, modifier = Modifier.padding(vertical = 16.dp))
-            BankReadingStatusSection()
+            // حالة قراءة رسايل البنك بقت مكان واحد بس — جوا "الميزانية وطرق الدفع"
+            // (PaymentAndBudgetScreen)، فعليًا هو أصلها الموضوعي (بيانات مالية)، مش هنا.
         }
         }
     }
@@ -645,6 +560,35 @@ fun BankReadingStatusSection() {
                     TextButton(onClick = { testResult = null }) { Text(stringResource(R.string.ok_action)) }
                 }
             )
+        }
+
+        // كان مفيش أي طريقة يشوف بيها المستخدم (أو حتى إحنا) ليه إشعار بنك معين اترفض/
+        // محصلش تسجيل — العميل حس "الرقم ثابت والإيجنت أعمى" من غير ما يقدر يشخّص السبب.
+        // آخر الرسائل المرفوضة ظاهرة هنا بسببها ونصها، فلو InstaPay مثلاً مبيتسجلش، السبب
+        // بيبان (صلاحية مقفولة، ولا الرسالة اتفهمت غلط). كانت مكررة بنسخة يدوية منفصلة
+        // في PaymentAndBudgetScreen — دمجت هنا عشان تبقى مكان واحد بس لحالة قراءة البنك.
+        if (listenerEnabled) {
+            var rejectedMessages by remember { mutableStateOf<List<com.example.data.RejectedBankMessage>>(emptyList()) }
+            LaunchedEffect(Unit) {
+                rejectedMessages = com.example.data.local.ZadDatabase.getDatabase(context).zadDao().getRejectedBankMessages()
+            }
+            if (rejectedMessages.isNotEmpty()) {
+                Spacer(Modifier.height(16.dp))
+                Text(stringResource(R.string.bank_sync_rejected_title), style = Typography.labelLarge, fontWeight = FontWeight.Bold, color = onSurface)
+                Spacer(Modifier.height(4.dp))
+                Text(stringResource(R.string.bank_sync_rejected_hint), style = Typography.bodySmall, color = onSurfaceVariant)
+                Spacer(Modifier.height(8.dp))
+                rejectedMessages.take(15).forEach { msg ->
+                    Column(modifier = Modifier.padding(vertical = 6.dp)) {
+                        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                            Text(msg.source, style = Typography.labelMedium, fontWeight = FontWeight.SemiBold, color = onSurface)
+                            Text(msg.reason, style = Typography.labelSmall, color = dangerColor)
+                        }
+                        Text(msg.rawText, style = Typography.bodySmall, color = onSurfaceVariant, maxLines = 2)
+                    }
+                    HorizontalDivider(color = outlineVariant)
+                }
+            }
         }
     }
 }

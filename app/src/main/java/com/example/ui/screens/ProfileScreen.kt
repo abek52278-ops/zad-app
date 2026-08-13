@@ -366,9 +366,6 @@ fun ProfileScreen(
                 SectionTitle(stringResource(R.string.settings_title))
                 Spacer(Modifier.height(12.dp))
 
-                val listenerGranted = androidx.core.app.NotificationManagerCompat
-                    .getEnabledListenerPackages(context).contains(context.packageName)
-
                 com.example.ui.components.ZadMenuGroup {
                     com.example.ui.components.ZadMenuRow(
                         title = stringResource(R.string.edit_profile_title),
@@ -396,21 +393,11 @@ fun ProfileScreen(
                         onClick = { navController?.navigate(com.example.ZadNav.ASSISTANT_ALERTS) }
                     )
                     // Phase A6 — this slot held "rescan SMS", which needed READ_SMS.
-                    // Reading is done by the notification listener now, so the useful
-                    // control here is the switch that turns that listener on, plus a
-                    // live indication of whether it is actually granted.
-                    com.example.ui.components.ZadMenuRow(
-                        title = stringResource(R.string.notification_access_title),
-                        subtitle = stringResource(
-                            if (listenerGranted) R.string.notification_access_granted
-                            else R.string.notification_access_subtitle
-                        ),
-                        onClick = {
-                            context.startActivity(
-                                android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-                            )
-                        }
-                    )
+                    // Reading is done by the notification listener now. Live status +
+                    // the actual toggle live in AssistantAlertsScreen's
+                    // BankReadingStatusSection — this row and PaymentAndBudgetScreen's
+                    // "auto bank sync" switch used to duplicate that same permission
+                    // control two more times with no live status of their own.
                     com.example.ui.components.ZadMenuRow(
                         title = stringResource(R.string.statement_import_title),
                         subtitle = stringResource(R.string.import_bank_statement_subtitle),

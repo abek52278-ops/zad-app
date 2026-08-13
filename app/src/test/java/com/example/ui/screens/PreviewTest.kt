@@ -1021,4 +1021,30 @@ class PreviewTest {
         }
         composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/monthly_report_card_empty.png")
     }
+
+    /** البروفايل — قسم حالة قراءة البنك بعد الدمج (كان مكرر 3 مرات، بقى مكان واحد جوا
+     *  "الميزانية وطرق الدفع"، هنا مع قايمة الرسايل المرفوضة المدموجة). */
+    @Test
+    fun captureBankReadingStatusSection() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.background(background).padding(16.dp)) {
+                    BankReadingStatusSection()
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/bank_reading_status_section.png")
+    }
+
+    /** البروفايل — تنبيهات المساعد الذكي بعد ما اتشال منها قسم البنك المكرر، وبعد إضافة
+     *  اختيار صوت الإشعارات. */
+    @Test
+    fun captureAssistantAlertsScreen() {
+        composeTestRule.setContent {
+            AppTheme {
+                AssistantAlertsScreen(onBack = {})
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/assistant_alerts_screen.png")
+    }
 }
