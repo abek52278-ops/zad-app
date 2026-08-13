@@ -423,7 +423,8 @@ object ZadAiRepository {
         subscriptions: List<ZadSubscription>,
         budget: Double,
         shopping: List<ZadShoppingItem>,
-        patterns: List<ZadBehaviorPattern>
+        patterns: List<ZadBehaviorPattern>,
+        obligations: List<ZadObligation> = emptyList()
     ): AiAgentSummary? {
         val response = callAction("agent_summary", mapOf(
             "inventory" to inventory.joinToString(", ") { "${it.itemName}(${it.quantity})" },
@@ -433,7 +434,10 @@ object ZadAiRepository {
             // بيقراه على إنه سقف المستخدم الحقيقي ويقتبسه في الملخص بالحرف.
             "budget" to (if (budget > 0) budget else "غير معروف"),
             "shopping" to shopping.filter { !it.isPurchased }.joinToString(", ") { "${it.itemName}(${it.quantity})" },
-            "patterns" to patterns.joinToString(", ") { "${it.category}:avg=${it.avgAmount},freq=${it.frequencyDays}d" }
+            "patterns" to patterns.joinToString(", ") { "${it.category}:avg=${it.avgAmount},freq=${it.frequencyDays}d" },
+            // كان الملخص ده مش عارف حاجة عن الإيجار/الفواتير/الأقساط الثابتة خالص — "المحجوز"
+            // بيظهر كرقم في مكان تاني بس، من غير أي مصدر هنا يسمّي الالتزام نفسه.
+            "obligations" to obligations.joinToString(", ") { "${it.title}(${it.amount}/${it.recurrence})" }
         ))
         val summary = response["summary"] as? String ?: return null
         val alertsRaw = response["alerts"] as? List<*> ?: emptyList<Any>()

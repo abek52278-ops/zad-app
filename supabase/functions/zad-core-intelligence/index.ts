@@ -655,7 +655,7 @@ Deno.serve(async (req: Request) => {
           "(٥) days_until_budget_end احسبها من التاريخ فقط، ولو مش قادر رجّعها null بدل 30. " +
           "لا تقترح أبداً إلغاء أو تقليل التزامات ثابتة (إيجار، أقساط قروض، فواتير أساسية) — دي مش اختيارية، اقتراحات التوفير لازم تستهدف إنفاق اختياري فعلاً. " +
           "أجب بصيغة JSON: {\"summary\":\"\",\"alerts\":[{\"type\":\"\",\"title\":\"\",\"description\":\"\"}],\"suggestions\":[{\"action\":\"\",\"item\":\"\",\"reason\":\"\"}],\"stats\":{\"inventory_count\":0,\"expiring_soon\":0,\"subscriptions_active\":0,\"days_until_budget_end\":null}}";
-        const userPrompt = "المخزون: " + (data.inventory || "") + " | المعاملات: " + (data.transactions || "") + " | الاشتراكات: " + (data.subscriptions || "") + " | الميزانية: " + (data.budget || 0) + " | التسوق: " + (data.shopping || "") + " | الأنماط: " + (data.patterns || "");
+        const userPrompt = "المخزون: " + (data.inventory || "") + " | المعاملات: " + (data.transactions || "") + " | الاشتراكات: " + (data.subscriptions || "") + " | الالتزامات الثابتة (إيجار/أقساط/فواتير): " + (data.obligations || "لا توجد") + " | الميزانية: " + (data.budget || 0) + " | التسوق: " + (data.shopping || "") + " | الأنماط: " + (data.patterns || "");
         const result = await callJsonModel(systemPrompt, userPrompt, 2500);
         return jsonResponse({
           summary: result?.summary || "",

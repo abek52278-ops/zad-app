@@ -2,6 +2,7 @@ package com.example.ui.viewmodels
 
 import android.app.Application
 import android.util.Log
+import com.example.R
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.*
@@ -925,6 +926,22 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             "- ${sub.title}: ${com.example.data.CurrencyFormatter.format(ctx, sub.amount)}/شهر" + (sub.renewalDate?.take(10)?.let { " (يتجدد $it)" } ?: "")
         }
 
+        // كان "المحجوز (التزامات+اشتراكات)" فوق رقم واحد مجمّع بس — الشات مكانش عنده أي
+        // سطر بيسمّي كل التزام لوحده (إيجار/كهرباء/قسط...)، فسؤال زي "إيه التزاماتي؟"
+        // كان مالوش مصدر يرد منه غير الرقم الإجمالي. نفس أسلوب subText/debtText بالظبط.
+        val obligationsText = _obligations.value.joinToString("\n") { ob ->
+            val kindLabel = when (ob.kind) {
+                "rent" -> ctx.getString(R.string.obligation_kind_rent)
+                "installment" -> ctx.getString(R.string.obligation_kind_installment)
+                "debt" -> ctx.getString(R.string.obligation_kind_debt)
+                "tuition" -> ctx.getString(R.string.obligation_kind_tuition)
+                "utility" -> ctx.getString(R.string.obligation_kind_utility)
+                else -> ctx.getString(R.string.obligation_kind_other)
+            }
+            val nextDue = com.example.data.BudgetMath.nextDueDate(ob, today)
+            "- ${ob.title}: ${com.example.data.CurrencyFormatter.format(ctx, ob.amount)} ($kindLabel، ${ob.recurrence})" + (nextDue?.let { " (الاستحقاق الجاي: $it)" } ?: "")
+        }
+
         val shoppingText = _shoppingList.value.filter { !it.isPurchased }
             .joinToString("، ") { it.itemName }
 
@@ -997,6 +1014,9 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
             === الاشتراكات النشطة ===
             ${subText.ifBlank { "لا توجد اشتراكات." }}
+
+            === الالتزامات الثابتة (إيجار/أقساط/فواتير) ===
+            ${obligationsText.ifBlank { "لا توجد التزامات مسجلة." }}
 
             === قائمة التسوق المطلوبة ===
             ${shoppingText.ifBlank { "فارغة." }}
@@ -3698,7 +3718,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 val patterns = _behaviorPatterns.value
                 val summary = com.example.data.ZadAiRepository.getAgentSummary(
                     _inventory.value, _transactions.value, _subscriptions.value,
-                    _budget.value, _shoppingList.value, patterns
+                    _budget.value, _shoppingList.value, patterns, _obligations.value
                 )
                 _agentSummary.value = summary
                 if (summary != null) {
