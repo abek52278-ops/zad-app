@@ -715,8 +715,16 @@ Deno.serve(async (req: Request) => {
           "Even if the image shows a single bottle, can, box or bag, list it. " +
           "If the image contains no grocery/household products at all (a document, a person, a landscape), " +
           "return an empty items array — never invent a product just to avoid an empty list. " +
+          // كان المثال في الـ schema نفسه بيقول "عام" — قيمة الموديل بيرجعها فعلاً
+          // غالباً، ومش من فئات تابات المخزون في التطبيق (InventoryScreen.kt's
+          // categoryDefs)، فالصنف كان بيظهر تحت "أخرى" دايماً حتى لو واضح إنه لبن/جبنة.
+          "`category` MUST be exactly one of these Arabic values — never anything else, never \"عام\": " +
+          "البقالة، الخضار، الفواكه، اللحوم، الألبان، المشروبات، العناية، أخرى. " +
+          "Milk, cheese, yogurt, laban → الألبان. Fresh vegetables → الخضار. Fresh fruit → الفواكه. " +
+          "Raw/frozen meat, chicken, fish → اللحوم. Juice, soda, water → المشروبات. " +
+          "Soap, shampoo, cleaning supplies → العناية. Packaged/canned/dry goods → البقالة. " +
           "Return ONLY a JSON object, no markdown and no commentary: " +
-          "{\"items\":[{\"name\":\"\",\"quantity\":1.0,\"unit\":\"قطعة\",\"category\":\"عام\"}]}";
+          "{\"items\":[{\"name\":\"\",\"quantity\":1.0,\"unit\":\"قطعة\",\"category\":\"الألبان\"}]}";
         const userPrompt = "List every product visible in this image with its estimated quantity, unit and category.";
         // callVisionModel rotates the whole Gemini key pool internally; images never hit Groq.
         const visionResult = await callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg");

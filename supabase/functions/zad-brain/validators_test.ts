@@ -583,28 +583,43 @@ Deno.test("set_monthly_limit rejects zero, negative, and absurd ceilings", async
 const snapWithStock = { stock: [{ name: "لبن", qty: 3 }] };
 
 Deno.test("add_inventory_item accepts a genuinely new item", async () => {
-  const v = await validateAddInventoryItem({ item_name: "فراخ", quantity: 2 }, snapWithStock, freshContext("u"));
+  const v = await validateAddInventoryItem({ item_name: "فراخ", quantity: 2, category: "اللحوم" }, snapWithStock, freshContext("u"));
   assertEquals(v.ok, true);
 });
 
 Deno.test("add_inventory_item refuses an item that already exists", async () => {
   // الفصل ده هو اللي بيمنع "الإضافة" تدهس كمية صنف قايم بدل ما تزودها.
-  const v = await validateAddInventoryItem({ item_name: "لبن", quantity: 2 }, snapWithStock, freshContext("u"));
+  const v = await validateAddInventoryItem({ item_name: "لبن", quantity: 2, category: "الألبان" }, snapWithStock, freshContext("u"));
   assertEquals(v.ok, false);
   assertStringIncludes((v as { reason: string }).reason, "update_inventory_qty");
 });
 
 Deno.test("add_inventory_item rejects a too-short name and an out-of-range quantity", async () => {
-  assertEquals((await validateAddInventoryItem({ item_name: "ل", quantity: 1 }, snapWithStock, freshContext("u"))).ok, false);
-  assertEquals((await validateAddInventoryItem({ item_name: "فراخ", quantity: 0 }, snapWithStock, freshContext("u"))).ok, false);
-  assertEquals((await validateAddInventoryItem({ item_name: "فراخ", quantity: 1000 }, snapWithStock, freshContext("u"))).ok, false);
+  assertEquals((await validateAddInventoryItem({ item_name: "ل", quantity: 1, category: "أخرى" }, snapWithStock, freshContext("u"))).ok, false);
+  assertEquals((await validateAddInventoryItem({ item_name: "فراخ", quantity: 0, category: "اللحوم" }, snapWithStock, freshContext("u"))).ok, false);
+  assertEquals((await validateAddInventoryItem({ item_name: "فراخ", quantity: 1000, category: "اللحوم" }, snapWithStock, freshContext("u"))).ok, false);
+});
+
+// كانت category اختيارية — الموديل كان بيسيبها فاضية غالباً فالصنف يظهر في تاب
+// "أخرى" مهما كان اسمه. دلوقتي إلزامية ومحصورة في تابات المخزون الحقيقية بالظبط.
+Deno.test("add_inventory_item rejects a missing category", async () => {
+  const v = await validateAddInventoryItem({ item_name: "فراخ", quantity: 2 }, snapWithStock, freshContext("u"));
+  assertEquals(v.ok, false);
+});
+
+Deno.test("add_inventory_item rejects a category outside the app's real tabs", async () => {
+  const v = await validateAddInventoryItem({ item_name: "فراخ", quantity: 2, category: "عام" }, snapWithStock, freshContext("u"));
+  assertEquals(v.ok, false);
 });
 
 Deno.test("add_inventory_item allows a whole grocery run in one turn", async () => {
   // السلوك اللي البروتوكول القديم مكانش بيقدر عليه: أربع أصناف في رسالة واحدة.
   const ctx = freshContext("u");
-  for (const item of ["فراخ", "لحمة", "طماطم", "مكرونة"]) {
-    const v = await validateAddInventoryItem({ item_name: item, quantity: 2 }, snapWithStock, ctx);
+  const withCategory: Array<[string, string]> = [
+    ["فراخ", "اللحوم"], ["لحمة", "اللحوم"], ["طماطم", "الخضار"], ["مكرونة", "البقالة"],
+  ];
+  for (const [item, category] of withCategory) {
+    const v = await validateAddInventoryItem({ item_name: item, quantity: 2, category }, snapWithStock, ctx);
     assertEquals(v.ok, true, item);
     ctx.counts["add_inventory_item"] = (ctx.counts["add_inventory_item"] ?? 0) + 1;
   }

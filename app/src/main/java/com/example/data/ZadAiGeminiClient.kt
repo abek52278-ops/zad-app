@@ -206,10 +206,14 @@ object ZadAiGeminiClient {
             You are an inventory tracking AI for a Saudi budget app called ZAD.
             Look at this image carefully and identify EVERY visible product, food item, or branded item.
             Even if the image shows a single bottle, can, box, or bag — list it.
+            `category` MUST be exactly one of these Arabic values, never anything else: البقالة، الخضار، الفواكه، اللحوم، الألبان، المشروبات، العناية، أخرى.
+            Milk, cheese, yogurt, laban -> الألبان. Fresh vegetables -> الخضار. Fresh fruit -> الفواكه.
+            Raw/frozen meat, chicken, fish -> اللحوم. Juice, soda, water -> المشروبات.
+            Soap, shampoo, cleaning supplies -> العناية. Packaged/canned/dry goods -> البقالة.
             Output ONLY a valid JSON object (no markdown, no backticks, no explanation) with this EXACT structure:
             {
               "items": [
-                { "name": "product name in Arabic or English", "quantity": 1.0, "unit": "قطعة", "category": "estimated category" }
+                { "name": "product name in Arabic or English", "quantity": 1.0, "unit": "قطعة", "category": "الألبان" }
               ]
             }
             Only list items that are actually grocery/household products visible in the image. If the image shows

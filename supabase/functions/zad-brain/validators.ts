@@ -266,12 +266,20 @@ export const validateSetMonthlyLimit: Validator = (input, _snap, ctx) => {
  * دي بترفض لو الصنف موجود بالفعل (التعديل شغلانة الأداة التانية)، والتانية بترفض لو
  * الصنف مش موجود. الفصل ده هو اللي بيمنع الموديل إنه "يضيف" صنف قايم فيدهس كميته.
  */
+const INVENTORY_CATEGORIES = ["البقالة", "الخضار", "الفواكه", "اللحوم", "الألبان", "المشروبات", "العناية", "أخرى"];
+
 export const validateAddInventoryItem: Validator = (input, snap, ctx) => {
   if ((ctx.counts["add_inventory_item"] ?? 0) >= 10) return { ok: false, reason: "وصلت لحد أقصى ١٠ أصناف في المرة" };
   const name = String(input.item_name ?? "").trim();
   if (name.length < 2) return { ok: false, reason: "اسم الصنف قصير أوي" };
   if (typeof input.quantity !== "number" || input.quantity <= 0 || input.quantity > 999) {
     return { ok: false, reason: "الكمية لازم تكون بين ١ و٩٩٩" };
+  }
+  // كان مفيش أي تحقق هنا — الموديل بيسيب category فاضية أو يخترع كلمة (زي "عام")
+  // ما بتطابقش تابات المخزون، فالصنف يظهر في "أخرى" بس بدل تابه الصح (الألبان،
+  // الخضار...). نفس مبدأ validateSetTransactionCategory: لازم يكون من قايمة معروفة.
+  if (!INVENTORY_CATEGORIES.includes(String(input.category ?? ""))) {
+    return { ok: false, reason: `الفئة لازم تكون واحدة من: ${INVENTORY_CATEGORIES.join("، ")}` };
   }
   const exists = (snap.stock ?? []).some((s: any) => s.name === name);
   if (exists) return { ok: false, reason: "الصنف موجود بالفعل — استخدم update_inventory_qty عشان تعدّل كميته" };

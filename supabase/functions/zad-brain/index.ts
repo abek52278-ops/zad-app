@@ -1631,10 +1631,19 @@ const CHAT_TOOLS: ToolDef[] = [
         item_name: { type: "string" },
         quantity: { type: "number" },
         unit: { type: "string", description: "حبة، كيلو، لتر، علبة، كيس..." },
-        category: { type: "string" },
+        // كانت اختيارية (مش في required) فالموديل كان بيسيبها فاضية غالباً، فالصنف
+        // كان بيتسجل category=null ويظهر في تاب "أخرى" بس — مش تاب الألبان/الخضار
+        // الصح، حتى لو الاسم واضح ("جبنة"، "خيار"). enum ثابت مطابق لتابات المخزون
+        // في التطبيق (InventoryScreen.kt's categoryDefs) بالظبط، عشان الموديل ميخترعش
+        // كلمة تانية (زي "عام" أو "dairy") ما بتطابقش تاب حقيقي.
+        category: {
+          type: "string",
+          enum: ["البقالة", "الخضار", "الفواكه", "اللحوم", "الألبان", "المشروبات", "العناية", "أخرى"],
+          description: "صنّف الصنف لواحدة من الفئات دي بالظبط — إلزامي، حتى لو مش متأكد اختار الأقرب",
+        },
         expiry_date: { type: "string", description: "YYYY-MM-DD لو العميل ذكرها" },
       },
-      required: ["item_name", "quantity"],
+      required: ["item_name", "quantity", "category"],
     },
   },
   {
