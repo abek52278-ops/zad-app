@@ -39,6 +39,17 @@ class PeriodicAnalysisWorker(
             // بيطلع من غير أحكام ميزانية بدل ما يطلع بأحكام مبنية على رقم متأليف.
             val budget = prefs.getFloat("cached_budget", 0f).toDouble()
 
+            // نفس الرقم اللي زاد-برين شايفه في محادثته (behavior_profile.avg_weekly_spending)
+            // — من غيره "توقع إنفاق مرتفع" اللي بيوصل كإشعار من هنا ممكن يختلف عن "متوسط
+            // الإنفاق الأسبوعي" اللي المستخدم شايفه في شاشة ذكاء زاد لنفس السؤال بالظبط.
+            // فشل الجلب (أوفلاين) مايكسرش التحليل — null يرجّع fullAnalysis للتوقع المحلي.
+            val behaviorProfile = try {
+                com.example.data.SupabaseRepo.getBehaviorProfile()
+            } catch (e: Exception) {
+                Log.w("ZadWorker", "getBehaviorProfile() failed, falling back to local forecast: ${e.message}")
+                null
+            }
+
             val brainResult = ZadCentralBrain.fullAnalysis(
                 context = applicationContext,
                 inventory = inventory,
@@ -47,7 +58,8 @@ class PeriodicAnalysisWorker(
                 shoppingList = emptyList(),
                 behaviorPatterns = behaviorPatterns,
                 budget = budget,
-                pharmacyItems = pharmacyItems
+                pharmacyItems = pharmacyItems,
+                behaviorProfile = behaviorProfile
             )
 
             // Send smart notifications

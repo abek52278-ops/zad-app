@@ -76,7 +76,13 @@ object ZadCentralBrain {
         budget: Double,
         // Optional so existing callers aren't forced to thread pharmacy data through immediately —
         // pharmacy state was previously never included in fullAnalysis at all (see FamilyState.kt).
-        pharmacyItems: List<ZadPharmacyItem> = emptyList()
+        pharmacyItems: List<ZadPharmacyItem> = emptyList(),
+        // update-behavior-profile's server-computed average (٩٠ يوم، نفس نافذة زاد-برين) —
+        // لما يكون موجود بيحل محل التوقع المحلي تحت (predictWeeklySpendingSmoothed) عشان
+        // "توقع الأسبوع الجاي" يبقى نفس الرقم اللي العقل بيشوفه في محادثته (behavior_profile.
+        // avg_weekly_spending في snapshot زاد-برين)، مش رقمين مختلفين لنفس السؤال. null (لسه
+        // ما اتحملش، أو أوفلاين) = fallback للتوقع المحلي زي الأول بالظبط.
+        behaviorProfile: UserBehaviorProfile? = null
     ): BrainOutput = withContext(Dispatchers.IO) {
         Log.d(TAG, "fullAnalysis() started — learning user behavior...")
         val alerts = mutableListOf<String>()
@@ -100,7 +106,8 @@ object ZadCentralBrain {
         }
 
         // ====== 2. PREDICTIVE ANALYTICS ======
-        val nextWeekExpense = predictWeeklySpendingSmoothed(context, transactions)
+        val nextWeekExpense = behaviorProfile?.avgWeeklySpending?.takeIf { it > 0 }
+            ?: predictWeeklySpendingSmoothed(context, transactions)
         if (nextWeekExpense > 0) {
             predictions.add("توقع إنفاق الأسبوع القادم: ${CurrencyFormatter.format(context, nextWeekExpense)}")
             if (budget > 0 && nextWeekExpense > budget * 0.3) {
