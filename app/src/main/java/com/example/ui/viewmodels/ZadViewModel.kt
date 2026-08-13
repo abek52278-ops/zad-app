@@ -55,7 +55,10 @@ private const val DEFAULT_BUDGET_SENTINEL = 3500.0
  * (`if (monthlyLimit <= 0.0) return 0.0`) اللي معناها "مفيش سقف يتحسب عليه".
  */
 private const val UNKNOWN_BUDGET = 0.0
-private var lastMealSuggestInventorySize = -1
+// كان مفتاح التحديث عدد الأصناف بس (inv.size) — يعني لو استهلكت نص المخزون من غير ما
+// تضيف/تحذف صنف كامل (بيض من ١٢ لـ٢، مثلاً)، شيف زاد كان بيفضل يقترح نفس الوصفات القديمة
+// للأبد رغم إن الكمية الفعلية اتغيرت — وده اللي كان بيبان "ثابت". دلوقتي بصمة كمية+اسم.
+private var lastMealSuggestInventorySignature: String? = null
 
 /**
  * نص الرد اللي يتعرض من نتيجة `agent_turn`، أو `null` لو لازم نقع على بروتوكول
@@ -482,8 +485,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 // "جاري تحليل المخزون..." placeholder forever. AlertPrefs's own toggle screen is
                 // titled "تنبيهات المساعد" (Assistant *Alerts*) — it should gate a notification,
                 // not the card's core content, so the gate is dropped here.
-                if (inv.size != lastMealSuggestInventorySize) {
-                    lastMealSuggestInventorySize = inv.size
+                val invSignature = inv.filter { it.quantity > 0 }.sortedBy { it.itemName }
+                    .joinToString("|") { "${it.itemName}:${it.quantity}" }
+                if (invSignature != lastMealSuggestInventorySignature) {
+                    lastMealSuggestInventorySignature = invSignature
                     _mealSuggestions.value = if (inv.any { it.quantity > 0 }) {
                         ZadAiRepository.suggestMeals(inv)
                     } else {
