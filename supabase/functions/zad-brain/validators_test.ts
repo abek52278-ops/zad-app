@@ -49,6 +49,7 @@ import {
   validateDeleteObligation,
   validateAddMaintenanceItem,
   validateUpdateMaintenanceItem,
+  validateDeleteMaintenanceItem,
   validateUpdateEmergencyFundBalance,
 } from "./validators.ts";
 import { callModelWithRetry } from "./retry.ts";
@@ -740,6 +741,11 @@ Deno.test("add_maintenance_item accepts a valid item and rejects a bad warranty 
 Deno.test("update_maintenance_item requires a name and validates dates", async () => {
   assertEquals((await validateUpdateMaintenanceItem({ name: "تكييف الصالة", last_service_date: "2026-08-01" }, {}, freshContext("u"))).ok, true);
   assertEquals((await validateUpdateMaintenanceItem({ name: "" }, {}, freshContext("u"))).ok, false);
+});
+
+Deno.test("delete_maintenance_item rejects a too-short name", async () => {
+  assertEquals((await validateDeleteMaintenanceItem({ name: "ت" }, {}, freshContext("u"))).ok, false);
+  assertEquals((await validateDeleteMaintenanceItem({ name: "تكييف الصالة" }, {}, freshContext("u"))).ok, true);
 });
 
 // ── update_emergency_fund_balance ────────────────────────────────────────────

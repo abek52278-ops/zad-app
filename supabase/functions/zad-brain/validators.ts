@@ -472,6 +472,12 @@ export const validateUpdateMaintenanceItem: Validator = (input, _snap, ctx) => {
   return { ok: true };
 };
 
+export const validateDeleteMaintenanceItem: Validator = (input, _snap, ctx) => {
+  if ((ctx.counts["delete_maintenance_item"] ?? 0) >= 3) return { ok: false, reason: "وصلت لحد أقصى ٣ حذف أجهزة في المرة" };
+  if (String(input.name ?? "").trim().length < 2) return { ok: false, reason: "اسم الجهاز قصير أوي" };
+  return { ok: true };
+};
+
 export const validateUpdateEmergencyFundBalance: Validator = (input, _snap, ctx) => {
   if ((ctx.counts["update_emergency_fund_balance"] ?? 0) >= 1) return { ok: false, reason: "تعديل واحد بس في المرة" };
   if (typeof input.new_balance !== "number" || !Number.isFinite(input.new_balance) || input.new_balance < 0) {
@@ -583,6 +589,7 @@ export const VALIDATORS: Record<string, Validator> = {
   delete_obligation: validateDeleteObligation,
   add_maintenance_item: validateAddMaintenanceItem,
   update_maintenance_item: validateUpdateMaintenanceItem,
+  delete_maintenance_item: validateDeleteMaintenanceItem,
   update_emergency_fund_balance: validateUpdateEmergencyFundBalance,
 };
 
@@ -604,7 +611,7 @@ export const MUTATING_TOOLS = [
   "add_subscription", "update_subscription", "delete_subscription",
   "add_debt", "update_debt", "delete_debt",
   "add_obligation", "update_obligation", "delete_obligation",
-  "add_maintenance_item", "update_maintenance_item",
+  "add_maintenance_item", "update_maintenance_item", "delete_maintenance_item",
   "update_emergency_fund_balance",
 ];
 

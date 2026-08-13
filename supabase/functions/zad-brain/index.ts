@@ -1417,6 +1417,29 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       });
       return `اتعدل "${match.name}"`;
     }
+    case "delete_maintenance_item": {
+      const spoken = String(input.name ?? "").trim();
+      const { data: items } = await sb.from("zad_maintenance_items").select("*").eq("user_id", userId);
+      const rows = (items ?? []) as Array<{ id: string; name: string }>;
+      const match = rows.find((r) => {
+        const a = r.name.trim().toLowerCase();
+        const b = spoken.toLowerCase();
+        return a.includes(b) || b.includes(a);
+      });
+      if (!match) return `مرفوض: مفيش جهاز اسمه "${spoken}" عند العميل — عدّل وحاول تاني.`;
+      const w = await writeRows(
+        sb.from("zad_maintenance_items").delete().eq("id", match.id).eq("user_id", userId).select("id"),
+        "حذف الجهاز",
+      );
+      if (!w.ok) return `مرفوض: ${w.reason}`;
+      ctx.mutationCount++;
+      ctx.mutations.push({ tool: name, old: match, new: null });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "zad_maintenance_items", targetId: match.id,
+        previous: match, next: null,
+      });
+      return `اتحذف "${match.name}" من متابعة الصيانة`;
+    }
     case "update_emergency_fund_balance": {
       const { data: before } = await sb.from("zad_users").select("emergency_fund_balance").eq("id", userId).maybeSingle();
       const w = await writeRows(
@@ -1985,6 +2008,17 @@ const CHAT_TOOLS: ToolDef[] = [
         name: { type: "string", description: "اسم الجهاز زي ما قاله العميل" },
         last_service_date: { type: "string", description: "YYYY-MM-DD" },
         warranty_expiry_date: { type: "string", description: "YYYY-MM-DD" },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "delete_maintenance_item",
+    description: "احذف جهاز من متابعة الصيانة — لما العميل يقول \"بيعت الغسالة\" أو \"مش عايز أتابع الجهاز ده تاني\".",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "اسم الجهاز زي ما قاله العميل" },
       },
       required: ["name"],
     },
