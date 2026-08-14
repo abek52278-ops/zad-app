@@ -244,7 +244,7 @@ function detectCycleStartDay(incomeTx: Array<{ created_at: string }>): number | 
 
 async function buildSnapshot(sb: SupabaseClient, userId: string) {
   const cashKey = isoWeekKey(new Date());
-  const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes, askedRes, selfMemRes, cashBalRes, cashAskedRes, obligRes, debtRes, maintRes, behaviorRes, notifRes, doseRes, budgetRes] =
+  const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes, askedRes, selfMemRes, cashBalRes, cashAskedRes, obligRes, debtRes, maintRes, behaviorRes, notifRes, doseRes, budgetRes, obsRes] =
     await Promise.all([
       sb.from("zad_users").select("monthly_limit,cycle_start_day,cycle_anchor,currency,country").eq("id", userId).maybeSingle(),
       // `id` مضاف عشان set_transaction_category و update_transaction يقدروا يشاوروا على
@@ -323,6 +323,12 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
       // purpose: a second formula here is exactly the defect this closed, so a failed RPC
       // becomes a loud data_errors entry instead of a quietly different number.
       sb.rpc("zad_budget_state", { p_user: userId }),
+      // طبقة "الموظفين": كل مجال بيرجّع ملاحظات جاهزة (نفاد متوقع، صلاحية، استحقاق،
+      // صيانة فاتت) بدل ما الموديل يستنتجها من الصفوف الخام. الصيانة والتسوق مكانش
+      // ليهم أي مصدر ملاحظات خالص قبل كده.
+      // آخر عنصر في المصفوفة عن قصد — التفكيك هنا بالترتيب، فأي إدخال في النص بيزحلق
+      // كل اللي بعده (حصل فعلاً وأنا بكتبها، والـtype-check هو اللي مسكه).
+      sb.rpc("zad_domain_observations", { p_user: userId }),
     ]);
 
   // ── الحاجة اللي خلّت كل ده يفضل مستخبي سنة ──────────────────────────────
@@ -344,6 +350,7 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     "zad_memory": "اللي زاد اتعلمه عنك",
     "zad_insights.dismissed": "التنبيهات اللي رفضتها",
     "zad_brain_self_review": "مراجعة زاد لنفسه",
+    "zad_domain_observations": "ملاحظات المجالات",
     "zad_insights.asked": "الأسئلة المعلقة",
     "zad_memory.self": "ملاحظات زاد عن نفسه",
     "zad_cash_balance": "رصيد الكاش",
@@ -361,7 +368,7 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     ["zad_users", userRes], ["zad_transactions", txRes], ["zad_inventory", invRes],
     ["zad_subscriptions", subRes], ["zad_pharmacy_items", pharmRes], ["zad_shopping_list", shopRes],
     ["zad_consumption", consRes], ["zad_memory", memRes], ["zad_insights.dismissed", dismissedRes],
-    ["zad_brain_self_review", selfReviewRes], ["zad_insights.asked", askedRes],
+    ["zad_brain_self_review", selfReviewRes], ["zad_domain_observations", obsRes], ["zad_insights.asked", askedRes],
     ["zad_memory.self", selfMemRes], ["zad_cash_balance", cashBalRes],
     ["zad_insights.cash_asked", cashAskedRes], ["zad_obligations", obligRes],
     ["zad_debts", debtRes], ["zad_maintenance_items", maintRes],
@@ -590,6 +597,7 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     // أسبوعين، اتأكدت ولا طلعت غلط. لو نمط متكرر (٣+ مرات غلط)، المفروض العقل يستخدم
     // remember() يسجله كدرس بدل ما يكرر نفس الغلطة كل مرة.
     self_review: selfReviewRes.data ?? { velocity_warnings: { correct: 0, incorrect: 0 }, low_stock_warnings: { correct: 0, incorrect: 0 } },
+    observations: obsRes.data ?? [],
     // Task 19.5 — تسوية أسبوعية. key محسوب هنا (isoWeekKey)، مش من الموديل، عشان
     // validateAskUser يقدر يرفض أي مفتاح تاني بنفس البادئة (اختراع مفتاح غلط). dismissed_count
     // بيتحسب من dismissed_keys الموجودة فعلاً — رفضين اتنين يقفلوا السؤال نهائي (validators.ts).
