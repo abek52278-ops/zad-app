@@ -215,6 +215,13 @@
     <string name="monthly_report_empty_hint">اضغط على "توليد التقرير" عشان زاد يحلل مصاريفك الشهر ده ويديك تقرير ونصايح</string>
     <string name="generate_monthly_report_action">توليد التقرير</string>
     <string name="recommendations_label">نصايح زاد</string>
+    <string name="knowledge_map_title">خريطة زاد</string>
+    <string name="knowledge_map_subtitle">إزاي مجالاتك المالية والمنزلية متصلة ببعض</string>
+    <string name="obligations_domain_label">الالتزامات</string>
+    <string name="debts_domain_label">الديون</string>
+    <string name="knowledge_map_legend_real">علاقة محسوبة فعليًا</string>
+    <string name="knowledge_map_legend_gap">لسه برا الحساب</string>
+    <string name="knowledge_map_domain_empty">لا يوجد عناصر هنا حالياً</string>
     <string name="avg_every_days">المتوسط: %1$s | كل %2$d يوم</string>
 
     <!-- ZadIntelligenceScreen: single-scroll dashboard sections (re-architect) -->

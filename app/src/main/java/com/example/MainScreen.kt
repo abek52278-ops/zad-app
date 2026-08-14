@@ -325,12 +325,16 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                         }
                         composable(ZadRoutes.MAINTENANCE) { MaintenanceScreen(viewModel = viewModel) }
                         composable(ZadRoutes.STATEMENT) { StatementImportScreen() }
+                        composable(ZadRoutes.KNOWLEDGE_MAP) {
+                            ZadKnowledgeMapScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                        }
                         composable(ZadRoutes.ASSISTANT) {
                             ZadIntelligenceScreen(
                                 viewModel = viewModel,
                                 familyViewModel = familyViewModel,
                                 onNavigateToFamily = { go(ZadRoutes.FAMILY) },
-                                onNavigateToStatementImport = { go(ZadRoutes.STATEMENT) }
+                                onNavigateToStatementImport = { go(ZadRoutes.STATEMENT) },
+                                onNavigateToKnowledgeMap = { go(ZadRoutes.KNOWLEDGE_MAP) }
                             )
                         }
                         composable(ZadRoutes.TASBIHA) { TasbihaScreen(viewModel = familyViewModel) }

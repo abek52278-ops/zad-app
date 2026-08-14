@@ -18,6 +18,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.EventRepeat
 import androidx.compose.material.icons.filled.FamilyRestroom
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.LocalPharmacy
@@ -1068,5 +1072,55 @@ class PreviewTest {
             }
         }
         composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/help_support_screen.png")
+    }
+
+    /** خريطة زاد — حلقة المجالات الرئيسية بعلاقاتها (خطوط متصلة/منقطة) وبيانات نموذجية. */
+    @Test
+    fun captureKnowledgeMapDomainRing() {
+        composeTestRule.setContent {
+            AppTheme {
+                val domains = listOf(
+                    MapDomain("budget", "الميزانية", Icons.Default.AccountBalanceWallet, catBankingIcon, 0, 3000.0),
+                    MapDomain("obligations", "الالتزامات", Icons.Default.EventRepeat, catBillsIcon, 2, 3500.0),
+                    MapDomain("subscriptions", "الاشتراكات", Icons.Default.Subscriptions, catEntertainIcon, 3, 150.0),
+                    MapDomain("debts", "الديون", Icons.Default.CreditCard, catTransportIcon, 1, 8000.0),
+                    MapDomain("inventory", "المخزون", Icons.Default.Inventory2, catFoodIcon, 4, null),
+                    MapDomain("shopping", "التسوق", Icons.Default.ShoppingCart, catDailyIcon, 5, null),
+                    MapDomain("pharmacy", "الصيدلية", Icons.Default.LocalPharmacy, catHealthIcon, 1, null),
+                    MapDomain("maintenance", "الصيانة", Icons.Default.Build, catSavingsIcon, 2, 1200.0),
+                )
+                val edges = listOf(
+                    MapEdge("obligations", "budget", solid = true),
+                    MapEdge("subscriptions", "budget", solid = true),
+                    MapEdge("inventory", "shopping", solid = true),
+                    MapEdge("pharmacy", "shopping", solid = true),
+                    MapEdge("debts", "budget", solid = false),
+                    MapEdge("maintenance", "budget", solid = false),
+                )
+                Box(modifier = Modifier.fillMaxSize().background(background)) {
+                    DomainRing(domains = domains, edges = edges, onSelect = {})
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/knowledge_map_domain_ring.png")
+    }
+
+    /** خريطة زاد — الغوص جوا مجال واحد (الالتزامات) وعرض عناصره الحقيقية. */
+    @Test
+    fun captureKnowledgeMapItemRing() {
+        composeTestRule.setContent {
+            AppTheme {
+                Box(modifier = Modifier.fillMaxSize().background(background)) {
+                    ItemRing(
+                        domain = MapDomain("obligations", "الالتزامات", Icons.Default.EventRepeat, catBillsIcon, 2, 3500.0),
+                        items = listOf(
+                            MapItem("إيجار الشقة", "3000.0"),
+                            MapItem("فاتورة الكهرباء", "500.0"),
+                        )
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/knowledge_map_item_ring.png")
     }
 }

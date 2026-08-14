@@ -1082,4 +1082,11 @@
     <string name="obligation_recurrence_yearly">سنوي</string>
     <string name="obligation_recurrence_once">مرة واحدة</string>
     <string name="delete_obligation_confirm">حذف «%1$s» من قائمة الالتزامات؟</string>
+    <string name="knowledge_map_title">خريطة زاد</string>
+    <string name="knowledge_map_subtitle">إزاي مجالاتك المالية والمنزلية متصلة ببعض</string>
+    <string name="obligations_domain_label">الالتزامات</string>
+    <string name="debts_domain_label">الديون</string>
+    <string name="knowledge_map_legend_real">علاقة محسوبة فعليًا</string>
+    <string name="knowledge_map_legend_gap">لسه برا الحساب</string>
+    <string name="knowledge_map_domain_empty">لا يوجد عناصر هنا حالياً</string>
 </resources>

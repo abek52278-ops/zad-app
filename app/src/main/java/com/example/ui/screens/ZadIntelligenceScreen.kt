@@ -67,7 +67,8 @@ fun ZadIntelligenceScreen(
     viewModel: ZadViewModel,
     familyViewModel: com.example.ui.viewmodels.FamilyViewModel,
     onNavigateToFamily: () -> Unit = {},
-    onNavigateToStatementImport: () -> Unit = {}
+    onNavigateToStatementImport: () -> Unit = {},
+    onNavigateToKnowledgeMap: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val otherCategoryLabel = stringResource(R.string.other_category)
@@ -161,6 +162,26 @@ fun ZadIntelligenceScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // خريطة زاد — عرض بصري لمجالاتك الحقيقية (التزامات/اشتراكات/ديون/مخزون/تسوق/
+            // صيدلية/صيانة/ميزانية) ومين بيأثر على مين، محسوبة لحظيًا من نفس بيانات الشاشات
+            // التانية، مش قاعدة بيانات منفصلة محتاجة مزامنة.
+            item {
+                com.example.ui.components.ZadListCard(shape = RoundedCornerShape(20.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { onNavigateToKnowledgeMap() },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Hub, contentDescription = null, tint = primary, modifier = Modifier.size(26.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.knowledge_map_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                            Text(stringResource(R.string.knowledge_map_subtitle), style = Typography.bodySmall, color = onSurfaceVariant)
+                        }
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = onSurfaceVariant)
+                    }
+                }
+            }
+
             // ═══ TOP: executive financial health + daily spend velocity ═══
             item { SectionHeader(Icons.Default.Speed, stringResource(R.string.intel_section_executive)) }
             if (brainReport != null) {

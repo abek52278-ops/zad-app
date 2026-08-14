@@ -1101,4 +1101,11 @@
     <string name="obligation_recurrence_yearly">Yıllık</string>
     <string name="obligation_recurrence_once">Tek Seferlik</string>
     <string name="delete_obligation_confirm">"%1$s" yükümlülük listesinden silinsin mi?</string>
+    <string name="knowledge_map_title">Zad Haritası</string>
+    <string name="knowledge_map_subtitle">Finansal ve ev alanların birbirine nasıl bağlı olduğu</string>
+    <string name="obligations_domain_label">Yükümlülükler</string>
+    <string name="debts_domain_label">Borçlar</string>
+    <string name="knowledge_map_legend_real">Gerçekten hesaplanan ilişki</string>
+    <string name="knowledge_map_legend_gap">Henüz hesaba dahil değil</string>
+    <string name="knowledge_map_domain_empty">Şu anda burada öğe yok</string>
 </resources>
