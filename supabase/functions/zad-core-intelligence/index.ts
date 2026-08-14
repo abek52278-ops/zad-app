@@ -542,6 +542,29 @@ async function callCompoundSearch(systemPrompt: string, userPrompt: string, maxT
 // Global/shared cache, not user-scoped — cache_key already encodes every input that affects
 // the answer (including dialect, for the two dialect-prefixed actions), so a hit is safe to
 // serve to any user with that exact input. Checked before ever calling the LLM.
+// أربع أكشنات بتتنادى مع **كل فتحة للشاشة الرئيسية** (agent_summary, auto_suggest,
+// expense_prediction, brain_evaluate) ومكانش عليها كاش خالص — يعني أربع نداءات موديل
+// في كل مرة العميل يفتح التطبيق، حتى لو مافيش أي حاجة اتغيّرت من ثانية فاتت.
+//
+// المفتاح مبني على **بصمة الـpayload نفسه** مش على وقت. ده بيدي إبطال صح تلقائيًا:
+// نفس البيانات ← نفس الإجابة ← كاش. أول ما تتسجّل معاملة أو يتغيّر مخزون، الـpayload
+// يتغيّر، المفتاح يتغيّر، ونداء جديد يحصل. كاش بالوقت لوحده كان هيرجّع أرقام قديمة بعد
+// معاملة جديدة، وده أسوأ من إنه يصرف نداء.
+//
+// user_id داخل في المفتاح عشان بيانات عميل ماتوصلش لعميل تاني حتى لو الـpayload اتطابق.
+/** خزّن الرد وبعدين رجّعه. المفتاح null معناه الأكشن ده مش متكاش، فبيعدّي زي ما هو. */
+async function cacheAndRespond(key: string | null, action: string, body: Record<string, unknown>) {
+  if (key) await setCachedAiResponse(key, action, body);
+  return jsonResponse(body);
+}
+
+async function payloadFingerprint(userId: string | null | undefined, action: string, payload: unknown): Promise<string> {
+  const raw = `${action}:${userId ?? "anon"}:${JSON.stringify(payload ?? {})}`;
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw));
+  const hex = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return `${action}:${userId ?? "anon"}:${hex.slice(0, 32)}`;
+}
+
 const AI_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h — short enough that prices/suggestions don't go stale
 
 async function getCachedAiResponse(cacheKey: string): Promise<Record<string, unknown> | null> {
@@ -621,6 +644,19 @@ Deno.serve(async (req: Request) => {
       profile = data;
     }
 
+    // الأكشنات دي بتتنادى مع كل فتحة للشاشة الرئيسية. الكاش هنا مش تحسين أداء —
+    // هو اللي بيمنع أربع نداءات موديل تتحرق على بيانات ماتغيّرتش.
+    const HOME_CACHED_ACTIONS = ["agent_summary", "auto_suggest", "expense_prediction", "brain_evaluate"];
+    let homeCacheKey: string | null = null;
+    if (HOME_CACHED_ACTIONS.includes(action)) {
+      homeCacheKey = await payloadFingerprint(user_id, action, payload);
+      const hit = await getCachedAiResponse(homeCacheKey);
+      if (hit) {
+        console.log(`[CoreIntel] cache hit action=${action}`);
+        return jsonResponse(hit);
+      }
+    }
+
     switch (action) {
 
       // ══════════════════════════════════════════════
@@ -697,7 +733,15 @@ Deno.serve(async (req: Request) => {
           "أجب بصيغة JSON: {\"summary\":\"\",\"alerts\":[{\"type\":\"\",\"title\":\"\",\"description\":\"\"}],\"suggestions\":[{\"action\":\"\",\"item\":\"\",\"reason\":\"\"}],\"stats\":{\"inventory_count\":0,\"expiring_soon\":0,\"subscriptions_active\":0,\"days_until_budget_end\":null}}";
         const userPrompt = "المخزون: " + (data.inventory || "") + " | المعاملات: " + (data.transactions || "") + " | الاشتراكات: " + (data.subscriptions || "") + " | الالتزامات الثابتة (إيجار/أقساط/فواتير): " + (data.obligations || "لا توجد") + " | الميزانية: " + (data.budget || 0) + " | التسوق: " + (data.shopping || "") + " | الأنماط: " + (data.patterns || "");
         const result = await logged(user_id, action, "callJsonModel", { args: [systemPrompt, userPrompt, 2500] }, () => callJsonModel(systemPrompt, userPrompt, 2500));
-        return jsonResponse({
+        // رد فاشل مايتخزّنش: لو الموديل رجّع null، تخزين الفراغ معناه إن العميل يفضل
+        // شايف شاشة فاضية لحد ما الـTTL يخلص حتى لو النداء الجاي كان هينجح.
+        if (!result) {
+          return jsonResponse({
+            summary: "", alerts: [], suggestions: [],
+            stats: { inventory_count: 0, expiring_soon: 0, subscriptions_active: 0, days_until_budget_end: null },
+          });
+        }
+        return await cacheAndRespond(homeCacheKey, action, {
           summary: result?.summary || "",
           alerts: result?.alerts || [],
           suggestions: result?.suggestions || [],
@@ -984,7 +1028,8 @@ Deno.serve(async (req: Request) => {
         const systemPrompt = dialectPrefix + "أنت خبير توقعات مالية. بناءً على المعاملات السابقة والأنماط، توقع المصروفات القادمة. أجب بصيغة JSON: {\"predicted_total\":0.0,\"confidence\":0.0,\"breakdown\":[{\"category\":\"\",\"predicted\":0.0,\"avg_monthly\":0.0}],\"warnings\":[],\"tips\":[]}";
         const userPrompt = "المعاملات: " + JSON.stringify(transactions || []) + " | الميزانية: " + (budget || 0) + " | الأنماط: " + JSON.stringify(patterns || []);
         const result = await logged(user_id, action, "callJsonModel", { args: [systemPrompt, userPrompt, 2500] }, () => callJsonModel(systemPrompt, userPrompt, 2500));
-        return jsonResponse({
+        if (!result) return jsonResponse({ predicted_total: 0, confidence: 0, breakdown: [], warnings: [], tips: [] });
+        return await cacheAndRespond(homeCacheKey, action, {
           predicted_total: result?.predicted_total || 0,
           confidence: result?.confidence || 0,
           breakdown: result?.breakdown || [],
@@ -1069,7 +1114,9 @@ Deno.serve(async (req: Request) => {
           "أجب بصيغة JSON: {\"suggestions\":[{\"action\":\"\",\"title\":\"\",\"description\":\"\",\"priority\":\"medium\",\"emoji\":\"\"}]}";
         const userPrompt = "السياق: " + (context || "") + " | المخزون: " + (inventory || "") + " | المعاملات: " + (transactions || "") + " | الأنماط: " + (patterns || "");
         const result = await logged(user_id, action, "callJsonModel", { args: [systemPrompt, userPrompt, 2000] }, () => callJsonModel(systemPrompt, userPrompt, 2000));
-        return jsonResponse({ suggestions: result?.suggestions || [] });
+        // اقتراحات فاضية مش إجابة — لو اتخزّنت، الكارت يفضل فاضي طول مدة الكاش.
+        if (!result?.suggestions?.length) return jsonResponse({ suggestions: [] });
+        return await cacheAndRespond(homeCacheKey, action, { suggestions: result.suggestions });
       }
 
       // ──────────────────────────────────────────────
@@ -1204,7 +1251,8 @@ Deno.serve(async (req: Request) => {
       case "brain_evaluate": {
         const { system_prompt, user_prompt } = payload || {};
         const result = await logged(user_id, action, "callTextModel", { args: [system_prompt || "", user_prompt || "", 2000, 0.3] }, () => callTextModel(system_prompt || "", user_prompt || "", 2000, 0.3));
-        return jsonResponse({ text: result, ok: result !== null });
+        if (result === null) return jsonResponse({ text: null, ok: false });
+        return await cacheAndRespond(homeCacheKey, action, { text: result, ok: true });
       }
 
       // ──────────────────────────────────────────────
