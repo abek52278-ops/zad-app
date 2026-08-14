@@ -1562,6 +1562,15 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       if (stores.length === 0) return "مفيش محلات قريبة اتلاقت — متخترعش اسم محل.";
       return JSON.stringify(stores.slice(0, 5));
     }
+    case "suggest_product": {
+      const { data, error } = await sb.rpc("zad_affiliate_matches", { p_user: userId });
+      if (error) return `مقدرتش أجيب الترشيحات: ${error.message}`;
+      const rows = (data ?? []) as unknown[];
+      if (rows.length === 0) {
+        return "مفيش منتج مترشّح مطابق لحاجة محتاجها دلوقتي — متقترحش منتج من عندك.";
+      }
+      return JSON.stringify(rows.slice(0, 3));
+    }
     case "check_price_online": {
       const res = await callCoreIntel("estimate_price", {
         item_name: input.item_name, store: input.store ?? "",
@@ -2184,11 +2193,19 @@ const CHAT_TOOLS: ToolDef[] = [
     input_schema: {
       type: "object",
       properties: {
-        tag: { type: "string", enum: ["supermarket", "pharmacy", "bakery", "convenience", "cafe", "restaurant"] },
+        tag: { type: "string", enum: ["supermarket", "pharmacy", "bakery", "convenience", "cafe", "restaurant", "mall", "park", "cinema"] },
         radius_meters: { type: "number", description: "افتراضي ٣٠٠٠" },
       },
       required: ["tag"],
     },
+  },
+  {
+    name: "suggest_product",
+    description:
+      "شوف لو فيه منتج مترشّح يطابق حاجة العميل محتاجها فعلاً (صنف في قايمة التسوق أو " +
+      "مخزون قرب يخلص). نادِها بس لما تكون بتتكلم عن حاجة هو محتاجها — مش عشان تعرض " +
+      "منتجات. لو رجّعت فاضي، ماتقترحش أي منتج من عندك.",
+    input_schema: { type: "object", properties: {} },
   },
   {
     name: "check_price_online",

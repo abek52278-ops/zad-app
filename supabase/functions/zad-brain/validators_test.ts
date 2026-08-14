@@ -1022,3 +1022,16 @@ Deno.test("الاتنين مش في MUTATING_TOOLS — مفيش كتابة عل�
   assertEquals(MUTATING_TOOLS.includes("find_nearby_stores"), false);
   assertEquals(MUTATING_TOOLS.includes("check_price_online"), false);
 });
+
+Deno.test("suggest_product مرة واحدة بس في اللفة", async () => {
+  const ctx = freshContext("u");
+  assertEquals((await VALIDATORS.suggest_product({}, {}, ctx)).ok, true);
+  ctx.counts["suggest_product"] = 1;
+  const r = await VALIDATORS.suggest_product({}, {}, ctx);
+  assertEquals(r.ok, false);
+});
+
+Deno.test("suggest_product مش كتابة على بيانات العميل", () => {
+  assertEquals(MUTATING_TOOLS.includes("suggest_product"), false);
+  assertEquals(CONFIRM_REQUIRED_TOOLS.includes("suggest_product"), false);
+});

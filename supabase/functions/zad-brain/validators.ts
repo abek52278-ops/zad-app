@@ -603,6 +603,10 @@ export const VALIDATORS: Record<string, Validator> = {
   family_digest: () => ({ ok: true }),
   // قراءة بس، بس بحد أقصى عشان ماتتنادش في لفة واحدة كذا مرة وتحرق كوتة على نداءات
   // شبكة خارجية (Overpass/LocationIQ) بدل ما الموديل يرد.
+  // مرة واحدة في اللفة: ترشيح منتج مرتين في نفس الرد بيتحوّل من مساعدة لإعلان.
+  suggest_product: (_i, _s, ctx) =>
+    (ctx.counts["suggest_product"] ?? 0) >= 1
+      ? { ok: false, reason: "رشّحت منتج خلاص في اللفة دي" } : { ok: true },
   find_nearby_stores: (_i, _s, ctx) =>
     (ctx.counts["find_nearby_stores"] ?? 0) >= 2
       ? { ok: false, reason: "بحثت عن محلات مرتين خلاص في اللفة دي" } : { ok: true },
