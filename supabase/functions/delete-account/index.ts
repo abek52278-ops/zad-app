@@ -27,6 +27,12 @@ const USER_OWNED_TABLES = [
   "family_members",
 ];
 
+// Same problem, different column name. Keyed on sender_id, no FK to auth.users.
+const SENDER_OWNED_TABLES = [
+  "chat_messages",
+  "family_messages",
+];
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -51,6 +57,15 @@ Deno.serve(async (req: Request) => {
 
     for (const table of USER_OWNED_TABLES) {
       const { error } = await admin.from(table).delete().eq("user_id", userId);
+      if (error) console.error(`[DeleteAccount] cleanup failed table=${table}: ${error.message}`);
+    }
+
+    // Chat carries the user's own words, and neither table keys on `user_id` or has an
+    // FK to auth.users — so deleting the account left every message they ever sent in
+    // place, readable by the rest of the family group forever. Verified 2026-08-14 by
+    // checking pg_constraint: no auth.users FK on either sender_id.
+    for (const table of SENDER_OWNED_TABLES) {
+      const { error } = await admin.from(table).delete().eq("sender_id", userId);
       if (error) console.error(`[DeleteAccount] cleanup failed table=${table}: ${error.message}`);
     }
     // zad_users primary key is the auth user id itself, not a "user_id" column.
