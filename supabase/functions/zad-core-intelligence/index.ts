@@ -1,5 +1,6 @@
 // deno-lint-ignore-file
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.6";
+import { redactForLog } from "./redact.ts";
 
 // ── Provider chain (2026-08-01): Gemini (5-key pool, native endpoint) primary, Groq
 // (2-key pool) secondary for TEXT/JSON only — vision never touches Groq ──────────────────
@@ -578,7 +579,7 @@ async function logged<T>(
     supabase.from("agent_logs").insert({
       agent_name: agentName || "unknown",
       tool_used: toolUsed,
-      payload: { input, output },
+      payload: { input: redactForLog(input), output: redactForLog(output) },
       status: "success",
       duration_ms: Date.now() - startedAt,
     }).then(({ error }) => {
@@ -589,7 +590,7 @@ async function logged<T>(
     supabase.from("agent_logs").insert({
       agent_name: agentName || "unknown",
       tool_used: toolUsed,
-      payload: { input, error: String((e as { message?: string })?.message ?? e) },
+      payload: { input: redactForLog(input), error: String((e as { message?: string })?.message ?? e) },
       status: "error",
       duration_ms: Date.now() - startedAt,
     }).then(({ error }) => {
