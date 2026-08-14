@@ -35,8 +35,16 @@ data class SupportMessage(
 
 @Composable
 fun HelpSupportScreen(onBack: () -> Unit) {
+    // كانت الشاشة دي متعنونة "دعم زاد الذكي" / "متصل الآن" — بتوهم إنها دعم حي وصل لحسابك
+    // الفعلي، بس الموديل هنا معندوش أي وصول لبيانات المستخدم الحقيقية (transactions/budget/
+    // إلخ)، بس أسئلة عامة عن استخدام التطبيق. العنوان والرسالة الترحيبية بقوا صريحين في كده،
+    // ولو حد سأل عن بياناته الفعلية بيتوجّه لشات "عقل زاد" الحقيقي (نفس نمط agent_summary:
+    // ممنوع يوهم إنه شايف حاجة مش شايفها).
     var messages by remember { mutableStateOf(listOf(
-        SupportMessage("مرحباً بك في خدمة عملاء زاد! أنا هنا لمساعدتك. كيف يمكنني خدمتك اليوم؟", isUser = false)
+        SupportMessage(
+            "أهلاً! أنا مساعد أسئلة استخدام تطبيق زاد — أقدر أساعدك تفهم أي ميزة أو تحل مشكلة تقنية. لو سؤالك عن بياناتك الشخصية (مصاريفك، رصيدك، اشتراكاتك)، الأفضل تسأل شات \"عقل زاد\" لأنه هو بس اللي شايف حسابك الفعلي.",
+            isUser = false
+        )
     )) }
     var input by remember { mutableStateOf("") }
     var isTyping by remember { mutableStateOf(false) }
@@ -71,8 +79,8 @@ fun HelpSupportScreen(onBack: () -> Unit) {
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column {
-                Text("دعم زاد الذكي", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                Text("متصل الآن", style = Typography.labelSmall, color = successColor)
+                Text("مساعدة استخدام التطبيق", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                Text("أسئلة عامة — مش وصل لحسابك الشخصي", style = Typography.labelSmall, color = onSurfaceVariant)
             }
         }
 
@@ -177,9 +185,10 @@ fun HelpSupportScreen(onBack: () -> Unit) {
                         scope.launch {
                             val response = withContext(Dispatchers.IO) {
                                 val systemPrompt = """
-                                    أنت موظف خدمة عملاء في تطبيق "زاد ZAD" لإدارة المصاريف العائلية والمخزون.
-                                    مهمتك الرد على استفسارات المستخدم ومساعدته في استخدام التطبيق أو حل مشاكله.
-                                    - التطبيق يحتوي على: إدارة ميزانية، شات عائلي، كاميرا ذكية لقراءة الفواتير، مخزون المنزل، إحصائيات.
+                                    أنت مساعد أسئلة استخدام تطبيق "زاد ZAD" لإدارة المصاريف العائلية والمخزون.
+                                    مهمتك الرد على أسئلة عامة عن استخدام التطبيق وميزاته وحل مشاكل تقنية شائعة فقط.
+                                    - التطبيق يحتوي على: إدارة ميزانية، شات عائلي، كاميرا ذكية لقراءة الفواتير، مخزون المنزل، إحصائيات، عقل زاد (المساعد الذكي الشخصي).
+                                    - قاعدة إلزامية: معندكش أي وصول لبيانات المستخدم الفعلية (مصاريفه، رصيده، اشتراكاته، مخزونه). لو سأل عن أي حاجة من دي، وضّح إنك مش شايف حسابه، ووجّهه لشات "عقل زاد" اللي شايف بياناته الحقيقية.
                                     - كن مهذباً، محترفاً، ومتعاطفاً.
                                     - أجب باللغة العربية بوضوح وإيجاز.
                                 """.trimIndent()

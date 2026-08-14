@@ -1047,4 +1047,26 @@ class PreviewTest {
         }
         composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/assistant_alerts_screen.png")
     }
+
+    /** شروط الاستخدام — بعد الترجمة الكاملة للعربي (كانت إنجليزي بالكامل). */
+    @Test
+    fun captureTermsOfServiceScreen() {
+        composeTestRule.setContent {
+            AppTheme {
+                TermsOfServiceScreen(onBack = {})
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/terms_of_service_screen.png")
+    }
+
+    /** مساعدة استخدام التطبيق — بعد ما بقت صريحة إنها مش دعم متصل بحسابك الفعلي. */
+    @Test
+    fun captureHelpSupportScreen() {
+        composeTestRule.setContent {
+            AppTheme {
+                HelpSupportScreen(onBack = {})
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/help_support_screen.png")
+    }
 }
