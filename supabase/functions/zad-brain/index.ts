@@ -267,7 +267,7 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
         .eq("user_id", userId),
       sb.from("zad_shopping_list").select("item_name").eq("user_id", userId).eq("is_purchased", false),
       sb.from("zad_consumption").select("item_name,avg_daily_qty,rate_known").eq("user_id", userId),
-      sb.from("zad_memory").select("scope,note,confidence,evidence_count")
+      sb.from("zad_memory").select("id,scope,note,confidence,evidence_count")
         .eq("user_id", userId).order("confidence", { ascending: false }).limit(20),
       sb.from("zad_insights").select("dedupe_key,dismiss_reason").eq("user_id", userId).eq("status", "dismissed"),
       sb.rpc("zad_brain_self_review", { p_user: userId }),
@@ -558,7 +558,9 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     // موجودة ≥0.6 بدل ما يضيف صف جديد). من غيره الموديل مايقدرش يفرّق بين ملاحظة
     // اتقالت مرة واتقالت خمس مرات — وده بالظبط الفرق اللي بيخلي "بلاغ بيانات غلط
     // متكرر" أقوى من واحد عابر.
-    memory: (memRes.data ?? []).map((m) => ({ scope: m.scope, note: m.note, confidence: m.confidence, evidence_count: m.evidence_count })),
+    // الـid بيتعرض عشان link_memory تقدر تشاور على ملاحظة بعينها. من غيره الموديل
+    // مالوش غير نص الملاحظة كمعرّف، ومطابقة بالنص بتكسر أول ما الملاحظة تتعدّل.
+    memory: (memRes.data ?? []).map((m) => ({ id: m.id, scope: m.scope, note: m.note, confidence: m.confidence, evidence_count: m.evidence_count })),
     // Task 28 — "timing" (عرفت خلاص) دايماً مؤقت بالتصميم: مقصود متستبعدش من
     // dismissed_keys، عشان upsert لاحق بنفس dedupe_key (مناسبة الشهر الجاي مثلاً) يرجّع
     // الصف pending تلقائي بدل ما يفضل محظور للأبد زي not_relevant/wrong_data.
@@ -676,6 +678,21 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       if (error) return `فشل الحفظ: ${error.message}`;
       if (data === "strengthened") return "الملاحظة موجودة — قوّيتها بدل ما أكررها";
       return "اتحفظت";
+    }
+    case "link_memory": {
+      // الدالة نفسها بتتحقق إن الملاحظتين بتوع نفس العميل قبل أي كتابة — العقل شغال
+      // بـ service_role وبيتخطى RLS، فـ id مهلوس كان هيقدر يربط ذاكرة عميل بعميل تاني.
+      // بنعتمد على الفحص ده مش بنكرره هنا: مصدر حقيقة واحد أأمن من اتنين ممكن يفرقوا.
+      const { data, error } = await sb.rpc("zad_memory_link_upsert", {
+        p_user: userId,
+        p_from: input.from_id,
+        p_to: input.to_id,
+        p_relation: input.relation,
+        p_strength: input.strength ?? 0.5,
+      });
+      if (error) return `مرفوض: ${error.message}`;
+      if (!data) return "مرفوض: الربط مانجحش";
+      return "الرابط اتسجل بين الملاحظتين";
     }
     case "add_shopping_item": {
       const { error } = await sb.from("zad_shopping_list").insert({
@@ -1561,6 +1578,25 @@ const TOOLS: ToolDef[] = [
         confidence: { type: "number", description: "رقم بين 0 و1" },
       },
       required: ["note"],
+    },
+  },
+  {
+    name: "link_memory",
+    description:
+      "اربط ملاحظتين موجودين في memory ببعض لما تلاحظ علاقة حقيقية بينهم. " +
+      "استخدم الـid بتاع كل ملاحظة زي ما هو في memory. " +
+      "leads_to = الأولى بتؤدي للتانية، co_occurs = بيحصلوا مع بعض، " +
+      "explains = الأولى بتفسّر التانية، contradicts = بيناقضوا بعض. " +
+      "اربط بس لما تكون العلاقة ظاهرة في البيانات، مش تخمين.",
+    input_schema: {
+      type: "object",
+      properties: {
+        from_id: { type: "string", description: "id ملاحظة من memory" },
+        to_id: { type: "string", description: "id ملاحظة تانية من memory" },
+        relation: { type: "string", enum: ["leads_to", "co_occurs", "explains", "contradicts"] },
+        strength: { type: "number", description: "رقم بين 0 و1" },
+      },
+      required: ["from_id", "to_id", "relation"],
     },
   },
   {
@@ -2662,6 +2698,13 @@ remember مش للأرقام. للأنماط:
 - سلوك متكرر ("بيصرف أكتر آخر الشهر")
 - تفضيلات ("مش مهتم بتنبيهات الاشتراكات")
 - دروس عن نفسك ("تحذيراتي عن سرعة الصرف طلعت غلط ٣ مرات")
+
+link_memory بيربط ملاحظتين موجودين فعلاً في memory — مش بيعمل ملاحظة جديدة.
+- استخدم الـid زي ما هو في memory بالظبط. لو الـid مش في القايمة، الأداة هترفض.
+- اربط بس لما العلاقة ظاهرة في البيانات قدامك: "بيصرف على المطاعم أول الشهر" +
+  "بيتقشّف آخر الشهر" = leads_to. علاقة متخيلة بين ملاحظتين مالهمش علاقة أوحش من
+  مفيش رابط خالص، لأنها بتفضل وبتتقوّى مع التكرار.
+- لو مفيش علاقة واضحة، ماتنادهاش. مفيش عقوبة على إنك ما تربطش.
 
 تسوية الكاش الأسبوعية (cash_reconciliation جوه الـ snapshot):
 - لو needs_ask=true ودمج dismissed_count أقل من ٢، ممكن تسأل مرة واحدة في الأسبوع

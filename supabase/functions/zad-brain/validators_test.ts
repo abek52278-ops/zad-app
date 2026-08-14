@@ -922,3 +922,71 @@ Deno.test("looksLikeAnsweredQuestion مابيتلغبطش في رسايل عاد
 Deno.test("looksLikeAnsweredQuestion بيتحمّل مسافة بادئة", () => {
   assertEquals(looksLikeAnsweredQuestion("event", "\n  العميل جاوب على سؤال: تمام"), true);
 });
+
+// ── link_memory ─────────────────────────────────────────────────────────────
+// الأداة بتكتب في zad_memory_links عبر zad_memory_link_upsert. الملكية بتتفحص في
+// الدالة نفسها (العقل شغال بـ service_role وبيتخطى RLS)، والفحوصات هنا بتمسك الغلط
+// الأشهر — الموديل بيخترع id مش موجود في الـsnapshot — قبل ما يوصل القاعدة.
+
+const memSnap = {
+  memory: [
+    { id: "11111111-1111-1111-1111-111111111111", note: "بيصرف على المطاعم أول الشهر" },
+    { id: "22222222-2222-2222-2222-222222222222", note: "بيتقشّف آخر الشهر" },
+  ],
+};
+
+Deno.test("link_memory بيقبل ربط ملاحظتين موجودين في الـsnapshot", async () => {
+  const r = await VALIDATORS.link_memory(
+    { from_id: memSnap.memory[0].id, to_id: memSnap.memory[1].id, relation: "leads_to" },
+    memSnap, freshContext("u"),
+  );
+  assertEquals(r.ok, true);
+});
+
+Deno.test("link_memory بيرفض id مخترع مش في memory", async () => {
+  const r = await VALIDATORS.link_memory(
+    { from_id: memSnap.memory[0].id, to_id: "99999999-9999-9999-9999-999999999999", relation: "co_occurs" },
+    memSnap, freshContext("u"),
+  );
+  assertEquals(r.ok, false);
+  if (!r.ok) assertStringIncludes(r.reason, "to_id");
+});
+
+Deno.test("link_memory بيرفض علاقة مش من الأربعة", async () => {
+  const r = await VALIDATORS.link_memory(
+    { from_id: memSnap.memory[0].id, to_id: memSnap.memory[1].id, relation: "causes" },
+    memSnap, freshContext("u"),
+  );
+  assertEquals(r.ok, false);
+});
+
+Deno.test("link_memory بيرفض ربط الملاحظة بنفسها", async () => {
+  const r = await VALIDATORS.link_memory(
+    { from_id: memSnap.memory[0].id, to_id: memSnap.memory[0].id, relation: "explains" },
+    memSnap, freshContext("u"),
+  );
+  assertEquals(r.ok, false);
+});
+
+Deno.test("link_memory بيرفض strength برّه المدى", async () => {
+  const r = await VALIDATORS.link_memory(
+    { from_id: memSnap.memory[0].id, to_id: memSnap.memory[1].id, relation: "leads_to", strength: 1.5 },
+    memSnap, freshContext("u"),
+  );
+  assertEquals(r.ok, false);
+});
+
+Deno.test("link_memory بيقف عند ٣ روابط في اللفة", async () => {
+  const ctx = freshContext("u");
+  ctx.counts["link_memory"] = 3;
+  const r = await VALIDATORS.link_memory(
+    { from_id: memSnap.memory[0].id, to_id: memSnap.memory[1].id, relation: "leads_to" },
+    memSnap, ctx,
+  );
+  assertEquals(r.ok, false);
+});
+
+Deno.test("link_memory مش في MUTATING_TOOLS — ذاكرة مش بيانات عميل", () => {
+  assertEquals(MUTATING_TOOLS.includes("link_memory"), false);
+  assertEquals(MUTATING_TOOLS.includes("remember"), false);
+});

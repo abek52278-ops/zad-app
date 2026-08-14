@@ -181,6 +181,30 @@ export const validateRemember: Validator = (input, snap, ctx) => {
   return { ok: true };
 };
 
+const LINK_RELATIONS = ["leads_to", "co_occurs", "explains", "contradicts"];
+
+/**
+ * الفحص الأساسي هنا إن الـid الاتنين **موجودين في نفس الـsnapshot** اللي الموديل شايفه.
+ * الدالة في قاعدة البيانات بتتحقق من الملكية وبترفض أي id مش بتاع العميل، لكن الرفض ده
+ * بيرجع كخطأ SQL بعد نداء شبكة. الفحص هنا بيمسك الحالة الأشهر — الموديل بيخترع id —
+ * قبل ما توصل القاعدة أصلاً، وبيديله سبب مفهوم يقدر يصحح بناءً عليه.
+ */
+export const validateLinkMemory: Validator = (input, snap, ctx) => {
+  if ((ctx.counts["link_memory"] ?? 0) >= 3) return { ok: false, reason: "وصلت لحد أقصى ٣ روابط في المرة" };
+  if (!LINK_RELATIONS.includes(input.relation)) {
+    return { ok: false, reason: `relation لازم يكون واحد من: ${LINK_RELATIONS.join(", ")}` };
+  }
+  if (!input.from_id || !input.to_id) return { ok: false, reason: "محتاج from_id و to_id" };
+  if (input.from_id === input.to_id) return { ok: false, reason: "مينفعش تربط ملاحظة بنفسها" };
+  if (input.strength !== undefined && (typeof input.strength !== "number" || input.strength < 0 || input.strength > 1)) {
+    return { ok: false, reason: "strength لازم يكون رقم بين 0 و 1" };
+  }
+  const known = new Set((snap.memory ?? []).map((m: any) => m.id));
+  if (!known.has(input.from_id)) return { ok: false, reason: "from_id مش موجود في memory — استخدم id زي ما هو من القايمة" };
+  if (!known.has(input.to_id)) return { ok: false, reason: "to_id مش موجود في memory — استخدم id زي ما هو من القايمة" };
+  return { ok: true };
+};
+
 export const validateReconcileCashBalance: Validator = (input, snap, ctx) => {
   if ((ctx.counts["reconcile_cash_balance"] ?? 0) >= 1) return { ok: false, reason: "تصحيح واحد بس في المرة" };
   if (typeof input.reported_amount !== "number" || !Number.isFinite(input.reported_amount) || input.reported_amount < 0) {
@@ -574,6 +598,7 @@ export const VALIDATORS: Record<string, Validator> = {
   complete_shopping_item: validateCompleteShoppingItem,
   delete_shopping_item: validateDeleteShoppingItem,
   remember: validateRemember,
+  link_memory: validateLinkMemory,
   merge_duplicate_expense: () => ({ ok: true }),
   reconcile_cash_balance: validateReconcileCashBalance,
   confirm_cycle_start: validateConfirmCycleStart,
