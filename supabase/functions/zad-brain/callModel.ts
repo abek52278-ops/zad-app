@@ -217,6 +217,36 @@ function sanitizeSchema(s: any): any {
 }
 
 /**
+ * استخراج الحقائق اللي بتحدّد نوع الحد اللي اتضرب من جسم 429 بتاع جيميناي.
+ *
+ * الرسالة الخام بتتخزّن في `zad_brain_runs.error` كاملة، بس هي JSON طويل والمعلومة
+ * الحاسمة مدفونة جوّاه — وده اللي خلّى سؤال "الخمس مفاتيح خلصوا كوتتهم إزاي؟" مفتوح.
+ * `quotaId` بيقول الحد ده يومي (`...PerDay...`) ولا لحظي، و`retryDelay` بيأكد: تأخير
+ * بالساعات = كوتة يوم خلصت، تأخير بالثواني = رشقة ضربت حد الدقيقة.
+ */
+export function summarizeQuota429(body: string): {
+  quotaId: string;
+  quotaValue: string;
+  retryDelay: string;
+} {
+  try {
+    const d = JSON.parse(body);
+    const details: any[] = d?.error?.details ?? [];
+    const violation = details
+      .find((x) => String(x?.["@type"] ?? "").endsWith("QuotaFailure"))
+      ?.violations?.[0];
+    const retry = details.find((x) => String(x?.["@type"] ?? "").endsWith("RetryInfo"));
+    return {
+      quotaId: violation?.quotaId ?? "unknown",
+      quotaValue: String(violation?.quotaValue ?? "?"),
+      retryDelay: retry?.retryDelay ?? "?",
+    };
+  } catch {
+    return { quotaId: "unparseable", quotaValue: "?", retryDelay: "?" };
+  }
+}
+
+/**
  * تحويل الـ history لشكل `contents` بتاع جيميناي. متصدّرة عشان تتختبر لوحدها: الباج اللي
  * كانت هنا (مكان `thoughtSignature`) ما كانتش تتكشف بأي اختبار لأن الدالة كانت جوّه نداء شبكة.
  */
@@ -284,6 +314,7 @@ async function sendGemini(o: {
 
   let res: Response | null = null;
   let lastQuotaBody = "";
+  const quotaTrail: string[] = [];
   const start = nextGeminiKeyIndex();
   for (let i = 0; i < GEMINI_KEY_POOL.length; i++) {
     const keyIndex = (start + i) % GEMINI_KEY_POOL.length;
@@ -296,7 +327,12 @@ async function sendGemini(o: {
     });
     if (attempt.status === 429) {
       lastQuotaBody = await attempt.text();
-      console.warn(`[zad-brain] Gemini key ${keyIndex + 1} hit 429/quota, switching to next key...`);
+      const q = summarizeQuota429(lastQuotaBody);
+      quotaTrail.push(`key${keyIndex + 1}:${q.quotaId}=${q.quotaValue}/retry=${q.retryDelay}`);
+      console.warn(
+        `[zad-brain] Gemini key ${keyIndex + 1}/${GEMINI_KEY_POOL.length} hit 429 — ` +
+          `quotaId=${q.quotaId} limit=${q.quotaValue} retryDelay=${q.retryDelay}; switching to next key`,
+      );
       continue;
     }
     res = attempt;
@@ -306,7 +342,12 @@ async function sendGemini(o: {
   if (!res) {
     // Every key is rate-limited. Surface it as retryable so withRetry's backoff gets a shot
     // at a window where quota has recovered, rather than failing the whole brain run.
-    throw new RetryableError(`gemini 429 (all ${GEMINI_KEY_POOL.length} keys exhausted): ${lastQuotaBody}`);
+    // الأثر بيتحط قبل جسم الرد عشان يفضل ظاهر في `zad_brain_runs.error` حتى لو الرسالة
+    // اتقصّت. هو اللي بيفرّق بين "الكوتة اليومية خلصت" و"حد الدقيقة اتضرب برشقة": حد
+    // يومي متضروب بيرجع retryDelay بالساعات، وحد الدقيقة بيرجعه بالثواني.
+    throw new RetryableError(
+      `gemini 429 (all ${GEMINI_KEY_POOL.length} keys exhausted) [${quotaTrail.join(" | ")}]: ${lastQuotaBody}`,
+    );
   }
 
   await checkResponse(res, "gemini");

@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { buildGeminiContents, type Turn } from "./callModel.ts";
+import { buildGeminiContents, summarizeQuota429, type Turn } from "./callModel.ts";
 
 /**
  * الباج اللي الاختبارات دي بتحرسها (اتشخّصت 2026-08-14 من `zad_brain_runs.error` الحيّة):
@@ -78,4 +78,47 @@ Deno.test("رد الأداة بيرجع بدور user وبالاسم مش بال
   assertEquals(contents[0].role, "user");
   assertEquals(contents[0].parts[0].functionResponse.name, "add_shopping_item");
   assertEquals(contents[0].parts[0].functionResponse.response, { result: "اتضاف" });
+});
+
+/**
+ * الأجسام دي منقولة حرفيًا من `zad_brain_runs.error` الحيّة (2026-08-10). الغرض من
+ * `summarizeQuota429` إنها تطلّع الحقيقتين اللي بيفرّقوا بين تفسيرين مختلفين تمامًا:
+ * كوتة يوم خلصت، ولا رشقة ضربت حد الدقيقة.
+ */
+Deno.test("summarizeQuota429 يطلّع quotaId والحد وتأخير المحاولة من رد جوجل الحقيقي", () => {
+  const body = JSON.stringify({
+    error: {
+      code: 429,
+      message: "You exceeded your current quota…",
+      status: "RESOURCE_EXHAUSTED",
+      details: [
+        { "@type": "type.googleapis.com/google.rpc.Help", links: [] },
+        {
+          "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+          violations: [{
+            quotaMetric: "generativelanguage.googleapis.com/generate_content_free_tier_requests",
+            quotaId: "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+            quotaDimensions: { location: "global", model: "gemini-3.5-flash" },
+            quotaValue: "20",
+          }],
+        },
+        { "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "51s" },
+      ],
+    },
+  });
+
+  assertEquals(summarizeQuota429(body), {
+    quotaId: "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+    quotaValue: "20",
+    retryDelay: "51s",
+  });
+});
+
+Deno.test("summarizeQuota429 مابيرميش لو الرد مش JSON أو ناقص", () => {
+  assertEquals(summarizeQuota429("<html>502 Bad Gateway</html>").quotaId, "unparseable");
+  assertEquals(summarizeQuota429(JSON.stringify({ error: { code: 429 } })), {
+    quotaId: "unknown",
+    quotaValue: "?",
+    retryDelay: "?",
+  });
 });
