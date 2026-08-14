@@ -59,4 +59,8 @@ jobs:
 
       - name: Type-check zad-telegram-bot
         working-directory: supabase/functions/zad-telegram-bot
-        run: deno check index.ts
+        run: deno check index.ts context.ts telegram.ts
+
+      - name: Test zad-telegram-bot
+        working-directory: supabase/functions/zad-telegram-bot
+        run: deno test --allow-all

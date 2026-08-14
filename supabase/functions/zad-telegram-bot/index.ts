@@ -308,7 +308,7 @@ async function fetchAgentContext(sb: SupabaseClient, userId: string): Promise<Ag
     .select("family_id").eq("user_id", userId).maybeSingle();
   const familyId = (myMembership as { family_id: string } | null)?.family_id ?? null;
 
-  const [user, txs, inv, subs, obligations, debts, pharmacy, shopping, insights, tasbiha, memory, family, budget] = await Promise.all([
+  const [user, txs, inv, subs, obligations, debts, pharmacy, shopping, insights, tasbiha, memory, family, budget, domainObs, lifeObs] = await Promise.all([
     sb.from("zad_users").select("name,monthly_limit,currency,country").eq("id", userId).maybeSingle(),
     // The 200-newest window is what the prompt's "آخر 30 معاملة" section is sliced from.
     // It is no longer what any total is computed over — totals come from the RPC below,
@@ -332,6 +332,11 @@ async function fetchAgentContext(sb: SupabaseClient, userId: string): Promise<Ag
     // the app's own screens and with zad-brain; see
     // migrations/20260809120000_single_budget_authority.sql.
     sb.rpc("zad_budget_state", { p_user: userId }),
+    // نفس الملاحظات اللي العقل بيشوفها في buildSnapshot. من غيرها نفس السؤال بياخد
+    // إجابة أغنى في التطبيق منها في تيليجرام — وده بالظبط التفاوت اللي اتقفل النهارده
+    // في الذاكرة ورجع من هنا مع كل ملاحظة جديدة اتضافت.
+    sb.rpc("zad_domain_observations", { p_user: userId }),
+    sb.rpc("zad_lifestyle_observations", { p_user: userId }),
   ]);
 
   if ((budget as any)?.error) {
@@ -358,6 +363,9 @@ async function fetchAgentContext(sb: SupabaseClient, userId: string): Promise<Ag
     insights: (insights.data ?? []) as any,
     tasbiha: (tasbiha.data ?? []) as any,
     memory: (memory.data ?? []) as any,
+    // الاتنين بيتلموا في مصفوفة واحدة: الموديل مايهموش الملاحظة جت من أنهي دالة، يهمه
+    // إيه اللي محتاج تصرّف. الترتيب بالأهمية بيحصل في buildAgentContext.
+    observations: ([...(domainObs.data ?? []), ...(lifeObs.data ?? [])]) as any,
   };
 }
 

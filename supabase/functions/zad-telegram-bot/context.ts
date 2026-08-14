@@ -45,6 +45,18 @@ export interface AgentBudgetState {
   computed_at: string;
 }
 
+/**
+ * ملاحظة مجالية جاهزة من `zad_domain_observations` / `zad_lifestyle_observations`.
+ * نفس الشكل اللي `zad-brain`'s buildSnapshot بيشوفه بالظبط — القصد إن السطحين يشوفوا
+ * نفس الحقايق، مش إن كل واحد يستنتج من صفوف خام لوحده.
+ */
+export interface AgentObservation {
+  domain: string;
+  kind: string;
+  text: string;
+  severity: string;
+}
+
 export interface AgentContextInput {
   userName: string | null;
   budget: AgentBudgetState | null;
@@ -62,6 +74,7 @@ export interface AgentContextInput {
   insights: AgentInsight[];
   tasbiha: AgentTasbiha[];
   memory: AgentMemory[];
+  observations: AgentObservation[];
 }
 
 export function money(amount: number, currency: string): string {
@@ -177,6 +190,13 @@ export function buildAgentContext(input: AgentContextInput): string {
 
   const memoryText = input.memory.map((m) => `- [${m.scope}] ${m.note}`).join("\n");
 
+  // مرتّبة بالأهمية مش بترتيب المجالات: الموديل بيقرا من فوق، فاللي محتاج تصرّف يبقى فوق.
+  const SEV_ORDER: Record<string, number> = { high: 0, normal: 1, low: 2 };
+  const obsText = [...input.observations]
+    .sort((a, b) => (SEV_ORDER[a.severity] ?? 3) - (SEV_ORDER[b.severity] ?? 3))
+    .map((o) => `- [${o.severity}] ${o.text}`)
+    .join("\n");
+
   return [
     section("معلومات العميل",
       `الاسم: ${input.userName ?? "مستخدم"} | التاريخ اليوم: ${input.today}\n` +
@@ -209,6 +229,8 @@ export function buildAgentContext(input: AgentContextInput): string {
     section("قائمة التسوق المطلوبة", shopText, "فارغة."),
     section("تنبيهات معلقة", insightText, "لا توجد تنبيهات معلقة."),
     section("بستان التسبيح", tasbihaText, "لا توجد بيانات بستان بعد."),
+    section("ملاحظات جاهزة من مجالات التطبيق", obsText,
+      "لا توجد ملاحظات — يعني مفيش حاجة محتاجة تصرّف دلوقتي، مش إن البيانات ناقصة."),
     section("ما تعلمه زاد عن العميل", memoryText, "لا توجد ملاحظات بعد."),
   ].join("\n\n");
 }

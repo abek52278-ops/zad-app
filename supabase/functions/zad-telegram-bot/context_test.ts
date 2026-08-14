@@ -1,4 +1,4 @@
-import { assert, assertEquals } from "jsr:@std/assert@1";
+import { assert, assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
 import {
   AgentBudgetState, AgentContextInput, agentSystemPrompt, buildAgentContext, categoryBreakdown,
   clampForTelegram, confirmMedicationMessage, confirmSpendMessage, deriveWebhookSecret,
@@ -45,6 +45,7 @@ function emptyInput(overrides: Partial<AgentContextInput> = {}): AgentContextInp
     insights: [],
     tasbiha: [],
     memory: [],
+    observations: [],
     ...overrides,
   };
 }
@@ -341,4 +342,28 @@ Deno.test("confirmation messages isolate the medicine name", () => {
   });
   assert(message.includes("⁨كونكور⁩"));
   assert(!message.includes("كونكور "));
+});
+
+// الملاحظات الجاهزة كانت بتوصل التطبيق (عبر buildSnapshot) ومابتوصلش تيليجرام — يعني
+// نفس السؤال ياخد إجابة أغنى في مكان عن مكان. الاختبارات دي بتحرس التساوي ده.
+
+Deno.test("الملاحظات بتتعرض مرتّبة بالأهمية مش بترتيب وصولها", () => {
+  const out = buildAgentContext(emptyInput({
+    observations: [
+      { domain: "shopping", kind: "pending", text: "قايمة فيها ٦ أصناف", severity: "low" },
+      { domain: "pharmacy", kind: "low_stock", text: "بيتادرم يكفي يوم", severity: "high" },
+      { domain: "subscriptions", kind: "renewal", text: "نتفليكس هيتجدد", severity: "normal" },
+    ],
+  }));
+  const high = out.indexOf("بيتادرم يكفي يوم");
+  const normal = out.indexOf("نتفليكس هيتجدد");
+  const low = out.indexOf("قايمة فيها ٦ أصناف");
+  assert(high > -1 && normal > high && low > normal);
+  assertStringIncludes(out, "[high] بيتادرم يكفي يوم");
+});
+
+Deno.test("مفيش ملاحظات معناها مفيش حاجة محتاجة تصرّف، مش بيانات ناقصة", () => {
+  const out = buildAgentContext(emptyInput({ observations: [] }));
+  assertStringIncludes(out, "ملاحظات جاهزة من مجالات التطبيق");
+  assertStringIncludes(out, "مش إن البيانات ناقصة");
 });
