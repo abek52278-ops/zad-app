@@ -281,6 +281,24 @@ class UnifiedBankListener : NotificationListenerService() {
             // particular, failed/pending renewals can mention an amount but are not debits.
             val result = SaBankParser.classifyNotification(packageName, title, text, applicationContext)
 
+            // كل إشعار مالي بيوصل العقل، مش اللي المحلل المحلي حلّه لوحده بس.
+            //
+            // قبل كده النداء ده كان بيتعمل في حالة COMPLETED_TRANSACTION بس، والباقي كان
+            // بيرجع بدري. النتيجة إن السيرفر — اللي عنده الـAI ومسار تأكيد كامل بيحط سؤال
+            // حقيقي في zad_insights للرسايل غير الواضحة — ماكانش بيشوف غير الحالات اللي
+            // مامحتاجاهوش أصلاً. الرسايل الغامضة، وهي بالظبط اللي محتاجة ذكاء، كانت بتتركن
+            // في outbox محلي وتفضل هناك.
+            //
+            // ودي كمان السبب إن zad_notification_ingest_events فاضي: الجدول بيتكتب أول سطر
+            // في المعالج السيرفري، فوجوده فاضي ماكانش بيفرّق بين "المستمع مش شغال" و"المستمع
+            // شغال وكل حاجة اترفضت محليًا". دلوقتي بيفرّق.
+            //
+            // بوابة الكتابة نفسها ما اتغيّرتش: السيرفر لسه مايكتبش معاملة إلا لو العميل قال
+            // "completed" والثقة ≥0.9. إرسال الغامض بيخلّيه يتسجّل ويتسأل عنه، مش يتكتب.
+            val serverDecisionEarly = if (result.classification != NotificationClassification.COMPLETED_TRANSACTION) {
+                sendNotificationToSharedBrain(packageName, title, text, result.classification, result.transaction)
+            } else null
+
             when (result.classification) {
                 NotificationClassification.FAILED_OR_PENDING_TRANSACTION,
                 NotificationClassification.INFORMATIONAL_ONLY -> {
@@ -292,13 +310,16 @@ class UnifiedBankListener : NotificationListenerService() {
                 }
                 NotificationClassification.AMBIGUOUS -> {
                     // Never let the AI fallback manufacture a completed transaction from an
-                    // unclear message. Keep it for review/retry only; Stage 2 will present an
-                    // explicit confirmation tier backed by the server agent.
+                    // unclear message — that rule is unchanged. What changed is who gets asked:
+                    // the server now sees this and raises a real confirmation question in
+                    // zad_insights ("معاملة بنكية محتاجة تأكيد"), which is the Stage 2 tier the
+                    // old comment here was waiting for. The local outbox stays as the fallback
+                    // for when that call couldn't be made at all (null = transport failure).
                     SaBankParser.logRejection(applicationContext, SaBankParser.RejectReason.UNPARSED, packageName, "$title $text")
-                    if (SaBankParser.extractAmount("$title $text") != null) {
+                    if (serverDecisionEarly == null && SaBankParser.extractAmount("$title $text") != null) {
                         SyncOutbox.enqueueUnparsedNotification(applicationContext, packageName, title, text)
                     }
-                    Log.d("UnifiedBankListener", "Notification requires confirmation: $title")
+                    Log.d("UnifiedBankListener", "Notification requires confirmation: $title (server=$serverDecisionEarly)")
                     return
                 }
                 NotificationClassification.COMPLETED_TRANSACTION -> Unit
@@ -405,7 +426,7 @@ class UnifiedBankListener : NotificationListenerService() {
         title: String,
         text: String,
         classification: NotificationClassification,
-        parsed: ParsedBankTx
+        parsed: ParsedBankTx?
     ): String? {
         return try {
             val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return null
@@ -419,19 +440,24 @@ class UnifiedBankListener : NotificationListenerService() {
                     "title" to title,
                     "text" to text,
                     "client_classification" to classification.name.lowercase(),
-                    "parsed" to mapOf(
-                        "amount" to parsed.amount,
-                        "is_expense" to parsed.isExpense,
-                        "title" to parsed.title,
-                        "category" to parsed.category,
-                        "merchant_name" to (parsed.merchantName ?: parsed.bankName),
-                        "bank_name" to parsed.bankName,
-                        "txn_kind" to if (parsed.txType == TxType.WITHDRAWAL) "transfer" else if (parsed.isExpense) "expense" else "income",
-                        "tx_type" to parsed.txType.name,
-                        "currency" to (parsed.currency ?: ""),
-                        "confidence" to parsed.confidence.toDouble(),
-                        "external_ref" to (parsed.externalRef ?: "")
-                    )
+                    // بدون تحليل محلي بيتبعت object فاضي عن قصد، مش يتشال: السيرفر بيقرا
+                    // `parsed.confidence` ويقارنه بـ0.9، وقيمة ناقصة بتتقرا صفر — يعني
+                    // "محتاج تأكيد"، وهو بالظبط التصنيف الصح للحالة دي.
+                    "parsed" to (parsed?.let {
+                        mapOf(
+                            "amount" to it.amount,
+                            "is_expense" to it.isExpense,
+                            "title" to it.title,
+                            "category" to it.category,
+                            "merchant_name" to (it.merchantName ?: it.bankName),
+                            "bank_name" to it.bankName,
+                            "txn_kind" to if (it.txType == TxType.WITHDRAWAL) "transfer" else if (it.isExpense) "expense" else "income",
+                            "tx_type" to it.txType.name,
+                            "currency" to (it.currency ?: ""),
+                            "confidence" to it.confidence.toDouble(),
+                            "external_ref" to (it.externalRef ?: "")
+                        )
+                    } ?: emptyMap<String, Any>())
                 ),
                 timeoutMs = 20_000L
             )
