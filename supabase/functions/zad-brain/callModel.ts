@@ -216,18 +216,28 @@ function sanitizeSchema(s: any): any {
   return out;
 }
 
-async function sendGemini(o: {
-  model: string; system: string; tools: ToolDef[]; history: Turn[]; maxTokens?: number;
-}): Promise<ModelReply> {
+/**
+ * تحويل الـ history لشكل `contents` بتاع جيميناي. متصدّرة عشان تتختبر لوحدها: الباج اللي
+ * كانت هنا (مكان `thoughtSignature`) ما كانتش تتكشف بأي اختبار لأن الدالة كانت جوّه نداء شبكة.
+ */
+export function buildGeminiContents(history: Turn[]): any[] {
   const contents: any[] = [];
-  for (const t of o.history) {
+  for (const t of history) {
     if (t.role === "user") {
       contents.push({ role: "user", parts: [{ text: t.text }] });
     } else if (t.role === "assistant") {
       const parts: any[] = [];
       if (t.text) parts.push({ text: t.text });
+      // `thoughtSignature` بتقعد على الـ **Part** نفسه، مش جوّه `functionCall`. كانت متحطة
+      // جوّه، وجيميناي بيتجاهل الحقل المتداخل ده تمامًا ويعتبر إن التوقيع مش مبعوت — فكل
+      // نداء تاني بعد استدعاء أداة كان بيرجع 400 (`missing a thought_signature ... position N`).
+      // ده كان سبب ٢٢ من ٤١ تشغيلة فاشلة/معلّقة، ومعاه سبب إن الأداة تتنفّذ والتشغيلة
+      // تتسجّل "failed": الأداة بتشتغل، وبعدين النداء اللي بيجيب الرد النهائي بيموت.
       for (const c of t.toolCalls ?? [])
-        parts.push({ functionCall: { name: c.name, args: c.input, ...(c.thoughtSignature ? { thoughtSignature: c.thoughtSignature } : {}) } });
+        parts.push({
+          functionCall: { name: c.name, args: c.input },
+          ...(c.thoughtSignature ? { thoughtSignature: c.thoughtSignature } : {}),
+        });
       contents.push({ role: "model", parts });
     } else {
       // ردود الأدوات بترجع بدور "user" في جيميناي، والربط بالاسم مش بـ id
@@ -239,6 +249,13 @@ async function sendGemini(o: {
       });
     }
   }
+  return contents;
+}
+
+async function sendGemini(o: {
+  model: string; system: string; tools: ToolDef[]; history: Turn[]; maxTokens?: number;
+}): Promise<ModelReply> {
+  const contents = buildGeminiContents(o.history);
 
   const body = JSON.stringify({
     systemInstruction: { parts: [{ text: o.system }] },
@@ -306,9 +323,10 @@ async function sendGemini(o: {
         id: `gem_${p.functionCall.name}_${i}`,
         name: p.functionCall.name,
         input: p.functionCall.args ?? {},
-        // 2.5+: الـ functionCall بتيجي بـ thoughtSignature، وجيميناي بيطالبك ترجّعه زي ما هو
-        // في الـ turn اللي بعده — من غيره بيفشل بـ 400. بنحتفظ بيه ونعيد تزويده في النداء الجاي.
-        thoughtSignature: p.functionCall.thoughtSignature,
+        // 2.5+: التوقيع بيجي على الـ Part (`p.thoughtSignature`)، مش جوّه `p.functionCall`.
+        // كان بيتقرا من المكان المتداخل الغلط فبيرجع undefined دايمًا. بنقرا الاتنين
+        // احتياطًا لأي اختلاف في شكل الرد بين إصدارات الموديل.
+        thoughtSignature: p.thoughtSignature ?? p.functionCall.thoughtSignature,
       });
     }
   });
