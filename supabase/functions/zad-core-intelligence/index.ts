@@ -176,7 +176,7 @@ async function callOpenAICompatibleChat(opts: {
     const data = await resp.json();
     return { content: data.choices?.[0]?.message?.content || null, status: resp.status, ok: resp.ok, raw: data };
   } catch (e) {
-    return { content: null, status: 0, ok: false, raw: { error: e.message } };
+    return { content: null, status: 0, ok: false, raw: { error: (e as Error).message } };
   }
 }
 
@@ -387,7 +387,7 @@ async function callJsonModel(
   }
   if (!raw) return null;
   try { return JSON.parse(raw); } catch (e) {
-    console.error("[CoreIntel] callJsonModel: JSON.parse failed:", e.message, "raw:", raw);
+    console.error("[CoreIntel] callJsonModel: JSON.parse failed:", (e as Error).message, "raw:", raw);
     return null;
   }
 }
@@ -446,8 +446,8 @@ async function transcribeAudio(audioBase64: string, mimeType: string) {
     }
     return { text: data.text || null, raw: data, ok: resp.ok, status: resp.status };
   } catch (e) {
-    console.error("[CoreIntel] transcribeAudio failed:", e.message);
-    return { text: null, raw: { error: e.message }, ok: false, status: 0 };
+    console.error("[CoreIntel] transcribeAudio failed:", (e as Error).message);
+    return { text: null, raw: { error: (e as Error).message }, ok: false, status: 0 };
   }
 }
 
@@ -524,12 +524,12 @@ async function callCompoundSearch(systemPrompt: string, userPrompt: string, maxT
         else if (objectMatch) parsed = JSON.parse(objectMatch[0]);
       } catch (e) {
         parseFailed = true;
-        console.error("[CoreIntel] callCompoundSearch: JSON.parse failed:", e.message, "raw:", text);
+        console.error("[CoreIntel] callCompoundSearch: JSON.parse failed:", (e as Error).message, "raw:", text);
       }
       // no JSON found/parseable in the model's reply is a real failure, not "no results"
       return { parsed, executedTools, ok: !parseFailed };
     } catch (e) {
-      console.error("[CoreIntel] callCompoundSearch failed/timed out:", e.message);
+      console.error("[CoreIntel] callCompoundSearch failed/timed out:", (e as Error).message);
       return { parsed: null, executedTools: [], ok: false };
     }
   }
@@ -551,7 +551,7 @@ async function getCachedAiResponse(cacheKey: string): Promise<Record<string, unk
       return data.response as Record<string, unknown>;
     }
   } catch (e) {
-    console.error("[CoreIntel] getCachedAiResponse failed:", e.message);
+    console.error("[CoreIntel] getCachedAiResponse failed:", (e as Error).message);
   }
   return null;
 }
@@ -560,7 +560,7 @@ async function setCachedAiResponse(cacheKey: string, action: string, response: R
   try {
     await supabase.from("ai_response_cache").upsert({ cache_key: cacheKey, action, response, created_at: new Date().toISOString() });
   } catch (e) {
-    console.error("[CoreIntel] setCachedAiResponse failed:", e.message);
+    console.error("[CoreIntel] setCachedAiResponse failed:", (e as Error).message);
   }
 }
 
@@ -778,7 +778,7 @@ Deno.serve(async (req: Request) => {
             const parsed = JSON.parse(objectMatch[0]);
             return jsonResponse({ items: parsed.items || [] });
           } catch (e) {
-            console.error("[CoreIntel] analyze_inventory_image: JSON.parse (object) failed:", e.message, "raw match:", objectMatch[0]);
+            console.error("[CoreIntel] analyze_inventory_image: JSON.parse (object) failed:", (e as Error).message, "raw match:", objectMatch[0]);
           }
         }
         // Smaller free vision models sometimes ignore the {"items":[...]} instruction
@@ -789,7 +789,7 @@ Deno.serve(async (req: Request) => {
             const parsed = JSON.parse(arrayMatch[0]);
             return jsonResponse({ items: Array.isArray(parsed) ? parsed : [] });
           } catch (e) {
-            console.error("[CoreIntel] analyze_inventory_image: JSON.parse (array) failed:", e.message, "raw match:", arrayMatch[0]);
+            console.error("[CoreIntel] analyze_inventory_image: JSON.parse (array) failed:", (e as Error).message, "raw match:", arrayMatch[0]);
           }
         }
         console.error("[CoreIntel] analyze_inventory_image: no JSON object or array found in response:", visionResult);
@@ -939,7 +939,7 @@ Deno.serve(async (req: Request) => {
           await setCachedAiResponse(cacheKey, "nearby_pois", response);
           return jsonResponse(response);
         } catch (e) {
-          console.error("[CoreIntel] nearby_pois FAILED:", e.message);
+          console.error("[CoreIntel] nearby_pois FAILED:", (e as Error).message);
           return jsonResponse({ stores: [] });
         }
       }
@@ -1411,7 +1411,7 @@ Deno.serve(async (req: Request) => {
         return jsonResponse({ error: "Unknown action: " + action }, 400);
     }
   } catch (e) {
-    console.error("[CoreIntel] Error: " + e.message);
-    return jsonResponse({ error: e.message }, 500);
+    console.error("[CoreIntel] Error: " + (e as Error).message);
+    return jsonResponse({ error: (e as Error).message }, 500);
   }
 });

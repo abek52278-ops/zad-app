@@ -1,0 +1,62 @@
+name: Edge Functions
+
+# الإيدج فانكشنز مكانش عليها أي CI خالص — الـworkflow التاني كله كوتلن
+# (`testDebugUnitTest` / `lintDebug` / `assembleDebug`). يعني الـ120 اختبار Deno كانوا
+# بيشتغلوا لما حد يفتكر يشغّلهم محليًا بس، والنص التاني من التطبيق (العقل، الأدوات،
+# الڤاليديتورز، مسح الحساب) كان بيتنشر على الإنتاج من غير أي بوابة.
+#
+# `deno check` بقى ينفع يبقى بوابة بعد ما اتنضفت ١٥ غلطة TS18046 قديمة كانت بتخلّيه
+# راسب دايمًا — قبل كده مكانش ينفع يتحط هنا أصلاً لأنه كان هيفشل على كود شغّال.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/functions/**"
+      - ".github/workflows/edge-functions.yml"
+  pull_request:
+    paths:
+      - "supabase/functions/**"
+      - ".github/workflows/edge-functions.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      # نفس الترتيب اللي بيتعمل محليًا: التحقق من الأنواع الأول، وبعدين الاختبارات.
+      # فشل التحقق بيوقّف الشغل قبل ما الاختبارات تدّي رسالة أقل وضوحًا.
+      - name: Type-check zad-brain
+        working-directory: supabase/functions/zad-brain
+        run: deno check index.ts callModel.ts validators.ts shared.ts audit.ts
+
+      - name: Test zad-brain
+        working-directory: supabase/functions/zad-brain
+        run: deno test --allow-all
+
+      - name: Type-check zad-core-intelligence
+        working-directory: supabase/functions/zad-core-intelligence
+        run: deno check index.ts redact.ts
+
+      - name: Test zad-core-intelligence
+        working-directory: supabase/functions/zad-core-intelligence
+        run: deno test --allow-all
+
+      - name: Type-check delete-account
+        working-directory: supabase/functions/delete-account
+        run: deno check index.ts
+
+      - name: Type-check zad-telegram-bot
+        working-directory: supabase/functions/zad-telegram-bot
+        run: deno check index.ts

@@ -84,7 +84,7 @@ Deno.serve(async (req: Request) => {
 
     return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
-    console.error(`[DeleteAccount] Error: ${e.message}`);
-    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsHeaders });
+    console.error(`[DeleteAccount] Error: ${(e as Error).message}`);
+    return new Response(JSON.stringify({ error: (e as Error).message }), { status: 500, headers: corsHeaders });
   }
 });
