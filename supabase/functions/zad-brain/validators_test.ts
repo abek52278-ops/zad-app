@@ -997,3 +997,28 @@ Deno.test("family_digest قراءة بس — مش في MUTATING_TOOLS ولا م�
   const r = await VALIDATORS.family_digest({}, {}, freshContext("u"));
   assertEquals(r.ok, true);
 });
+
+// ── find_nearby_stores / check_price_online ─────────────────────────────────
+// الاتنين قراءة بس، لكن كل نداء بيطلق طلب شبكة خارجي (Overpass/LocationIQ أو بحث سعر)
+// من جوّه لفة الأدوات — فالحد مش تجميلي، هو اللي بيمنع لفة واحدة تفضل تدوّر.
+
+Deno.test("find_nearby_stores بيقف عند مرتين في اللفة", async () => {
+  const ctx = freshContext("u");
+  assertEquals((await VALIDATORS.find_nearby_stores({ tag: "supermarket" }, {}, ctx)).ok, true);
+  ctx.counts["find_nearby_stores"] = 2;
+  assertEquals((await VALIDATORS.find_nearby_stores({ tag: "supermarket" }, {}, ctx)).ok, false);
+});
+
+Deno.test("check_price_online بيرفض اسم صنف قصير وبيقف عند ٣", async () => {
+  const ctx = freshContext("u");
+  assertEquals((await VALIDATORS.check_price_online({ item_name: "لبن" }, {}, ctx)).ok, true);
+  assertEquals((await VALIDATORS.check_price_online({ item_name: "ل" }, {}, ctx)).ok, false);
+  assertEquals((await VALIDATORS.check_price_online({}, {}, ctx)).ok, false);
+  ctx.counts["check_price_online"] = 3;
+  assertEquals((await VALIDATORS.check_price_online({ item_name: "لبن" }, {}, ctx)).ok, false);
+});
+
+Deno.test("الاتنين مش في MUTATING_TOOLS — مفيش كتابة على بيانات العميل", () => {
+  assertEquals(MUTATING_TOOLS.includes("find_nearby_stores"), false);
+  assertEquals(MUTATING_TOOLS.includes("check_price_online"), false);
+});

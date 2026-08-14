@@ -242,6 +242,39 @@ function detectCycleStartDay(incomeTx: Array<{ created_at: string }>): number | 
   return bestDay;
 }
 
+/**
+ * نداء zad-core-intelligence من جوّه العقل.
+ *
+ * قدرات زي `nearby_pois` و`estimate_price` و`fetch_live_deals` مبنية هناك من زمان
+ * ومكانش للعقل أي طريقة يوصلها — كانت بتتنادى من التطبيق مباشرة بس، فالعقل عمره ما
+ * قدر يرشّح محل ولا يقارن سعر. النداء بمفتاح service_role لأن الدالة دي `verify_jwt`.
+ */
+async function callCoreIntel(action: string, payload: unknown, userId: string): Promise<any | null> {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/zad-core-intelligence`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "authorization": `Bearer ${SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify({ action, user_id: userId, payload }),
+      signal: AbortSignal.timeout(25_000),
+    });
+    if (!res.ok) {
+      console.error(`callCoreIntel ${action} → ${res.status}`);
+      return null;
+    }
+    return await res.json();
+  } catch (e) {
+    console.error(`callCoreIntel ${action} failed:`, (e as Error).message);
+    return null;
+  }
+}
+
+// الموقع بيتقادم بسرعة. تثبيتة عمرها يوم بتخلي "عدّي على المحل اللي جنبك" نصيحة واثقة
+// عن مكان العميل مشي منه امبارح — وده أوحش من إننا نقول مش عارفين هو فين.
+const LOCATION_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
 async function buildSnapshot(sb: SupabaseClient, userId: string) {
   const cashKey = isoWeekKey(new Date());
   const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes, askedRes, selfMemRes, cashBalRes, cashAskedRes, obligRes, debtRes, maintRes, behaviorRes, notifRes, doseRes, budgetRes, obsRes, lifeRes] =
@@ -1511,6 +1544,31 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       const when = new Date(newRow.scheduled_for).toLocaleString("ar-EG", { timeZone: "UTC", hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" });
       return `تمام، هعمل ده الساعة ${when} وهبعتلك النتيجة`;
     }
+    case "find_nearby_stores": {
+      const { data: prof } = await sb.from("zad_users")
+        .select("last_lat,last_lon,last_location_at").eq("id", userId).maybeSingle();
+      const p = prof as { last_lat: number | null; last_lon: number | null; last_location_at: string | null } | null;
+      if (!p?.last_lat || !p?.last_lon || !p?.last_location_at) {
+        return "مفيش موقع محفوظ للعميل — قوله إنك مش عارف هو فين دلوقتي، متخمّنش محل.";
+      }
+      if (Date.now() - new Date(p.last_location_at).getTime() > LOCATION_MAX_AGE_MS) {
+        return "آخر موقع للعميل قديم (أكتر من ٦ ساعات) — متبنيش عليه ترشيح محل.";
+      }
+      const res = await callCoreIntel("nearby_pois", {
+        lat: p.last_lat, lon: p.last_lon,
+        tag: input.tag, radius_meters: input.radius_meters ?? 3000,
+      }, userId);
+      const stores = (res?.stores ?? []) as unknown[];
+      if (stores.length === 0) return "مفيش محلات قريبة اتلاقت — متخترعش اسم محل.";
+      return JSON.stringify(stores.slice(0, 5));
+    }
+    case "check_price_online": {
+      const res = await callCoreIntel("estimate_price", {
+        item_name: input.item_name, store: input.store ?? "",
+      }, userId);
+      if (!res || res.ok === false) return "مقدرتش أتأكد من السعر — متقولش رقم من عندك.";
+      return JSON.stringify(res);
+    }
     case "family_digest": {
       // الأرقام مجمّعة عن قصد: الأب يشوف "أحمد صرف ٨٠٪ من سقفه"، مش معاملاته واحدة واحدة.
       // ده اللي بيخلي الميزة دي ملخّص عيلة مش أداة مراقبة.
@@ -2116,6 +2174,35 @@ const CHAT_TOOLS: ToolDef[] = [
     name: "query_family",
     description: "اقرا حالة العيلة والأولاد (عددهم، أدوارهم، أرصدتهم). نادِها لما العميل يسأل عن عيلته أو أولاده.",
     input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "find_nearby_stores",
+    description:
+      "دوّر على محلات قريبة من العميل (سوبرماركت/صيدلية/مخبز...). نادِها لما تقترح إنه " +
+      "يعدّي يجيب النواقص أو يشتري حاجة. لو رجّعت مفيش موقع حديث، قول للعميل إنك مش عارف " +
+      "هو فين دلوقتي بدل ما تخمّن محل.",
+    input_schema: {
+      type: "object",
+      properties: {
+        tag: { type: "string", enum: ["supermarket", "pharmacy", "bakery", "convenience", "cafe", "restaurant"] },
+        radius_meters: { type: "number", description: "افتراضي ٣٠٠٠" },
+      },
+      required: ["tag"],
+    },
+  },
+  {
+    name: "check_price_online",
+    description:
+      "قدّر سعر منتج من السوق. نادِها قبل ما تقول للعميل إن حاجة غالية أو رخيصة — " +
+      "متقولش رقم من عندك. لو رجّعت مفيش نتيجة، قول إنك مش قادر تتأكد من السعر.",
+    input_schema: {
+      type: "object",
+      properties: {
+        item_name: { type: "string" },
+        store: { type: "string", description: "اختياري" },
+      },
+      required: ["item_name"],
+    },
   },
   {
     name: "family_digest",

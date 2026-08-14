@@ -601,6 +601,16 @@ export const VALIDATORS: Record<string, Validator> = {
   link_memory: validateLinkMemory,
   // قراءة بس — مفيش كتابة ولا حد استدعاء، زي query_family بالظبط.
   family_digest: () => ({ ok: true }),
+  // قراءة بس، بس بحد أقصى عشان ماتتنادش في لفة واحدة كذا مرة وتحرق كوتة على نداءات
+  // شبكة خارجية (Overpass/LocationIQ) بدل ما الموديل يرد.
+  find_nearby_stores: (_i, _s, ctx) =>
+    (ctx.counts["find_nearby_stores"] ?? 0) >= 2
+      ? { ok: false, reason: "بحثت عن محلات مرتين خلاص في اللفة دي" } : { ok: true },
+  check_price_online: (i, _s, ctx) => {
+    if ((ctx.counts["check_price_online"] ?? 0) >= 3) return { ok: false, reason: "وصلت لحد ٣ استعلامات سعر في المرة" };
+    if (!i.item_name || String(i.item_name).trim().length < 2) return { ok: false, reason: "اسم الصنف قصير أوي" };
+    return { ok: true };
+  },
   merge_duplicate_expense: () => ({ ok: true }),
   reconcile_cash_balance: validateReconcileCashBalance,
   confirm_cycle_start: validateConfirmCycleStart,
