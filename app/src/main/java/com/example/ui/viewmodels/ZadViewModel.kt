@@ -340,6 +340,19 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // اللي زاد اتعلمه عن العميل (`zad_memory`). بيتحقن في `buildFullChatContext` عشان شات
+    // التطبيق يبقى فاكر نفس اللي بوت تيليجرام والعقل فاكرينه — كان ده الفرق الوحيد بين
+    // "الوكيل فاكرني" و"الوكيل بيسألني نفس السؤال كل مرة".
+    private val _memoryNotes = MutableStateFlow<List<com.example.data.ZadMemoryNote>>(emptyList())
+    val memoryNotes: StateFlow<List<com.example.data.ZadMemoryNote>> = _memoryNotes.asStateFlow()
+
+    fun loadMemoryNotes() {
+        viewModelScope.launch {
+            _memoryNotes.value = SupabaseRepo.getMemoryNotes()
+            Log.d(TAG, "loadMemoryNotes() → count=${_memoryNotes.value.size}")
+        }
+    }
+
     fun loadObligations() {
         viewModelScope.launch {
             _obligations.value = SupabaseRepo.getObligations()
@@ -609,6 +622,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         loadHabitChips()
         loadCycleSettings()
         loadObligations()
+        loadMemoryNotes()
         // Task 20 — تحميل نافذة/تسامح الـ dedupe الخاصين ببلد المستخدم. بيكاش محلياً، فمسار
         // الخلفية (bank listener) بيلاقيه جاهز حتى لو التطبيق مقفول وقت وصول المعاملة.
         viewModelScope.launch {
@@ -949,6 +963,18 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             "- ${it.category}: متوسط ${com.example.data.CurrencyFormatter.format(ctx, it.avgAmount)} كل ${it.frequencyDays} يوم"
         }
 
+        // نفس شكل قسم الذاكرة في بوت تيليجرام بالظبط (`zad-telegram-bot`'s "ما تعلمه زاد عن
+        // العميل") — عمداً، عشان نفس السؤال ياخد نفس الإجابة على السطحين. الدليل بيتعرض مع
+        // الملاحظة لأن ملاحظة اتأكدت ٩ مرات مش زي ملاحظة اتقالت مرة، والموديل لازم يفرّق.
+        val memoryText = _memoryNotes.value.joinToString("\n") { m ->
+            val strength = when {
+                m.evidenceCount >= 5 -> "مؤكدة"
+                m.evidenceCount >= 2 -> "متكررة"
+                else -> "ملاحظة أولية"
+            }
+            "- [${m.scope}] ${m.note} ($strength، اتأكدت ${m.evidenceCount} مرة)"
+        }
+
         val report = _brainReport.value
         val brainText = report?.let { r ->
             buildString {
@@ -1023,6 +1049,9 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
             === أنماط سلوكية متعلمة ===
             ${patternsText.ifBlank { "لا توجد أنماط بعد." }}
+
+            === ما تعلمه زاد عن العميل ===
+            ${memoryText.ifBlank { "لم يتعلم زاد شيئاً بعد — لا تدّعِ إنك فاكر حاجة مش مكتوبة هنا." }}
 
             === تقرير العقل المركزي ===
             ${brainText.ifBlank { "لم يُحسب بعد." }}

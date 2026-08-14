@@ -536,6 +536,21 @@ data class UnparsedNotificationPayload(
 )
 
 /**
+ * ملاحظة واحدة من `zad_memory` — اللي زاد اتعلمه عن العميل.
+ *
+ * `confidence` و`evidenceCount` مش زينة: `zad_memory_upsert` بيزوّد `evidence_count` لما نفس
+ * الملاحظة تتكرر بدل ما يكتب صف جديد، فالملاحظة بتتقوّى مع الوقت. ده الوزن الوحيد الحقيقي
+ * في "الشبكة" — فبيتعرض للموديل صراحةً عشان يفرّق بين ملاحظة اتقالت مرة وملاحظة اتأكدت ٩ مرات.
+ */
+@Serializable
+data class ZadMemoryNote(
+    val scope: String = "",
+    val note: String = "",
+    val confidence: Double = 0.0,
+    @SerialName("evidence_count") val evidenceCount: Int = 1
+)
+
+/**
  * سجل رسايل بنكية محتاجة مراجعة — غرضين مختلفين بنفس الشكل:
  * 1. OTP/DECLINED/EXPIRED/PROMO: اتّرفضت كضجيج قبل أي تحليل. الغرض: التأكد إن الفلتر مش
  *    بيبلع عمليات حقيقية غلط — لو مستخدم اشتكى "معاملة ضاعت"، الجدول ده أول مكان تتفقده.

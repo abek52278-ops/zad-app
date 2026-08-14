@@ -911,6 +911,31 @@ object SupabaseRepo {
     // confirmed=true بتدخل في committed/available (BudgetMath.availableInCycle) — صفوف
     // auto_detected=false confirmed اتسجلت مباشرة برضو، confirmed=false لسه مستني تأكيد
     // العميل عن طريق زاد-برين، فبيتقروا هنا بس مايتحسبوش في "محجوز".
+    /**
+     * اللي زاد اتعلمه عن العميل — نفس الجدول اللي `zad-brain`'s `buildSnapshot` وبوت تيليجرام
+     * بيقروا منه، بنفس الأعمدة بالظبط. كان بيتكتب من تلات مصادر (أداة `remember`، رفض
+     * التنبيهات عبر `DismissalMemory`، و`zad_memory_upsert` المباشر) لكن **شات التطبيق كان
+     * الوحيد اللي مابيقراهوش** — فنفس السؤال كان بياخد إجابة "فاكرة" في تيليجرام و"ناسية"
+     * في التطبيق. مرتّبة بالثقة × الدليل عشان لو اتقصّت، اللي يتقصّ هو الأضعف.
+     */
+    suspend fun getMemoryNotes(limit: Long = 25): List<ZadMemoryNote> {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id ?: return emptyList()
+            val result = client.postgrest["zad_memory"].select(
+                columns = Columns.list("scope", "note", "confidence", "evidence_count")
+            ) {
+                filter { eq("user_id", userId) }
+                order("confidence", Order.DESCENDING)
+                limit(limit)
+            }.decodeList<ZadMemoryNote>()
+            Log.d(TAG, "getMemoryNotes() → returned ${result.size} notes")
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "getMemoryNotes() FAILED: ${e.message}")
+            emptyList()
+        }
+    }
+
     suspend fun getObligations(): List<ZadObligation> {
         return try {
             val userId = client.auth.currentUserOrNull()?.id
