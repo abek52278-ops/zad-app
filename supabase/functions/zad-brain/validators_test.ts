@@ -16,6 +16,7 @@ import {
   MUTATING_TOOLS,
   VALIDATORS,
   freshContext,
+  looksLikeAnsweredQuestion,
   validateLogPharmacyDose,
   validateDeletePharmacyItem,
   validateScheduleTask,
@@ -896,4 +897,28 @@ Deno.test("schedule_task counts as a mutation, is not confirm-gated, and caps at
   const future = new Date(Date.now() + 3600_000).toISOString();
   const v = await validateScheduleTask({ task_description: "راجع مصاريف الأسبوع ده", run_at: future }, {}, ctx);
   assertEquals(v.ok, false);
+});
+
+Deno.test("looksLikeAnsweredQuestion يمسك رد العميل من النسخة المتسطبة دلوقتي", () => {
+  // النص بالظبط زي ما ZadViewModel.answerBrainQuestion بتبنيه
+  const msg = 'العميل جاوب على سؤال: "معاملة بنكية محتاجة تأكيد — وصل إشعار..." (بخصوص: ...). الإجابة: لأ';
+  assertEquals(looksLikeAnsweredQuestion("event", msg), true);
+});
+
+Deno.test("looksLikeAnsweredQuestion بيثق في العلم الصريح مهما كان النص أو الـ trigger", () => {
+  assertEquals(looksLikeAnsweredQuestion("daily", "أي كلام", true), true);
+  assertEquals(looksLikeAnsweredQuestion("chat", undefined, true), true);
+});
+
+Deno.test("looksLikeAnsweredQuestion مابيتلغبطش في رسايل عادية", () => {
+  assertEquals(looksLikeAnsweredQuestion("event", "العميل قرب من محل بقالة"), false);
+  assertEquals(looksLikeAnsweredQuestion("chat", "صرفت ٥٠ بقالة"), false);
+  // نفس البادئة بس trigger مختلف — الشات ليه مساره وحلقته
+  assertEquals(looksLikeAnsweredQuestion("chat", "العميل جاوب على سؤال: ..."), false);
+  assertEquals(looksLikeAnsweredQuestion("event", undefined), false);
+  assertEquals(looksLikeAnsweredQuestion("event", 42), false);
+});
+
+Deno.test("looksLikeAnsweredQuestion بيتحمّل مسافة بادئة", () => {
+  assertEquals(looksLikeAnsweredQuestion("event", "\n  العميل جاوب على سؤال: تمام"), true);
 });

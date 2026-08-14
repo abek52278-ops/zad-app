@@ -639,3 +639,27 @@ export async function validateTool(name: string, input: any, snap: any, ctx: Run
   }
   return v;
 }
+
+/**
+ * هل اللفة دي رد العميل على سؤال العقل؟
+ *
+ * لو أيوة، غياب `remember()` فشل حقيقي: الإجابة بتتنفّذ وبتترمي، فنفس السؤال بيترجع
+ * الشهر الجاي. (الدليل: `zad_memory` فيه ٤ صفوف كلهم من رفض تنبيهات، ولا صف من إجابة.)
+ *
+ * الكشف بطريقتين عن قصد:
+ *  - `answered_question: true` — العقد الصريح، للنسخ الجاية من التطبيق.
+ *  - بادئة النص اللي `ZadViewModel.answerBrainQuestion` بيبنيها — ربط هش بين رانتايمين
+ *    على نص حرفي، بس هو الوحيد اللي بيشتغل مع النسخة **المتسطبة على أجهزة الناس دلوقتي**.
+ *    من غيره الميزة تفضل ميتة لحد ما كل واحد يحدّث التطبيق. بيتشال لما العلم يبقى منتشر.
+ */
+export const ANSWER_PREFIX = "العميل جاوب على سؤال:";
+
+export function looksLikeAnsweredQuestion(
+  trigger: string,
+  userMessage: unknown,
+  explicitFlag?: unknown,
+): boolean {
+  if (explicitFlag === true) return true;
+  if (trigger !== "event") return false;
+  return typeof userMessage === "string" && userMessage.trimStart().startsWith(ANSWER_PREFIX);
+}

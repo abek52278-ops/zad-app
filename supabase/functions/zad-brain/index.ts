@@ -54,7 +54,7 @@
 // before any tool executes. Model adapter (STEP 0) lives in callModel.ts.
 
 import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
-import { CONFIRM_REQUIRED_TOOLS, freshContext, RunContext, validateTool } from "./validators.ts";
+import { CONFIRM_REQUIRED_TOOLS, freshContext, looksLikeAnsweredQuestion, RunContext, validateTool } from "./validators.ts";
 import { callModel, smokeTestTools, Turn, ToolDef } from "./callModel.ts";
 import { decideOnBrainFailure, hasRecentMutatingRun } from "./shared.ts";
 import { AgentSource, AuditScope, recordAction, writeRows } from "./audit.ts";
@@ -2868,6 +2868,41 @@ Deno.serve(async (req: Request) => {
     const falseAlarms = (snap.self_review?.velocity_warnings?.incorrect ?? 0) +
                         (snap.self_review?.low_stock_warnings?.incorrect ?? 0);
     const wroteRemember = (ctx.counts["remember"] ?? 0) > 0;
+
+    // الحالة التانية اللي غياب remember() فيها فشل حقيقي: العميل لسه جاوب على سؤال.
+    //
+    // الإجابة دلوقتي بتتنفّذ وبتترمي — بتتسجّل المعاملة، ومفيش قاعدة بتتكتب. فنفس
+    // الإشعار بنفس الصيغة من نفس البنك الشهر الجاي بيبقى غامض تاني ويتسأل تاني، للأبد.
+    // الدليل في البيانات الحيّة: zad_memory فيه ٤ صفوف كلهم من رفض تنبيهات — ولا صف
+    // واحد جاي من إجابة.
+    //
+    // الإجبار هنا مش تشدّد زيادة: نفس منطق Task 18.4 فوق بالظبط (التعليمات وحدها مش
+    // كفاية على الموديلات الصغيرة)، متطبّق على الحالة اللي بتحدد إحساس المستخدم إن
+    // الوكيل بيتعلّم ولا بيسأل نفس السؤال كل شهر.
+    const isAnswerToQuestion = looksLikeAnsweredQuestion(trigger, userMessage, body.answered_question);
+
+    if (isAnswerToQuestion && !wroteRemember) {
+      const rememberOnly = TOOLS.filter((t) => t.name === "remember");
+      history.push({
+        role: "user",
+        text: "العميل جاوب على سؤالك. اكتب القاعدة العامة اللي اتعلمتها من الإجابة دي بـ remember " +
+          "عشان متسألش نفس السؤال تاني — مش الواقعة نفسها. مثال: مش \"معاملة ٢٠٠ كانت سحب\" " +
+          "لكن \"إشعارات البنك ده اللي فيها كلمة كذا معناها سحب\". لو الإجابة فعلاً مالهاش قاعدة " +
+          "عامة تتعلم منها، ماتنادش أي أداة. مفيش أدوات تانية في اللفة دي.",
+      });
+      try {
+        const forced = await callModel({ model: MODEL_ROUTINE, system: systemPrompt, tools: rememberOnly, history, maxTokens: 400 });
+        inputTokens += forced.usage.inTok;
+        outputTokens += forced.usage.outTok;
+        for (const call of forced.toolCalls.filter((c) => c.name === "remember")) {
+          const result = await runTool(sb, userId, call.name, call.input, snap, ctx, scope);
+          if (!result.startsWith("مرفوض:")) executedSummaries.push(result);
+        }
+      } catch (e) {
+        console.error("forced remember-from-answer turn failed:", e);
+      }
+    }
+
     if (falseAlarms >= 2 && !wroteRemember && !snap.wrote_self_lesson_recently) {
       const rememberOnly = TOOLS.filter((t) => t.name === "remember");
       history.push({
