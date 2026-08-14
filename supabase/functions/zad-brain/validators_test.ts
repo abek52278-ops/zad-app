@@ -990,3 +990,10 @@ Deno.test("link_memory مش في MUTATING_TOOLS — ذاكرة مش بيانات
   assertEquals(MUTATING_TOOLS.includes("link_memory"), false);
   assertEquals(MUTATING_TOOLS.includes("remember"), false);
 });
+
+Deno.test("family_digest قراءة بس — مش في MUTATING_TOOLS ولا محتاج تأكيد", async () => {
+  assertEquals(MUTATING_TOOLS.includes("family_digest"), false);
+  assertEquals(CONFIRM_REQUIRED_TOOLS.includes("family_digest"), false);
+  const r = await VALIDATORS.family_digest({}, {}, freshContext("u"));
+  assertEquals(r.ok, true);
+});

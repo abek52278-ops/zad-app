@@ -599,6 +599,8 @@ export const VALIDATORS: Record<string, Validator> = {
   delete_shopping_item: validateDeleteShoppingItem,
   remember: validateRemember,
   link_memory: validateLinkMemory,
+  // قراءة بس — مفيش كتابة ولا حد استدعاء، زي query_family بالظبط.
+  family_digest: () => ({ ok: true }),
   merge_duplicate_expense: () => ({ ok: true }),
   reconcile_cash_balance: validateReconcileCashBalance,
   confirm_cycle_start: validateConfirmCycleStart,

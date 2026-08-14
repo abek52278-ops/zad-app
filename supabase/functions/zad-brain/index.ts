@@ -1506,6 +1506,15 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       const when = new Date(newRow.scheduled_for).toLocaleString("ar-EG", { timeZone: "UTC", hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" });
       return `تمام، هعمل ده الساعة ${when} وهبعتلك النتيجة`;
     }
+    case "family_digest": {
+      // الأرقام مجمّعة عن قصد: الأب يشوف "أحمد صرف ٨٠٪ من سقفه"، مش معاملاته واحدة واحدة.
+      // ده اللي بيخلي الميزة دي ملخّص عيلة مش أداة مراقبة.
+      const { data, error } = await sb.rpc("zad_family_digest", { p_user: userId });
+      if (error) return `مقدرتش أقرا ملخّص العيلة: ${error.message}`;
+      const d = data as { in_family?: boolean; members?: unknown[] } | null;
+      if (!d?.in_family) return "العميل مش منضم لعيلة في التطبيق.";
+      return JSON.stringify(d);
+    }
     case "query_family": {
       const { data: membership } = await sb.from("family_members")
         .select("family_id").eq("user_id", userId).maybeSingle();
@@ -2101,6 +2110,14 @@ const CHAT_TOOLS: ToolDef[] = [
   {
     name: "query_family",
     description: "اقرا حالة العيلة والأولاد (عددهم، أدوارهم، أرصدتهم). نادِها لما العميل يسأل عن عيلته أو أولاده.",
+    input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "family_digest",
+    description:
+      "ملخّص أفراد العيلة: صرف كل فرد آخر ٣٠ يوم ونسبته من سقفه هو، المهام اللي خلّصها، " +
+      "وسلسلة تسبيحه. نادِها لما العميل يسأل \"عيلتي عاملة إيه؟\" أو عن التزام حد بميزانيته. " +
+      "بترجّع أرقام مجمّعة بس — مفيش معاملات فردية، فمتقولش إن حد اشترى حاجة بعينها.",
     input_schema: { type: "object", properties: {} },
   },
   {
