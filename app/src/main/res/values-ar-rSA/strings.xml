@@ -959,4 +959,8 @@
     <string name="knowledge_map_legend_real">علاقة محسوبة فعلياً</string>
     <string name="knowledge_map_legend_gap">لا تزال خارج الحساب</string>
     <string name="knowledge_map_domain_empty">لا توجد عناصر هنا حالياً</string>
+    <string name="knowledge_map_node_count">%1$d عنصر متصل</string>
+    <string name="knowledge_map_open_screen">فتح الشاشة</string>
+    <string name="knowledge_map_ask_zad">اسأل زاد</string>
+    <string name="knowledge_map_legend_live">توجد رؤية حية من زاد الآن</string>
 </resources>

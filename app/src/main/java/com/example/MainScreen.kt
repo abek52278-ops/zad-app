@@ -326,7 +326,11 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                         composable(ZadRoutes.MAINTENANCE) { MaintenanceScreen(viewModel = viewModel) }
                         composable(ZadRoutes.STATEMENT) { StatementImportScreen() }
                         composable(ZadRoutes.KNOWLEDGE_MAP) {
-                            ZadKnowledgeMapScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                            ZadKnowledgeMapScreen(
+                                viewModel = viewModel,
+                                onBack = { navController.popBackStack() },
+                                onNavigateToRoute = { route -> goGuarded(route) }
+                            )
                         }
                         composable(ZadRoutes.ASSISTANT) {
                             ZadIntelligenceScreen(

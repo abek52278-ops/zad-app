@@ -1108,4 +1108,8 @@
     <string name="knowledge_map_legend_real">Gerçekten hesaplanan ilişki</string>
     <string name="knowledge_map_legend_gap">Henüz hesaba dahil değil</string>
     <string name="knowledge_map_domain_empty">Şu anda burada öğe yok</string>
+    <string name="knowledge_map_node_count">%1$d bağlı öğe</string>
+    <string name="knowledge_map_open_screen">Ekranı aç</string>
+    <string name="knowledge_map_ask_zad">Zad\'a sor</string>
+    <string name="knowledge_map_legend_live">Şu anda Zad\'dan canlı bir öngörü var</string>
 </resources>

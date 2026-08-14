@@ -93,20 +93,10 @@ class UnifiedBankListener : NotificationListenerService() {
      * treats both as restricted permissions, and a notification listener the
      * user explicitly grants covers the same ground.
      *
-     * These are listed separately from `trackedPackages` because a messaging app
-     * carries mostly non-financial traffic: a hit here still has to pass the
-     * keyword test *and* contain a parseable amount.
+     * Messaging apps aren't in `trackedPackages`, so a hit from one only passes
+     * through the generic keyword+amount check in `isFinancialNotification`,
+     * never an automatic package match.
      */
-    private val messagingPackages = listOf(
-        "com.google.android.apps.messaging",
-        "com.android.mms",
-        "com.samsung.android.messaging",
-        "com.android.messaging",
-        "com.truecaller",
-        "org.thoughtcrime.securesms",
-        "com.microsoft.android.smsorganizer",
-        "com.textra", "com.moez.QKSMS", "com.p1.chompsms"
-    )
 
     /**
      * System/OS surfaces that never carry a transaction but do carry currency-ish
