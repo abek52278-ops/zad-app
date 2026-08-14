@@ -244,7 +244,7 @@ function detectCycleStartDay(incomeTx: Array<{ created_at: string }>): number | 
 
 async function buildSnapshot(sb: SupabaseClient, userId: string) {
   const cashKey = isoWeekKey(new Date());
-  const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes, askedRes, selfMemRes, cashBalRes, cashAskedRes, obligRes, debtRes, maintRes, behaviorRes, notifRes, doseRes, budgetRes, obsRes] =
+  const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes, askedRes, selfMemRes, cashBalRes, cashAskedRes, obligRes, debtRes, maintRes, behaviorRes, notifRes, doseRes, budgetRes, obsRes, lifeRes] =
     await Promise.all([
       sb.from("zad_users").select("monthly_limit,cycle_start_day,cycle_anchor,currency,country").eq("id", userId).maybeSingle(),
       // `id` مضاف عشان set_transaction_category و update_transaction يقدروا يشاوروا على
@@ -329,6 +329,9 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
       // آخر عنصر في المصفوفة عن قصد — التفكيك هنا بالترتيب، فأي إدخال في النص بيزحلق
       // كل اللي بعده (حصل فعلاً وأنا بكتبها، والـtype-check هو اللي مسكه).
       sb.rpc("zad_domain_observations", { p_user: userId }),
+      // محفّزات نمط الحياة: شيف زاد، التسبيحة، والفايض. منفصلة عن ملاحظات المجالات لأن
+      // دي بتفتح باب لعرض (اقترح وجبة / اخرج) مش بتبلّغ عن حالة محتاجة تصرّف.
+      sb.rpc("zad_lifestyle_observations", { p_user: userId }),
     ]);
 
   // ── الحاجة اللي خلّت كل ده يفضل مستخبي سنة ──────────────────────────────
@@ -351,6 +354,7 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     "zad_insights.dismissed": "التنبيهات اللي رفضتها",
     "zad_brain_self_review": "مراجعة زاد لنفسه",
     "zad_domain_observations": "ملاحظات المجالات",
+    "zad_lifestyle_observations": "محفّزات نمط الحياة",
     "zad_insights.asked": "الأسئلة المعلقة",
     "zad_memory.self": "ملاحظات زاد عن نفسه",
     "zad_cash_balance": "رصيد الكاش",
@@ -368,7 +372,7 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     ["zad_users", userRes], ["zad_transactions", txRes], ["zad_inventory", invRes],
     ["zad_subscriptions", subRes], ["zad_pharmacy_items", pharmRes], ["zad_shopping_list", shopRes],
     ["zad_consumption", consRes], ["zad_memory", memRes], ["zad_insights.dismissed", dismissedRes],
-    ["zad_brain_self_review", selfReviewRes], ["zad_domain_observations", obsRes], ["zad_insights.asked", askedRes],
+    ["zad_brain_self_review", selfReviewRes], ["zad_domain_observations", obsRes], ["zad_lifestyle_observations", lifeRes], ["zad_insights.asked", askedRes],
     ["zad_memory.self", selfMemRes], ["zad_cash_balance", cashBalRes],
     ["zad_insights.cash_asked", cashAskedRes], ["zad_obligations", obligRes],
     ["zad_debts", debtRes], ["zad_maintenance_items", maintRes],
@@ -598,6 +602,7 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     // remember() يسجله كدرس بدل ما يكرر نفس الغلطة كل مرة.
     self_review: selfReviewRes.data ?? { velocity_warnings: { correct: 0, incorrect: 0 }, low_stock_warnings: { correct: 0, incorrect: 0 } },
     observations: obsRes.data ?? [],
+    lifestyle: lifeRes.data ?? [],
     // Task 19.5 — تسوية أسبوعية. key محسوب هنا (isoWeekKey)، مش من الموديل، عشان
     // validateAskUser يقدر يرفض أي مفتاح تاني بنفس البادئة (اختراع مفتاح غلط). dismissed_count
     // بيتحسب من dismissed_keys الموجودة فعلاً — رفضين اتنين يقفلوا السؤال نهائي (validators.ts).
@@ -2723,6 +2728,14 @@ remember مش للأرقام. للأنماط:
 - سلوك متكرر ("بيصرف أكتر آخر الشهر")
 - تفضيلات ("مش مهتم بتنبيهات الاشتراكات")
 - دروس عن نفسك ("تحذيراتي عن سرعة الصرف طلعت غلط ٣ مرات")
+
+lifestyle جوه الـ snapshot محفّزات عرض مش تبليغ حالة — تعامل معاها كفرصة مش كإنذار:
+- chef/use_before_gone: اقترح وجبة من الأصناف دي بالظبط. متقترحش صنف مش في القايمة.
+- budget/surplus: الرقم ده هو اللي **زيادة** عن باقي الدورة، فينفع تقترح بيه حاجة
+  (خروجة، تذكرة). متقولش الرقم ده "متاح للصرف كله" — هو فايض فوق المعدل، والباقي محجوز
+  لباقي الأيام. ولو العميل عنده التزام قريب مادفعش، ماتقترحش صرف زيادة أصلاً.
+- tasbiha/streak_at_risk: تذكير خفيف مرة واحدة، مش كل تشغيلة. لو العميل رفضها قبل كده
+  في dismissal، سيبها خالص.
 
 link_memory بيربط ملاحظتين موجودين فعلاً في memory — مش بيعمل ملاحظة جديدة.
 - استخدم الـid زي ما هو في memory بالظبط. لو الـid مش في القايمة، الأداة هترفض.
