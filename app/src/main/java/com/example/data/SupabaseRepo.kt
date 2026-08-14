@@ -50,12 +50,35 @@ object SupabaseRepo {
     // below never overrides sessionManager, so it resolves to the SDK's own default).
     // No app-side session persistence code needed — see the removed SessionHelper.
 
-    suspend fun signUp(email: String, password: String): Boolean {
-        Log.d(TAG, "signUp() → email=$email")
+    /**
+     * `name` كان بيتسأل عنه في شاشة التسجيل **وبيترمي**: `SignUpScreen` فيه حقل "اسم
+     * المستخدم" مربوط بمتغيّر `username` مكانش بيتبعت لأي حتة. فـ`zad_users.name` كان
+     * بيفضل null للأبد (٢ من ٣ حسابات حقيقية)، والشاشات كانت بتغطي على ده بعرض الجزء
+     * اللي قبل @ في الإيميل. ده على الأرجح مصدر شكوى "الاسم بيتمسح" — الاسم عمره ما اتكتب.
+     *
+     * الكتابة بتحصل بعد التسجيل مباشرة لو فيه جلسة. لو المشروع مفعّل عليه تأكيد الإيميل
+     * فمفيش جلسة لسه — الاسم بيتسجّل محلياً وقتها بدل ما يضيع تاني.
+     */
+    suspend fun signUp(email: String, password: String, name: String? = null): Boolean {
+        Log.d(TAG, "signUp() → email=$email, hasName=${!name.isNullOrBlank()}")
         return try {
             client.auth.signUpWith(Email) {
                 this.email = email
                 this.password = password
+            }
+            val cleanName = name?.trim()?.takeIf { it.isNotBlank() }
+            if (cleanName != null) {
+                val userId = client.auth.currentUserOrNull()?.id
+                if (userId != null) {
+                    try {
+                        client.postgrest["zad_users"].upsert(mapOf("id" to userId, "name" to cleanName))
+                        Log.d(TAG, "signUp() → name saved")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "signUp() name write FAILED: ${e.message}")
+                    }
+                } else {
+                    Log.w(TAG, "signUp() → no session yet (email confirmation?), name not written server-side")
+                }
             }
             Log.d(TAG, "signUp() SUCCESS")
             true
@@ -1550,6 +1573,35 @@ object SupabaseRepo {
     }
 
     /** name=null بيسيب الاسم المخزن زي ما هو — عشان أبلود صورة لوحده متمسحش الاسم لو لسه ماتحملش. */
+    /**
+     * آخر موقع معروف للعميل — الحلقة الناقصة اللي كانت بتمنع العقل يرشّح محل قريب.
+     *
+     * `nearby_pois` وأداة `find_nearby_stores` مبنيين، بس العقل شغّال على السيرفر ومالوش
+     * أي طريقة يعرف بيها العميل فين. العمودين دول هما الوصلة.
+     *
+     * **بيتنادى من مكان بياخد الموقع بالفعل** (اقتراح الخروجة/تحديث الجيوفنس) — مش
+     * بيطلب تثبيتة جديدة ولا بيضيف أي صلاحية. لو مفيش موقع، مفيش كتابة: تخزين إحداثية
+     * قديمة تاني بيخلي `last_location_at` تقول "حديث" وهي مش كده، والعقل بيرفض القديم
+     * على أساس الوقت ده بالظبط.
+     */
+    suspend fun updateLastKnownLocation(lat: Double, lon: Double): Boolean {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id ?: return false
+            client.postgrest["zad_users"].update(
+                mapOf(
+                    "last_lat" to lat,
+                    "last_lon" to lon,
+                    "last_location_at" to java.time.Instant.now().toString(),
+                )
+            ) { filter { eq("id", userId) } }
+            Log.d(TAG, "updateLastKnownLocation() → saved")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "updateLastKnownLocation() FAILED: ${e.message}")
+            false
+        }
+    }
+
     suspend fun updateUserProfile(name: String?, avatarUri: String?): Boolean {
         return try {
             val userId = client.auth.currentUserOrNull()?.id ?: return false

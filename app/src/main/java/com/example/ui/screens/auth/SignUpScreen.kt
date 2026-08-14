@@ -203,7 +203,7 @@ fun SignUpScreen(
         // same fix as LoginScreen: the label was `onSurface` on a green container
         com.example.ui.components.ZadPrimaryButton(
             text = "إنشاء حساب",
-            onClick = { viewModel.signUp(email, password) },
+            onClick = { viewModel.signUp(email, password, username) },
             modifier = Modifier.fillMaxWidth(),
             enabled = email.isNotBlank() && password.isNotBlank() && termsAgreed,
             loading = authState is AuthState.Loading

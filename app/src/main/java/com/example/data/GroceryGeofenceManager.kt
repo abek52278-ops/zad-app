@@ -130,6 +130,10 @@ object GroceryGeofenceManager {
             return@withContext false
         }
 
+        // نفس التثبيتة بتتخزّن للعقل. المسار ده بيشتغل والتطبيق مقفول، فهو أكتر مصدر
+        // بيخلّي `zad_users.last_*` حديثة — أهم من مسار الخروجة اللي بيتنادى وقت الفتح بس.
+        SupabaseRepo.updateLastKnownLocation(location.latitude, location.longitude)
+
         val geofences = mutableListOf<Geofence>()
         val idToName = JSONObject()
         for (category in GeofenceCategory.entries) {

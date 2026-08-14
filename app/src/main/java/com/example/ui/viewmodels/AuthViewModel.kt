@@ -22,10 +22,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
-    fun signUp(email: String, pass: String) {
+    fun signUp(email: String, pass: String, name: String? = null) {
         viewModelScope.launch {
             _authState.value = AuthState.Loading
-            val result = SupabaseRepo.signUp(email, pass)
+            val result = SupabaseRepo.signUp(email, pass, name)
             if (result) {
                 com.example.data.CurrentUser.cache(getApplication(), SupabaseRepo.client.auth.currentUserOrNull()?.id)
                 _authState.value = AuthState.Success

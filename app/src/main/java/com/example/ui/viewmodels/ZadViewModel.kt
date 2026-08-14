@@ -3695,6 +3695,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     com.example.data.LocationHelper.getCurrentLocation(getApplication())
                 }
                 if (location == null) { _outingSuggestion.value = null; return@launch }
+                // نفس التثبيتة اللي اتاخدت للخروجة بتتخزّن للعقل — مش نداء موقع جديد.
+                // من غير الخطوة دي `find_nearby_stores` بترد "مش عارف انت فين" للأبد،
+                // لأن الأداة اتبنت والعمودين فاضيين.
+                SupabaseRepo.updateLastKnownLocation(location.latitude, location.longitude)
                 val spots = com.example.data.LocationIqRepo.findNearbyOutingSpots(location.latitude, location.longitude)
                     .ifEmpty { com.example.data.OverpassRepo.findNearbyOutingSpots(location.latitude, location.longitude) }
                 _outingSuggestion.value = spots.firstOrNull()
