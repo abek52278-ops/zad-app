@@ -70,12 +70,26 @@ import java.util.concurrent.TimeUnit
 import com.example.workers.PeriodicAnalysisWorker
 import com.example.workers.MorningSummaryWorker
 
+import android.content.Context
 import android.content.Intent
 
 class MainActivity : ComponentActivity() {
     companion object {
         var pendingInviteCode = mutableStateOf<String?>(null)
         var openChatFromNotification = mutableStateOf(false)
+    }
+
+    /**
+     * لغة السوق المختارة بتتطبّق هنا، قبل ما أي resource يتحل.
+     *
+     * `MarketPrefs.applyStoredLocale()` في `onCreate` تحت بتفضل — هي اللي بتسجّل الاختيار
+     * على مستوى التطبيق للشاشات الجاية — بس هي لوحدها ما كانتش بتغيّر الـ Activity دي:
+     * `ComponentActivity` مالهاش `AppCompatDelegate` يلف `attachBaseContext`، والـ
+     * Resources بتكون اتحلّت خلاص وقت ما `onCreate` بيجري. فاختيار التركي كان بيتخزن
+     * وما بيبانش، رغم إن `values-tr` مترجمة بالكامل.
+     */
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(MarketPrefs.wrapWithStoredLocale(newBase))
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

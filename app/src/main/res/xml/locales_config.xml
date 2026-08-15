@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The locales this app actually ships. Referenced from AndroidManifest's
+  android:localeConfig.
+
+  Without this file, Android 13+ has no idea which languages the app supports: the
+  per-app language entry never appears in system Settings, and the framework
+  LocaleManager that AppCompatDelegate.setApplicationLocales() delegates to on API 33+
+  has nothing to validate a request against. That is half of why picking Turkish did
+  nothing even though values-tr is fully translated (1011 strings, same as the default).
+  The other half was MainActivity resolving its resources before the stored locale was
+  ever applied — see MainActivity.attachBaseContext.
+
+  Listed here are the resource folders that exist, not the markets that exist. Market has
+  entries for ar-AE, ar-KW, ar-QA and a dozen more, but they all resolve to the same
+  values-ar-rEG / values-ar-rSA / values folders, so claiming them individually would
+  advertise translations that aren't there.
+-->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="ar" />
+    <locale android:name="ar-EG" />
+    <locale android:name="ar-SA" />
+    <locale android:name="tr" />
+</locale-config>
