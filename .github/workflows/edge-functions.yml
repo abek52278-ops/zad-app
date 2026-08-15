@@ -64,3 +64,51 @@ jobs:
       - name: Test zad-telegram-bot
         working-directory: supabase/functions/zad-telegram-bot
         run: deno test --allow-all
+
+  # النشر من الريبو، بعد ما الفحص يعدي — مش من على جهاز حد.
+  #
+  # الانحراف بين الريبو والمنشور مش احتمال نظري هنا، هو حصل فعلاً: في 2026-08-01 النسخة
+  # المنشورة v89 كانت فقدت أكشن nearby_pois وبرومبتات الفاتورة المتشددة وحواجز
+  # "متقترحش إلغاء التزام ثابت" — وكلهم كانوا موجودين في git. وCLAUDE.md لسه بيقول
+  # "قارن المنشور بالريبو قبل ما تفترض إن أي طرف هو المرجع"، وهي نصيحة صحيحة بس بتعالج
+  # العرض. السبب إن النشر كان خطوة يدوية منفصلة عن الفحص.
+  #
+  # بيشتغل على main بس، ومربوط بنجاح check — كود مايعديش الأنواع أو التستات مابيوصلش
+  # للإنتاج. الـ migrations بتتدفع في نفس الخطوة عشان السكيما والكود اللي بيعتمد عليها
+  # ما يتفرقوش (زي zad_subscription_next_renewal اللي الفانكشن محتاجاها موجودة).
+  deploy:
+    needs: check
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # الـ project ref مش سر — هو موجود في supabase/config.toml في الريبو أصلاً، وRLS هي
+      # الحماية مش خفاء المعرّف. قراءته من الملف بدل سر إضافي معناها سر أقل ممكن ينسى
+      # يتحط فيفشل النشر لسبب مالوش علاقة بالكود.
+      - name: Read project ref
+        run: echo "PROJECT_REF=$(grep -oP '(?<=^id = ")[^"]+' supabase/config.toml)" >> "$GITHUB_ENV"
+
+      - name: Push migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          supabase link --project-ref "$PROJECT_REF"
+          supabase db push
+
+      - name: Deploy edge functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          for fn in zad-brain zad-core-intelligence zad-telegram-bot delete-account; do
+            echo "::group::deploy $fn"
+            supabase functions deploy "$fn" --project-ref "$PROJECT_REF"
+            echo "::endgroup::"
+          done

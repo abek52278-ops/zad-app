@@ -1,2 +1,29 @@
 [project]
 id = "auuftqncrjsnyylolhbu"
+
+# JWT verification per function, declared because `supabase functions deploy` applies
+# these on every deploy and defaults to `verify_jwt = true` for anything it does not find
+# here. Two of these functions run with it OFF on purpose, and letting the CLI's default
+# silently turn it on would break them:
+#
+#   zad-telegram-bot   Telegram's webhook posts with no Authorization header at all.
+#                      Requiring a JWT would reject every update and kill the bot.
+#   zad-brain          Called by the Telegram bot and by cron paths that carry their own
+#                      shared-secret headers rather than a user JWT; it authenticates
+#                      callers itself.
+#
+# The values here are the ones the project is actually running (read back from the
+# deployed functions on 2026-08-15), not aspirations — this file exists to keep automated
+# deploys from changing behaviour nobody asked to change.
+
+[functions.zad-core-intelligence]
+verify_jwt = true
+
+[functions.zad-brain]
+verify_jwt = false
+
+[functions.delete-account]
+verify_jwt = true
+
+[functions.zad-telegram-bot]
+verify_jwt = false
