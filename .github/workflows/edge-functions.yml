@@ -8,15 +8,24 @@ name: Edge Functions
 # `deno check` بقى ينفع يبقى بوابة بعد ما اتنضفت ١٥ غلطة TS18046 قديمة كانت بتخلّيه
 # راسب دايمًا — قبل كده مكانش ينفع يتحط هنا أصلاً لأنه كان هيفشل على كود شغّال.
 
+# الفلتر ده كان على `supabase/functions/**` بس، ودي بقت غلطة أول ما الـ job بتاع النشر
+# بقى بيدفع الـ migrations كمان: تعديل على `supabase/migrations/**` لوحده ماكانش بيشغّل
+# الـ workflow أصلاً، يعني migration جديد ممكن يتدمج في main ويقعد مستني للأبد لحد ما حد
+# يصادف إنه يعدّل فانكشن. `config.toml` مضافة لنفس السبب — هي اللي فيها verify_jwt
+# وproject id، وتغييرها لازم يوصل الإنتاج.
 on:
   push:
     branches: [main]
     paths:
       - "supabase/functions/**"
+      - "supabase/migrations/**"
+      - "supabase/config.toml"
       - ".github/workflows/edge-functions.yml"
   pull_request:
     paths:
       - "supabase/functions/**"
+      - "supabase/migrations/**"
+      - "supabase/config.toml"
       - ".github/workflows/edge-functions.yml"
   workflow_dispatch: {}
 
@@ -78,7 +87,10 @@ jobs:
   # ما يتفرقوش (زي zad_subscription_next_renewal اللي الفانكشن محتاجاها موجودة).
   deploy:
     needs: check
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # `workflow_dispatch` مسموح كمان، مش `push` بس. من غيره التشغيل اليدوي من تبويب
+    # Actions بيعمل الفحص ويتخطى النشر بصمت — وهو بالظبط الزرار اللي حد هيدوس عليه لما
+    # يعوز ينشر من غير ما يستنى تعديل جديد.
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
