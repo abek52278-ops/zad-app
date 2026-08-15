@@ -2934,11 +2934,33 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     // (item.createdAt القديم فاضل زي ما هو) كانت مالهاش تأثير على الرقم المعروض، وتعبئتين
     // في نفس الشهر كان التانية بتمسح سعر الأولى (price بيتكتب فوق مش بيتجمع). نفس مبدأ
     // BudgetMath (Task 19.0): مصدر واحد للحقيقة، هنا دفتر المعاملات مش حالة العنصر.
-    private fun recalculateMonthlyPharmaCost(transactions: List<ZadTransaction>) {
+    /**
+     * التكلفة الشهرية للصيدلية = اللي اتصرف فعلاً هذا الشهر + المتوقع من الأدوية المزمنة.
+     *
+     * كانت بتجمع المعاملات وبس. و`ZadPharmacyItem` فيه `price` و`isRecurring` والتعليق
+     * جنبهم مكتوب فيه حرفياً "يدخل في حساب التكلفة الشهرية" — ومحدش كان بيقراهم. فبيت
+     * عنده تلات أدوية مزمنة بروشتة متجددة كان بيشوف "التكلفة الشهرية ٠" لحد ما يصادف
+     * يسجّل معاملة صيدلية بإيده. الرقم مكانش غلط، كان بيقيس حاجة تانية غير اللي اسمه.
+     *
+     * الدواء المزمن بيتحسب بسعره كتكلفة شهرية متكررة — ده افتراض إن العلبة بتتجدد كل
+     * شهر، وهو الشائع في الروشتات المزمنة. مش دقيق لكل دواء، وأقرب بكتير من صفر.
+     * الدواء اللي `price = 0` مابيتحسبش: سعر مش متسجّل معناه "مش عارفين"، مش "ببلاش".
+     *
+     * الأدوية المزمنة بتتحسب مرة واحدة بس — لو اتسجّلت معاملة صيدلية هذا الشهر بالفعل،
+     * التقدير بيتشال عشان مايتحسبش مرتين.
+     */
+    private fun recalculateMonthlyPharmaCost(
+        transactions: List<ZadTransaction>,
+        pharmacy: List<com.example.data.ZadPharmacyItem> = _pharmacyItems.value,
+    ) {
         val monthStart = java.time.LocalDate.now().withDayOfMonth(1)
-        _monthlyPharmaCost.value = transactions
+        val actuallySpent = transactions
             .filter { it.txnKind == "expense" && it.category == PHARMACY_BUDGET_CATEGORY && (com.example.data.BudgetMath.txDate(it) ?: java.time.LocalDate.now()) >= monthStart }
             .sumOf { it.amount }
+        val expectedRecurring = if (actuallySpent > 0.0) 0.0 else {
+            pharmacy.filter { it.isRecurring && it.price > 0.0 }.sumOf { it.price }
+        }
+        _monthlyPharmaCost.value = (actuallySpent + expectedRecurring).asMoney()
     }
 
     fun addMaintenanceItem(item: ZadMaintenanceItem) {
