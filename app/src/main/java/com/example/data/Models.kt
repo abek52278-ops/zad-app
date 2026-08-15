@@ -172,7 +172,16 @@ data class ZadTransaction(
     // Market الحالي وقت العرض. null = مش معروفة (كل الصفوف القديمة، ورسايل من غير رمز
     // عملة صريح) — CurrencyFormatter.format(context, tx) بيرجع لعملة الـ Market في الحالة
     // دي، مفيش تغيير سلوك بأثر رجعي.
-    @SerialName("currency") val currency: String? = null
+    @SerialName("currency") val currency: String? = null,
+    // معاملة وصلت بعملة غير عملة الحساب بتتحوّل مرة واحدة عند الكتابة (trigger
+    // zad_transactions_normalize_currency)، فـ`amount` دايماً بعملة الحساب وكل قارئ بيبقى
+    // صح من غير ما يعرف حاجة عن العملات. الأصل بيتحفظ هنا عشان الإيصال يفضل ينفع يتعرض
+    // بقيمته الحقيقية، وعشان معدل صرف غلط يتصحح بعدين بدل ما يكون دمّر المصدر.
+    //
+    // الحقلين دول لازم يفضلوا موجودين هنا حتى لو الشاشات ماستخدمتهمش: `select()` بيرجع كل
+    // الأعمدة، وموديل ناقص عمود موجود في الجدول ممكن يفشل فك التسلسل.
+    @SerialName("original_amount") val originalAmount: Double? = null,
+    @SerialName("original_currency") val originalCurrency: String? = null
 )
 
 /** Task 22 — نتيجة صف واحد من zad_habit_chips() RPC. label بيكون العنوان (title) لو موجود، وإلا الفئة */
