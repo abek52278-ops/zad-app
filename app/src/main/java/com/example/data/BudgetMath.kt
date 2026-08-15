@@ -249,7 +249,14 @@ object BudgetMath {
     fun nextRenewalDate(sub: ZadSubscription, asOf: LocalDate = LocalDate.now()): LocalDate? {
         val raw = sub.renewalDate?.trim().orEmpty()
         val iso = raw.take(10).let { try { LocalDate.parse(it) } catch (e: Exception) { null } }
-        val dayOfMonth = sub.dueDay
+        // اليوم بييجي من التاريخ نفسه أول ما يبقى موجود. الريجيكس ده للنص الحر بس، ولو
+        // اتساب يشتغل على تاريخ ISO بيمسك أول رقمين في السنة: "2026-05-12" بيدّي ٢٠ من
+        // "2026"، فاشتراك يوم ١٢ بيتحوّل ليوم ٢٠ ويقع في الدورة الغلط. نسخة الـ SQL
+        // (zad_subscription_next_renewal) كانت مظبوطة من الأول — بتاخد
+        // extract(day from v_anchor) لما فيه تاريخ وماتلمسش الريجيكس؛ الكوتلن هو اللي
+        // خرج عن النسخة دي، وده اللي كسر الاختبار.
+        val dayOfMonth = iso?.dayOfMonth
+            ?: sub.dueDay
             ?: Regex("\\d{1,2}").find(raw)?.value?.toIntOrNull()?.takeIf { it in 1..31 }
 
         var next = iso ?: dayOfMonth?.let {

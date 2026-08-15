@@ -84,7 +84,42 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # الأسرار بتتفحص قبل أي حاجة. GitHub مابيسمحش بقراءة `secrets` في `if` على مستوى
+      # الـ job، فالبوابة خطوة بتحوّلها لـ output والباقي بيتعلّق عليها.
+      #
+      # لو ناقصة، الـ job بيعدّي أخضر — بس مش بصمت: warning annotation فوق الرن، وسطر في
+      # ملخص الرن. كنت مفضّل الفشل الصريح، والمالك قرر إن main تفضل خضرا؛ التنازل المقبول
+      # إن التخطي يفضل **مرئي**، لأن نشر بيتخطى من غير ما حد ياخد باله هو بالظبط اللي
+      # رجّع v89 تفترق عن git.
+      - name: Check deploy secrets
+        id: preflight
+        env:
+          ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        # `if` صريحة مش `[ ... ] && ...`: الـ runner بيشغّل `bash -e`، والصيغة التانية
+        # بترجع non-zero لما الشرط ما يتحققش فتوقّف الخطوة — يعني وجود السرّين كان
+        # هيفشل الخطوة اللي وظيفتها تقول إنهم موجودين.
+        run: |
+          missing=""
+          if [ -z "$ACCESS_TOKEN" ]; then missing="$missing SUPABASE_ACCESS_TOKEN"; fi
+          if [ -z "$DB_PASSWORD" ]; then missing="$missing SUPABASE_DB_PASSWORD"; fi
+          if [ -n "$missing" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Deploy skipped::Missing repository secret(s):$missing - migrations and edge functions were NOT deployed. The repo is now ahead of production."
+            {
+              echo "### :warning: Deploy skipped"
+              echo ""
+              echo "Missing repository secret(s): $missing"
+              echo ""
+              echo "The checks passed, but **nothing was deployed**. Add the secret(s) under"
+              echo "Settings -> Secrets and variables -> Actions, then re-run this workflow."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Supabase CLI
+        if: steps.preflight.outputs.ready == 'true'
         uses: supabase/setup-cli@v1
         with:
           version: latest
@@ -93,9 +128,11 @@ jobs:
       # الحماية مش خفاء المعرّف. قراءته من الملف بدل سر إضافي معناها سر أقل ممكن ينسى
       # يتحط فيفشل النشر لسبب مالوش علاقة بالكود.
       - name: Read project ref
+        if: steps.preflight.outputs.ready == 'true'
         run: echo "PROJECT_REF=$(grep -oP '(?<=^id = ")[^"]+' supabase/config.toml)" >> "$GITHUB_ENV"
 
       - name: Push migrations
+        if: steps.preflight.outputs.ready == 'true'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -104,6 +141,7 @@ jobs:
           supabase db push
 
       - name: Deploy edge functions
+        if: steps.preflight.outputs.ready == 'true'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
