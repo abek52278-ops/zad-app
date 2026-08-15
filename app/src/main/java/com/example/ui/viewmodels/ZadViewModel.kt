@@ -193,6 +193,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val _mealSuggestions = MutableStateFlow<String>(ZadAiRepository.MEAL_SUGGESTIONS_LOADING)
     val mealSuggestions: StateFlow<String> = _mealSuggestions.asStateFlow()
 
+    /** وصفات شيف زاد المنظّمة — الكروت بتتبني منها، والنص فوق فضل للعرض السريع. */
+    private val _chefRecipes = MutableStateFlow<List<com.example.data.ZadRecipe>>(emptyList())
+    val chefRecipes: StateFlow<List<com.example.data.ZadRecipe>> = _chefRecipes.asStateFlow()
+
     private val _grocerySuggestions = MutableStateFlow<List<GrocerySuggestion>>(emptyList())
     val grocerySuggestions: StateFlow<List<GrocerySuggestion>> = _grocerySuggestions.asStateFlow()
 
@@ -532,10 +536,14 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     .joinToString("|") { "${it.itemName}:${it.quantity}" }
                 if (invSignature != lastMealSuggestInventorySignature) {
                     lastMealSuggestInventorySignature = invSignature
-                    _mealSuggestions.value = if (inv.any { it.quantity > 0 }) {
-                        ZadAiRepository.suggestMeals(inv)
+                    if (inv.any { it.quantity > 0 }) {
+                        val chef = ZadAiRepository.suggestMeals(inv)
+                        _mealSuggestions.value = chef.text
+                        _chefRecipes.value = chef.recipes
                     } else {
-                        "" // empty inventory → ZadChefCard shows chef_card_empty_hint, no AI call
+                        // empty inventory → ZadChefCard shows chef_card_empty_hint, no AI call
+                        _mealSuggestions.value = ""
+                        _chefRecipes.value = emptyList()
                     }
                 }
                 // العقل → الوصفات: يفحص كل تحديث مخزون على أصناف هتخلص/تنتهي (بدون استدعاء AI مكرر بفضل lastUrgentRecipeKey)

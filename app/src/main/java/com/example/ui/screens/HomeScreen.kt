@@ -101,6 +101,7 @@ fun HomeScreen(
     val visibleTransactions = transactions.filter { it.amount != 0.0 }
     val subscriptions by viewModel.subscriptions.collectAsState()
     val mealSuggestions by viewModel.mealSuggestions.collectAsState()
+    val chefRecipes by viewModel.chefRecipes.collectAsState()
     val insights by viewModel.insights.collectAsState()
     val zadInsights by viewModel.zadInsights.collectAsState()
     val zadFacts by viewModel.zadFacts.collectAsState()
@@ -466,6 +467,14 @@ fun HomeScreen(
                     onOpenRecipe = { title ->
                         selectedRecipeTitle = title
                         showRecipeDialog = true
+                    },
+                    recipes = chefRecipes,
+                    onAddMissingToShopping = { missing ->
+                        missing.forEach { name ->
+                            viewModel.addShoppingItem(
+                                com.example.data.ZadShoppingItem(itemName = name, quantity = 1)
+                            )
+                        }
                     }
                 )
                 Spacer(modifier = Modifier.height(18.dp))
@@ -1273,7 +1282,9 @@ fun UrgentRecipeCard(
 fun SmartChefSection(
     suggestions: String,
     onViewAll: () -> Unit,
-    onOpenRecipe: (String) -> Unit
+    onOpenRecipe: (String) -> Unit,
+    recipes: List<com.example.data.ZadRecipe> = emptyList(),
+    onAddMissingToShopping: (List<String>) -> Unit = {}
 ) {
     // Was `isNotBlank() && startsWith("1.") || startsWith("-") || startsWith("•")` —
     // && binds tighter than ||, so isNotBlank() only guarded the "1." branch, and the
@@ -1295,6 +1306,16 @@ fun SmartChefSection(
         // showRecipeDialog اتعرّف واتقرا وعمره ما اتعمل true.
         onClick = { if (dish != null) onOpenRecipe(dish) else onViewAll() }
     )
+
+    // الكروت تحت الكارت النصي مش بدله: النص هو الجملة الودودة اللي شيف زاد بتفتح بيها،
+    // والكروت هي اللي ينفع يتطبخ منها. الاتنين جايين من نفس الرد.
+    if (recipes.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(12.dp))
+        com.example.ui.components.ChefRecipeRow(
+            recipes = recipes,
+            onAddMissingToShopping = onAddMissingToShopping,
+        )
+    }
 }
 
 @Composable
