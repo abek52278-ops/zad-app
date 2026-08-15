@@ -81,26 +81,57 @@ fun LocationAlertsCard(dismissed: Boolean, onDismiss: () -> Unit) {
         )
     }
 
+    // ─── لماذا الزر كان ميّت على أجهزة حقيقية ────────────────────────────────────
+    //
+    // من **Android 11 (API 30)** فما فوق، `ACCESS_BACKGROUND_LOCATION` مش إذن ينفع يتطلب
+    // بديالوج: النظام بيرفض الطلب فوراً ويرجّع granted=false **من غير ما يعرض للمستخدم
+    // أي حاجة**. الطريق الوحيد هو إعدادات التطبيق ("السماح طوال الوقت").
+    //
+    // targetSdk = 35، فده مسار كل جهاز حديث. النتيجة كانت: المستخدم يدوس "تفعيل"،
+    // مايشوفش أي ديالوج، والكارت يفضل مكانه بيقول "تفعيل" للأبد. ودي بالظبط نفس عائلة
+    // باج صلاحية الرسايل الموثّق في CLAUDE.md — صف مقفول بزرار النظام رافضه في صمت.
+    //
+    // Android 10 (Q) بس هو اللي لسه الديالوج شغال عنده، فهو الحالة الوحيدة اللي بنطلب
+    // فيها الإذن مباشرة.
+    val needsSettingsForBackground = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+
+    // بيتفتح عشان لما المستخدم يرجع من الإعدادات نعيد الفحص فوراً — من غير كده الكارت
+    // يفضل شكله "مش مفعّل" رغم إن المستخدم لسه مديه الإذن، فيفتكر إنه فشل تاني.
+    val settingsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        if (GroceryGeofenceManager.hasBackgroundLocationPermission(context)) activateGeofencing()
+    }
+
+    fun openAppSettings() {
+        settingsLauncher.launch(
+            android.content.Intent(
+                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                android.net.Uri.fromParts("package", context.packageName, null),
+            ),
+        )
+    }
+
     val backgroundLocationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) activateGeofencing()
+        if (granted) activateGeofencing() else openAppSettings()
     }
     val foregroundLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         hasLocationPermission = granted
         if (!granted) return@rememberLauncherForActivityResult
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-        } else {
-            activateGeofencing()
+        when {
+            // الإذن الأمامي لوحده كفاية على أقل من Android 10.
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.Q -> activateGeofencing()
+            needsSettingsForBackground -> openAppSettings()
+            else -> backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
         }
     }
 
     fun onEnableClick() {
-        if (!hasLocationPermission) {
-            foregroundLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && !GroceryGeofenceManager.hasBackgroundLocationPermission(context)) {
-            backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-        } else {
-            activateGeofencing()
+        when {
+            !hasLocationPermission -> foregroundLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            GroceryGeofenceManager.hasBackgroundLocationPermission(context) -> activateGeofencing()
+            needsSettingsForBackground -> openAppSettings()
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ->
+                backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            else -> activateGeofencing()
         }
     }
 
@@ -175,6 +206,18 @@ fun LocationAlertsCard(dismissed: Boolean, onDismiss: () -> Unit) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(stringResource(R.string.location_alerts_toggle_label), fontWeight = FontWeight.Bold, color = onSurface)
                     Text(stringResource(R.string.location_alerts_toggle_hint), fontSize = 12.sp, color = onSurfaceVariant, lineHeight = 16.sp)
+                    // يظهر بس لما الخطوة الجاية فعلاً هي الإعدادات — المستخدم لازم يعرف
+                    // إن التحويل ده قيد من أندرويد مش عطل في التطبيق، وإلا هيفتكر إن
+                    // الزر رماه بره من غير سبب.
+                    if (hasLocationPermission && needsSettingsForBackground &&
+                        !GroceryGeofenceManager.hasBackgroundLocationPermission(context)
+                    ) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            stringResource(R.string.location_alerts_settings_hint),
+                            fontSize = 11.sp, color = onSurfaceVariant, lineHeight = 15.sp,
+                        )
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(14.dp))
@@ -187,7 +230,14 @@ fun LocationAlertsCard(dismissed: Boolean, onDismiss: () -> Unit) {
                     colors = ButtonDefaults.buttonColors(containerColor = primary),
                     shape = RoundedCornerShape(50),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) { Text(stringResource(R.string.enable), fontSize = 12.sp) }
+                ) {
+                    // النص بيقول الحقيقة: لو الخطوة الجاية هي الإعدادات (لأن النظام
+                    // مش هيعرض ديالوج للإذن الخلفي)، الزر يقول كده بدل ما يوعد بديالوج.
+                    val label = if (hasLocationPermission && needsSettingsForBackground &&
+                        !GroceryGeofenceManager.hasBackgroundLocationPermission(context)
+                    ) R.string.location_alerts_open_settings else R.string.enable
+                    Text(stringResource(label), fontSize = 12.sp)
+                }
                 Spacer(modifier = Modifier.weight(1f))
                 TextButton(onClick = onDismiss, contentPadding = PaddingValues(4.dp)) {
                     Text(stringResource(R.string.dismiss_action), fontSize = 11.sp, color = onSurfaceVariant)

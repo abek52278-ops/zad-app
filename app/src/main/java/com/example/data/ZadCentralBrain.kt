@@ -796,7 +796,13 @@ object ZadCentralBrain {
         val remaining = BudgetMath.remaining(budget, transactions, today)
 
         // 1) كروت الفئات: المصروف الفعلي من المعاملات + البادجت من BudgetTracker
-        val spentByCategory = monthTx.filter { it.isExpense }
+        //
+        // txnKind مش isExpense — التعليق فوق كان بيقول إن دي "تصنيف حركة الفلوس مش رقم
+        // الإنفاق"، وده اتضح إنه تبرير ما بيصمدش قدام اللي العميل بيقراه فعلاً: تسوية
+        // الكاش اللي العقل بيكتبها (txn_kind=transfer, is_expense=true) كانت بتطلع في
+        // التقرير الشهري كـ "حسب الفئة: تحويلات 5,000"، فالعميل يقرا إنه صرف ٥ آلاف على
+        // حاجة اسمها "تحويلات" وهو ما صرفش حاجة. نفس استبعاد قاعدة 19.3 بالظبط.
+        val spentByCategory = monthTx.filter { it.txnKind == "expense" }
             .groupBy { it.category ?: "أخرى" }
             .mapValues { (_, txs) -> txs.sumOf { it.amount } }
         val categoryBreakdown = BudgetTracker.STANDARD_CATEGORIES
@@ -813,12 +819,13 @@ object ZadCentralBrain {
         // 2) الاتجاه اليومي — آخر 14 يوم
         val dailyTrend = (0..13).map { offset ->
             val day = today.minusDays((13 - offset).toLong())
-            val amount = transactions.filter { it.isExpense && txDate(it) == day }.sumOf { it.amount }
+            val amount = transactions.filter { it.txnKind == "expense" && txDate(it) == day }.sumOf { it.amount }
             DailySpend(day, amount)
         }
 
-        // 3) أعلى التجار
-        val topMerchants = monthTx.filter { it.isExpense }
+        // 3) أعلى التجار — تحويلات مستبعدة. "تسوية كاش أسبوعية (تقريبية)" مش تاجر،
+        // ومع ذلك كانت بتتصدّر القايمة كأعلى جهة صرف عند العميل.
+        val topMerchants = monthTx.filter { it.txnKind == "expense" }
             .groupBy { it.merchantName ?: it.title }
             .mapValues { (_, txs) -> txs.sumOf { it.amount } }
             .entries.sortedByDescending { it.value }.take(5)

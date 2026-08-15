@@ -949,6 +949,8 @@
     <!-- Location Alerts (opt-in real background geofencing — separate from the manual search above) -->
     <string name="location_alerts_toggle_label">تنبيهات ذكية وأنت قريب من متجر</string>
     <string name="location_alerts_toggle_hint">زاد يفكّرك بنواقصك من المؤن أو الدوا أوتوماتيك لما تكون قريب من سوبرماركت أو صيدلية — محتاج إذن الموقع في الخلفية، وممكن تقفله في أي وقت.</string>
+    <string name="location_alerts_open_settings">افتح الإعدادات</string>
+    <string name="location_alerts_settings_hint">أندرويد مش بيسمح إن التطبيق يطلب إذن الموقع في الخلفية من جوّه — اختار «السماح طول الوقت» من الإعدادات.</string>
     <string name="location_alerts_enabled_hint">مفعّلة — هتوصلك تنبيهات لما تكون قريب من متجر</string>
     <string name="background_location_permission_rationale">عشان زاد يعرف ينبهك وانت قريب من سوبرماركت حتى لو التطبيق مقفول، محتاج إذن "الموقع طول الوقت" من إعدادات الجهاز.</string>
     <string name="location_alerts_channel_name">زاد — تنبيهات قرب المتجر</string>

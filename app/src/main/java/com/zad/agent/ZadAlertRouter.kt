@@ -153,7 +153,12 @@ object AlertStateStore {
 // ═══════════════════════════════════════════════════════════
 
 object ZadAlertRouter {
-    private const val CHANNEL_ID = "zad_brain_alerts"
+    // v2 مش تجميل. صوت الـ NotificationChannel **مايتغيّرش بعد إنشائها** — أندرويد
+    // بيتجاهل أي setSound على قناة موجودة، عشان المستخدم يفضل هو صاحب القرار في
+    // إعداداته. القناة القديمة اتعملت على أجهزة الناس بالصوت الافتراضي، فتغيير الصوت
+    // عليها كان هيبقى كود ميت. معرّف جديد + حذف القديم هو الطريقة الوحيدة.
+    private const val CHANNEL_ID = "zad_brain_alerts_v2"
+    private const val LEGACY_CHANNEL_ID = "zad_brain_alerts"
 
     /** يسحب pending insights من Supabase، يحدّث المرآة المحلية. ينفع يتنادى في background أو on-resume. */
     suspend fun sync(context: Context, userId: String) {
@@ -237,9 +242,19 @@ object ZadAlertRouter {
         AlertStateStore.recordSpoken(context)
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            manager.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "تنبيهات عقل زاد", NotificationManager.IMPORTANCE_HIGH)
+            // الافتراضي كان نغمة النظام — نفس صوت أي إشعار من أي تطبيق. زاد بقى له
+            // نغمته: خامسة صاعدة بظرف صوتي ناعم (res/raw/zad_alert.wav، مولّدة بنفس
+            // حسابات ZadChime عشان اللمسة والإشعار يبقوا نفس الصوت).
+            manager.deleteNotificationChannel(LEGACY_CHANNEL_ID)
+            val channel = NotificationChannel(CHANNEL_ID, "تنبيهات عقل زاد", NotificationManager.IMPORTANCE_HIGH)
+            channel.setSound(
+                android.net.Uri.parse("android.resource://${context.packageName}/${com.example.R.raw.zad_alert}"),
+                android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build(),
             )
+            manager.createNotificationChannel(channel)
         }
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
