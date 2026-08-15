@@ -58,6 +58,7 @@ import { CONFIRM_REQUIRED_TOOLS, freshContext, looksLikeAnsweredQuestion, RunCon
 import { callModel, smokeTestTools, Turn, ToolDef } from "./callModel.ts";
 import { decideOnBrainFailure, hasRecentMutatingRun } from "./shared.ts";
 import { AgentSource, AuditScope, recordAction, writeRows } from "./audit.ts";
+import { redactNotificationText } from "./redact.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -2858,13 +2859,15 @@ async function handleNotificationIngest(sb: SupabaseClient, userId: string, body
     });
   }
 
+  // البصمة بتتحسب على النص الخام عشان التكرار يفضل يتمسك بنفس الدقة، والنص اللي بيتخزّن
+  // منقّى. الاتنين مقصودين: المطابقة محتاجة الخام، والتخزين لأ.
   const dedupeHash = await sha256Hex(`${userId}\n${packageName}\n${rawText}`);
   const { error: dedupeErr } = await sb.from("zad_notification_ingest_events").insert({
     user_id: userId,
     dedupe_hash: dedupeHash,
     package_name: packageName,
-    title,
-    body: text,
+    title: redactNotificationText(title),
+    body: redactNotificationText(text),
     client_classification: String(body.client_classification ?? null),
     status: "received",
   });
@@ -2905,7 +2908,9 @@ async function handleNotificationIngest(sb: SupabaseClient, userId: string, body
     await sb.from("zad_insights").upsert({
       user_id: userId, kind: "question", surface: "home_card", priority: "normal",
       title: "معاملة بنكية محتاجة تأكيد",
-      body: `وصل إشعار من ${packageName} (المبلغ التقريبي: ${amountGuess}) — مش واضح إيداع ولا سحب. هل ده إيداع (فلوس داخلة)؟ أيوة = إيداع، لأ = سحب/مصروف. النص الأصلي: "${rawText.slice(0, 200)}"`,
+      // النص المقتبس هنا منقّى كمان — الصف ده بيتعرض للعميل **وبيدخل سياق النموذج**، يعني
+      // نسخة تانية من نفس النص بترسّب في مكان تالت. المبلغ باقي زي ما هو لأنه هو السؤال.
+      body: `وصل إشعار من ${packageName} (المبلغ التقريبي: ${amountGuess}) — مش واضح إيداع ولا سحب. هل ده إيداع (فلوس داخلة)؟ أيوة = إيداع، لأ = سحب/مصروف. النص الأصلي: "${redactNotificationText(rawText).slice(0, 200)}"`,
       dedupe_key: `notif_ambiguous_${dedupeHash.slice(0, 24)}`,
       action_type: "yes_no",
       about_item: rawText.slice(0, 200),

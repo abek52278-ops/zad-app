@@ -17,7 +17,9 @@ Project-specific rules for any Claude session working in this repo. Read alongsi
 
 ## Response style
 
-Default to terse, high-signal replies once a plan is executing — state what changed and why, skip preamble and restating the request back. Full explanations are for genuinely new architectural decisions, not routine edits. Never fabricate build/test results — this environment has no Android SDK, so say so explicitly instead of claiming a compile succeeded.
+Default to terse, high-signal replies once a plan is executing — state what changed and why, skip preamble and restating the request back. Full explanations are for genuinely new architectural decisions, not routine edits. Never fabricate build/test results — this environment has **no Android SDK and no Deno** (confirmed 2026-08-15: `ANDROID_HOME` unset, no `platform-tools` anywhere on disk, `deno` not installed), so say so explicitly instead of claiming a compile succeeded. **The `run-zad-app` skill claims an SDK is present and is wrong on that point** — don't trust it and don't spend a Gradle run finding out.
+
+**CI is the only real verification available, and it is now reachable.** Push a branch or `main` and read the run: `build-debug-apk.yml` runs `testDebugUnitTest` + `lintDebug` + `assembleDebug`, and `edge-functions.yml` runs `deno check` + `deno test` across all four functions. Simulating an algorithm's logic locally (in Python, say) is a legitimate pre-check and worth doing, but it is not a test run — say which one you did.
 
 ## Mobile UI/UX rules (Compose)
 
@@ -41,6 +43,36 @@ Scoped to this app's actual attack surface (Android client + Supabase backend + 
 - **AI prompt injection**: user-controlled text (chat messages, OCR'd receipt/inventory text, SMS content) flows into system prompts (`ZadViewModel.buildFullChatContext`, `SaBankParser`). Keep injected data inside clearly delimited `=== SECTION ===` blocks and keep the system prompt's instructions authoritative over anything inside those blocks — never let user/OCR text redefine the assistant's rules. Don't relax this for convenience.
 - **Signing/release secrets** (`KEYSTORE_PATH`, `STORE_PASSWORD`, `KEY_PASSWORD`) are env-var-only, sourced from CI secrets or a local, gitignored keystore — never hardcode.
 - **Dependency changes**: this project pulls Compose BOM, AGP, and Kotlin at fairly recent pinned versions (`gradle/libs.versions.toml`) — bump deliberately, not opportunistically, and check `compileSdk`/`minSdk` compatibility before raising `minSdk` cavalierly. **The old "`java.time` with `minSdk 24` and no desugaring" bug is fixed and this note was stale** — `app/build.gradle.kts` has `isCoreLibraryDesugaringEnabled = true` plus `desugar_jdk_libs:2.1.4`, and the debug APK was verified with `dexdump` on 2026-08-01: 225 `Lj$/time/*` classes are shipped, zero `java/time/*` classes are defined, and app bytecode references `Lj$/time/LocalDate;` 696 times with no un-rewritten `Ljava/time/` call site. Desugaring covers `java.*` only — **`android.*` APIs above 24 still need explicit `Build.VERSION.SDK_INT` guards**, and lint's `NewApi` is the check that catches them (it caught `VibrationEffect.createOneShot` in `TasbihaScreen`, which a `catch (Exception)` could not protect because a missing class throws `NoClassDefFoundError`, an `Error`). Don't baseline a `NewApi` or `MissingPermission` error — both are runtime crashes or silently dead features, not style nits.
+
+## Deployment (changed 2026-08-15 — read this before hand-deploying anything)
+
+- **Edge functions and migrations deploy from CI, not by hand.** `edge-functions.yml`
+  has a `deploy` job gated on `needs: check`, so nothing that fails `deno check` or the
+  tests reaches production. It runs on a push to `main` or a manual `workflow_dispatch`,
+  and pushes migrations in the same job so schema and the code depending on it never
+  arrive separately. This is the fix for the repo-vs-deployed drift documented above —
+  that bullet's advice to diff before trusting either side is still worth doing, but the
+  cause (deploying as a manual step disconnected from the checks) is closed.
+- Needs two repository secrets: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`. Missing
+  either leaves `main` green and **skips the deploy** with a warning annotation and a run
+  summary line — deliberately visible, since a silently skipped deploy is how the drift
+  started. The project ref comes from `supabase/config.toml`, not a secret.
+- **`supabase/config.toml` declares `verify_jwt` per function and that is load-bearing.**
+  `supabase functions deploy` applies these on every deploy and defaults to `true` for
+  anything undeclared. `zad-brain` and `zad-telegram-bot` both run with it **off** on
+  purpose — Telegram's webhook sends no `Authorization` header at all — so an undeclared
+  deploy would switch them on and kill the bot. Never remove those entries.
+- The Supabase CLI version is **pinned** in the workflow. `version: latest` makes the
+  setup action query the GitHub API unauthenticated and it failed with `rate limit
+  exceeded` on the first real deploy. Bump it as a deliberate commit.
+- **The migration history is reconciled as of 2026-08-15 and must stay that way.** Local
+  filenames now match the versions recorded in `supabase_migrations.schema_migrations`
+  exactly. Applying a migration through any path that stamps its own version (the MCP
+  `apply_migration` tool, the dashboard) without adding a matching repo file breaks
+  `supabase db push` for everyone with "Remote migration versions not found in local
+  migrations directory". Add migrations as files and let CI apply them. If it does break,
+  reconcile by renaming/restoring files — **not** with the `repair --status reverted` the
+  CLI suggests, which records applied migrations as reverted and makes the history lie.
 
 ## Project plan and task numbering
 
