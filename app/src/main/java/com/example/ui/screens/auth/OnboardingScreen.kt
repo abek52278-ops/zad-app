@@ -81,11 +81,17 @@ fun OnboardingScreen(
         ) {
             // Language Toggle
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                var isArabic by remember { mutableStateOf(com.example.data.LocaleHelper.isArabic()) }
+                // الزرار بيعرض اللغة **الجاية** في الدورة، مش الحالية — نفس سلوكه قبل
+                // كده، بس دلوقتي بيقراها من نفس القايمة اللي toggleLanguage بتلف عليها
+                // بدل ما يفترض إن فيه لغتين بس.
+                var language by remember { mutableStateOf(com.example.data.LocaleHelper.currentLanguage()) }
+                val nextLanguageLabel = com.example.data.LocaleHelper.supported.let { list ->
+                    list[(list.indexOfFirst { it.first == language } + 1) % list.size].second
+                }
                 TextButton(onClick = {
                     com.example.data.LocaleHelper.toggleLanguage()
-                    isArabic = com.example.data.LocaleHelper.isArabic()
-                    Log.d("ZAD_TEST", "Language Toggle -> ${if (isArabic) "ar" else "en"}")
+                    language = com.example.data.LocaleHelper.currentLanguage()
+                    Log.d("ZAD_TEST", "Language Toggle -> $language")
                     // MainActivity مش AppCompatActivity — لازم recreate يدوي عشان اتجاه RTL/LTR
                     // يتطبّق فعلياً على أجهزة أقدم من API 33 (نفس نمط MarketPrefs.setMarket).
                     context.findActivity()?.recreate()
@@ -93,7 +99,7 @@ fun OnboardingScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Language, contentDescription = null, tint = primary, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text(if (isArabic) "English" else "العربية", color = primary, fontWeight = FontWeight.Bold)
+                        Text(nextLanguageLabel, color = primary, fontWeight = FontWeight.Bold)
                     }
                 }
             }
