@@ -102,6 +102,33 @@ function nextGeminiKeyIndex(): number {
  * a new model appearing next month should self-correct rather than break scanning.
  * Mirrors the same set in zad-brain/callModel.ts.
  */
+/**
+ * The eleven categories every spend breakdown in the app buckets by, copied verbatim from
+ * BudgetTracker.STANDARD_CATEGORIES (Kotlin). Anything outside this list is not a harmless
+ * label — BudgetTracker's cards, zad_budget_state's by_category and the donut on
+ * ZadIntelligenceScreen all match on the exact string, so a novel value becomes its own
+ * one-row bucket that the customer never asked for. A supermarket receipt came back
+ * classified "مواليد" on 2026-08-15, which is what prompted pinning this down.
+ */
+const STANDARD_CATEGORIES = [
+  "البقالة", "المطاعم", "الفواتير", "المواصلات", "الوقود",
+  "الاشتراكات", "الأقساط", "الرعاية الصحية", "التعليم", "تحويلات", "أخرى",
+];
+
+/** Exact match wins; anything else lands in "أخرى" rather than inventing a bucket. */
+function normalizeStandardCategory(raw: unknown): string {
+  const v = typeof raw === "string" ? raw.trim() : "";
+  if (!v) return "أخرى";
+  if (STANDARD_CATEGORIES.includes(v)) return v;
+  // "بقالة" for "البقالة" and similar near-misses are worth rescuing before giving up —
+  // the model dropping the definite article should not cost the receipt its category.
+  const stripped = v.replace(/^ال/, "");
+  const near = STANDARD_CATEGORIES.find((c) => c === stripped || c.replace(/^ال/, "") === stripped);
+  if (near) return near;
+  console.warn(`[CoreIntel] receipt category "${v}" is not one of the eleven; filing under أخرى`);
+  return "أخرى";
+}
+
 const THINKING_CONFIG_UNSUPPORTED = new Set<string>();
 
 /**
@@ -904,6 +931,19 @@ Deno.serve(async (req: Request) => {
           "Read every line item with its own price; keep the item names exactly as printed. " +
           "`total` is the final amount actually paid (after VAT and any discount), as a number with no currency symbol. " +
           "If a field is genuinely unreadable, leave it empty or 0 rather than guessing. " +
+          // `category` used to be an open string, and an open string is an invitation to
+          // invent one: a plain supermarket receipt came back classified "مواليد" on
+          // 2026-08-15. Every consumer of this field (BudgetTracker's category cards,
+          // zad_budget_state's by_category, the donut on ZadIntelligenceScreen) buckets by
+          // exact match against BudgetTracker.STANDARD_CATEGORIES, so anything outside that
+          // list silently becomes its own orphan bucket. The list is repeated here verbatim.
+          "`category` MUST be exactly one of these eleven strings, copied character for character — " +
+          "never invent a new one, never translate them, never return an empty string: " +
+          "\"البقالة\", \"المطاعم\", \"الفواتير\", \"المواصلات\", \"الوقود\", \"الاشتراكات\", " +
+          "\"الأقساط\", \"الرعاية الصحية\", \"التعليم\", \"تحويلات\", \"أخرى\". " +
+          "Pick \"البقالة\" for supermarkets and food shopping, \"المطاعم\" for restaurants and cafés, " +
+          "\"الوقود\" for petrol stations, \"الرعاية الصحية\" for pharmacies and clinics. " +
+          "If none of them genuinely fits, return \"أخرى\" — that is what it is for. " +
           "Also classify `receiptType`: \"pharmacy\" if this is a pharmacy/drugstore receipt " +
           "(medicine names, dosages like 500mg, tablet/syrup/capsule units); \"budget_card\" if " +
           "this is NOT an itemized purchase receipt at all but a bank/salary/wallet balance " +
@@ -923,7 +963,11 @@ Deno.serve(async (req: Request) => {
               const parsed = JSON.parse(jsonMatch[0]);
               return jsonResponse({
                 total: parsed.total || 0,
-                category: parsed.category || "",
+                // Prompted AND clamped. Telling the model the eleven allowed values is not
+                // a guarantee, and an out-of-list category is not a cosmetic wart — it
+                // becomes an orphan bucket in every category breakdown in the app. Falling
+                // back to "أخرى" keeps the receipt usable instead of quarantining its spend.
+                category: normalizeStandardCategory(parsed.category),
                 storeName: parsed.storeName || "",
                 receiptType: parsed.receiptType || "grocery",
                 items: parsed.items || [],

@@ -581,7 +581,9 @@ object ZadCentralBrain {
             Return ONLY valid JSON: {"actions":[{"type":"SUGGEST_MEAL|ALERT_BUDGET|NOTIFY_FAMILY","payload":"...","reason":"Arabic reason"}]}
         """.trimIndent()
 
-        val jsonResponse = ZadAiRepository.brainEvaluate(sysPrompt, "Analyze and act based on current state.") ?: return
+        val jsonResponse = ZadAiRepository.brainEvaluate(
+            sysPrompt, "Analyze and act based on current state.", appContext = context,
+        ) ?: return
         val cleanJson = extractJsonBlock(jsonResponse)
         try {
             val actionList = Json { ignoreUnknownKeys = true }.decodeFromString<AiActionList>(cleanJson)

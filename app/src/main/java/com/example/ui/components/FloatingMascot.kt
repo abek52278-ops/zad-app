@@ -1,8 +1,6 @@
 package com.example.ui.components
 
 import android.content.Context
-import android.media.AudioManager
-import android.media.ToneGenerator
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -131,6 +129,7 @@ fun FloatingMascotCompanion(
     val tapScale = remember { Animatable(1f) }
     var showBubble by remember { mutableStateOf(false) }
     var blinkTrigger by remember { mutableStateOf(0L) }
+    var glowTrigger by remember { mutableStateOf(0L) }
 
     fun fireHaptic(durationMs: Long, amplitude: Int) {
         // نفس نمط TasbihaScreen بالظبط: try/catch لازم لأن VibrationEffect مش موجودة
@@ -148,16 +147,15 @@ fun FloatingMascotCompanion(
     // نغمة تختلف بحسب المزاج بدل صفارة واحدة ثابتة — أعلى وأمرح لما المزاج سعيد/احتفال،
     // أخفض وتحذيرية وقت التنبيه.
     fun fireChime(mood: CompanionState) {
-        try {
-            val tone = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 55)
-            val toneType = when (mood) {
-                CompanionState.Happy, CompanionState.Celebrating -> ToneGenerator.TONE_PROP_ACK
-                CompanionState.Alert -> ToneGenerator.TONE_PROP_NACK
-                else -> ToneGenerator.TONE_PROP_BEEP
-            }
-            tone.startTone(toneType, 90)
-            scope.launch { delay(130); tone.release() }
-        } catch (_: Exception) {}
+        // كان ToneGenerator بـ TONE_PROP_BEEP — نغمة DTMF، حرفياً صوت أزرار التليفون.
+        // ZadChime بيولّد جرس جيبي بظرف صوتي ناعم؛ التفاصيل في الملف نفسه.
+        ZadChime.play(
+            when (mood) {
+                CompanionState.Happy, CompanionState.Celebrating -> ZadChime.Tone.Success
+                CompanionState.Alert -> ZadChime.Tone.Alert
+                else -> ZadChime.Tone.Tap
+            },
+        )
     }
 
     Box(
@@ -225,13 +223,15 @@ fun FloatingMascotCompanion(
                             }
                             fireHaptic(35, 200)
                             fireChime(displayMood)
-                            blinkTrigger = System.currentTimeMillis()
+                            val now = System.currentTimeMillis()
+                            blinkTrigger = now
+                            glowTrigger = now
                             showBubble = true
                             scope.launch { delay(2600); showBubble = false }
                         }
                     )
             ) {
-                CompanionOrb(state = displayMood, size = 64.dp, blinkTrigger = blinkTrigger)
+                CompanionOrb(state = displayMood, size = 64.dp, blinkTrigger = blinkTrigger, glowTrigger = glowTrigger)
             }
         }
     }

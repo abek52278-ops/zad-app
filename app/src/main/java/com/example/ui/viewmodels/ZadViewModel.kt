@@ -2991,6 +2991,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 Log.e(TAG, "logout() FAILED: ${e.message}")
             }
+            // الكاش مفاتيحه متقسمة بالـ user id، فمستحيل يتقدّم لحساب تاني — بس سيبان
+            // ملخصات مالية لحساب على القرص بعد ما صاحبه خرج مش حاجة تتعمل على تليفون
+            // مشترك. بيتمسح بعد signOut بغض النظر عن نجاحه: الخروج المحلي حصل في الحالتين.
+            AiLocalCache.clear(getApplication())
         }
     }
 
@@ -3686,7 +3690,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 val patterns = dao.getBehaviorPatterns()
                 val aiPrediction = com.example.data.ZadAiRepository.predictExpenses(
                     _transactions.value, _budget.value, patterns
-                )
+                , appContext = getApplication())
                 // AI بيرجع أحياناً predicted_total=0/confidence=0 (رد فاضي فعلياً — راجع ملاحظة
                 // thinking-off في CLAUDE.md) — ده كان بيتعرض حرفياً "0 ج.م (ثقة 0%)" بدل ما نستخدم
                 // متوسط تاريخي محلي أو نخفي الكارت. أي واحدة من القيمتين صفر كافية نعتبره رد مرفوض.
@@ -3807,7 +3811,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 val summary = com.example.data.ZadAiRepository.getAgentSummary(
                     _inventory.value, _transactions.value, _subscriptions.value,
                     _budget.value, _shoppingList.value, patterns, _obligations.value
-                )
+                , appContext = getApplication())
                 _agentSummary.value = summary
                 if (summary != null) {
                     Log.d(TAG, "refreshAgentSummary() → ${summary.summary.take(100)}")
@@ -3829,7 +3833,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     inventory = _inventory.value,
                     transactions = _transactions.value,
                     patterns = _behaviorPatterns.value
-                )
+                , appContext = getApplication())
             } catch (e: Exception) {
                 Log.e(TAG, "refreshAutoSuggestions() FAILED: ${e.message}")
             }
