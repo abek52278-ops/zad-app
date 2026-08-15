@@ -2596,6 +2596,31 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         return if (matches.isNotEmpty()) matches.map { it.amount }.average() else 0.0
     }
 
+    /**
+     * بيثبّت سعر تقديري على صنف في القايمة.
+     *
+     * تقدير الـ AI كان بيعيش في `remember` جوه ShoppingListScreen وبس: كل فتحة للشاشة
+     * بتعيد السؤال، وأي فشل في النموذج بيرجّع الإجمالي صفر تاني. وإنت شفت ده فعلاً وقت
+     * موجة 503. التقدير اللي وصل مرة يستاهل يتحفظ — بعد كده الشاشة بتقراه من الصف زي
+     * أي سعر تاريخي، من غير نداء ولا اعتماد على إن النموذج شغال دلوقتي.
+     */
+    fun persistEstimatedPrice(itemId: String, pricePerUnit: Double) {
+        if (pricePerUnit <= 0.0) return
+        viewModelScope.launch {
+            val item = _shoppingList.value.find { it.id == itemId } ?: return@launch
+            if (item.estimatedPrice > 0.0) return@launch
+            val updated = item.copy(estimatedPrice = pricePerUnit.asMoney())
+            try { dao.insertShoppingItem(updated) } catch (e: Exception) {
+                Log.e(TAG, "persistEstimatedPrice() local failed: ${e.message}")
+            }
+            try {
+                SupabaseRepo.updateShoppingItemQuantity(updated.id, updated.quantity, updated.estimatedPrice)
+            } catch (e: Exception) {
+                Log.e(TAG, "persistEstimatedPrice() sync failed: ${e.message}")
+            }
+        }
+    }
+
     fun addShoppingItem(item: com.example.data.ZadShoppingItem) {
         viewModelScope.launch {
             // تجميع: صنف موجود فعلاً (نفس الاسم أو قريب منه، namesMatch — زي "حليب" و"حليب

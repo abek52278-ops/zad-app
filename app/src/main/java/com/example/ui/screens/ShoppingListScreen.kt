@@ -101,10 +101,15 @@ fun ShoppingListScreen(
     // لكن أي صنف اتضاف بدون تاريخ إنفاق سابق فاضل 0.0 لحد ما تقدير AI (priceEstimates تحت)
     // يوصله — كان مستبعد تماماً من الإجمالي، فالميزانية المعروضة كانت بتقل عن الحقيقة
     // لأي صنف جديد كليًا.
-    val totalPrice = unpurchased.sumOf {
+    val pricedUnits = unpurchased.map {
         val perUnit = if (it.estimatedPrice > 0) it.estimatedPrice else priceEstimates[it.itemName]?.avgPrice ?: 0.0
-        perUnit * it.quantity
+        it to perUnit
     }
+    val totalPrice = pricedUnits.sumOf { (item, perUnit) -> perUnit * item.quantity }
+    // "٠ ج.م" ورقم مؤكد مش نفس الحاجة. لو مفيش ولا صنف عندنا له سعر — لا تاريخ ولا تقدير —
+    // فإحنا **مش عارفين** تكلفة السلة، والصفر بيتقري على إنها ببلاش. نفس التفرقة اللي
+    // BudgetMath بيعملها بين `remaining = 0` و`remaining = null`.
+    val basketPriceKnown = pricedUnits.any { (_, perUnit) -> perUnit > 0.0 }
     // Phase 0 — كان ده بيحسب "الميزانية المتبقية" لوحده (budget - كل المصاريف من الأول)
     // من غير ما يخصم المحجوز (التزامات+اشتراكات) ولا يلتزم بحدود دورة الراتب، فكان بيديله رقم
     // مختلف عن "المتاح" اللي شاشات تانية بتعرضه بنفس فرق قيمة المحجوز بالظبط. دلوقتي بيقرا
@@ -130,7 +135,12 @@ fun ShoppingListScreen(
             val estimates = mutableMapOf<String, AiPriceEstimate>()
             for (item in itemsNeedingPrice) {
                 val estimate = com.example.data.ZadAiRepository.estimatePrice(item.itemName)
-                if (estimate != null) estimates[item.itemName] = estimate
+                if (estimate != null) {
+                    estimates[item.itemName] = estimate
+                    // يتحفظ على الصف عشان مايتسألش تاني كل فتحة، وعشان الإجمالي مايرجعش
+                    // صفر لو النموذج كان واقع وقت الفتحة الجاية.
+                    viewModel.persistEstimatedPrice(item.id, estimate.avgPrice)
+                }
             }
             priceEstimates = estimates
             isLoadingPrices = false
@@ -144,7 +154,7 @@ fun ShoppingListScreen(
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 140.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                item { ShoppingBudgetHeader(totalPrice = totalPrice, budgetRemaining = budgetRemaining, budgetPct = budgetPct) }
+                item { ShoppingBudgetHeader(totalPrice = totalPrice, budgetRemaining = budgetRemaining, budgetPct = budgetPct, priceKnown = basketPriceKnown) }
 
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -327,7 +337,7 @@ fun ShoppingListScreen(
 }
 
 @Composable
-private fun ShoppingBudgetHeader(totalPrice: Double, budgetRemaining: Double, budgetPct: Int) {
+private fun ShoppingBudgetHeader(totalPrice: Double, budgetRemaining: Double, budgetPct: Int, priceKnown: Boolean = true) {
     val context = LocalContext.current
     val isOverBudget = totalPrice > budgetRemaining && budgetRemaining > 0
     com.example.ui.components.ZadListCard(
@@ -363,7 +373,10 @@ private fun ShoppingBudgetHeader(totalPrice: Double, budgetRemaining: Double, bu
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
-                    Text(com.example.data.CurrencyFormatter.format(context, totalPrice), color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 28.sp)
+                    Text(
+                        if (priceKnown) com.example.data.CurrencyFormatter.format(context, totalPrice) else "—",
+                        color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 28.sp
+                    )
                     Spacer(Modifier.width(10.dp))
                     if (budgetPct > 0) {
                         Box(
