@@ -130,11 +130,21 @@ jobs:
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # نسخة مثبّتة، مش `latest`، لسببين. الأول إن `latest` بتخلّي الـ action يسأل GitHub
+      # API عن آخر إصدار، والنداء ده بيتعمل من غير توكن فبيضرب في حد المعدل — وهو بالظبط
+      # اللي فشل بيه أول نشر حقيقي: "Failed to resolve latest Supabase CLI release: rate
+      # limit exceeded". والتاني إن `latest` معناها إن ترقية في الـ CLI تقدر تغيّر سلوك
+      # النشر من غير ما حد يعدّل سطر هنا؛ ترقية النسخة تبقى commit مقصود.
+      #
+      # GITHUB_TOKEN متبعت كمان عشان أي نداء للـ API يبقى موثّق بدل ما يتحسب على حصة
+      # الـ IP المشتركة بتاعة الرَنر.
       - name: Setup Supabase CLI
         if: steps.preflight.outputs.ready == 'true'
         uses: supabase/setup-cli@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          version: latest
+          version: 2.114.0
 
       # الـ project ref مش سر — هو موجود في supabase/config.toml في الريبو أصلاً، وRLS هي
       # الحماية مش خفاء المعرّف. قراءته من الملف بدل سر إضافي معناها سر أقل ممكن ينسى
