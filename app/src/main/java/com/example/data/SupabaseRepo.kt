@@ -145,21 +145,51 @@ object SupabaseRepo {
      * الـ trigger في 20260815120000_provision_zad_users_row.sql بيضمن وجود الصف من ناحية
      * السيرفر؛ الـ upsert هنا بيخلي الكتابة دي تنجح حتى لو الصف اتأخر أو اتمسح.
      */
+    /**
+     * ورغم كل اللي فوق، الدالة فضلت **مش قادرة تعرف** إن الكتابة وصلت. `upsert` بترجع من
+     * غير صفوف، فغياب الاستثناء مكانش دليل على أي حاجة — وكانت بترجع true على طول.
+     *
+     * ودي مش تفصيلة تجميلية، لأن كل مسارات الإصلاح بتتفرّع على البوليان ده:
+     * `updateBudget` بتحط العملية في SyncOutbox لما ترجع false، و`resyncMonthlyLimitToServer`
+     * بتعيد المحاولة على أساسه. لما بترجع true دايماً، الطابور مابياخدش الشغلانة أصلاً
+     * والإصلاح الذاتي بيقفل نفسه — فسقف كتبه العميل بإيده بيضيع، والتطبيق يسجّل SUCCESS.
+     * ده بالظبط اللي حصل لحساب 20a420a9 يوم 2026-08-15: العميل حافظ 10,000 الساعة 2:46،
+     * قبل ما trigger التزويد (20260815120000) يعمل الصف الساعة 12:37، فالكتابة راحت على
+     * لا حاجة و`zad_budget_state` فضل يرجّع monthly_limit: null وremaining: null.
+     *
+     * نفس علاج [syncMarketProfile] بالظبط: upsert، اقرا تاني، وحاول مرة كمان قبل ما
+     * تعترف بالفشل. القراءة هي الدليل الوحيد المتاح إن الصف بقى فيه الرقم فعلاً.
+     */
     suspend fun setMonthlyLimit(userId: String, limit: Double): Boolean {
-        return try {
-            client.postgrest["zad_users"].upsert(
-                mapOf(
-                    "id" to userId,
-                    "monthly_limit" to limit,
-                    "limit_confirmed_at" to java.time.Instant.now().toString()
+        repeat(2) { attempt ->
+            try {
+                client.postgrest["zad_users"].upsert(
+                    mapOf(
+                        "id" to userId,
+                        "monthly_limit" to limit,
+                        "limit_confirmed_at" to java.time.Instant.now().toString()
+                    )
                 )
-            )
-            Log.d(TAG, "setMonthlyLimit() SUCCESS → userId=$userId, limit=$limit")
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "setMonthlyLimit() FAILED: ${e.message}")
-            false
+                val (storedLimit, storedConfirmedAt, readOk) = getMonthlyLimit(userId)
+                // المقارنة بـ asMoney من الطرفين: الرقم بيروح numeric ويرجع Double، وفرق
+                // تقريب مايستاهلش إعادة كتابة ولا إعلان فشل.
+                if (readOk && storedLimit != null && kotlin.math.abs(storedLimit - limit) < 0.005 &&
+                    storedConfirmedAt != null
+                ) {
+                    Log.d(TAG, "setMonthlyLimit() SUCCESS → userId=$userId, limit=$limit")
+                    return true
+                }
+                Log.w(
+                    TAG,
+                    "setMonthlyLimit() wrote but read back limit=$storedLimit confirmedAt=$storedConfirmedAt " +
+                        "(attempt ${attempt + 1}/2) — row likely missing or write rejected"
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "setMonthlyLimit() FAILED (attempt ${attempt + 1}/2): ${e.message}")
+            }
+            if (attempt == 0) kotlinx.coroutines.delay(1000)
         }
+        return false
     }
 
     /**

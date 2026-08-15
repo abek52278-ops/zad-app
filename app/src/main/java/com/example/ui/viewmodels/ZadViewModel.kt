@@ -2291,6 +2291,13 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             if (SupabaseRepo.setMonthlyLimit(userId, localBudget)) {
                 Log.d(TAG, "resyncMonthlyLimitToServer() → pushed local budget $localBudget")
                 refreshBudgetState()
+            } else {
+                // setMonthlyLimit بقت بتقرا الصف تاني قبل ما تقول نجحت، فـ false هنا معناها
+                // إن السقف فعلاً مش على السيرفر — مش مجرد طلب ما رماش استثناء. الحارس فوق
+                // بيمنع تكرار المحاولة في نفس عمر الـ ViewModel، فمن غير السطر ده الفشل
+                // كان بيتسجّل في الـ log ويتنسي لحد ما المستخدم يفتح التطبيق تاني.
+                Log.w(TAG, "resyncMonthlyLimitToServer() → still not on the server; queueing for retry")
+                com.example.data.SyncOutbox.enqueueBudgetUpdate(getApplication(), localBudget)
             }
         }
     }
