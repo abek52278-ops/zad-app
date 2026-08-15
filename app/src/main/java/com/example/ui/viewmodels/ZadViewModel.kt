@@ -3818,19 +3818,33 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun refreshOutingSuggestion() {
         viewModelScope.launch {
+            // التثبيتة الأول، والحكم على الميزانية بعدين.
+            //
+            // كان الترتيب مقلوب: بوابة "الميزانية صحية" كانت بترجع **قبل** ما الموقع
+            // يتاخد خالص. ولأن `available` بيرجع null طول ما السقف مش متسجّل على السيرفر،
+            // البوابة دي كانت بتفشل دايماً — فـ`last_lat`/`last_lon` فضلوا فاضيين،
+            // و`find_nearby_stores` بترد "مش عارف انت فين" للأبد رغم إن الأداة مبنية
+            // وLocationIQ موصول.
+            //
+            // ومن حيث المبدأ الترتيب ده غلط أصلاً: معرفة العقل إنت فين حاجة، وقدرتك
+            // تخرج حاجة تانية. العميل اللي ميزانيته ضيقة هو أكتر واحد محتاج يعرف أرخص
+            // سوبرماركت جنبه — مايستاهلش إن العقل يعمى عن مكانه عشان حسابه تعبان.
+            val location = try {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    com.example.data.LocationHelper.getCurrentLocation(getApplication())
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "location fix failed: ${e.message}"); null
+            }
+            if (location != null) {
+                SupabaseRepo.updateLastKnownLocation(location.latitude, location.longitude)
+            }
+
             val budgetNow = _budget.value
             val availableNow = _availableFigure.value?.value
             val healthy = budgetNow > 0 && availableNow != null && availableNow / budgetNow >= 0.3
-            if (!healthy) { _outingSuggestion.value = null; return@launch }
+            if (!healthy || location == null) { _outingSuggestion.value = null; return@launch }
             try {
-                val location = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    com.example.data.LocationHelper.getCurrentLocation(getApplication())
-                }
-                if (location == null) { _outingSuggestion.value = null; return@launch }
-                // نفس التثبيتة اللي اتاخدت للخروجة بتتخزّن للعقل — مش نداء موقع جديد.
-                // من غير الخطوة دي `find_nearby_stores` بترد "مش عارف انت فين" للأبد،
-                // لأن الأداة اتبنت والعمودين فاضيين.
-                SupabaseRepo.updateLastKnownLocation(location.latitude, location.longitude)
                 val spots = com.example.data.LocationIqRepo.findNearbyOutingSpots(location.latitude, location.longitude)
                     .ifEmpty { com.example.data.OverpassRepo.findNearbyOutingSpots(location.latitude, location.longitude) }
                 _outingSuggestion.value = spots.firstOrNull()
