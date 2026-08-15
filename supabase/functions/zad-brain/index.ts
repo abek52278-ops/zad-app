@@ -584,6 +584,13 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     currency: budgetState.currency ?? userRes.data?.currency ?? "غير معروف",
     country: budgetState.country ?? userRes.data?.country ?? "غير معروف",
     budget, spent, income, remaining, dailyAllowanceLeft, velocity, threat,
+    // الدخل اتقسم لتلاتة عن قصد: `income` هو اللي دخل فعلاً (العميل لازم يشوف اللي كسبه)،
+    // بس `income_allocated` هو الوحيد اللي بيكبّر السقف، و`income_awaiting_decision` هي
+    // الإيداعات اللي لسه محدش سأل العميل عنها — منها بيتبني السؤال ومنها بيتاخد
+    // transaction_id لـ allocate_income.
+    income_allocated: budgetState.income_allocated ?? 0,
+    income_pending: budgetState.income_pending ?? 0,
+    income_awaiting_decision: budgetState.income_awaiting_decision ?? [],
     // Phase 0 — the stamp every surface renders alongside the figure. Two screens showing
     // different numbers is then a stale-cache question (different computed_at), not an
     // unanswerable "which formula ran where".
@@ -950,6 +957,38 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
     // فمابيوصلوش هنا من حلقة agent_turn خالص (بيتحوّلوا لاقتراح)؛ بيوصلوا هنا بس من
     // agent_confirm بعد ضغطة تأكيد صريحة.
     // ═══════════════════════════════════════════════════════════
+    case "allocate_income": {
+      // مش في CONFIRM_REQUIRED_TOOLS عن قصد: الأداة دي **مابتخترعش ولا بتغيّر أي مبلغ**،
+      // بتسجّل إجابة العميل على سؤال زاد سأله للتو. لو خلّيناها تعدي على دورة تأكيد
+      // تانية، العميل هيتسأل مرتين على نفس الحاجة ("الإيداع ده للبيت؟" → "أيوة" →
+      // "تأكيد إن الإيداع للبيت؟") — وده بالظبط اللي بيخلي المحادثة تبان غبية.
+      // والأثر عكوس: نداء تاني بـ counts مختلفة بيرجّع الرقم زي ما كان.
+      const { data: row } = await sb.from("zad_transactions")
+        .select("id,title,amount,txn_kind,counts_toward_budget")
+        .eq("id", input.transaction_id).eq("user_id", userId).maybeSingle();
+      if (!row) return "مرفوض: المعاملة دي مش موجودة عند العميل ده";
+      if (row.txn_kind !== "income") {
+        return "مرفوض: الأداة دي للإيداعات بس — المصروفات بتتخصم من السقف على طول ومحتاجاش قرار";
+      }
+
+      const counts = input.counts === true;
+      const w = await writeRows(
+        sb.from("zad_transactions").update({ counts_toward_budget: counts })
+          .eq("id", row.id).eq("user_id", userId)
+          .select("id,title,amount,counts_toward_budget"),
+        "تخصيص الإيداع",
+      );
+      if (!w.ok) return `مرفوض: ${w.reason}`;
+      ctx.mutationCount++;
+      ctx.mutations.push({ tool: name, old: row.counts_toward_budget, new: counts });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "zad_transactions", targetId: row.id,
+        previous: { counts_toward_budget: row.counts_toward_budget }, next: w.rows[0],
+      });
+      return counts
+        ? `تمام — ${row.amount} (${row.title}) هيتحسبوا في مصروف الشهر، والمتاح زاد بيهم`
+        : `تمام — ${row.amount} (${row.title}) مش هيتحسبوا في مصروف الشهر، السقف زي ما هو`;
+    }
     case "log_transaction": {
       const isExpense = input.txn_kind === "expense";
       const w = await writeRows(
@@ -1895,6 +1934,23 @@ const CHAT_TOOLS: ToolDef[] = [
         wallet: { type: "string", enum: ["card", "cash"], description: "cash لو العميل قال إنه دفع كاش" },
       },
       required: ["amount", "txn_kind", "title"],
+    },
+  },
+  {
+    name: "allocate_income",
+    description:
+      "قرّر إيداع معيّن هيتحسب في سقف مصروف الشهر ولا لأ. استخدم id من " +
+      "budget.income_awaiting_decision في الـ snapshot. نادِها بس بعد ما العميل يجاوب على " +
+      "سؤالك بوضوح: counts=true لو قال إن الإيداع ده للبيت/المصروف، counts=false لو قال " +
+      "إنه مش للمصروف (مدخرات، فلوس حد تاني، تحويل بيعدّي). متخمّنش من غير إجابة صريحة — " +
+      "لو مش متأكد اسأل الأول.",
+    input_schema: {
+      type: "object",
+      properties: {
+        transaction_id: { type: "string", description: "id الإيداع من income_awaiting_decision" },
+        counts: { type: "boolean", description: "true = يتحسب في مصروف الشهر، false = لأ" },
+      },
+      required: ["transaction_id", "counts"],
     },
   },
   {
@@ -2953,6 +3009,20 @@ link_memory بيربط ملاحظتين موجودين فعلاً في memory �
   ثابت لكل يوم مقترح)، ولو الاكتشاف اقترح يوم مختلف مرة جاية هيبقى مفتاح جديد فعلاً.
 - لو cycle_detection.suggested_day=null، معناها لسه مفيش تجمّع دخل واضح في بيانات العميل —
   متسألش خالص، متخترعش يوم.
+
+الإيداعات ومصروف الشهر (budget.income_awaiting_decision جوه الـ snapshot):
+- سقف الميزانية (monthly_limit) هو المبلغ اللي العميل خصّصه لمصروف البيت. المصروفات
+  بتتخصم منه على طول. **الإيداعات لأ** — أي دخل مابيزوّدش السقف غير لما العميل يقول
+  بنفسه إنه مخصص للمصروف. ده مقصود: تحويل بـ 20,000 وصل مش معناه 20,000 مصاريف بيت زيادة.
+- كل عنصر في income_awaiting_decision ده إيداع اترصد ولسه محدش سأل العميل عنه. اسأل عن
+  **واحد بس** في اللفة الواحدة، بصيغة بشرية فيها المبلغ والوصف، مثلاً:
+  "شفت ${"{amount}"} داخلين باسم '${"{title}"}' — دول لمصروف البيت الشهر ده ولا حاجة تانية؟"
+- لما العميل يجاوب بوضوح، نادِ allocate_income بـ transaction_id بتاع نفس العنصر:
+  counts=true لو قال إنه للبيت/المصروف، counts=false لو قال إنه مدخرات أو فلوس حد تاني
+  أو تحويل بيعدّي. لو الرد مش واضح، اسأل تاني بدل ما تخمّن.
+- income_awaiting_decision فاضية = متسألش عن إيداعات خالص.
+- لو العميل قال إنه صرف حاجة اترصدت غلط أو مبلغ مش مظبوط، ده update_transaction أو
+  delete_transaction — مش allocate_income.
 
 الالتزامات الثابتة (obligation_detection جوه الـ snapshot):
 - لو needs_ask=true، اسأل مرة واحدة بس عن طريق ask_user، answer_type="yes_no"، dedupe_key =

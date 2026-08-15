@@ -122,27 +122,39 @@ class BudgetAuthorityParityTest {
 
     /**
      * The arithmetic contract itself, stated once in each language:
-     * `remaining = limit - spent + income`, and a ceiling of zero or less is **unknown**.
+     * `remaining = limit - spent + allocated income`, and a ceiling of zero or less is
+     * **unknown**.
      *
-     * Both halves were live divergences. `zad-brain` computed `budget - spent`, silently
-     * dropping income; and with no ceiling it computed `0 - spent`, producing a negative
-     * "remaining" and a permanent threat=OVER for anyone who had never set a budget. The
-     * SQL now returns null for both, and so does this.
+     * The `+ income` half changed on 2026-08-15 (migration 20260815140000). It used to add
+     * *every* deposit, which quietly enlarged the customer's spending ceiling — a 20,000
+     * transfer arriving is not 20,000 more of household money. Only income the customer
+     * explicitly allocated (`counts_toward_budget = true`) moves the ceiling now.
+     *
+     * The null half was a live divergence in its own right: `zad-brain` computed
+     * `0 - spent` with no ceiling, producing a negative "remaining" and a permanent
+     * threat=OVER for anyone who had never set a budget.
      */
     @Test
-    fun `remaining includes income and a missing ceiling is unknown rather than zero`() {
+    fun `remaining counts only allocated income and a missing ceiling is unknown rather than zero`() {
         val cycleStart = LocalDate.parse("2026-08-01")
         val cycleEnd = LocalDate.parse("2026-09-01")
         val txs = listOf(
             ZadTransaction(amount = 300.0, title = "سوبرماركت", txnKind = "expense", createdAt = "2026-08-05T10:00:00Z"),
-            ZadTransaction(amount = 200.0, title = "بيع حاجة", txnKind = "income", createdAt = "2026-08-06T10:00:00Z"),
+            ZadTransaction(
+                amount = 200.0, title = "بيع حاجة", txnKind = "income",
+                countsTowardBudget = true, createdAt = "2026-08-06T10:00:00Z",
+            ),
+            // Landed, but nobody has asked the customer whether it funds this month — so it
+            // shows up in `income` and stays out of `remaining`.
+            ZadTransaction(amount = 700.0, title = "تحويل", txnKind = "income", createdAt = "2026-08-06T12:00:00Z"),
             // An ATM withdrawal is a transfer, not spending — counting it would double-count
             // the money once it is actually spent in cash (the Task 19.1 bug).
             ZadTransaction(amount = 500.0, title = "سحب", txnKind = "transfer", transferTo = "cash", createdAt = "2026-08-07T10:00:00Z"),
         )
 
         assertEquals(300.0, BudgetMath.spentInCycle(txs, cycleStart, cycleEnd), 0.001)
-        assertEquals(200.0, BudgetMath.incomeInCycle(txs, cycleStart, cycleEnd), 0.001)
+        assertEquals(900.0, BudgetMath.incomeInCycle(txs, cycleStart, cycleEnd), 0.001)
+        assertEquals(200.0, BudgetMath.allocatedIncomeInCycle(txs, cycleStart, cycleEnd), 0.001)
         assertEquals(900.0, BudgetMath.remainingInCycle(1000.0, txs, cycleStart, cycleEnd)!!, 0.001)
 
         assertNull(BudgetMath.remainingInCycle(0.0, txs, cycleStart, cycleEnd))

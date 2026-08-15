@@ -159,6 +159,15 @@ data class ZadTransaction(
     @EncodeDefault @SerialName("wallet") val wallet: String = "card",
     @EncodeDefault @SerialName("txn_kind") val txnKind: String = if (isExpense) "expense" else "income",
     @SerialName("transfer_to") val transferTo: String? = null,
+    /**
+     * دخل بس: هل العميل أكّد إن المبلغ ده مخصص لمصروف الشهر؟
+     * `true` = أيوة، بيزوّد السقف. `false` = لأ، مايدخلش. `null` = **لسه ما اتسألش**.
+     *
+     * الفرق بين null وfalse مقصود: العقل محتاج يفرّق بين "العميل قال لأ" و"محدش سأله"،
+     * وإلا يا بينكّد على إيداع محسوم يا بيبلع إيداع كان لازم يسأل عنه. مافيهاش
+     * @EncodeDefault — null هنا معناه "متسجّلش رأي"، وهو نفس اللي العمود بيفترضه.
+     */
+    @SerialName("counts_toward_budget") val countsTowardBudget: Boolean? = null,
     // مرحلة ١ (docs/agent/PLAN_2026_08_06_rebuild.md) — عملة العملية نفسها، مش عملة الـ
     // Market الحالي وقت العرض. null = مش معروفة (كل الصفوف القديمة، ورسايل من غير رمز
     // عملة صريح) — CurrencyFormatter.format(context, tx) بيرجع لعملة الـ Market في الحالة
