@@ -128,8 +128,6 @@ fun HomeScreen(
     val autoSuggestions by viewModel.autoSuggestions.collectAsState()
     val livePrices by viewModel.livePrices.collectAsState()
     val marketPricesFetchState by viewModel.marketPricesFetchState.collectAsState()
-    val cashOnHand by viewModel.cashOnHand.collectAsState()
-    val habitChips by viewModel.habitChips.collectAsState()
     val inventoryCheckIns by viewModel.inventoryCheckIns.collectAsState()
     val pendingGroceryPurchase by viewModel.pendingGroceryPurchase.collectAsState()
 
@@ -696,40 +694,11 @@ fun HomeScreen(
                 // real data the app computes), but they now sit below the mockup sequence
                 // as one block instead of being scattered between its sections.
 
-                // Task 19.4 — كارت الكاش. بيظهر بس لو فيه كاش فعلاً (cashOnHand > 0،
-                // مشتق من BudgetMath.cashOnHand)، ويختفي لوحده لما يوصل صفر — الكارت
-                // نفسه هو التذكير، مفيش إشعار منفصل غرضه بس "افتكر تسجل الكاش".
-                if (cashOnHand > 0.0) {
-                    com.example.ui.components.CashCard(
-                        cashOnHand = cashOnHand,
-                        habitChips = habitChips,
-                        onChipTap = { chip ->
-                            viewModel.addTransaction(
-                                ZadTransaction(
-                                    amount = chip.amount,
-                                    title = chip.label,
-                                    category = chip.category,
-                                    isExpense = true,
-                                    wallet = "cash",
-                                    createdAt = java.time.Instant.now().toString()
-                                )
-                            )
-                        },
-                        onSpentFromCash = { amount, title, category ->
-                            viewModel.addTransaction(
-                                ZadTransaction(
-                                    amount = amount,
-                                    title = title,
-                                    category = category,
-                                    isExpense = true,
-                                    wallet = "cash",
-                                    createdAt = java.time.Instant.now().toString()
-                                )
-                            )
-                        }
-                    )
-                    Spacer(modifier = Modifier.height(18.dp))
-                }
+                // كارت الكاش (Task 19.4) اتشال بناءً على طلب العميل — "الإيدج بتاع الـ5000
+                // الكاش مش عاوزه". السحب النقدي لسه بيتصنّف transfer→cash وبيفضل برّه
+                // `spent` (BudgetMath.cashOnHand لسه بيحسبه، والعقل لسه بيشوفه) — اللي
+                // اتشال هو الكارت اللي كان بيعرضه على الشاشة الرئيسية وشرايح العادات اللي
+                // جواه، مش دفتر الكاش نفسه.
 
                 // (النواقص نقلت لكتلة ٣c فوق)
 
