@@ -1945,9 +1945,20 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
         val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return
         SupabaseRepo.captureMonthlyLimit(userId, cachedBudget)
-        // بيتعلّم محلياً بغض النظر عن نتيجة السيرفر: لو العمود كان متسجل من جهاز تاني،
-        // الجهاز ده مالوش لازمة يحاول تاني كل فتح.
-        prefs.edit().putBoolean("monthly_limit_captured", true).apply()
+        // العلامة بتتحط بس لما نتأكد إن السقف بقى فعلاً على السيرفر — سواء كتبناه دلوقتي
+        // أو كان متسجل قبل كده من جهاز تاني.
+        //
+        // قبل كده كانت بتتحط بغض النظر عن النتيجة، فمحاولة واحدة فاشلة كانت بتقفل الباب
+        // للأبد: الحساب اللي اتفحص في 2026-08-15 كان السقف عنده 10,000 على التليفون
+        // وnull على السيرفر، وmonthly_limit_captured=true يعني الجهاز مكانش هيحاول تاني
+        // ولا مرة. القراءة تحت أغلى شوية من boolean محلي، بس هي الفرق بين "اتزنّق مرة"
+        // و"اتزنّق للأبد".
+        val (stored, _, fetchSucceeded) = SupabaseRepo.getMonthlyLimit(userId)
+        if (stored != null) {
+            prefs.edit().putBoolean("monthly_limit_captured", true).apply()
+        } else {
+            Log.w(TAG, "captureMonthlyLimitOnce() → limit still absent server-side (fetchOk=$fetchSucceeded); will retry next load")
+        }
     }
 
     fun showBudgetDialog() {
@@ -2223,20 +2234,64 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
         _spentThisMonth.value = state.spent
         _incomeThisCycle.value = state.income
-        _remainingBalance.value = state.remaining
         _committed.value = state.committed
         _cashOnHand.value = state.cashOnHand
         _daysLeftInCycle.value = state.daysLeft
         state.cycleStartDate()?.let { _cycleStart.value = it }
         state.cycleEndDate()?.let { _cycleEnd.value = it }
+
+        // "السيرفر هو المرجع" معناها إنه يغلب لما **يعرف**، مش إنه يمسح رقم صح بـ null.
+        //
+        // remaining/available بيرجعوا null من zad_budget_state لسبب واحد: monthly_limit
+        // مش متسجل على السيرفر. في 2026-08-15 ده كان حال 3 من 4 حسابات (الصف نفسه مكانش
+        // موجود، فكل كتابة سقف كانت بتضرب في لا حاجة)، والنتيجة على الشاشة كانت إن
+        // الكارت الأخضر يقول "متاح 0 · 100% من الميزانية" في نفس الدقيقة اللي الشيت
+        // بيقول فيها "متبقي 10,000 · متاح 10,000" — مش شاشتين مختلفتين، ده رقم محلي
+        // صحيح اتمسح بـ null جه من السيرفر.
+        //
+        // فلما السيرفر ما يعرفش السقف، بنسيب حساب BudgetMath المحلي مكانه (هو مبني على
+        // سقف المستخدم كتبه بإيده فعلاً)، وبنحاول نصلّح السبب بدل ما نتعايش معاه.
+        if (state.remaining != null) {
+            _remainingBalance.value = state.remaining
+        } else if (localRemaining != null) {
+            Log.w(TAG, "refreshBudgetState → server has no monthly_limit; keeping local remaining=$localRemaining and re-syncing the limit")
+            resyncMonthlyLimitToServer()
+        }
+
         // Task 27.1(a)'s confidence rule is unchanged — only its input moved to the server,
         // which counts every unverified row in the cycle rather than only the synced ones.
-        _availableFigure.value = state.available?.let {
-            Figure(
-                value = it,
+        // نفس قاعدة الـ null فوق: available=null مش "متاح صفر".
+        if (state.available != null) {
+            _availableFigure.value = Figure(
+                value = state.available,
                 confident = state.unverifiedCount == 0,
                 reason = if (state.unverifiedCount > 0) "فيه ${state.unverifiedCount} معاملة من الدورة دي لسه ما اتأكدتش (رسايل بنكية أو مصادر تانية غير مباشرة)" else null
             )
+        }
+    }
+
+    /**
+     * السقف موجود على الجهاز ومش موجود على السيرفر — بنرفعه بدل ما نستنى المستخدم يعيد
+     * كتابته. بيتنادى من [refreshBudgetState] لما zad_budget_state يرجع remaining=null
+     * رغم إن عندنا سقف محلي مؤكد.
+     */
+    private var limitResyncAttempted = false
+
+    private fun resyncMonthlyLimitToServer() {
+        val localBudget = _budget.value
+        if (localBudget <= 0.0 || !_budgetConfirmed.value) return
+        // مرة واحدة في عمر الـ ViewModel. setMonthlyLimit بترجع true لمجرد إن الطلب ما
+        // رماش استثناء، فلو الكتابة اتقبلت شكلاً وما ثبتتش (RLS مثلاً) الـ refresh اللي
+        // بعدها هيرجع null تاني ويستدعي الإصلاح تاني — حلقة لا تنتهي. الحارس ده بيخلي
+        // الفشل ده يفضل سطر تحذير في الـ log بدل ما يبقى loop شبكة.
+        if (limitResyncAttempted) return
+        limitResyncAttempted = true
+        viewModelScope.launch {
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return@launch
+            if (SupabaseRepo.setMonthlyLimit(userId, localBudget)) {
+                Log.d(TAG, "resyncMonthlyLimitToServer() → pushed local budget $localBudget")
+                refreshBudgetState()
+            }
         }
     }
 

@@ -68,6 +68,61 @@ function nextGeminiKeyIndex(): number {
   return i;
 }
 
+// ── Model failover chain ───────────────────────────────────────────────────────
+// The 429 body this project actually returns names its quota
+// `GenerateRequestsPerDayPerProjectPerModel-FreeTier`, value 20. Read that id carefully:
+// the bucket is per **model**, not per key. That is why rotating five keys bought nothing
+// on 2026-08-15 (14 of 26 brain runs failed, every key reporting the same limit=20) — the
+// pool was rotating inside one exhausted bucket. A second model is a second bucket, so
+// model failover is the multiplier the key pool was never able to be.
+//
+// The chain below is not guesswork. Probed live against this project's own key 1 on
+// 2026-08-15, every entry answering 200 **with functionDeclarations attached and actually
+// emitting a functionCall** — a model that chats but won't call tools is useless to the
+// agent loop and is not in this list:
+//
+//   gemini-3.5-flash-lite    200  tool ✅  thinking 0 tok    0.57s
+//   gemini-3.1-flash-lite    200  tool ✅  thinking 0 tok    0.56s
+//   gemini-flash-lite-latest 200  tool ✅  thinking 0 tok    0.57s
+//   gemini-3-flash-preview   200  tool ✅  thinking 56 tok   1.05s
+//   gemini-flash-latest      200  tool ✅  thinking 111 tok  1.29s
+//   gemini-3.5-flash         200  tool ✅  thinking 231 tok  2.28s  ← finishReason MAX_TOKENS
+//   gemini-3.6-flash         200  tool ✅  thinking 76 tok   7.28s
+//   gemini-3.7-flash         503  — currently overloaded, deliberately excluded
+//
+// Retired on this project (all 404, verified the same day — do not "restore" them):
+// gemini-1.5-flash, gemini-2.0-flash, gemini-2.0-flash-lite, gemini-2.5-flash,
+// gemini-2.5-flash-lite.
+const DEFAULT_MODEL_CHAIN = [
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-flash-lite",
+  "gemini-flash-lite-latest",
+  "gemini-3-flash-preview",
+  "gemini-flash-latest",
+  "gemini-3.5-flash",
+];
+
+/** The caller's model first (it is whatever ZAD_MODEL_ROUTINE/BRAIN is set to, and the
+ *  operator's choice outranks this file's), then the rest of the chain, deduped. */
+function modelChain(primary: string): string[] {
+  const extra = (Deno.env.get("ZAD_MODEL_FALLBACKS") ?? "")
+    .split(",").map((s) => s.trim()).filter(Boolean);
+  const chain = extra.length > 0 ? extra : DEFAULT_MODEL_CHAIN;
+  return [...new Set([primary, ...chain])];
+}
+
+// Last leg of the chain. Groq is a different vendor with a different quota, so it survives
+// a total Gemini outage. Probed the same day: llama-3.3-70b-versatile returns 200 and does
+// emit tool_calls, so it can carry the agent loop rather than only plain text.
+const GROQ_KEY_POOL: string[] = [1, 2]
+  .map((n) => Deno.env.get(`GROQ_API_KEY_${n}`))
+  .filter((k): k is string => !!k);
+if (GROQ_KEY_POOL.length === 0) {
+  const legacy = Deno.env.get("GROQ_API_KEY");
+  if (legacy) GROQ_KEY_POOL.push(legacy);
+}
+const GROQ_MODEL = Deno.env.get("ZAD_GROQ_TEXT_MODEL") ?? "llama-3.3-70b-versatile";
+
 const cfg = () => {
   const provider = (Deno.env.get("ZAD_PROVIDER") ?? "anthropic") as Provider;
   return {
@@ -88,14 +143,50 @@ export async function callModel(opts: {
   tools: ToolDef[];
   history: Turn[];
   maxTokens?: number;
+  /** Thinking costs output budget, not a separate allowance: Gemini 2.5+ bills thought
+   *  tokens against maxOutputTokens, so a thinking model can spend the whole budget and
+   *  return a candidate with no text and no functionCall — a 200 that reads as a dead
+   *  turn. Measured here on 2026-08-15: gemini-3.5-flash spent 231 thought tokens on
+   *  "سجل 50 جنيه قهوة" and came back finishReason=MAX_TOKENS. Off unless a caller has a
+   *  reason to want it. */
+  thinking?: boolean;
 }): Promise<ModelReply> {
   const { provider } = cfg();
-  const send =
-    provider === "gemini" ? sendGemini :
-    provider === "openai_compatible" ? sendOpenAICompatible :
-    sendAnthropic;
+  if (provider !== "gemini") {
+    const send = provider === "openai_compatible" ? sendOpenAICompatible : sendAnthropic;
+    return await withRetry(() => send(opts));
+  }
 
-  return await withRetry(() => send(opts));
+  // Gemini: walk the model chain, then fall out to Groq. ProviderUnavailableError means
+  // "this model cannot serve right now" (daily quota gone on every key, or the model is
+  // overloaded) — retrying it with backoff just burns wall-clock inside an edge function
+  // that has a request deadline, so it is not retried, it is stepped past immediately.
+  const chain = modelChain(opts.model);
+  const trail: string[] = [];
+  for (const model of chain) {
+    try {
+      return await withRetry(() => sendGemini({ ...opts, model }));
+    } catch (e) {
+      if (e instanceof ConfigError) throw e;
+      if (!(e instanceof ProviderUnavailableError)) throw e;
+      trail.push(`${model}: ${e.short}`);
+      console.warn(`[zad-brain] model ${model} unavailable (${e.short}); falling over`);
+    }
+  }
+
+  if (GROQ_KEY_POOL.length > 0) {
+    console.warn(`[zad-brain] whole Gemini chain unavailable [${trail.join(" | ")}]; falling back to Groq ${GROQ_MODEL}`);
+    try {
+      return await withRetry(() => sendGroq({ ...opts, model: GROQ_MODEL }));
+    } catch (e) {
+      throw new RetryableError(
+        `every gemini model unavailable [${trail.join(" | ")}] and groq failed too: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+  throw new RetryableError(
+    `every gemini model unavailable and no GROQ_API_KEY_1/GROQ_API_KEY to fall back to [${trail.join(" | ")}]`,
+  );
 }
 
 // ============================================================
@@ -107,11 +198,24 @@ class RetryableError extends Error {
   constructor(msg: string, public retryAfterMs?: number) { super(msg); }
 }
 
+/**
+ * "This model can't serve, try a different one" — daily quota exhausted on every key, or
+ * the model is overloaded (503 UNAVAILABLE). Distinct from RetryableError on purpose:
+ * RetryableError means *the same call* is worth repeating after a pause, while this one
+ * means repeating it is pointless and the chain should move on. `short` is the one-line
+ * form that goes into the failover trail without dragging a whole JSON body along.
+ */
+class ProviderUnavailableError extends Error {
+  constructor(msg: string, public short: string) { super(msg); }
+}
+
 async function withRetry<T>(fn: () => Promise<T>, attempt = 0): Promise<T> {
   try {
     return await fn();
   } catch (e) {
     if (e instanceof ConfigError) throw e;
+    // Not retried here — callModel's chain walks to the next model instead.
+    if (e instanceof ProviderUnavailableError) throw e;
     if (attempt >= 2) throw e;
 
     const base = e instanceof RetryableError && e.retryAfterMs
@@ -282,10 +386,23 @@ export function buildGeminiContents(history: Turn[]): any[] {
   return contents;
 }
 
+/**
+ * Models observed to answer 400 INVALID_ARGUMENT when `thinkingConfig` is present at all.
+ * Learned at runtime rather than hardcoded, because the list is not guessable from the
+ * name: measured 2026-08-15, gemini-3.5-flash-lite and gemini-flash-lite-latest reject the
+ * field, while gemini-3.1-flash-lite accepts it — same "-lite" suffix, opposite behaviour.
+ * They are all already 0-thought-token models, so dropping the field costs nothing.
+ */
+const THINKING_CONFIG_UNSUPPORTED = new Set<string>();
+
 async function sendGemini(o: {
   model: string; system: string; tools: ToolDef[]; history: Turn[]; maxTokens?: number;
-}): Promise<ModelReply> {
+  thinking?: boolean;
+}, retriedWithoutThinkingConfig = false): Promise<ModelReply> {
   const contents = buildGeminiContents(o.history);
+  const sendThinkingConfig = !o.thinking &&
+    !retriedWithoutThinkingConfig &&
+    !THINKING_CONFIG_UNSUPPORTED.has(o.model);
 
   const body = JSON.stringify({
     systemInstruction: { parts: [{ text: o.system }] },
@@ -297,7 +414,15 @@ async function sendGemini(o: {
         parameters: sanitizeSchema(t.input_schema),
       })),
     }],
-    generationConfig: { maxOutputTokens: o.maxTokens ?? 1500, temperature: 0.4 },
+    generationConfig: {
+      maxOutputTokens: o.maxTokens ?? 1500,
+      temperature: 0.4,
+      // See callModel's `thinking` docblock: thought tokens are billed against
+      // maxOutputTokens, so leaving this unset let the model think itself out of an
+      // answer. The lite models in the chain report 0 thought tokens either way; this is
+      // what protects the thinking-capable ones when the chain falls through to them.
+      ...(sendThinkingConfig ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+    },
   });
 
   // Same contract as zad-core-intelligence's callGeminiPool: one request exhausts the whole
@@ -335,18 +460,41 @@ async function sendGemini(o: {
       );
       continue;
     }
+    // 503 UNAVAILABLE is the model being overloaded, not this key being throttled — every
+    // other key would hit the identical wall, so rotating them wastes the round trips.
+    // Hand it to the model chain instead. This is the error that produced the customer-
+    // visible "gemini 503 … high demand" runs on 2026-08-15.
+    if (attempt.status === 503) {
+      const overloadBody = await attempt.text();
+      throw new ProviderUnavailableError(
+        `gemini 503 on ${o.model}: ${overloadBody}`,
+        `503 overloaded`,
+      );
+    }
+    // A model that rejects thinkingConfig outright answers 400 INVALID_ARGUMENT before it
+    // looks at anything else. checkResponse would class that as a ConfigError and kill the
+    // whole run — which is exactly what the first deploy of this change did. Retry once
+    // without the field and remember, so the cost is one wasted call per model per
+    // instance, not a dead brain.
+    if (attempt.status === 400 && sendThinkingConfig) {
+      THINKING_CONFIG_UNSUPPORTED.add(o.model);
+      console.warn(`[zad-brain] ${o.model} rejects thinkingConfig; retrying without it`);
+      return await sendGemini(o, true);
+    }
     res = attempt;
     break;
   }
 
   if (!res) {
-    // Every key is rate-limited. Surface it as retryable so withRetry's backoff gets a shot
-    // at a window where quota has recovered, rather than failing the whole brain run.
+    // Every key is rate-limited on this model. The quota id in the body says whether that
+    // is the per-day bucket or a burst limit — either way another *key* cannot help
+    // (they share the per-project-per-model bucket), so this goes to the model chain.
     // الأثر بيتحط قبل جسم الرد عشان يفضل ظاهر في `zad_brain_runs.error` حتى لو الرسالة
     // اتقصّت. هو اللي بيفرّق بين "الكوتة اليومية خلصت" و"حد الدقيقة اتضرب برشقة": حد
     // يومي متضروب بيرجع retryDelay بالساعات، وحد الدقيقة بيرجعه بالثواني.
-    throw new RetryableError(
-      `gemini 429 (all ${GEMINI_KEY_POOL.length} keys exhausted) [${quotaTrail.join(" | ")}]: ${lastQuotaBody}`,
+    throw new ProviderUnavailableError(
+      `gemini 429 on ${o.model} (all ${GEMINI_KEY_POOL.length} keys exhausted) [${quotaTrail.join(" | ")}]: ${lastQuotaBody}`,
+      `429 all ${GEMINI_KEY_POOL.length} keys`,
     );
   }
 
@@ -388,10 +536,32 @@ async function sendGemini(o: {
 // أهم فرق: arguments بترجع كـ **نص JSON** مش كائن، وساعات بتكون
 // مكسورة. مابنرميش خطأ — بنرجّع السبب للموديل زي أي رفض تحقق تاني.
 // ============================================================
-async function sendOpenAICompatible(o: {
+/**
+ * The Groq leg of the failover chain. Groq speaks the same OpenAI-compatible dialect, so
+ * this is [sendOpenAICompatible] pointed at Groq's endpoint with its own key pool rather
+ * than a second copy of the message-shaping code — the two must not be allowed to drift,
+ * since a chain that only gets exercised during a Gemini outage is exactly the code that
+ * nobody notices has rotted.
+ *
+ * Note it reads GROQ_API_KEY_1/2 (falling back to the singular GROQ_API_KEY), NOT
+ * ZAD_API_KEY: `cfg().key` is `Deno.env.get("ZAD_API_KEY")!` and that secret is not set on
+ * this project at all, so routing Groq through cfg() would have failed with an undefined
+ * bearer token the first time it was ever needed.
+ */
+function sendGroq(o: {
   model: string; system: string; tools: ToolDef[]; history: Turn[]; maxTokens?: number;
 }): Promise<ModelReply> {
-  const { key, baseUrl } = cfg();
+  const key = GROQ_KEY_POOL[groqKeyCursor % GROQ_KEY_POOL.length];
+  groqKeyCursor = (groqKeyCursor + 1) % GROQ_KEY_POOL.length;
+  return sendOpenAICompatible(o, { key, baseUrl: "https://api.groq.com/openai/v1", who: "groq" });
+}
+let groqKeyCursor = 0;
+
+async function sendOpenAICompatible(o: {
+  model: string; system: string; tools: ToolDef[]; history: Turn[]; maxTokens?: number;
+}, override?: { key: string; baseUrl: string; who: string }): Promise<ModelReply> {
+  const { key, baseUrl } = override ?? cfg();
+  const who = override?.who ?? "openai_compatible";
   if (!baseUrl) throw new ConfigError("ZAD_BASE_URL مطلوب لـ openai_compatible");
 
   const messages: any[] = [{ role: "system", content: o.system }];
@@ -432,7 +602,7 @@ async function sendOpenAICompatible(o: {
       messages,
     }),
   });
-  await checkResponse(res, "openai_compatible");
+  await checkResponse(res, who);
   const d = await res.json();
 
   const msg = d.choices?.[0]?.message ?? {};

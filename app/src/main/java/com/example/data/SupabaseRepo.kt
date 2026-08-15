@@ -132,14 +132,28 @@ object SupabaseRepo {
      * (حفظ في BudgetEditDialog)، فبتدهس أي قيمة قديمة وبتأكد فوراً — مفيش داعي لسؤال
      * تأكيد تاني بعدها.
      */
+    /**
+     * upsert مش update — ودي مش تفصيلة أسلوب.
+     *
+     * `update … where id = …` على صف مش موجود بيرجع 200 وهو ما غيّرش أي حاجة، فالدالة دي
+     * كانت بترجع true وتسيب السقف مش متسجّل. في 2026-08-15 كان 3 من 4 حسابات على المشروع
+     * من غير صف في zad_users أصلاً (SupabaseRepo.signUp بيعمل الصف بس لو المستخدم كتب
+     * اسم **و** كانت في جلسة جاهزة وقتها)، فالسقف اللي المستخدم كتبه بإيده كان بيروح على
+     * لا حاجة — وzad_budget_state بيرجع monthly_limit: null وremaining: null وthreat:
+     * UNKNOWN لحساب صاحبه شايف ميزانية على شاشته.
+     *
+     * الـ trigger في 20260815120000_provision_zad_users_row.sql بيضمن وجود الصف من ناحية
+     * السيرفر؛ الـ upsert هنا بيخلي الكتابة دي تنجح حتى لو الصف اتأخر أو اتمسح.
+     */
     suspend fun setMonthlyLimit(userId: String, limit: Double): Boolean {
         return try {
-            client.postgrest["zad_users"].update(
+            client.postgrest["zad_users"].upsert(
                 mapOf(
+                    "id" to userId,
                     "monthly_limit" to limit,
                     "limit_confirmed_at" to java.time.Instant.now().toString()
                 )
-            ) { filter { eq("id", userId) } }
+            )
             Log.d(TAG, "setMonthlyLimit() SUCCESS → userId=$userId, limit=$limit")
             true
         } catch (e: Exception) {
@@ -175,12 +189,16 @@ object SupabaseRepo {
         val userId = client.auth.currentUserOrNull()?.id ?: return false
         repeat(2) { attempt ->
             try {
-                client.postgrest["zad_users"].update(
+                // upsert مش update — نفس سبب setMonthlyLimit بالظبط. الـ read-back تحت
+                // كان بيكشف الفشل بس ما كانش بيقدر يصلحه: الصف مكانش موجود، فالمحاولة
+                // التانية كانت بتفشل زي الأولى وتروح للطابور اللي بيفشل هو كمان للأبد.
+                client.postgrest["zad_users"].upsert(
                     mapOf(
+                        "id" to userId,
                         "currency" to currencyCode,
                         "country" to countryCode
                     )
-                ) { filter { eq("id", userId) } }
+                )
                 val (storedCurrency, _) = getMarketProfile(userId)
                 if (storedCurrency == currencyCode) {
                     Log.d(TAG, "syncMarketProfile() SUCCESS → userId=$userId, currency=$currencyCode")
@@ -1860,9 +1878,13 @@ object SupabaseRepo {
                 Log.d(TAG, "captureMonthlyLimit() skipped — already set to $existing")
                 return false
             }
-            client.postgrest["zad_users"].update(
-                mapOf("monthly_limit" to limit)
-            ) { filter { eq("id", userId) } }
+            // upsert مش update — نفس علة setMonthlyLimit/syncMarketProfile. الفرق إن دي
+            // بتتنادى مرة واحدة بس في عمر التثبيت (monthly_limit_captured)، فالمحاولة
+            // الوحيدة دي كانت بتضرب في صف مش موجود وترجع 200، والسقف المحلي مايوصلش
+            // السيرفر أبداً بعد كده.
+            client.postgrest["zad_users"].upsert(
+                mapOf("id" to userId, "monthly_limit" to limit)
+            )
             Log.d(TAG, "captureMonthlyLimit() → userId=$userId, limit=$limit")
             true
         } catch (e: Exception) {

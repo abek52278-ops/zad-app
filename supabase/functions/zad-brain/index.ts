@@ -61,7 +61,26 @@ import { AgentSource, AuditScope, recordAction, writeRows } from "./audit.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const MODEL_ROUTINE = Deno.env.get("ZAD_MODEL_ROUTINE") ?? "openai/gpt-oss-20b:free";
+// The agent loop's model, deliberately NOT ZAD_MODEL_ROUTINE any more.
+//
+// ZAD_MODEL_ROUTINE is a shared secret that zad-core-intelligence also reads for vision /
+// OCR / SMS extraction, and it is currently set to gemini-3.5-flash. Two facts measured
+// against this project on 2026-08-15 make that the wrong model for *this* loop, while
+// saying nothing about whether it is right for scanning a receipt:
+//
+//   1. Quota. The 429s that failed 14 of 26 brain runs name
+//      `GenerateRequestsPerDayPerProjectPerModel-FreeTier` = 20/day. Sharing one model
+//      string across the agent loop and every camera scan means both spend the same
+//      20 requests, and the loop makes several calls per conversation turn.
+//   2. Thinking. gemini-3.5-flash burned 231 thought tokens on "سجل 50 جنيه قهوة" and
+//      returned finishReason=MAX_TOKENS. gemini-3.5-flash-lite answered the identical
+//      request with a correct tool call, 0 thought tokens, in a quarter of the time.
+//
+// So the agent gets its own knob with its own default. Whether the lite model is equally
+// good at reading a blurry receipt is a separate question that was NOT tested here, which
+// is exactly why this change does not touch ZAD_MODEL_ROUTINE's value. Set ZAD_MODEL_AGENT
+// as a secret to override; callModel() falls through the rest of the chain from here.
+const MODEL_ROUTINE = Deno.env.get("ZAD_MODEL_AGENT") ?? "gemini-3.5-flash-lite";
 // W8 — بيحرس action=process_agent_tasks (pg_cron بينادي ده، مش عميل بـ JWT). لازم
 // يطابق السيكريت المكتوب في migration الـ agent_tasks (cron.schedule command).
 const AGENT_TASKS_CRON_SECRET = Deno.env.get("ZAD_AGENT_TASKS_CRON_SECRET") ?? "";
@@ -741,8 +760,31 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       return "الرابط اتسجل بين الملاحظتين";
     }
     case "add_shopping_item": {
+      // Idempotent by (user, item, still-unbought). A blind insert here is how the list in
+      // the 2026-08-15 report ended up with "مياه إيلانو" and "بيض" twice each: the same
+      // restock ran at 09:12 and again at 17:02, and nothing looked first. The same shape
+      // of duplicate comes from the Telegram fallback — when zad-brain fails *after* a
+      // write, the bot retries on the old [[ACTION]] path and writes it again.
+      const itemName = String(input.item_name).trim();
+      const { data: existing } = await sb.from("zad_shopping_list")
+        .select("id,item_name,quantity")
+        .eq("user_id", userId)
+        .eq("is_purchased", false);
+      const match = (existing ?? []).find(
+        (row: { item_name: string }) => row.item_name.trim().toLowerCase() === itemName.toLowerCase(),
+      ) as { id: string; quantity: number } | undefined;
+
+      if (match) {
+        // نفس الصنف مطلوب تاني قبل ما يتشترى = كمية أكبر، مش سطر تاني في القايمة.
+        const merged = (match.quantity ?? 1) + (Number(input.quantity) || 1);
+        const { error: upErr } = await sb.from("zad_shopping_list")
+          .update({ quantity: merged }).eq("id", match.id).eq("user_id", userId);
+        if (upErr) return `فشل التعديل: ${upErr.message}`;
+        return `"${itemName}" كان في القايمة أصلاً — الكمية بقت ${merged}`;
+      }
+
       const { error } = await sb.from("zad_shopping_list").insert({
-        user_id: userId, item_name: input.item_name, quantity: input.quantity, is_purchased: false,
+        user_id: userId, item_name: itemName, quantity: input.quantity, is_purchased: false,
       });
       if (error) return `فشل الإضافة: ${error.message}`;
       return "اتضافت لقائمة التسوق";
@@ -1048,6 +1090,47 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
     case "add_pharmacy_item": {
       const medName = String(input.name).trim();
       const doseTimes = input.dose_times ? String(input.dose_times).trim() : null;
+
+      // Idempotent by (user, medicine name). On 2026-08-15 this account held six pharmacy
+      // rows for two medicines — "اجمانتين" and "سبروفار" written three times each inside
+      // six minutes (01:24:24, 01:24:50, 01:27:01, 01:30:23), matching the exact minutes
+      // the Telegram bot was answering "تعذر تنفيذ الطلب". The turn failed, so the
+      // customer retried, and each retry inserted the medicine again. That is not just an
+      // untidy list: duplicate rows mean duplicate dose alarms, which is why the phone
+      // showed "موعد الدواء" for اجمانتين twice in the same notification shade.
+      //
+      // Re-adding a medicine the customer already has is a correction, not a second
+      // medicine. Fill in whatever the new call knows and leave the rest alone.
+      const { data: existingMeds } = await sb.from("zad_pharmacy_items")
+        .select("id,name,dosage,dose_times,remaining_quantity")
+        .eq("user_id", userId);
+      const dupe = (existingMeds ?? []).find(
+        (row: { name: string }) => row.name.trim().toLowerCase() === medName.toLowerCase(),
+      ) as { id: string; dosage: string | null; dose_times: string | null } | undefined;
+
+      if (dupe) {
+        const patch: Record<string, unknown> = {};
+        if (doseTimes && doseTimes !== dupe.dose_times) patch.dose_times = doseTimes;
+        if (input.dosage && !dupe.dosage) patch.dosage = String(input.dosage).trim();
+        if (input.quantity != null) patch.remaining_quantity = input.quantity;
+        if (Object.keys(patch).length > 0) {
+          const u = await writeRows(
+            sb.from("zad_pharmacy_items").update(patch)
+              .eq("id", dupe.id).eq("user_id", userId).select("id,name,dose_times"),
+            "تحديث الدواء",
+          );
+          if (!u.ok) return `مرفوض: ${u.reason}`;
+          ctx.mutationCount++;
+          ctx.mutations.push({ tool: name, old: dupe, new: u.rows[0] });
+          await recordAction(sb, userId, scope, {
+            tool: name, input, table: "zad_pharmacy_items", targetId: dupe.id,
+            previous: dupe, next: u.rows[0],
+          });
+          return `"${medName}" كان مسجل عندك أصلاً — حدّثت بياناته بدل ما أضيفه تاني`;
+        }
+        return `"${medName}" مسجل عندك خلاص بنفس البيانات — مضفتش نسخة تانية`;
+      }
+
       const w = await writeRows(
         sb.from("zad_pharmacy_items").insert({
           user_id: userId,
