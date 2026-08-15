@@ -1,6 +1,7 @@
 package com.example.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 
@@ -17,7 +18,8 @@ class BudgetMathTest {
         wallet: String = "card",
         transferTo: String? = null,
         createdAt: String? = null,
-        isVerified: Boolean = false
+        isVerified: Boolean = false,
+        currency: String? = null,
     ) = ZadTransaction(
         amount = amount,
         title = "test",
@@ -25,7 +27,8 @@ class BudgetMathTest {
         wallet = wallet,
         transferTo = transferTo,
         createdAt = createdAt,
-        isVerified = isVerified
+        isVerified = isVerified,
+        currency = currency
     )
 
     @Test
@@ -211,8 +214,15 @@ class BudgetMathTest {
         recurrence = recurrence, confirmed = confirmed, active = active
     )
 
-    private fun sub(amount: Double, renewalDate: String?, isActive: Boolean = true) = ZadSubscription(
-        title = "test", amount = amount, renewalDate = renewalDate, isActive = isActive
+    private fun sub(
+        amount: Double,
+        renewalDate: String?,
+        isActive: Boolean = true,
+        dueDay: Int? = null,
+        billingCycle: String? = "MONTHLY",
+    ) = ZadSubscription(
+        title = "test", amount = amount, renewalDate = renewalDate, isActive = isActive,
+        dueDay = dueDay, billingCycle = billingCycle
     )
 
     @Test
@@ -271,6 +281,95 @@ class BudgetMathTest {
             obligations, subs, LocalDate.of(2026, 8, 10), LocalDate.of(2026, 7, 10)
         )
         assertEquals(3650.0, committed, 0.001)
+    }
+
+    // ── توحيد العملة قبل الجمع ────────────────────────────────────────────────────
+
+    @Test
+    fun `a transaction with no currency is treated as the account currency, never as SAR`() {
+        // العمود null في كل الصفوف الموجودة. لو اتفسّر ريال، حساب مصري كان هيتضرب في ١٣.
+        val txs = listOf(tx(amount = 100.0, txnKind = "expense", currency = null))
+        val out = BudgetMath.normalizedToCurrency(txs, "EGP")
+        assertEquals(100.0, out.single().amount, 0.001)
+    }
+
+    @Test
+    fun `a foreign-currency transaction is converted before it joins the total`() {
+        val txs = listOf(tx(amount = 100.0, txnKind = "expense", currency = "USD"))
+        val out = BudgetMath.normalizedToCurrency(txs, "EGP")
+        // 100 USD عند 0.0204 دولار للجنيه = حوالي 4,902 جنيه — المهم إنه مش فاضل 100.
+        assertTrue("expected a real conversion, got ${out.single().amount}", out.single().amount > 4000.0)
+    }
+
+    @Test
+    fun `same-currency rows are left exactly alone`() {
+        val txs = listOf(tx(amount = 250.0, txnKind = "expense", currency = "egp"))
+        assertEquals(250.0, BudgetMath.normalizedToCurrency(txs, "EGP").single().amount, 0.001)
+    }
+
+    @Test
+    fun `an unknown account currency disables conversion rather than guessing a rate`() {
+        val txs = listOf(tx(amount = 100.0, txnKind = "expense", currency = "USD"))
+        assertEquals(100.0, BudgetMath.normalizedToCurrency(txs, null).single().amount, 0.001)
+    }
+
+    // ── التجديد الجاي لاشتراك (nextRenewalDate) ───────────────────────────────────
+    // العمود نصّي حر ومحدش بيتحقق منه لا في الشات ولا في الشاشة، فالقيم الحقيقية اللي
+    // كانت في الجدول يوم 2026-08-15 كانت "30 مارس" و"20" و"30". الاختبارات دي بتثبّت
+    // إن دول بيتقروا بدل ما يتاخدوا صفر بصمت.
+
+    @Test
+    fun `nextRenewalDate reads a bare day number out of free text`() {
+        val next = BudgetMath.nextRenewalDate(sub(50.0, renewalDate = "30 مارس"), LocalDate.of(2026, 8, 15))
+        assertEquals(LocalDate.of(2026, 8, 30), next)
+    }
+
+    @Test
+    fun `nextRenewalDate prefers due_day over a number buried in the text`() {
+        val next = BudgetMath.nextRenewalDate(
+            sub(50.0, renewalDate = "30 مارس", dueDay = 5), LocalDate.of(2026, 8, 1)
+        )
+        assertEquals(LocalDate.of(2026, 8, 5), next)
+    }
+
+    @Test
+    fun `nextRenewalDate rolls a stale past date forward instead of leaving it reserved`() {
+        val next = BudgetMath.nextRenewalDate(sub(50.0, renewalDate = "2026-05-12"), LocalDate.of(2026, 8, 15))
+        assertEquals(LocalDate.of(2026, 9, 12), next)
+    }
+
+    @Test
+    fun `nextRenewalDate steps by a year for a yearly subscription`() {
+        val next = BudgetMath.nextRenewalDate(
+            sub(600.0, renewalDate = "2025-03-04", billingCycle = "YEARLY"), LocalDate.of(2026, 8, 15)
+        )
+        assertEquals(LocalDate.of(2027, 3, 4), next)
+    }
+
+    @Test
+    fun `nextRenewalDate returns null when no day can be determined rather than guessing one`() {
+        assertEquals(null, BudgetMath.nextRenewalDate(sub(50.0, renewalDate = "كل شهر"), LocalDate.of(2026, 8, 15)))
+        assertEquals(null, BudgetMath.nextRenewalDate(sub(50.0, renewalDate = null), LocalDate.of(2026, 8, 15)))
+    }
+
+    @Test
+    fun `a subscription charged earlier this cycle is not still reserved on top of the expense`() {
+        // اتخصم يوم ٥، والـ worker لسه ماشتغلش فالتاريخ فاضل في الماضي. المبلغ اتسجّل
+        // مصروف بالفعل، فحجزه تاني معناه إنه اتحسب مرتين في "متاح".
+        val subs = listOf(sub(200.0, renewalDate = "2026-08-05"))
+        val committed = BudgetMath.committedInCycle(
+            emptyList(), subs, cycleEnd = LocalDate.of(2026, 8, 25), asOf = LocalDate.of(2026, 8, 15)
+        )
+        assertEquals(0.0, committed, 0.001)
+    }
+
+    @Test
+    fun `a subscription with only a free-text day now reaches committed`() {
+        val subs = listOf(sub(50.0, renewalDate = "20"))
+        val committed = BudgetMath.committedInCycle(
+            emptyList(), subs, cycleEnd = LocalDate.of(2026, 8, 25), asOf = LocalDate.of(2026, 8, 15)
+        )
+        assertEquals(50.0, committed, 0.001)
     }
 
     @Test

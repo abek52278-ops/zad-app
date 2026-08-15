@@ -113,13 +113,15 @@ fun LoginScreen(
                     // Language Toggle — كان زرار شكلي (isArabic محلي بيقلب نص من غير أي
                     // تأثير فعلي). دلوقتي موصول بـ LocaleHelper (نفس الآلية اللي
                     // OnboardingScreen بيستخدمها) فيبدّل اتجاه الواجهة RTL/LTR فعلياً.
-                    var isArabic by remember { mutableStateOf(com.example.data.LocaleHelper.isArabic()) }
+                    // كود اللغة الحالية نفسها، مش AR/EN بولياني — toggleLanguage بقت
+                    // بتلف على تلات لغات، فـ "EN" كانت هتظهر والواجهة تركي.
+                    var language by remember { mutableStateOf(com.example.data.LocaleHelper.currentLanguage()) }
                     TextButton(onClick = {
                         com.example.data.LocaleHelper.toggleLanguage()
-                        isArabic = com.example.data.LocaleHelper.isArabic()
+                        language = com.example.data.LocaleHelper.currentLanguage()
                         context.findActivity()?.recreate()
                     }) {
-                        Text(if (isArabic) "AR" else "EN", color = primary, fontWeight = FontWeight.Bold)
+                        Text(language.uppercase(), color = primary, fontWeight = FontWeight.Bold)
                     }
                 }
 

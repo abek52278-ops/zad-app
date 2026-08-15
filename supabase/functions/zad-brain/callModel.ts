@@ -101,6 +101,9 @@ const DEFAULT_MODEL_CHAIN = [
   "gemini-3-flash-preview",
   "gemini-flash-latest",
   "gemini-3.5-flash",
+  // اتقاس شغّال في نفس الجلسة (200، tool ✅) وكان متسابش برّه السلسلة عن قصد — كل موديل
+  // زيادة = حصة إضافية على الخمس مفاتيح كلهم، وده المهم لما 503 يضرب أول السلسلة.
+  "gemini-3.6-flash",
 ];
 
 /** The caller's model first (it is whatever ZAD_MODEL_ROUTINE/BRAIN is set to, and the
@@ -115,9 +118,19 @@ function modelChain(primary: string): string[] {
 // Last leg of the chain. Groq is a different vendor with a different quota, so it survives
 // a total Gemini outage. Probed the same day: llama-3.3-70b-versatile returns 200 and does
 // emit tool_calls, so it can carry the agent loop rather than only plain text.
-const GROQ_KEY_POOL: string[] = [1, 2]
-  .map((n) => Deno.env.get(`GROQ_API_KEY_${n}`))
-  .filter((k): k is string => !!k);
+// الاسم المفرد `GROQ_API_KEY` محسوب هنا كمان. الكود كان بيقرا الاسمين المرقّمين بس،
+// بينما رسالة الفشل تحت بتقول "no GROQ_API_KEY_1/GROQ_API_KEY" — يعني بتوعد بمفتاح
+// مالوش قارئ. لو المشروع كان محطوط عليه المفرد بس (وهو الاسم الأصلي قبل الـ pool،
+// واللي لسه transcribeAudio والـ web-search actions بيقروه في zad-core-intelligence)،
+// الـ pool كان بيطلع فاضي والـ fallback كله بيختفي — فأي موجة 503 على Gemini بتبقى
+// فشل نهائي للدور، وهو بالظبط شكل "تعذر تنفيذ الطلب (ok:false)" المتكرر يوم 2026-08-15
+// مع "Error: gemini 503 … high demand" كأكتر خطأ متكرر.
+const GROQ_KEY_POOL: string[] = [
+  Deno.env.get("GROQ_API_KEY_1"),
+  Deno.env.get("GROQ_API_KEY_2"),
+  Deno.env.get("GROQ_API_KEY"),
+].filter((k): k is string => !!k)
+  .filter((k, i, all) => all.indexOf(k) === i);
 if (GROQ_KEY_POOL.length === 0) {
   const legacy = Deno.env.get("GROQ_API_KEY");
   if (legacy) GROQ_KEY_POOL.push(legacy);

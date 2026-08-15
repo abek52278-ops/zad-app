@@ -16,6 +16,35 @@ import java.time.ZoneId
  */
 object BudgetMath {
 
+    /**
+     * توحيد العملة قبل أي جمع. كل دالة تحت بتعمل `sumOf { it.amount }` من غير ما تبص على
+     * `currency` خالص، فمعاملة بعملة تانية كانت بتتجمع كأنها بعملة الحساب: خصم ١٠٠ دولار
+     * بيزوّد المصروف ١٠٠ جنيه، وبيتعرض بعلامة الجنيه.
+     *
+     * ودي مش حالة نظرية — `SaBankParser.extractCurrency` اتعمل مخصوص عشان يمسك "رسالة من
+     * بنك مصري وأنت مسافر" ويسجّل عملتها الصح. فالإصلاح ده خلّى الصف أمين، وبعدين مفيش
+     * حاجة بتقرا الحقل. البيانات بقت صادقة والحسبة فضلت بتكدب.
+     *
+     * `currency` فاضية أو null معناها **عملة الحساب**، مش SAR. ده مهم: العمود null لكل
+     * الصفوف الموجودة، ولو اتفسّر على إنه ريال كان التحويل هيضرب أرقام حساب مصري في ١٣.
+     * التحويل بيحصل بس لما الصف حامل كود صريح ومختلف عن عملة الحساب.
+     *
+     * المعدلات في [CurrencyExchange] تقريبية ومحدّثة يدوياً، فالرقم الناتج تقريبي — بس
+     * تقريبي أقرب للحقيقة بكتير من جمع عملتين مختلفتين كأنهم واحدة.
+     *
+     * ملحوظة: `zad_budget_state` على السيرفر لسه بيجمع `amount` خام. ده مالوش أثر
+     * دلوقتي لأن العمود null في كل الصفوف، بس أول ما تتسجّل معاملة بعملة أجنبية هيبقى
+     * فيه فرق بين الرقم المحلي ورقم السيرفر — والـ drift log في ZadViewModel هيقوله.
+     */
+    fun normalizedToCurrency(transactions: List<ZadTransaction>, homeCurrency: String?): List<ZadTransaction> {
+        if (homeCurrency.isNullOrBlank()) return transactions
+        return transactions.map { tx ->
+            val code = tx.currency?.trim()?.uppercase()
+            if (code.isNullOrBlank() || code == homeCurrency.uppercase()) tx
+            else tx.copy(amount = CurrencyExchange.convert(tx.amount, code, homeCurrency.uppercase()).asMoney())
+        }
+    }
+
     /** مش private — ZadIntelligenceScreen's category donut محتاج نفس منطق الفلترة بالتاريخ
      * ده بالظبط، مش نسخة تالتة منه، عشان يطابق spentInCycle/incomeInCycle. */
     fun txDate(tx: ZadTransaction): LocalDate? = tx.createdAt?.let {
@@ -195,6 +224,53 @@ object BudgetMath {
         return next
     }
 
+    /**
+     * التجديد الجاي لاشتراك — نفس عقد [nextDueDate] بالظبط، ولنفس السبب.
+     *
+     * الاشتراكات كانت بتتقرا بـ `LocalDate.parse(renewalDate)` وخلاص: مفيش حد أدنى ومفيش
+     * لفّ للأمام. وده كان بيكسر في اتجاهين، الاتنين اتشافوا في بيانات حقيقية 2026-08-15:
+     *
+     * ١. `renewal_date` عمود **نصّي حر**، والكتابة عليه مش متحققة لا في الشات ولا في شاشة
+     *    الاشتراكات. القيم الفعلية في الجدول كانت "30 مارس" و"20" و"30" — ولا واحدة منهم
+     *    تاريخ ISO. الكوتلن كان بيرمي الاستثناء ويرجع صفر، والـ SQL شرطه regex على
+     *    `^\d{4}-\d{2}-\d{2}$` فكان بيستبعدها. النتيجة إن الاشتراكات ماكانتش بتدخل
+     *    "المحجوز" **أبداً** — الرقم مكانش غلط، الميزة كانت ميتة بصمت.
+     * ٢. حتى لو التاريخ سليم، تاريخ فات مابيتلفّش. الالتزامات بيلفّها
+     *    [nextDueDate]/`zad_obligation_next_due`، والاشتراكات كان بيلفّها
+     *    `SubscriptionAutoDeductWorker` بس — وهو PeriodicWork كل ٢٤ ساعة على الأندرويد،
+     *    مفيش مقابل ليه على السيرفر. فاشتراك اتخصم الصبح بيفضل محجوز لحد ما الـ worker
+     *    يشتغل، وهو نفس المبلغ اللي اتسجّل مصروف فعلاً — محسوب مرتين في "متاح".
+     *
+     * الترتيب هنا بيقرا نية العميل من أوضح مصدر للأقل: تاريخ ISO كامل، وإلا عمود
+     * `due_day` (موجود في الجدول ومكانش بيتقرا أصلاً)، وإلا رقم يوم مجرد جوه النص الحر.
+     * لو مفيش أي واحد فيهم بنرجّع null — "مش عارفين" مش "أول الشهر"، عشان تخمين يوم
+     * غلط بيحجز فلوس في دورة مش بتاعتها.
+     */
+    fun nextRenewalDate(sub: ZadSubscription, asOf: LocalDate = LocalDate.now()): LocalDate? {
+        val raw = sub.renewalDate?.trim().orEmpty()
+        val iso = raw.take(10).let { try { LocalDate.parse(it) } catch (e: Exception) { null } }
+        val dayOfMonth = sub.dueDay
+            ?: Regex("\\d{1,2}").find(raw)?.value?.toIntOrNull()?.takeIf { it in 1..31 }
+
+        var next = iso ?: dayOfMonth?.let {
+            LocalDate.of(asOf.year, asOf.month, it.coerceAtMost(asOf.lengthOfMonth()))
+        } ?: return null
+
+        // نفس خطوة SubscriptionAutoDeductWorker.nextRenewalDate — لازم يفضلوا متفقين،
+        // ده بيتنبأ باللي الـ worker هيعمله والتاني بينفّذه.
+        while (next.isBefore(asOf)) {
+            next = when (sub.billingCycle?.uppercase()) {
+                "YEARLY", "ANNUAL" -> next.plusYears(1)
+                "WEEKLY" -> next.plusWeeks(1)
+                else -> next.plusMonths(1).let { m ->
+                    // القصّ لآخر يوم في الشهر مايبقاش دائم: اشتراك يوم ٣١ يرجع ٣١ بعد فبراير
+                    dayOfMonth?.let { d -> m.withDayOfMonth(d.coerceAtMost(m.lengthOfMonth())) } ?: m
+                }
+            }
+        }
+        return next
+    }
+
     /** إجمالي المحجوز: التزامات مؤكدة+نشطة مستحقة قبل نهاية الدورة (النهاية حصرية) + اشتراكات نشطة كذلك */
     fun committedInCycle(
         obligations: List<ZadObligation>,
@@ -206,11 +282,8 @@ object BudgetMath {
             .filter { it.active && it.confirmed }
             .sumOf { ob -> nextDueDate(ob, asOf)?.let { if (it.isBefore(cycleEnd)) ob.amount else 0.0 } ?: 0.0 }
         val fromSubscriptions = subscriptions
-            .filter { it.isActive && !it.renewalDate.isNullOrBlank() }
-            .sumOf { sub ->
-                val renewal = try { LocalDate.parse(sub.renewalDate!!.take(10)) } catch (e: Exception) { null }
-                if (renewal != null && renewal.isBefore(cycleEnd)) sub.amount else 0.0
-            }
+            .filter { it.isActive }
+            .sumOf { sub -> nextRenewalDate(sub, asOf)?.let { if (it.isBefore(cycleEnd)) sub.amount else 0.0 } ?: 0.0 }
         return fromObligations + fromSubscriptions
     }
 

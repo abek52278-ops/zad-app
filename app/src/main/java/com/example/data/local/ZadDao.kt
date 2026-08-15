@@ -109,6 +109,18 @@ interface ZadDao {
     @Query("DELETE FROM zad_shopping_list WHERE id = :id")
     suspend fun deleteShoppingItem(id: String)
 
+    /**
+     * الحاجات اللي اتشالت من السيرفر (أو اتدمجت في صف واحد) لازم تختفي من الجهاز كمان.
+     * المزامنة كانت insert-only، فالصف المحلي كان بيفضل عايش للأبد — وده اللي خلّى
+     * "مياه إيلانو" تفضل ظاهرة أربع مرات على الشاشة والجدول على السيرفر فيه صف واحد.
+     * بتتنادى بعد فلاش الطابور بس، عشان صف اتعمل أوفلاين ولسه ما اترفعش ما يتمسحش.
+     */
+    @Query("DELETE FROM zad_shopping_list WHERE id NOT IN (:remoteIds)")
+    suspend fun pruneShoppingItemsNotIn(remoteIds: List<String>)
+
+    @Query("DELETE FROM zad_pharmacy_items WHERE id NOT IN (:remoteIds)")
+    suspend fun prunePharmacyItemsNotIn(remoteIds: List<String>)
+
     @Query("DELETE FROM zad_transactions WHERE id = :id")
     suspend fun deleteTransaction(id: String)
 

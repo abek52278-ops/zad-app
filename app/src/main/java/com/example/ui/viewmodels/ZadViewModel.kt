@@ -775,6 +775,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             Log.d(TAG, "syncData() → starting Supabase sync")
             try {
+                // الطابور الأول، قبل أي قراءة. أي حاجة اتعملت أوفلاين لازم تبقى على
+                // السيرفر قبل ما نعتبر السيرفر هو المرجع — وإلا التنضيف تحت هيمسحها.
+                com.example.data.SyncOutbox.flush(getApplication())
+                val outboxDrained = dao.getAllPendingSyncOps().isEmpty()
                 val remoteInventory = SupabaseRepo.getInventory()
                 Log.d(TAG, "syncData() → remoteInventory count=${remoteInventory.size}")
                 if (remoteInventory.isNotEmpty()) dao.insertInventory(remoteInventory)
@@ -803,6 +807,32 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.d(TAG, "syncData() → remoteShoppingList count=${remoteShoppingList.size}")
                 if (remoteShoppingList.isNotEmpty()) {
                     remoteShoppingList.forEach { dao.insertShoppingItem(it) }
+                }
+
+                // ── تنضيف: اللي مش موجود على السيرفر مايفضلش على الجهاز ──────────────
+                // المزامنة كانت بتضيف بس. صف اتمسح من السيرفر — أو أربع صفوف اتدمجوا في
+                // واحد بحارس التكرار — كان بيفضل معروض على الشاشة للأبد، وده اللي المستخدم
+                // شايفه: قائمة تسوق فيها "مياه إيلانو" أربع مرات وجدول السيرفر فيه صف واحد.
+                //
+                // شرطين قبل أي مسح، والاتنين مقصودين:
+                //   • الطابور اتفضّى — يعني كل حاجة محلية وصلت السيرفر فعلاً، فغيابها من
+                //     الرد معناه إنها اتشالت مش إنها لسه ما اترفعتش.
+                //   • الرد مش فاضي ومش مقصوص — PostgREST بيقص عند حد أقصى للصفوف، ورد
+                //     مقصوص لو اتعامل كمرجع كان هيمسح اللي بعده. رد فاضي بيتساب برضه
+                //     لأنه أشهر شكل لفشل قراءة اتبلع.
+                //
+                // المعاملات مستثناة عن قصد: دي فلوس، وقراءة ناقصة مرة واحدة كفيلة تمسح
+                // تاريخ مالي مش هيرجع. المسح هنا محصور في القوايم اللي ضررها محدود وقابل
+                // للإرجاع من السيرفر في أي لحظة.
+                if (outboxDrained) {
+                    if (remoteShoppingList.isNotEmpty() && remoteShoppingList.size < 1000) {
+                        dao.pruneShoppingItemsNotIn(remoteShoppingList.map { it.id })
+                    }
+                    if (remotePharmacyItems.isNotEmpty() && remotePharmacyItems.size < 1000) {
+                        dao.prunePharmacyItemsNotIn(remotePharmacyItems.map { it.id })
+                    }
+                } else {
+                    Log.w(TAG, "syncData() → outbox still has pending ops; skipping local prune this round")
                 }
 
                 Log.d(TAG, "syncData() SUCCESS")
@@ -2170,8 +2200,11 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      * can show the new figure immediately without also firing [refreshBudgetState] before the
      * write that figure depends on has reached the server — see updateBudget()'s comment.
      */
-    private fun recalculateLocalBudgetFigures(txs: List<ZadTransaction>, currentBudget: Double) {
+    private fun recalculateLocalBudgetFigures(rawTxs: List<ZadTransaction>, currentBudget: Double) {
         val market = MarketPrefs.getMarket(getApplication())
+        // معاملة بعملة تانية لازم تتحوّل قبل ما تتجمع مع الباقي — الجمع الخام كان بيعامل
+        // ١٠٠ دولار على إنهم ١٠٠ جنيه. صف من غير عملة = عملة الحساب، مش تحويل.
+        val txs = BudgetMath.normalizedToCurrency(rawTxs, market.currencyCode)
         val asOf = LocalDate.now()
         val cycleStart = CycleMath.cycleStart(asOf, cycleStartDay, cycleAnchor, market)
         val cycleEnd = CycleMath.cycleEnd(asOf, cycleStartDay, cycleAnchor, market)
@@ -2291,6 +2324,13 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             if (SupabaseRepo.setMonthlyLimit(userId, localBudget)) {
                 Log.d(TAG, "resyncMonthlyLimitToServer() → pushed local budget $localBudget")
                 refreshBudgetState()
+            } else {
+                // setMonthlyLimit بقت بتقرا الصف تاني قبل ما تقول نجحت، فـ false هنا معناها
+                // إن السقف فعلاً مش على السيرفر — مش مجرد طلب ما رماش استثناء. الحارس فوق
+                // بيمنع تكرار المحاولة في نفس عمر الـ ViewModel، فمن غير السطر ده الفشل
+                // كان بيتسجّل في الـ log ويتنسي لحد ما المستخدم يفتح التطبيق تاني.
+                Log.w(TAG, "resyncMonthlyLimitToServer() → still not on the server; queueing for retry")
+                com.example.data.SyncOutbox.enqueueBudgetUpdate(getApplication(), localBudget)
             }
         }
     }

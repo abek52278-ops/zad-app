@@ -991,6 +991,48 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
     }
     case "log_transaction": {
       const isExpense = input.txn_kind === "expense";
+
+      // Idempotent by (user, kind, amount) inside a short window. add_shopping_item and
+      // add_pharmacy_item both got this guard; the tool that writes *money* did not, which
+      // is the wrong way round. On 2026-08-15 account 20a420a9 ended up with three income
+      // rows of 10,000 written inside two minutes (23:46:52, 23:47:42, 23:48:09) — one
+      // salary, logged three times, because the turn kept answering "تعذر تنفيذ الطلب"
+      // and the customer reasonably retried. The titles differ ("بدون وصف" twice, then
+      // "راتب"), so title matching would have missed every one of them; the amount and the
+      // kind are what actually repeat.
+      //
+      // The window is 10 minutes, the same fingerprint life TxDeduplicator uses on the
+      // client, so the notification path and the chat path agree on what "again" means.
+      //
+      // A repeat is never silently dropped and never silently written. Money is the one
+      // place where guessing is worst in both directions: swallowing a real second
+      // purchase hides spending, and writing a retry inflates it. So the tool refuses and
+      // says why, and the agent has to ask. `allow_duplicate` is how the customer's "لأ،
+      // دي عملية تانية" gets through — it exists so the answer comes from them, not from
+      // a heuristic.
+      if (input.allow_duplicate !== true) {
+        const windowStart = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+        const { data: recent } = await sb.from("zad_transactions")
+          .select("id,title,amount,created_at")
+          .eq("user_id", userId)
+          .eq("txn_kind", input.txn_kind)
+          .gte("created_at", windowStart);
+        const amount = Math.round(input.amount * 100) / 100;
+        const twin = (recent ?? []).find(
+          (row: { amount: number }) => Math.abs(row.amount - amount) < 0.005,
+        ) as { id: string; title: string; created_at: string } | undefined;
+        if (twin) {
+          const minsAgo = Math.max(
+            1,
+            Math.round((Date.now() - new Date(twin.created_at).getTime()) / 60000),
+          );
+          return `مرفوض: فيه ${input.txn_kind === "income" ? "إيداع" : "مصروف"} بنفس المبلغ ` +
+            `(${amount}) اتسجّل من ${minsAgo} دقيقة باسم "${twin.title}". غالباً دي نفس ` +
+            `العملية اتبعتت تاني. اسأل العميل: دي عملية تانية فعلاً ولا نفس اللي فاتت؟ ` +
+            `لو أكّد إنها تانية، نادِ الأداة تاني بـ allow_duplicate=true.`;
+        }
+      }
+
       const w = await writeRows(
         sb.from("zad_transactions").insert({
           user_id: userId,
@@ -1932,6 +1974,13 @@ const CHAT_TOOLS: ToolDef[] = [
         title: { type: "string", description: "وصف قصير من كلام العميل نفسه" },
         category: { type: "string", description: "فئة زي: بقالة، مواصلات، فواتير، صحة، ترفيه، مطاعم، ملابس، أخرى" },
         wallet: { type: "string", enum: ["card", "cash"], description: "cash لو العميل قال إنه دفع كاش" },
+        allow_duplicate: {
+          type: "boolean",
+          description:
+            "متبعتهاش من نفسك. الأداة بترفض لو فيه معاملة بنفس المبلغ والنوع اتسجلت خلال " +
+            "١٠ دقايق، عشان الإرسال المتكرر ما يسجّلش نفس العملية مرتين. ابعت true بس بعد " +
+            "ما تسأل العميل ويأكد إنها عملية تانية مختلفة فعلاً.",
+        },
       },
       required: ["amount", "txn_kind", "title"],
     },

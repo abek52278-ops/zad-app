@@ -523,7 +523,7 @@ private fun RegionalSettingsSheet(
     onDismiss: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    var isArabic by remember { mutableStateOf(com.example.data.LocaleHelper.isArabic()) }
+    var currentLanguage by remember { mutableStateOf(com.example.data.LocaleHelper.currentLanguage()) }
     var selectedMarket by remember { mutableStateOf(com.example.data.MarketPrefs.getMarket(context)) }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -539,25 +539,21 @@ private fun RegionalSettingsSheet(
 
             Text(stringResource(R.string.language_section_label), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface)
             Spacer(Modifier.height(8.dp))
+            // شريحة لكل لغة ليها مجلد values-* فعلاً، مش زرارين بولياني. التركي كان
+            // مترجم بالكامل ومحدش يقدر يوصله من أي شاشة — الاختيار كان isArabic
+            // true/false، فالتالتة مكانش ليها مكان أصلاً.
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = isArabic,
-                    onClick = {
-                        com.example.data.LocaleHelper.setLanguage("ar")
-                        isArabic = true
-                        context.findActivity()?.recreate()
-                    },
-                    label = { Text("العربية") }
-                )
-                FilterChip(
-                    selected = !isArabic,
-                    onClick = {
-                        com.example.data.LocaleHelper.setLanguage("en")
-                        isArabic = false
-                        context.findActivity()?.recreate()
-                    },
-                    label = { Text("English") }
-                )
+                com.example.data.LocaleHelper.supported.forEach { (tag, label) ->
+                    FilterChip(
+                        selected = currentLanguage == tag,
+                        onClick = {
+                            com.example.data.LocaleHelper.setLanguage(tag)
+                            currentLanguage = tag
+                            context.findActivity()?.recreate()
+                        },
+                        label = { Text(label) }
+                    )
+                }
             }
 
             Spacer(Modifier.height(24.dp))

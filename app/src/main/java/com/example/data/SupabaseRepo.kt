@@ -145,21 +145,51 @@ object SupabaseRepo {
      * الـ trigger في 20260815120000_provision_zad_users_row.sql بيضمن وجود الصف من ناحية
      * السيرفر؛ الـ upsert هنا بيخلي الكتابة دي تنجح حتى لو الصف اتأخر أو اتمسح.
      */
+    /**
+     * ورغم كل اللي فوق، الدالة فضلت **مش قادرة تعرف** إن الكتابة وصلت. `upsert` بترجع من
+     * غير صفوف، فغياب الاستثناء مكانش دليل على أي حاجة — وكانت بترجع true على طول.
+     *
+     * ودي مش تفصيلة تجميلية، لأن كل مسارات الإصلاح بتتفرّع على البوليان ده:
+     * `updateBudget` بتحط العملية في SyncOutbox لما ترجع false، و`resyncMonthlyLimitToServer`
+     * بتعيد المحاولة على أساسه. لما بترجع true دايماً، الطابور مابياخدش الشغلانة أصلاً
+     * والإصلاح الذاتي بيقفل نفسه — فسقف كتبه العميل بإيده بيضيع، والتطبيق يسجّل SUCCESS.
+     * ده بالظبط اللي حصل لحساب 20a420a9 يوم 2026-08-15: العميل حافظ 10,000 الساعة 2:46،
+     * قبل ما trigger التزويد (20260815120000) يعمل الصف الساعة 12:37، فالكتابة راحت على
+     * لا حاجة و`zad_budget_state` فضل يرجّع monthly_limit: null وremaining: null.
+     *
+     * نفس علاج [syncMarketProfile] بالظبط: upsert، اقرا تاني، وحاول مرة كمان قبل ما
+     * تعترف بالفشل. القراءة هي الدليل الوحيد المتاح إن الصف بقى فيه الرقم فعلاً.
+     */
     suspend fun setMonthlyLimit(userId: String, limit: Double): Boolean {
-        return try {
-            client.postgrest["zad_users"].upsert(
-                mapOf(
-                    "id" to userId,
-                    "monthly_limit" to limit,
-                    "limit_confirmed_at" to java.time.Instant.now().toString()
+        repeat(2) { attempt ->
+            try {
+                client.postgrest["zad_users"].upsert(
+                    mapOf(
+                        "id" to userId,
+                        "monthly_limit" to limit,
+                        "limit_confirmed_at" to java.time.Instant.now().toString()
+                    )
                 )
-            )
-            Log.d(TAG, "setMonthlyLimit() SUCCESS → userId=$userId, limit=$limit")
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "setMonthlyLimit() FAILED: ${e.message}")
-            false
+                val (storedLimit, storedConfirmedAt, readOk) = getMonthlyLimit(userId)
+                // المقارنة بـ asMoney من الطرفين: الرقم بيروح numeric ويرجع Double، وفرق
+                // تقريب مايستاهلش إعادة كتابة ولا إعلان فشل.
+                if (readOk && storedLimit != null && kotlin.math.abs(storedLimit - limit) < 0.005 &&
+                    storedConfirmedAt != null
+                ) {
+                    Log.d(TAG, "setMonthlyLimit() SUCCESS → userId=$userId, limit=$limit")
+                    return true
+                }
+                Log.w(
+                    TAG,
+                    "setMonthlyLimit() wrote but read back limit=$storedLimit confirmedAt=$storedConfirmedAt " +
+                        "(attempt ${attempt + 1}/2) — row likely missing or write rejected"
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "setMonthlyLimit() FAILED (attempt ${attempt + 1}/2): ${e.message}")
+            }
+            if (attempt == 0) kotlinx.coroutines.delay(1000)
         }
+        return false
     }
 
     /**
@@ -571,6 +601,14 @@ object SupabaseRepo {
     suspend fun addSubscription(sub: ZadSubscription) {
         try {
             val userId = client.auth.currentUserOrNull()?.id
+            // نفس حارس addInventory. من غيره الصف بيتكتب بـ user_id = null: مالوش صاحب،
+            // مخفي عن كل قارئ لأن RLS بتفلتر على auth.uid() = user_id، وبيفضل في الجدول
+            // للأبد. الحارس اتحط في addInventory وحدها وماتنقلش للتلاتة التانيين — وده
+            // اللي ساب صفوف يتيمة فعلية في zad_subscriptions وzad_inventory يوم 2026-08-15.
+            if (userId == null) {
+                Log.w(TAG, "addSubscription() skipped — user not authenticated")
+                return
+            }
             val subWithUser = sub.copy(userId = userId)
             Log.d(TAG, "addSubscription() → table=zad_subscriptions, title=${subWithUser.title}, amount=${subWithUser.amount}, userId=$userId")
             client.postgrest["zad_subscriptions"].insert(subWithUser)
@@ -662,6 +700,14 @@ object SupabaseRepo {
     suspend fun addPharmacyItem(item: ZadPharmacyItem) {
         try {
             val userId = client.auth.currentUserOrNull()?.id
+            // نفس حارس addInventory. من غيره الصف بيتكتب بـ user_id = null: مالوش صاحب،
+            // مخفي عن كل قارئ لأن RLS بتفلتر على auth.uid() = user_id، وبيفضل في الجدول
+            // للأبد. الحارس اتحط في addInventory وحدها وماتنقلش للتلاتة التانيين — وده
+            // اللي ساب صفوف يتيمة فعلية في zad_subscriptions وzad_inventory يوم 2026-08-15.
+            if (userId == null) {
+                Log.w(TAG, "addPharmacyItem() skipped — user not authenticated")
+                return
+            }
             val itemWithUser = item.copy(userId = userId)
             Log.d(TAG, "addPharmacyItem() → table=zad_pharmacy_items, name=${itemWithUser.name}, userId=$userId")
             client.postgrest["zad_pharmacy_items"].insert(itemWithUser)
@@ -1420,6 +1466,14 @@ object SupabaseRepo {
     suspend fun addShoppingItem(item: ZadShoppingItem) {
         try {
             val userId = client.auth.currentUserOrNull()?.id
+            // نفس حارس addInventory. من غيره الصف بيتكتب بـ user_id = null: مالوش صاحب،
+            // مخفي عن كل قارئ لأن RLS بتفلتر على auth.uid() = user_id، وبيفضل في الجدول
+            // للأبد. الحارس اتحط في addInventory وحدها وماتنقلش للتلاتة التانيين — وده
+            // اللي ساب صفوف يتيمة فعلية في zad_subscriptions وzad_inventory يوم 2026-08-15.
+            if (userId == null) {
+                Log.w(TAG, "addShoppingItem() skipped — user not authenticated")
+                return
+            }
             val itemWithUser = item.copy(userId = userId)
             Log.d(TAG, "addShoppingItem() → table=zad_shopping_list, itemName=${itemWithUser.itemName}, userId=$userId")
             client.postgrest["zad_shopping_list"].insert(itemWithUser)
