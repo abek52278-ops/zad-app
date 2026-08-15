@@ -172,7 +172,27 @@ object MarketPrefs {
      * دي بتضبط لغة *التطبيق* لأي حاجة تتفتح بعد كده، بس **مش كفاية لوحدها** للـ Activity
      * اللي شغالة — ده شغل [wrapWithStoredLocale] في attachBaseContext. انظر تعليقها.
      */
+    /**
+     * بتتنادى عند بدء التطبيق (MainActivity.onCreate وZadViewModel.init).
+     *
+     * كانت بتعمل `applyLocale(getMarket(context))` على طول — يعني بتكتب لغة السوق فوق
+     * اختيار العميل **في كل مرة التطبيق بيفتح**. فالتبديل للإنجليزي كان بيشتغل لثانية
+     * (recreate بيعيد بناء الشاشة)، وأول ما التطبيق يتقفل ويتفتح تاني يرجع عربي وكأن
+     * الزرار مش موصول بحاجة. ده كان السبب الأساسي، و`wrapWithStoredLocale` كان بيكمّل
+     * عليه في نفس الاتجاه.
+     *
+     * دلوقتي: لو العميل اختار لغة صراحةً، مابنلمسهاش. لغة السوق بتتطبّق بس لما مفيش
+     * اختيار — أول تشغيل، وهي الحالة اللي هي مقصودة ليها فعلاً.
+     */
     fun applyStoredLocale(context: Context) {
+        val alreadyChosen = androidx.appcompat.app.AppCompatDelegate.getApplicationLocales()
+            .toLanguageTags().isNotBlank()
+        if (alreadyChosen) {
+            // الفورماترز بتقرا من الـ default الساكن مش من الـ Configuration، فلازم يتظبط
+            // على اللغة المختارة برضه وإلا تلاقي واجهة إنجليزي بتواريخ عربية.
+            java.util.Locale.setDefault(java.util.Locale.forLanguageTag(effectiveLocaleTag(context)))
+            return
+        }
         applyLocale(getMarket(context))
     }
 
@@ -200,9 +220,29 @@ object MarketPrefs {
      * الحل إن التطبيق يطبّق اللغة بنفسه بدل ما يستنى AppCompat — سطر واحد في
      * attachBaseContext بيخلي كل `stringResource` في الشجرة يقرا من المجلد الصح.
      */
+    /**
+     * لغة الواجهة اللي هتتطبّق فعلاً.
+     *
+     * دي كانت بترجع لغة **السوق** وبس، وده اللي كان بيخلّي زرار اللغة مالوش أي أثر:
+     * `LocaleHelper.setLanguage("en")` بيتخزّن في AppCompatDelegate تمام، وبعدين
+     * `attachBaseContext` بينادي الدالة دي على كل إنشاء للشاشة فبتدهس الاختيار وترجّع
+     * لغة السوق (مصر ← ar-EG). الاختيار كان بيتسجّل وما بيوصلش الشاشة أبداً.
+     *
+     * اختيار العميل الصريح بيكسب. لو مفيش اختيار، السوق هو الافتراضي المعقول — حد في
+     * مصر أول ما يفتح التطبيق يلاقيه بالعربي من غير ما يطلب.
+     */
+    private fun effectiveLocaleTag(context: Context): String {
+        val chosen = androidx.appcompat.app.AppCompatDelegate.getApplicationLocales()
+            .toLanguageTags()
+            .takeIf { it.isNotBlank() }
+            ?.split(",")
+            ?.firstOrNull()
+            ?.trim()
+        return chosen?.takeIf { it.isNotBlank() } ?: getMarket(context).localeTag
+    }
+
     fun wrapWithStoredLocale(context: Context): Context {
-        val market = getMarket(context)
-        val locale = java.util.Locale.forLanguageTag(market.localeTag)
+        val locale = java.util.Locale.forLanguageTag(effectiveLocaleTag(context))
         java.util.Locale.setDefault(locale)
         val config = android.content.res.Configuration(context.resources.configuration)
         config.setLocale(locale)

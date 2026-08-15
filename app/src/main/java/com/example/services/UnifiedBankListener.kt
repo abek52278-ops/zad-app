@@ -134,6 +134,9 @@ class UnifiedBankListener : NotificationListenerService() {
      */
     override fun onListenerConnected() {
         super.onListenerConnected()
+        // علامة إن السيرفس عايش فعلاً — مش إن الصلاحية ممنوحة. الاتنين كانوا بيتخلطوا في
+        // الواجهة، وده اللي خلّى بانر "تمام" يظهر لتطبيق أعمى.
+        BankReadingStatus.recordListenerConnected(applicationContext)
         try {
             val prefs = applicationContext.getSharedPreferences("zad_prefs", Context.MODE_PRIVATE)
             val processedKeys = prefs.getStringSet("processed_notification_keys", emptySet())?.toMutableSet() ?: mutableSetOf()
@@ -170,6 +173,10 @@ class UnifiedBankListener : NotificationListenerService() {
         sbn?.let { notification ->
             val packageName = notification.packageName
             if (isIgnoredPackage(packageName)) return
+
+            // بيتسجّل قبل أي فلترة عن قصد: من غيره مفيش طريقة تفرّق بين "السيرفس مش شغال"
+            // و"السيرفس شغال وكل إشعار اترفض" — والاتنين شكلهم واحد من برّه: مفيش معاملات.
+            BankReadingStatus.recordSawNotification(applicationContext)
 
             val (title, text) = extractContent(notification)
 

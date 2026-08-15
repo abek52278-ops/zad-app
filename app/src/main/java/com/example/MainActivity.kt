@@ -109,6 +109,13 @@ class MainActivity : ComponentActivity() {
 
         MarketPrefs.applyStoredLocale(this)
 
+        // صلاحية ممنوحة مش معناها سيرفس شغال. أندرويد بيقتل NotificationListenerService
+        // تحت ضغط الذاكرة أو بعد تحديث/إعادة تشغيل وساعات مابيرجعش يربطه، ومفيش حاجة في
+        // الواجهة كانت بتفرّق — البانر بيقرا الصلاحية بس. النتيجة إن
+        // zad_notification_ingest_events فضل فاضي تماماً رغم إن الصلاحية مفعّلة: مفيش
+        // إشعار وصل السيرفس أصلاً. الطلب ده بيتبعت كل فتحة، وهو no-op لو مربوط بالفعل.
+        com.example.data.BankReadingStatus.requestRebindIfPermitted(this)
+
         // Session persistence/refresh is entirely handled by auth-kt's own Auth plugin
         // (autoLoadFromStorage/autoSaveToStorage/alwaysAutoRefresh default to true) — no
         // app-side save/restore code needed. This collector only reacts to the resulting
