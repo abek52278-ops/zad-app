@@ -69,24 +69,25 @@ function nextGeminiKeyIndex(): number {
 }
 
 // ── Model failover chain ───────────────────────────────────────────────────────
-// The 429 body this project actually returns names its quota
-// `GenerateRequestsPerDayPerProjectPerModel-FreeTier`, value 20. Read that id carefully:
-// the bucket is per **model**, not per key. That is why rotating five keys bought nothing
-// on 2026-08-15 (14 of 26 brain runs failed, every key reporting the same limit=20) — the
-// pool was rotating inside one exhausted bucket. A second model is a second bucket, so
-// model failover is the multiplier the key pool was never able to be.
+// The 429 body this project returns names its quota
+// `GenerateRequestsPerDayPerProjectPerModel-FreeTier`, value 20 — per project, per model.
+// Measured 2026-08-15, the five ZAD_API_KEY_n live in five *different* projects: key 1 was
+// saturated to a hard 429 on gemini-3.5-flash and keys 2–5 immediately answered 200 on the
+// same model. So the key pool and this chain multiply rather than overlap — capacity is
+// 5 keys × models × per-model quota. Both matter: 20/day on one model across five keys is
+// only 100 requests, which is what 14 of 26 brain runs exhausted that day.
 //
 // The chain below is not guesswork. Probed live against this project's own key 1 on
 // 2026-08-15, every entry answering 200 **with functionDeclarations attached and actually
 // emitting a functionCall** — a model that chats but won't call tools is useless to the
 // agent loop and is not in this list:
 //
-//   gemini-3.5-flash-lite    200  tool ✅  thinking 0 tok    0.57s
-//   gemini-3.1-flash-lite    200  tool ✅  thinking 0 tok    0.56s
+//   gemini-3.5-flash-lite    200  tool ✅  thinking 0 tok    0.57s   15 RPM/key
+//   gemini-3.1-flash-lite    200  tool ✅  thinking 0 tok    0.56s   15 RPM/key
 //   gemini-flash-lite-latest 200  tool ✅  thinking 0 tok    0.57s
 //   gemini-3-flash-preview   200  tool ✅  thinking 56 tok   1.05s
 //   gemini-flash-latest      200  tool ✅  thinking 111 tok  1.29s
-//   gemini-3.5-flash         200  tool ✅  thinking 231 tok  2.28s  ← finishReason MAX_TOKENS
+//   gemini-3.5-flash         200  tool ✅  thinking 231 tok  2.28s  ← MAX_TOKENS; 5 RPM/20 RPD
 //   gemini-3.6-flash         200  tool ✅  thinking 76 tok   7.28s
 //   gemini-3.7-flash         503  — currently overloaded, deliberately excluded
 //
