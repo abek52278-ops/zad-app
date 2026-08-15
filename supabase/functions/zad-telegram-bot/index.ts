@@ -412,9 +412,37 @@ interface AgentTurnResult {
  * `user_id` في الجسم مقبول هنا لأن النداء بمفتاح service-role — راجع resolveAuthedUserId
  * في zad-brain. الهوية نفسها جاية من telegram_bindings، مش من أي حاجة العميل بيدّعيها.
  */
+/**
+ * Turns an internal failure string into something a customer should actually read.
+ *
+ * The reason strings themselves are diagnostics — "zad-brain rejected the turn (ok:false)",
+ * "gemini 503: {...}", raw HTTP bodies. Those were being pasted straight into the chat, so
+ * on 2026-08-15 the customer's Telegram window was a wall of English stack-talk instead of
+ * an answer. Telling them the write didn't happen is right and stays; naming our internal
+ * component and quoting the upstream JSON at them is not, and it also leaks how the
+ * backend is wired to anyone who talks to the bot.
+ *
+ * The full `reason` still goes to console.error at every call site, so nothing is lost for
+ * debugging — it just stops being the customer's problem.
+ */
+function userFacingFailure(reason: string): string {
+  const r = reason.toLowerCase();
+  if (r.includes("429") || r.includes("quota") || r.includes("exhausted")) {
+    return "الخدمة الذكية واصلة حد الاستخدام دلوقتي";
+  }
+  if (r.includes("503") || r.includes("unavailable") || r.includes("high demand") || r.includes("overload")) {
+    return "الخدمة الذكية زحمة دلوقتي";
+  }
+  if (r.includes("timeout") || r.includes("timed out") || r.includes("abort")) {
+    return "الرد أخد وقت أطول من اللازم";
+  }
+  return "الخدمة الذكية مش متاحة دلوقتي";
+}
+
 /** errorReason is set only when the agent path failed and the caller fell back to the
  * read-only prose reply — it's what tells the Telegram user (and the logs) why their
- * "عدّل"/"ذكرني" request silently became a plain answer instead of an executed action. */
+ * "عدّل"/"ذكرني" request silently became a plain answer instead of an executed action.
+ * It is an internal string: pass it through [userFacingFailure] before it reaches a chat. */
 async function agentTurn(userId: string, message: string): Promise<{ result: AgentTurnResult | null; errorReason?: string }> {
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/zad-brain`, {
@@ -640,8 +668,9 @@ bot.command("tahlil", async (ctx) => {
     await ctx.reply(clampForTelegram(turn.reply.trim()));
     return;
   }
+  if (errorReason) console.error("photo analysis fell back to read-only:", errorReason);
   const notice = errorReason
-    ? `⚠️ تعذر الوصول لـ AI Agent (${errorReason}) — رد احتياطي:\n\n`
+    ? `⚠️ ${userFacingFailure(errorReason)}، فده تحليل مبدئي من البيانات المسجّلة:\n\n`
     : "";
   const context = buildAgentContext(await fetchAgentContext(sb, userId));
   const answer = await askZad(
@@ -726,8 +755,9 @@ bot.on("message:text", async (ctx) => {
   // errorReason بيبقى موجود بس هنا (turn === null) — لو أي أمر تنفيذي (عدّل/ذكرني/ضيف)
   // وقع على المسار ده، لازم العميل يعرف إنه رد قراءة بس ومحصلش تنفيذ فعلي، بدل ما يفتكر
   // إن التعديل اتسجل وهو ماتسجلش. صمت هنا هو بالظبط الشكوى اللي البلاغ ده بيوصفها.
+  if (errorReason) console.error("agent turn fell back to read-only:", errorReason);
   const notice = errorReason
-    ? `⚠️ تعذر تنفيذ الطلب عبر AI Agent (${errorReason}). الرد اللي جاي احتياطي وبيقرا بس — لو كان طلبك تعديل/إضافة/تذكير هو لسه ماتسجّلش، جرب تاني كمان شوية.\n\n`
+    ? `⚠️ ${userFacingFailure(errorReason)}. اللي تحت رد قراءة من بياناتك المسجّلة — لو كنت طالب تعديل أو إضافة أو تذكير، **هو ماتسجّلش**، جرب تاني كمان شوية.\n\n`
     : "";
 
   const context = buildAgentContext(await fetchAgentContext(sb, userId));

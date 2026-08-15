@@ -96,6 +96,52 @@ function nextGeminiKeyIndex(): number {
 // Both tiers therefore run the same model; the tiering that still matters is thinking —
 // routine calls disable it (see callGeminiNative.thinkingBudget), brain calls keep it.
 // Set ZAD_MODEL_BRAIN back to a pro model once billing is on.
+/**
+ * Models observed to answer 400 INVALID_ARGUMENT when `thinkingConfig` is present at all.
+ * Learned at runtime rather than hardcoded — the list is not guessable from the name, and
+ * a new model appearing next month should self-correct rather than break scanning.
+ * Mirrors the same set in zad-brain/callModel.ts.
+ */
+/**
+ * The eleven categories every spend breakdown in the app buckets by, copied verbatim from
+ * BudgetTracker.STANDARD_CATEGORIES (Kotlin). Anything outside this list is not a harmless
+ * label — BudgetTracker's cards, zad_budget_state's by_category and the donut on
+ * ZadIntelligenceScreen all match on the exact string, so a novel value becomes its own
+ * one-row bucket that the customer never asked for. A supermarket receipt came back
+ * classified "مواليد" on 2026-08-15, which is what prompted pinning this down.
+ */
+const STANDARD_CATEGORIES = [
+  "البقالة", "المطاعم", "الفواتير", "المواصلات", "الوقود",
+  "الاشتراكات", "الأقساط", "الرعاية الصحية", "التعليم", "تحويلات", "أخرى",
+];
+
+/** Exact match wins; anything else lands in "أخرى" rather than inventing a bucket. */
+function normalizeStandardCategory(raw: unknown): string {
+  const v = typeof raw === "string" ? raw.trim() : "";
+  if (!v) return "أخرى";
+  if (STANDARD_CATEGORIES.includes(v)) return v;
+  // "بقالة" for "البقالة" and similar near-misses are worth rescuing before giving up —
+  // the model dropping the definite article should not cost the receipt its category.
+  const stripped = v.replace(/^ال/, "");
+  const near = STANDARD_CATEGORIES.find((c) => c === stripped || c.replace(/^ال/, "") === stripped);
+  if (near) return near;
+  console.warn(`[CoreIntel] receipt category "${v}" is not one of the eleven; filing under أخرى`);
+  return "أخرى";
+}
+
+const THINKING_CONFIG_UNSUPPORTED = new Set<string>();
+
+/**
+ * Vision fallback chain for [callVisionModel], after whatever ZAD_MODEL_ROUTINE names.
+ * Verified 2026-08-15 by sending each one the same real receipt PNG: all three returned
+ * well-formed JSON with merchant "SUPER MARKET AL NOOR", total 295.25 and all 4 line
+ * items. Override with ZAD_VISION_FALLBACKS (comma-separated) without a redeploy.
+ */
+const VISION_FALLBACK_MODELS: string[] = (Deno.env.get("ZAD_VISION_FALLBACKS") ?? "")
+  .split(",").map((s) => s.trim()).filter(Boolean).length > 0
+  ? (Deno.env.get("ZAD_VISION_FALLBACKS") ?? "").split(",").map((s) => s.trim()).filter(Boolean)
+  : ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-flash-lite-latest", "gemini-3.5-flash"];
+
 const GEMINI_MODEL_ROUTINE = Deno.env.get("ZAD_MODEL_ROUTINE") || "gemini-3.5-flash";
 const GEMINI_MODEL_BRAIN = Deno.env.get("ZAD_MODEL_BRAIN") || "gemini-3.5-flash";
 
@@ -259,7 +305,16 @@ async function callGeminiNative(opts: {
       maxOutputTokens: Math.max(opts.maxTokens ?? 1000, 300),
     };
     if (opts.jsonMode) generationConfig.response_mime_type = "application/json";
-    if (typeof opts.thinkingBudget === "number") {
+    // Not every model tolerates the field. Measured 2026-08-15 against this project:
+    // gemini-3.5-flash-lite and gemini-flash-lite-latest answer **400 INVALID_ARGUMENT**
+    // if thinkingConfig is present at all, while gemini-3.1-flash-lite accepts it — the
+    // "-lite" suffix predicts nothing. Those same models are the ones worth running the
+    // routine/vision tier on, so sending it unconditionally would have turned every
+    // receipt scan into a 400 the moment ZAD_MODEL_ROUTINE moved to one of them. They are
+    // 0-thought-token models anyway, so skipping the field costs nothing.
+    const sendThinkingConfig = typeof opts.thinkingBudget === "number" &&
+      !THINKING_CONFIG_UNSUPPORTED.has(opts.model);
+    if (sendThinkingConfig) {
       generationConfig.thinkingConfig = { thinkingBudget: opts.thinkingBudget };
     }
     const resp = await fetch(url, {
@@ -272,6 +327,13 @@ async function callGeminiNative(opts: {
       }),
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
+    // Learn the rejection once and retry immediately without the field, so a model swap
+    // degrades to one wasted call rather than a dead scan path.
+    if (resp.status === 400 && sendThinkingConfig) {
+      THINKING_CONFIG_UNSUPPORTED.add(opts.model);
+      console.warn(`[CoreIntel] ${opts.model} rejects thinkingConfig; retrying without it`);
+      return await callGeminiNative({ ...opts, thinkingBudget: undefined });
+    }
     const data = await resp.json();
     const parts = data.candidates?.[0]?.content?.parts ?? [];
     const text = parts.map((p: { text?: string }) => p.text || "").join("") || null;
@@ -403,22 +465,40 @@ async function callVisionModel(systemPrompt: string, userPrompt: string, imageBa
     { type: "text", text: userPrompt },
     { type: "image_url", image_url: { url: "data:" + mimeType + ";base64," + imageBase64 } },
   ];
-  const attempt = () => callGeminiPool({
-    model: GEMINI_MODEL_ROUTINE, systemPrompt, content, temperature: 0.2,
+  const attempt = (model: string) => callGeminiPool({
+    model, systemPrompt, content, temperature: 0.2,
     // 4000, not 2000: a long receipt's line items are the output here, and thinking is off
     // so the whole budget is available for the JSON itself.
     maxTokens: 4000, jsonMode: true, thinkingBudget: 0,
   });
-  let gemini = await attempt();
-  // Vision has no Groq fallback (see file header) — the whole pool exhausting is the single
-  // point of failure. A 429/quota hit is often per-minute and clears on its own, so one
-  // delayed re-sweep of the same 5-key pool has a real chance of succeeding where an
-  // immediate single pass didn't, instead of failing honestly on the first pass alone.
+
+  // Vision has no Groq fallback and never will — Groq rejects JSON mode on any request
+  // carrying an image, and every scan action needs structured JSON, so a Groq image path
+  // could only ever 400 (see file header). What it *can* have is the same thing zad-brain
+  // got: a **model** chain. Free-tier quota is per-key-per-model, so a second model is a
+  // second allowance on all five keys, and it is the only real answer to an exhausted pool.
+  //
+  // Every model below was checked on 2026-08-15 against a real receipt image, not assumed:
+  // each returned valid JSON with the right merchant, the right total (295.25) and all four
+  // line items. gemini-3.5-flash leads only if it is what the operator configured.
+  const chain = [...new Set([GEMINI_MODEL_ROUTINE, ...VISION_FALLBACK_MODELS])];
+  let gemini = await attempt(chain[0]);
+  for (let i = 1; i < chain.length && !gemini.ok; i++) {
+    console.warn(`[CoreIntel] vision model ${chain[i - 1]} failed on every key; trying ${chain[i]}`);
+    gemini = await attempt(chain[i]);
+  }
+  // Still nothing: a 429 here is often the per-minute bucket rather than the daily one, and
+  // that clears on its own, so one delayed re-sweep of the whole chain is worth more than
+  // failing on the first pass.
   if (!gemini.ok) {
     await new Promise((r) => setTimeout(r, 1500));
-    gemini = await attempt();
+    gemini = await attempt(chain[0]);
   }
-  if (!gemini.ok) console.error("[CoreIntel] callVisionModel: Gemini pool exhausted after retry; images are never routed to Groq");
+  if (!gemini.ok) {
+    console.error(
+      `[CoreIntel] callVisionModel: every model in [${chain.join(", ")}] failed on all keys; images are never routed to Groq`,
+    );
+  }
   return gemini.content;
 }
 
@@ -851,6 +931,19 @@ Deno.serve(async (req: Request) => {
           "Read every line item with its own price; keep the item names exactly as printed. " +
           "`total` is the final amount actually paid (after VAT and any discount), as a number with no currency symbol. " +
           "If a field is genuinely unreadable, leave it empty or 0 rather than guessing. " +
+          // `category` used to be an open string, and an open string is an invitation to
+          // invent one: a plain supermarket receipt came back classified "مواليد" on
+          // 2026-08-15. Every consumer of this field (BudgetTracker's category cards,
+          // zad_budget_state's by_category, the donut on ZadIntelligenceScreen) buckets by
+          // exact match against BudgetTracker.STANDARD_CATEGORIES, so anything outside that
+          // list silently becomes its own orphan bucket. The list is repeated here verbatim.
+          "`category` MUST be exactly one of these eleven strings, copied character for character — " +
+          "never invent a new one, never translate them, never return an empty string: " +
+          "\"البقالة\", \"المطاعم\", \"الفواتير\", \"المواصلات\", \"الوقود\", \"الاشتراكات\", " +
+          "\"الأقساط\", \"الرعاية الصحية\", \"التعليم\", \"تحويلات\", \"أخرى\". " +
+          "Pick \"البقالة\" for supermarkets and food shopping, \"المطاعم\" for restaurants and cafés, " +
+          "\"الوقود\" for petrol stations, \"الرعاية الصحية\" for pharmacies and clinics. " +
+          "If none of them genuinely fits, return \"أخرى\" — that is what it is for. " +
           "Also classify `receiptType`: \"pharmacy\" if this is a pharmacy/drugstore receipt " +
           "(medicine names, dosages like 500mg, tablet/syrup/capsule units); \"budget_card\" if " +
           "this is NOT an itemized purchase receipt at all but a bank/salary/wallet balance " +
@@ -870,7 +963,11 @@ Deno.serve(async (req: Request) => {
               const parsed = JSON.parse(jsonMatch[0]);
               return jsonResponse({
                 total: parsed.total || 0,
-                category: parsed.category || "",
+                // Prompted AND clamped. Telling the model the eleven allowed values is not
+                // a guarantee, and an out-of-list category is not a cosmetic wart — it
+                // becomes an orphan bucket in every category breakdown in the app. Falling
+                // back to "أخرى" keeps the receipt usable instead of quarantining its spend.
+                category: normalizeStandardCategory(parsed.category),
                 storeName: parsed.storeName || "",
                 receiptType: parsed.receiptType || "grocery",
                 items: parsed.items || [],

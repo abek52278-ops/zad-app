@@ -168,6 +168,9 @@ object MarketPrefs {
      * لازم تتنادى مرة عند بدء التطبيق (بعد getMarket) — من غيرها اختيار البلد
      * بيتخزن بس، ومجلد strings.xml اللي بيتحمل فعلياً بيفضل تابع للغة نظام الجهاز
      * مش لاختيار المستخدم جوه التطبيق.
+     *
+     * دي بتضبط لغة *التطبيق* لأي حاجة تتفتح بعد كده، بس **مش كفاية لوحدها** للـ Activity
+     * اللي شغالة — ده شغل [wrapWithStoredLocale] في attachBaseContext. انظر تعليقها.
      */
     fun applyStoredLocale(context: Context) {
         applyLocale(getMarket(context))
@@ -176,5 +179,34 @@ object MarketPrefs {
     private fun applyLocale(market: Market) {
         val locales = androidx.core.os.LocaleListCompat.forLanguageTags(market.localeTag)
         androidx.appcompat.app.AppCompatDelegate.setApplicationLocales(locales)
+        // Locale.setDefault كمان: الفورماترز (java.time، NumberFormat) مابتقراش من
+        // الـ Configuration، بتقرا من الـ default الساكن. من غير السطر ده كنت تلاقي
+        // واجهة تركي بتواريخ عربية.
+        java.util.Locale.setDefault(java.util.Locale.forLanguageTag(market.localeTag))
+    }
+
+    /**
+     * بيلف الـ Context بلغة السوق المخزّنة. **لازم** تتنادى من `attachBaseContext`، مش
+     * من `onCreate`.
+     *
+     * ده كان سبب "بختار التركي والتطبيق مايتحولش" — ومكانش نقص ترجمة: `values-tr`
+     * مترجمة بالكامل (1011 نص، زي الافتراضي بالظبط). المشكلة إن `MainActivity` هي
+     * `ComponentActivity` مش `AppCompatActivity`، يعني مفيش `AppCompatDelegate` بيلف
+     * `attachBaseContext` عشان يطبّق اللغة اللي `setApplicationLocales` سجّلها. وفوق كده
+     * `applyStoredLocale` كانت بتتنادى جوه `onCreate` — بعد ما الـ Resources بتاعة
+     * الـ Activity اتحلّت خلاص. فحتى `recreate()` كان بيرجّع نفس اللغة، لأن الـ Activity
+     * الجديدة بتتبني من إعدادات النظام برضه.
+     *
+     * الحل إن التطبيق يطبّق اللغة بنفسه بدل ما يستنى AppCompat — سطر واحد في
+     * attachBaseContext بيخلي كل `stringResource` في الشجرة يقرا من المجلد الصح.
+     */
+    fun wrapWithStoredLocale(context: Context): Context {
+        val market = getMarket(context)
+        val locale = java.util.Locale.forLanguageTag(market.localeTag)
+        java.util.Locale.setDefault(locale)
+        val config = android.content.res.Configuration(context.resources.configuration)
+        config.setLocale(locale)
+        config.setLayoutDirection(locale)
+        return context.createConfigurationContext(config)
     }
 }

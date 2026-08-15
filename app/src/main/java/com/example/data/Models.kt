@@ -1,5 +1,7 @@
 package com.example.data
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
 import androidx.room.ColumnInfo
@@ -124,6 +126,7 @@ data class ZadInventory(
 
 @Entity(tableName = "zad_transactions")
 @Serializable
+@OptIn(ExperimentalSerializationApi::class)
 data class ZadTransaction(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
     @SerialName("user_id") val userId: String? = null,
@@ -135,15 +138,36 @@ data class ZadTransaction(
     @SerialName("bank_name") val bankName: String? = null,
     @SerialName("merchant_name") val merchantName: String? = null,
     @SerialName("source_type") val sourceType: String? = null,
-    @SerialName("is_verified") val isVerified: Boolean = false,
+    // @EncodeDefault — انظر التعليق تحت مباشرة. is_verified عمود الـ default بتاعه في
+    // Postgres هو `true` بينما الافتراضي هنا `false`، فحذف الحقل معناه إن كل معاملة
+    // بتتخزّن "مؤكدة" على السيرفر — وده بيصفّر عدّاد Task 27 للمعاملات غير المؤكدة.
+    @EncodeDefault @SerialName("is_verified") val isVerified: Boolean = false,
     // Task 19.2 — wallet/txn_kind/transfer_to. txnKind defaults off isExpense (Kotlin
     // allows referencing an earlier param in a default expression) so every existing
     // construction site across the app gets a correct classification for free, with
     // zero changes needed there. Only BankTransactionApplier overrides this explicitly,
     // for the one case that actually needs to differ: ATM withdrawal -> transfer/cash.
-    @SerialName("wallet") val wallet: String = "card",
-    @SerialName("txn_kind") val txnKind: String = if (isExpense) "expense" else "income",
+    //
+    // @EncodeDefault مش تزويق. القيمة المحسوبة فوق كانت صح **وبتتحذف قبل ما توصل**:
+    // kotlinx.serialization بيشيل أي حقل لسه بقيمته الافتراضية (encodeDefaults = false)،
+    // والعمود في Postgres عنده `default 'expense'`. المصروفات نجت بالصدفة (الافتراضيتين
+    // بيقولوا "expense")، والدخل لأ — تلات صفوف دخل بـ 30,000 اتخزّنوا
+    // is_expense=false مع txn_kind='expense'، وكل حسابات الفلوس بتفلتر على txn_kind،
+    // فاتحسبوا **صرف**: متبقي −20,000 على ميزانية 10,000. الـ trigger في
+    // 20260815121000_txn_kind_integrity.sql هو النص التاني من الإصلاح؛ ده النص اللي
+    // بيمنع الحقل إنه يضيع من الأساس.
+    @EncodeDefault @SerialName("wallet") val wallet: String = "card",
+    @EncodeDefault @SerialName("txn_kind") val txnKind: String = if (isExpense) "expense" else "income",
     @SerialName("transfer_to") val transferTo: String? = null,
+    /**
+     * دخل بس: هل العميل أكّد إن المبلغ ده مخصص لمصروف الشهر؟
+     * `true` = أيوة، بيزوّد السقف. `false` = لأ، مايدخلش. `null` = **لسه ما اتسألش**.
+     *
+     * الفرق بين null وfalse مقصود: العقل محتاج يفرّق بين "العميل قال لأ" و"محدش سأله"،
+     * وإلا يا بينكّد على إيداع محسوم يا بيبلع إيداع كان لازم يسأل عنه. مافيهاش
+     * @EncodeDefault — null هنا معناه "متسجّلش رأي"، وهو نفس اللي العمود بيفترضه.
+     */
+    @SerialName("counts_toward_budget") val countsTowardBudget: Boolean? = null,
     // مرحلة ١ (docs/agent/PLAN_2026_08_06_rebuild.md) — عملة العملية نفسها، مش عملة الـ
     // Market الحالي وقت العرض. null = مش معروفة (كل الصفوف القديمة، ورسايل من غير رمز
     // عملة صريح) — CurrencyFormatter.format(context, tx) بيرجع لعملة الـ Market في الحالة

@@ -327,7 +327,8 @@ object ZadAiRepository {
     suspend fun predictExpenses(
         transactions: List<ZadTransaction>,
         budget: Double,
-        patterns: List<ZadBehaviorPattern>
+        patterns: List<ZadBehaviorPattern>,
+        appContext: android.content.Context? = null
     ): AiExpensePrediction? {
         val txPayload = transactions.map { tx ->
             mapOf(
@@ -346,7 +347,7 @@ object ZadAiRepository {
             // نفس سبب getAgentSummary: سقف غير معروف مينفعش يتبعت كرقم يتقارن بيه التوقع.
             "budget" to (if (budget > 0) budget else "غير معروف"),
             "patterns" to patternsPayload
-        ))
+        ), appContext = appContext)
         val predictedTotal = (response["predicted_total"] as? Number)?.toDouble() ?: return null
         val breakdownRaw = response["breakdown"] as? List<*> ?: emptyList<Any>()
         val warningsRaw = response["warnings"] as? List<*> ?: emptyList<Any>()
@@ -424,7 +425,8 @@ object ZadAiRepository {
         budget: Double,
         shopping: List<ZadShoppingItem>,
         patterns: List<ZadBehaviorPattern>,
-        obligations: List<ZadObligation> = emptyList()
+        obligations: List<ZadObligation> = emptyList(),
+        appContext: android.content.Context? = null
     ): AiAgentSummary? {
         val response = callAction("agent_summary", mapOf(
             "inventory" to inventory.joinToString(", ") { "${it.itemName}(${it.quantity})" },
@@ -438,7 +440,7 @@ object ZadAiRepository {
             // كان الملخص ده مش عارف حاجة عن الإيجار/الفواتير/الأقساط الثابتة خالص — "المحجوز"
             // بيظهر كرقم في مكان تاني بس، من غير أي مصدر هنا يسمّي الالتزام نفسه.
             "obligations" to obligations.joinToString(", ") { "${it.title}(${it.amount}/${it.recurrence})" }
-        ))
+        ), appContext = appContext)
         val summary = response["summary"] as? String ?: return null
         val alertsRaw = response["alerts"] as? List<*> ?: emptyList<Any>()
         val suggestionsRaw = response["suggestions"] as? List<*> ?: emptyList<Any>()
@@ -763,11 +765,11 @@ object ZadAiRepository {
         }
     }
 
-    suspend fun brainEvaluate(systemPrompt: String, userPrompt: String): String? {
+    suspend fun brainEvaluate(systemPrompt: String, userPrompt: String, appContext: android.content.Context? = null): String? {
         val response = callAction("brain_evaluate", mapOf(
             "system_prompt" to systemPrompt,
             "user_prompt" to userPrompt
-        ))
+        ), appContext = appContext)
         return response["text"] as? String
     }
 
@@ -898,7 +900,8 @@ object ZadAiRepository {
         context: String,
         inventory: List<ZadInventory> = emptyList(),
         transactions: List<ZadTransaction> = emptyList(),
-        patterns: List<ZadBehaviorPattern> = emptyList()
+        patterns: List<ZadBehaviorPattern> = emptyList(),
+        appContext: android.content.Context? = null
     ): List<AutoSuggestion> {
         val invStr = inventory.joinToString(", ") { "${it.itemName}(${it.quantity})" }
         val txStr = transactions.takeLast(15).joinToString(", ") { "${it.title}:${it.amount}" }
@@ -908,7 +911,7 @@ object ZadAiRepository {
             "inventory" to invStr,
             "transactions" to txStr,
             "patterns" to patStr
-        ))
+        ), appContext = appContext)
         val suggestionsRaw = response["suggestions"] as? List<*> ?: return emptyList()
         return suggestionsRaw.mapNotNull { item ->
             val map = item as? Map<*, *> ?: return@mapNotNull null
@@ -1005,20 +1008,36 @@ object ZadAiRepository {
      * بيلاقي null مش false فيعدّي. أي نداء محتاج يعرض حالة خطأ حقيقية للمستخدم لازم يبعت
      * swallowErrors=false عشان الاستثناء يوصله.
      */
+    /**
+     * @param appContext غير null بس للأكشنات اللي الشاشة الرئيسية بتنده كل فتحة. وجوده
+     *   بيشغّل [AiLocalCache]: نفس المدخلات = نفس البصمة = رد محلي من غير ما نلمس الشبكة.
+     *   السيرفر عنده الكاش بتاعه بالفعل (ai_response_cache) فالكوتة محميّة من غير ده — اللي
+     *   بيوفّره الكاش المحلي هو الأربع رحلات الشبكة نفسها في كل فتحة للتطبيق: استدعاءات
+     *   edge function محسوبة، وانتظار ظاهر للمستخدم لو الدالة باردة. الأكشنات التانية
+     *   (المسح، الشات، البحث) بتعدّي زي ما هي لأن `appContext` بيفضل null عندها.
+     */
     private suspend fun callAction(
         action: String,
         payload: Map<String, Any?>,
         swallowErrors: Boolean = true,
-        timeoutMs: Long = SupabaseRepo.DEFAULT_EDGE_TIMEOUT_MS
+        timeoutMs: Long = SupabaseRepo.DEFAULT_EDGE_TIMEOUT_MS,
+        appContext: android.content.Context? = null
     ): Map<String, Any?> {
+        val userId = getUserId()
+        if (appContext != null) {
+            AiLocalCache.get(appContext, userId, action, payload)?.let { return it }
+        }
         return try {
-            val userId = getUserId()
-            SupabaseRepo.callEdgeFunction(CENTRAL_FUNCTION, mapOf(
+            val response = SupabaseRepo.callEdgeFunction(CENTRAL_FUNCTION, mapOf(
                 "action" to action,
                 "user_id" to userId,
                 "dialect" to MarketPrefs.currentMarket.dialectInstruction,
                 "payload" to payload
             ), timeoutMs = timeoutMs)
+            // فشل بيرجع emptyMap من الـ catch تحت — والكاش بيرفض يخزّن رد فاضي، فخطأ
+            // شبكة عابر مايتخزنش ست ساعات جاية.
+            if (appContext != null) AiLocalCache.put(appContext, userId, action, payload, response)
+            response
         } catch (e: Exception) {
             Log.e(TAG_REPO, "callAction($action) FAILED: ${e.message}")
             if (!swallowErrors) throw e

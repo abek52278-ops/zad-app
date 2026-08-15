@@ -68,7 +68,11 @@ fun CompanionOrb(
     // كل تغيير في القيمة دي (مش القيمة نفسها) بيطلق رمشتين سريعتين فوراً — استخدامها
     // الوحيد دلوقتي: FloatingMascotCompanion بيغيّرها لحظة الـ tap عشان "تعبير لطيف"
     // بدل ما ينتظر الرمشة العشوائية العادية (٢٫٢-٥ ثواني).
-    blinkTrigger: Long = 0L
+    blinkTrigger: Long = 0L,
+    // نفس اتفاقية blinkTrigger: التغيير هو الإشارة. بيولّع هالة حوالين الكورة وبتخبي
+    // في ٤٥٠ms. القفزة (tapScale في FloatingMascot) بتحرّك الحجم، ودي بتحرّك الضوء —
+    // الاتنين مع بعض هما اللي بيخلوا اللمسة تحس إنها اترددت، مش اتسجلت وخلاص.
+    glowTrigger: Long = 0L
 ) {
     val skyColor by animateColorAsState(state.skyColor, tween(500), label = "orbSky")
     val deepColor by animateColorAsState(state.deepColor, tween(500), label = "orbDeep")
@@ -126,6 +130,16 @@ fun CompanionOrb(
         eyeOpenAmount = 1f
     }
 
+    var glowTarget by remember { mutableFloatStateOf(0f) }
+    val glow by animateFloatAsState(glowTarget, tween(450, easing = FastOutSlowInEasing), label = "orbGlow")
+    LaunchedEffect(glowTrigger) {
+        if (glowTrigger != 0L) {
+            glowTarget = 1f
+            delay(120)
+            glowTarget = 0f
+        }
+    }
+
     // الوصف الصوتي بس على النسخ البارزة (animated=true — رأس الشاشة/الشات). نسخ فقاعات
     // الشات (animated=false) عمداً من غير semantics عشان قارئ الشاشة ميكررش "زاد: ..." قبل كل
     // رسالة رسالة في محادثة طويلة — اسم "زاد" ونص الرسالة نفسه أصلاً بيتقروا.
@@ -142,6 +156,13 @@ fun CompanionOrb(
         // glow behind the body — a few widening, fading rings instead of a real blur
         drawCircle(color = skyColor.copy(alpha = 0.18f), radius = radius * 1.35f, center = center)
         drawCircle(color = skyColor.copy(alpha = 0.28f), radius = radius * 1.15f, center = center)
+
+        // هالة اللمسة — بترسم فوق الهالة الساكنة وبتخبي لوحدها. صفر وقت السكون، فمفيش
+        // أي رسم زيادة إلا في نص الثانية اللي بعد الضغطة.
+        if (glow > 0.01f) {
+            drawCircle(color = skyColor.copy(alpha = 0.30f * glow), radius = radius * (1.35f + 0.55f * glow), center = center)
+            drawCircle(color = skyColor.copy(alpha = 0.22f * glow), radius = radius * (1.15f + 0.35f * glow), center = center)
+        }
 
         drawPath(
             path = blobPath(center, radius, blobPhase),

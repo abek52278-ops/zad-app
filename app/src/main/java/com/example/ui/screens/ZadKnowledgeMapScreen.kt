@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.data.InventoryFlowEngine
 import com.example.data.ZadInsight
 import com.example.ui.components.ZadEmptyState
 import com.example.ui.components.pulseGlow
@@ -151,15 +152,53 @@ fun ZadKnowledgeMapScreen(
             MapDomain("maintenance", context.getString(R.string.screen_title_maintenance), Icons.Default.Build, catSavingsIcon, maintenanceItems.size, maintenanceItems.sumOf { it.estimatedCost }),
         )
     }
-    val edges = remember {
-        listOf(
-            MapEdge("obligations", "budget", solid = true),
-            MapEdge("subscriptions", "budget", solid = true),
-            MapEdge("inventory", "shopping", solid = true),
-            MapEdge("pharmacy", "shopping", solid = true),
-            MapEdge("debts", "budget", solid = false),
-            MapEdge("maintenance", "budget", solid = false),
-        )
+    // الروابط مشتقة من بيانات المستخدم، مش قايمة ثابتة.
+    //
+    // كانت ٦ خطوط مكتوبة بالإيد جوه remember{} من غير مدخلات — فالخريطة كانت بترسم نفس
+    // الشكل بالظبط لمستخدم لسه مسجّل ولمستخدم عنده سنة بيانات، ومفيش أي فعل من المستخدم
+    // بيقدر يضيف عصب جديد. ودي شكوى اتقالت بالنص: "مش بتخلق أعصاب جديدة"، وجنبها
+    // "الايدجات الفارغة" — خطوط بين عقدتين مالهمش أي بيانات أصلاً.
+    //
+    // القاعدة دلوقتي:
+    //   • الرابط بيظهر أصلاً لو الطرفين عندهم بيانات حقيقية — يعني الخط الفاضي بيختفي
+    //     بدل ما يترسم.
+    //   • solid = فيه ربط ملموس دلوقتي (صنف ناقص موجود فعلاً في قايمة التسوق، أو مبلغ
+    //     حقيقي بياكل من الميزانية).
+    //   • dashed = العلاقة قايمة بس لسه من غير ربط ملموس — الفجوة اللي الليجند بيسميها.
+    val edges = remember(
+        obligations, activeSubs, activeDebts,
+        lowStockInventory, pendingShopping, lowStockPharmacy, maintenanceItems, budget,
+    ) {
+        val hasBudget = budget > 0.0
+        val shoppingNames = pendingShopping.map { it.itemName }
+
+        // صنف ناقص وله سطر مقابل في قايمة التسوق = عصب واصل فعلاً، مش علاقة نظرية.
+        fun bridgesToShopping(names: List<String>): Boolean =
+            names.any { needed -> shoppingNames.any { InventoryFlowEngine.namesMatch(it, needed) } }
+
+        buildList {
+            // علاقات "بتاكل من الميزانية": المبلغ نفسه هو الربط، فوجود بند بمبلغ = solid.
+            fun spendEdge(key: String, count: Int, amount: Double) {
+                if (count == 0 || !hasBudget) return
+                add(MapEdge(key, "budget", solid = amount > 0.0))
+            }
+            spendEdge("obligations", obligations.size, obligations.sumOf { it.amount })
+            spendEdge("subscriptions", activeSubs.size, activeSubs.sumOf { it.amount })
+            spendEdge("debts", activeDebts.size, activeDebts.sumOf { it.remainingBalance })
+            spendEdge("maintenance", maintenanceItems.size, maintenanceItems.sumOf { it.estimatedCost })
+            // العصبان الجداد: قايمة التسوق والصيدلية بيصرفوا من نفس الميزانية زي أي بند
+            // تاني — كانوا ناقصين من القايمة الثابتة رغم إن الشاشتين بيعرضوا تكلفة.
+            spendEdge("shopping", pendingShopping.size, pendingShopping.sumOf { it.estimatedPrice })
+            spendEdge("pharmacy", lowStockPharmacy.size, lowStockPharmacy.sumOf { it.price })
+
+            // علاقات "بتغذّي قايمة التسوق": الربط الملموس هو صنف موجود في الاتنين.
+            if (lowStockInventory.isNotEmpty() && pendingShopping.isNotEmpty()) {
+                add(MapEdge("inventory", "shopping", solid = bridgesToShopping(lowStockInventory.map { it.itemName })))
+            }
+            if (lowStockPharmacy.isNotEmpty() && pendingShopping.isNotEmpty()) {
+                add(MapEdge("pharmacy", "shopping", solid = bridgesToShopping(lowStockPharmacy.map { it.name })))
+            }
+        }
     }
 
     var selectedDomain by remember { mutableStateOf<String?>(null) }

@@ -70,7 +70,15 @@ object BudgetMath {
      */
     fun remaining(monthlyLimit: Double, transactions: List<ZadTransaction>, asOf: LocalDate = LocalDate.now()): Double? {
         if (monthlyLimit <= 0.0) return null
-        return monthlyLimit - spentThisMonth(transactions, asOf) + incomeThisMonth(transactions, asOf)
+        // نفس قاعدة remainingInCycle بالظبط — الدخل المؤكد بس. لو النسخة دي فضلت بتجمع
+        // كل الدخل، الشاشات اللي لسه بتناديها (FamilyState/BudgetTracker/ZadCentralBrain)
+        // هتعرض رقم أكبر من اللي الشاشة الرئيسية بتعرضه لنفس الشهر — وهو بالظبط اختلاف
+        // المرجع اللي Task 19.0 اتعمل عشان يقفله.
+        val monthStart = asOf.withDayOfMonth(1)
+        val allocated = transactions
+            .filter { it.txnKind == "income" && it.countsTowardBudget == true && (txDate(it) ?: asOf) >= monthStart }
+            .sumOf { it.amount }
+        return monthlyLimit - spentThisMonth(transactions, asOf) + allocated
     }
 
     // ─── Task 25 — نفس الحسابات فوق، بس بحدود دورة الراتب (CycleMath) مش الشهر التقويمي ───
@@ -86,10 +94,37 @@ object BudgetMath {
         transactions.filter { it.txnKind == "income" && txDate(it)?.let { d -> !d.isBefore(cycleStart) && d.isBefore(cycleEnd) } == true }
             .sumOf { it.amount }
 
-    /** نفس اتفاقية `remaining`: سقف <= 0 = مش معروف = null، مش صفر. */
+    /**
+     * الدخل اللي العميل أكّد إنه مخصص لمصروف الشهر — ده الوحيد اللي بيزوّد السقف.
+     * مرآة `income_allocated` في zad_budget_state_legacy.
+     */
+    fun allocatedIncomeInCycle(transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate): Double =
+        transactions.filter {
+            it.txnKind == "income" && it.countsTowardBudget == true &&
+                txDate(it)?.let { d -> !d.isBefore(cycleStart) && d.isBefore(cycleEnd) } == true
+        }.sumOf { it.amount }
+
+    /** إيداعات الدورة اللي لسه محدش سأل العميل عنها — الشاشة/العقل بيبنوا عليها السؤال. */
+    fun incomeAwaitingDecisionInCycle(transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate): List<ZadTransaction> =
+        transactions.filter {
+            it.txnKind == "income" && it.countsTowardBudget == null &&
+                txDate(it)?.let { d -> !d.isBefore(cycleStart) && d.isBefore(cycleEnd) } == true
+        }.sortedByDescending { it.createdAt ?: "" }
+
+    /**
+     * نفس اتفاقية `remaining`: سقف <= 0 = مش معروف = null، مش صفر.
+     *
+     * كانت `limit - spent + income`، يعني أي إيداع بيوصل كان بيكبّر سقف الصرف لوحده.
+     * وده غلط في تطبيق ميزانية: `monthlyLimit` سقف **العميل اختاره** لمصروف البيت، مش
+     * رصيد بيتعبّى. تحويل بـ 20,000 وصل مش معناه 20,000 مصاريف بيت زيادة. فالدخل
+     * مابيدخلش غير لما العميل يقول صراحة إنه مخصص للشهر (`countsTowardBudget == true`).
+     *
+     * لازم تفضل مطابقة لـ zad_budget_state_legacy — هي المرجع، ودي المرآة الأوفلاين.
+     */
     fun remainingInCycle(monthlyLimit: Double, transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate): Double? {
         if (monthlyLimit <= 0.0) return null
-        return monthlyLimit - spentInCycle(transactions, cycleStart, cycleEnd) + incomeInCycle(transactions, cycleStart, cycleEnd)
+        return monthlyLimit - spentInCycle(transactions, cycleStart, cycleEnd) +
+            allocatedIncomeInCycle(transactions, cycleStart, cycleEnd)
     }
 
     /**
