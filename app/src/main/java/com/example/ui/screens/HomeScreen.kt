@@ -124,7 +124,6 @@ fun HomeScreen(
     val outingSuggestion by viewModel.outingSuggestion.collectAsState()
     val agentSummary by viewModel.agentSummary.collectAsState()
     val isAgentLoading by viewModel.isAgentLoading.collectAsState()
-    val companionState by viewModel.companionState.collectAsState()
     val autoSuggestions by viewModel.autoSuggestions.collectAsState()
     val livePrices by viewModel.livePrices.collectAsState()
     val marketPricesFetchState by viewModel.marketPricesFetchState.collectAsState()
@@ -639,10 +638,10 @@ fun HomeScreen(
 
                 // ── 6. Dark AI summary card (mockup: #052E16, mint title, chips) ──
                 agentSummary?.let { summary ->
-                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        com.example.ui.components.CompanionOrb(state = companionState, size = 88.dp)
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
+                    // كانت فيه كورة تانية هنا فوق كارت الملخص. `FloatingMascotCompanion`
+                    // (MainScreen) عايمة فوق كل الشاشات، فلما المحتوى بيتمرر النسخة دي كانت
+                    // بتوصل جنبها وتبان كورتين فوق بعض — والجوّانية ساكنة ومش بترد على اللمس،
+                    // فاللي بيدوس عليها بيحس إن الأيجنت باظ. كورة واحدة، هي اللي بتتفاعل.
                     AgentSummaryCard(
                         agentSummary = summary,
                         isLoading = isAgentLoading,
