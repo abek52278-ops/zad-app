@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -22,6 +23,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
@@ -80,6 +82,12 @@ fun CompanionOrb(
     val breathScale: Float
     val blobPhase: Float
     val eyeOpenAmount: Float
+    // 1 = صاحية تماماً، أقل من كده = جفون نازلة. منفصلة عن الرمشة عشان الاتنين ممكن
+    // يحصلوا مع بعض: بترمش وهي نعسانة برضه.
+    var drowsiness: Float = 1f
+    // 0 = ساكنة، 1 = في عزّ التمطّي. بتتمدّ رأسياً وتضيق أفقياً — ده اللي بيخلي الحركة
+    // تتقري "تثاؤب" مش مجرد تكبير.
+    var yawnStretch: Float = 0f
 
     if (animated) {
         val breathTransition = rememberInfiniteTransition(label = "orbBreath")
@@ -123,6 +131,39 @@ fun CompanionOrb(
                 }
             }
         }
+
+        // ── النعاس ──────────────────────────────────────────────────────────────
+        // لو محدش كلّمها ولا لمسها لفترة، بتنعس: العنين بتنّص، وبتتثاءب من وقت للتاني،
+        // وبتتنفس أعمق وأبطأ. أي لمسة أو تغيير حالة بيصحّيها فوراً.
+        //
+        // التثاؤب من غير صوت عن قصد. صوت بيطلع من نفسه من موبايل في جيب حد من غير ما
+        // يكون طلبه حاجة مزعجة مش لطيفة — الحركة لوحدها بتوصّل المعنى، والصوت محجوز
+        // للحظة اللي العميل بيتعامل فيها فعلاً (اللمس، النجاح، التنبيه).
+        //
+        // الحالات النشطة مابتنعسش: واحدة بتفكّر أو بتنبّه مش المفروض تنام في نص شغلها.
+        val canDoze = state == CompanionState.Idle || state == CompanionState.Happy
+        var drowsy by remember { mutableStateOf(false) }
+        var yawn by remember { mutableFloatStateOf(0f) }
+        val yawnAmount by animateFloatAsState(yawn, tween(520, easing = FastOutSlowInEasing), label = "orbYawn")
+        val lidTarget = if (drowsy) 0.45f else 1f
+        val sleepyLid by animateFloatAsState(lidTarget, tween(900, easing = FastOutSlowInEasing), label = "orbSleepyLid")
+
+        LaunchedEffect(blinkTrigger, glowTrigger, state) {
+            drowsy = false
+            yawn = 0f
+            if (!canDoze) return@LaunchedEffect
+            delay(DOZE_AFTER_MS)
+            drowsy = true
+            while (true) {
+                delay(Random.nextLong(6000, 12000))
+                yawn = 1f           // تتمطّ وتقفل عينيها
+                delay(620)
+                yawn = 0f           // وترجع تستقر أنعس شوية
+                delay(520)
+            }
+        }
+        drowsiness = if (drowsy) sleepyLid else 1f
+        yawnStretch = yawnAmount
         eyeOpenAmount = eyeOpenAnimated
     } else {
         breathScale = 1f
@@ -164,18 +205,39 @@ fun CompanionOrb(
             drawCircle(color = skyColor.copy(alpha = 0.22f * glow), radius = radius * (1.15f + 0.35f * glow), center = center)
         }
 
-        drawPath(
-            path = blobPath(center, radius, blobPhase),
-            brush = Brush.radialGradient(
-                colors = listOf(skyColor, deepColor),
-                center = center - Offset(radius * 0.3f, radius * 0.3f),
-                radius = radius * 1.6f
+        // التمطّي: بتطول رأسياً وتضيق أفقياً في نفس اللحظة. لو كبّرناها في الاتجاهين كانت
+        // هتتقري "بتكبر" مش "بتتثاءب" — الفرق كله في إن الحجم بيتحفظ والشكل هو اللي بيتغيّر.
+        withTransform({
+            if (yawnStretch > 0.001f) {
+                scale(
+                    scaleX = 1f - 0.06f * yawnStretch,
+                    scaleY = 1f + 0.10f * yawnStretch,
+                    pivot = center,
+                )
+            }
+        }) {
+            drawPath(
+                path = blobPath(center, radius, blobPhase),
+                brush = Brush.radialGradient(
+                    colors = listOf(skyColor, deepColor),
+                    center = center - Offset(radius * 0.3f, radius * 0.3f),
+                    radius = radius * 1.6f
+                )
             )
-        )
 
-        drawEyes(state, center, radius, eyeOpenAmount)
+            // العين بتاخد أقل فتحة بين الرمشة والنعاس، والتثاؤب بيقفلها لآخرها — الواحدة
+            // مابتفتحش عينيها وهي بتتثاءب.
+            val lid = minOf(eyeOpenAmount, drowsiness) * (1f - 0.92f * yawnStretch)
+            drawEyes(state, center, radius, lid.coerceIn(0f, 1f))
+        }
     }
 }
+
+/**
+ * بعد قد إيه من السكون تبدأ تنعس. ٢٥ ثانية: أطول من إن حد بيقرا الشاشة يخليها تنام في
+ * وشه، وأقصر من إن حد سايب التليفون جنبه ما يلحقش يشوفها بتتثاءب.
+ */
+private const val DOZE_AFTER_MS = 25_000L
 
 private const val BLOB_POINTS = 8
 private const val BLOB_AMPLITUDE = 0.045f
