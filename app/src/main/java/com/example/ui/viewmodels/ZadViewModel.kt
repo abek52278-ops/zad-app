@@ -775,6 +775,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             Log.d(TAG, "syncData() → starting Supabase sync")
             try {
+                // الطابور الأول، قبل أي قراءة. أي حاجة اتعملت أوفلاين لازم تبقى على
+                // السيرفر قبل ما نعتبر السيرفر هو المرجع — وإلا التنضيف تحت هيمسحها.
+                com.example.data.SyncOutbox.flush(getApplication())
+                val outboxDrained = dao.getAllPendingSyncOps().isEmpty()
                 val remoteInventory = SupabaseRepo.getInventory()
                 Log.d(TAG, "syncData() → remoteInventory count=${remoteInventory.size}")
                 if (remoteInventory.isNotEmpty()) dao.insertInventory(remoteInventory)
@@ -803,6 +807,32 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.d(TAG, "syncData() → remoteShoppingList count=${remoteShoppingList.size}")
                 if (remoteShoppingList.isNotEmpty()) {
                     remoteShoppingList.forEach { dao.insertShoppingItem(it) }
+                }
+
+                // ── تنضيف: اللي مش موجود على السيرفر مايفضلش على الجهاز ──────────────
+                // المزامنة كانت بتضيف بس. صف اتمسح من السيرفر — أو أربع صفوف اتدمجوا في
+                // واحد بحارس التكرار — كان بيفضل معروض على الشاشة للأبد، وده اللي المستخدم
+                // شايفه: قائمة تسوق فيها "مياه إيلانو" أربع مرات وجدول السيرفر فيه صف واحد.
+                //
+                // شرطين قبل أي مسح، والاتنين مقصودين:
+                //   • الطابور اتفضّى — يعني كل حاجة محلية وصلت السيرفر فعلاً، فغيابها من
+                //     الرد معناه إنها اتشالت مش إنها لسه ما اترفعتش.
+                //   • الرد مش فاضي ومش مقصوص — PostgREST بيقص عند حد أقصى للصفوف، ورد
+                //     مقصوص لو اتعامل كمرجع كان هيمسح اللي بعده. رد فاضي بيتساب برضه
+                //     لأنه أشهر شكل لفشل قراءة اتبلع.
+                //
+                // المعاملات مستثناة عن قصد: دي فلوس، وقراءة ناقصة مرة واحدة كفيلة تمسح
+                // تاريخ مالي مش هيرجع. المسح هنا محصور في القوايم اللي ضررها محدود وقابل
+                // للإرجاع من السيرفر في أي لحظة.
+                if (outboxDrained) {
+                    if (remoteShoppingList.isNotEmpty() && remoteShoppingList.size < 1000) {
+                        dao.pruneShoppingItemsNotIn(remoteShoppingList.map { it.id })
+                    }
+                    if (remotePharmacyItems.isNotEmpty() && remotePharmacyItems.size < 1000) {
+                        dao.prunePharmacyItemsNotIn(remotePharmacyItems.map { it.id })
+                    }
+                } else {
+                    Log.w(TAG, "syncData() → outbox still has pending ops; skipping local prune this round")
                 }
 
                 Log.d(TAG, "syncData() SUCCESS")
