@@ -129,6 +129,31 @@ function normalizeStandardCategory(raw: unknown): string {
   return "أخرى";
 }
 
+/**
+ * Inventory tabs are a different list from spending categories — InventoryScreen's
+ * categoryDefs, not BudgetTracker's. Same failure mode though, and the same lesson the
+ * receipt path already learned on 2026-08-15: naming the values in the prompt is not a
+ * guarantee, so the values get clamped in code too.
+ *
+ * What actually arrived in zad_inventory without this: "كجم", "كرتونة", "لتر", "حبة" —
+ * every one of them a **unit**, written into the category column. The model was answering
+ * the wrong field, and each wrong value became its own tab nobody asked for.
+ */
+const INVENTORY_CATEGORIES = [
+  "البقالة", "الخضار", "الفواكه", "اللحوم", "الألبان", "المشروبات", "العناية", "أخرى",
+];
+
+function normalizeInventoryCategory(raw: unknown): string {
+  const v = typeof raw === "string" ? raw.trim() : "";
+  if (!v) return "أخرى";
+  if (INVENTORY_CATEGORIES.includes(v)) return v;
+  const stripped = v.replace(/^ال/, "");
+  const near = INVENTORY_CATEGORIES.find((c) => c === stripped || c.replace(/^ال/, "") === stripped);
+  if (near) return near;
+  console.warn(`[CoreIntel] inventory category "${v}" is not one of the eight; filing under أخرى`);
+  return "أخرى";
+}
+
 const THINKING_CONFIG_UNSUPPORTED = new Set<string>();
 
 /**
@@ -911,7 +936,12 @@ Deno.serve(async (req: Request) => {
         if (objectMatch) {
           try {
             const parsed = JSON.parse(objectMatch[0]);
-            return jsonResponse({ items: parsed.items || [] });
+            // نفس معالجة الفاتورة: الفئة بتتقيّد في الكود كمان، مش في البرومبت بس.
+            const items = (parsed.items || []).map((it: Record<string, unknown>) => ({
+              ...it,
+              category: normalizeInventoryCategory(it.category),
+            }));
+            return jsonResponse({ items });
           } catch (e) {
             console.error("[CoreIntel] analyze_inventory_image: JSON.parse (object) failed:", (e as Error).message, "raw match:", objectMatch[0]);
           }

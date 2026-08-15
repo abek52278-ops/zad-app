@@ -601,6 +601,14 @@ object SupabaseRepo {
     suspend fun addSubscription(sub: ZadSubscription) {
         try {
             val userId = client.auth.currentUserOrNull()?.id
+            // نفس حارس addInventory. من غيره الصف بيتكتب بـ user_id = null: مالوش صاحب،
+            // مخفي عن كل قارئ لأن RLS بتفلتر على auth.uid() = user_id، وبيفضل في الجدول
+            // للأبد. الحارس اتحط في addInventory وحدها وماتنقلش للتلاتة التانيين — وده
+            // اللي ساب صفوف يتيمة فعلية في zad_subscriptions وzad_inventory يوم 2026-08-15.
+            if (userId == null) {
+                Log.w(TAG, "addSubscription() skipped — user not authenticated")
+                return
+            }
             val subWithUser = sub.copy(userId = userId)
             Log.d(TAG, "addSubscription() → table=zad_subscriptions, title=${subWithUser.title}, amount=${subWithUser.amount}, userId=$userId")
             client.postgrest["zad_subscriptions"].insert(subWithUser)
@@ -692,6 +700,14 @@ object SupabaseRepo {
     suspend fun addPharmacyItem(item: ZadPharmacyItem) {
         try {
             val userId = client.auth.currentUserOrNull()?.id
+            // نفس حارس addInventory. من غيره الصف بيتكتب بـ user_id = null: مالوش صاحب،
+            // مخفي عن كل قارئ لأن RLS بتفلتر على auth.uid() = user_id، وبيفضل في الجدول
+            // للأبد. الحارس اتحط في addInventory وحدها وماتنقلش للتلاتة التانيين — وده
+            // اللي ساب صفوف يتيمة فعلية في zad_subscriptions وzad_inventory يوم 2026-08-15.
+            if (userId == null) {
+                Log.w(TAG, "addPharmacyItem() skipped — user not authenticated")
+                return
+            }
             val itemWithUser = item.copy(userId = userId)
             Log.d(TAG, "addPharmacyItem() → table=zad_pharmacy_items, name=${itemWithUser.name}, userId=$userId")
             client.postgrest["zad_pharmacy_items"].insert(itemWithUser)
@@ -1450,6 +1466,14 @@ object SupabaseRepo {
     suspend fun addShoppingItem(item: ZadShoppingItem) {
         try {
             val userId = client.auth.currentUserOrNull()?.id
+            // نفس حارس addInventory. من غيره الصف بيتكتب بـ user_id = null: مالوش صاحب،
+            // مخفي عن كل قارئ لأن RLS بتفلتر على auth.uid() = user_id، وبيفضل في الجدول
+            // للأبد. الحارس اتحط في addInventory وحدها وماتنقلش للتلاتة التانيين — وده
+            // اللي ساب صفوف يتيمة فعلية في zad_subscriptions وzad_inventory يوم 2026-08-15.
+            if (userId == null) {
+                Log.w(TAG, "addShoppingItem() skipped — user not authenticated")
+                return
+            }
             val itemWithUser = item.copy(userId = userId)
             Log.d(TAG, "addShoppingItem() → table=zad_shopping_list, itemName=${itemWithUser.itemName}, userId=$userId")
             client.postgrest["zad_shopping_list"].insert(itemWithUser)
