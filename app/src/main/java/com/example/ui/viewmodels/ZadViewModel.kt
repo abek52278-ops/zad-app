@@ -2200,8 +2200,11 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      * can show the new figure immediately without also firing [refreshBudgetState] before the
      * write that figure depends on has reached the server — see updateBudget()'s comment.
      */
-    private fun recalculateLocalBudgetFigures(txs: List<ZadTransaction>, currentBudget: Double) {
+    private fun recalculateLocalBudgetFigures(rawTxs: List<ZadTransaction>, currentBudget: Double) {
         val market = MarketPrefs.getMarket(getApplication())
+        // معاملة بعملة تانية لازم تتحوّل قبل ما تتجمع مع الباقي — الجمع الخام كان بيعامل
+        // ١٠٠ دولار على إنهم ١٠٠ جنيه. صف من غير عملة = عملة الحساب، مش تحويل.
+        val txs = BudgetMath.normalizedToCurrency(rawTxs, market.currencyCode)
         val asOf = LocalDate.now()
         val cycleStart = CycleMath.cycleStart(asOf, cycleStartDay, cycleAnchor, market)
         val cycleEnd = CycleMath.cycleEnd(asOf, cycleStartDay, cycleAnchor, market)

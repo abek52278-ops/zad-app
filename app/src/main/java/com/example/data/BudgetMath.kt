@@ -16,6 +16,35 @@ import java.time.ZoneId
  */
 object BudgetMath {
 
+    /**
+     * توحيد العملة قبل أي جمع. كل دالة تحت بتعمل `sumOf { it.amount }` من غير ما تبص على
+     * `currency` خالص، فمعاملة بعملة تانية كانت بتتجمع كأنها بعملة الحساب: خصم ١٠٠ دولار
+     * بيزوّد المصروف ١٠٠ جنيه، وبيتعرض بعلامة الجنيه.
+     *
+     * ودي مش حالة نظرية — `SaBankParser.extractCurrency` اتعمل مخصوص عشان يمسك "رسالة من
+     * بنك مصري وأنت مسافر" ويسجّل عملتها الصح. فالإصلاح ده خلّى الصف أمين، وبعدين مفيش
+     * حاجة بتقرا الحقل. البيانات بقت صادقة والحسبة فضلت بتكدب.
+     *
+     * `currency` فاضية أو null معناها **عملة الحساب**، مش SAR. ده مهم: العمود null لكل
+     * الصفوف الموجودة، ولو اتفسّر على إنه ريال كان التحويل هيضرب أرقام حساب مصري في ١٣.
+     * التحويل بيحصل بس لما الصف حامل كود صريح ومختلف عن عملة الحساب.
+     *
+     * المعدلات في [CurrencyExchange] تقريبية ومحدّثة يدوياً، فالرقم الناتج تقريبي — بس
+     * تقريبي أقرب للحقيقة بكتير من جمع عملتين مختلفتين كأنهم واحدة.
+     *
+     * ملحوظة: `zad_budget_state` على السيرفر لسه بيجمع `amount` خام. ده مالوش أثر
+     * دلوقتي لأن العمود null في كل الصفوف، بس أول ما تتسجّل معاملة بعملة أجنبية هيبقى
+     * فيه فرق بين الرقم المحلي ورقم السيرفر — والـ drift log في ZadViewModel هيقوله.
+     */
+    fun normalizedToCurrency(transactions: List<ZadTransaction>, homeCurrency: String?): List<ZadTransaction> {
+        if (homeCurrency.isNullOrBlank()) return transactions
+        return transactions.map { tx ->
+            val code = tx.currency?.trim()?.uppercase()
+            if (code.isNullOrBlank() || code == homeCurrency.uppercase()) tx
+            else tx.copy(amount = CurrencyExchange.convert(tx.amount, code, homeCurrency.uppercase()).asMoney())
+        }
+    }
+
     /** مش private — ZadIntelligenceScreen's category donut محتاج نفس منطق الفلترة بالتاريخ
      * ده بالظبط، مش نسخة تالتة منه، عشان يطابق spentInCycle/incomeInCycle. */
     fun txDate(tx: ZadTransaction): LocalDate? = tx.createdAt?.let {

@@ -1,6 +1,7 @@
 package com.example.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 
@@ -17,7 +18,8 @@ class BudgetMathTest {
         wallet: String = "card",
         transferTo: String? = null,
         createdAt: String? = null,
-        isVerified: Boolean = false
+        isVerified: Boolean = false,
+        currency: String? = null,
     ) = ZadTransaction(
         amount = amount,
         title = "test",
@@ -25,7 +27,8 @@ class BudgetMathTest {
         wallet = wallet,
         transferTo = transferTo,
         createdAt = createdAt,
-        isVerified = isVerified
+        isVerified = isVerified,
+        currency = currency
     )
 
     @Test
@@ -278,6 +281,36 @@ class BudgetMathTest {
             obligations, subs, LocalDate.of(2026, 8, 10), LocalDate.of(2026, 7, 10)
         )
         assertEquals(3650.0, committed, 0.001)
+    }
+
+    // ── توحيد العملة قبل الجمع ────────────────────────────────────────────────────
+
+    @Test
+    fun `a transaction with no currency is treated as the account currency, never as SAR`() {
+        // العمود null في كل الصفوف الموجودة. لو اتفسّر ريال، حساب مصري كان هيتضرب في ١٣.
+        val txs = listOf(tx(amount = 100.0, txnKind = "expense", currency = null))
+        val out = BudgetMath.normalizedToCurrency(txs, "EGP")
+        assertEquals(100.0, out.single().amount, 0.001)
+    }
+
+    @Test
+    fun `a foreign-currency transaction is converted before it joins the total`() {
+        val txs = listOf(tx(amount = 100.0, txnKind = "expense", currency = "USD"))
+        val out = BudgetMath.normalizedToCurrency(txs, "EGP")
+        // 100 USD عند 0.0204 دولار للجنيه = حوالي 4,902 جنيه — المهم إنه مش فاضل 100.
+        assertTrue("expected a real conversion, got ${out.single().amount}", out.single().amount > 4000.0)
+    }
+
+    @Test
+    fun `same-currency rows are left exactly alone`() {
+        val txs = listOf(tx(amount = 250.0, txnKind = "expense", currency = "egp"))
+        assertEquals(250.0, BudgetMath.normalizedToCurrency(txs, "EGP").single().amount, 0.001)
+    }
+
+    @Test
+    fun `an unknown account currency disables conversion rather than guessing a rate`() {
+        val txs = listOf(tx(amount = 100.0, txnKind = "expense", currency = "USD"))
+        assertEquals(100.0, BudgetMath.normalizedToCurrency(txs, null).single().amount, 0.001)
     }
 
     // ── التجديد الجاي لاشتراك (nextRenewalDate) ───────────────────────────────────
