@@ -50,10 +50,6 @@ object BankTransactionApplier {
         // Task 19.0 — تنبيه تخطي 75/90/100% من الإجمالي، محسوب لحظياً بعد إدراج المعاملة
         BudgetTracker.checkOverallBudgetThreshold(context)
 
-        if (txType == TxType.WITHDRAWAL) {
-            maybeShowCashEducationOnce(context, classified.amount)
-        }
-
         // The phone is the only place that can hear a bank notification, but it is
         // not a second decision-maker. Once the transaction reached the shared
         // database, wake the server brain with an event so Telegram, app insights,
@@ -88,29 +84,10 @@ object BankTransactionApplier {
         }
     }
 
-    private const val PREFS_CASH_EDU = "zad_cash_education"
-    private const val KEY_SHOWN_ONCE = "shown_once"
-
-    /**
-     * Task 19.4 — "أول سحب ATM، رسالة تعليمية واحدة، مرة واحدة طول العمر" (EPIC_1_4.md).
-     * نفس مسار sendAppNotification المستخدم أصلاً في UnifiedSmsReceiver لإشعار الراتب —
-     * ده مش المسار المثالي (ZadAlertRouter من المفروض يبقى نقطة العبور الوحيدة لكل
-     * إشعار، حسب معيار Task 24)، لكنه المسار الموجود فعلياً لإشعارات مبنية على SMS بنكي،
-     * ومش هدف هذا التاسك إعادة هيكلة الإشعارات كلها — Task 24 هو اللي هيوحّدها.
-     */
-    private suspend fun maybeShowCashEducationOnce(context: Context, amount: Double) {
-        val prefs = context.getSharedPreferences(PREFS_CASH_EDU, Context.MODE_PRIVATE)
-        if (prefs.getBoolean(KEY_SHOWN_ONCE, false)) return
-        prefs.edit().putBoolean(KEY_SHOWN_ONCE, true).apply()
-        try {
-            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return
-            SupabaseRepo.sendAppNotification(
-                userId,
-                "سحبت ${CurrencyFormatter.format(context, amount)}",
-                "دي مش محسوبة كمصروف لسه — لما تصرف منها قوللي. ولو نسيت، هسألك آخر الأسبوع."
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "maybeShowCashEducationOnce() FAILED: ${e.message}")
-        }
-    }
+    // Task 19.4's one-time "سحبت X، دي مش محسوبة كمصروف لسه" notification used to fire
+    // here on the first ATM withdrawal. Removed at the customer's request: they talk to
+    // the bot anyway, so a one-shot explanation of the cash ledger arrives as noise rather
+    // than as help. The cash ledger behaviour itself is untouched — a withdrawal is still
+    // classified transfer→cash and still stays out of `spent` (BudgetMath.cashOnHand); the
+    // only thing that went is the notification announcing it.
 }
