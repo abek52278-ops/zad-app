@@ -205,7 +205,16 @@ async function lookupMealImage(keyword: string): Promise<{ thumb: string; regula
 async function attachRecipeImages(recipes: unknown[]): Promise<unknown[]> {
   return await Promise.all(recipes.map(async (r) => {
     const recipe = r as Record<string, unknown>;
-    const image = await lookupMealImage(String(recipe.image_keyword_en ?? recipe.recipe_name ?? ""));
+    // الاحتياطي كان اسم الوصفة، وهو **عربي** — وUnsplash بيرجّع [] على العربي، فالوصفة
+    // كانت بتخسر صورتها بصمت لمجرد إن النموذج نسي حقل واحد. دلوقتي بنطلب الصورة بس لما
+    // يكون عندنا كلمة إنجليزية فعلاً؛ من غيرها الكارت بيعرض البديل، وده أصدق من نداء
+    // معروف إنه هيرجع فاضي.
+    const keyword = String(recipe.image_keyword_en ?? "").trim();
+    const looksEnglish = /^[\x20-\x7E]+$/.test(keyword);
+    const image = keyword && looksEnglish ? await lookupMealImage(keyword) : null;
+    if (keyword && !looksEnglish) {
+      console.warn(`[CoreIntel] image_keyword_en was not latin ("${keyword}") — skipping Unsplash`);
+    }
     return { ...recipe, image_url: image?.regular ?? null, image_thumb_url: image?.thumb ?? null };
   }));
 }

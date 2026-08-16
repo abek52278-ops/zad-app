@@ -185,6 +185,17 @@ object MarketPrefs {
      * اختيار — أول تشغيل، وهي الحالة اللي هي مقصودة ليها فعلاً.
      */
     fun applyStoredLocale(context: Context) {
+        // ترطيب `currentMarket` أول حاجة، مهما كان الفرع اللي هنمشي فيه تحت.
+        //
+        // `currentMarket` static افتراضيها السعودية، ومابتتحدّث إلا لما `getMarket(context)`
+        // تتنادى. و`ZadAiRepository` object من غير Context، فبيقرا الـ static ده مباشرة
+        // عشان يبعت `dialectInstruction` مع كل نداء. يعني أي نداء ذكاء بيحصل قبل ما حاجة
+        // تنادي getMarket بيروح **بلهجة سعودية** — حتى لو العميل مصري. وده اتشاف فعلاً في
+        // كاش شيف زاد: رد بـ"يا هلا يا قلبي" و"وش رايك" لحساب country=EG.
+        //
+        // والنداء هنا مش زيادة احتياطية: الفرع اللي بيحترم اختيار اللغة مابيلمسش getMarket
+        // خالص، فمن غير السطر ده الـ static كان هيفضل على الافتراضي طول عمر العملية.
+        getMarket(context)
         val alreadyChosen = androidx.appcompat.app.AppCompatDelegate.getApplicationLocales()
             .toLanguageTags().isNotBlank()
         if (alreadyChosen) {
