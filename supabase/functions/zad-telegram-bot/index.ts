@@ -708,7 +708,41 @@ async function agentTurnReply(
   chatId: number,
   text: string,
 ): Promise<{ lines: string[]; pendingId?: string; toolPendingId?: string; errorReason?: string }> {
-  const { result: turn, errorReason } = await agentTurn(userId, text);
+  // ── ربط الإجابة بالسؤال ──────────────────────────────────────────────────
+  // زاد بيبعت أسئلة على تليجرام ("راتبك بيجي يوم ١٦ من كل شهر — أظبط الشهر عندك على
+  // كده؟") والرد بييجي كرسالة عادية مالهاش أي علاقة بالسؤال. حصل فعلاً: السؤال كان عن
+  // **يوم** بداية الدورة، العميل رد "لا بوم 30"، والوكيل قرا الرقم كـ**سقف شهري ٣٠
+  // جنيه** واستنى تأكيد عليه. الرقم كان صح والوحدة غلط، ومحدش كان عارف إن فيه سؤال أصلاً.
+  //
+  // السؤال المعلّق بيتبعت كـ**سياق** مش كـwrapper. ده مقصود: لو لفّينا الرسالة في
+  // ANSWER_PREFIX زي ما التطبيق بيعمل، بنبقى بنجزم إنها إجابة — والعميل ساعات بيبعت
+  // طلب جديد تماماً والسؤال لسه معلّق ("سجل ٥٠ قهوة"). السياق بيدّي النموذج القدرة
+  // يربط، والتعليمات بتقوله يتجاهل لو مفيش علاقة. الجزم بيغلط، الاختيار لأ.
+  let outgoing = text;
+  const { data: openQ } = await sb.from("zad_insights")
+    .select("title,body,about_item,created_at")
+    .eq("user_id", userId)
+    .eq("kind", "question")
+    .eq("status", "pending")
+    .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const q = openQ as { title: string; body: string; about_item: string | null } | null;
+  if (q) {
+    const about = q.about_item ? ` (بخصوص: ${q.about_item})` : "";
+    outgoing =
+      "=== سؤال معلّق من زاد، اتبعت للعميل خلال آخر ٢٤ ساعة ===\n" +
+      `${q.title} — ${q.body}${about}\n` +
+      "=== نهاية السؤال ===\n" +
+      "لو الرسالة اللي تحت رد على السؤال ده، فسّرها في سياقه — خصوصاً الأرقام: رقم في " +
+      "رد على سؤال عن يوم هو **يوم**، مش مبلغ. لو الرسالة طلب جديد مالوش علاقة، تجاهل " +
+      "السؤال ده تماماً.\n\n" +
+      text;
+  }
+
+  const { result: turn, errorReason } = await agentTurn(userId, outgoing);
   if (!turn) return { lines: [], errorReason: errorReason ?? "agent turn unavailable" };
 
   const lines: string[] = [];
