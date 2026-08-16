@@ -175,6 +175,40 @@ class BudgetAuthorityParityTest {
     }
 
     /**
+     * The anchored window, shared with `zad_budget_state` since migration 20260816120000:
+     *
+     * ```sql
+     * where user_id = p_user and created_at >= v_anchor
+     * ```
+     *
+     * Unlike the vectors above, this expectation is **derived from the SQL text, not from a
+     * live call** — the migration ships in the same change and CI deploys it on merge, so
+     * there was no deployed function to query. Flagging that rather than letting it pass as
+     * a golden vector: if the two ever disagree in production, re-derive this one first.
+     *
+     * The two properties that matter are that the anchor replaces the cycle's *lower* bound
+     * and removes the upper one. Removing the upper bound is deliberate — a ledger balance
+     * is "what I have now" and does not reset when a salary cycle rolls over; the salary
+     * landing is an income row that raises it.
+     */
+    @Test
+    fun `the anchored window replaces the cycle lower bound and drops the upper one`() {
+        val cycleStart = LocalDate.parse("2026-08-01")
+        val cycleEnd = LocalDate.parse("2026-09-01")
+        val anchor = java.time.Instant.parse("2026-08-16T12:00:00Z")
+        val txs = listOf(
+            ZadTransaction(amount = 300.0, title = "قبل النقطة", txnKind = "expense", createdAt = "2026-08-05T10:00:00Z"),
+            ZadTransaction(amount = 120.0, title = "بعد النقطة", txnKind = "expense", createdAt = "2026-08-20T10:00:00Z"),
+            // بعد نهاية الدورة: الفلتر بالدورة بيستبعدها، الفلتر بالنقطة بيعدّها.
+            ZadTransaction(amount = 80.0, title = "الدورة الجاية", txnKind = "expense", createdAt = "2026-09-03T10:00:00Z"),
+        )
+
+        assertEquals(420.0, BudgetMath.spentInCycle(txs, cycleStart, cycleEnd, null), 0.001)
+        assertEquals(200.0, BudgetMath.spentInCycle(txs, cycleStart, cycleEnd, anchor), 0.001)
+        assertEquals(800.0, BudgetMath.balanceInCycle(1000.0, txs, cycleStart, cycleEnd, anchor), 0.001)
+    }
+
+    /**
      * `available = remaining - committed`, and it is allowed to be negative. Clamping it at
      * zero would hide exactly the situation the number exists to surface.
      */

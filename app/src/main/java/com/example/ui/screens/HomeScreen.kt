@@ -109,8 +109,8 @@ fun HomeScreen(
     val budgetConfirmed by viewModel.budgetConfirmed.collectAsState()
     val remainingBalance by viewModel.remainingBalance.collectAsState()
     val availableFigure by viewModel.availableFigure.collectAsState()
+    val balanceFigure by viewModel.balanceFigure.collectAsState()
     val committed by viewModel.committed.collectAsState()
-    val nextObligationDue by viewModel.nextObligationDue.collectAsState()
     val daysLeftInCycle by viewModel.daysLeftInCycle.collectAsState()
     val cycleStart by viewModel.cycleStart.collectAsState()
     val cycleEnd by viewModel.cycleEnd.collectAsState()
@@ -135,8 +135,6 @@ fun HomeScreen(
     // كان BudgetMath.totalExpense — إجمالي كل المعاملات من أول يوم في التطبيق — جنب
     // "متاح" المحسوب على الدورة، فالكارت كان بيعرض رقمين مالهمش علاقة ببعض وبيكبر
     // للأبد. spentThisCycle هو نفس الرقم اللي ZadViewModel بيطرحه من الميزانية.
-    val totalSpent by viewModel.spentThisCycle.collectAsState()
-    val currentBudget = remainingBalance
 
     val shortageCount = remember(inventory) {
         val lowStock = inventory.filter { it.quantity <= (it.lowStockThreshold ?: 2) }
@@ -364,31 +362,21 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // ── 1. Hero (mockup: the 28dp mesh-gradient "متاح" card) ──
+                // ── 1. الكارت الأخضر: رقم واحد، الرصيد اللي معاك دلوقتي ──
                 // Task 26 — daysLeft بقى بحدود دورة الراتب (ZadViewModel.daysLeftInCycle)
                 // مش الشهر التقويمي كان مؤجل من Task 25.
                 val daysLeft = daysLeftInCycle
-                val nextObligationText = nextObligationDue?.let { (ob, due) ->
-                    val days = java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), due).toInt()
-                    stringResource(R.string.obligation_due_in_days, ob.title, days)
-                }
 
-                // Task 0ب — remaining/availableFigure بقوا nullable (null = السقف لسه مش
-                // معروف). budgetConfirmed لوحدها كانت كفاية زمان لما remaining كان بيرجع
-                // 0.0 صامت؛ دلوقتي الفلاتين لازم يتفقوا سوا قبل ما نعرض رقم حقيقي —
-                // budgetConfirmed=true لسه بيلحق فراغ لحظي (recalculate جوّه coroutine)
-                // من غير الشرط الإضافي ده.
+                // budgetConfirmed لوحدها مش كفاية: بتبقى true قبل ما recalculate (جوّه
+                // coroutine) يملا الرقم، فبتلحق فراغ لحظي. الرقم نفسه لازم يبقى موجود
+                // كمان قبل ما نعرض كارت بيقول رقم.
                 val availableFigureValue = availableFigure
+                val balanceFigureValue = balanceFigure
                 com.example.ui.components.AppearOnEntry {
-                    if (budgetConfirmed && availableFigureValue != null && currentBudget != null) {
+                    if (budgetConfirmed && balanceFigureValue != null) {
                         com.example.ui.components.ZadCardHero(
-                            spent = totalSpent,
-                            remaining = currentBudget,
-                            available = availableFigureValue,
-                            committed = committed,
-                            monthlyLimit = budget,
-                            nextObligationText = nextObligationText,
-                            onAvailableLongPress = { showWhySheet = true },
+                            balance = balanceFigureValue,
+                            onBalanceLongPress = { showWhySheet = true },
                             onOpenDetail = { viewModel.showBudgetDialog() }
                         )
                     } else {

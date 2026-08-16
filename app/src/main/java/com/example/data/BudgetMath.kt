@@ -117,12 +117,49 @@ object BudgetMath {
     // [أول الشهر, أول الشهر الجاي). لو cycleStartDay=null، CycleMath.cycleStart/cycleEnd
     // نفسها بترجع حدود شهر تقويمي عادي — يعني الاستدعاء هنا آمن حتى قبل ما يتحدد للمستخدم.
 
-    fun spentInCycle(transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate): Double =
-        transactions.filter { it.txnKind == "expense" && txDate(it)?.let { d -> !d.isBefore(cycleStart) && d.isBefore(cycleEnd) } == true }
+
+    // ─── نقطة تثبيت الرصيد (migration 20260816120000) ────────────────────────────
+    // العميل بيقول "معايا كذا دلوقتي". الرقم ده بيوصف اللحظة اللي قاله فيها، فالمصروف
+    // اللي قبلها متطرح منه في الواقع خلاص — طرحه تاني بيخصمه مرتين. كل الدوال تحت
+    // بتاخد `anchoredAt` اختياري: لما يبقى null الحساب بيفضل بحدود الدورة زي ما كان
+    // بالحرف، ولما يبقى موجود بيبقى "من اللحظة دي لحد دلوقتي" من غير حد أعلى — الرصيد
+    // "اللي معايا" مابيتصفّرش مع بداية دورة جديدة، الراتب اللي بينزل بيزوّده.
+    //
+    // لازم تفضل مطابقة لنفس الشرط في zad_budget_state — هي المرجع ودي المرآة الأوفلاين.
+
+    /** لحظة المعاملة بدقة الثانية، مش اليوم. الفرق ده هو كل الموضوع: عميل ثبّت رصيده
+     * الساعة ٢ الضهر لازم يستبعد مصروف نفس اليوم الساعة ١٠ الصبح، وفلتر باليوم مش
+     * هيقدر. صف من غير createdAt بيتحسب "دلوقتي" — دي كتابة محلية لسه ما زامنتش، يعني
+     * بعد النقطة بالضرورة. */
+    fun txInstant(tx: ZadTransaction): Instant? = tx.createdAt?.let { raw ->
+        // ثلاث محاولات مقصودة بالترتيب ده. Instant.parse بتقبل "Z" بس، وPostgres بيكتب
+        // "+00:00" — فلو وقفنا عندها كل صف جاي من السيرفر كان هيسقط للمحاولة التالتة
+        // (بداية اليوم) ويفقد الساعة، وهي بالظبط الحاجة اللي الفلتر ده محتاجها.
+        try { Instant.parse(raw) } catch (e: Exception) {
+            try { java.time.OffsetDateTime.parse(raw).toInstant() } catch (e2: Exception) {
+                try { LocalDate.parse(raw.take(10)).atStartOfDay(ZoneId.systemDefault()).toInstant() } catch (e3: Exception) { null }
+            }
+        }
+    }
+
+    private fun inLedgerWindow(
+        tx: ZadTransaction,
+        anchoredAt: Instant?,
+        cycleStart: LocalDate,
+        cycleEnd: LocalDate,
+    ): Boolean = if (anchoredAt == null) {
+        txDate(tx)?.let { d -> !d.isBefore(cycleStart) && d.isBefore(cycleEnd) } == true
+    } else {
+        // null createdAt = صف محلي لسه ما اتزامنش = بعد النقطة
+        (txInstant(tx) ?: Instant.now()) >= anchoredAt
+    }
+
+    fun spentInCycle(transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate, anchoredAt: Instant? = null): Double =
+        transactions.filter { it.txnKind == "expense" && inLedgerWindow(it, anchoredAt, cycleStart, cycleEnd) }
             .sumOf { it.amount }
 
-    fun incomeInCycle(transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate): Double =
-        transactions.filter { it.txnKind == "income" && txDate(it)?.let { d -> !d.isBefore(cycleStart) && d.isBefore(cycleEnd) } == true }
+    fun incomeInCycle(transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate, anchoredAt: Instant? = null): Double =
+        transactions.filter { it.txnKind == "income" && inLedgerWindow(it, anchoredAt, cycleStart, cycleEnd) }
             .sumOf { it.amount }
 
     /**
@@ -164,9 +201,9 @@ object BudgetMath {
      *
      * لازم تفضل مطابقة لـ `zad_budget_state` — هي المرجع، ودي المرآة الأوفلاين.
      */
-    fun remainingInCycle(openingBalance: Double, transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate): Double? {
+    fun remainingInCycle(openingBalance: Double, transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate, anchoredAt: Instant? = null): Double? {
         if (openingBalance <= 0.0) return null
-        return balanceInCycle(openingBalance, transactions, cycleStart, cycleEnd)
+        return balanceInCycle(openingBalance, transactions, cycleStart, cycleEnd, anchoredAt)
     }
 
     /**
@@ -174,9 +211,9 @@ object BudgetMath {
      * بيتحسب صفر. الفرق ده مقصود: الشاشات محتاجة تفرّق بين "لسه ما حددتش رصيدك" و"رصيدك
      * صفر"، لكن أي حاسب (خصم سريع، تعديل يدوي، البوت) محتاج رقم يشتغل عليه دايماً.
      */
-    fun balanceInCycle(openingBalance: Double, transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate): Double =
-        (openingBalance + incomeInCycle(transactions, cycleStart, cycleEnd) -
-            spentInCycle(transactions, cycleStart, cycleEnd)).asMoney()
+    fun balanceInCycle(openingBalance: Double, transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate, anchoredAt: Instant? = null): Double =
+        (openingBalance + incomeInCycle(transactions, cycleStart, cycleEnd, anchoredAt) -
+            spentInCycle(transactions, cycleStart, cycleEnd, anchoredAt)).asMoney()
 
     /**
      * الفرق اللي لازم يتسجّل عشان الرصيد يبقى [targetBalance] — ده اللي "تعديل يدوي
@@ -207,10 +244,10 @@ object BudgetMath {
      * مباشر — انظر ZadViewModel.addTransaction overload لمين بيبقى isVerified=true). صفر
      * يعني الرقم قاطع، أي رقم تاني يعني الـ Figure اللي بيتبني على الدالة دي confident=false.
      */
-    fun unverifiedCountInCycle(transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate): Int =
+    fun unverifiedCountInCycle(transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate, anchoredAt: Instant? = null): Int =
         transactions.count { tx ->
             (tx.txnKind == "expense" || tx.txnKind == "income") &&
-                txDate(tx)?.let { d -> !d.isBefore(cycleStart) && d.isBefore(cycleEnd) } == true &&
+                inLedgerWindow(tx, anchoredAt, cycleStart, cycleEnd) &&
                 !tx.isVerified
         }
 

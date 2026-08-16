@@ -300,6 +300,16 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private var cycleStartDay: Int? = null
     private var cycleAnchor: String = "day_of_month"
 
+    /**
+     * اللحظة اللي العميل قال فيها "معايا كذا" (migration 20260816120000). الرصيد بيتحسب
+     * من عندها لحد دلوقتي، مش من أول الدورة — المصروف اللي قبلها متطرح من الرقم في
+     * الواقع خلاص، وطرحه تاني بيخصمه مرتين.
+     *
+     * بيتحفظ في zad_prefs عشان المرآة الأوفلاين تعرفه قبل ما السيرفر يرد على أول فتحة،
+     * وبيتحدّث من [refreshBudgetState] لأن السيرفر هو المرجع لو الرقم اتكتب من جهاز تاني.
+     */
+    private var balanceAnchoredAt: java.time.Instant? = null
+
     private val _obligations = MutableStateFlow<List<ZadObligation>>(emptyList())
     val obligations: StateFlow<List<ZadObligation>> = _obligations.asStateFlow()
 
@@ -315,6 +325,17 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      */
     private val _availableFigure = MutableStateFlow<Figure?>(null)
     val availableFigure: StateFlow<Figure?> = _availableFigure.asStateFlow()
+
+    /**
+     * الرقم اللي الكارت الأخضر بيعرضه: **الرصيد** نفسه، من غير خصم المحجوز.
+     *
+     * نفس قيمة [remainingBalance] بالظبط، بس ملفوفة في [Figure] عشان تشيل نفس علامة الثقة
+     * (≈) بتاعة [availableFigure]. الاتنين موجودين لأنهم بيجاوبوا سؤالين مختلفين: ده
+     * "معايا كام دلوقتي" (تعليمة العميل 2026-08-16 للكارت)، والتاني "أقدر أصرف كام لحد
+     * آخر الشهر" (اللي "المسموح يومياً" تحت الكارت مبني عليه).
+     */
+    private val _balanceFigure = MutableStateFlow<Figure?>(null)
+    val balanceFigure: StateFlow<Figure?> = _balanceFigure.asStateFlow()
 
     /** "خروجة الأسبوع" — مكان أكل/ترفيه قريب واحد، يظهر بس لو المتاح الفعلي لسه صحي. */
     private val _outingSuggestion = MutableStateFlow<com.example.data.NearbyStore?>(null)
@@ -349,6 +370,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 .putInt("cycle_start_day", startDay ?: -1)
                 .putString("cycle_anchor", anchor)
                 .apply()
+            if (balanceAnchoredAt == null) {
+                balanceAnchoredAt = prefs.getString("balance_anchored_at", null)
+                    ?.let { runCatching { java.time.Instant.parse(it) }.getOrNull() }
+            }
             recalculateRemainingBalance(_transactions.value, _budget.value)
             Log.d(TAG, "loadCycleSettings() → cycleStartDay=$startDay, cycleAnchor=$anchor")
         }
@@ -2046,7 +2071,17 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             Log.d(TAG, "updateBudget() → newBudget=$newBudget")
             val prefs = getApplication<Application>().getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
-            prefs.edit().putFloat("cached_budget", newBudget.toFloat()).putBoolean("budget_confirmed", true).apply()
+            // تصريح الرصيد بيحرّك نقطة التثبيت لدلوقتي — "معايا كذا" بتوصف اللحظة دي هي،
+            // فأي مصروف قبلها بقى داخل الرقم نفسه. نفس القيمة اللي setMonthlyLimit بتكتبها
+            // للسيرفر تحت؛ بتتحط هنا الأول عشان المرآة المحلية تعرض الرقم الصح فوراً من
+            // غير ما تستنى الشبكة.
+            val anchoredNow = java.time.Instant.now()
+            balanceAnchoredAt = anchoredNow
+            prefs.edit()
+                .putFloat("cached_budget", newBudget.toFloat())
+                .putBoolean("budget_confirmed", true)
+                .putString("balance_anchored_at", anchoredNow.toString())
+                .apply()
             _budget.value = newBudget
             _budgetConfirmed.value = true
             // Local mirror only here — not the full recalculateRemainingBalance(), which
@@ -2314,10 +2349,13 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         _cycleStart.value = cycleStart
         _cycleEnd.value = cycleEnd
 
-        val spent = BudgetMath.spentInCycle(txs, cycleStart, cycleEnd)
+        // anchoredAt=null بيرجّع الدوال دي لحدود الدورة بالحرف — سلوك الحسابات اللي
+        // عمرها ما صرّحت برصيد بعد المهاجرة ما اتغيّرش.
+        val anchoredAt = balanceAnchoredAt
+        val spent = BudgetMath.spentInCycle(txs, cycleStart, cycleEnd, anchoredAt)
         _spentThisMonth.value = spent
-        _incomeThisCycle.value = BudgetMath.incomeInCycle(txs, cycleStart, cycleEnd)
-        val remaining: Double? = BudgetMath.remainingInCycle(currentBudget, txs, cycleStart, cycleEnd)
+        _incomeThisCycle.value = BudgetMath.incomeInCycle(txs, cycleStart, cycleEnd, anchoredAt)
+        val remaining: Double? = BudgetMath.remainingInCycle(currentBudget, txs, cycleStart, cycleEnd, anchoredAt)
         _remainingBalance.value = remaining
         _cashOnHand.value = BudgetMath.cashOnHand(txs)
 
@@ -2326,13 +2364,15 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         val available: Double? = BudgetMath.availableInCycle(remaining, committed)
         // Task 27.1(a) — أي معاملة في الدورة الحالية is_verified=false (معاملة بنكية لسه
         // ما اتراجعتش، مش معاملة كتبها المستخدم بنفسه) تخلي "متاح" ≈ مش رقم قاطع.
-        val unverifiedCount = BudgetMath.unverifiedCountInCycle(txs, cycleStart, cycleEnd)
+        val unverifiedCount = BudgetMath.unverifiedCountInCycle(txs, cycleStart, cycleEnd, anchoredAt)
+        val unverifiedReason = if (unverifiedCount > 0) {
+            "فيه $unverifiedCount معاملة لسه ما اتأكدتش (رسايل بنكية أو مصادر تانية غير مباشرة)"
+        } else null
         _availableFigure.value = available?.let {
-            Figure(
-                value = it,
-                confident = unverifiedCount == 0,
-                reason = if (unverifiedCount > 0) "فيه $unverifiedCount معاملة من الدورة دي لسه ما اتأكدتش (رسايل بنكية أو مصادر تانية غير مباشرة)" else null
-            )
+            Figure(value = it, confident = unverifiedCount == 0, reason = unverifiedReason)
+        }
+        _balanceFigure.value = remaining?.let {
+            Figure(value = it, confident = unverifiedCount == 0, reason = unverifiedReason)
         }
         _nextObligationDue.value = _obligations.value
             .filter { it.active && it.confirmed }
@@ -2368,6 +2408,18 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             Log.w(TAG, "BUDGET DRIFT — BudgetMath said available=$localAvailable, zad_budget_state says ${state.available} (at ${state.computedAt}).")
         }
 
+        // السيرفر هو المرجع لنقطة التثبيت كمان: العميل ممكن يكون صرّح برصيده من جهاز
+        // تاني أو من البوت، والمرآة المحلية مش هتعرف غير من هنا. بتتحفظ عشان الفتحة
+        // الجاية تبدأ عارفاها قبل أي نداء شبكة.
+        state.anchoredAtInstant()?.let { serverAnchor ->
+            if (serverAnchor != balanceAnchoredAt) {
+                balanceAnchoredAt = serverAnchor
+                getApplication<Application>()
+                    .getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+                    .edit().putString("balance_anchored_at", serverAnchor.toString()).apply()
+            }
+        }
+
         _spentThisMonth.value = state.spent
         _incomeThisCycle.value = state.income
         _committed.value = state.committed
@@ -2389,6 +2441,11 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         // سقف المستخدم كتبه بإيده فعلاً)، وبنحاول نصلّح السبب بدل ما نتعايش معاه.
         if (state.remaining != null) {
             _remainingBalance.value = state.remaining
+            _balanceFigure.value = Figure(
+                value = state.remaining,
+                confident = state.unverifiedCount == 0,
+                reason = if (state.unverifiedCount > 0) "فيه ${state.unverifiedCount} معاملة لسه ما اتأكدتش (رسايل بنكية أو مصادر تانية غير مباشرة)" else null
+            )
         } else if (localRemaining != null) {
             Log.w(TAG, "refreshBudgetState → server has no monthly_limit; keeping local remaining=$localRemaining and re-syncing the limit")
             resyncMonthlyLimitToServer()
@@ -2401,7 +2458,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             _availableFigure.value = Figure(
                 value = state.available,
                 confident = state.unverifiedCount == 0,
-                reason = if (state.unverifiedCount > 0) "فيه ${state.unverifiedCount} معاملة من الدورة دي لسه ما اتأكدتش (رسايل بنكية أو مصادر تانية غير مباشرة)" else null
+                reason = if (state.unverifiedCount > 0) "فيه ${state.unverifiedCount} معاملة لسه ما اتأكدتش (رسايل بنكية أو مصادر تانية غير مباشرة)" else null
             )
         }
     }

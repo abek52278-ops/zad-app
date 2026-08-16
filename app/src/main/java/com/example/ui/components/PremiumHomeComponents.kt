@@ -40,64 +40,43 @@ import com.example.ui.theme.*
 import kotlinx.coroutines.delay
 
 /**
- * Signature hero: a circular budget gauge instead of another rounded
- * rectangle — the ring depletes as the month's spending eats into the
- * budget, remaining balance sits big and centered inside it. Replaces
- * the old rectangular PremiumHeroCard.
- */
-/**
- * Signature hero, v4 — now the mockup's ("ZAD App.dc.html") hero card and nothing else:
- * a 28dp mesh-gradient card holding the "متاح" label, the figure, and the spent/committed
- * glow pills. That is the entire card in the design.
+ * الكارت الأخضر. رقم واحد: **الرصيد اللي معاك دلوقتي**.
  *
- * v3 carried three things the mockup does not have, all removed here: an EMV-chip
- * silhouette + "زاد" wordmark row, a decorative translucent blob, and a nested glass panel
- * repeating days-left and spent with a deposit button. The days/spent repetition was the
- * real problem — `ZadDaysAndSafeSpendRow` renders both directly underneath, so the hero was
- * restating its own next sibling.
+ * ده إعادة هيكلة كاملة بتعليمة مباشرة من العميل (2026-08-16)، مش تعديل على اللي قبله.
+ * النص بالحرف: "عاوز كرت الميزانية فقط الرقم اللي العميل يدخله يبتدي يحسب على أساسه كل
+ * شيء، مليش دعوة بمصاريفه القديمة".
  *
- * The deposit shortcut moved out rather than being kept as an off-design extra: adding a
- * transaction still lives on Budget (its own FAB) and Transactions, and Home's "عرض الكل"
- * goes straight to Budget. One tap further, no capability lost.
+ * اللي اتشال، وليه:
  *
- * What is NOT dropped, because it is product logic rather than decoration: the "≈" prefix
- * and its explanation dialog when the figure isn't confident (Task 27.1a), the long-press
- * that opens "آخر التغييرات" (Task 27.2), and the "متبقي X · محجوز Y" breakdown line, which
- * only renders when committed > 0 (Task 26).
- */
-/**
- * مرحلة ٥ب-١ (docs/agent/PLAN_2026_08_06_rebuild.md) — أول كارت في التطبيق يتشاف، فأول
- * واحد ياخد معاملة الـ glassmorphism الكاملة: بقعة ضوء مموّهة (`zadGlassBlur`) في الركن
- * العلوي بتدّي إحساس عمق/زجاج فوق الجراديانت المسطّح اللي كان موجود، بدل ما يفضل لوح
- * لون واحد. الـ 28dp radius الأصلي أكبر من الـ 24dp المطلوب أصلاً — اتسيب زي ما هو.
- */
-/**
- * Hero number re-reverted back to "متاح" (available = remaining − committed), per direct
- * product instruction: the Home hero and the @Zad chat's "المتاح الفعلي" were quoting two
- * different numbers for the same concept (chat already deducted committed; this card didn't),
- * which reads as the app contradicting itself. This supersedes the previous revert's rationale
- * — committed still gets its own pill + progress bar below so it isn't hidden, it's just also
- * subtracted into the headline figure now, matching BudgetScreen's own hero card and the chat
- * context exactly (same `available` Figure feeds all three).
+ * - **شريط "٪ من الميزانية"**. كان بيحسب `المصروف ÷ monthly_limit`. العمود ده بقى
+ *   **الرصيد الابتدائي** مش سقف صرف (migration 20260816010000)، فالنسبة كانت بتقيس رقم
+ *   على حاجة مش سقفه: عميل رصيده الابتدائي ٥٠٠٠ ودخله ١٠٠٠٠ كان بيشوف الشريط أحمر
+ *   ومتملي وهو معاه فلوس. النسبة ماكانتش غلط في حسابها، كانت بتجاوب على سؤال مالوش وجود.
+ * - **سطر "الميزانية الشهرية: X"** فوق الرقم — نفس العلة، بيسمّي الرصيد الابتدائي "ميزانية".
+ * - **شريط "المحجوز"** وشرايح "مصروف/محجوز**. الرقم الكبير كان `الرصيد − المحجوز`
+ *   والشرايح بتفكّكه، فالكارت بقى تلات أرقام بيشرحوا بعض. الالتزامات والاشتراكات
+ *   لسه موجودة في شاشاتها وفي "المسموح يومياً" تحت الكارت — اللي اتشال هو خصمها من
+ *   الرقم اللي المفروض يجاوب سؤال واحد: "معايا كام دلوقتي؟"
+ *
+ * اللي فضل: الرقم، وعلامة `≈` لما يكون فيه معاملة لسه ما اتأكدتش (Task 27.1a)، والضغطة
+ * الطويلة اللي بتفتح "آخر التغييرات" (Task 27.2) — دول بيفسّروا الرقم نفسه، مش بيضيفوا
+ * رقم تاني جنبه.
+ *
+ * الرقم بيتحسب من نقطة تثبيت الرصيد (`balance_anchored_at`، migration 20260816120000)،
+ * فمصاريف قبل ما العميل يقول "معايا كذا" مش بتنقّصه — دي النص التاني من نفس التعليمة.
  */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ZadCardHero(
-    spent: Double,
-    remaining: Double,
-    available: com.example.data.Figure = com.example.data.Figure(remaining, confident = true),
-    committed: Double = 0.0,
-    monthlyLimit: Double = 0.0,
-    nextObligationText: String? = null,
-    onAvailableLongPress: () -> Unit = {},
+    balance: com.example.data.Figure,
+    onBalanceLongPress: () -> Unit = {},
     onOpenDetail: () -> Unit = {}
 ) {
     val currencyContext = LocalContext.current
-    val cardShape = RoundedCornerShape(28.dp)
 
     com.example.ui.components.HeroGradientCard(
         colors = com.example.ui.components.ZadHeroGradient,
-        shape = cardShape,
+        shape = RoundedCornerShape(28.dp),
         contentPadding = 0.dp
     ) {
         Box(modifier = Modifier.clickable(onClick = onOpenDetail)) {
@@ -112,189 +91,76 @@ fun ZadCardHero(
                     .background(Color.White.copy(alpha = 0.18f), CircleShape)
             )
 
-        // mockup: padding 26px top / 24px sides / 22px bottom, 16px gaps.
-        Column(modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 26.dp, bottom = 22.dp)) {
-            if (monthlyLimit > 0) {
-                Text(
-                    "${stringResource(R.string.monthly_budget_hero_label)}: ${com.example.data.CurrencyFormatter.format(currencyContext, monthlyLimit)}",
-                    style = Typography.labelSmall.copy(fontSize = 11.sp),
-                    color = Color.White.copy(alpha = 0.55f)
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-            }
-
-            Text(
-                stringResource(R.string.available_label),
-                style = Typography.labelSmall.copy(fontSize = 11.5.sp, letterSpacing = 0.4.sp),
-                fontWeight = FontWeight.Bold,
-                color = Color.White.copy(alpha = 0.72f)
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            var showAvailableReason by remember { mutableStateOf(false) }
-            // mockup paints the figure with a white → #D9F2E6 vertical gradient; a negative
-            // figure drops the gradient for a flat danger color so it still reads as alarming.
-            // dangerColor itself (#DC5B4B) on this dark green mesh gradient measures ~1.75:1
-            // contrast — fails WCAG AA even for large text. coralLight (#FFA69E) is the same
-            // "alarming red" family but ~3.5:1 here, which clears the large-text 3:1 bar.
-            val figureStyle = Typography.displayLarge.copy(
-                fontSize = 44.sp,
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = (-1.2).sp,
-                brush = if (available.value < 0) null else Brush.verticalGradient(
-                    listOf(Color.White, Color(0xFFD9F2E6))
-                )
-            )
-            Text(
-                (if (!available.confident) "≈ " else "") +
-                    com.example.data.CurrencyFormatter.formatNumber(currencyContext, available.value),
-                style = figureStyle,
-                color = if (available.value < 0) coralLight else Color.White,
-                modifier = Modifier.combinedClickable(
-                    onClick = { if (!available.confident) showAvailableReason = true },
-                    onLongClick = onAvailableLongPress
-                )
-            )
-            if (showAvailableReason && available.reason != null) {
-                AlertDialog(
-                    onDismissRequest = { showAvailableReason = false },
-                    confirmButton = { TextButton(onClick = { showAvailableReason = false }) { Text(stringResource(R.string.close_action)) } },
-                    title = { Text(stringResource(R.string.available_label) + " ≈") },
-                    text = { Text(available.reason!!) }
-                )
-            }
-
-            // شريط التقدّم: مصروف الشهر مقابل السقف الكامل — مختلف عن أرقام الشرائح
-            // (اللي بتوريك قيم مطلقة)، الشريط ده بيوريك النسبة بصرياً بلمحة واحدة.
-            // مفيش شريط أصلاً لو السقف مش معروف (monthlyLimit <= 0)، عشان النسبة
-            // نفسها بتبقى بلا معنى وقتها.
-            if (monthlyLimit > 0) {
-                Spacer(modifier = Modifier.height(14.dp))
-                val progress = (spent / monthlyLimit).toFloat().coerceIn(0f, 1f)
-                val animatedProgress by animateFloatAsState(
-                    targetValue = progress,
-                    animationSpec = tween(700, easing = FastOutSlowInEasing),
-                    label = "budgetProgress"
-                )
-                val progressColor = when {
-                    progress >= 0.9f -> dangerColor
-                    progress >= 0.7f -> secondaryLight
-                    else -> Color(0xFF6EE7B7) // primaryFixed — نفس مسح الأخضر الفاتح بتاع الكارت
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(7.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(Color.White.copy(alpha = 0.16f))
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(animatedProgress.coerceAtLeast(0.02f))
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(50))
-                            .background(progressColor)
-                    )
-                }
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    stringResource(R.string.budget_percent_used, (progress * 100).toInt()),
-                    style = Typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.6f)
-                )
-            }
-
-            // شريط تقدّم تاني، منفصل، بس لـ"المحجوز" (التزامات/اشتراكات قادمة) — معلوماتي
-            // بحت، برضه مش بيتخصم من الرقم الكبير فوق. نفس مبدأ عدم الخصم المزدوج
-            // اللي طلبه الريفاين ده، لكن من غير ما يختفي أو يتحط جوه رقم تاني.
-            if (committed > 0 && monthlyLimit > 0) {
-                Spacer(modifier = Modifier.height(10.dp))
-                val committedProgress = (committed / monthlyLimit).toFloat().coerceIn(0f, 1f)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(5.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(Color.White.copy(alpha = 0.14f))
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(committedProgress.coerceAtLeast(0.02f))
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(50))
-                            .background(Color(0xFFFF8066))
-                    )
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    if (nextObligationText != null) {
-                        "${stringResource(R.string.committed_label)}: ${com.example.data.CurrencyFormatter.format(currencyContext, committed)} ($nextObligationText)"
-                    } else {
-                        "${stringResource(R.string.committed_label)}: ${com.example.data.CurrencyFormatter.format(currencyContext, committed)}"
-                    },
-                    style = Typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.6f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                HeroGlowPill(
-                    dotColor = Color(0xFFF4A93B),
-                    label = stringResource(R.string.spent_label),
-                    value = com.example.data.CurrencyFormatter.format(currencyContext, spent)
-                )
-                if (committed > 0) {
-                    HeroGlowPill(
-                        dotColor = Color(0xFFFF8066),
-                        label = stringResource(R.string.committed_label),
-                        value = com.example.data.CurrencyFormatter.format(currencyContext, committed)
-                    )
-                }
-            }
-        }
-        }
-    }
-}
-
-/**
- * شريحة زجاجية بنقطة متوهجة — عنصر متكرر في هيرو التصميم الجديد ("مصروف: ٢٤٠"،
- * "محجوز: ٨٠٠"). التوهج نقطة صغيرة ورا نفسها بشفافية أعلى، مش ظل حقيقي، عشان
- * يشتغل على كل إصدارات أندرويد من غير ما يعتمد على blur (minSdk 24).
- */
-@Composable
-private fun HeroGlowPill(dotColor: Color, label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(Color.White.copy(alpha = 0.14f))
-            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(50))
-            .padding(horizontal = 13.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(7.dp)
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Box(
+            Column(
                 modifier = Modifier
-                    .size(13.dp)
-                    .clip(CircleShape)
-                    .background(dotColor.copy(alpha = 0.35f))
-            )
-            Box(
-                modifier = Modifier
-                    .size(7.dp)
-                    .clip(CircleShape)
-                    .background(dotColor)
-            )
+                    .fillMaxWidth()
+                    .padding(start = 24.dp, end = 24.dp, top = 28.dp, bottom = 28.dp)
+            ) {
+                Text(
+                    stringResource(R.string.current_balance_label),
+                    style = Typography.labelSmall.copy(fontSize = 11.5.sp, letterSpacing = 0.4.sp),
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White.copy(alpha = 0.72f)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                var showBalanceReason by remember { mutableStateOf(false) }
+                // التصميم بيرسم الرقم بجراديانت أبيض ← #D9F2E6؛ الرقم السالب بيسيب
+                // الجراديانت للون تحذيري مسطّح عشان يفضل مقروء كإنذار. dangerColor نفسه
+                // (#DC5B4B) على الخلفية الخضرا الغامقة دي بيقيس ~1.75:1 — ساقط في WCAG AA
+                // حتى للخط الكبير. coralLight (#FFA69E) نفس عائلة الأحمر بس ~3.5:1، وده
+                // بيعدّي حد الـ 3:1 بتاع الخط الكبير.
+                val figureStyle = Typography.displayLarge.copy(
+                    fontSize = 44.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = (-1.2).sp,
+                    brush = if (balance.value < 0) null else Brush.verticalGradient(
+                        listOf(Color.White, Color(0xFFD9F2E6))
+                    )
+                )
+                // الرقم والرمز في Text منفصلين بمحاذاة خط القاعدة، مش نص واحد من
+                // CurrencyFormatter.format. الرمز على 44sp بياكل عرض الكارت: رصيد من ٦ خانات
+                // + " ج.م" بيعدّي عرض السطر على شاشة ٣٦٠dp ويتقص. الرمز أصغر بيحل ده وكمان
+                // بيدّي الرقم نفسه الوزن البصري اللي المفروض يكون له لوحده.
+                Row(
+                    verticalAlignment = Alignment.Bottom,
+                    modifier = Modifier.combinedClickable(
+                        onClick = { if (!balance.confident) showBalanceReason = true },
+                        onLongClick = onBalanceLongPress
+                    )
+                ) {
+                    Text(
+                        (if (!balance.confident) "≈ " else "") +
+                            com.example.data.CurrencyFormatter.formatNumber(currencyContext, balance.value),
+                        style = figureStyle,
+                        maxLines = 1,
+                        color = if (balance.value < 0) coralLight else Color.White,
+                        modifier = Modifier.alignByBaseline()
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        com.example.data.CurrencyFormatter.symbol(currencyContext),
+                        style = Typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = (if (balance.value < 0) coralLight else Color.White).copy(alpha = 0.75f),
+                        modifier = Modifier.alignByBaseline()
+                    )
+                }
+                if (showBalanceReason && balance.reason != null) {
+                    AlertDialog(
+                        onDismissRequest = { showBalanceReason = false },
+                        confirmButton = {
+                            TextButton(onClick = { showBalanceReason = false }) {
+                                Text(stringResource(R.string.close_action))
+                            }
+                        },
+                        title = { Text(stringResource(R.string.current_balance_label) + " ≈") },
+                        text = { Text(balance.reason!!) }
+                    )
+                }
+            }
         }
-        Text(
-            "$label: $value",
-            style = Typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = Color.White
-        )
     }
 }
 

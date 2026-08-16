@@ -62,6 +62,14 @@ import { redactNotificationText } from "./redact.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+// Gates zad-telegram-bot's ?job=confirm_transaction, which this function calls after it
+// reads a bank notification. The literal lives in both files rather than in an env var,
+// matching that function's four existing job secrets (CHECKIN_CRON_SECRET and friends) —
+// they are in-file constants because their other callers are SQL triggers with the value
+// embedded. Keep this in step with CONFIRM_TRANSACTION_SECRET there; a mismatch shows up
+// as every notification silently falling back to an in-app question.
+const NOTIFICATION_CONFIRM_SECRET = "b1f0a4c7d29e63581c0a7f4e2b9d8c3a65e07f14d8b2c96035ae7143f0d92b68";
 // The agent loop's model, deliberately NOT ZAD_MODEL_ROUTINE any more.
 //
 // ZAD_MODEL_ROUTINE is a shared secret that zad-core-intelligence also reads for vision /
@@ -2942,6 +2950,86 @@ async function handleNotificationIngest(sb: SupabaseClient, userId: string, body
 
   const txnKind = parsed.txn_kind === "transfer" ? "transfer" : (parsed.txn_kind === "income" || parsed.is_expense === false ? "income" : "expense");
   const isExpense = txnKind !== "income";
+
+  // ── Ask before it counts ────────────────────────────────────────────────────
+  // A readable notification is a question now, not news. Direct instruction from the
+  // customer (2026-08-16): "يقراها عقل الايجنت يحلل يشوف سحب ولا إيداع ويبعتلي عن طريق
+  // البوت ... أقوله أيوة أو لا، ويسجل ويعدل الكارت الأخضر". Nothing below writes a
+  // transaction any more; the write happens in zad-telegram-bot's confirm button, which
+  // routes back through agent_confirm -> log_transaction, i.e. the same audited path a
+  // typed message takes. Same rule, one channel.
+  //
+  // Transfers are the single exception and it is not a loophole: card -> cash leaves the
+  // ledger balance identical, so there is no figure for the customer to approve, and
+  // log_transaction refuses the kind anyway (validators.ts). Those still write directly.
+  if (txnKind !== "transfer") {
+    const askTitle = String(parsed.title ?? title).trim().slice(0, 80) || packageName;
+    const askCategory = String(parsed.category ?? (txnKind === "income" ? "دخل" : "أخرى")).trim().slice(0, 40);
+    const sourceLabel = String(parsed.merchant_name ?? parsed.bank_name ?? packageName).trim().slice(0, 80);
+    const rounded = Math.round(amount * 100) / 100;
+
+    let deliveredToTelegram = false;
+    try {
+      const askRes = await fetch(`${SUPABASE_URL}/functions/v1/zad-telegram-bot?job=confirm_transaction`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Confirm-Transaction-Secret": NOTIFICATION_CONFIRM_SECRET,
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          txn_kind: txnKind,
+          amount: rounded,
+          title: askTitle,
+          category: askCategory,
+          confidence,
+          source_label: sourceLabel,
+        }),
+      });
+      // delivered:false is the normal answer for an account with no Telegram link — not
+      // an error, and specifically not a reason to skip asking. The in-app question below
+      // is the other half of the same channel, not a degraded fallback.
+      const askBody = await askRes.json().catch(() => ({})) as { delivered?: boolean };
+      deliveredToTelegram = askRes.ok && askBody.delivered === true;
+    } catch (e) {
+      console.error("notification confirm prompt to telegram failed:", (e as Error).message);
+    }
+
+    if (!deliveredToTelegram) {
+      const direction = txnKind === "income" ? "جالك" : "صرفت";
+      await sb.from("zad_insights").upsert({
+        user_id: userId, kind: "question", surface: "home_card", priority: "normal",
+        title: "معاملة محتاجة تأكيد",
+        // Distinct from the ambiguous-notification question above it: there the app is
+        // asking WHAT the message was, here it knows and is asking WHETHER to record it.
+        // Merging the two would put "أيوة = إيداع" on a question whose answer is yes/no.
+        body: `${direction} ${rounded} من ${sourceLabel} — أسجلها؟`,
+        dedupe_key: `notif_confirm_${dedupeHash.slice(0, 24)}`,
+        action_type: "yes_no",
+        about_item: rawText.slice(0, 200),
+        status: "pending", updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id,dedupe_key" });
+    }
+
+    await recordAction(sb, userId, { source: "event", runId: null }, {
+      tool: "parse_notification_payload",
+      input: { package_name: packageName, title, text, client_classification: body.client_classification, parsed },
+      // مفيش table ولا targetId: مفيش صف اتكتب. ActionRecord بيستخدم previous/next
+      // للتراجع، وسؤال مالوش تراجع — اللي يتراجع هو الكتابة اللي بعد "أيوة"، وهي
+      // بتتسجّل بنفسها في مسار agent_confirm.
+      summary: deliveredToTelegram
+        ? "قرا إشعار بنك وبعت سؤال تأكيد على تيليجرام"
+        : "قرا إشعار بنك وحط سؤال تأكيد في رؤى زاد",
+    });
+    await mark("awaiting_confirmation", "needs_user_approval");
+    return new Response(JSON.stringify({
+      ok: true,
+      status: "awaiting_confirmation",
+      classification: "completed_transaction",
+      channel: deliveredToTelegram ? "telegram" : "insight",
+    }), { headers: CORS_HEADERS });
+  }
+
   const row = {
     user_id: userId,
     amount: Math.round(amount * 100) / 100,

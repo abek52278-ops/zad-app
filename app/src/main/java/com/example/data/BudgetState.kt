@@ -52,6 +52,14 @@ data class BudgetState(
     val balance: Double? = null,
     /** Same value as [openingBalance], under the column's historical name. */
     @SerialName("monthly_limit") val monthlyLimit: Double? = null,
+    /**
+     * The instant the customer stated [openingBalance]. [spent]/[income]/[unverifiedCount]
+     * are summed from here rather than from [cycleStart] when it is set — spending that
+     * happened before the customer counted what they were holding is already inside the
+     * figure they typed, and subtracting it again subtracts it twice (migration
+     * 20260816120000). Null = never stated; the server falls back to the cycle window.
+     */
+    @SerialName("balance_anchored_at") val balanceAnchoredAt: String? = null,
     @SerialName("limit_confirmed") val limitConfirmed: Boolean = false,
     val spent: Double = 0.0,
     val income: Double = 0.0,
@@ -79,6 +87,14 @@ data class BudgetState(
      */
     @SerialName("computed_at") val computedAt: String? = null,
 ) {
+    /** [balanceAnchoredAt] as an Instant, or null when unset/unparseable. */
+    fun anchoredAtInstant(): java.time.Instant? = balanceAnchoredAt?.let { raw ->
+        // Postgres renders timestamptz inside jsonb as "…+00:00", which Instant.parse
+        // (ISO_INSTANT, 'Z' only) rejects. OffsetDateTime is the one that actually lands.
+        runCatching { java.time.Instant.parse(raw) }.getOrNull()
+            ?: runCatching { java.time.OffsetDateTime.parse(raw).toInstant() }.getOrNull()
+    }
+
     fun cycleStartDate(): LocalDate? = cycleStart?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
     fun cycleEndDate(): LocalDate? = cycleEnd?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
 }

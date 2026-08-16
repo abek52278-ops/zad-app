@@ -170,6 +170,10 @@ object SupabaseRepo {
                         put("id", userId)
                         put("monthly_limit", limit)
                         put("limit_confirmed_at", java.time.Instant.now().toString())
+                        // الرصيد بيبدأ يحسب من اللحظة دي، مش من أول الدورة — العميل عدّ
+                        // اللي معاه دلوقتي، فمصروف امبارح متطرح منه فعلاً في الواقع
+                        // (migration 20260816120000). تصريح الرصيد بيحرّك النقطة دي كل مرة.
+                        put("balance_anchored_at", java.time.Instant.now().toString())
                     }
                 )
                 val (storedLimit, storedConfirmedAt, readOk) = getMonthlyLimit(userId)
@@ -1932,6 +1936,8 @@ object SupabaseRepo {
      * أي حاجة اتكتبت من جهاز تاني، والعمود ده تحديداً مالوش نسخة تانية يترجع منها.
      * بيكتب بس لو العمود لسه null — أول جهاز يلتقط بيكسب، والباقي مابيدهسوش.
      * limit_confirmed_at بيفضل null — القيمة ملتقطة مش مؤكدة، ومحدش يقرأها قبل التأكيد.
+     * balance_anchored_at بيتكتب برضه: هو مش تأكيد، هو نقطة بداية الحساب، والقيمة الملتقطة
+     * بتدخل الحسبة زيها زي المؤكدة فلازم يبقى ليها نقطة بداية كمان.
      */
     suspend fun captureMonthlyLimit(userId: String, limit: Double): Boolean {
         return try {
@@ -1944,8 +1950,18 @@ object SupabaseRepo {
             // بتتنادى مرة واحدة بس في عمر التثبيت (monthly_limit_captured)، فالمحاولة
             // الوحيدة دي كانت بتضرب في صف مش موجود وترجع 200، والسقف المحلي مايوصلش
             // السيرفر أبداً بعد كده.
+            // buildJsonObject مش mapOf: mapOf بقيم مختلفة النوع (String + Double)
+            // بتتحوّل لـ Map<String, Any> والـ serializer بيسقطها بصمت — نفس العلة اللي
+            // اتصلحت في eaf43a9. الكتابة دي بتحصل مرة واحدة في عمر التثبيت، فسقوطها
+            // بصمت معناه السقف مايوصلش السيرفر أبداً.
             client.postgrest["zad_users"].upsert(
-                mapOf("id" to userId, "monthly_limit" to limit)
+                buildJsonObject {
+                    put("id", userId)
+                    put("monthly_limit", limit)
+                    // نفس منطق setMonthlyLimit: العمود ده بيتحسب عليه، فلازم يتثبّت
+                    // معاه. limit_confirmed_at لأ — ده تأكيد بشري والقيمة دي ملتقطة.
+                    put("balance_anchored_at", java.time.Instant.now().toString())
+                }
             )
             Log.d(TAG, "captureMonthlyLimit() → userId=$userId, limit=$limit")
             true
