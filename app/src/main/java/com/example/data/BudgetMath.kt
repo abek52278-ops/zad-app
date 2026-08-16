@@ -229,6 +229,12 @@ object BudgetMath {
      * معاملة تصحيح بتحل الاتنين. الدفتر بيفضل `دخل - مصروف` بالحرف، والفرق بيفضل سطر
      * ظاهر في السجل يتشاف ويتراجع ويتمسح — نفس اللي [BalanceAnchor] بيعمله للتصحيح
      * الآلي من رصيد البنك، بس دي كلمة العميل مش استنتاج.
+     *
+     * **[anchoredAt] لازم يبقى نفس النقطة اللي الكارت بيعرض بيها.** الفرق بيتحسب من
+     * رصيد، ولو الرصيد ده اتحسب بنافذة تانية غير اللي العميل شايفها، التصحيح بيصحّح رقم
+     * مش موجود على الشاشة. حصل فعلاً: حساب رصيده الابتدائي ٣٠٠٠ ودخله قبل النقطة ٢٤٥٠٠
+     * كتب تصحيح ‎-٢٣٠٠٠ مقابل رصيد ٢٤٠٠٠؛ لما النقطة شالت الدخل ده من الحسبة، فضل
+     * التصحيح لوحده وودّى الرصيد ‎-٢٠٠٠٠ بدل الـ١٠٠٠ اللي العميل قالها.
      */
     fun correctionToReachBalance(
         targetBalance: Double,
@@ -236,7 +242,8 @@ object BudgetMath {
         transactions: List<ZadTransaction>,
         cycleStart: LocalDate,
         cycleEnd: LocalDate,
-    ): Double = (targetBalance - balanceInCycle(openingBalance, transactions, cycleStart, cycleEnd)).asMoney()
+        anchoredAt: Instant? = null,
+    ): Double = (targetBalance - balanceInCycle(openingBalance, transactions, cycleStart, cycleEnd, anchoredAt)).asMoney()
 
     /**
      * Task 27.1(a) — عدد معاملات الدورة الحالية (دخل/مصروف) اللي is_verified=false، أي

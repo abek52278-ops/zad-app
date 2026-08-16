@@ -318,6 +318,24 @@ class BudgetMathTest {
     }
 
     @Test
+    fun `a correction is measured against the anchored balance, not the cycle one`() {
+        // البق اللي شافته بيانات حقيقية: رصيد ابتدائي ٣٠٠٠، دخل ٢٤٥٠٠ ومصروف ٣٥٠٠ كلهم
+        // قبل النقطة. الرصيد اللي العميل شايفه ٣٠٠٠، فطلب "خليه ١٠٠٠" لازم يدّي ‎-٢٠٠٠.
+        // من غير تمرير النقطة كان بيتقاس على ٢٤٠٠٠ ويدّي ‎-٢٣٠٠٠ — تصحيح لرقم مش معروض.
+        val anchor = java.time.Instant.parse("2026-08-16T02:20:00Z")
+        val txs = listOf(
+            tx(amount = 24500.0, txnKind = "income", createdAt = "2026-08-16T01:25:00Z"),
+            tx(amount = 3500.0, txnKind = "expense", createdAt = "2026-08-15T21:23:00Z"),
+        )
+        val start = LocalDate.of(2026, 8, 1)
+        val end = LocalDate.of(2026, 9, 1)
+
+        assertEquals(3000.0, BudgetMath.balanceInCycle(3000.0, txs, start, end, anchor), 0.001)
+        assertEquals(-2000.0, BudgetMath.correctionToReachBalance(1000.0, 3000.0, txs, start, end, anchor), 0.001)
+        assertEquals(-23000.0, BudgetMath.correctionToReachBalance(1000.0, 3000.0, txs, start, end, null), 0.001)
+    }
+
+    @Test
     fun `nextDueDate for a monthly obligation rolls to next month once this month's day has passed`() {
         val ob = obligation(amount = 100.0, dueDay = 5)
         val next = BudgetMath.nextDueDate(ob, LocalDate.of(2026, 7, 10))

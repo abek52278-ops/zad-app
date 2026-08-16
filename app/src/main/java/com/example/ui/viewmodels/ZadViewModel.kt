@@ -2174,7 +2174,9 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         val asOf = LocalDate.now()
         val cycleStart = CycleMath.cycleStart(asOf, cycleStartDay, cycleAnchor, market)
         val cycleEnd = CycleMath.cycleEnd(asOf, cycleStartDay, cycleAnchor, market)
-        val delta = BudgetMath.correctionToReachBalance(target, opening, txs, cycleStart, cycleEnd)
+        // نفس النقطة اللي recalculateLocalBudgetFigures بيحسب بيها — التصحيح لازم يتقاس
+        // على الرصيد اللي العميل شايفه، مش على نافذة تانية.
+        val delta = BudgetMath.correctionToReachBalance(target, opening, txs, cycleStart, cycleEnd, balanceAnchoredAt)
         if (kotlin.math.abs(delta) < 0.01) {
             Log.d(TAG, "setBalanceTo() → already at $target, nothing to correct")
             return
