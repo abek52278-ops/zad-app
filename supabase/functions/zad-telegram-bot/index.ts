@@ -24,6 +24,7 @@ import {
   confirmSpendKeyboard, parseSpendCallback,
   confirmMedicationKeyboard, parseMedicationCallback,
   checkInKeyboard, parseCheckInCallback, checkInPromptMessage,
+  confirmToolKeyboard, parseToolCallback,
 } from "./telegram.ts";
 import {
   AgentContextInput, agentSystemPrompt, buildAgentContext, clampForTelegram,
@@ -691,6 +692,87 @@ bot.command("tahlil", async (ctx) => {
 
 // المحادثة الحقيقية — أي كلام عادي بيروح لزاد بنفس السياق والشخصية بتوع الشات
 // اللي جوه التطبيق، مش رد ثابت بقائمة أزرار زي النسخة الأولى.
+/**
+ * لفة الوكيل + تجهيز الرد، من غير أي اعتماد على نوع الرسالة اللي جابت النص.
+ * اتفصلت عن `bot.on("message:text")` عشان الصوت يقدر يستخدم **نفس** اللفة بالظبط:
+ * كان الصوت بيعدي على `voice_agent` اللي بيعرف ٧ أفعال، والنص بياخد ٣٦ أداة — يعني
+ * فويس نوت بتقول "اشترك نتفليكس ١٠٠ في الشهر" مكانش ليها أي طريق تتسجل كاشتراك.
+ * القناة مالهاش لازمة تحدد قدرات الوكيل.
+ *
+ * بترجّع null بس لما اللفة نفسها تقع (نت/موديل/مهلة) — ساعتها المنادي بيقع على
+ * الرد القرائي، وبيقول للعميل صراحةً إن التنفيذ ماحصلش.
+ */
+async function agentTurnReply(
+  sb: SupabaseClient,
+  userId: string,
+  chatId: number,
+  text: string,
+): Promise<{ lines: string[]; pendingId?: string; toolPendingId?: string; errorReason?: string }> {
+  const { result: turn, errorReason } = await agentTurn(userId, text);
+  if (!turn) return { lines: [], errorReason: errorReason ?? "agent turn unavailable" };
+
+  const lines: string[] = [];
+  if (turn.reply.trim()) lines.push(turn.reply.trim());
+  for (const done of turn.executed) lines.push(`✅ ${isolate(sanitizeName(done.summary))}`);
+
+  const money = turn.proposals.find((p) => p.tool === "log_transaction");
+  const rest = turn.proposals.filter((p) => p !== money);
+
+  // كان: `ℹ️ … — ابعتها لوحدها عشان أأكدها معاك` — والعميل أصلاً باعتها لوحدها،
+  // فالسطر يتكرر للأبد ومفيش زرار. الاقتراح دلوقتي بياخد صف في telegram_pending_tools
+  // وزر تأكيد حقيقي. رسالة تليجرام الواحدة بتشيل كيبورد واحد، فأول اقتراح غير مالي هو
+  // اللي بياخد الزرار والباقي بيتقال بصراحة إنه محتاج رسالة لوحده.
+  let toolPendingId: string | undefined;
+  for (const extra of rest) {
+    if (toolPendingId) {
+      lines.push(`ℹ️ ${extra.summary} — ابعتها في رسالة لوحدها عشان أقدر أحط ليها زر تأكيد.`);
+      continue;
+    }
+    const { data: row, error } = await sb.from("telegram_pending_tools").insert({
+      user_id: userId,
+      chat_id: chatId,
+      tool: extra.tool,
+      input: extra.input,
+      summary: extra.summary,
+    }).select("id").single();
+    if (error || !row) {
+      console.error("pending tool insert failed:", error);
+      lines.push(`ℹ️ ${extra.summary} — معلش، مقدرتش أجهّز التأكيد. جرب تاني.`);
+      continue;
+    }
+    lines.push(`⚠️ ${extra.summary}\n\nأأكدها؟`);
+    toolPendingId = (row as { id: string }).id;
+  }
+
+  // الفلوس ليها الأولوية على الزرار الواحد — تأكيد معاملة أخطر من تأكيد أداة تانية.
+  if (!money) return { lines, toolPendingId };
+
+  const amount = Number(money.input.amount);
+  const kind = money.input.txn_kind === "income" ? "income" : "expense";
+  const title = String(money.input.title ?? "مصروف").slice(0, 80);
+  const category = String(money.input.category ?? "أخرى").slice(0, 40);
+  const currency = (await sb.from("zad_users").select("currency").eq("id", userId).maybeSingle())
+    .data?.currency ?? "غير معروف";
+  const { data: pending, error } = await sb.from("telegram_pending_writes").insert({
+    user_id: userId,
+    chat_id: chatId,
+    txn_kind: kind,
+    amount,
+    title,
+    category,
+    confidence: null,
+  }).select("id").single();
+
+  if (error || !pending) {
+    console.error("pending write insert failed:", error);
+    lines.push("معلش، مقدرتش أجهّز تأكيد المصروف — جرب تاني.");
+    return { lines };
+  }
+
+  lines.push(confirmSpendMessage({ is_spend: true, kind, amount, title, category, confidence: 1 }, currency));
+  return { lines, pendingId: (pending as { id: string }).id };
+}
+
 bot.on("message:text", async (ctx) => {
   if (ctx.message.text.startsWith("/")) return; // أوامر متسجلة فوق بتتعامل لوحدها
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
@@ -705,57 +787,19 @@ bot.on("message:text", async (ctx) => {
   // المرحلة ٢-د — نداء واحد بكل الأدوات، بدل تلات مرات تصنيف نية منفصلة. الأدوات
   // المباشرة (مخزون/صيدلية/تسوق/بلد وعملة) بتكون اتنفذت خلاص لما الرد ده يوصل؛ أدوات
   // الفلوس بترجع كاقتراح لسه ماحصلش، وبيتحوّل لنفس زر التأكيد الموجود من الأول.
-  const { result: turn, errorReason } = await agentTurn(userId, ctx.message.text);
+  const turnReply = await agentTurnReply(sb, userId, ctx.chat.id, ctx.message.text);
+  const errorReason = turnReply.errorReason;
 
-  if (turn) {
-    const lines: string[] = [];
-    if (turn.reply.trim()) lines.push(turn.reply.trim());
-    for (const done of turn.executed) lines.push(`✅ ${isolate(sanitizeName(done.summary))}`);
-
-    // اقتراح مالي واحد بس بيتحوّل لزر تأكيد في الرسالة الواحدة — زر واحد لكل رسالة هو
-    // اللي شكل الـ callback_data الحالي بيسمح بيه، وطلبين فلوس في رسالة واحدة نادرة
-    // بالدرجة اللي متستاهلش تدفق أعقد. الباقي بيتقال للعميل عشان يبعته لوحده.
-    const money = turn.proposals.find((p) => p.tool === "log_transaction");
-    const rest = turn.proposals.filter((p) => p !== money);
-    for (const extra of rest) lines.push(`ℹ️ ${extra.summary} — ابعتها لوحدها عشان أأكدها معاك.`);
-
-    if (money) {
-      const amount = Number(money.input.amount);
-      const kind = money.input.txn_kind === "income" ? "income" : "expense";
-      const title = String(money.input.title ?? "مصروف").slice(0, 80);
-      const category = String(money.input.category ?? "أخرى").slice(0, 40);
-      const currency = (await sb.from("zad_users").select("currency").eq("id", userId).maybeSingle())
-        .data?.currency ?? "غير معروف";
-      const { data: pending, error } = await sb.from("telegram_pending_writes").insert({
-        user_id: userId,
-        chat_id: ctx.chat.id,
-        txn_kind: kind,
-        amount,
-        title,
-        category,
-        // الثقة بقت من التحقق سيرفر-سايد مش من رقم الموديل — الاقتراح وصل هنا يعني عدّى
-        // validateLogTransaction أصلاً. العمود nullable وبيتعرضش للعميل.
-        confidence: null,
-      }).select("id").single();
-
-      if (!error && pending) {
-        const confirmText = confirmSpendMessage(
-          { is_spend: true, kind, amount, title, category, confidence: 1 },
-          currency,
-        );
-        await ctx.reply(clampForTelegram([...lines, confirmText].join("\n\n")), {
-          reply_markup: toGrammyKeyboard(confirmSpendKeyboard((pending as { id: string }).id)),
-        });
-        return;
-      }
-      console.error("pending write insert failed:", error);
-      lines.push("معلش، مقدرتش أجهّز تأكيد المصروف — جرب تاني.");
+  if (turnReply.lines.length > 0) {
+    const body = clampForTelegram(turnReply.lines.join("\n\n"));
+    if (turnReply.pendingId) {
+      await ctx.reply(body, { reply_markup: toGrammyKeyboard(confirmSpendKeyboard(turnReply.pendingId)) });
+    } else if (turnReply.toolPendingId) {
+      await ctx.reply(body, { reply_markup: toGrammyKeyboard(confirmToolKeyboard(turnReply.toolPendingId)) });
+    } else {
+      await ctx.reply(body);
     }
-
-    if (lines.length > 0) {
-      await ctx.reply(clampForTelegram(lines.join("\n\n")));
-      return;
-    }
+    return;
   }
 
   // fallback: الوكيل مش متاح (نت/موديل/مهلة) — الرد القرائي القديم أحسن من صمت.
@@ -813,113 +857,36 @@ bot.on("message:voice", async (ctx) => {
     await ctx.reply("معلش، مسمعتش كلام واضح في الرسالة الصوتية — جرب تاني.");
     return;
   }
-  const heard = `🎤 "${result.transcript}"\n\n`;
+  const heard = `🎤 "${isolate(sanitizeName(result.transcript))}"\n\n`;
 
-  if (result.action === "add_expense" || result.action === "add_income") {
-    const amount = Number(result.data?.amount ?? 0);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      await ctx.reply(heard + (result.message || "معلش، مسمعتش مبلغ واضح."));
-      return;
+  // كان هنا dispatch يدوي على `result.action` — ٧ أفعال بس (مصروف/دخل/مخزون/دوا/
+  // ميزانية/جرعة/دردشة)، بينما نفس الجملة مكتوبة كانت بتوصل لـ٣٦ أداة. الفرق مكانش
+  // في الأمان، كان في إن الصوت اتبنى قبل لفة الوكيل ومحدش رجع وصّله بيها: فويس نوت
+  // بتقول "اشترك نتفليكس ١٠٠ في الشهر" مكانش ليها أي طريق تتسجل كاشتراك.
+  //
+  // التفريغ هو الحاجة الوحيدة اللي محتاجينها من voice_agent دلوقتي. النص الناتج بيدخل
+  // نفس agentTurnReply اللي الكتابة بتدخله — نفس الأدوات، نفس التحقق، نفس سجل التدقيق،
+  // ونفس زر التأكيد على الفلوس. مفيش مسار كتابة تاني اتفتح هنا.
+  const turnReply = await agentTurnReply(sb, userId, ctx.chat.id, result.transcript);
+
+  if (turnReply.lines.length > 0) {
+    const body = clampForTelegram(heard + turnReply.lines.join("\n\n"));
+    if (turnReply.pendingId) {
+      await ctx.reply(body, { reply_markup: toGrammyKeyboard(confirmSpendKeyboard(turnReply.pendingId)) });
+    } else if (turnReply.toolPendingId) {
+      await ctx.reply(body, { reply_markup: toGrammyKeyboard(confirmToolKeyboard(turnReply.toolPendingId)) });
+    } else {
+      await ctx.reply(body);
     }
-    const kind = result.action === "add_expense" ? "expense" : "income";
-    const title = (result.data?.title || (kind === "expense" ? "مصروف" : "دخل")).slice(0, 80);
-    const category = (result.data?.category || "أخرى").slice(0, 40);
-    const currency = (await sb.from("zad_users").select("currency").eq("id", userId).maybeSingle())
-      .data?.currency ?? "غير معروف";
-    const { data: pending, error } = await sb.from("telegram_pending_writes").insert({
-      user_id: userId,
-      chat_id: ctx.chat.id,
-      txn_kind: kind,
-      amount: Math.round(amount * 100) / 100,
-      title,
-      category,
-      // voice_agent مبيرجعش confidence (مش زي parseSpendIntent) — قيمة ثابتة معقولة،
-      // مش بتتحكم في عرض زر التأكيد أصلاً (التأكيد بيتعرض دايماً بغض النظر عنها).
-      confidence: 0.75,
-    }).select("id").single();
-    if (!error && pending) {
-      await ctx.reply(heard + confirmSpendMessage({ is_spend: true, kind, amount, title, category, confidence: 0.75 }, currency), {
-        reply_markup: toGrammyKeyboard(confirmSpendKeyboard((pending as { id: string }).id)),
-      });
-      return;
-    }
-    console.error("voice pending write insert failed:", error);
-    await ctx.reply(heard + "معلش، حصلت مشكلة في تسجيل المصروف — جرب تاني.");
     return;
   }
 
-  // دواء جديد بجدول جرعات من رسالة صوتية — نفس تأكيد المصروف الصوتي فوق بالظبط
-  // (مش تسجيل مباشر زي add_inventory)، لأن دواء جديد بيفتح تذكيرات متكررة.
-  if (result.action === "add_pharmacy") {
-    const medName = (result.data?.title || "").trim();
-    const doseTimes = (result.data?.dose_times || "").split(",").map((t) => t.trim())
-      .filter((t) => /^([01]\d|2[0-3]):[0-5]\d$/.test(t)).join(",");
-    if (!medName || !doseTimes) {
-      await ctx.reply(heard + (result.message || "معلش، مسمعتش اسم دواء أو مواعيد واضحة."));
-      return;
-    }
-    const rawQty = Number(result.data?.amount);
-    const qty = Number.isFinite(rawQty) && rawQty > 0 ? Math.round(rawQty) : 1;
-    const doseCount = Math.max(1, Math.min(12, doseTimes.split(",").length));
-    const unit = ["قرص", "مل", "كريم"].includes(String(result.data?.unit)) ? String(result.data?.unit) : "قرص";
-    const medIntent = {
-      is_medication: true as const,
-      name: medName.slice(0, 80),
-      dosage: (result.data?.dosage || "").trim().slice(0, 120),
-      daily_dose_count: doseCount,
-      dose_times: doseTimes,
-      unit,
-      quantity: qty,
-      category: "عام",
-      confidence: 1,
-    };
-    const { data: pending, error } = await sb.from("telegram_pending_pharmacy").insert({
-      user_id: userId,
-      chat_id: ctx.chat.id,
-      name: medIntent.name,
-      dosage: medIntent.dosage,
-      daily_dose_count: medIntent.daily_dose_count,
-      dose_times: medIntent.dose_times,
-      unit: medIntent.unit,
-      quantity: medIntent.quantity,
-      category: medIntent.category,
-    }).select("id").single();
-    if (!error && pending) {
-      await ctx.reply(heard + confirmMedicationMessage(medIntent), {
-        reply_markup: toGrammyKeyboard(confirmMedicationKeyboard((pending as { id: string }).id)),
-      });
-      return;
-    }
-    console.error("voice pending pharmacy insert failed:", error);
-    await ctx.reply(heard + "معلش، حصلت مشكلة في تسجيل الدواء — جرب تاني.");
-    return;
-  }
-
-  if (result.action === "add_inventory") {
-    const itemName = (result.data?.title || "").trim();
-    if (!itemName) {
-      await ctx.reply(heard + (result.message || "معلش، مسمعتش اسم صنف واضح."));
-      return;
-    }
-    // voice_agent's data شكلها ثابت لكل action (amount/title/category) — مفيهاش حقل كمية
-    // مخصص لـ add_inventory. amount بيتفسر هنا كمية لو رقم منطقي، وإلا واحدة افتراضية.
-    const rawQty = Number(result.data?.amount);
-    const qty = Number.isFinite(rawQty) && rawQty > 0 ? Math.round(rawQty) : 1;
-    const added = await agentExecute(userId, "add_inventory_item", {
-      item_name: itemName, quantity: qty, unit: "قطعة",
-    });
-    if (!added.ok) {
-      console.error("voice add_inventory through zad-brain failed");
-      await ctx.reply(heard + "معلش، مقدرتش أضيف الصنف للمخزون — جرب تاني.");
-      return;
-    }
-    await ctx.reply(heard + `✅ اتضاف "${isolate(sanitizeName(itemName))}" للمخزون (${qty}).`);
-    return;
-  }
-
-  // check_budget / log_pharmacy_dose / chat — قراءة بس دلوقتي، مفيش كتابة. تسجيل جرعة
-  // دوا فعلي محتاج جدول/تدفق منفصل (zad_dose_log) مش داخل نطاق المهمة دي.
-  await ctx.reply(heard + (result.message || "تمام."));
+  // اللفة نفسها وقعت. الرسالة الصوتية دايماً بتبقى طلب — الصمت أو "تمام" هنا بيخلي
+  // العميل يفتكر إن اللي قاله اتسجل، وهو ماتسجلش.
+  if (turnReply.errorReason) console.error("voice agent turn failed:", turnReply.errorReason);
+  await ctx.reply(clampForTelegram(
+    heard + `⚠️ ${userFacingFailure(turnReply.errorReason ?? "")}. اللي قلته **ماتسجّلش** — جرب تبعته تاني كمان شوية.`,
+  ));
 });
 
 // صورة (فاتورة أو صنف) — نفس مبدأ التسجيل الصوتي: الأصناف بتتضاف للمخزون مباشرة (زي
@@ -1067,6 +1034,62 @@ bot.on("callback_query:data", async (ctx) => {
   }
 
   const data = ctx.callbackQuery.data;
+
+  // تأكيد أداة غير مالية (tx:/tc:) — نفس بروتوكول تأكيد الفلوس بالظبط: نقرا الصف،
+  // نتأكد إنه بتاع نفس المستخدم، ما اتصرفش فيه قبل كده، وما انتهتش صلاحيته؛ ندّعيه
+  // بتحديث مشروط عشان ضغطتين سريعتين ما ينفذوش الأداة مرتين؛ وبعدين ننفذ عن طريق
+  // zad-brain نفسه (agent_confirm) مش من هنا — تليجرام مابيكتبش عملية مؤكدة بنفسه
+  // أبداً، عشان التحقق وسجل التدقيق يفضلوا في مكان واحد.
+  const toolCallback = parseToolCallback(data);
+  if (toolCallback) {
+    const { data: pendingRow } = await sb.from("telegram_pending_tools")
+      .select("id,user_id,tool,input,summary,status,expires_at")
+      .eq("id", toolCallback.pendingId)
+      .maybeSingle();
+    const row = pendingRow as {
+      id: string; user_id: string; tool: string; input: Record<string, unknown>;
+      summary: string; status: string; expires_at: string;
+    } | null;
+
+    if (!row || row.user_id !== userId) {
+      await ctx.reply("الطلب ده مش موجود.");
+      return;
+    }
+    if (row.status !== "pending") {
+      await ctx.reply("الطلب ده اتصرف فيه خلاص.");
+      return;
+    }
+    if (toolCallback.action === "cancel") {
+      await sb.from("telegram_pending_tools").update({ status: "cancelled" }).eq("id", row.id);
+      await ctx.reply("تمام، ملغي.");
+      return;
+    }
+    if (new Date(row.expires_at).getTime() < Date.now()) {
+      await sb.from("telegram_pending_tools").update({ status: "cancelled" }).eq("id", row.id);
+      await ctx.reply("الطلب ده عدى عليه وقت طويل — ابعته تاني لو لسه عايزه.");
+      return;
+    }
+
+    const { error: claimError } = await sb.from("telegram_pending_tools")
+      .update({ status: "confirmed" })
+      .eq("id", row.id)
+      .eq("status", "pending");
+    if (claimError) {
+      await ctx.reply("معلش، حصلت مشكلة — جرب تاني.");
+      return;
+    }
+
+    const done = await agentConfirm(userId, row.tool, row.input);
+    if (!done.ok) {
+      // رجّع الصف لـ pending: الأداة ماتنفذتش، فالعميل لازم يقدر يضغط تأكيد تاني
+      // بدل ما الطلب يفضل "مؤكد" وهو محصلش — نفس تصرف تأكيد الفلوس.
+      await sb.from("telegram_pending_tools").update({ status: "pending" }).eq("id", row.id);
+      await ctx.reply("معلش، مقدرتش أنفذها — جرب تاني كمان شوية.");
+      return;
+    }
+    await ctx.reply(`✅ ${isolate(sanitizeName(done.summary ?? row.summary))}`);
+    return;
+  }
 
   if (data === "b") {
     // Phase 0 — the same RPC row the app's budget card and zad-brain read. This button

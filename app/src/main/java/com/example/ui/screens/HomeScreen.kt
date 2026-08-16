@@ -118,6 +118,7 @@ fun HomeScreen(
     val shoppingList by viewModel.shoppingList.collectAsState()
     val pharmacyItems by viewModel.pharmacyItems.collectAsState()
     val affiliateProducts by viewModel.affiliateProducts.collectAsState()
+    val affiliatePicks by viewModel.affiliatePicks.collectAsState()
     val urgentRecipes by viewModel.urgentRecipes.collectAsState()
     val upcomingSeasonalEvents by familyViewModel.upcomingSeasonalEvents.collectAsState()
     val seasonalForecasts by viewModel.seasonalForecasts.collectAsState()
@@ -658,20 +659,24 @@ fun HomeScreen(
                 // so putting it inside a LazyRow gave every card the full viewport width —
                 // that's the "overlapping cards" in the design review. ZadAmazonDealCard
                 // is the mockup's actual rail card and has a fixed width.
-                val activeAffiliateProducts = affiliateProducts.filter { it.isActive }
-                if (activeAffiliateProducts.isNotEmpty()) {
+                // كان `affiliateProducts.filter { it.isActive }.take(8)` — أول ٨ صفوف في
+                // الكتالوج، نفسهم لكل مستخدم، بترتيب الجدول، مالهمش أي علاقة بمخزونه.
+                // دلوقتي كل كارت لازم يكون مربوط بنقص حقيقي (صنف خلص/قارب يخلص/في قايمة
+                // التسوق) والسبب مكتوب على الكارت. مفيش نقص = القسم كله مايظهرش.
+                if (affiliatePicks.isNotEmpty()) {
                     Text(stringResource(R.string.shop_from_amazon), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
                     Spacer(modifier = Modifier.height(10.dp))
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = PaddingValues(vertical = 4.dp)
                     ) {
-                        items(activeAffiliateProducts.take(8)) { product ->
+                        items(affiliatePicks) { pick ->
                             com.example.ui.widgets.ZadAmazonDealCard(
-                                product = product,
+                                product = pick.product,
+                                reason = pick.reason,
                                 onClick = {
-                                    viewModel.recordAffiliateClick(product.id, "home")
-                                    com.example.data.AffiliateHelper.openProduct(context, product)
+                                    viewModel.recordAffiliateClick(pick.product.id, "home")
+                                    com.example.data.AffiliateHelper.openProduct(context, pick.product)
                                 }
                             )
                         }

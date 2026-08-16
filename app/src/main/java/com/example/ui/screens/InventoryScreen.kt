@@ -153,26 +153,51 @@ private val categoryDefs = listOf(
  * التصنيف (يفضل يظهر بس تحت "الكل") لأن الفلتر كان بيقارن النص الخام حرفياً. يرجع نفس
  * مفاتيح [categoryDefs] بالظبط.
  */
-private fun normalizeCategoryKey(raw: String?): String {
+private fun normalizeCategoryKey(raw: String?, itemName: String? = null): String {
+    val fromCategory = categoryFromText(raw)
+    // التصنيف نفسه فشل ("عام"، "أخرى"، null، أو نص الموديل اخترعه) — الاسم لسه مصدر
+    // صالح. من غير الشوطة دي، "كرتونة مياه" و"حليب المراعي" و"صابون" كلهم بيقعوا في
+    // "أخرى" ومايظهروش تحت أي تاب تصنيف، وده اللي بيخلي التابات تبان فاضية والعميل
+    // شايف إن الصنف "مش اتحط في عموده".
+    if (fromCategory != "أخرى") return fromCategory
+    return categoryFromText(itemName)
+}
+
+/** نفس القاموس، مطبَّق على أي نص — تصنيف جاي من الموديل أو اسم الصنف نفسه. */
+private fun categoryFromText(raw: String?): String {
     val v = raw?.trim().orEmpty()
     if (v.isEmpty()) return "أخرى"
     if (categoryDefs.any { it.key == v }) return v
     val lower = v.lowercase()
     return when {
-        "خضر" in v || "vegetable" in lower -> "الخضار"
-        "فاكه" in v || "فواك" in v || "fruit" in lower -> "الفواكه"
-        "لحم" in v || "لحوم" in v || "دجاج" in v || "فراخ" in v || "دواجن" in v ||
-            "meat" in lower || "poultry" in lower -> "اللحوم"
-        "لبن" in v || "ألبان" in v || "البان" in v || "جبن" in v || "dairy" in lower -> "الألبان"
-        "مشروب" in v || "عصير" in v || "beverage" in lower || "drink" in lower -> "المشروبات"
-        "عناي" in v || "تنظيف" in v || "نظاف" in v || "hygiene" in lower || "clean" in lower -> "العناية"
-        "بقال" in v || "غذائي" in v || "grocery" in lower || "groceries" in lower -> "البقالة"
+        "خضر" in v || "خضار" in v || "طماطم" in v || "بطاطس" in v || "بصل" in v || "خيار" in v ||
+            "جزر" in v || "فلفل" in v || "سلطة" in v || "vegetable" in lower -> "الخضار"
+        "فاكه" in v || "فواك" in v || "تفاح" in v || "موز" in v || "برتقال" in v || "مانجو" in v ||
+            "عنب" in v || "بطيخ" in v || "فراولة" in v || "fruit" in lower -> "الفواكه"
+        "لحم" in v || "لحوم" in v || "دجاج" in v || "فراخ" in v || "دواجن" in v || "سمك" in v ||
+            "كفتة" in v || "بانيه" in v || "meat" in lower || "poultry" in lower || "fish" in lower -> "اللحوم"
+        "لبن" in v || "ألبان" in v || "البان" in v || "جبن" in v || "حليب" in v || "زبادي" in v ||
+            "قشطة" in v || "زبدة" in v || "بيض" in v || "dairy" in lower || "milk" in lower ||
+            "cheese" in lower || "yogurt" in lower -> "الألبان"
+        // كانت ناقصة تماماً، وهي أكتر صنف في بيوت مصر: المية كانت بتروح "أخرى"
+        "مشروب" in v || "عصير" in v || "مياه" in v || "ميه" in v || "ماء" in v || "شاي" in v ||
+            "قهوة" in v || "نسكافيه" in v || "كولا" in v || "بيبسي" in v || "beverage" in lower ||
+            "drink" in lower || "water" in lower || "juice" in lower || "coffee" in lower ||
+            "tea" in lower -> "المشروبات"
+        "عناي" in v || "تنظيف" in v || "نظاف" in v || "صابون" in v || "شامبو" in v || "معجون" in v ||
+            "مناديل" in v || "غسيل" in v || "مسحوق" in v || "كلور" in v || "ديتول" in v ||
+            "hygiene" in lower || "clean" in lower || "soap" in lower || "shampoo" in lower -> "العناية"
+        "بقال" in v || "غذائي" in v || "أرز" in v || "ارز" in v || "مكرونة" in v || "زيت" in v ||
+            "سكر" in v || "ملح" in v || "دقيق" in v || "عدس" in v || "فول" in v || "خبز" in v ||
+            "عيش" in v || "معلب" in v || "صلصة" in v || "grocery" in lower || "groceries" in lower ||
+            "rice" in lower || "pasta" in lower || "oil" in lower || "sugar" in lower ||
+            "bread" in lower -> "البقالة"
         else -> "أخرى"
     }
 }
 
-private fun categoryDefFor(key: String?): CategoryDef =
-    categoryDefs.find { it.key == normalizeCategoryKey(key) } ?: categoryDefs.last()
+private fun categoryDefFor(key: String?, itemName: String? = null): CategoryDef =
+    categoryDefs.find { it.key == normalizeCategoryKey(key, itemName) } ?: categoryDefs.last()
 
 private val units = listOf("حبة", "كيلو", "جرام", "لتر", "علبة", "كيس", "قرشة", "صندوق")
 private val unitLabels = listOf("حبة", "كجم", "جرام", "لتر", "علبة", "كيس", "قرشة", "صندوق")
@@ -220,7 +245,7 @@ fun InventoryScreen(
             // normalizeCategoryKey — raw item.category (AI-scanned items especially) doesn't
             // always match a categoryDefs key exactly, so compare on the normalized key, not
             // the raw string, or a mistagged "خضروات" item would vanish from every tab except "الكل".
-            val matchesCategory = selectedCategory == "الكل" || normalizeCategoryKey(item.category) == selectedCategory
+            val matchesCategory = selectedCategory == "الكل" || normalizeCategoryKey(item.category, item.itemName) == selectedCategory
             val matchesSearch = searchQuery.isBlank() || item.itemName.contains(searchQuery, ignoreCase = true)
             matchesCategory && matchesSearch
         }
@@ -759,7 +784,7 @@ private fun InventoryItemCard(
     onRestock: () -> Unit = {}
 ) {
     val days = daysUntilExpiry(item.expiryDate)
-    val catDef = categoryDefFor(item.category)
+    val catDef = categoryDefFor(item.category, item.itemName)
     val isLowStock = item.quantity <= (item.lowStockThreshold ?: 2)
     val cardShape = RoundedCornerShape(20.dp)
 
@@ -944,7 +969,7 @@ private fun ShortageItemCard(
     onAddToShoppingList: () -> Unit
 ) {
     val days = daysUntilExpiry(item.expiryDate)
-    val catDef = categoryDefFor(item.category)
+    val catDef = categoryDefFor(item.category, item.itemName)
     var added by remember(item.id) { mutableStateOf(false) }
 
     com.example.ui.components.ZadListCard(contentPadding = 0.dp) {

@@ -47,7 +47,10 @@ import com.example.ui.theme.*
 @Composable
 fun ZadAmazonDealCard(
     product: AffiliateProduct,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    /** سبب ظهور الترشيح ده تحديداً (مثلاً "خلص من مخزونك"). null = مفيش سبب مربوط
+     *  بداتا المستخدم، والكارت ساعتها بيبقى كتالوج مش توصية. */
+    reason: String? = null
 ) {
     val shape = RoundedCornerShape(16.dp)
     Column(
@@ -84,6 +87,16 @@ fun ZadAmazonDealCard(
                     modifier = Modifier.size(24.dp)
                 )
             }
+        }
+        if (!reason.isNullOrBlank()) {
+            Text(
+                reason,
+                fontSize = 9.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = secondaryDark,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
         Text(
             product.productNameAr,

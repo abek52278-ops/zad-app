@@ -3,6 +3,7 @@ import {
   normalizeBindingCode, parseDismissCallback, reasonForCode, memoryNoteForDismissal,
   formatBalanceMessage, formatTransactionsMessage, mainMenuKeyboard, dismissKeyboard,
   checkInKeyboard, parseCheckInCallback, checkInPromptMessage,
+  confirmToolKeyboard, parseToolCallback,
 } from "./telegram.ts";
 
 Deno.test("normalizeBindingCode uppercases a valid code", () => {
@@ -150,4 +151,48 @@ Deno.test("parseCheckInCallback rejects an unknown answer letter", () => {
 
 Deno.test("checkInPromptMessage includes the item name", () => {
   assert(checkInPromptMessage("لبن").includes("لبن"));
+});
+
+
+// ── tool-confirm callbacks ──────────────────────────────────────────────────
+// الطابور التالت (بعد الفلوس والدوا). أهم اختبار فيهم هو التمييز: "x:"/"mx:"/"tx:"
+// لازم يفضلوا منفصلين، لأن راوتر واحد بيقرا التلاتة وأي تداخل معناه إن تأكيد أداة
+// بيروح لجدول المعاملات المالية.
+
+Deno.test("parseToolCallback parses a confirm callback", () => {
+  const uuid = "3f1a2b4c-5d6e-4f70-8a91-b2c3d4e5f607";
+  assertEquals(parseToolCallback(`tx:${uuid}`), { action: "confirm", pendingId: uuid });
+});
+
+Deno.test("parseToolCallback parses a cancel callback", () => {
+  const uuid = "3f1a2b4c-5d6e-4f70-8a91-b2c3d4e5f607";
+  assertEquals(parseToolCallback(`tc:${uuid}`), { action: "cancel", pendingId: uuid });
+});
+
+Deno.test("parseToolCallback rejects the spend and medication prefixes", () => {
+  const uuid = "3f1a2b4c-5d6e-4f70-8a91-b2c3d4e5f607";
+  assertEquals(parseToolCallback(`x:${uuid}`), null);
+  assertEquals(parseToolCallback(`c:${uuid}`), null);
+  assertEquals(parseToolCallback(`mx:${uuid}`), null);
+  assertEquals(parseToolCallback(`mc:${uuid}`), null);
+});
+
+Deno.test("parseToolCallback rejects a non-uuid payload", () => {
+  assertEquals(parseToolCallback("tx:not-a-uuid"), null);
+  assertEquals(parseToolCallback("tx:"), null);
+  assertEquals(parseToolCallback("tx"), null);
+  assertEquals(parseToolCallback("tx:a:b"), null);
+});
+
+Deno.test("confirmToolKeyboard stays inside Telegram's 64-byte callback_data cap", () => {
+  const uuid = "3f1a2b4c-5d6e-4f70-8a91-b2c3d4e5f607";
+  const rows = confirmToolKeyboard(uuid);
+  const buttons = rows.flat();
+  assertEquals(buttons.length, 2);
+  for (const b of buttons) {
+    assert(new TextEncoder().encode(b.callback_data).length <= 64);
+  }
+  // والأهم: الرد بيرجع مفكوك لنفس الـ id، فالزرار والراوتر متفقين.
+  assertEquals(parseToolCallback(buttons[0].callback_data)?.action, "confirm");
+  assertEquals(parseToolCallback(buttons[1].callback_data)?.action, "cancel");
 });

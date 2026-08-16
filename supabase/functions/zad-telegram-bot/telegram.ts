@@ -69,6 +69,34 @@ export function parseSpendCallback(data: string): { action: "confirm" | "cancel"
   return { action: parts[0] === "x" ? "confirm" : "cancel", pendingId: parts[1] };
 }
 
+/**
+ * تأكيد/إلغاء لأي أداة تانية محتاجة موافقة غير `log_transaction` — تعديل معاملة،
+ * مسحها، أو تغيير السقف الشهري.
+ *
+ * من غير الكيبورد ده، الاقتراحات دي كانت بتوصل للعميل كسطر نصي بيقول "ابعتها لوحدها
+ * عشان أأكدها معاك" — وهو أصلاً باعتها لوحدها، فنفس السطر بيتكرر للأبد. "امسح
+ * المعاملة دي" من تليجرام كانت مستحيلة حرفياً، مش صعبة.
+ *
+ * "tx:"/"tc:" متمايزين عن "x:"/"c:" (فلوس) و"mx:"/"mc:" (دوا) عشان الراوتر يفرّق بين
+ * التلات طوابير قبل ما يلمس أي جدول. نفس القاعدة: الـ id بس هو اللي بيسافر في
+ * callback_data — الأداة ومدخلاتها في telegram_pending_tools، لأن الحد ٦٤ بايت.
+ */
+export function confirmToolKeyboard(pendingId: string): InlineKeyboardButton[][] {
+  return [[
+    { text: "✅ أكد", callback_data: `tx:${pendingId}` },
+    { text: "✖️ إلغاء", callback_data: `tc:${pendingId}` },
+  ]];
+}
+
+/** "tx:<uuid>" (confirm) / "tc:<uuid>" (cancel) */
+export function parseToolCallback(data: string): { action: "confirm" | "cancel"; pendingId: string } | null {
+  const parts = data.split(":");
+  if (parts.length !== 2) return null;
+  if (parts[0] !== "tx" && parts[0] !== "tc") return null;
+  if (!/^[0-9a-fA-F-]{36}$/.test(parts[1])) return null;
+  return { action: parts[0] === "tx" ? "confirm" : "cancel", pendingId: parts[1] };
+}
+
 /** "d:<insight_id>:<reason_code>" callback_data */
 export function parseDismissCallback(data: string): { insightId: string; reasonCode: string } | null {
   const parts = data.split(":");

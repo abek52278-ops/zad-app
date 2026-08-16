@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -4075,17 +4076,97 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     _inventory.value, _transactions.value, _subscriptions.value,
                     _budget.value, _shoppingList.value, patterns, _obligations.value
                 , appContext = getApplication())
-                _agentSummary.value = summary
+                // null دلوقتي معناها فشل حقيقي (الريبو بقى بيرفض الملخص الفاضي) — مش
+                // "استنى". الكارت الأخضر مكانه على أكتر شاشة بتتفتح في التطبيق، وسيبه
+                // فاضي لحد ما نداء نموذج ينجح معناه إن العميل بيبص على مستطيل أخضر
+                // مالوش أي معنى. الـ fallback محسوب محلياً من نفس الداتا اللي في الـ VM،
+                // فهو حقيقي — مش نص placeholder — ومش بيستهلك كوتة.
+                _agentSummary.value = summary ?: buildLocalAgentSummary()
                 if (summary != null) {
                     Log.d(TAG, "refreshAgentSummary() → ${summary.summary.take(100)}")
-                    _companionState.value = companionStateFromAgentSummary(summary)
+                } else {
+                    Log.w(TAG, "refreshAgentSummary() → upstream empty, using local fallback")
                 }
+                _agentSummary.value?.let { _companionState.value = companionStateFromAgentSummary(it) }
             } catch (e: Exception) {
                 Log.e(TAG, "refreshAgentSummary() FAILED: ${e.message}")
+                _agentSummary.value = _agentSummary.value ?: buildLocalAgentSummary()
             } finally {
                 _isAgentLoading.value = false
             }
         }
+    }
+
+    /**
+     * ملخص "وكيل زاد" محسوب محلياً — من غير أي نداء نموذج. بيتستخدم لما نداء
+     * agent_summary يفشل أو يرجّع فاضي (كوتة، شبكة، أو النموذج رجّع نص فاضي).
+     * كل رقم هنا مقروء من StateFlow موجود فعلاً، فمفيش رقم مخترع — نفس قاعدة
+     * الـ GROUNDING اللي في الـ system prompt بتاع الأكشن على السيرفر.
+     */
+    private fun buildLocalAgentSummary(): com.example.data.AiAgentSummary {
+        val inv = _inventory.value
+        val spent = _spentThisMonth.value
+        val cap = _budget.value
+        val lowStock = inv.filter { it.quantity > 0 && it.quantity <= (it.lowStockThreshold ?: 2) }
+        val outOfStock = inv.filter { it.quantity <= 0 }
+        val activeSubs = _subscriptions.value.count { it.isActive }
+        val remaining = _remainingBalance.value
+
+        val parts = mutableListOf<String>()
+        parts += if (cap > 0) {
+            val pct = ((spent / cap) * 100).toInt().coerceAtLeast(0)
+            "صرفت ${com.example.data.CurrencyFormatter.format(getApplication(), spent)} من سقف ${com.example.data.CurrencyFormatter.format(getApplication(), cap)} — يعني $pct%."
+        } else {
+            "صرفت ${com.example.data.CurrencyFormatter.format(getApplication(), spent)} في الدورة دي. لسه ماحددتش سقف شهري — حدده عشان أقدر أقولك إنت واقف فين."
+        }
+        remaining?.let { parts += "المتاح دلوقتي ${com.example.data.CurrencyFormatter.format(getApplication(), it)}." }
+        if (lowStock.isNotEmpty() || outOfStock.isNotEmpty()) {
+            val names = (outOfStock + lowStock).take(3).joinToString("، ") { it.itemName }
+            parts += "المخزون: ${outOfStock.size + lowStock.size} صنف محتاج تجديد ($names)."
+        }
+
+        val alerts = buildList {
+            if (outOfStock.isNotEmpty()) add(
+                com.example.data.AiAgentAlert(
+                    type = "warning",
+                    title = "${outOfStock.size} صنف خلص",
+                    description = outOfStock.take(3).joinToString("، ") { it.itemName }
+                )
+            )
+            if (cap > 0 && spent > cap) add(
+                com.example.data.AiAgentAlert(
+                    type = "warning",
+                    title = "عديت السقف الشهري",
+                    description = "الفرق ${com.example.data.CurrencyFormatter.format(getApplication(), spent - cap)}"
+                )
+            )
+        }
+
+        val suggestions = buildList {
+            if (lowStock.isNotEmpty() || outOfStock.isNotEmpty()) add(
+                com.example.data.AiAgentSuggestion(
+                    action = "add_to_shopping",
+                    item = (outOfStock + lowStock).first().itemName,
+                    reason = "نزّل النواقص للتسوق"
+                )
+            )
+            if (cap <= 0) add(
+                com.example.data.AiAgentSuggestion(action = "check_budget", item = "", reason = "حدد سقفك الشهري")
+            )
+        }
+
+        return com.example.data.AiAgentSummary(
+            summary = parts.joinToString(" "),
+            alerts = alerts,
+            suggestions = suggestions,
+            stats = com.example.data.AiAgentStats(
+                inventoryCount = inv.size,
+                expiringSoon = lowStock.size + outOfStock.size,
+                subscriptionsActive = activeSubs,
+                daysUntilBudgetEnd = java.time.temporal.ChronoUnit.DAYS
+                    .between(java.time.LocalDate.now(), _cycleEnd.value).toInt().takeIf { it >= 0 }
+            )
+        )
     }
 
     fun refreshAutoSuggestions() {
@@ -4231,6 +4312,65 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     // ─── Amazon Affiliate ───────────────────────────────────────────────
     private val _affiliateProducts = MutableStateFlow<List<AffiliateProduct>>(emptyList())
     val affiliateProducts: StateFlow<List<AffiliateProduct>> = _affiliateProducts.asStateFlow()
+
+    /**
+     * ترشيح أمازون + سبب حقيقي وراه. الكارت اللي على الشاشة الرئيسية كان بيعرض
+     * `affiliateProducts.filter { isActive }.take(8)` — يعني نفس أول ٨ صفوف في الكتالوج
+     * لكل مستخدم في التطبيق، بترتيب الجدول، مهما كان مخزونه. ده كتالوج مش ترشيح، وهو
+     * بالظبط اللي العميل وصفه بـ"ترشيحات ثابتة مش حقيقية".
+     */
+    data class AffiliatePick(val product: AffiliateProduct, val reason: String, val score: Int)
+
+    /**
+     * بيربط الكتالوج بالحاجة الفعلية: صنف خلص (٣ نقط) > صنف قارب يخلص (٢) > حاجة
+     * مكتوبة في قايمة التسوق ولسه ماتشترتش (٢). المطابقة على الاسم العربي +
+     * `product_name_search_keywords` — نفس الحقول اللي `match_product` بيبعتها للسيرفر،
+     * بس محلياً وبدون نداء نموذج عشان الشاشة الرئيسية ماتستنى حاجة.
+     * مفيش تطابق = مفيش ترشيح: قايمة فاضية أشرف من كتالوج معروض كأنه توصية.
+     */
+    val affiliatePicks: StateFlow<List<AffiliatePick>> =
+        kotlinx.coroutines.flow.combine(
+            _affiliateProducts, _inventory, _shoppingList
+        ) { products, inv, shopping ->
+            val needs = ArrayList<Triple<String, Int, String>>()
+            inv.filter { it.quantity <= 0 }
+                .forEach { needs += Triple(normalizeArabicForMatch(it.itemName), 3, "خلص من مخزونك") }
+            inv.filter { it.quantity > 0 && it.quantity <= (it.lowStockThreshold ?: 2) }
+                .forEach { needs += Triple(normalizeArabicForMatch(it.itemName), 2, "قارب على النفاد") }
+            shopping.filter { !it.isPurchased }
+                .forEach { needs += Triple(normalizeArabicForMatch(it.itemName), 2, "في قايمة التسوق") }
+
+            val picks = ArrayList<AffiliatePick>()
+            for (product in products) {
+                if (!product.isActive) continue
+                val haystack = (listOf(product.productNameAr) + product.productNameSearchKeywords)
+                    .map { normalizeArabicForMatch(it) }
+                    .filter { it.isNotBlank() }
+                var best: Triple<String, Int, String>? = null
+                var bestScore = 0
+                for (need in needs) {
+                    if (need.first.isBlank()) continue
+                    val score = when {
+                        haystack.any { it == need.first } -> need.second * 10
+                        haystack.any { it.contains(need.first) || need.first.contains(it) } -> need.second
+                        else -> 0
+                    }
+                    if (score > bestScore) { bestScore = score; best = need }
+                }
+                val matched = best ?: continue
+                picks += AffiliatePick(product = product, reason = matched.third, score = bestScore)
+            }
+            picks.sortedByDescending { it.score }.take(8)
+        }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** تطبيع خفيف للمطابقة العربية: همزات/تاء مربوطة/تشكيل/مسافات زيادة. */
+    private fun normalizeArabicForMatch(raw: String): String =
+        raw.trim().lowercase()
+            .replace(Regex("[\u064B-\u0652\u0640]"), "")
+            .replace(Regex("[أإآ]"), "ا")
+            .replace("ة", "ه")
+            .replace("ى", "ي")
+            .replace(Regex("\\s+"), " ")
 
     private val _matchedProductId = MutableStateFlow<String?>(null)
     val matchedProductId: StateFlow<String?> = _matchedProductId.asStateFlow()

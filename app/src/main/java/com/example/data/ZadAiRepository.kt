@@ -466,7 +466,12 @@ object ZadAiRepository {
             // بيظهر كرقم في مكان تاني بس، من غير أي مصدر هنا يسمّي الالتزام نفسه.
             "obligations" to obligations.joinToString(", ") { "${it.title}(${it.amount}/${it.recurrence})" }
         ), appContext = appContext)
-        val summary = response["summary"] as? String ?: return null
+        // كان `as? String ?: return null` بس — والسيرفر بيرجّع summary: "" (مش null) لما
+        // النموذج يفشل (شوف zad-core-intelligence، case "agent_summary"، فرع `if (!result)`).
+        // النتيجة: العميل بيبني AiAgentSummary بملخص فاضي، والكارت الأخضر على الشاشة
+        // الرئيسية بيرسم Text("") — كارت أخضر فاضي تماماً، وهو بالظبط اللي العميل شافه.
+        // فراغ = فشل، والفشل لازم يرجّع null عشان الطبقة اللي فوق تعرف تعمل fallback محلي.
+        val summary = (response["summary"] as? String)?.takeIf { it.isNotBlank() } ?: return null
         val alertsRaw = response["alerts"] as? List<*> ?: emptyList<Any>()
         val suggestionsRaw = response["suggestions"] as? List<*> ?: emptyList<Any>()
         val statsRaw = response["stats"] as? Map<*, *> ?: emptyMap<Any, Any>()
