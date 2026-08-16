@@ -96,9 +96,9 @@
     <string name="expense_deduction">Deduction (Expense)</string>
     <string name="description_hint">Description (e.g. salary, rent)</string>
     <string name="category_hint">Category (supermarket, bills...)</string>
-    <string name="edit_monthly_budget">Edit Monthly Budget</string>
+    <string name="edit_monthly_budget">Edit Balance</string>
     <string name="budget_with_currency">Budget (%1$s)</string>
-    <string name="budget_save_hint">This is the cap we\'ll calculate your remaining and available balance from, and it syncs across all your devices.</string>
+    <string name="budget_save_hint">Enter your current balance and Zad works from it: income adds to it, spending takes from it.</string>
     <string name="budget_unknown_value">Not set yet</string>
     <string name="budget_unknown_speech">You haven\'t set your budget cap yet. Set it first so I can tell you what\'s left.</string>
     <string name="budget_gate_headline">Before we start, set your monthly cap</string>
@@ -1117,4 +1117,17 @@
     <string name="agent_action_log_empty_title">No changes yet</string>
     <string name="agent_action_log_empty_subtitle">Anything Zad logs or changes will appear here</string>
     <string name="agent_action_log_undo">Undo</string>
+
+    <!-- Ledger: quick deduct and manual balance override -->
+    <string name="quick_deduct">Quick Deduct</string>
+    <string name="quick_deduct_default_title">Quick deduct</string>
+    <string name="quick_deduct_hint">This comes straight off your balance — no analysis, no category.</string>
+    <string name="quick_deduct_amount">Amount</string>
+    <string name="quick_deduct_note">What for? (optional)</string>
+    <string name="quick_deduct_confirm">Deduct</string>
+    <string name="balance_label">Balance</string>
+    <string name="current_balance_label">Your balance now</string>
+    <string name="balance_after_deduct">Balance after: %1$s</string>
+    <string name="manual_balance_correction_title">Manual balance correction</string>
+    <string name="manual_balance_hint">This number is the final word — if Zad got it wrong, correct it here and it will work from yours.</string>
 </resources>

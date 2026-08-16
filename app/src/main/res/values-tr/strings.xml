@@ -96,9 +96,9 @@
     <string name="expense_deduction">Gider (harcama)</string>
     <string name="description_hint">Açıklama (örn: maaş, kira)</string>
     <string name="category_hint">Kategori (market, faturalar...)</string>
-    <string name="edit_monthly_budget">Aylık bütçeyi düzenle</string>
+    <string name="edit_monthly_budget">Bakiyeyi düzenle</string>
     <string name="budget_with_currency">Bütçe (%1$s)</string>
-    <string name="budget_save_hint">Kalan ve kullanılabilir tutarı bu limit üzerinden hesaplıyoruz; tüm cihazlarında eşitlenir.</string>
+    <string name="budget_save_hint">Güncel bakiyeni gir; Zad bunun üzerinden ilerler: gelir ekler, harcama düşer.</string>
     <string name="budget_unknown_value">Henüz belirlenmedi</string>
     <string name="budget_unknown_speech">Aylık bütçe limitini henüz belirlemedin. Kalanı söyleyebilmem için önce onu ayarla.</string>
     <string name="budget_gate_headline">Başlamadan önce aylık limitini belirle</string>
@@ -1114,4 +1114,17 @@
     <string name="knowledge_map_open_screen">Ekranı aç</string>
     <string name="knowledge_map_ask_zad">Zad\'a sor</string>
     <string name="knowledge_map_legend_live">Şu anda Zad\'dan canlı bir öngörü var</string>
+
+    <!-- Ledger: quick deduct and manual balance override -->
+    <string name="quick_deduct">Hızlı düşüm</string>
+    <string name="quick_deduct_default_title">Hızlı düşüm</string>
+    <string name="quick_deduct_hint">Bu tutar doğrudan bakiyenden düşer — analiz yok, kategori yok.</string>
+    <string name="quick_deduct_amount">Tutar</string>
+    <string name="quick_deduct_note">Ne için? (isteğe bağlı)</string>
+    <string name="quick_deduct_confirm">Düş</string>
+    <string name="balance_label">Bakiye</string>
+    <string name="current_balance_label">Şu anki bakiyen</string>
+    <string name="balance_after_deduct">Düşüm sonrası: %1$s</string>
+    <string name="manual_balance_correction_title">Elle bakiye düzeltmesi</string>
+    <string name="manual_balance_hint">Bu sayı son sözdür — Zad yanlış hesapladıysa buradan düzelt, o senin sayınla devam eder.</string>
 </resources>

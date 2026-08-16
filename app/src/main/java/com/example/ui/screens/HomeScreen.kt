@@ -198,6 +198,7 @@ fun HomeScreen(
 
     var showAllTransactionsDialog by remember { mutableStateOf(false) }
     var showAddTransactionDialog by remember { mutableStateOf(false) }
+    var showQuickDeductDialog by remember { mutableStateOf(false) }
     var showWhySheet by remember { mutableStateOf(false) } // Task 27.2 — طول الضغط على "متاح"
     var showTelegramSheet by remember { mutableStateOf(false) } // بوت تليجرام — اتنقل من البروفايل للرئيسية
     var selectedRecipeTitle by remember { mutableStateOf<String?>(null) }
@@ -772,18 +773,52 @@ fun HomeScreen(
         // الصفحة الرئيسية كانت من غير FAB خالص رغم إنها أكتر شاشة بيتفتح — مقفولة في وضع
         // الأطفال لأن طلب الشراء بتاعهم بيحصل من KidsModeContent (onAddRequest) مش من هنا.
         if (!isChild) {
-            FloatingActionButton(
-                onClick = { showAddTransactionDialog = true },
+            // "خصم سريع" هو الزرار الأساسي دلوقتي، مش إضافة معاملة كاملة. السبب إن أغلب
+            // المصاريف اللي بتضيع مش اللي العميل قاعد يصنّفها — هي اللي بيدفعها وهو واقف
+            // والنظام ما شافهاش. الفورم الكامل (عنوان/فئة/دخل ولا مصروف) لسه موجود في
+            // الزرار الصغير فوقه، بس مابقاش هو الافتراضي.
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = 20.dp, bottom = 88.dp),
-                containerColor = primary,
-                contentColor = Color.White
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_action))
+                SmallFloatingActionButton(
+                    onClick = { showAddTransactionDialog = true },
+                    containerColor = surface,
+                    contentColor = primary
+                ) {
+                    Icon(Icons.Default.EditNote, contentDescription = stringResource(R.string.add_action))
+                }
+                ExtendedFloatingActionButton(
+                    onClick = { showQuickDeductDialog = true },
+                    containerColor = primary,
+                    contentColor = Color.White,
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = {
+                        Text(
+                            stringResource(R.string.quick_deduct),
+                            style = Typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                )
             }
         }
 } // closes Box
+    if (showQuickDeductDialog) {
+        QuickDeductDialog(
+            currentBalance = remainingBalance,
+            onDismiss = { showQuickDeductDialog = false },
+            onDeduct = { amount, note ->
+                Log.d(TAG_HOME, "QuickDeductDialog → amount=$amount")
+                viewModel.quickDeduct(amount, note)
+                showQuickDeductDialog = false
+            }
+        )
+    }
+
     if (showAddTransactionDialog) {
         AddTransactionDialog(
             onDismiss = { showAddTransactionDialog = false },
@@ -819,14 +854,13 @@ fun HomeScreen(
             }
             .sortedByDescending { it.createdAt ?: "" }
         BudgetEditSheet(
-            currentBudget = budget,
-            remainingBalance = remainingBalance,
+            currentBalance = remainingBalance,
             committed = committed,
             expenseTransactions = cycleExpenseTxs,
             onDismiss = { viewModel.hideBudgetDialog() },
-            onSave = { newBudget ->
-                Log.d(TAG_HOME, "BudgetEditSheet SAVE → newBudget=$newBudget → calling viewModel.updateBudget()")
-                viewModel.updateBudget(newBudget)
+            onSave = { newBalance ->
+                Log.d(TAG_HOME, "BudgetEditSheet SAVE → newBalance=$newBalance → calling viewModel.setBalanceTo()")
+                viewModel.setBalanceTo(newBalance)
                 viewModel.hideBudgetDialog()
             },
             onEditCategory = { id, newCategory -> viewModel.updateTransactionCategory(id, newCategory) },
@@ -885,13 +919,96 @@ fun HomeScreen(
     }
 }
 
-/** Plain M3 AlertDialog budget editor — still used by BudgetScreen.kt and BudgetGateScreen.kt.
- * HomeScreen's own Budget Card uses [BudgetEditSheet] below instead; this one is left as-is
- * for the other two screens (out of scope for the Budget Card refactor). */
+/**
+ * "خصم سريع" — مبلغ واحد بيتشال من الرصيد على طول.
+ *
+ * الغرض منه مش إنه اختصار لـ [AddTransactionDialog]، الغرض إنه **مخرج**. النظام بيقرا
+ * رسايل البنك ويسمع من البوت ويستنتج، وكل واحدة من الطرق دي بتفوّت حاجة أحياناً — ومن غير
+ * طريقة يدوية سريعة، العميل بيفضل شايف رقم يعرف إنه غلط ومش قادر يعمل فيه حاجة. الحقل
+ * الوحيد المطلوب هو المبلغ؛ الملاحظة اختيارية عشان السطر يبقى مفهوم في السجل بعدين، مش
+ * عشان التصنيف (كله بيروح "أخرى" — انظر QUICK_DEDUCT_CATEGORY).
+ *
+ * `currentBalance` للمعاينة بس. الطرح الحقيقي بيحصل في ZadViewModel.quickDeduct عن طريق
+ * معاملة مصروف عادية، فالرقم اللي بيتعرض هنا لازم يطابق اللي هيظهر بعد الحفظ من غير ما
+ * الشاشة تحسب حاجة لوحدها.
+ */
+@Composable
+fun QuickDeductDialog(
+    currentBalance: Double?,
+    onDismiss: () -> Unit,
+    onDeduct: (amount: Double, note: String?) -> Unit
+) {
+    val context = LocalContext.current
+    var amountStr by remember { mutableStateOf("") }
+    var note by remember { mutableStateOf("") }
+    val amount = amountStr.toDoubleOrNull()
+    val valid = amount != null && amount > 0
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.Bolt, contentDescription = null, tint = primary) },
+        title = { Text(stringResource(R.string.quick_deduct), fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    stringResource(R.string.quick_deduct_hint),
+                    style = Typography.labelSmall,
+                    color = onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = amountStr,
+                    onValueChange = { amountStr = it.filter { c -> c.isDigit() || c == '.' } },
+                    label = { Text(stringResource(R.string.quick_deduct_amount)) },
+                    suffix = { Text(com.example.data.CurrencyFormatter.symbol(context)) },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    label = { Text(stringResource(R.string.quick_deduct_note)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (currentBalance != null && amount != null && valid) {
+                    val after = currentBalance - amount
+                    Text(
+                        stringResource(
+                            R.string.balance_after_deduct,
+                            com.example.data.CurrencyFormatter.format(context, after)
+                        ),
+                        style = Typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (after >= 0) primary else MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onDeduct(amount ?: 0.0, note.trim().ifBlank { null }) },
+                enabled = valid
+            ) { Text(stringResource(R.string.quick_deduct_confirm)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
+    )
+}
+
+/** Plain M3 AlertDialog balance editor — still used by BudgetScreen.kt. HomeScreen's own
+ * Budget Card uses [BudgetEditSheet] below instead.
+ *
+ * `currentBudget` is the current *balance* since the ledger migration; the parameter kept
+ * its name because the only caller passes it positionally-by-name and renaming it buys
+ * nothing. Both callers now save through `ZadViewModel.setBalanceTo`. */
 @Composable
 fun BudgetEditDialog(currentBudget: Double, onDismiss: () -> Unit, onSave: (Double) -> Unit) {
     // currentBudget == 0.0 means "unknown" (UNKNOWN_BUDGET in ZadViewModel), not a real
-    // zero ceiling — showing "0" here would read as a real (wrong) value already saved.
+    // zero balance — showing "0" here would read as a real (wrong) value already saved.
     var budgetStr by remember { mutableStateOf(if (currentBudget > 0) currentBudget.toInt().toString() else "") }
     val context = LocalContext.current
     AlertDialog(
@@ -922,17 +1039,19 @@ fun BudgetEditDialog(currentBudget: Double, onDismiss: () -> Unit, onSave: (Doub
 }
 
 /**
- * Budget Card master refactor — the Home budget card's editor as an M3 bottom sheet, and
- * previews "متبقي/محجوز" live as the user types so the effect of a new cap is visible before
- * Save, not just after (same numbers/formula as BudgetMath.remainingInCycle/availableInCycle
- * — spentSoFar is derived from the currently loaded remainingBalance, not recomputed
- * independently, so preview and post-save land on the exact same figure).
+ * تعديل الرصيد يدوياً — الشيت اللي بيدي العميل الكلمة الأخيرة على الرقم.
+ *
+ * ده كان محرّر "سقف الميزانية": بتكتب السقف والشيت بيعرض المتبقي المتوقع منه. بعد ما زاد
+ * بقى دفتر حسابات مفيش سقف يتكتب — العميل بيكتب **الرصيد اللي المفروض يشوفه**، والرصيد
+ * الابتدائي بيتحسب رجوعياً في `ZadViewModel.setBalanceTo` عشان المعادلة تطلع الرقم ده.
+ *
+ * يعني الرقم اللي في الخانة هو نفسه الرقم اللي هيظهر على الكارت بعد الحفظ، مش مُدخل
+ * بيتحسب منه رقم تاني — وده الفرق اللي خلّى المحرّر القديم محتاج معاينة أصلاً.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BudgetEditSheet(
-    currentBudget: Double,
-    remainingBalance: Double?,
+    currentBalance: Double?,
     committed: Double,
     expenseTransactions: List<com.example.data.ZadTransaction> = emptyList(),
     onDismiss: () -> Unit,
@@ -940,14 +1059,16 @@ fun BudgetEditSheet(
     onEditCategory: (String, String) -> Unit = { _, _ -> },
     onDeleteTransaction: (String) -> Unit = {}
 ) {
-    var budgetStr by remember { mutableStateOf(if (currentBudget > 0) currentBudget.toInt().toString() else "") }
+    // null = الرصيد لسه متحددش. خانة فاضية بتسأل، بدل ما "0" يتقري كرقم محفوظ فعلاً.
+    var budgetStr by remember { mutableStateOf(currentBalance?.takeIf { it != 0.0 }?.toInt()?.toString() ?: "") }
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var editingCategoryFor by remember { mutableStateOf<com.example.data.ZadTransaction?>(null) }
 
-    val spentSoFar = if (currentBudget > 0 && remainingBalance != null) currentBudget - remainingBalance else 0.0
     val parsed = budgetStr.toDoubleOrNull()
-    val previewRemaining = parsed?.let { it - spentSoFar }
+    // الرقم المكتوب **هو** الرصيد، فمفيش "متبقي متوقع" يتحسب. المحجوز لسه بيتطرح منه
+    // عشان "متاح" يفضل يجاوب على سؤال مختلف: إيه اللي ينفع أصرفه من غير ما ألغي التزام.
+    val previewRemaining = parsed
     val previewAvailable = previewRemaining?.let { it - committed }
 
     ModalBottomSheet(
@@ -966,12 +1087,14 @@ fun BudgetEditSheet(
             Text(stringResource(R.string.edit_monthly_budget), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
             Spacer(modifier = Modifier.height(4.dp))
             Text(stringResource(R.string.budget_save_hint), style = Typography.bodySmall, color = onSurfaceVariant)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(stringResource(R.string.manual_balance_hint), style = Typography.bodySmall, color = onSurfaceVariant)
             Spacer(modifier = Modifier.height(20.dp))
 
             OutlinedTextField(
                 value = budgetStr,
                 onValueChange = { budgetStr = it.filter { c -> c.isDigit() || c == '.' } },
-                label = { Text(stringResource(R.string.budget_with_currency, com.example.data.CurrencyFormatter.symbol(context))) },
+                label = { Text(stringResource(R.string.balance_label) + " (" + com.example.data.CurrencyFormatter.symbol(context) + ")") },
                 singleLine = true,
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth()
@@ -1003,9 +1126,14 @@ fun BudgetEditSheet(
                 }
                 Button(
                     onClick = {
-                        val value = parsed ?: currentBudget
-                        Log.d(TAG_HOME, "BudgetEditSheet confirm → parsed=$value")
-                        onSave(value)
+                        // parsed is non-null whenever the button is enabled; currentBalance
+                        // is the belt-and-braces fallback rather than a labelled return,
+                        // which reads ambiguously inside a named-argument lambda.
+                        val value = parsed ?: currentBalance
+                        if (value != null) {
+                            Log.d(TAG_HOME, "BudgetEditSheet confirm → balance=$value")
+                            onSave(value)
+                        }
                     },
                     enabled = parsed != null && parsed > 0,
                     modifier = Modifier.weight(1f)

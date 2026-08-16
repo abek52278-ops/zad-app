@@ -96,9 +96,9 @@
     <string name="expense_deduction">خصم (مصروف)</string>
     <string name="description_hint">الوصف (مثال: راتب، إيجار)</string>
     <string name="category_hint">التصنيف (سوبرماركت، فواتير...)</string>
-    <string name="edit_monthly_budget">تعديل الميزانية الشهرية</string>
+    <string name="edit_monthly_budget">تعديل الرصيد</string>
     <string name="budget_with_currency">الميزانية (%1$s)</string>
-    <string name="budget_save_hint">السقف ده اللي هنحسب عليه المتبقي والمتاح، وبيتزامن على كل أجهزتك.</string>
+    <string name="budget_save_hint">اكتب رصيدك الحالي وزاد يمشي عليه: كل دخل بيزوّده وكل مصروف بينقّصه.</string>
     <string name="budget_unknown_value">لسه غير محدد</string>
     <string name="budget_unknown_speech">لسه ما حددتش سقف ميزانيتك. حدده الأول عشان أقدر أقول لك الباقي.</string>
     <string name="budget_gate_headline">قبل ما نبدأ، حدد سقفك الشهري</string>
@@ -1117,4 +1117,17 @@
     <string name="agent_action_log_empty_title">لسه مفيش تعديلات</string>
     <string name="agent_action_log_empty_subtitle">أي حاجة زاد يسجّلها أو يعدّلها هتظهر هنا</string>
     <string name="agent_action_log_undo">تراجع</string>
+
+    <!-- Ledger: quick deduct and manual balance override -->
+    <string name="quick_deduct">خصم سريع</string>
+    <string name="quick_deduct_default_title">خصم سريع</string>
+    <string name="quick_deduct_hint">المبلغ ده هينزل من رصيدك على طول — من غير تحليل ولا تصنيف.</string>
+    <string name="quick_deduct_amount">المبلغ</string>
+    <string name="quick_deduct_note">على إيه؟ (اختياري)</string>
+    <string name="quick_deduct_confirm">اخصم</string>
+    <string name="balance_label">الرصيد</string>
+    <string name="current_balance_label">رصيدك دلوقتي</string>
+    <string name="balance_after_deduct">الرصيد بعد الخصم: %1$s</string>
+    <string name="manual_balance_correction_title">تصحيح رصيد يدوي</string>
+    <string name="manual_balance_hint">الرقم ده كلمتك الأخيرة — لو زاد حسب غلط، صحّحه من هنا وهو هيمشي عليه.</string>
 </resources>

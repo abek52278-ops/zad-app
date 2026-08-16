@@ -27,11 +27,30 @@ import java.time.LocalDate
  * So [BudgetMath] is the mirror and this is the original. If the two ever disagree, the
  * mirror is wrong — fix `BudgetMath.kt` to match the SQL, never the other way round.
  *
- * Nullable [monthlyLimit]/[remaining]/[available] mean "no ceiling set", which is not zero.
- * Same contract as `BudgetMath.remaining`.
+ * Nullable [monthlyLimit]/[remaining]/[available] mean "no opening balance set", which is
+ * not zero. Same contract as `BudgetMath.remaining`.
+ *
+ * Since the ledger migration (20260816010000) [remaining] *is* the ledger balance —
+ * `opening_balance + income - spent` — rather than `ceiling - spent`. It kept its name and
+ * its null-means-unset contract because every existing reader renders it and because null
+ * is the only signal the app has that the opening balance never reached the server
+ * (`ZadViewModel.resyncMonthlyLimitToServer`). [balance] is the same figure without the
+ * null case, for callers that always want a number.
  */
 @Serializable
 data class BudgetState(
+    /**
+     * The amount this cycle started from. Still stored in `zad_users.monthly_limit`, whose
+     * name predates the ledger — see [monthlyLimit].
+     */
+    @SerialName("opening_balance") val openingBalance: Double? = null,
+    /**
+     * `opening_balance + income - spent`. Always a number, including for an account that
+     * never set an opening balance (it counts as zero there), which is what separates it
+     * from [remaining].
+     */
+    val balance: Double? = null,
+    /** Same value as [openingBalance], under the column's historical name. */
     @SerialName("monthly_limit") val monthlyLimit: Double? = null,
     @SerialName("limit_confirmed") val limitConfirmed: Boolean = false,
     val spent: Double = 0.0,

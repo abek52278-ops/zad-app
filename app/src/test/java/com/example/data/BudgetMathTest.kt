@@ -189,7 +189,7 @@ class BudgetMathTest {
     @Test
     fun `daily allowance reserves committed charges before dividing days left`() {
         val allowance = BudgetMath.dailyAllowanceInCycle(
-            monthlyLimit = 1000.0,
+            openingBalance = 1000.0,
             transactions = emptyList(),
             cycleStart = LocalDate.of(2026, 7, 1),
             cycleEnd = LocalDate.of(2026, 7, 11),

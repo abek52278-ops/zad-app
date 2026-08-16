@@ -65,28 +65,31 @@ Deno.test("memoryNoteForDismissal returns null for an unknown reason", () => {
   assertEquals(memoryNoteForDismissal("snoozed", "x"), null);
 });
 
-Deno.test("formatBalanceMessage leads with available, not remaining", () => {
-  // Phase 0: these numbers arrive from zad_budget_state(), already cycle-aware and already
-  // net of fixed obligations. The customer's actionable figure is المتاح (150), not المتبقي
-  // (750) — showing the larger number first is what made the app and the bot feel like two
-  // different products quoting two different balances.
+Deno.test("formatBalanceMessage leads with the ledger balance and shows how it was reached", () => {
+  // These numbers arrive from zad_budget_state(), already cycle-aware. Since the ledger
+  // migration `remaining` is the balance itself — 1000 opened + 50 income - 300 spent —
+  // so it leads, and the three terms behind it are shown so the customer can check the
+  // arithmetic themselves. المتاح still follows, because obligations are still reserved.
   const msg = formatBalanceMessage({
-    monthly_limit: 1000, spent: 300, remaining: 750, committed: 600, available: 150, days_left: 12,
+    monthly_limit: 1000, spent: 300, income: 50, remaining: 750, committed: 600, available: 150, days_left: 12,
   }, "ر.س");
-  assert(msg.includes("المتاح الفعلي: 150.00 ر.س"));
-  assert(msg.includes("المتبقي قبل خصم الالتزامات: 750.00 ر.س"));
+  assert(msg.includes("رصيدك: 750.00 ر.س"));
+  assert(msg.includes("بدأت الدورة بـ 1000.00 ر.س"));
+  assert(msg.includes("دخل: 50.00 ر.س"));
+  assert(msg.includes("مصروف: 300.00 ر.س"));
+  assert(msg.includes("المتاح بعد خصم المحجوز (600.00 ر.س): 150.00 ر.س"));
   assert(msg.includes("فاضل 12 يوم"));
 });
 
-Deno.test("formatBalanceMessage says the ceiling is unset instead of reporting zero left", () => {
+Deno.test("formatBalanceMessage says the balance is unset instead of reporting zero left", () => {
   const msg = formatBalanceMessage({
-    monthly_limit: null, spent: 300, remaining: null, committed: 0, available: null, days_left: 12,
+    monthly_limit: null, spent: 300, income: 0, remaining: null, committed: 0, available: null, days_left: 12,
   }, "ر.س");
-  assert(msg.includes("الميزانية الشهرية مش محددة"));
+  assert(msg.includes("رصيدك لسه مش محدد"));
   assert(msg.includes("مصروف الدورة دي: 300.00 ر.س"));
   // No balance line at all, rather than a balance line reading zero.
-  assert(!msg.includes("المتاح الفعلي"));
-  assert(!msg.includes("المتبقي"));
+  assert(!msg.includes("رصيدك: "));
+  assert(!msg.includes("المتاح"));
 });
 
 Deno.test("formatTransactionsMessage reports the empty case in Arabic instead of a blank message", () => {

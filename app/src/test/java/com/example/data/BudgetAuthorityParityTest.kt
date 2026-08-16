@@ -122,20 +122,24 @@ class BudgetAuthorityParityTest {
 
     /**
      * The arithmetic contract itself, stated once in each language:
-     * `remaining = limit - spent + allocated income`, and a ceiling of zero or less is
-     * **unknown**.
+     * `remaining = opening balance + income - spent`, and an opening balance of zero or
+     * less is **unknown**.
      *
-     * The `+ income` half changed on 2026-08-15 (migration 20260815140000). It used to add
-     * *every* deposit, which quietly enlarged the customer's spending ceiling — a 20,000
-     * transfer arriving is not 20,000 more of household money. Only income the customer
-     * explicitly allocated (`counts_toward_budget = true`) moves the ceiling now.
+     * The `+ income` half has now changed twice, and the second change reverted the first.
+     * It originally added every deposit; 20260815133417 narrowed it to income the customer
+     * had explicitly allocated, on the grounds that a 20,000 transfer arriving is not
+     * 20,000 more of household grocery money. That reasoning held only while the figure
+     * was a *ceiling*. The ledger migration (20260816010000) made it a balance, where a
+     * deposit landing is exactly a balance going up, so every deposit counts again — and a
+     * salary no longer sits in the account moving the headline number by zero while
+     * waiting for a question.
      *
-     * The null half was a live divergence in its own right: `zad-brain` computed
-     * `0 - spent` with no ceiling, producing a negative "remaining" and a permanent
-     * threat=OVER for anyone who had never set a budget.
+     * The null half is unchanged and was a live divergence in its own right: `zad-brain`
+     * computed `0 - spent` with no ceiling, producing a negative "remaining" and a
+     * permanent threat=OVER for anyone who had never set a budget.
      */
     @Test
-    fun `remaining counts only allocated income and a missing ceiling is unknown rather than zero`() {
+    fun `remaining is the ledger balance and a missing opening balance is unknown rather than zero`() {
         val cycleStart = LocalDate.parse("2026-08-01")
         val cycleEnd = LocalDate.parse("2026-09-01")
         val txs = listOf(
@@ -144,8 +148,9 @@ class BudgetAuthorityParityTest {
                 amount = 200.0, title = "بيع حاجة", txnKind = "income",
                 countsTowardBudget = true, createdAt = "2026-08-06T10:00:00Z",
             ),
-            // Landed, but nobody has asked the customer whether it funds this month — so it
-            // shows up in `income` and stays out of `remaining`.
+            // Nobody has asked the customer about this one. Under the ceiling rule it was
+            // excluded and the balance did not move; under the ledger it counts like any
+            // other deposit, which is the whole point of the change.
             ZadTransaction(amount = 700.0, title = "تحويل", txnKind = "income", createdAt = "2026-08-06T12:00:00Z"),
             // An ATM withdrawal is a transfer, not spending — counting it would double-count
             // the money once it is actually spent in cash (the Task 19.1 bug).
@@ -154,10 +159,18 @@ class BudgetAuthorityParityTest {
 
         assertEquals(300.0, BudgetMath.spentInCycle(txs, cycleStart, cycleEnd), 0.001)
         assertEquals(900.0, BudgetMath.incomeInCycle(txs, cycleStart, cycleEnd), 0.001)
+        // Still reported honestly, and still meaningful to the agent — it just no longer
+        // decides the balance.
         assertEquals(200.0, BudgetMath.allocatedIncomeInCycle(txs, cycleStart, cycleEnd), 0.001)
-        assertEquals(900.0, BudgetMath.remainingInCycle(1000.0, txs, cycleStart, cycleEnd)!!, 0.001)
+
+        // 1000 opening + 900 income - 300 spent. The ATM withdrawal is a transfer and is
+        // absent from both sides.
+        assertEquals(1600.0, BudgetMath.remainingInCycle(1000.0, txs, cycleStart, cycleEnd)!!, 0.001)
+        assertEquals(1600.0, BudgetMath.balanceInCycle(1000.0, txs, cycleStart, cycleEnd), 0.001)
 
         assertNull(BudgetMath.remainingInCycle(0.0, txs, cycleStart, cycleEnd))
+        // ...but the ledger itself always answers, treating an unset opening as zero.
+        assertEquals(600.0, BudgetMath.balanceInCycle(0.0, txs, cycleStart, cycleEnd), 0.001)
         assertNull(BudgetMath.availableInCycle(null, 0.0))
     }
 

@@ -585,10 +585,10 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     currency: budgetState.currency ?? userRes.data?.currency ?? "غير معروف",
     country: budgetState.country ?? userRes.data?.country ?? "غير معروف",
     budget, spent, income, remaining, dailyAllowanceLeft, velocity, threat,
-    // الدخل اتقسم لتلاتة عن قصد: `income` هو اللي دخل فعلاً (العميل لازم يشوف اللي كسبه)،
-    // بس `income_allocated` هو الوحيد اللي بيكبّر السقف، و`income_awaiting_decision` هي
-    // الإيداعات اللي لسه محدش سأل العميل عنها — منها بيتبني السؤال ومنها بيتاخد
-    // transaction_id لـ allocate_income.
+    // الدخل اتقسم لتلاتة، وبعد الدفتر التقسيم ده بقى **وصفي بس**: `income` كله داخل في
+    // الرصيد، و`income_allocated` بيقول نية العميل مش أكتر. `income_awaiting_decision`
+    // المفروض تفضل فاضية (backfill + default true في 20260816010000) — لو رجعت مليانة
+    // يبقى في كتابة بتفرض null، وده يستاهل الفحص مش السؤال.
     income_allocated: budgetState.income_allocated ?? 0,
     income_pending: budgetState.income_pending ?? 0,
     income_awaiting_decision: budgetState.income_awaiting_decision ?? [],
@@ -969,7 +969,7 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
         .eq("id", input.transaction_id).eq("user_id", userId).maybeSingle();
       if (!row) return "مرفوض: المعاملة دي مش موجودة عند العميل ده";
       if (row.txn_kind !== "income") {
-        return "مرفوض: الأداة دي للإيداعات بس — المصروفات بتتخصم من السقف على طول ومحتاجاش قرار";
+        return "مرفوض: الأداة دي للإيداعات بس — المصروفات بتتخصم من الرصيد على طول ومحتاجاش قرار";
       }
 
       const counts = input.counts === true;
@@ -986,9 +986,13 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
         tool: name, input, table: "zad_transactions", targetId: row.id,
         previous: { counts_toward_budget: row.counts_toward_budget }, next: w.rows[0],
       });
+      // مهم: الرقم **مابيتغيّرش** في الحالتين. بعد الدفتر كل إيداع بيدخل الرصيد ساعة ما
+      // يوصل، والعمود ده بقى تسجيل لنية العميل عشان النصيحة تفرّق بين فلوس البيت وفلوس
+      // متحطوطة على جنب — مش مفتاح بيشغّل ويطفّي حساب. الرد لازم يقول كده بالظبط، لأن
+      // "المتاح زاد بيهم" بقت كدبة: المتاح كان زاد بيهم من الأول.
       return counts
-        ? `تمام — ${row.amount} (${row.title}) هيتحسبوا في مصروف الشهر، والمتاح زاد بيهم`
-        : `تمام — ${row.amount} (${row.title}) مش هيتحسبوا في مصروف الشهر، السقف زي ما هو`;
+        ? `سجّلت إن ${row.amount} (${row.title}) فلوس بيت. الرصيد زي ما هو — الإيداع كان داخل فيه أصلاً.`
+        : `سجّلت إن ${row.amount} (${row.title}) مش فلوس بيت، وهاخد بالي منها في النصيحة. الرصيد زي ما هو — الفلوس موجودة فعلاً.`;
     }
     case "log_transaction": {
       const isExpense = input.txn_kind === "expense";
@@ -1102,15 +1106,18 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
     }
     case "set_monthly_limit": {
       // limit_confirmed_at بيتكتب هنا لأن ده فعل مستخدم مباشر بتأكيد صريح — نفس عقد
-      // SupabaseRepo.setMonthlyLimit بالظبط. سقف من غير التاريخ ده بيتقرا "غير مؤكد"
-      // وبيخلي شاشة تحديد السقف تفضل تطلع فوق رقم موجود فعلاً.
+      // SupabaseRepo.setMonthlyLimit بالظبط. رصيد من غير التاريخ ده بيتقرا "غير مؤكد"
+      // وبيخلي شاشة تحديد الرصيد تفضل تطلع فوق رقم موجود فعلاً.
+      //
+      // العمود اسمه monthly_limit لأسباب تاريخية بس — معناه بقى "الرصيد الابتدائي
+      // للدورة" من migration 20260816010000. مش سقف صرف.
       const { data: limitBefore } = await sb.from("zad_users").select("monthly_limit,limit_confirmed_at").eq("id", userId).maybeSingle();
       const w = await writeRows(
         sb.from("zad_users").update({
           monthly_limit: Math.round(input.monthly_limit * 100) / 100,
           limit_confirmed_at: new Date().toISOString(),
         }).eq("id", userId).select("monthly_limit,limit_confirmed_at"),
-        "حفظ السقف",
+        "حفظ الرصيد",
       );
       if (!w.ok) return `مرفوض: ${w.reason}`;
       ctx.mutationCount++;
@@ -1119,7 +1126,7 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
         tool: name, input, table: "zad_users", targetId: userId,
         previous: limitBefore ?? null, next: w.rows[0],
       });
-      return `اتظبط السقف الشهري على ${input.monthly_limit}`;
+      return `اتظبط الرصيد على ${input.monthly_limit}`;
     }
     case "add_inventory_item": {
       const itemName = String(input.item_name).trim();
@@ -2032,19 +2039,20 @@ const CHAT_TOOLS: ToolDef[] = [
   {
     name: "set_monthly_limit",
     description:
-      "غيّر سقف الصرف الشهري — الرقم اللي الكارت الأخضر و\"المتبقي\" و\"المتاح\" كلهم " +
-      "محسوبين عليه.\n" +
+      "اظبط **رصيد العميل** — الرقم اللي الكارت الأخضر بيعرضه. مفيش سقف ميزانية في زاد " +
+      "خلاص: الرصيد = اللي بدأت بيه + كل اللي دخل - كل اللي اتصرف، والأداة دي بتحط نقطة " +
+      "البداية.\n" +
       // الوصف القديم كان \"نادِها بس لما العميل يطلب صراحة يغيّر ميزانيته\"، وكلمة \"صراحة\"
       // كانت بتقفل الباب على أكتر الصيغ اللي العملاء بيستخدموها فعلاً. حد بيقول \"معايا
       // 3000 الشهر ده\" بيطلب نفس الحاجة بالظبط، والنموذج كان بيقراها كخبر مش كطلب —
       // فيرد بكلام ومايناديش الأداة، والعميل يفتكر إن البوت رافض.
-      "نادِها لما العميل يقول مبلغ ويقصد بيه سقف صرفه، بأي صيغة:\n" +
-      "• \"معايا 3000 الشهر ده\" / \"مش معايا غير 3000\" / \"ميزانيتي 3000\"\n" +
+      "نادِها لما العميل يقول مبلغ ويقصد بيه اللي معاه، بأي صيغة:\n" +
+      "• \"معايا 3000 الشهر ده\" / \"مش معايا غير 3000\" / \"رصيدي 3000\"\n" +
       "• \"خلي الكارت الأخضر 3000\" / \"عدّل الكارت على 3000\"\n" +
-      "• \"سقف الصرف 3000\" / \"غيّر ميزانيتي لـ3000\"\n" +
+      "• \"ميزانيتي 3000\" / \"غيّر ميزانيتي لـ3000\"\n" +
       "لو المبلغ واضح، نادِها على طول — متقولش للعميل يعملها من التطبيق، دي شغلانتك.\n" +
-      "لو مش متأكد إنه يقصد السقف ولا بيحكي عن فلوس في إيده، **اسأله سؤال واحد قصير** " +
-      "قبل ما تنادي. العميل هيشوف تأكيد قبل الكتابة في كل الحالات.",
+      "التمييز اللي كان بين \"سقف صرفه\" و\"فلوس في إيده\" مابقاش موجود — الاتنين بقوا " +
+      "نفس الرقم، فمفيش داعي تسأل عنه. العميل هيشوف تأكيد قبل الكتابة في كل الحالات.",
     input_schema: {
       type: "object",
       properties: {
