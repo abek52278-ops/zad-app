@@ -192,25 +192,33 @@ fun RecipeDetailDialog(
                             .fillMaxWidth()
                             .height(200.dp)
                     ) {
-                        // hotlink لـ source.unsplash.com اتقفل، فمفيش صورة شبكة هنا — إيموجي
-                        // ثابت حسب نوع الطبق (dishEmojiFor) بدل صورة مزيفة أو مكررة.
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(
-                                    Brush.linearGradient(
-                                        colors = listOf(primaryDark, primary, primaryLight)
-                                    )
-                                )
-                        )
-                        Box(
+                        // كانت إيموجي على تدرّج لوني وبس: hotlink بتاع source.unsplash.com
+                        // اتقفل، ومكانش فيه بديل. النتيجة إن نفس الوصفة يبقى ليها صورة في
+                        // كارت الشيف ومالهاش في الشاشة اللي المفروض تكون أوضح منه.
+                        //
+                        // Pexels بتقبل العربي، فاسم الوصفة نفسه استعلام شغّال ومفيش حاجة
+                        // محتاجة تترجم. التدرّج والإيموجي فضلوا زي ما هم كبديل — مش
+                        // شاشة تحميل: صورة الأكل تزيين، والكارت لازم يبان كامل من أول لحظة.
+                        com.example.ui.components.FoodImage(
+                            query = recipeTitle,
+                            contentDescription = recipeTitle,
                             modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = dishEmojiFor(recipeTitle),
-                                fontSize = 72.sp
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        Brush.linearGradient(
+                                            colors = listOf(primaryDark, primary, primaryLight)
+                                        )
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = dishEmojiFor(recipeTitle),
+                                    fontSize = 72.sp
+                                )
+                            }
                         }
                         Box(
                             modifier = Modifier

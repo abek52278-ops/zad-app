@@ -19,6 +19,8 @@ import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.async
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerialName
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -164,11 +166,15 @@ object SupabaseRepo {
         repeat(2) { attempt ->
             try {
                 client.postgrest["zad_users"].upsert(
-                    mapOf(
-                        "id" to userId,
-                        "monthly_limit" to limit,
-                        "limit_confirmed_at" to java.time.Instant.now().toString()
-                    )
+                    buildJsonObject {
+                        put("id", userId)
+                        put("monthly_limit", limit)
+                        put("limit_confirmed_at", java.time.Instant.now().toString())
+                        // الرصيد بيبدأ يحسب من اللحظة دي، مش من أول الدورة — العميل عدّ
+                        // اللي معاه دلوقتي، فمصروف امبارح متطرح منه فعلاً في الواقع
+                        // (migration 20260816120000). تصريح الرصيد بيحرّك النقطة دي كل مرة.
+                        put("balance_anchored_at", java.time.Instant.now().toString())
+                    }
                 )
                 val (storedLimit, storedConfirmedAt, readOk) = getMonthlyLimit(userId)
                 // المقارنة بـ asMoney من الطرفين: الرقم بيروح numeric ويرجع Double، وفرق
@@ -547,13 +553,13 @@ object SupabaseRepo {
         return try {
             Log.d(TAG, "updateTransaction() → table=zad_transactions, id=$id, amount=$amount, isExpense=$isExpense")
             client.postgrest["zad_transactions"].update(
-                mapOf(
-                    "title" to title,
-                    "amount" to amount,
-                    "category" to category,
-                    "is_expense" to isExpense,
-                    "txn_kind" to if (isExpense) "expense" else "income"
-                )
+                buildJsonObject {
+                    put("title", title)
+                    put("amount", amount)
+                    put("category", category)
+                    put("is_expense", isExpense)
+                    put("txn_kind", if (isExpense) "expense" else "income")
+                }
             ) {
                 filter { eq("id", id) }
             }
@@ -836,7 +842,10 @@ object SupabaseRepo {
     suspend fun confirmPharmacyQuantity(id: String, quantity: Int) {
         try {
             client.postgrest["zad_pharmacy_items"].update(
-                mapOf("remaining_quantity" to quantity, "qty_confirmed_at" to java.time.Instant.now().toString())
+                buildJsonObject {
+                    put("remaining_quantity", quantity)
+                    put("qty_confirmed_at", java.time.Instant.now().toString())
+                }
             ) { filter { eq("id", id) } }
             Log.d(TAG, "confirmPharmacyQuantity() SUCCESS — id=$id, qty=$quantity")
         } catch (e: Exception) {
@@ -1059,13 +1068,13 @@ object SupabaseRepo {
         try {
             Log.d(TAG, "updateObligation() → table=zad_obligations, id=$id, title=$title, amount=$amount")
             client.postgrest["zad_obligations"].update(
-                mapOf(
-                    "title" to title,
-                    "amount" to amount,
-                    "kind" to kind,
-                    "due_day" to dueDay,
-                    "recurrence" to recurrence
-                )
+                buildJsonObject {
+                    put("title", title)
+                    put("amount", amount)
+                    put("kind", kind)
+                    put("due_day", dueDay)
+                    put("recurrence", recurrence)
+                }
             ) {
                 filter { eq("id", id) }
             }
@@ -1503,7 +1512,10 @@ object SupabaseRepo {
         try {
             Log.d(TAG, "updateShoppingItemQuantity() → id=$id, quantity=$quantity")
             client.postgrest["zad_shopping_list"].update(
-                mapOf("quantity" to quantity, "estimated_price" to estimatedPrice)
+                buildJsonObject {
+                    put("quantity", quantity)
+                    put("estimated_price", estimatedPrice)
+                }
             ) { filter { eq("id", id) } }
             Log.d(TAG, "updateShoppingItemQuantity() SUCCESS")
         } catch (e: Exception) {
@@ -1660,11 +1672,11 @@ object SupabaseRepo {
         return try {
             val userId = client.auth.currentUserOrNull()?.id ?: return false
             client.postgrest["zad_users"].update(
-                mapOf(
-                    "last_lat" to lat,
-                    "last_lon" to lon,
-                    "last_location_at" to java.time.Instant.now().toString(),
-                )
+                buildJsonObject {
+                    put("last_lat", lat)
+                    put("last_lon", lon)
+                    put("last_location_at", java.time.Instant.now().toString())
+                }
             ) { filter { eq("id", userId) } }
             Log.d(TAG, "updateLastKnownLocation() → saved")
             true
@@ -1924,6 +1936,8 @@ object SupabaseRepo {
      * أي حاجة اتكتبت من جهاز تاني، والعمود ده تحديداً مالوش نسخة تانية يترجع منها.
      * بيكتب بس لو العمود لسه null — أول جهاز يلتقط بيكسب، والباقي مابيدهسوش.
      * limit_confirmed_at بيفضل null — القيمة ملتقطة مش مؤكدة، ومحدش يقرأها قبل التأكيد.
+     * balance_anchored_at بيتكتب برضه: هو مش تأكيد، هو نقطة بداية الحساب، والقيمة الملتقطة
+     * بتدخل الحسبة زيها زي المؤكدة فلازم يبقى ليها نقطة بداية كمان.
      */
     suspend fun captureMonthlyLimit(userId: String, limit: Double): Boolean {
         return try {
@@ -1936,8 +1950,18 @@ object SupabaseRepo {
             // بتتنادى مرة واحدة بس في عمر التثبيت (monthly_limit_captured)، فالمحاولة
             // الوحيدة دي كانت بتضرب في صف مش موجود وترجع 200، والسقف المحلي مايوصلش
             // السيرفر أبداً بعد كده.
+            // buildJsonObject مش mapOf: mapOf بقيم مختلفة النوع (String + Double)
+            // بتتحوّل لـ Map<String, Any> والـ serializer بيسقطها بصمت — نفس العلة اللي
+            // اتصلحت في eaf43a9. الكتابة دي بتحصل مرة واحدة في عمر التثبيت، فسقوطها
+            // بصمت معناه السقف مايوصلش السيرفر أبداً.
             client.postgrest["zad_users"].upsert(
-                mapOf("id" to userId, "monthly_limit" to limit)
+                buildJsonObject {
+                    put("id", userId)
+                    put("monthly_limit", limit)
+                    // نفس منطق setMonthlyLimit: العمود ده بيتحسب عليه، فلازم يتثبّت
+                    // معاه. limit_confirmed_at لأ — ده تأكيد بشري والقيمة دي ملتقطة.
+                    put("balance_anchored_at", java.time.Instant.now().toString())
+                }
             )
             Log.d(TAG, "captureMonthlyLimit() → userId=$userId, limit=$limit")
             true

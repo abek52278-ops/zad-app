@@ -121,8 +121,11 @@ export function checkInPromptMessage(itemName: string): string {
 
 /** The zad_budget_state() row this button renders. Only the fields the message uses. */
 export interface BudgetStateRow {
+  /** The cycle's opening balance. Named for the column, which predates the ledger. */
   monthly_limit: number | null;
   spent: number;
+  income: number;
+  /** The ledger balance: opening + income - spent. Null only when no opening is set. */
   remaining: number | null;
   committed: number;
   available: number | null;
@@ -136,8 +139,15 @@ export interface BudgetStateRow {
  * customer could therefore read one number in the app and a different one in Telegram for
  * the same day. Every value here now arrives already computed by zad_budget_state().
  *
- * A null ceiling prints "مش محدد" — never 0. Telling someone with no budget set that they
- * have 0 left is a different (and worse) statement than telling them it is unknown.
+ * A null opening balance prints "مش محدد" — never 0. Telling someone with no balance set
+ * that they have 0 left is a different (and worse) statement than telling them it is
+ * unknown.
+ *
+ * The wording changed with the ledger migration (20260816010000) and the numbers changed
+ * underneath it. `remaining` is no longer `ceiling - spent`; it is the balance itself,
+ * `opening + income - spent`. Calling that "المتبقي من السقف" would have described money
+ * the customer has as a budget allowance they have left, which is the exact confusion the
+ * ledger exists to remove.
  */
 export function formatBalanceMessage(s: BudgetStateRow, currency: string): string {
   const unit = currency && currency !== "غير معروف" ? ` ${currency}` : "";
@@ -145,14 +155,14 @@ export function formatBalanceMessage(s: BudgetStateRow, currency: string): strin
   if (s.monthly_limit === null) {
     return [
       `مصروف الدورة دي: ${fmt(s.spent)}`,
-      "الميزانية الشهرية مش محددة، فمقدرش أقولك فاضل كام.",
-      "ظبّطها من التطبيق وأنا أحسبهالك.",
+      "رصيدك لسه مش محدد، فمقدرش أقولك فاضل كام.",
+      "ظبّطه من التطبيق وأنا أحسبهولك.",
     ].join("\n");
   }
   return [
-    `المتاح الفعلي: ${fmt(s.available)}`,
-    `(الميزانية: ${fmt(s.monthly_limit)} — المصروف: ${fmt(s.spent)} — المحجوز لالتزامات: ${fmt(s.committed)})`,
-    `المتبقي قبل خصم الالتزامات: ${fmt(s.remaining)} — فاضل ${s.days_left} يوم في الدورة.`,
+    `رصيدك: ${fmt(s.remaining)}`,
+    `(بدأت الدورة بـ ${fmt(s.monthly_limit)} — دخل: ${fmt(s.income)} — مصروف: ${fmt(s.spent)})`,
+    `المتاح بعد خصم المحجوز (${fmt(s.committed)}): ${fmt(s.available)} — فاضل ${s.days_left} يوم في الدورة.`,
   ].join("\n");
 }
 

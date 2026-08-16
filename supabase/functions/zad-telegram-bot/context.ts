@@ -26,7 +26,9 @@ export interface AgentFamilyMember { role: string | null; alias: string | null; 
  * the customer's budget comes from here and is never recomputed — see
  * migrations/20260809120000_single_budget_authority.sql. Null when the RPC failed, in
  * which case the prompt says so instead of quietly substituting a locally-derived total.
- * `monthly_limit`/`remaining`/`available` are themselves null when no ceiling is set:
+ * `monthly_limit` is the cycle's opening balance (the column name predates the ledger) and
+ * `remaining` is the balance itself. Both, and `available`, are null when no opening
+ * balance is set:
  * that is "غير معروف", not zero. */
 export interface AgentBudgetState {
   monthly_limit: number | null;
@@ -207,16 +209,16 @@ export function buildAgentContext(input: AgentContextInput): string {
         // obligations) is stated before "متبقي" deliberately: it is the number the
         // customer can actually act on, and it may legitimately be negative.
         ? `دورة الراتب الحالية: من ${b.cycle_start} لحد ${b.cycle_end} (فاضل ${b.days_left} يوم)\n` +
-          `الميزانية الشهرية: ${b.monthly_limit === null ? "غير محددة" : money(b.monthly_limit, c)}\n` +
+          `الرصيد الابتدائي للدورة: ${b.monthly_limit === null ? "غير محدد" : money(b.monthly_limit, c)}\n` +
           `مصروف الدورة: ${money(b.spent, c)} | دخل الدورة: ${money(b.income, c)}\n` +
-          `المتبقي: ${b.remaining === null ? "غير معروف (مفيش سقف متسجل)" : money(b.remaining, c)}\n` +
+          `الرصيد الحالي: ${b.remaining === null ? "غير معروف (الرصيد لسه متحددش)" : money(b.remaining, c)}\n` +
           `المحجوز (التزامات + اشتراكات): ${money(b.committed, c)}\n` +
-          `المتاح الفعلي: ${b.available === null ? "غير معروف (مفيش سقف متسجل)" : money(b.available, c)}\n` +
+          `المتاح بعد المحجوز: ${b.available === null ? "غير معروف (الرصيد لسه متحددش)" : money(b.available, c)}\n` +
           `كاش تحت اليد: ${money(b.cash_on_hand, c)}\n` +
           `محسوب في: ${b.computed_at}`
         // Loud, not silently zero. A missing figure must read as missing so the model asks
         // instead of asserting a total it does not have.
-        : "أرقام الميزانية مش متاحة دلوقتي — متقولش أي رقم عن الميزانية أو المتبقي، وقول للعميل إن الحساب مش راضي يتحمّل."),
+        : "أرقام الرصيد مش متاحة دلوقتي — متقولش أي رقم عن الرصيد أو المصروف، وقول للعميل إن الحساب مش راضي يتحمّل."),
       ""),
     section("مصروف الدورة حسب الفئة", catText, "لا يوجد مصروف مسجل في الدورة الحالية."),
     section("آخر 30 معاملة", txText, "لا توجد معاملات."),
@@ -432,7 +434,7 @@ export function agentSystemPrompt(): string {
     "6. تقدر تسجّل مصروف أو دخل أو دواء جديد — بس عن طريق رسالة تأكيد بزرار، والتسجيل بيحصل بعد ما العميل يضغط تأكيد مش قبله. ممنوع تقول 'سجلتها' أو 'ضفتها' من نفسك في رد عادي: لو العميل وصف حاجة تتسجل، اكتفِ بالرد وسيب رسالة التأكيد تظهر لوحدها. لو وصلت للرد ده أصلاً (يعني مسار التنفيذ العادي مش متاح دلوقتي)، ممنوع تقول إن حاجة زي تعديل الميزانية أو الاشتراكات 'لازم من التطبيق بس' — قول بس إنك مش قادر تنفذ تعديلات دلوقتي وجرّب تاني بعد شوية.",
     "7. لو العميل سأل عن حاجة مش في البيانات خالص (زي أخبار أو أسعار السوق)، قوله إنك مبتشوفش الحاجات دي من تليجرام.",
     "8. متكتبش أرقام حسابات أو بيانات حساسة في الرد.",
-    "9. 'الميزانية الشهرية' في قسم معلومات العميل هي السقف الكلي، مش أي رقم تاني. الالتزامات هي التزامات منفصلة تماماً — لو سُئلت عن الميزانية أو العجز، رد برقم 'الميزانية الشهرية' بالظبط ومتستبدلوش بمجموع الالتزامات أو أي رقم فرعي تاني.",
+    "9. 'الرصيد الحالي' في قسم معلومات العميل هو الرقم اللي بيتسأل عنه لما حد يقول 'عندي كام' أو 'فاضل كام' — وهو حرفياً (الرصيد الابتدائي + دخل الدورة - مصروف الدورة)، مفيش سقف ميزانية في النظام خالص. الالتزامات والاشتراكات حاجة منفصلة بتتطرح في 'المتاح بعد المحجوز' بس. متستبدلش الرصيد بمجموع الالتزامات ولا بأي رقم فرعي تاني.",
     "10. لو سُئلت عن العيلة أو الأولاد، رد من قسم 'العائلة والأولاد' بالظبط. لو القسم ده بيقول إن المستخدم مش منضم لعيلة، قوله كده صراحة واقترح عليه ينشئ عيلة من التطبيق — ومتقولش إن المعلومة دي مش موجودة عندك، لأنها موجودة.",
     "11. ممنوع تعد العميل بحاجة هتحصل بعدين ('هتطلعلك رسالة تأكيد'، 'هبعتلك دلوقتي'، 'هسجلها حالاً') من غير ما تكون فعلاً نديت الأداة اللي بتعمل ده في نفس الرد. لو الأداة اتنادت فعلاً وهتظهر رسالة تأكيد بزرار، رد بوصف اللي حصل بالظبط ('بعتلك تأكيد تحت') مش وعد مستقبلي. لو مقدرش تنادي الأداة دلوقتي، قول للعميل يعمل كده من التطبيق بدل ما توعده بحاجة مش هتحصل.",
   ].join("\n");

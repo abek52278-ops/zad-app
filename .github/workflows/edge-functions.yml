@@ -8,15 +8,24 @@ name: Edge Functions
 # `deno check` بقى ينفع يبقى بوابة بعد ما اتنضفت ١٥ غلطة TS18046 قديمة كانت بتخلّيه
 # راسب دايمًا — قبل كده مكانش ينفع يتحط هنا أصلاً لأنه كان هيفشل على كود شغّال.
 
+# الفلتر ده كان على `supabase/functions/**` بس، ودي بقت غلطة أول ما الـ job بتاع النشر
+# بقى بيدفع الـ migrations كمان: تعديل على `supabase/migrations/**` لوحده ماكانش بيشغّل
+# الـ workflow أصلاً، يعني migration جديد ممكن يتدمج في main ويقعد مستني للأبد لحد ما حد
+# يصادف إنه يعدّل فانكشن. `config.toml` مضافة لنفس السبب — هي اللي فيها verify_jwt
+# وproject id، وتغييرها لازم يوصل الإنتاج.
 on:
   push:
     branches: [main]
     paths:
       - "supabase/functions/**"
+      - "supabase/migrations/**"
+      - "supabase/config.toml"
       - ".github/workflows/edge-functions.yml"
   pull_request:
     paths:
       - "supabase/functions/**"
+      - "supabase/migrations/**"
+      - "supabase/config.toml"
       - ".github/workflows/edge-functions.yml"
   workflow_dispatch: {}
 
@@ -78,24 +87,74 @@ jobs:
   # ما يتفرقوش (زي zad_subscription_next_renewal اللي الفانكشن محتاجاها موجودة).
   deploy:
     needs: check
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # `workflow_dispatch` مسموح كمان، مش `push` بس. من غيره التشغيل اليدوي من تبويب
+    # Actions بيعمل الفحص ويتخطى النشر بصمت — وهو بالظبط الزرار اللي حد هيدوس عليه لما
+    # يعوز ينشر من غير ما يستنى تعديل جديد.
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # الأسرار بتتفحص قبل أي حاجة. GitHub مابيسمحش بقراءة `secrets` في `if` على مستوى
+      # الـ job، فالبوابة خطوة بتحوّلها لـ output والباقي بيتعلّق عليها.
+      #
+      # لو ناقصة، الـ job بيعدّي أخضر — بس مش بصمت: warning annotation فوق الرن، وسطر في
+      # ملخص الرن. كنت مفضّل الفشل الصريح، والمالك قرر إن main تفضل خضرا؛ التنازل المقبول
+      # إن التخطي يفضل **مرئي**، لأن نشر بيتخطى من غير ما حد ياخد باله هو بالظبط اللي
+      # رجّع v89 تفترق عن git.
+      - name: Check deploy secrets
+        id: preflight
+        env:
+          ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        # `if` صريحة مش `[ ... ] && ...`: الـ runner بيشغّل `bash -e`، والصيغة التانية
+        # بترجع non-zero لما الشرط ما يتحققش فتوقّف الخطوة — يعني وجود السرّين كان
+        # هيفشل الخطوة اللي وظيفتها تقول إنهم موجودين.
+        run: |
+          missing=""
+          if [ -z "$ACCESS_TOKEN" ]; then missing="$missing SUPABASE_ACCESS_TOKEN"; fi
+          if [ -z "$DB_PASSWORD" ]; then missing="$missing SUPABASE_DB_PASSWORD"; fi
+          if [ -n "$missing" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Deploy skipped::Missing repository secret(s):$missing - migrations and edge functions were NOT deployed. The repo is now ahead of production."
+            {
+              echo "### :warning: Deploy skipped"
+              echo ""
+              echo "Missing repository secret(s): $missing"
+              echo ""
+              echo "The checks passed, but **nothing was deployed**. Add the secret(s) under"
+              echo "Settings -> Secrets and variables -> Actions, then re-run this workflow."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # نسخة مثبّتة، مش `latest`، لسببين. الأول إن `latest` بتخلّي الـ action يسأل GitHub
+      # API عن آخر إصدار، والنداء ده بيتعمل من غير توكن فبيضرب في حد المعدل — وهو بالظبط
+      # اللي فشل بيه أول نشر حقيقي: "Failed to resolve latest Supabase CLI release: rate
+      # limit exceeded". والتاني إن `latest` معناها إن ترقية في الـ CLI تقدر تغيّر سلوك
+      # النشر من غير ما حد يعدّل سطر هنا؛ ترقية النسخة تبقى commit مقصود.
+      #
+      # GITHUB_TOKEN متبعت كمان عشان أي نداء للـ API يبقى موثّق بدل ما يتحسب على حصة
+      # الـ IP المشتركة بتاعة الرَنر.
       - name: Setup Supabase CLI
+        if: steps.preflight.outputs.ready == 'true'
         uses: supabase/setup-cli@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          version: latest
+          version: 2.114.0
 
       # الـ project ref مش سر — هو موجود في supabase/config.toml في الريبو أصلاً، وRLS هي
       # الحماية مش خفاء المعرّف. قراءته من الملف بدل سر إضافي معناها سر أقل ممكن ينسى
       # يتحط فيفشل النشر لسبب مالوش علاقة بالكود.
       - name: Read project ref
+        if: steps.preflight.outputs.ready == 'true'
         run: echo "PROJECT_REF=$(grep -oP '(?<=^id = ")[^"]+' supabase/config.toml)" >> "$GITHUB_ENV"
 
       - name: Push migrations
+        if: steps.preflight.outputs.ready == 'true'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -104,6 +163,7 @@ jobs:
           supabase db push
 
       - name: Deploy edge functions
+        if: steps.preflight.outputs.ready == 'true'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |

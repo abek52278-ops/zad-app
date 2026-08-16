@@ -56,6 +56,16 @@ private const val DEFAULT_BUDGET_SENTINEL = 3500.0
  * (`if (monthlyLimit <= 0.0) return 0.0`) اللي معناها "مفيش سقف يتحسب عليه".
  */
 private const val UNKNOWN_BUDGET = 0.0
+
+/**
+ * "خصم سريع" بيتسجّل تحت "أخرى"، مش تحت فئة جديدة باسمه.
+ *
+ * الفئات الإحدى عشر في [com.example.data.BudgetTracker.STANDARD_CATEGORIES] بيتطابق عليها
+ * بالنص بالظبط في كروت الميزانية وفي `by_category` وفي دونات ZadIntelligenceScreen، فأي
+ * قيمة برّه القايمة بتعمل خانة لوحدها العميل عمره ما طلبها. الخصم السريع مقصود إنه
+ * "مصروف مش مصنّف" — و"أخرى" هي بالظبط الخانة دي، موجودة بالفعل.
+ */
+private const val QUICK_DEDUCT_CATEGORY = "أخرى"
 // كان مفتاح التحديث عدد الأصناف بس (inv.size) — يعني لو استهلكت نص المخزون من غير ما
 // تضيف/تحذف صنف كامل (بيض من ١٢ لـ٢، مثلاً)، شيف زاد كان بيفضل يقترح نفس الوصفات القديمة
 // للأبد رغم إن الكمية الفعلية اتغيرت — وده اللي كان بيبان "ثابت". دلوقتي بصمة كمية+اسم.
@@ -193,6 +203,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val _mealSuggestions = MutableStateFlow<String>(ZadAiRepository.MEAL_SUGGESTIONS_LOADING)
     val mealSuggestions: StateFlow<String> = _mealSuggestions.asStateFlow()
 
+    /** وصفات شيف زاد المنظّمة — الكروت بتتبني منها، والنص فوق فضل للعرض السريع. */
+    private val _chefRecipes = MutableStateFlow<List<com.example.data.ZadRecipe>>(emptyList())
+    val chefRecipes: StateFlow<List<com.example.data.ZadRecipe>> = _chefRecipes.asStateFlow()
+
     private val _grocerySuggestions = MutableStateFlow<List<GrocerySuggestion>>(emptyList())
     val grocerySuggestions: StateFlow<List<GrocerySuggestion>> = _grocerySuggestions.asStateFlow()
 
@@ -286,6 +300,16 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private var cycleStartDay: Int? = null
     private var cycleAnchor: String = "day_of_month"
 
+    /**
+     * اللحظة اللي العميل قال فيها "معايا كذا" (migration 20260816120000). الرصيد بيتحسب
+     * من عندها لحد دلوقتي، مش من أول الدورة — المصروف اللي قبلها متطرح من الرقم في
+     * الواقع خلاص، وطرحه تاني بيخصمه مرتين.
+     *
+     * بيتحفظ في zad_prefs عشان المرآة الأوفلاين تعرفه قبل ما السيرفر يرد على أول فتحة،
+     * وبيتحدّث من [refreshBudgetState] لأن السيرفر هو المرجع لو الرقم اتكتب من جهاز تاني.
+     */
+    private var balanceAnchoredAt: java.time.Instant? = null
+
     private val _obligations = MutableStateFlow<List<ZadObligation>>(emptyList())
     val obligations: StateFlow<List<ZadObligation>> = _obligations.asStateFlow()
 
@@ -301,6 +325,17 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      */
     private val _availableFigure = MutableStateFlow<Figure?>(null)
     val availableFigure: StateFlow<Figure?> = _availableFigure.asStateFlow()
+
+    /**
+     * الرقم اللي الكارت الأخضر بيعرضه: **الرصيد** نفسه، من غير خصم المحجوز.
+     *
+     * نفس قيمة [remainingBalance] بالظبط، بس ملفوفة في [Figure] عشان تشيل نفس علامة الثقة
+     * (≈) بتاعة [availableFigure]. الاتنين موجودين لأنهم بيجاوبوا سؤالين مختلفين: ده
+     * "معايا كام دلوقتي" (تعليمة العميل 2026-08-16 للكارت)، والتاني "أقدر أصرف كام لحد
+     * آخر الشهر" (اللي "المسموح يومياً" تحت الكارت مبني عليه).
+     */
+    private val _balanceFigure = MutableStateFlow<Figure?>(null)
+    val balanceFigure: StateFlow<Figure?> = _balanceFigure.asStateFlow()
 
     /** "خروجة الأسبوع" — مكان أكل/ترفيه قريب واحد، يظهر بس لو المتاح الفعلي لسه صحي. */
     private val _outingSuggestion = MutableStateFlow<com.example.data.NearbyStore?>(null)
@@ -335,6 +370,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 .putInt("cycle_start_day", startDay ?: -1)
                 .putString("cycle_anchor", anchor)
                 .apply()
+            if (balanceAnchoredAt == null) {
+                balanceAnchoredAt = prefs.getString("balance_anchored_at", null)
+                    ?.let { runCatching { java.time.Instant.parse(it) }.getOrNull() }
+            }
             recalculateRemainingBalance(_transactions.value, _budget.value)
             Log.d(TAG, "loadCycleSettings() → cycleStartDay=$startDay, cycleAnchor=$anchor")
         }
@@ -532,10 +571,14 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     .joinToString("|") { "${it.itemName}:${it.quantity}" }
                 if (invSignature != lastMealSuggestInventorySignature) {
                     lastMealSuggestInventorySignature = invSignature
-                    _mealSuggestions.value = if (inv.any { it.quantity > 0 }) {
-                        ZadAiRepository.suggestMeals(inv)
+                    if (inv.any { it.quantity > 0 }) {
+                        val chef = ZadAiRepository.suggestMeals(inv)
+                        _mealSuggestions.value = chef.text
+                        _chefRecipes.value = chef.recipes
                     } else {
-                        "" // empty inventory → ZadChefCard shows chef_card_empty_hint, no AI call
+                        // empty inventory → ZadChefCard shows chef_card_empty_hint, no AI call
+                        _mealSuggestions.value = ""
+                        _chefRecipes.value = emptyList()
                     }
                 }
                 // العقل → الوصفات: يفحص كل تحديث مخزون على أصناف هتخلص/تنتهي (بدون استدعاء AI مكرر بفضل lastUrgentRecipeKey)
@@ -2028,7 +2071,17 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             Log.d(TAG, "updateBudget() → newBudget=$newBudget")
             val prefs = getApplication<Application>().getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
-            prefs.edit().putFloat("cached_budget", newBudget.toFloat()).putBoolean("budget_confirmed", true).apply()
+            // تصريح الرصيد بيحرّك نقطة التثبيت لدلوقتي — "معايا كذا" بتوصف اللحظة دي هي،
+            // فأي مصروف قبلها بقى داخل الرقم نفسه. نفس القيمة اللي setMonthlyLimit بتكتبها
+            // للسيرفر تحت؛ بتتحط هنا الأول عشان المرآة المحلية تعرض الرقم الصح فوراً من
+            // غير ما تستنى الشبكة.
+            val anchoredNow = java.time.Instant.now()
+            balanceAnchoredAt = anchoredNow
+            prefs.edit()
+                .putFloat("cached_budget", newBudget.toFloat())
+                .putBoolean("budget_confirmed", true)
+                .putString("balance_anchored_at", anchoredNow.toString())
+                .apply()
             _budget.value = newBudget
             _budgetConfirmed.value = true
             // Local mirror only here — not the full recalculateRemainingBalance(), which
@@ -2055,6 +2108,93 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 com.example.data.SyncOutbox.enqueueBudgetUpdate(getApplication(), newBudget)
             }
         }
+    }
+
+    /**
+     * "خصم سريع" — بيطرح مبلغ من الرصيد على طول، من غير ما يعدّي على العقل ولا على أي
+     * تصنيف أو تحليل.
+     *
+     * ليه موجود أصلاً وإحنا عندنا [addTransaction]: الفرق مش في الكود، الفرق في عدد
+     * القرارات اللي بينطلبوا من العميل. إضافة معاملة عادية بتسأل عن العنوان والفئة
+     * ونوعها، وكل واحدة منهم سبب إن حد يقفل الشاشة من غير ما يسجّل. ده بياخد رقم وخلاص،
+     * وده بالظبط الغرض منه: لما البوت أو قارئ الرسايل يفوّت مصروف، العميل عنده طريقة
+     * يصحّح بيها الرصيد في ثانية بدل ما يستنى النظام يلحقه.
+     *
+     * `isVerified = true` لأن ده العميل بإيده — مش استنتاج من رسالة بنك. يعني مابيخليش
+     * "متاح" يتعرض بـ ≈ (Task 27.1).
+     */
+    fun quickDeduct(amountRaw: Double, title: String? = null) {
+        val amount = amountRaw.asMoney()
+        if (amount <= 0.0) {
+            Log.w(TAG, "quickDeduct() ignored non-positive amount=$amountRaw")
+            return
+        }
+        val label = title?.trim().takeUnless { it.isNullOrBlank() }
+            ?: getApplication<Application>().getString(R.string.quick_deduct_default_title)
+        Log.d(TAG, "quickDeduct() → amount=$amount, title=$label")
+        addTransaction(
+            ZadTransaction(
+                title = label,
+                amount = amount,
+                isExpense = true,
+                category = QUICK_DEDUCT_CATEGORY,
+                isVerified = true,
+                sourceType = "quick_deduct",
+            )
+        )
+    }
+
+    /**
+     * تعديل يدوي للرصيد — العميل بيقول الرقم اللي المفروض يشوفه، والنظام بيمشي عليه.
+     *
+     * الرصيد مشتق (`الرصيد الابتدائي + دخل - مصروف`)، فمفيش عمود اسمه "الرصيد" ينكتب فيه
+     * مباشرة. في تعامل مختلف حسب الحالة:
+     *
+     * - **لسه مفيش رصيد ابتدائي**: الرقم ده هو نقطة البداية نفسها. "لو حطيت ٣٠٠٠، رصيدي
+     *   ٣٠٠٠" حرفياً.
+     * - **في رصيد شغال**: بنسجّل **معاملة تصحيح** بالفرق بدل ما نلعب في نقطة البداية.
+     *   السبب في [BudgetMath.correctionToReachBalance] — باختصار: نقطة بداية سالبة بيقراها
+     *   النظام كله على إنها "مفيش رصيد" فبتمسح الكارت، والفرق بيضيع من غير أثر مكتوب.
+     *
+     * ودي كلمة العميل الأخيرة بالتصميم. لو العقل غلط، أو رسالة بنك اتقرت مرتين، أو مصروف
+     * اتسجّل بمبلغ غلط — التصحيح ده بيغلب أي حاجة النظام استنتجها، وبيفضل سطر ظاهر في
+     * السجل ينفع يتراجع أو يتمسح، مش رقم اتغيّر في الخفا.
+     */
+    fun setBalanceTo(targetRaw: Double) {
+        val target = targetRaw.asMoney()
+        val opening = _budget.value
+        if (opening <= 0.0) {
+            Log.d(TAG, "setBalanceTo() → no opening balance yet, adopting $target as the starting point")
+            updateBudget(target)
+            return
+        }
+
+        val market = MarketPrefs.getMarket(getApplication())
+        val txs = BudgetMath.normalizedToCurrency(_transactions.value, market.currencyCode)
+        val asOf = LocalDate.now()
+        val cycleStart = CycleMath.cycleStart(asOf, cycleStartDay, cycleAnchor, market)
+        val cycleEnd = CycleMath.cycleEnd(asOf, cycleStartDay, cycleAnchor, market)
+        // نفس النقطة اللي recalculateLocalBudgetFigures بيحسب بيها — التصحيح لازم يتقاس
+        // على الرصيد اللي العميل شايفه، مش على نافذة تانية.
+        val delta = BudgetMath.correctionToReachBalance(target, opening, txs, cycleStart, cycleEnd, balanceAnchoredAt)
+        if (kotlin.math.abs(delta) < 0.01) {
+            Log.d(TAG, "setBalanceTo() → already at $target, nothing to correct")
+            return
+        }
+
+        Log.d(TAG, "setBalanceTo() → target=$target needs a correction of $delta")
+        addTransaction(
+            ZadTransaction(
+                title = getApplication<Application>().getString(R.string.manual_balance_correction_title),
+                amount = kotlin.math.abs(delta),
+                isExpense = delta < 0,
+                category = QUICK_DEDUCT_CATEGORY,
+                isVerified = true,
+                sourceType = "manual_balance_override",
+            )
+        )
+        // كلمة العميل الأخيرة تستاهل تعدّي على عقل زاد فوراً، زي أي تعديل يدوي تاني.
+        maybeAutoRefreshAgentSummary(force = true)
     }
 
     /**
@@ -2211,10 +2351,13 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         _cycleStart.value = cycleStart
         _cycleEnd.value = cycleEnd
 
-        val spent = BudgetMath.spentInCycle(txs, cycleStart, cycleEnd)
+        // anchoredAt=null بيرجّع الدوال دي لحدود الدورة بالحرف — سلوك الحسابات اللي
+        // عمرها ما صرّحت برصيد بعد المهاجرة ما اتغيّرش.
+        val anchoredAt = balanceAnchoredAt
+        val spent = BudgetMath.spentInCycle(txs, cycleStart, cycleEnd, anchoredAt)
         _spentThisMonth.value = spent
-        _incomeThisCycle.value = BudgetMath.incomeInCycle(txs, cycleStart, cycleEnd)
-        val remaining: Double? = BudgetMath.remainingInCycle(currentBudget, txs, cycleStart, cycleEnd)
+        _incomeThisCycle.value = BudgetMath.incomeInCycle(txs, cycleStart, cycleEnd, anchoredAt)
+        val remaining: Double? = BudgetMath.remainingInCycle(currentBudget, txs, cycleStart, cycleEnd, anchoredAt)
         _remainingBalance.value = remaining
         _cashOnHand.value = BudgetMath.cashOnHand(txs)
 
@@ -2223,13 +2366,15 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         val available: Double? = BudgetMath.availableInCycle(remaining, committed)
         // Task 27.1(a) — أي معاملة في الدورة الحالية is_verified=false (معاملة بنكية لسه
         // ما اتراجعتش، مش معاملة كتبها المستخدم بنفسه) تخلي "متاح" ≈ مش رقم قاطع.
-        val unverifiedCount = BudgetMath.unverifiedCountInCycle(txs, cycleStart, cycleEnd)
+        val unverifiedCount = BudgetMath.unverifiedCountInCycle(txs, cycleStart, cycleEnd, anchoredAt)
+        val unverifiedReason = if (unverifiedCount > 0) {
+            "فيه $unverifiedCount معاملة لسه ما اتأكدتش (رسايل بنكية أو مصادر تانية غير مباشرة)"
+        } else null
         _availableFigure.value = available?.let {
-            Figure(
-                value = it,
-                confident = unverifiedCount == 0,
-                reason = if (unverifiedCount > 0) "فيه $unverifiedCount معاملة من الدورة دي لسه ما اتأكدتش (رسايل بنكية أو مصادر تانية غير مباشرة)" else null
-            )
+            Figure(value = it, confident = unverifiedCount == 0, reason = unverifiedReason)
+        }
+        _balanceFigure.value = remaining?.let {
+            Figure(value = it, confident = unverifiedCount == 0, reason = unverifiedReason)
         }
         _nextObligationDue.value = _obligations.value
             .filter { it.active && it.confirmed }
@@ -2265,6 +2410,18 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             Log.w(TAG, "BUDGET DRIFT — BudgetMath said available=$localAvailable, zad_budget_state says ${state.available} (at ${state.computedAt}).")
         }
 
+        // السيرفر هو المرجع لنقطة التثبيت كمان: العميل ممكن يكون صرّح برصيده من جهاز
+        // تاني أو من البوت، والمرآة المحلية مش هتعرف غير من هنا. بتتحفظ عشان الفتحة
+        // الجاية تبدأ عارفاها قبل أي نداء شبكة.
+        state.anchoredAtInstant()?.let { serverAnchor ->
+            if (serverAnchor != balanceAnchoredAt) {
+                balanceAnchoredAt = serverAnchor
+                getApplication<Application>()
+                    .getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+                    .edit().putString("balance_anchored_at", serverAnchor.toString()).apply()
+            }
+        }
+
         _spentThisMonth.value = state.spent
         _incomeThisCycle.value = state.income
         _committed.value = state.committed
@@ -2286,6 +2443,11 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         // سقف المستخدم كتبه بإيده فعلاً)، وبنحاول نصلّح السبب بدل ما نتعايش معاه.
         if (state.remaining != null) {
             _remainingBalance.value = state.remaining
+            _balanceFigure.value = Figure(
+                value = state.remaining,
+                confident = state.unverifiedCount == 0,
+                reason = if (state.unverifiedCount > 0) "فيه ${state.unverifiedCount} معاملة لسه ما اتأكدتش (رسايل بنكية أو مصادر تانية غير مباشرة)" else null
+            )
         } else if (localRemaining != null) {
             Log.w(TAG, "refreshBudgetState → server has no monthly_limit; keeping local remaining=$localRemaining and re-syncing the limit")
             resyncMonthlyLimitToServer()
@@ -2298,7 +2460,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             _availableFigure.value = Figure(
                 value = state.available,
                 confident = state.unverifiedCount == 0,
-                reason = if (state.unverifiedCount > 0) "فيه ${state.unverifiedCount} معاملة من الدورة دي لسه ما اتأكدتش (رسايل بنكية أو مصادر تانية غير مباشرة)" else null
+                reason = if (state.unverifiedCount > 0) "فيه ${state.unverifiedCount} معاملة لسه ما اتأكدتش (رسايل بنكية أو مصادر تانية غير مباشرة)" else null
             )
         }
     }
@@ -2586,6 +2748,31 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private fun estimatePriceFromHistory(itemName: String): Double {
         val matches = _transactions.value.filter { it.isExpense && it.title.contains(itemName, ignoreCase = true) }
         return if (matches.isNotEmpty()) matches.map { it.amount }.average() else 0.0
+    }
+
+    /**
+     * بيثبّت سعر تقديري على صنف في القايمة.
+     *
+     * تقدير الـ AI كان بيعيش في `remember` جوه ShoppingListScreen وبس: كل فتحة للشاشة
+     * بتعيد السؤال، وأي فشل في النموذج بيرجّع الإجمالي صفر تاني. وإنت شفت ده فعلاً وقت
+     * موجة 503. التقدير اللي وصل مرة يستاهل يتحفظ — بعد كده الشاشة بتقراه من الصف زي
+     * أي سعر تاريخي، من غير نداء ولا اعتماد على إن النموذج شغال دلوقتي.
+     */
+    fun persistEstimatedPrice(itemId: String, pricePerUnit: Double) {
+        if (pricePerUnit <= 0.0) return
+        viewModelScope.launch {
+            val item = _shoppingList.value.find { it.id == itemId } ?: return@launch
+            if (item.estimatedPrice > 0.0) return@launch
+            val updated = item.copy(estimatedPrice = pricePerUnit.asMoney())
+            try { dao.insertShoppingItem(updated) } catch (e: Exception) {
+                Log.e(TAG, "persistEstimatedPrice() local failed: ${e.message}")
+            }
+            try {
+                SupabaseRepo.updateShoppingItemQuantity(updated.id, updated.quantity, updated.estimatedPrice)
+            } catch (e: Exception) {
+                Log.e(TAG, "persistEstimatedPrice() sync failed: ${e.message}")
+            }
+        }
     }
 
     fun addShoppingItem(item: com.example.data.ZadShoppingItem) {
@@ -2901,11 +3088,33 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     // (item.createdAt القديم فاضل زي ما هو) كانت مالهاش تأثير على الرقم المعروض، وتعبئتين
     // في نفس الشهر كان التانية بتمسح سعر الأولى (price بيتكتب فوق مش بيتجمع). نفس مبدأ
     // BudgetMath (Task 19.0): مصدر واحد للحقيقة، هنا دفتر المعاملات مش حالة العنصر.
-    private fun recalculateMonthlyPharmaCost(transactions: List<ZadTransaction>) {
+    /**
+     * التكلفة الشهرية للصيدلية = اللي اتصرف فعلاً هذا الشهر + المتوقع من الأدوية المزمنة.
+     *
+     * كانت بتجمع المعاملات وبس. و`ZadPharmacyItem` فيه `price` و`isRecurring` والتعليق
+     * جنبهم مكتوب فيه حرفياً "يدخل في حساب التكلفة الشهرية" — ومحدش كان بيقراهم. فبيت
+     * عنده تلات أدوية مزمنة بروشتة متجددة كان بيشوف "التكلفة الشهرية ٠" لحد ما يصادف
+     * يسجّل معاملة صيدلية بإيده. الرقم مكانش غلط، كان بيقيس حاجة تانية غير اللي اسمه.
+     *
+     * الدواء المزمن بيتحسب بسعره كتكلفة شهرية متكررة — ده افتراض إن العلبة بتتجدد كل
+     * شهر، وهو الشائع في الروشتات المزمنة. مش دقيق لكل دواء، وأقرب بكتير من صفر.
+     * الدواء اللي `price = 0` مابيتحسبش: سعر مش متسجّل معناه "مش عارفين"، مش "ببلاش".
+     *
+     * الأدوية المزمنة بتتحسب مرة واحدة بس — لو اتسجّلت معاملة صيدلية هذا الشهر بالفعل،
+     * التقدير بيتشال عشان مايتحسبش مرتين.
+     */
+    private fun recalculateMonthlyPharmaCost(
+        transactions: List<ZadTransaction>,
+        pharmacy: List<com.example.data.ZadPharmacyItem> = _pharmacyItems.value,
+    ) {
         val monthStart = java.time.LocalDate.now().withDayOfMonth(1)
-        _monthlyPharmaCost.value = transactions
+        val actuallySpent = transactions
             .filter { it.txnKind == "expense" && it.category == PHARMACY_BUDGET_CATEGORY && (com.example.data.BudgetMath.txDate(it) ?: java.time.LocalDate.now()) >= monthStart }
             .sumOf { it.amount }
+        val expectedRecurring = if (actuallySpent > 0.0) 0.0 else {
+            pharmacy.filter { it.isRecurring && it.price > 0.0 }.sumOf { it.price }
+        }
+        _monthlyPharmaCost.value = (actuallySpent + expectedRecurring).asMoney()
     }
 
     fun addMaintenanceItem(item: ZadMaintenanceItem) {
@@ -3785,19 +3994,33 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun refreshOutingSuggestion() {
         viewModelScope.launch {
+            // التثبيتة الأول، والحكم على الميزانية بعدين.
+            //
+            // كان الترتيب مقلوب: بوابة "الميزانية صحية" كانت بترجع **قبل** ما الموقع
+            // يتاخد خالص. ولأن `available` بيرجع null طول ما السقف مش متسجّل على السيرفر،
+            // البوابة دي كانت بتفشل دايماً — فـ`last_lat`/`last_lon` فضلوا فاضيين،
+            // و`find_nearby_stores` بترد "مش عارف انت فين" للأبد رغم إن الأداة مبنية
+            // وLocationIQ موصول.
+            //
+            // ومن حيث المبدأ الترتيب ده غلط أصلاً: معرفة العقل إنت فين حاجة، وقدرتك
+            // تخرج حاجة تانية. العميل اللي ميزانيته ضيقة هو أكتر واحد محتاج يعرف أرخص
+            // سوبرماركت جنبه — مايستاهلش إن العقل يعمى عن مكانه عشان حسابه تعبان.
+            val location = try {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    com.example.data.LocationHelper.getCurrentLocation(getApplication())
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "location fix failed: ${e.message}"); null
+            }
+            if (location != null) {
+                SupabaseRepo.updateLastKnownLocation(location.latitude, location.longitude)
+            }
+
             val budgetNow = _budget.value
             val availableNow = _availableFigure.value?.value
             val healthy = budgetNow > 0 && availableNow != null && availableNow / budgetNow >= 0.3
-            if (!healthy) { _outingSuggestion.value = null; return@launch }
+            if (!healthy || location == null) { _outingSuggestion.value = null; return@launch }
             try {
-                val location = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    com.example.data.LocationHelper.getCurrentLocation(getApplication())
-                }
-                if (location == null) { _outingSuggestion.value = null; return@launch }
-                // نفس التثبيتة اللي اتاخدت للخروجة بتتخزّن للعقل — مش نداء موقع جديد.
-                // من غير الخطوة دي `find_nearby_stores` بترد "مش عارف انت فين" للأبد،
-                // لأن الأداة اتبنت والعمودين فاضيين.
-                SupabaseRepo.updateLastKnownLocation(location.latitude, location.longitude)
                 val spots = com.example.data.LocationIqRepo.findNearbyOutingSpots(location.latitude, location.longitude)
                     .ifEmpty { com.example.data.OverpassRepo.findNearbyOutingSpots(location.latitude, location.longitude) }
                 _outingSuggestion.value = spots.firstOrNull()

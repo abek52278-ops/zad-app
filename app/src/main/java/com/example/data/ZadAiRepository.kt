@@ -168,13 +168,38 @@ object ZadAiRepository {
         } as? AiInventoryScanResult
     }
 
-    suspend fun suggestMeals(inventory: List<ZadInventory>): String {
+    suspend fun suggestMeals(inventory: List<ZadInventory>): ChefSuggestion {
         // شيف زاد يقترح بس من صنف فعلاً موجود — صفر بالكمية يعني خلص، مش "متاح"
         val available = inventory.filter { it.quantity > 0 }
         val itemsList = if (available.isEmpty()) "لا يوجد مخزون حاليا"
         else available.joinToString(", ") { "${it.itemName} (${it.quantity})" }
         val response = callAction("meal_suggestions", mapOf("items" to itemsList))
-        return response["text"] as? String ?: MEAL_SUGGESTIONS_FALLBACK
+        val text = response["text"] as? String ?: MEAL_SUGGESTIONS_FALLBACK
+        // نفس أسلوب agent_summary فوق: تفكيك يدوي للـ Map مش decodeFromString، عشان
+        // `callAction` بترجّع Map<String, Any?> أصلاً. حقل ناقص في وصفة واحدة بيدي قيمة
+        // افتراضية بدل ما يوقّع تفكيك الرد كله — الرد جاي من نموذج، والصرامة هنا معناها
+        // إن وصفة واحدة ناقصة حقل تضيّع الخمسة.
+        val recipesRaw = response["recipes"] as? List<*> ?: emptyList<Any>()
+        val recipes = recipesRaw.mapNotNull { r ->
+            val m = r as? Map<*, *> ?: return@mapNotNull null
+            val name = (m["recipe_name"] as? String)?.trim().orEmpty()
+            if (name.isEmpty()) return@mapNotNull null
+            ZadRecipe(
+                recipeName = name,
+                imageKeywordEn = (m["image_keyword_en"] as? String).orEmpty(),
+                imageUrl = (m["image_url"] as? String)?.takeIf { it.isNotBlank() },
+                imageThumbUrl = (m["image_thumb_url"] as? String)?.takeIf { it.isNotBlank() },
+                prepTimeMinutes = (m["prep_time_minutes"] as? Number)?.toInt() ?: 0,
+                costEstimate = (m["cost_estimate"] as? Number)?.toDouble() ?: 0.0,
+                availableIngredientsUsed = (m["available_ingredients_used"] as? List<*>)
+                    ?.mapNotNull { it as? String } ?: emptyList(),
+                missingIngredientsToBuy = (m["missing_ingredients_to_buy"] as? List<*>)
+                    ?.mapNotNull { it as? String } ?: emptyList(),
+                cookingInstructions = (m["cooking_instructions"] as? List<*>)
+                    ?.mapNotNull { it as? String } ?: emptyList(),
+            )
+        }
+        return ChefSuggestion(text = text, recipes = recipes)
     }
 
     /**

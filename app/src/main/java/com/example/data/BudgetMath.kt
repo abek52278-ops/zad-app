@@ -5,6 +5,11 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /**
+ * زاد بقى **دفتر حسابات**: `الرصيد = الرصيد الابتدائي + كل الدخل - كل المصروف`
+ * (migration 20260816010000). مفيش سقف ميزانية يتطرح منه، ومفيش دخل مستني موافقة عشان
+ * يتحسب. `zad_users.monthly_limit` لسه اسمه كده في قاعدة البيانات بس معناه بقى "الرصيد
+ * الابتدائي للدورة" — الاسم اتساب عشان ~٤٠ نقطة استدعاء متتغيرش من غير مكسب سلوكي.
+ *
  * Task 19.0 — الحساب الوحيد لـ "المصروف الشهري" و"المتبقي" في التطبيق كله. أي مكان
  * محتاج الرقمين دول بينده هنا بدل ما يعيد الفلترة بنفسه — عشان اختلاف بسيط في منطق
  * الفلترة (تنسيق تاريخ مختلف، حد شهر مختلف) بين مكانين ما يبقاش معناه رقمين مختلفين
@@ -90,24 +95,21 @@ object BudgetMath {
         transactions.filter { it.txnKind == "expense" }.sumOf { it.amount }
 
     /**
-     * monthlyLimit من zad_users.monthly_limit — سقف <= 0 معناه "مش معروف"، والدالة بترجع
-     * **null** مش 0.0.
+     * `openingBalance` من zad_users.monthly_limit — العمود محتفظ باسمه القديم بس معناه
+     * اتغيّر: بقى **الرصيد اللي الدورة بدأت بيه**، مش سقف صرف (migration 20260816010000).
+     * قيمة <= 0 معناها "لسه متحددش"، والدالة بترجع **null** مش 0.0.
      *
      * كان بيرجع 0.0، وده كان بيتعرض للمستخدم كرقم حقيقي: "متبقي ٠ ر.س" لمستخدم عمره ما
-     * حدد سقف. صفر رقم له معنى (خلصت فلوسك) مختلف تماماً عن غياب السقف، والاتنين كانوا
+     * حدد رصيد. صفر رقم له معنى (خلصت فلوسك) مختلف تماماً عن غياب الرقم، والاتنين كانوا
      * بيتخلطوا في كل شاشة ماليّة. null بيجبر كل مستهلك يقرر يعرض إيه بدل ما يرث كدبة.
      */
-    fun remaining(monthlyLimit: Double, transactions: List<ZadTransaction>, asOf: LocalDate = LocalDate.now()): Double? {
-        if (monthlyLimit <= 0.0) return null
-        // نفس قاعدة remainingInCycle بالظبط — الدخل المؤكد بس. لو النسخة دي فضلت بتجمع
-        // كل الدخل، الشاشات اللي لسه بتناديها (FamilyState/BudgetTracker/ZadCentralBrain)
-        // هتعرض رقم أكبر من اللي الشاشة الرئيسية بتعرضه لنفس الشهر — وهو بالظبط اختلاف
-        // المرجع اللي Task 19.0 اتعمل عشان يقفله.
-        val monthStart = asOf.withDayOfMonth(1)
-        val allocated = transactions
-            .filter { it.txnKind == "income" && it.countsTowardBudget == true && (txDate(it) ?: asOf) >= monthStart }
-            .sumOf { it.amount }
-        return monthlyLimit - spentThisMonth(transactions, asOf) + allocated
+    fun remaining(openingBalance: Double, transactions: List<ZadTransaction>, asOf: LocalDate = LocalDate.now()): Double? {
+        if (openingBalance <= 0.0) return null
+        // نفس قاعدة remainingInCycle بالظبط — كل الدخل، مش المخصص منه بس. لو النسختين
+        // اختلفوا، الشاشات اللي لسه بتنادي دي (FamilyState/BudgetTracker/ZadCentralBrain)
+        // هتعرض رقم مختلف عن الشاشة الرئيسية لنفس الشهر — وهو بالظبط اختلاف المرجع اللي
+        // Task 19.0 اتعمل عشان يقفله.
+        return openingBalance - spentThisMonth(transactions, asOf) + incomeThisMonth(transactions, asOf)
     }
 
     // ─── Task 25 — نفس الحسابات فوق، بس بحدود دورة الراتب (CycleMath) مش الشهر التقويمي ───
@@ -115,17 +117,58 @@ object BudgetMath {
     // [أول الشهر, أول الشهر الجاي). لو cycleStartDay=null، CycleMath.cycleStart/cycleEnd
     // نفسها بترجع حدود شهر تقويمي عادي — يعني الاستدعاء هنا آمن حتى قبل ما يتحدد للمستخدم.
 
-    fun spentInCycle(transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate): Double =
-        transactions.filter { it.txnKind == "expense" && txDate(it)?.let { d -> !d.isBefore(cycleStart) && d.isBefore(cycleEnd) } == true }
+
+    // ─── نقطة تثبيت الرصيد (migration 20260816120000) ────────────────────────────
+    // العميل بيقول "معايا كذا دلوقتي". الرقم ده بيوصف اللحظة اللي قاله فيها، فالمصروف
+    // اللي قبلها متطرح منه في الواقع خلاص — طرحه تاني بيخصمه مرتين. كل الدوال تحت
+    // بتاخد `anchoredAt` اختياري: لما يبقى null الحساب بيفضل بحدود الدورة زي ما كان
+    // بالحرف، ولما يبقى موجود بيبقى "من اللحظة دي لحد دلوقتي" من غير حد أعلى — الرصيد
+    // "اللي معايا" مابيتصفّرش مع بداية دورة جديدة، الراتب اللي بينزل بيزوّده.
+    //
+    // لازم تفضل مطابقة لنفس الشرط في zad_budget_state — هي المرجع ودي المرآة الأوفلاين.
+
+    /** لحظة المعاملة بدقة الثانية، مش اليوم. الفرق ده هو كل الموضوع: عميل ثبّت رصيده
+     * الساعة ٢ الضهر لازم يستبعد مصروف نفس اليوم الساعة ١٠ الصبح، وفلتر باليوم مش
+     * هيقدر. صف من غير createdAt بيتحسب "دلوقتي" — دي كتابة محلية لسه ما زامنتش، يعني
+     * بعد النقطة بالضرورة. */
+    fun txInstant(tx: ZadTransaction): Instant? = tx.createdAt?.let { raw ->
+        // ثلاث محاولات مقصودة بالترتيب ده. Instant.parse بتقبل "Z" بس، وPostgres بيكتب
+        // "+00:00" — فلو وقفنا عندها كل صف جاي من السيرفر كان هيسقط للمحاولة التالتة
+        // (بداية اليوم) ويفقد الساعة، وهي بالظبط الحاجة اللي الفلتر ده محتاجها.
+        try { Instant.parse(raw) } catch (e: Exception) {
+            try { java.time.OffsetDateTime.parse(raw).toInstant() } catch (e2: Exception) {
+                try { LocalDate.parse(raw.take(10)).atStartOfDay(ZoneId.systemDefault()).toInstant() } catch (e3: Exception) { null }
+            }
+        }
+    }
+
+    private fun inLedgerWindow(
+        tx: ZadTransaction,
+        anchoredAt: Instant?,
+        cycleStart: LocalDate,
+        cycleEnd: LocalDate,
+    ): Boolean = if (anchoredAt == null) {
+        txDate(tx)?.let { d -> !d.isBefore(cycleStart) && d.isBefore(cycleEnd) } == true
+    } else {
+        // null createdAt = صف محلي لسه ما اتزامنش = بعد النقطة
+        (txInstant(tx) ?: Instant.now()) >= anchoredAt
+    }
+
+    fun spentInCycle(transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate, anchoredAt: Instant? = null): Double =
+        transactions.filter { it.txnKind == "expense" && inLedgerWindow(it, anchoredAt, cycleStart, cycleEnd) }
             .sumOf { it.amount }
 
-    fun incomeInCycle(transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate): Double =
-        transactions.filter { it.txnKind == "income" && txDate(it)?.let { d -> !d.isBefore(cycleStart) && d.isBefore(cycleEnd) } == true }
+    fun incomeInCycle(transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate, anchoredAt: Instant? = null): Double =
+        transactions.filter { it.txnKind == "income" && inLedgerWindow(it, anchoredAt, cycleStart, cycleEnd) }
             .sumOf { it.amount }
 
     /**
-     * الدخل اللي العميل أكّد إنه مخصص لمصروف الشهر — ده الوحيد اللي بيزوّد السقف.
-     * مرآة `income_allocated` في zad_budget_state_legacy.
+     * الدخل اللي العميل أكّد إنه مخصص لمصروف الشهر. مرآة `income_allocated` في
+     * zad_budget_state_legacy.
+     *
+     * **مابيدخلش في حساب الرصيد خلاص** بعد تحوّل زاد لدفتر حسابات — [balanceInCycle]
+     * بتجمع كل الدخل. سايبينها لأن العقل لسه بيميّز بين إيداع العميل قال عنه "ده مش
+     * للبيت" وإيداع عادي، وده تمييز له معنى في النصيحة حتى لما مابقاش له أثر في الرقم.
      */
     fun allocatedIncomeInCycle(transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate): Double =
         transactions.filter {
@@ -133,7 +176,11 @@ object BudgetMath {
                 txDate(it)?.let { d -> !d.isBefore(cycleStart) && d.isBefore(cycleEnd) } == true
         }.sumOf { it.amount }
 
-    /** إيداعات الدورة اللي لسه محدش سأل العميل عنها — الشاشة/العقل بيبنوا عليها السؤال. */
+    /**
+     * إيداعات الدورة اللي لسه محدش سأل العميل عنها. بعد الدفتر دي المفروض تفضل فاضية
+     * دايماً — الـ backfill في 20260816010000 صفّى الصفوف القديمة، والعمود بقى default
+     * true. أي صف بيظهر هنا دلوقتي معناه كتابة بتفرض null صراحة، وده يستاهل الفحص.
+     */
     fun incomeAwaitingDecisionInCycle(transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate): List<ZadTransaction> =
         transactions.filter {
             it.txnKind == "income" && it.countsTowardBudget == null &&
@@ -141,20 +188,62 @@ object BudgetMath {
         }.sortedByDescending { it.createdAt ?: "" }
 
     /**
-     * نفس اتفاقية `remaining`: سقف <= 0 = مش معروف = null، مش صفر.
+     * الرصيد الحالي بحدود الدورة — `الرصيد الابتدائي + كل الدخل - كل المصروف`.
      *
-     * كانت `limit - spent + income`، يعني أي إيداع بيوصل كان بيكبّر سقف الصرف لوحده.
-     * وده غلط في تطبيق ميزانية: `monthlyLimit` سقف **العميل اختاره** لمصروف البيت، مش
-     * رصيد بيتعبّى. تحويل بـ 20,000 وصل مش معناه 20,000 مصاريف بيت زيادة. فالدخل
-     * مابيدخلش غير لما العميل يقول صراحة إنه مخصص للشهر (`countsTowardBudget == true`).
+     * ده كان `limit - spent + allocatedIncome`: سقف صرف العميل اختاره، والدخل مابيدخلش
+     * غير لما يقول صراحة إنه مخصص للشهر. الاتنين اتشالوا مع تحوّل زاد لدفتر حسابات
+     * (migration 20260816010000): مفيش سقف يتطرح منه، وكل جنيه دخل بيزوّد الرصيد ساعة ما
+     * يوصل من غير سؤال — السؤال ده هو اللي كان بيخلي راتب ١٠,٠٠٠ وصل فعلاً ما يحركش
+     * الرقم ولا مليم.
      *
-     * لازم تفضل مطابقة لـ zad_budget_state_legacy — هي المرجع، ودي المرآة الأوفلاين.
+     * بيرجع null لو الرصيد الابتدائي لسه متحددش (نفس اتفاقية [remaining] بالظبط) — مش
+     * صفر. [balanceInCycle] هي النسخة اللي بترجع رقم دايماً.
+     *
+     * لازم تفضل مطابقة لـ `zad_budget_state` — هي المرجع، ودي المرآة الأوفلاين.
      */
-    fun remainingInCycle(monthlyLimit: Double, transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate): Double? {
-        if (monthlyLimit <= 0.0) return null
-        return monthlyLimit - spentInCycle(transactions, cycleStart, cycleEnd) +
-            allocatedIncomeInCycle(transactions, cycleStart, cycleEnd)
+    fun remainingInCycle(openingBalance: Double, transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate, anchoredAt: Instant? = null): Double? {
+        if (openingBalance <= 0.0) return null
+        return balanceInCycle(openingBalance, transactions, cycleStart, cycleEnd, anchoredAt)
     }
+
+    /**
+     * نفس معادلة [remainingInCycle] بس من غير اتفاقية الـ null — رصيد ابتدائي مش متحدد
+     * بيتحسب صفر. الفرق ده مقصود: الشاشات محتاجة تفرّق بين "لسه ما حددتش رصيدك" و"رصيدك
+     * صفر"، لكن أي حاسب (خصم سريع، تعديل يدوي، البوت) محتاج رقم يشتغل عليه دايماً.
+     */
+    fun balanceInCycle(openingBalance: Double, transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate, anchoredAt: Instant? = null): Double =
+        (openingBalance + incomeInCycle(transactions, cycleStart, cycleEnd, anchoredAt) -
+            spentInCycle(transactions, cycleStart, cycleEnd, anchoredAt)).asMoney()
+
+    /**
+     * الفرق اللي لازم يتسجّل عشان الرصيد يبقى [targetBalance] — ده اللي "تعديل يدوي
+     * للرصيد" بيعمله. موجب = يتسجّل دخل، سالب = يتسجّل مصروف.
+     *
+     * ليه فرق يتسجّل مش رصيد ابتدائي يتعدّل. تعديل الرصيد الابتدائي كان هو الحل الواضح
+     * (اطرح الدخل، زوّد المصروف، اكتب الناتج)، وهو غلط لسببين: الرقم الناتج بيطلع سالب
+     * بسهولة — تصحيح لتحت على حساب دخله وصل بيدّي رصيد ابتدائي بالسالب — وكل قارئ في
+     * النظام بيعتبر `monthly_limit <= 0` معناها "لسه متحددش"، فالتصحيح كان هيمسح الكارت
+     * بدل ما يصلّح رقمه. وكمان كان بيخبّي الفرق: العميل يقول ٤٢٠٠ وما يفضلش في النظام أي
+     * أثر ليه غير رقم بداية اتغيّر من غير سبب مكتوب.
+     *
+     * معاملة تصحيح بتحل الاتنين. الدفتر بيفضل `دخل - مصروف` بالحرف، والفرق بيفضل سطر
+     * ظاهر في السجل يتشاف ويتراجع ويتمسح — نفس اللي [BalanceAnchor] بيعمله للتصحيح
+     * الآلي من رصيد البنك، بس دي كلمة العميل مش استنتاج.
+     *
+     * **[anchoredAt] لازم يبقى نفس النقطة اللي الكارت بيعرض بيها.** الفرق بيتحسب من
+     * رصيد، ولو الرصيد ده اتحسب بنافذة تانية غير اللي العميل شايفها، التصحيح بيصحّح رقم
+     * مش موجود على الشاشة. حصل فعلاً: حساب رصيده الابتدائي ٣٠٠٠ ودخله قبل النقطة ٢٤٥٠٠
+     * كتب تصحيح ‎-٢٣٠٠٠ مقابل رصيد ٢٤٠٠٠؛ لما النقطة شالت الدخل ده من الحسبة، فضل
+     * التصحيح لوحده وودّى الرصيد ‎-٢٠٠٠٠ بدل الـ١٠٠٠ اللي العميل قالها.
+     */
+    fun correctionToReachBalance(
+        targetBalance: Double,
+        openingBalance: Double,
+        transactions: List<ZadTransaction>,
+        cycleStart: LocalDate,
+        cycleEnd: LocalDate,
+        anchoredAt: Instant? = null,
+    ): Double = (targetBalance - balanceInCycle(openingBalance, transactions, cycleStart, cycleEnd, anchoredAt)).asMoney()
 
     /**
      * Task 27.1(a) — عدد معاملات الدورة الحالية (دخل/مصروف) اللي is_verified=false، أي
@@ -162,19 +251,27 @@ object BudgetMath {
      * مباشر — انظر ZadViewModel.addTransaction overload لمين بيبقى isVerified=true). صفر
      * يعني الرقم قاطع، أي رقم تاني يعني الـ Figure اللي بيتبني على الدالة دي confident=false.
      */
-    fun unverifiedCountInCycle(transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate): Int =
+    fun unverifiedCountInCycle(transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate, anchoredAt: Instant? = null): Int =
         transactions.count { tx ->
             (tx.txnKind == "expense" || tx.txnKind == "income") &&
-                txDate(tx)?.let { d -> !d.isBefore(cycleStart) && d.isBefore(cycleEnd) } == true &&
+                inLedgerWindow(tx, anchoredAt, cycleStart, cycleEnd) &&
                 !tx.isVerified
         }
 
-    /** budget * (daysElapsed/cycleLength) هو المتوقع صرفه لحد دلوقتي — النسبة دي أعلى من ١ يعني بيصرف أسرع من المفروض */
-    fun velocityInCycle(monthlyLimit: Double, transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate, asOf: LocalDate = LocalDate.now()): Double? {
-        if (monthlyLimit <= 0.0) return null
+    /**
+     * سرعة الصرف: المصروف مقسوم على المتوقع خطّياً لحد دلوقتي. أعلى من ١ يعني بيصرف أسرع
+     * من إن الفلوس تكفي الدورة.
+     *
+     * المقارنة بقت مع `الرصيد الابتدائي + دخل الدورة` مش مع سقف — السقف اتشال، والسؤال
+     * اللي الرقم ده بيجاوبه ("بصرف أسرع من إن ده يكفّيني؟") فضل هو هو بس بقى متسأل على
+     * رقم حقيقي. لازم يفضل مطابق لحساب `velocity` في `zad_budget_state`.
+     */
+    fun velocityInCycle(openingBalance: Double, transactions: List<ZadTransaction>, cycleStart: LocalDate, cycleEnd: LocalDate, asOf: LocalDate = LocalDate.now()): Double? {
+        val funded = openingBalance + incomeInCycle(transactions, cycleStart, cycleEnd)
+        if (funded <= 0.0) return null
         val cycleLength = CycleMath.cycleLengthDays(cycleStart, cycleEnd).coerceAtLeast(1)
         val daysElapsed = CycleMath.daysElapsed(asOf, cycleStart).coerceAtLeast(1)
-        val expected = monthlyLimit * daysElapsed / cycleLength
+        val expected = funded * daysElapsed / cycleLength
         if (expected <= 0.0) return 0.0
         return spentInCycle(transactions, cycleStart, cycleEnd) / expected
     }
@@ -185,7 +282,7 @@ object BudgetMath {
      * التي لم تكن تعرف الالتزامات، بينما الشاشة/السيرفر يمران الإجمالي الحقيقي.
      */
     fun dailyAllowanceInCycle(
-        monthlyLimit: Double,
+        openingBalance: Double,
         transactions: List<ZadTransaction>,
         cycleStart: LocalDate,
         cycleEnd: LocalDate,
@@ -193,7 +290,7 @@ object BudgetMath {
         committed: Double = 0.0,
     ): Double? {
         val available = availableInCycle(
-            remainingInCycle(monthlyLimit, transactions, cycleStart, cycleEnd),
+            remainingInCycle(openingBalance, transactions, cycleStart, cycleEnd),
             committed,
         ) ?: return null
         val daysLeft = CycleMath.daysLeft(asOf, cycleEnd)
@@ -249,7 +346,14 @@ object BudgetMath {
     fun nextRenewalDate(sub: ZadSubscription, asOf: LocalDate = LocalDate.now()): LocalDate? {
         val raw = sub.renewalDate?.trim().orEmpty()
         val iso = raw.take(10).let { try { LocalDate.parse(it) } catch (e: Exception) { null } }
-        val dayOfMonth = sub.dueDay
+        // اليوم بييجي من التاريخ نفسه أول ما يبقى موجود. الريجيكس ده للنص الحر بس، ولو
+        // اتساب يشتغل على تاريخ ISO بيمسك أول رقمين في السنة: "2026-05-12" بيدّي ٢٠ من
+        // "2026"، فاشتراك يوم ١٢ بيتحوّل ليوم ٢٠ ويقع في الدورة الغلط. نسخة الـ SQL
+        // (zad_subscription_next_renewal) كانت مظبوطة من الأول — بتاخد
+        // extract(day from v_anchor) لما فيه تاريخ وماتلمسش الريجيكس؛ الكوتلن هو اللي
+        // خرج عن النسخة دي، وده اللي كسر الاختبار.
+        val dayOfMonth = iso?.dayOfMonth
+            ?: sub.dueDay
             ?: Regex("\\d{1,2}").find(raw)?.value?.toIntOrNull()?.takeIf { it in 1..31 }
 
         var next = iso ?: dayOfMonth?.let {

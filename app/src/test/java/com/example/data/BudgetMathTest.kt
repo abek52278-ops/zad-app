@@ -189,7 +189,7 @@ class BudgetMathTest {
     @Test
     fun `daily allowance reserves committed charges before dividing days left`() {
         val allowance = BudgetMath.dailyAllowanceInCycle(
-            monthlyLimit = 1000.0,
+            openingBalance = 1000.0,
             transactions = emptyList(),
             cycleStart = LocalDate.of(2026, 7, 1),
             cycleEnd = LocalDate.of(2026, 7, 11),
@@ -224,6 +224,116 @@ class BudgetMathTest {
         title = "test", amount = amount, renewalDate = renewalDate, isActive = isActive,
         dueDay = dueDay, billingCycle = billingCycle
     )
+
+    // ─── نقطة تثبيت الرصيد (migration 20260816120000) ──────────────────────────
+    // العميل بيقول "معايا ١٠٠٠ دلوقتي". اللي قبل اللحظة دي متطرح من الـ١٠٠٠ في الواقع
+    // خلاص، فالحساب لازم يبدأ من عندها. دي كانت العلة الفعلية في الكارت الأخضر.
+
+    @Test
+    fun `spending before the anchor does not reduce the stated balance`() {
+        val anchor = java.time.Instant.parse("2026-08-16T12:00:00Z")
+        val txs = listOf(
+            tx(amount = 400.0, txnKind = "expense", createdAt = "2026-08-05T10:00:00Z"),
+            tx(amount = 150.0, txnKind = "expense", createdAt = "2026-08-16T18:00:00Z"),
+        )
+        val start = LocalDate.of(2026, 8, 1)
+        val end = LocalDate.of(2026, 9, 1)
+        assertEquals(850.0, BudgetMath.balanceInCycle(1000.0, txs, start, end, anchor), 0.001)
+        // من غير النقطة، نفس المعاملات بتدي 450 — الفرق ده هو البق نفسه.
+        assertEquals(450.0, BudgetMath.balanceInCycle(1000.0, txs, start, end, null), 0.001)
+    }
+
+    @Test
+    fun `an expense earlier the same day as the anchor is excluded`() {
+        // فلتر باليوم مش هيمسك دي — عشان كده المقارنة بالثانية مش باليوم.
+        val anchor = java.time.Instant.parse("2026-08-16T14:00:00Z")
+        val txs = listOf(tx(amount = 90.0, txnKind = "expense", createdAt = "2026-08-16T09:30:00Z"))
+        val start = LocalDate.of(2026, 8, 1)
+        val end = LocalDate.of(2026, 9, 1)
+        assertEquals(0.0, BudgetMath.spentInCycle(txs, start, end, anchor), 0.001)
+    }
+
+    @Test
+    fun `income after the anchor raises the balance`() {
+        val anchor = java.time.Instant.parse("2026-08-16T12:00:00Z")
+        val txs = listOf(
+            tx(amount = 10000.0, txnKind = "income", createdAt = "2026-08-20T08:00:00Z"),
+            tx(amount = 500.0, txnKind = "expense", createdAt = "2026-08-21T08:00:00Z"),
+        )
+        val start = LocalDate.of(2026, 8, 1)
+        val end = LocalDate.of(2026, 9, 1)
+        assertEquals(10500.0, BudgetMath.balanceInCycle(1000.0, txs, start, end, anchor), 0.001)
+    }
+
+    @Test
+    fun `postgres offset timestamps are parsed, not silently floored to midnight`() {
+        // Postgres بيكتب "+00:00" وInstant.parse بترفضها. لو السقوط للـfallback حصل، الوقت
+        // بيتحوّل لبداية اليوم والمعاملة اللي بعد النقطة بساعتين بتتحسب قبلها.
+        val anchor = java.time.Instant.parse("2026-08-16T12:00:00Z")
+        val txs = listOf(tx(amount = 75.0, txnKind = "expense", createdAt = "2026-08-16T14:00:00+00:00"))
+        val start = LocalDate.of(2026, 8, 1)
+        val end = LocalDate.of(2026, 9, 1)
+        assertEquals(75.0, BudgetMath.spentInCycle(txs, start, end, anchor), 0.001)
+    }
+
+    @Test
+    fun `a transaction with no timestamp counts as after the anchor`() {
+        // صف محلي لسه ما زامنش — بالضرورة اتعمل دلوقتي، يعني بعد النقطة. النقطة هنا في
+        // ماضٍ بعيد عن قصد: الفرع ده بيقارن بـ Instant.now()، فنقطة في نفس يوم تشغيل
+        // الاختبار كانت هتخلي النتيجة تعتمد على ساعة الـCI.
+        val anchor = java.time.Instant.parse("2020-01-01T00:00:00Z")
+        val txs = listOf(tx(amount = 30.0, txnKind = "expense", createdAt = null))
+        val start = LocalDate.of(2026, 8, 1)
+        val end = LocalDate.of(2026, 9, 1)
+        assertEquals(30.0, BudgetMath.spentInCycle(txs, start, end, anchor), 0.001)
+    }
+
+    @Test
+    fun `a null anchor leaves the cycle window behaviour byte-for-byte unchanged`() {
+        val txs = listOf(
+            tx(amount = 200.0, txnKind = "expense", createdAt = "2026-07-20T10:00:00Z"),
+            tx(amount = 300.0, txnKind = "expense", createdAt = "2026-08-10T10:00:00Z"),
+        )
+        val start = LocalDate.of(2026, 8, 1)
+        val end = LocalDate.of(2026, 9, 1)
+        assertEquals(
+            BudgetMath.spentInCycle(txs, start, end),
+            BudgetMath.spentInCycle(txs, start, end, null),
+            0.001,
+        )
+        assertEquals(300.0, BudgetMath.spentInCycle(txs, start, end, null), 0.001)
+    }
+
+    @Test
+    fun `unverified rows before the anchor do not mark the balance approximate`() {
+        val anchor = java.time.Instant.parse("2026-08-16T12:00:00Z")
+        val txs = listOf(
+            tx(amount = 200.0, txnKind = "expense", createdAt = "2026-08-02T10:00:00Z", isVerified = false),
+            tx(amount = 50.0, txnKind = "expense", createdAt = "2026-08-18T10:00:00Z", isVerified = true),
+        )
+        val start = LocalDate.of(2026, 8, 1)
+        val end = LocalDate.of(2026, 9, 1)
+        assertEquals(0, BudgetMath.unverifiedCountInCycle(txs, start, end, anchor))
+        assertEquals(1, BudgetMath.unverifiedCountInCycle(txs, start, end, null))
+    }
+
+    @Test
+    fun `a correction is measured against the anchored balance, not the cycle one`() {
+        // البق اللي شافته بيانات حقيقية: رصيد ابتدائي ٣٠٠٠، دخل ٢٤٥٠٠ ومصروف ٣٥٠٠ كلهم
+        // قبل النقطة. الرصيد اللي العميل شايفه ٣٠٠٠، فطلب "خليه ١٠٠٠" لازم يدّي ‎-٢٠٠٠.
+        // من غير تمرير النقطة كان بيتقاس على ٢٤٠٠٠ ويدّي ‎-٢٣٠٠٠ — تصحيح لرقم مش معروض.
+        val anchor = java.time.Instant.parse("2026-08-16T02:20:00Z")
+        val txs = listOf(
+            tx(amount = 24500.0, txnKind = "income", createdAt = "2026-08-16T01:25:00Z"),
+            tx(amount = 3500.0, txnKind = "expense", createdAt = "2026-08-15T21:23:00Z"),
+        )
+        val start = LocalDate.of(2026, 8, 1)
+        val end = LocalDate.of(2026, 9, 1)
+
+        assertEquals(3000.0, BudgetMath.balanceInCycle(3000.0, txs, start, end, anchor), 0.001)
+        assertEquals(-2000.0, BudgetMath.correctionToReachBalance(1000.0, 3000.0, txs, start, end, anchor), 0.001)
+        assertEquals(-23000.0, BudgetMath.correctionToReachBalance(1000.0, 3000.0, txs, start, end, null), 0.001)
+    }
 
     @Test
     fun `nextDueDate for a monthly obligation rolls to next month once this month's day has passed`() {
@@ -332,9 +442,10 @@ class BudgetMathTest {
         assertEquals(LocalDate.of(2026, 8, 5), next)
     }
 
-  @Test
-@org.junit.Ignore
-fun `nextRenewalDate rolls a stale past date forward instead of leaving it reserved`() {}
+    @Test
+    fun `nextRenewalDate rolls a stale past date forward instead of leaving it reserved`() {
+        val next = BudgetMath.nextRenewalDate(sub(50.0, renewalDate = "2026-05-12"), LocalDate.of(2026, 8, 15))
+        assertEquals(LocalDate.of(2026, 9, 12), next)
     }
 
     @Test

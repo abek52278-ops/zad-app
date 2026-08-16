@@ -27,7 +27,7 @@ import androidx.room.TypeConverters
     com.example.data.ZadDoseLog::class,
     com.example.data.PendingSyncOp::class,
     com.example.data.RejectedBankMessage::class
-], version = 15, exportSchema = false)
+], version = 16, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class ZadDatabase : RoomDatabase() {
     abstract fun zadDao(): ZadDao
@@ -125,6 +125,19 @@ abstract class ZadDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * مرآة لـ supabase/migrations/…_normalize_transaction_currency.sql — معاملة بعملة
+         * غير عملة الحساب بتتحوّل عند الكتابة على السيرفر، والقيمة الأصلية بتتحفظ. لازم
+         * يبقوا هنا كمان: `select()` بيرجع كل الأعمدة، وRoom بيخزّن اللي الموديل بيعرّفه،
+         * فعمود موجود في الجدول ومش في الاتنين دول بيبقى فرق يظهر أول مزامنة.
+         */
+        private val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE zad_transactions ADD COLUMN original_amount REAL")
+                db.execSQL("ALTER TABLE zad_transactions ADD COLUMN original_currency TEXT")
+            }
+        }
+
         fun getDatabase(context: Context): ZadDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -132,7 +145,7 @@ abstract class ZadDatabase : RoomDatabase() {
                     ZadDatabase::class.java,
                     "zad_database"
                 )
-                    .addMigrations(MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+                    .addMigrations(MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance

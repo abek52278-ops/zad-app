@@ -172,7 +172,16 @@ data class ZadTransaction(
     // Market الحالي وقت العرض. null = مش معروفة (كل الصفوف القديمة، ورسايل من غير رمز
     // عملة صريح) — CurrencyFormatter.format(context, tx) بيرجع لعملة الـ Market في الحالة
     // دي، مفيش تغيير سلوك بأثر رجعي.
-    @SerialName("currency") val currency: String? = null
+    @SerialName("currency") val currency: String? = null,
+    // معاملة وصلت بعملة غير عملة الحساب بتتحوّل مرة واحدة عند الكتابة (trigger
+    // zad_transactions_normalize_currency)، فـ`amount` دايماً بعملة الحساب وكل قارئ بيبقى
+    // صح من غير ما يعرف حاجة عن العملات. الأصل بيتحفظ هنا عشان الإيصال يفضل ينفع يتعرض
+    // بقيمته الحقيقية، وعشان معدل صرف غلط يتصحح بعدين بدل ما يكون دمّر المصدر.
+    //
+    // الحقلين دول لازم يفضلوا موجودين هنا حتى لو الشاشات ماستخدمتهمش: `select()` بيرجع كل
+    // الأعمدة، وموديل ناقص عمود موجود في الجدول ممكن يفشل فك التسلسل.
+    @SerialName("original_amount") val originalAmount: Double? = null,
+    @SerialName("original_currency") val originalCurrency: String? = null
 )
 
 /** Task 22 — نتيجة صف واحد من zad_habit_chips() RPC. label بيكون العنوان (title) لو موجود، وإلا الفئة */
@@ -590,4 +599,33 @@ data class RejectedBankMessage(
     val source: String,
     val rawText: String,
     val createdAt: String
+)
+
+/**
+ * وصفة واحدة من شيف زاد.
+ *
+ * الأكشن كان بيرجّع فقرة نص واحدة، والكارت كان بيعرضها زي ما هي. فقرة مينفعش يتطبخ منها،
+ * ومينفعش تقول لك ناقصك إيه، ومينفعش تحط الناقص في قائمة التسوق. دلوقتي السيرفر بيرجّع
+ * `recipes` بالشكل ده جنب `text` (العقد اتوسّع مش اتبدّل).
+ *
+ * كل الحقول ليها قيم افتراضية عن قصد: الرد جاي من نموذج، وحقل ناقص في وصفة واحدة
+ * المفروض ما يوقّعش تحويل الرد كله.
+ */
+@Serializable
+data class ZadRecipe(
+    @SerialName("recipe_name") val recipeName: String = "",
+    @SerialName("image_keyword_en") val imageKeywordEn: String = "",
+    @SerialName("image_url") val imageUrl: String? = null,
+    @SerialName("image_thumb_url") val imageThumbUrl: String? = null,
+    @SerialName("prep_time_minutes") val prepTimeMinutes: Int = 0,
+    @SerialName("cost_estimate") val costEstimate: Double = 0.0,
+    @SerialName("available_ingredients_used") val availableIngredientsUsed: List<String> = emptyList(),
+    @SerialName("missing_ingredients_to_buy") val missingIngredientsToBuy: List<String> = emptyList(),
+    @SerialName("cooking_instructions") val cookingInstructions: List<String> = emptyList()
+)
+
+/** رد `meal_suggestions` كامل — النص للعرض السريع، والوصفات للكروت. */
+data class ChefSuggestion(
+    val text: String,
+    val recipes: List<ZadRecipe> = emptyList()
 )

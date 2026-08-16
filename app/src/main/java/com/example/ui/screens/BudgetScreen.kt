@@ -653,11 +653,13 @@ fun BudgetScreen(
     }
 
     if (showBudgetDialog) {
+        // نفس تحوّل الدفتر اللي في HomeScreen.BudgetEditSheet: الرقم المكتوب هو الرصيد
+        // اللي العميل عايز يشوفه، مش سقف بيتحسب منه رصيد.
         BudgetEditDialog(
-            currentBudget = budget,
+            currentBudget = remainingBalance ?: 0.0,
             onDismiss = { viewModel.hideBudgetDialog() },
-            onSave = { newBudget ->
-                viewModel.updateBudget(newBudget)
+            onSave = { newBalance ->
+                viewModel.setBalanceTo(newBalance)
                 viewModel.hideBudgetDialog()
             }
         )
