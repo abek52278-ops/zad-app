@@ -3030,14 +3030,20 @@ async function handleNotificationIngest(sb: SupabaseClient, userId: string, body
     }), { headers: CORS_HEADERS });
   }
 
+  // من هنا لتحت التحويلات بس — الفرع فوق بيرجّع لكل مصروف ودخل. الحقول اللي كانت
+  // بتتفرّع على txn_kind اتحطّت على قيمتها للتحويل مباشرة: TypeScript ضيّق النوع لـ
+  // "transfer" بعد الـ return، فمقارنة زي `txnKind === "income"` بقت خطأ ترجمة
+  // (TS2367) مش فرع ميت — وهي اللي كسرت الـ CI.
   const row = {
     user_id: userId,
     amount: Math.round(amount * 100) / 100,
     title: String(parsed.title ?? title).trim().slice(0, 80),
-    category: String(parsed.category ?? (txnKind === "income" ? "دخل" : "أخرى")).trim().slice(0, 40),
+    // سحب من ماكينة مش فئة إنفاق: الفلوس اتنقلت من البطاقة للكاش ولسه ما اتصرفتش.
+    // الفئة الحقيقية بتتحدد لما الكاش نفسه يتصرف.
+    category: String(parsed.category ?? "تحويل").trim().slice(0, 40),
     is_expense: isExpense,
     txn_kind: txnKind,
-    transfer_to: txnKind === "transfer" ? "cash" : null,
+    transfer_to: "cash",
     wallet: "card",
     merchant_name: String(parsed.merchant_name ?? parsed.bank_name ?? packageName).trim().slice(0, 80),
     bank_name: String(parsed.bank_name ?? packageName).trim().slice(0, 80),
