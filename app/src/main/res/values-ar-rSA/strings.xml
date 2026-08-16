@@ -973,7 +973,6 @@
     <string name="quick_deduct_amount">المبلغ</string>
     <string name="quick_deduct_note">على وش؟ (اختياري)</string>
     <string name="quick_deduct_confirm">اخصم</string>
-    <string name="balance_label">الرصيد</string>
     <string name="current_balance_label">رصيدك الحين</string>
     <string name="balance_after_deduct">الرصيد بعد الخصم: %1$s</string>
     <string name="manual_balance_correction_title">تصحيح رصيد يدوي</string>

@@ -1125,7 +1125,6 @@
     <string name="quick_deduct_amount">Amount</string>
     <string name="quick_deduct_note">What for? (optional)</string>
     <string name="quick_deduct_confirm">Deduct</string>
-    <string name="balance_label">Balance</string>
     <string name="current_balance_label">Your balance now</string>
     <string name="balance_after_deduct">Balance after: %1$s</string>
     <string name="manual_balance_correction_title">Manual balance correction</string>

@@ -1122,7 +1122,6 @@
     <string name="quick_deduct_amount">Tutar</string>
     <string name="quick_deduct_note">Ne için? (isteğe bağlı)</string>
     <string name="quick_deduct_confirm">Düş</string>
-    <string name="balance_label">Bakiye</string>
     <string name="current_balance_label">Şu anki bakiyen</string>
     <string name="balance_after_deduct">Düşüm sonrası: %1$s</string>
     <string name="manual_balance_correction_title">Elle bakiye düzeltmesi</string>
