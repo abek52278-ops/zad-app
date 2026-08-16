@@ -789,7 +789,7 @@ fun HomeScreen(
                     containerColor = surface,
                     contentColor = primary
                 ) {
-                    Icon(Icons.Default.EditNote, contentDescription = stringResource(R.string.add_action))
+                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.add_action))
                 }
                 ExtendedFloatingActionButton(
                     onClick = { showQuickDeductDialog = true },
