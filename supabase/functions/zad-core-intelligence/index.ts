@@ -849,6 +849,33 @@ Deno.serve(async (req: Request) => {
       // ══════════════════════════════════════════════
 
       // ──────────────────────────────────────────────
+      // PEXELS_IMAGE — one food image URL for an arbitrary term
+      // ──────────────────────────────────────────────
+      // The recipe actions attach images themselves, but two surfaces need a picture for a
+      // term the model never produced: the recipe *detail* screen (which had no network
+      // image at all — a gradient and an emoji, left over from when Unsplash closed its
+      // hotlink endpoint) and any future food card built from an inventory item's name.
+      //
+      // It exists so the key does not have to. PexelsRepo on the phone prefers its own
+      // BuildConfig key when one is compiled in, and falls back here when it is not — which
+      // is the configuration this project's own convention prefers (LocationIqRepo:
+      // "المفتاح سر سيرفر فقط — أبداً في الـ APK"). Either way the customer sees the image.
+      //
+      // No model call, so no dialect and no quota: this is a cached HTTP lookup wearing an
+      // action's clothes. It reuses lookupMealImage, so the six-hour word-level cache is
+      // shared with the recipe path — "كشري" fetched for a recipe card is already warm here.
+      case "pexels_image": {
+        const query = String((payload || {}).query ?? "").trim();
+        if (!query) return jsonResponse({ image_url: null, image_thumb_url: null, ok: false });
+        const image = await lookupMealImage(query);
+        return jsonResponse({
+          image_url: image?.regular ?? null,
+          image_thumb_url: image?.thumb ?? null,
+          ok: image !== null,
+        });
+      }
+
+      // ──────────────────────────────────────────────
       // MEAL_SUGGESTIONS — Suggest meals from inventory
       // ──────────────────────────────────────────────
       case "meal_suggestions": {

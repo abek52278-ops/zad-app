@@ -31,11 +31,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.example.data.CurrencyFormatter
 import com.example.data.ZadRecipe
 import com.example.ui.theme.Typography
@@ -87,8 +85,10 @@ private fun ChefRecipeCard(
             .clickable { expanded = !expanded }
             .padding(bottom = 14.dp),
     ) {
-        // الصورة بتيجي من Unsplash عبر الأكشن. لو مفيش رابط (مفتاح ناقص، أو Unsplash ردّ
-        // بحاجة غير 200) بنرسم مكانها لوح بأيقونة — أكلة من غير صورة أحسن من كارت مكسور.
+        // الصورة بتيجي من Pexels عبر الأكشن. لو مفيش رابط (النموذج نسي image_keyword_en،
+        // أو المفتاح ناقص) FoodImage بتدوّر بنفسها باسم الوصفة العربي — Pexels بتفهم
+        // العربي، وده اللي Unsplash ماكانتش بتعمله. ولو برضه مفيش، أيقونة: أكلة من غير
+        // صورة أحسن من كارت مكسور.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -96,14 +96,12 @@ private fun ChefRecipeCard(
                 .background(Color(0xFFFDF3E1)),
             contentAlignment = Alignment.Center,
         ) {
-            if (recipe.imageUrl != null) {
-                AsyncImage(
-                    model = recipe.imageUrl,
-                    contentDescription = recipe.recipeName,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().height(120.dp),
-                )
-            } else {
+            FoodImage(
+                query = recipe.recipeName,
+                imageUrl = recipe.imageUrl,
+                contentDescription = recipe.recipeName,
+                modifier = Modifier.fillMaxWidth().height(120.dp),
+            ) {
                 Icon(
                     Icons.Default.Restaurant,
                     contentDescription = null,
