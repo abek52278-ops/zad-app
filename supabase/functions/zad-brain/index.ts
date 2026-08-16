@@ -62,6 +62,14 @@ import { redactNotificationText } from "./redact.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+// Gates zad-telegram-bot's ?job=confirm_transaction, which this function calls after it
+// reads a bank notification. The literal lives in both files rather than in an env var,
+// matching that function's four existing job secrets (CHECKIN_CRON_SECRET and friends) —
+// they are in-file constants because their other callers are SQL triggers with the value
+// embedded. Keep this in step with CONFIRM_TRANSACTION_SECRET there; a mismatch shows up
+// as every notification silently falling back to an in-app question.
+const NOTIFICATION_CONFIRM_SECRET = "b1f0a4c7d29e63581c0a7f4e2b9d8c3a65e07f14d8b2c96035ae7143f0d92b68";
 // The agent loop's model, deliberately NOT ZAD_MODEL_ROUTINE any more.
 //
 // ZAD_MODEL_ROUTINE is a shared secret that zad-core-intelligence also reads for vision /
@@ -585,10 +593,10 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     currency: budgetState.currency ?? userRes.data?.currency ?? "غير معروف",
     country: budgetState.country ?? userRes.data?.country ?? "غير معروف",
     budget, spent, income, remaining, dailyAllowanceLeft, velocity, threat,
-    // الدخل اتقسم لتلاتة عن قصد: `income` هو اللي دخل فعلاً (العميل لازم يشوف اللي كسبه)،
-    // بس `income_allocated` هو الوحيد اللي بيكبّر السقف، و`income_awaiting_decision` هي
-    // الإيداعات اللي لسه محدش سأل العميل عنها — منها بيتبني السؤال ومنها بيتاخد
-    // transaction_id لـ allocate_income.
+    // الدخل اتقسم لتلاتة، وبعد الدفتر التقسيم ده بقى **وصفي بس**: `income` كله داخل في
+    // الرصيد، و`income_allocated` بيقول نية العميل مش أكتر. `income_awaiting_decision`
+    // المفروض تفضل فاضية (backfill + default true في 20260816010000) — لو رجعت مليانة
+    // يبقى في كتابة بتفرض null، وده يستاهل الفحص مش السؤال.
     income_allocated: budgetState.income_allocated ?? 0,
     income_pending: budgetState.income_pending ?? 0,
     income_awaiting_decision: budgetState.income_awaiting_decision ?? [],
@@ -969,7 +977,7 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
         .eq("id", input.transaction_id).eq("user_id", userId).maybeSingle();
       if (!row) return "مرفوض: المعاملة دي مش موجودة عند العميل ده";
       if (row.txn_kind !== "income") {
-        return "مرفوض: الأداة دي للإيداعات بس — المصروفات بتتخصم من السقف على طول ومحتاجاش قرار";
+        return "مرفوض: الأداة دي للإيداعات بس — المصروفات بتتخصم من الرصيد على طول ومحتاجاش قرار";
       }
 
       const counts = input.counts === true;
@@ -986,9 +994,13 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
         tool: name, input, table: "zad_transactions", targetId: row.id,
         previous: { counts_toward_budget: row.counts_toward_budget }, next: w.rows[0],
       });
+      // مهم: الرقم **مابيتغيّرش** في الحالتين. بعد الدفتر كل إيداع بيدخل الرصيد ساعة ما
+      // يوصل، والعمود ده بقى تسجيل لنية العميل عشان النصيحة تفرّق بين فلوس البيت وفلوس
+      // متحطوطة على جنب — مش مفتاح بيشغّل ويطفّي حساب. الرد لازم يقول كده بالظبط، لأن
+      // "المتاح زاد بيهم" بقت كدبة: المتاح كان زاد بيهم من الأول.
       return counts
-        ? `تمام — ${row.amount} (${row.title}) هيتحسبوا في مصروف الشهر، والمتاح زاد بيهم`
-        : `تمام — ${row.amount} (${row.title}) مش هيتحسبوا في مصروف الشهر، السقف زي ما هو`;
+        ? `سجّلت إن ${row.amount} (${row.title}) فلوس بيت. الرصيد زي ما هو — الإيداع كان داخل فيه أصلاً.`
+        : `سجّلت إن ${row.amount} (${row.title}) مش فلوس بيت، وهاخد بالي منها في النصيحة. الرصيد زي ما هو — الفلوس موجودة فعلاً.`;
     }
     case "log_transaction": {
       const isExpense = input.txn_kind === "expense";
@@ -1102,15 +1114,18 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
     }
     case "set_monthly_limit": {
       // limit_confirmed_at بيتكتب هنا لأن ده فعل مستخدم مباشر بتأكيد صريح — نفس عقد
-      // SupabaseRepo.setMonthlyLimit بالظبط. سقف من غير التاريخ ده بيتقرا "غير مؤكد"
-      // وبيخلي شاشة تحديد السقف تفضل تطلع فوق رقم موجود فعلاً.
+      // SupabaseRepo.setMonthlyLimit بالظبط. رصيد من غير التاريخ ده بيتقرا "غير مؤكد"
+      // وبيخلي شاشة تحديد الرصيد تفضل تطلع فوق رقم موجود فعلاً.
+      //
+      // العمود اسمه monthly_limit لأسباب تاريخية بس — معناه بقى "الرصيد الابتدائي
+      // للدورة" من migration 20260816010000. مش سقف صرف.
       const { data: limitBefore } = await sb.from("zad_users").select("monthly_limit,limit_confirmed_at").eq("id", userId).maybeSingle();
       const w = await writeRows(
         sb.from("zad_users").update({
           monthly_limit: Math.round(input.monthly_limit * 100) / 100,
           limit_confirmed_at: new Date().toISOString(),
         }).eq("id", userId).select("monthly_limit,limit_confirmed_at"),
-        "حفظ السقف",
+        "حفظ الرصيد",
       );
       if (!w.ok) return `مرفوض: ${w.reason}`;
       ctx.mutationCount++;
@@ -1119,7 +1134,7 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
         tool: name, input, table: "zad_users", targetId: userId,
         previous: limitBefore ?? null, next: w.rows[0],
       });
-      return `اتظبط السقف الشهري على ${input.monthly_limit}`;
+      return `اتظبط الرصيد على ${input.monthly_limit}`;
     }
     case "add_inventory_item": {
       const itemName = String(input.item_name).trim();
@@ -2032,19 +2047,20 @@ const CHAT_TOOLS: ToolDef[] = [
   {
     name: "set_monthly_limit",
     description:
-      "غيّر سقف الصرف الشهري — الرقم اللي الكارت الأخضر و\"المتبقي\" و\"المتاح\" كلهم " +
-      "محسوبين عليه.\n" +
+      "اظبط **رصيد العميل** — الرقم اللي الكارت الأخضر بيعرضه. مفيش سقف ميزانية في زاد " +
+      "خلاص: الرصيد = اللي بدأت بيه + كل اللي دخل - كل اللي اتصرف، والأداة دي بتحط نقطة " +
+      "البداية.\n" +
       // الوصف القديم كان \"نادِها بس لما العميل يطلب صراحة يغيّر ميزانيته\"، وكلمة \"صراحة\"
       // كانت بتقفل الباب على أكتر الصيغ اللي العملاء بيستخدموها فعلاً. حد بيقول \"معايا
       // 3000 الشهر ده\" بيطلب نفس الحاجة بالظبط، والنموذج كان بيقراها كخبر مش كطلب —
       // فيرد بكلام ومايناديش الأداة، والعميل يفتكر إن البوت رافض.
-      "نادِها لما العميل يقول مبلغ ويقصد بيه سقف صرفه، بأي صيغة:\n" +
-      "• \"معايا 3000 الشهر ده\" / \"مش معايا غير 3000\" / \"ميزانيتي 3000\"\n" +
+      "نادِها لما العميل يقول مبلغ ويقصد بيه اللي معاه، بأي صيغة:\n" +
+      "• \"معايا 3000 الشهر ده\" / \"مش معايا غير 3000\" / \"رصيدي 3000\"\n" +
       "• \"خلي الكارت الأخضر 3000\" / \"عدّل الكارت على 3000\"\n" +
-      "• \"سقف الصرف 3000\" / \"غيّر ميزانيتي لـ3000\"\n" +
+      "• \"ميزانيتي 3000\" / \"غيّر ميزانيتي لـ3000\"\n" +
       "لو المبلغ واضح، نادِها على طول — متقولش للعميل يعملها من التطبيق، دي شغلانتك.\n" +
-      "لو مش متأكد إنه يقصد السقف ولا بيحكي عن فلوس في إيده، **اسأله سؤال واحد قصير** " +
-      "قبل ما تنادي. العميل هيشوف تأكيد قبل الكتابة في كل الحالات.",
+      "التمييز اللي كان بين \"سقف صرفه\" و\"فلوس في إيده\" مابقاش موجود — الاتنين بقوا " +
+      "نفس الرقم، فمفيش داعي تسأل عنه. العميل هيشوف تأكيد قبل الكتابة في كل الحالات.",
     input_schema: {
       type: "object",
       properties: {
@@ -2934,14 +2950,100 @@ async function handleNotificationIngest(sb: SupabaseClient, userId: string, body
 
   const txnKind = parsed.txn_kind === "transfer" ? "transfer" : (parsed.txn_kind === "income" || parsed.is_expense === false ? "income" : "expense");
   const isExpense = txnKind !== "income";
+
+  // ── Ask before it counts ────────────────────────────────────────────────────
+  // A readable notification is a question now, not news. Direct instruction from the
+  // customer (2026-08-16): "يقراها عقل الايجنت يحلل يشوف سحب ولا إيداع ويبعتلي عن طريق
+  // البوت ... أقوله أيوة أو لا، ويسجل ويعدل الكارت الأخضر". Nothing below writes a
+  // transaction any more; the write happens in zad-telegram-bot's confirm button, which
+  // routes back through agent_confirm -> log_transaction, i.e. the same audited path a
+  // typed message takes. Same rule, one channel.
+  //
+  // Transfers are the single exception and it is not a loophole: card -> cash leaves the
+  // ledger balance identical, so there is no figure for the customer to approve, and
+  // log_transaction refuses the kind anyway (validators.ts). Those still write directly.
+  if (txnKind !== "transfer") {
+    const askTitle = String(parsed.title ?? title).trim().slice(0, 80) || packageName;
+    const askCategory = String(parsed.category ?? (txnKind === "income" ? "دخل" : "أخرى")).trim().slice(0, 40);
+    const sourceLabel = String(parsed.merchant_name ?? parsed.bank_name ?? packageName).trim().slice(0, 80);
+    const rounded = Math.round(amount * 100) / 100;
+
+    let deliveredToTelegram = false;
+    try {
+      const askRes = await fetch(`${SUPABASE_URL}/functions/v1/zad-telegram-bot?job=confirm_transaction`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Confirm-Transaction-Secret": NOTIFICATION_CONFIRM_SECRET,
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          txn_kind: txnKind,
+          amount: rounded,
+          title: askTitle,
+          category: askCategory,
+          confidence,
+          source_label: sourceLabel,
+        }),
+      });
+      // delivered:false is the normal answer for an account with no Telegram link — not
+      // an error, and specifically not a reason to skip asking. The in-app question below
+      // is the other half of the same channel, not a degraded fallback.
+      const askBody = await askRes.json().catch(() => ({})) as { delivered?: boolean };
+      deliveredToTelegram = askRes.ok && askBody.delivered === true;
+    } catch (e) {
+      console.error("notification confirm prompt to telegram failed:", (e as Error).message);
+    }
+
+    if (!deliveredToTelegram) {
+      const direction = txnKind === "income" ? "جالك" : "صرفت";
+      await sb.from("zad_insights").upsert({
+        user_id: userId, kind: "question", surface: "home_card", priority: "normal",
+        title: "معاملة محتاجة تأكيد",
+        // Distinct from the ambiguous-notification question above it: there the app is
+        // asking WHAT the message was, here it knows and is asking WHETHER to record it.
+        // Merging the two would put "أيوة = إيداع" on a question whose answer is yes/no.
+        body: `${direction} ${rounded} من ${sourceLabel} — أسجلها؟`,
+        dedupe_key: `notif_confirm_${dedupeHash.slice(0, 24)}`,
+        action_type: "yes_no",
+        about_item: rawText.slice(0, 200),
+        status: "pending", updated_at: new Date().toISOString(),
+      }, { onConflict: "user_id,dedupe_key" });
+    }
+
+    await recordAction(sb, userId, { source: "event", runId: null }, {
+      tool: "parse_notification_payload",
+      input: { package_name: packageName, title, text, client_classification: body.client_classification, parsed },
+      // مفيش table ولا targetId: مفيش صف اتكتب. ActionRecord بيستخدم previous/next
+      // للتراجع، وسؤال مالوش تراجع — اللي يتراجع هو الكتابة اللي بعد "أيوة"، وهي
+      // بتتسجّل بنفسها في مسار agent_confirm.
+      summary: deliveredToTelegram
+        ? "قرا إشعار بنك وبعت سؤال تأكيد على تيليجرام"
+        : "قرا إشعار بنك وحط سؤال تأكيد في رؤى زاد",
+    });
+    await mark("awaiting_confirmation", "needs_user_approval");
+    return new Response(JSON.stringify({
+      ok: true,
+      status: "awaiting_confirmation",
+      classification: "completed_transaction",
+      channel: deliveredToTelegram ? "telegram" : "insight",
+    }), { headers: CORS_HEADERS });
+  }
+
+  // من هنا لتحت التحويلات بس — الفرع فوق بيرجّع لكل مصروف ودخل. الحقول اللي كانت
+  // بتتفرّع على txn_kind اتحطّت على قيمتها للتحويل مباشرة: TypeScript ضيّق النوع لـ
+  // "transfer" بعد الـ return، فمقارنة زي `txnKind === "income"` بقت خطأ ترجمة
+  // (TS2367) مش فرع ميت — وهي اللي كسرت الـ CI.
   const row = {
     user_id: userId,
     amount: Math.round(amount * 100) / 100,
     title: String(parsed.title ?? title).trim().slice(0, 80),
-    category: String(parsed.category ?? (txnKind === "income" ? "دخل" : "أخرى")).trim().slice(0, 40),
+    // سحب من ماكينة مش فئة إنفاق: الفلوس اتنقلت من البطاقة للكاش ولسه ما اتصرفتش.
+    // الفئة الحقيقية بتتحدد لما الكاش نفسه يتصرف.
+    category: String(parsed.category ?? "تحويل").trim().slice(0, 40),
     is_expense: isExpense,
     txn_kind: txnKind,
-    transfer_to: txnKind === "transfer" ? "cash" : null,
+    transfer_to: "cash",
     wallet: "card",
     merchant_name: String(parsed.merchant_name ?? parsed.bank_name ?? packageName).trim().slice(0, 80),
     bank_name: String(parsed.bank_name ?? packageName).trim().slice(0, 80),

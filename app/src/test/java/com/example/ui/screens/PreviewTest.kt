@@ -200,81 +200,59 @@ class PreviewTest {
         )
     }
 
-    // Glassmorphism pass (iOS-design alignment task) — ZadCardHero is stateless (plain
-    // params, no ViewModel), so it captures directly like the cards above.
+    // الكارت الأخضر بعد إعادة الهيكلة (2026-08-16): رقم واحد بس. اللقطات القديمة كانت
+    // تلاتة منهم بتصوّر ألوان شريط التقدّم (أخضر/كهرماني/أحمر) وواحدة بتصوّر إخفاءه لما
+    // السقف مش معروف — الشريط نفسه اتشال، فاللقطات دي بقت بتصوّر حاجة مش موجودة. اللي
+    // فضل يستاهل التصوير هو الحالات اللي الكارت لسه بيفرّق فيها: رقم قاطع، رقم تقريبي
+    // (≈)، ورقم سالب (اللون التحذيري بدل الجراديانت).
     @Test
-    fun captureZadCardHero_glassmorphism() {
+    fun captureZadCardHero_confident() {
         composeTestRule.setContent {
             AppTheme {
                 Box(modifier = Modifier.padding(16.dp)) {
-                    ZadCardHero(
-                        spent = 1200.0,
-                        remaining = 2300.0,
-                        available = Figure(value = 2000.0, confident = true),
-                        committed = 300.0,
-                        monthlyLimit = 4000.0,
-                        nextObligationText = "إيجار بعد 4 أيام"
-                    )
+                    ZadCardHero(balance = Figure(value = 2300.0, confident = true))
                 }
             }
         }
-
         composeTestRule.onRoot().captureRoboImage(
             filePath = "build/outputs/roborazzi/zad_card_hero_glass.png"
         )
     }
 
-    // مرحلة ٥ب-١ — شريط التقدّم الجديد بألوانه الثلاثة (أخضر/كهرماني/أحمر) — لازم
-    // نشوفهم فعلياً قبل الالتزام، مش نفترض إن الـ when() صح لمجرد إنه اتكتب صح.
     @Test
-    fun captureZadCardHero_progressBar_danger() {
+    fun captureZadCardHero_approximate() {
         composeTestRule.setContent {
             AppTheme {
                 Box(modifier = Modifier.padding(16.dp)) {
                     ZadCardHero(
-                        spent = 3800.0,
-                        remaining = 200.0,
-                        available = Figure(value = 200.0, confident = true),
-                        monthlyLimit = 4000.0
+                        balance = Figure(
+                            value = 3880.0,
+                            confident = false,
+                            reason = "فيه ٢ معاملة لسه ما اتأكدتش"
+                        )
                     )
                 }
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/zad_card_hero_progress_danger.png")
+        composeTestRule.onRoot().captureRoboImage(
+            filePath = "build/outputs/roborazzi/zad_card_hero_approximate.png"
+        )
     }
 
+    // الرصيد السالب مقصود إنه يظهر زي ما هو، مش يتخبّى ورا صفر — coralLight مش
+    // dangerColor عشان التباين على الخلفية الخضرا الغامقة (WCAG AA للخط الكبير).
     @Test
-    fun captureZadCardHero_progressBar_warning() {
+    fun captureZadCardHero_negative() {
         composeTestRule.setContent {
             AppTheme {
                 Box(modifier = Modifier.padding(16.dp)) {
-                    ZadCardHero(
-                        spent = 3000.0,
-                        remaining = 1000.0,
-                        available = Figure(value = 1000.0, confident = true),
-                        monthlyLimit = 4000.0
-                    )
+                    ZadCardHero(balance = Figure(value = -420.0, confident = true))
                 }
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/zad_card_hero_progress_warning.png")
-    }
-
-    // السقف مش معروف — من غير monthlyLimit أصلاً، مفروض الشريط ميظهرش خالص (نسبة من صفر مالهاش معنى)
-    @Test
-    fun captureZadCardHero_noMonthlyLimit_hidesProgressBar() {
-        composeTestRule.setContent {
-            AppTheme {
-                Box(modifier = Modifier.padding(16.dp)) {
-                    ZadCardHero(
-                        spent = 500.0,
-                        remaining = 1500.0,
-                        available = Figure(value = 1500.0, confident = true)
-                    )
-                }
-            }
-        }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/zad_card_hero_no_limit.png")
+        composeTestRule.onRoot().captureRoboImage(
+            filePath = "build/outputs/roborazzi/zad_card_hero_negative.png"
+        )
     }
 
     // Task 19.0 معيار ٦ — الحالة الفاضية (سقف لسه مش متحدد) لازم تحس إنها نفس عائلة
@@ -486,13 +464,7 @@ class PreviewTest {
                             .padding(horizontal = 20.dp, vertical = 24.dp),
                         verticalArrangement = Arrangement.spacedBy(18.dp)
                     ) {
-                        ZadCardHero(
-                            spent = 1120.0,
-                            remaining = 3880.0,
-                            available = Figure(value = 3240.0, confident = false),
-                            committed = 640.0,
-                            nextObligationText = "إيجار بعد 4 أيام"
-                        )
+                        ZadCardHero(balance = Figure(value = 3880.0, confident = false))
 
                         ZadDaysAndSafeSpendRow(daysLeft = 9, available = 3240.0)
 

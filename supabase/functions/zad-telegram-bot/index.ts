@@ -78,6 +78,15 @@ const REALTIME_PUSH_CRON_SECRET = "7e78ce0aa8d2e83f67fbe48c39b5c39c17e54d32f781c
 // can't double the user's daily prompt budget between them.
 const LIVE_CHECKIN_CRON_SECRET = "58dda37fa693d2351ab038f07303fb9b621ce983c597046de7c7edc2b6d283a6";
 
+// Same rationale again, own distinct value. Gates ?job=confirm_transaction below — called
+// by zad-brain's handleNotificationIngest the moment the phone's NotificationListener
+// hands it a bank notification it could read. This endpoint asks; it never writes money.
+// The row it creates is a telegram_pending_writes row, and the write itself still happens
+// only in the confirm-button branch of callback_query, which is the single place in this
+// function that has ever written a transaction. zad-brain holds the same literal — see
+// NOTIFICATION_CONFIRM_SECRET there, and keep the two in step.
+const CONFIRM_TRANSACTION_SECRET = "b1f0a4c7d29e63581c0a7f4e2b9d8c3a65e07f14d8b2c96035ae7143f0d92b68";
+
 function toGrammyKeyboard(rows: InlineKeyboardButton[][]): InlineKeyboard {
   const kb = new InlineKeyboard();
   for (const row of rows) {
@@ -1447,6 +1456,79 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ ok: true, delivered: true }), { headers: { "Content-Type": "application/json" } });
     } catch (e) {
       console.error("realtime_push failed:", e);
+      return new Response(JSON.stringify({ ok: false, error: String(e) }), { status: 500 });
+    }
+  }
+
+  // A bank notification the phone read and zad-brain accepted — delivered here as a
+  // question, not as news. The customer presses تأكيد and the existing callback_query
+  // branch does the write; they press إلغاء and nothing ever reaches zad_transactions.
+  // This endpoint performs no money math and writes no transaction: it resolves the chat,
+  // parks a telegram_pending_writes row, and sends it with the same confirm keyboard a
+  // typed message gets. delivered:false (unlinked account) is a 200, and zad-brain falls
+  // back to an in-app question — an unlinked customer must still be asked.
+  if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "confirm_transaction") {
+    if (req.headers.get("X-Confirm-Transaction-Secret") !== CONFIRM_TRANSACTION_SECRET) {
+      return new Response("unauthorized", { status: 401 });
+    }
+    if (!BOT_CONFIGURED) {
+      return new Response(JSON.stringify({ ok: false, reason: "bot not configured" }), { status: 503 });
+    }
+    try {
+      const { user_id, txn_kind, amount, title, category, confidence, source_label } = await req.json() as {
+        user_id?: string; txn_kind?: string; amount?: number; title?: string;
+        category?: string; confidence?: number; source_label?: string;
+      };
+      // txn_kind is checked against the same two values log_transaction accepts, here
+      // rather than only at confirm time: a row parked with an unusable kind would sit in
+      // the customer's chat as a button that can only ever fail.
+      if (!user_id || !amount || !Number.isFinite(amount) || amount <= 0 || !title ||
+          (txn_kind !== "expense" && txn_kind !== "income")) {
+        return new Response(JSON.stringify({ ok: false, reason: "missing or invalid user_id/txn_kind/amount/title" }), { status: 400 });
+      }
+      const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+      const chatId = await resolveChatId(sb, user_id);
+      if (chatId === null) {
+        return new Response(JSON.stringify({ ok: true, delivered: false, reason: "not linked" }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: pending, error } = await sb.from("telegram_pending_writes").insert({
+        user_id,
+        chat_id: chatId,
+        txn_kind,
+        amount,
+        title,
+        category: category ?? null,
+        confidence: confidence ?? null,
+      }).select("id").maybeSingle();
+      if (error || !pending) {
+        console.error("confirm_transaction pending write insert failed:", error);
+        return new Response(JSON.stringify({ ok: false, reason: "insert failed" }), { status: 500 });
+      }
+
+      const { data: u } = await sb.from("zad_users").select("currency").eq("id", user_id).maybeSingle();
+      const cur = (u as { currency?: string } | null)?.currency ?? "غير معروف";
+      // "جالك" / "صرفت" — the customer's own framing of the question. The amount and the
+      // direction are the whole message; the source is named so an unexpected charge can
+      // be recognised without opening the app.
+      const heard = txn_kind === "income"
+        ? `جالك ${isolate(money(amount, cur))}`
+        : `صرفت ${isolate(money(amount, cur))}`;
+      const from = source_label ? ` من ${isolate(sanitizeName(source_label))}` : "";
+      const text = [
+        `${heard}${from}؟`,
+        "",
+        confirmSpendMessage({ is_spend: true, kind: txn_kind, amount, title, category: category ?? "أخرى", confidence: confidence ?? 0.9 }, cur),
+      ].join("\n");
+
+      await sendTelegramMessage(chatId, clampForTelegram(text), confirmSpendKeyboard((pending as { id: string }).id));
+      return new Response(JSON.stringify({ ok: true, delivered: true }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (e) {
+      console.error("confirm_transaction failed:", e);
       return new Response(JSON.stringify({ ok: false, error: String(e) }), { status: 500 });
     }
   }

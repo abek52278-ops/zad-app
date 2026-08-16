@@ -12,12 +12,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
-import java.time.Instant
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.content.Context
-import androidx.core.app.NotificationCompat
-import com.example.R
 
 class UnifiedBankListener : NotificationListenerService() {
 
@@ -335,7 +330,11 @@ class UnifiedBankListener : NotificationListenerService() {
             val parsed = result.transaction ?: return
             val serverDecision = sendNotificationToSharedBrain(packageName, title, text, result.classification, parsed)
             when (serverDecision) {
-                "logged", "ignored" -> {
+                // awaiting_confirmation هي الرد الطبيعي دلوقتي لأي إشعار مقروء: السيرفر بعت
+                // سؤال تأكيد (تيليجرام أو رؤى زاد) والمعاملة مش هتتكتب غير لما العميل يقول
+                // أيوة. من غير الحالة دي هنا كانت هتقع في else وتتكتب محلياً — يعني نفس
+                // العملية تتخصم من الكارت من غير موافقة، وهو بالظبط اللي التغيير ده بيمنعه.
+                "logged", "ignored", "awaiting_confirmation" -> {
                     Log.d("UnifiedBankListener", "zad-brain handled notification as $serverDecision")
                     return
                 }
@@ -345,78 +344,28 @@ class UnifiedBankListener : NotificationListenerService() {
                     return
                 }
                 null -> {
-                    Log.w("UnifiedBankListener", "zad-brain notification ingest unavailable — using local fallback")
-                }
-                else -> {
-                    Log.w("UnifiedBankListener", "zad-brain notification ingest returned $serverDecision — using local fallback")
-                }
-            }
-            run {
-                // منع الخصم المزدوج (نفس العملية توصل SMS + إشعار)، مع اسم التاجر كمُميّز —
-                // نفس المنطق المستخدم في UnifiedSmsReceiver عشان القناتين يتفقوا على نفس البصمة
-                if (!TxDeduplicator.isNewTransaction(applicationContext, parsed.amount, parsed.isExpense, parsed.merchantName ?: parsed.bankName, parsed.externalRef, parsed.confidence)) {
-                    Log.d("UnifiedBankListener", "Duplicate blocked: ${parsed.amount}")
+                    // السيرفر مش موصول. الكتابة المحلية هنا كانت بتخصم من الكارت من غير ما
+                    // العميل يوافق — نفس الحاجة اللي اتقفلت فوق، بس من باب تاني. الطابور
+                    // بيرجّع الإشعار لنفس مسار التأكيد أول ما الشبكة ترجع؛ التأخير أرخص من
+                    // رقم اتغيّر لوحده والعميل ما عندوش فكرة ليه.
+                    SyncOutbox.enqueueUnparsedNotification(applicationContext, packageName, title, text)
+                    Log.w("UnifiedBankListener", "zad-brain notification ingest unavailable — queued for confirmation instead of writing locally")
                     return
                 }
-                Log.d("UnifiedBankListener", "Bank parsed: ${parsed.bankName} - ${parsed.title} (${parsed.amount} SAR, type=${parsed.txType})")
-
-                val transaction = ZadTransaction(
-                    title = parsed.title,
-                    amount = parsed.amount,
-                    isExpense = parsed.isExpense,
-                    category = MerchantCategoryOverrides.get(applicationContext, parsed.merchantName) ?: parsed.category,
-                    createdAt = Instant.now().toString(),
-                    currency = parsed.currency
-                )
-
-                BankTransactionApplier.apply(applicationContext, transaction, parsed.txType)
-
-                // Balance Anchor — الرسالة دي فيها رقم "الرصيد: X" صريح من البنك نفسه،
-                // نستخدمه لتصحيح أي انحراف تراكمي (إشعارات اتفوتت) بدل ما نرميه زي قبل كده
-                parsed.balance?.let { bankBalance ->
-                    BalanceAnchor.reconcile(applicationContext, bankBalance, parsed.amount, parsed.bankName, parsed.currency)
-                }
-
-                // Salary detection: ADD to budget (not replace)
-                if (parsed.category == "الراتب" && !parsed.isExpense) {
-                    try {
-                        val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
-                        if (userId != null) {
-                            SupabaseRepo.sendAppNotification(
-                                userId,
-                                "تم إيداع الراتب!",
-                                "تم إيداع راتبك بمبلغ ${com.example.data.CurrencyFormatter.format(applicationContext, parsed.amount)} وزيادة الرصيد المتبقي 🥳"
-                            )
-                        }
-                        showSystemNotification(
-                            "تم إيداع الراتب!",
-                            "تم إضافة ${com.example.data.CurrencyFormatter.format(applicationContext, parsed.amount)} لرصيدك المتبقي في زاد 🥳"
-                        )
-                    } catch (e: Exception) {
-                        Log.e("UnifiedBankListener", "Salary notification failed: ${e.message}")
-                    }
-                }
-
-                // Subscription detection notification
-                if (parsed.category == "الاشتراكات") {
-                    try {
-                        val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
-                        if (userId != null) {
-                            SupabaseRepo.sendAppNotification(
-                                userId,
-                                "تم خصم اشتراك",
-                                "تم خصم اشتراك: ${parsed.title} بمبلغ ${com.example.data.CurrencyFormatter.format(applicationContext, parsed.amount)}"
-                            )
-                        }
-                        showSystemNotification(
-                            "تنبيه اشتراك",
-                            "تم خصم ${com.example.data.CurrencyFormatter.format(applicationContext, parsed.amount)} لاشتراك ${parsed.title}"
-                        )
-                    } catch (e: Exception) {
-                        Log.e("UnifiedBankListener", "Subscription notification failed: ${e.message}")
-                    }
+                else -> {
+                    SyncOutbox.enqueueUnparsedNotification(applicationContext, packageName, title, text)
+                    Log.w("UnifiedBankListener", "zad-brain notification ingest returned $serverDecision — queued for confirmation instead of writing locally")
+                    return
                 }
             }
+            // المسار المحلي اللي كان هنا (TxDeduplicator ← BankTransactionApplier.apply ←
+            // BalanceAnchor.reconcile ← إشعارات "تم إيداع الراتب"/"تم خصم اشتراك") اتشال
+            // كله. كان بيكتب معاملة ويحرّك الرصيد من غير موافقة العميل، وده الحاجة الوحيدة
+            // اللي إعادة الهيكلة دي بتمنعها. كل فرع فوق بيرجع: يا إما السيرفر تعامل معاه،
+            // يا إما اتحط في الطابور عشان يتسأل عنه لما الشبكة ترجع.
+            //
+            // إشعارات الراتب/الاشتراك مالهاش لزمة تتعوّض هنا — رسالة التأكيد نفسها على
+            // البوت بقت هي الإخطار، وبتيجي قبل ما الرقم يتغيّر مش بعده.
         } catch (e: Exception) {
             Log.e("UnifiedBankListener", "Error processing: ${e.message}")
         }
@@ -475,27 +424,4 @@ class UnifiedBankListener : NotificationListenerService() {
         }
     }
 
-    private fun showSystemNotification(title: String, message: String) {
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val channelId = "zad_smart_alerts"
-        
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId,
-                "تنبيهات زاد الذكية",
-                NotificationManager.IMPORTANCE_HIGH
-            )
-            manager.createNotificationChannel(channel)
-        }
-
-        val notification = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(title)
-            .setContentText(message)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .build()
-
-        manager.notify(System.currentTimeMillis().toInt(), notification)
-    }
 }

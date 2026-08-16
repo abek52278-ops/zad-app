@@ -155,48 +155,64 @@ function normalizeInventoryCategory(raw: unknown): string {
 }
 
 /**
- * صور الأكلات من Unsplash.
+ * صور الأكلات من Pexels.
  *
- * النموذج بيدّي `image_keyword_en` لكل وصفة، والدالة دي بتحوّلها لرابط صورة حقيقي.
+ * كانت Unsplash، واتغيّرت لأن Pexels بترجّع نتايج على استعلامات أوسع وبجودة أعلى للأكل —
+ * وأهم من ده إنها **بتقبل العربي**. Unsplash كانت بترجّع `[]` على أي استعلام عربي، فالكود
+ * كان مضطر يتخطى الوصفة كلها لما النموذج ينسى حقل `image_keyword_en`. دلوقتي الاسم العربي
+ * بقى احتياطي حقيقي بدل ما يبقى نداء معروف إنه هيفشل.
+ *
  * الكاش (`ai_response_cache`) شغّال على مستوى **الكلمة** مش على مستوى الرد كله عن قصد:
  * "كشري" بيتكرر عبر مستخدمين واقتراحات كتير، فمفتاح واحد بيخدمهم كلهم. بيرث نفس الـ TTL
- * بتاع الكاش (٦ ساعات)، يعني كلمة شائعة بتتسأل مرة كل ٦ ساعات مش مع كل اقتراح — وحصة
- * حساب Unsplash المجاني ٥٠ طلب في الساعة، وكانت هتخلص بسرعة من غير ده.
+ * بتاع الكاش (٦ ساعات)، يعني كلمة شائعة بتتسأل مرة كل ٦ ساعات مش مع كل اقتراح.
  *
- * فشل الصورة **مش فشل للوصفة**. لو المفتاح مش متحط أو Unsplash رد بأي حاجة غير 200،
- * بترجع الوصفة من غير صورة والكارت بيعرض بديل. أكلة من غير صورة أحسن من شاشة فاضية.
+ * فشل الصورة **مش فشل للوصفة**. لو المفتاح مش متحط أو Pexels رد بأي حاجة غير 200، بترجع
+ * الوصفة من غير صورة والكارت بيعرض بديل. أكلة من غير صورة أحسن من شاشة فاضية.
+ *
+ * ملحوظة على الترويسة: Pexels بتاخد المفتاح **خام** في `Authorization`، من غير أي بادئة —
+ * مش `Bearer` ولا `Client-ID` زي Unsplash. بادئة غلط بترجّع 401.
  */
-const UNSPLASH_ACCESS_KEY = Deno.env.get("UNSPLASH_ACCESS_KEY") || "";
+const PEXELS_API_KEY = Deno.env.get("PEXELS_API_KEY") || "";
 
+/** مفتاح الكاش اتغيّر مع مزوّد الصور: الروابط المخزّنة من Unsplash لسه صالحة بس بتبقى
+ * لصور تانية خالص، ومفيش سبب نورّثها لمزوّد جديد. `meal_image_v2:` بيخلي الكاش القديم
+ * يموت لوحده بالـ TTL بدل ما يحتاج مسح يدوي. */
 async function lookupMealImage(keyword: string): Promise<{ thumb: string; regular: string } | null> {
   const q = keyword.trim().toLowerCase();
-  if (!q || !UNSPLASH_ACCESS_KEY) return null;
+  if (!q || !PEXELS_API_KEY) return null;
 
-  const cacheKey = "meal_image:" + q;
+  const cacheKey = "meal_image_v2:" + q;
   const cached = await getCachedAiResponse(cacheKey);
   if (cached && typeof (cached as Record<string, unknown>).regular === "string") {
     return cached as { thumb: string; regular: string };
   }
 
   try {
-    const url = "https://api.unsplash.com/search/photos?per_page=1&orientation=landscape&query=" +
+    const url = "https://api.pexels.com/v1/search?per_page=1&orientation=landscape&query=" +
       encodeURIComponent(q);
     const resp = await fetch(url, {
-      headers: { "Authorization": "Client-ID " + UNSPLASH_ACCESS_KEY },
+      headers: { "Authorization": PEXELS_API_KEY },
       signal: AbortSignal.timeout(6000),
     });
     if (!resp.ok) {
-      console.warn(`[CoreIntel] unsplash ${resp.status} for "${q}"`);
+      console.warn(`[CoreIntel] pexels ${resp.status} for "${q}"`);
       return null;
     }
     const data = await resp.json();
-    const first = data?.results?.[0];
-    if (!first?.urls?.regular) return null;
-    const out = { thumb: String(first.urls.thumb ?? first.urls.small ?? first.urls.regular), regular: String(first.urls.regular) };
+    const first = data?.photos?.[0];
+    const src = first?.src;
+    // `landscape` هو المقصوص للعرض اللي الكارت محتاجه؛ `large` احتياطي لو Pexels ما
+    // رجّعتوش. من غير واحد منهم مفيش صورة نعرضها.
+    const regular = src?.landscape ?? src?.large ?? src?.original;
+    if (!regular) return null;
+    const out = {
+      thumb: String(src?.tiny ?? src?.small ?? src?.medium ?? regular),
+      regular: String(regular),
+    };
     await setCachedAiResponse(cacheKey, "meal_image", out);
     return out;
   } catch (e) {
-    console.warn(`[CoreIntel] unsplash lookup failed for "${q}":`, (e as Error).message);
+    console.warn(`[CoreIntel] pexels lookup failed for "${q}":`, (e as Error).message);
     return null;
   }
 }
@@ -205,16 +221,15 @@ async function lookupMealImage(keyword: string): Promise<{ thumb: string; regula
 async function attachRecipeImages(recipes: unknown[]): Promise<unknown[]> {
   return await Promise.all(recipes.map(async (r) => {
     const recipe = r as Record<string, unknown>;
-    // الاحتياطي كان اسم الوصفة، وهو **عربي** — وUnsplash بيرجّع [] على العربي، فالوصفة
-    // كانت بتخسر صورتها بصمت لمجرد إن النموذج نسي حقل واحد. دلوقتي بنطلب الصورة بس لما
-    // يكون عندنا كلمة إنجليزية فعلاً؛ من غيرها الكارت بيعرض البديل، وده أصدق من نداء
-    // معروف إنه هيرجع فاضي.
-    const keyword = String(recipe.image_keyword_en ?? "").trim();
-    const looksEnglish = /^[\x20-\x7E]+$/.test(keyword);
-    const image = keyword && looksEnglish ? await lookupMealImage(keyword) : null;
-    if (keyword && !looksEnglish) {
-      console.warn(`[CoreIntel] image_keyword_en was not latin ("${keyword}") — skipping Unsplash`);
-    }
+    // الكلمة الإنجليزية لسه هي المفضّلة — نتايجها أدق. بس الاحتياطي بقى اسم الوصفة
+    // العربي بدل ما يبقى "متعملش حاجة": Pexels بتفهم العربي، وUnsplash هي اللي ماكانتش
+    // بتفهمه، وده كان السبب الوحيد إن الوصفة تخسر صورتها لما النموذج ينسى حقل واحد.
+    const keywordEn = String(recipe.image_keyword_en ?? "").trim();
+    const looksEnglish = /^[\x20-\x7E]+$/.test(keywordEn);
+    const query = (keywordEn && looksEnglish)
+      ? keywordEn
+      : String(recipe.recipe_name ?? recipe.name ?? recipe.title ?? keywordEn).trim();
+    const image = query ? await lookupMealImage(query) : null;
     return { ...recipe, image_url: image?.regular ?? null, image_thumb_url: image?.thumb ?? null };
   }));
 }
@@ -832,6 +847,33 @@ Deno.serve(async (req: Request) => {
       // ══════════════════════════════════════════════
       // NEW ACTIONS
       // ══════════════════════════════════════════════
+
+      // ──────────────────────────────────────────────
+      // PEXELS_IMAGE — one food image URL for an arbitrary term
+      // ──────────────────────────────────────────────
+      // The recipe actions attach images themselves, but two surfaces need a picture for a
+      // term the model never produced: the recipe *detail* screen (which had no network
+      // image at all — a gradient and an emoji, left over from when Unsplash closed its
+      // hotlink endpoint) and any future food card built from an inventory item's name.
+      //
+      // It exists so the key does not have to. PexelsRepo on the phone prefers its own
+      // BuildConfig key when one is compiled in, and falls back here when it is not — which
+      // is the configuration this project's own convention prefers (LocationIqRepo:
+      // "المفتاح سر سيرفر فقط — أبداً في الـ APK"). Either way the customer sees the image.
+      //
+      // No model call, so no dialect and no quota: this is a cached HTTP lookup wearing an
+      // action's clothes. It reuses lookupMealImage, so the six-hour word-level cache is
+      // shared with the recipe path — "كشري" fetched for a recipe card is already warm here.
+      case "pexels_image": {
+        const query = String((payload || {}).query ?? "").trim();
+        if (!query) return jsonResponse({ image_url: null, image_thumb_url: null, ok: false });
+        const image = await lookupMealImage(query);
+        return jsonResponse({
+          image_url: image?.regular ?? null,
+          image_thumb_url: image?.thumb ?? null,
+          ok: image !== null,
+        });
+      }
 
       // ──────────────────────────────────────────────
       // MEAL_SUGGESTIONS — Suggest meals from inventory
