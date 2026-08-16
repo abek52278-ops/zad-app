@@ -1126,4 +1126,7 @@
     <string name="balance_after_deduct">Düşüm sonrası: %1$s</string>
     <string name="manual_balance_correction_title">Elle bakiye düzeltmesi</string>
     <string name="manual_balance_hint">Bu sayı son sözdür — Zad yanlış hesapladıysa buradan düzelt, o senin sayınla devam eder.</string>
+    <string name="brain_report_failed_title">Rapor oluşturulamadı</string>
+    <string name="brain_report_failed_subtitle">Bu hesap cihazınızda yapılır — tekrar deneyin, sorun sürerse bize bildirin.</string>
+    <string name="chef_card_all_depleted_hint">Her şey bitmiş — eksikleri alışveriş listesine ekleyin, size yemek önereyim.</string>
 </resources>

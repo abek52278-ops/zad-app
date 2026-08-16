@@ -577,8 +577,11 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                         _mealSuggestions.value = chef.text
                         _chefRecipes.value = chef.recipes
                     } else {
-                        // empty inventory → ZadChefCard shows chef_card_empty_hint, no AI call
-                        _mealSuggestions.value = ""
+                        // مفيش كمية > 0، فمفيش نداء AI — بس الرسالة مش واحدة: مخزون فيه
+                        // أصناف كلها اتصفّرت مش زي مخزون لسه فاضي. الأولى "خلص، نزّلها
+                        // تسوق"، والتانية "ابدأ سجّل".
+                        _mealSuggestions.value =
+                            if (inv.isNotEmpty()) ZadAiRepository.MEAL_SUGGESTIONS_ALL_DEPLETED else ""
                         _chefRecipes.value = emptyList()
                     }
                 }
@@ -3567,8 +3570,22 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val _brainReport = kotlinx.coroutines.flow.MutableStateFlow<ZadCentralBrain.BrainReport?>(null)
     val brainReport: kotlinx.coroutines.flow.StateFlow<ZadCentralBrain.BrainReport?> = _brainReport
 
+    /**
+     * `brainReport == null` كان بيعني حاجتين مختلفتين تماماً والشاشة مكانش عندها طريقة
+     * تفرّق بينهم: "لسه بيتحسب" و"وقع". `generateBrainReport()` بيمسك الاستثناء ويسجّله
+     * في اللوج ويسيب الـ null زي ما هو، فشاشة عقل زاد بتفضل عرض سبينر **للأبد** وسبع
+     * كروت تحته (الصحة المالية، قوة الصرف، مقارنة الشهور، توقّع النفاد، تحليل السلوك،
+     * زرار التصدير) بتختفي من غير ما حد يقول ليه.
+     *
+     * التلات حالات دلوقتي متمايزة: null + مفيش خطأ = بيحسب. null + خطأ = وقع، والشاشة
+     * بتقول كده وبتدّي زرار إعادة محاولة. مش null = خلص.
+     */
+    private val _brainReportError = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+    val brainReportError: kotlinx.coroutines.flow.StateFlow<String?> = _brainReportError
+
     fun generateBrainReport() {
         viewModelScope.launch {
+            _brainReportError.value = null
             try {
                 _brainReport.value = ZadCentralBrain.generateReport(
                     context = getApplication(),
@@ -3582,6 +3599,9 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 generateUrgentRecipes()
             } catch (e: Exception) {
                 Log.e(TAG, "generateBrainReport() FAILED: ${e.message}")
+                // الرسالة نفسها مابتتعرضش للعميل (ممكن تبقى stack trace) — وجودها هو
+                // الإشارة، والشاشة بتكتب نصها المفهوم.
+                _brainReportError.value = e.message ?: "unknown"
             }
         }
     }

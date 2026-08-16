@@ -1129,4 +1129,7 @@
     <string name="balance_after_deduct">Balance after: %1$s</string>
     <string name="manual_balance_correction_title">Manual balance correction</string>
     <string name="manual_balance_hint">This number is the final word — if Zad got it wrong, correct it here and it will work from yours.</string>
+    <string name="brain_report_failed_title">Couldn't build the report</string>
+    <string name="brain_report_failed_subtitle">This runs on your device — try again, and tell us if it keeps failing.</string>
+    <string name="chef_card_all_depleted_hint">Everything is used up — add what you need to the shopping list and I will suggest meals.</string>
 </resources>

@@ -1107,4 +1107,7 @@
     <string name="balance_after_deduct">الرصيد بعد الخصم: %1$s</string>
     <string name="manual_balance_correction_title">تصحيح رصيد يدوي</string>
     <string name="manual_balance_hint">الرقم ده كلمتك الأخيرة — لو زاد حسب غلط، صحّحه من هنا وهو هيمشي عليه.</string>
+    <string name="brain_report_failed_title">مقدرتش أحسب التقرير</string>
+    <string name="brain_report_failed_subtitle">الحساب ده بيتم على جهازك — جرب تاني، ولو فضل بيقع ابعتلنا.</string>
+    <string name="chef_card_all_depleted_hint">مخزونك كله خلص — نزّل النواقص في التسوق وأنا أقترحلك أكل.</string>
 </resources>

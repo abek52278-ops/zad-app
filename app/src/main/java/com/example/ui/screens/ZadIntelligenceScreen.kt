@@ -86,6 +86,7 @@ fun ZadIntelligenceScreen(
     val expensePrediction by viewModel.expensePrediction.collectAsState()
     val budget by viewModel.budget.collectAsState()
     val brainReport by viewModel.brainReport.collectAsState()
+    val brainReportError by viewModel.brainReportError.collectAsState()
     val emergencyFund by viewModel.emergencyFund.collectAsState()
     val resilienceAvailableFigure by viewModel.availableFigure.collectAsState()
     val resilienceRemainingBalance by viewModel.remainingBalance.collectAsState()
@@ -188,6 +189,41 @@ fun ZadIntelligenceScreen(
                 item { HealthScoreCard(brainReport!!) }
                 item { DailySpendVelocityCard(brainReport!!.spendingPower) }
                 item { SpendingPowerGaugeCard(brainReport!!.spendingPower) }
+            } else if (brainReportError != null) {
+                // كان سبينر أبدي هنا. التقرير حساب محلي بحت — لو وقع، مفيش أي سبب يخلي
+                // العميل يستنى حاجة مش جاية، ولا يخلي سبع كروت تحته تختفي بصمت.
+                item {
+                    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(20.dp)) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                            Icon(
+                                Icons.Default.ErrorOutline,
+                                contentDescription = null,
+                                tint = dangerColor,
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                stringResource(R.string.brain_report_failed_title),
+                                style = Typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = onSurface
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                stringResource(R.string.brain_report_failed_subtitle),
+                                style = Typography.bodySmall,
+                                color = onSurfaceVariant,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Button(onClick = { viewModel.generateBrainReport() }) {
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.retry_action))
+                            }
+                        }
+                    }
+                }
             } else {
                 item {
                     com.example.ui.components.ZadListCard(shape = RoundedCornerShape(20.dp), contentPadding = 0.dp) {

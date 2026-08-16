@@ -537,7 +537,12 @@ fun PremiumTransactionsRow(transactions: List<com.example.data.ZadTransaction>, 
  * hadn't answered. The mockup has one card here, not a rail.
  */
 @Composable
-fun ZadChefCard(suggestion: String?, onClick: () -> Unit) {
+fun ZadChefCard(
+    suggestion: String?,
+    onClick: () -> Unit,
+    /** نص الحالة الفاضية — مخزون لسه فاضي مش زي مخزون كله اتصفّر. */
+    @androidx.annotation.StringRes emptyHintRes: Int = R.string.chef_card_empty_hint,
+) {
     val shape = RoundedCornerShape(18.dp)
     Row(
         modifier = Modifier
@@ -573,7 +578,7 @@ fun ZadChefCard(suggestion: String?, onClick: () -> Unit) {
                 color = textPrimary
             )
             Text(
-                suggestion?.takeIf { it.isNotBlank() } ?: stringResource(R.string.chef_card_empty_hint),
+                suggestion?.takeIf { it.isNotBlank() } ?: stringResource(emptyHintRes),
                 style = Typography.bodyMedium,
                 color = textSecondary,
                 maxLines = 2,

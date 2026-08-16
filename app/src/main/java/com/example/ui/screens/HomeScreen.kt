@@ -1411,7 +1411,8 @@ fun SmartChefSection(
     // && binds tighter than ||, so isNotBlank() only guarded the "1." branch, and the
     // real model output is plain prose ("يمكنك تحضير وجبة دجاج..."), never numbered/
     // bulleted. Net effect: isRealAi was false for every real AI response.
-    val isRealAi = suggestions.isNotBlank() &&
+    val allDepleted = suggestions == com.example.data.ZadAiRepository.MEAL_SUGGESTIONS_ALL_DEPLETED
+    val isRealAi = suggestions.isNotBlank() && !allDepleted &&
         suggestions != com.example.data.ZadAiRepository.MEAL_SUGGESTIONS_FALLBACK &&
         suggestions != com.example.data.ZadAiRepository.MEAL_SUGGESTIONS_LOADING
 
@@ -1422,6 +1423,7 @@ fun SmartChefSection(
 
     com.example.ui.components.ZadChefCard(
         suggestion = dish,
+        emptyHintRes = if (allDepleted) R.string.chef_card_all_depleted_hint else R.string.chef_card_empty_hint,
         // الكارت بيوعد بوصفة، فيفتح الوصفة. كان بيروح لعقل زاد، و RecipeDetailDialog
         // (بكل الـ parsing وقائمة المقادير وخطوات التحضير) ما كانش ليه أي مدخل —
         // showRecipeDialog اتعرّف واتقرا وعمره ما اتعمل true.

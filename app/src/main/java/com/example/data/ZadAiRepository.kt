@@ -100,6 +100,13 @@ object ZadAiRepository {
     // SmartChefSection can exclude it from "is this a real dish" the same way it already
     // excludes MEAL_SUGGESTIONS_FALLBACK, instead of treating the loading text as a clickable dish.
     const val MEAL_SUGGESTIONS_LOADING = "جاري تحليل المخزون..."
+    /**
+     * مخزون فيه أصناف بس كلها كميتها صفر. الحالة دي مختلفة تماماً عن مخزون فاضي —
+     * الأولى معناها "خلص، اشتري"، والتانية "ابدأ سجّل". الاتنين كانوا بيدّوا نفس الجملة
+     * ("ضيف أصناف عشان أقترحلك")، فالعميل اللي مخزونه اتصفّر كان شايف رسالة بتقوله
+     * يعمل حاجة هو عاملها خلاص.
+     */
+    const val MEAL_SUGGESTIONS_ALL_DEPLETED = "__all_depleted__"
 
     // Accurate again as of 2026-08-01: ZadAiGeminiClient really does call Google Gemini,
     // so the name, the SharedPreferences key ("gemini_api_key") and the destination finally
