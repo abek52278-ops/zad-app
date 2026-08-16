@@ -19,6 +19,8 @@ import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.async
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerialName
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -164,11 +166,11 @@ object SupabaseRepo {
         repeat(2) { attempt ->
             try {
                 client.postgrest["zad_users"].upsert(
-                    mapOf(
-                        "id" to userId,
-                        "monthly_limit" to limit,
-                        "limit_confirmed_at" to java.time.Instant.now().toString()
-                    )
+                    buildJsonObject {
+                        put("id", userId)
+                        put("monthly_limit", limit)
+                        put("limit_confirmed_at", java.time.Instant.now().toString())
+                    }
                 )
                 val (storedLimit, storedConfirmedAt, readOk) = getMonthlyLimit(userId)
                 // المقارنة بـ asMoney من الطرفين: الرقم بيروح numeric ويرجع Double، وفرق
@@ -547,13 +549,13 @@ object SupabaseRepo {
         return try {
             Log.d(TAG, "updateTransaction() → table=zad_transactions, id=$id, amount=$amount, isExpense=$isExpense")
             client.postgrest["zad_transactions"].update(
-                mapOf(
-                    "title" to title,
-                    "amount" to amount,
-                    "category" to category,
-                    "is_expense" to isExpense,
-                    "txn_kind" to if (isExpense) "expense" else "income"
-                )
+                buildJsonObject {
+                    put("title", title)
+                    put("amount", amount)
+                    put("category", category)
+                    put("is_expense", isExpense)
+                    put("txn_kind", if (isExpense) "expense" else "income")
+                }
             ) {
                 filter { eq("id", id) }
             }
@@ -836,7 +838,10 @@ object SupabaseRepo {
     suspend fun confirmPharmacyQuantity(id: String, quantity: Int) {
         try {
             client.postgrest["zad_pharmacy_items"].update(
-                mapOf("remaining_quantity" to quantity, "qty_confirmed_at" to java.time.Instant.now().toString())
+                buildJsonObject {
+                    put("remaining_quantity", quantity)
+                    put("qty_confirmed_at", java.time.Instant.now().toString())
+                }
             ) { filter { eq("id", id) } }
             Log.d(TAG, "confirmPharmacyQuantity() SUCCESS — id=$id, qty=$quantity")
         } catch (e: Exception) {
@@ -1059,13 +1064,13 @@ object SupabaseRepo {
         try {
             Log.d(TAG, "updateObligation() → table=zad_obligations, id=$id, title=$title, amount=$amount")
             client.postgrest["zad_obligations"].update(
-                mapOf(
-                    "title" to title,
-                    "amount" to amount,
-                    "kind" to kind,
-                    "due_day" to dueDay,
-                    "recurrence" to recurrence
-                )
+                buildJsonObject {
+                    put("title", title)
+                    put("amount", amount)
+                    put("kind", kind)
+                    put("due_day", dueDay)
+                    put("recurrence", recurrence)
+                }
             ) {
                 filter { eq("id", id) }
             }
@@ -1503,7 +1508,10 @@ object SupabaseRepo {
         try {
             Log.d(TAG, "updateShoppingItemQuantity() → id=$id, quantity=$quantity")
             client.postgrest["zad_shopping_list"].update(
-                mapOf("quantity" to quantity, "estimated_price" to estimatedPrice)
+                buildJsonObject {
+                    put("quantity", quantity)
+                    put("estimated_price", estimatedPrice)
+                }
             ) { filter { eq("id", id) } }
             Log.d(TAG, "updateShoppingItemQuantity() SUCCESS")
         } catch (e: Exception) {
@@ -1660,11 +1668,11 @@ object SupabaseRepo {
         return try {
             val userId = client.auth.currentUserOrNull()?.id ?: return false
             client.postgrest["zad_users"].update(
-                mapOf(
-                    "last_lat" to lat,
-                    "last_lon" to lon,
-                    "last_location_at" to java.time.Instant.now().toString(),
-                )
+                buildJsonObject {
+                    put("last_lat", lat)
+                    put("last_lon", lon)
+                    put("last_location_at", java.time.Instant.now().toString())
+                }
             ) { filter { eq("id", userId) } }
             Log.d(TAG, "updateLastKnownLocation() → saved")
             true
