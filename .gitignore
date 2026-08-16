@@ -44,3 +44,6 @@ supabase/.temp/
 # AI tooling
 deepseek-vscode-extension/
 web_preview/
+
+# ناتج بناء محلي — الـ APK بيتسحب من artifacts الـ CI، مش بيتتبع هنا
+build-out/
