@@ -130,6 +130,57 @@ fun ZadAmazonDealCard(
     }
 }
 
+/**
+ * شريطة بحث أمازون لصنف مالوش صف في الكتالوج.
+ *
+ * مقصود إنها مختلفة الشكل عن [ZadAmazonDealCard]: دي مش توصية بمنتج، دي "دوّرلي على ده
+ * على أمازون". مفيش صورة ولا سعر، لأن مفيش صورة ولا سعر نعرفهم — والكارت اللي بيعرض
+ * صورة ماعندناهاش هو بالظبط اللي مراجعة التصميم رفضته.
+ */
+@Composable
+fun ZadAmazonSearchChip(
+    itemName: String,
+    reason: String,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Row(
+        modifier = Modifier
+            .clip(shape)
+            .background(surfaceContainerLow)
+            .pressableScale(pressedScale = 0.97f, withHaptic = false)
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            Icons.Default.Search,
+            contentDescription = null,
+            tint = secondaryDark,
+            modifier = Modifier.size(16.dp),
+        )
+        Column {
+            Text(
+                itemName,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold,
+                color = onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                reason,
+                fontSize = 9.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = textTertiary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
 @Composable
 fun AffiliateProductCard(
     product: AffiliateProduct,

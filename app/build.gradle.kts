@@ -117,7 +117,8 @@ dependencies {
   implementation(libs.okhttp)
   implementation(libs.play.services.location)
   implementation(libs.retrofit)
-  
+  implementation("com.google.android.gms:play-services-ads:23.3.0")
+
   // Gemini & Supabase
   // Removed generativeai to fix Ktor 3 conflicts
   val supabaseVersion = "3.0.3"

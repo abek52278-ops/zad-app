@@ -2440,9 +2440,13 @@ object SupabaseRepo {
     suspend fun setTypingStatus(familyId: String, isTyping: Boolean) {
         try {
             val myMember = getMyFamilyMember() ?: return
-            val existing = client.postgrest["family_typing_status"].select().decodeList<TypingStatus>().find {
-                it.familyId == familyId && it.userId == myMember.userId
-            }
+            val existing = client.postgrest["family_typing_status"].select {
+                filter {
+                    eq("family_id", familyId)
+                    eq("user_id", myMember.userId)
+                }
+                limit(1L)
+            }.decodeList<TypingStatus>().firstOrNull()
             val now = java.time.Instant.now().toString()
             if (existing != null) {
                 client.postgrest["family_typing_status"].update(
@@ -2458,16 +2462,23 @@ object SupabaseRepo {
         }
     }
 
-    suspend fun getTypingStatuses(familyId: String): List<TypingStatus> {
-        return try {
-            client.postgrest["family_typing_status"].select().decodeList<TypingStatus>().filter {
-                it.familyId == familyId && it.isTyping
+    /**
+     * Filtering moved server-side. It used to `select()` the whole table on every poll —
+     * five seconds apart, per open chat screen — and narrow it in Kotlin. RLS meant no
+     * other family's rows came back, so it was not a leak, but it is exactly the
+     * client-side filtering the project's own rule forbids, and it made each tick pay for
+     * every row the policy allowed instead of the handful actually being displayed.
+     *
+     * The throw is deliberate: the caller counts consecutive failures and stops. Swallowing
+     * it into an empty list is what let a 401 loop run unnoticed for minutes.
+     */
+    suspend fun getTypingStatuses(familyId: String): List<TypingStatus> =
+        client.postgrest["family_typing_status"].select {
+            filter {
+                eq("family_id", familyId)
+                eq("is_typing", true)
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "getTypingStatuses() FAILED: ${e.message}")
-            emptyList()
-        }
-    }
+        }.decodeList<TypingStatus>()
 
     // ─── Affiliate Shopping ─────────────────────────────────────────────────
     suspend fun getAffiliateProducts(): List<AffiliateProduct> {

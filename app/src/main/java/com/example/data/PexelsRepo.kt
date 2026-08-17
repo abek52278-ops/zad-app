@@ -83,10 +83,11 @@ object PexelsRepo {
     private fun cacheKeyFor(query: String) = "img:" + normalize(query)
 
     /**
-     * رابط صورة للمصطلح ده، أو null لو مفيش.
+     * رابط صورة للمصطلح ده.
      *
-     * بيرجع من الكاش من غير أي شبكة لو المدخل لسه صالح. `null` معناها "مفيش صورة" —
-     * الشاشة المفروض ترسم البديل بتاعها (أيقونة/إيموجي)، مش تفضل تحمّل.
+     * بيرجع من الكاش من غير أي شبكة لو المدخل لسه صالح. بقى بيرجّع صورة أكل عامة بدل
+     * `null` لما البحث ميجيبش حاجة مناسبة — `null` فاضل بس للمصطلح الفاضي. الشاشات لسه
+     * عندها البديل بتاعها (أيقونة/إيموجي) لو الرابط نفسه فشل يحمّل.
      */
     suspend fun imageUrlFor(context: Context, query: String): String? {
         val q = normalize(query)
@@ -94,9 +95,23 @@ object PexelsRepo {
 
         readCache(context, q)?.let { return it.url }
 
-        val fetched = if (compiledKey().isNotEmpty()) fetchDirect(q) else fetchViaEdgeFunction(q)
-        writeCache(context, q, fetched)
-        return fetched
+        // الاسم زي ما العميل قاله مش استعلام بحث. "مطبخ" كانت بترجّع مطبخ فاضي و"لبن
+        // ومية" منظر طبيعي — شوف FoodImageQuery لتفصيل التنضيف والترجمة والمؤهِّل.
+        val term = FoodImageQuery.toSearchTerm(q)
+        val fetched = if (term.isEmpty()) {
+            null
+        } else if (compiledKey().isNotEmpty()) {
+            fetchDirect(term)
+        } else {
+            fetchViaEdgeFunction(term)
+        }
+
+        // بديل متأكدين إنه أكل بدل `null`. الكارت كان بيرسم أيقونة شوكة وسكينة على مربع
+        // فاضي، وده بيبان كأنه بيحمّل ومش هيخلص. صورة أكل عامة أصدق بصرياً من كارت مكسور،
+        // وبتفضل ثابتة لنفس الأكلة عشان مافيش رقص بين تمريرتين.
+        val result = fetched ?: FoodImageQuery.fallbackUrl(q)
+        writeCache(context, q, result)
+        return result
     }
 
     /** null = مفيش مدخل صالح. Entry.url ممكن تكون null، ودي "متأكدين إن مفيش صورة". */
@@ -133,7 +148,7 @@ object PexelsRepo {
         var conn: HttpURLConnection? = null
         try {
             val url = URL(
-                "https://api.pexels.com/v1/search?per_page=1&orientation=landscape&query=" +
+                "https://api.pexels.com/v1/search?per_page=8&orientation=landscape&query=" +
                     URLEncoder.encode(q, "UTF-8")
             )
             conn = (url.openConnection() as HttpURLConnection).apply {
@@ -162,9 +177,28 @@ object PexelsRepo {
      */
     internal fun parseFirstPhotoUrl(body: String): String? = try {
         val photos = JSONObject(body).optJSONArray("photos")
-        val src = photos?.optJSONObject(0)?.optJSONObject("src")
-        listOf("landscape", "large", "original")
-            .firstNotNullOfOrNull { src?.optString(it)?.takeIf { u -> u.isNotEmpty() } }
+        // كان بياخد أول صورة أياً كانت. Pexels مبترجّعش فاضي — بترجّع أقرب حاجة عندها،
+        // فاستعلام مش دقيق كان بيرجّع جبل أو بحيرة والكارت يعرضه كأنه الأكلة. بنعدّي على
+        // النتايج ونقف عند أول واحدة وصفها مش بيقول صراحةً إنها حاجة تانية.
+        val count = photos?.length() ?: 0
+        var chosen: String? = null
+        for (i in 0 until count) {
+            val photo = photos?.optJSONObject(i) ?: continue
+            val src = photo.optJSONObject("src")
+            val candidate = listOf("landscape", "large", "original")
+                .firstNotNullOfOrNull { src?.optString(it)?.takeIf { u -> u.isNotEmpty() } }
+                ?: continue
+            if (FoodImageQuery.looksLikeFood(photo.optString("alt"))) {
+                chosen = candidate
+                break
+            }
+        }
+        // كل النتايج اتوصفت بحاجة مش أكل = الاستعلام نفسه ضايع. بنرجّع `null` عشان
+        // الكولر يروح للبديل المضمون، مش عشان نعرض أول صورة غلط.
+        if (chosen == null && count > 0) {
+            Log.w(TAG, "pexels returned $count photos, none of them read as food")
+        }
+        chosen
     } catch (e: Exception) {
         Log.w(TAG, "parseFirstPhotoUrl() FAILED: ${e.message}")
         null

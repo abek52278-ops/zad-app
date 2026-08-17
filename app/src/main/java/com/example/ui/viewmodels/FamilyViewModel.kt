@@ -926,17 +926,39 @@ class FamilyViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun startTypingMonitor(familyId: String) {
-        viewModelScope.launch {
-            while (isActive) {  // stops when ViewModel is cleared
-                try {
-                    val statuses = SupabaseRepo.getTypingStatuses(familyId)
-                    _typingUsers = statuses.map { it.userId }.toSet()
-                } catch (e: Exception) {
-                    android.util.Log.w("FamilyVM", "getTypingStatuses failed: ${e.message}")
+    /**
+     * حلقة مؤشر "بيكتب دلوقتي". `suspend` مش `launch` عن قصد — بتتنادى من `LaunchedEffect`
+     * في شاشة العيلة، فبتتلغي لوحدها لما الشاشة تقفل.
+     *
+     * قبل كده كانت بتعمل `viewModelScope.launch` جوه `LaunchedEffect`، والـViewModel بيعيش
+     * أطول من الشاشة بكتير: كل مرة العميل يدخل الشات كانت بتبدأ حلقة **جديدة** والقديمة
+     * تفضل شغالة، وكلهم بيسألوا كل ٥ ثواني للأبد حتى بعد الخروج من الشاشة. ده اللي بان في
+     * لوج السيرفر يوم 2026-08-15 كـ`GET /family_typing_status → 401` كل ٦ ثواني بالظبط،
+     * مية ونيّف نداء متتالي، كلهم فاشلين وكلهم بيتعادوا.
+     *
+     * والفشل نفسه دلوقتي بيوقف الحلقة بدل ما يتجاهلها: 401 معناها الجلسة خلصت، ودي حالة
+     * مفيش أي عدد إعادات هيصلّحها.
+     */
+    suspend fun monitorTyping(familyId: String) {
+        var consecutiveFailures = 0
+        while (true) {
+            try {
+                val statuses = SupabaseRepo.getTypingStatuses(familyId)
+                _typingUsers = statuses.map { it.userId }.toSet()
+                consecutiveFailures = 0
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                consecutiveFailures++
+                android.util.Log.w("FamilyVM", "getTypingStatuses failed (#$consecutiveFailures): ${e.message}")
+                // مؤشر الكتابة تزيين. مايستاهلش يفضل يضرب سيرفر بيرفض النداء أصلاً.
+                if (consecutiveFailures >= 3) {
+                    android.util.Log.w("FamilyVM", "typing monitor giving up for this session")
+                    _typingUsers = emptySet()
+                    return
                 }
-                kotlinx.coroutines.delay(5000)  // reduced to 5s, consider Realtime in future
             }
+            kotlinx.coroutines.delay(5000)
         }
     }
 

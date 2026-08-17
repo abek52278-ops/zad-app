@@ -119,6 +119,7 @@ fun HomeScreen(
     val pharmacyItems by viewModel.pharmacyItems.collectAsState()
     val affiliateProducts by viewModel.affiliateProducts.collectAsState()
     val affiliatePicks by viewModel.affiliatePicks.collectAsState()
+    val affiliateSearchNeeds by viewModel.affiliateSearchNeeds.collectAsState()
     val urgentRecipes by viewModel.urgentRecipes.collectAsState()
     val upcomingSeasonalEvents by familyViewModel.upcomingSeasonalEvents.collectAsState()
     val seasonalForecasts by viewModel.seasonalForecasts.collectAsState()
@@ -663,22 +664,51 @@ fun HomeScreen(
                 // الكتالوج، نفسهم لكل مستخدم، بترتيب الجدول، مالهمش أي علاقة بمخزونه.
                 // دلوقتي كل كارت لازم يكون مربوط بنقص حقيقي (صنف خلص/قارب يخلص/في قايمة
                 // التسوق) والسبب مكتوب على الكارت. مفيش نقص = القسم كله مايظهرش.
-                if (affiliatePicks.isNotEmpty()) {
+                // ...وده كان بيخفي القسم بالكامل. الكتالوج **خمس منتجات** (زيت، حليب،
+                // أرز، شاي، سكر)، والعيلة دي ناقصها مياه وبيض ولحمة وفراخ — صفر تطابق،
+                // فقسم أمازون مابانش ولا مرة. الشرط "لازم نقص حقيقي" صح ويفضل؛ اللي اتصلح
+                // إن النقص اللي مالوش صف في الكتالوج بقى يتعرض كبحث بالتاج بدل ما يتبلع.
+                if (affiliatePicks.isNotEmpty() || affiliateSearchNeeds.isNotEmpty()) {
                     Text(stringResource(R.string.shop_from_amazon), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
                     Spacer(modifier = Modifier.height(10.dp))
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(vertical = 4.dp)
-                    ) {
-                        items(affiliatePicks) { pick ->
-                            com.example.ui.widgets.ZadAmazonDealCard(
-                                product = pick.product,
-                                reason = pick.reason,
-                                onClick = {
-                                    viewModel.recordAffiliateClick(pick.product.id, "home")
-                                    com.example.data.AffiliateHelper.openProduct(context, pick.product)
-                                }
-                            )
+                    if (affiliatePicks.isNotEmpty()) {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(vertical = 4.dp)
+                        ) {
+                            items(affiliatePicks) { pick ->
+                                com.example.ui.widgets.ZadAmazonDealCard(
+                                    product = pick.product,
+                                    reason = pick.reason,
+                                    onClick = {
+                                        viewModel.recordAffiliateClick(pick.product.id, "home")
+                                        com.example.data.AffiliateHelper.openProduct(context, pick.product)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    if (affiliateSearchNeeds.isNotEmpty()) {
+                        if (affiliatePicks.isNotEmpty()) Spacer(modifier = Modifier.height(10.dp))
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(vertical = 4.dp)
+                        ) {
+                            items(affiliateSearchNeeds) { need ->
+                                com.example.ui.widgets.ZadAmazonSearchChip(
+                                    itemName = need.itemName,
+                                    reason = need.reason,
+                                    onClick = {
+                                        com.example.data.AffiliateHelper.open(
+                                            context,
+                                            com.example.data.AffiliateHelper.productUrl(
+                                                asin = null,
+                                                fallbackSearchTerm = need.itemName,
+                                            )
+                                        )
+                                    }
+                                )
+                            }
                         }
                     }
                     Spacer(modifier = Modifier.height(18.dp))

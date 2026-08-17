@@ -490,7 +490,20 @@ object ZadCentralBrain {
 
         val perDose = item.unitsPerDose ?: 1.0
         if (item.remainingQuantity > 0) {
-            val newQty = (item.remainingQuantity - perDose).coerceAtLeast(0.0).toInt()
+            // remaining_quantity is an Int column but units_per_dose is fractional (half a
+            // tablet is an ordinary prescription). `(remaining - 0.5).toInt()` truncates, so
+            // a half-tablet dose burned a WHOLE tablet: a 10-tablet strip read as empty after
+            // 10 doses instead of 20, which fires "الدواء قرب يخلص", auto-adds it to the
+            // shopping list, and eventually shows 0 while five tablets are still in the box.
+            // Carry the fraction between doses instead of throwing it away — for the common
+            // perDose = 1.0 case the carry is always 0 and this behaves exactly as before.
+            val carryPrefs = context.getSharedPreferences("zad_prefs", Context.MODE_PRIVATE)
+            val carryKey = "dose_carry_$itemId"
+            val accumulated = carryPrefs.getFloat(carryKey, 0f) + perDose
+            val wholeUnits = kotlin.math.floor(accumulated).toInt()
+            carryPrefs.edit().putFloat(carryKey, (accumulated - wholeUnits).toFloat()).apply()
+
+            val newQty = (item.remainingQuantity - wholeUnits).coerceAtLeast(0)
             val updated = item.copy(remainingQuantity = newQty)
             dao.insertPharmacyItem(updated)
             try { SupabaseRepo.updatePharmacyQuantity(itemId, updated.remainingQuantity) } catch (e: Exception) {

@@ -45,6 +45,9 @@ fun NotificationCenterScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
+    // readAloud() is a plain function, not a composable, so the string has to be resolved
+    // here in composition and captured — stringResource() cannot be called from inside it.
+    val noNewNotificationsSpoken = stringResource(R.string.notif_none_new_spoken)
     val insights by viewModel.insights.collectAsState()
     val notifications by viewModel.appNotifications.collectAsState()
     val zadInsights by viewModel.zadInsights.collectAsState()
@@ -83,7 +86,7 @@ fun NotificationCenterScreen(
             notifications.filter { !it.isRead }.sortedByDescending { it.createdAt }.forEach { add("${it.title}. ${it.message}") }
         }
         if (spoken.isEmpty()) {
-            tts?.speak("مفيش تنبيهات جديدة", TextToSpeech.QUEUE_FLUSH, null, null)
+            tts?.speak(noNewNotificationsSpoken, TextToSpeech.QUEUE_FLUSH, null, null)
         } else {
             tts?.speak(spoken.joinToString(". "), TextToSpeech.QUEUE_FLUSH, null, null)
         }
@@ -97,11 +100,11 @@ fun NotificationCenterScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (unreadCount > 0) {
-                    Text("$unreadCount غير مقروء", style = Typography.labelSmall, color = onSurfaceVariant)
+                    Text(stringResource(R.string.notif_unread_count, unreadCount), style = Typography.labelSmall, color = onSurfaceVariant)
                 }
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = { readAloud() }) {
-                    Icon(Icons.Default.VolumeUp, contentDescription = "قراءة التنبيهات صوتيًا", tint = primary)
+                    Icon(Icons.Default.VolumeUp, contentDescription = stringResource(R.string.notif_read_aloud_cd), tint = primary)
                 }
             }
         }
@@ -110,7 +113,7 @@ fun NotificationCenterScreen(
             com.example.ui.components.ZadEmptyState(
                 icon = Icons.Default.NotificationsNone,
                 title = stringResource(R.string.no_notifications_yet),
-                subtitle = "هنعلمك أول ما يحصل حاجة تستاهل انتباهك",
+                subtitle = stringResource(R.string.notif_empty_subtitle),
                 modifier = Modifier.fillMaxSize().padding(padding)
             )
             return@Scaffold
@@ -122,7 +125,7 @@ fun NotificationCenterScreen(
         ) {
             if (alertInsights.isNotEmpty()) {
                 item {
-                    Text("تنبيهات ذكاء زاد", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = primary)
+                    Text(stringResource(R.string.notif_section_intelligence), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = primary)
                     Spacer(Modifier.height(8.dp))
                 }
                 items(alertInsights) { alert ->
@@ -140,7 +143,7 @@ fun NotificationCenterScreen(
 
             if (brainAlerts.isNotEmpty()) {
                 item {
-                    Text("تنبيهات عقل زاد", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = primary)
+                    Text(stringResource(R.string.notif_section_brain), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = primary)
                     Spacer(Modifier.height(8.dp))
                 }
                 items(brainAlerts) { alert ->

@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.airbnb.lottie.compose.LottieConstants
+import androidx.compose.ui.res.stringResource
 import com.example.R
 import com.example.data.AiParsedInventoryItem
 import com.example.data.AiParsedReceipt
@@ -224,7 +225,7 @@ fun CameraScreen(
     if (showApiKeyDialog) {
         AlertDialog(
             onDismissRequest = { showApiKeyDialog = false },
-            title = { Text("إعداد الذكاء الاصطناعي (Gemini API)") },
+            title = { Text(stringResource(R.string.cam_ai_setup_title)) },
             text = {
                 Column {
                     // Gemini, not Groq: Groq refuses structured JSON on image requests, so
@@ -240,7 +241,7 @@ fun CameraScreen(
                     OutlinedTextField(
                         value = apiKeyInput,
                         onValueChange = { apiKeyInput = it },
-                        label = { Text("API Key") },
+                        label = { Text(stringResource(R.string.cam_api_key_label)) },
                         singleLine = true
                     )
                 }
@@ -250,10 +251,10 @@ fun CameraScreen(
                     prefs.edit().putString("gemini_api_key", apiKeyInput.trim()).apply()
                     ZadAiRepository.geminiApiKey = apiKeyInput.trim()
                     showApiKeyDialog = false
-                }) { Text("حفظ") }
+                }) { Text(stringResource(R.string.cam_save)) }
             },
             dismissButton = {
-                TextButton(onClick = { showApiKeyDialog = false }) { Text("إلغاء") }
+                TextButton(onClick = { showApiKeyDialog = false }) { Text(stringResource(R.string.cam_cancel)) }
             }
         )
     }
@@ -269,7 +270,7 @@ fun CameraScreen(
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("  ", fontSize = 20.sp)
-                    Text("الماسح الذكي", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.cam_smart_scanner), fontWeight = FontWeight.Bold)
                 }
             },
             navigationIcon = {
@@ -355,7 +356,7 @@ fun CameraScreen(
                                 contentDescription = "جاري التحليل..."
                             )
                             Spacer(modifier = Modifier.height(12.dp))
-                            Text("جاري التحليل...", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.cam_analyzing), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -383,7 +384,7 @@ fun CameraScreen(
                 ) {
                     Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(22.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("   مسح المخزون", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("   " + stringResource(R.string.cam_scan_inventory), fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
 
                 // Receipt scan button
@@ -400,7 +401,7 @@ fun CameraScreen(
                 ) {
                     Icon(Icons.Default.Receipt, contentDescription = null, modifier = Modifier.size(22.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("   مسح الفاتورة", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("   " + stringResource(R.string.cam_scan_receipt), fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
             }
 
@@ -419,7 +420,7 @@ fun CameraScreen(
             ) {
                 Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("   إضافة منتجات يدوياً", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                Text("   " + stringResource(R.string.cam_add_products_manually), fontWeight = FontWeight.Medium, fontSize = 14.sp)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -492,7 +493,7 @@ fun CameraScreen(
                 ) {
                     Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("   حقن في المخزون")
+                    Text("   " + stringResource(R.string.cam_inject_into_stock))
                 }
             },
             dismissButton = {
@@ -500,12 +501,12 @@ fun CameraScreen(
                     showConfirmationDialog = false
                     analysisStatus = "تم إلغاء الإضافة"
                 }) {
-                    Text("إلغاء")
+                    Text(stringResource(R.string.cam_cancel))
                 }
             },
             icon = { Text("  ", fontSize = 24.sp) },
             title = {
-                Text("تأكيد المخزون المستخرج", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.cam_confirm_stock), fontWeight = FontWeight.Bold)
             },
             text = {
                 Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
@@ -581,11 +582,11 @@ fun CameraScreen(
                         imageBitmap = null
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = primary)
-                ) { Text("حسناً") }
+                ) { Text(stringResource(R.string.cam_ok)) }
             },
             icon = { Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = dangerColor) },
-            title = { Text("تعذّرت قراءة الفاتورة", fontWeight = FontWeight.Bold) },
-            text = { Text("لم نتمكن من قراءة الفاتورة، يرجى المحاولة بصورة أوضح") }
+            title = { Text(stringResource(R.string.cam_receipt_read_failed_title), fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(R.string.cam_receipt_read_failed_body)) }
         )
     }
 
@@ -655,7 +656,7 @@ fun CameraScreen(
                 ) {
                     Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("   تسجيل الفاتورة")
+                    Text("   " + stringResource(R.string.cam_save_receipt))
                 }
             },
             dismissButton = {
@@ -664,12 +665,12 @@ fun CameraScreen(
                     parsedReceipt = null
                     analysisStatus = "تم إلغاء الفاتورة"
                 }) {
-                    Text("إلغاء")
+                    Text(stringResource(R.string.cam_cancel))
                 }
             },
             icon = { Icon(Icons.Default.Receipt, contentDescription = null) },
             title = {
-                Text("تأكيد الفاتورة المستخرجة", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.cam_confirm_receipt), fontWeight = FontWeight.Bold)
             },
             text = {
                 Column(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
@@ -693,7 +694,7 @@ fun CameraScreen(
                         parsedReceipt = receipt.copy(receiptType = editableReceiptType)
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("نوع الفاتورة (زاد صنّفها تلقائياً، وتقدر تغيّرها):", style = MaterialTheme.typography.labelSmall, color = onSurfaceVariant)
+                        Text(stringResource(R.string.cam_receipt_type_hint), style = MaterialTheme.typography.labelSmall, color = onSurfaceVariant)
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             RECEIPT_TYPE_OPTIONS.forEach { (value, label) ->
                                 FilterChip(
@@ -812,10 +813,10 @@ private fun ManualInventoryDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("إلغاء") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cam_cancel)) }
         },
         icon = { Text("  ", fontSize = 24.sp) },
-        title = { Text("إضافة منتجات يدوياً", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(R.string.cam_add_products_manually), fontWeight = FontWeight.Bold) },
         text = {
             Column(modifier = Modifier.fillMaxWidth().heightIn(max = 500.dp)) {
                 Column(
@@ -838,7 +839,7 @@ private fun ManualInventoryDialog(
                                         onValueChange = { v ->
                                             items = items.toMutableList().apply { set(idx, items[idx].copy(itemName = v)) }
                                         },
-                                        label = { Text("اسم المنتج") },
+                                        label = { Text(stringResource(R.string.cam_product_name)) },
                                         singleLine = true,
                                         modifier = Modifier.weight(1f)
                                     )
@@ -861,7 +862,7 @@ private fun ManualInventoryDialog(
                                             val q = v.toIntOrNull() ?: 0
                                             items = items.toMutableList().apply { set(idx, items[idx].copy(quantity = q)) }
                                         },
-                                        label = { Text("الكمية") },
+                                        label = { Text(stringResource(R.string.cam_quantity)) },
                                         singleLine = true,
                                         modifier = Modifier.width(80.dp)
                                     )
@@ -875,7 +876,7 @@ private fun ManualInventoryDialog(
                                             value = selectedUnit,
                                             onValueChange = {},
                                             readOnly = true,
-                                            label = { Text("الوحدة") },
+                                            label = { Text(stringResource(R.string.cam_unit)) },
                                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                                             modifier = Modifier.menuAnchor().width(100.dp)
                                         )
@@ -902,7 +903,7 @@ private fun ManualInventoryDialog(
                                             value = selectedCat,
                                             onValueChange = {},
                                             readOnly = true,
-                                            label = { Text("التصنيف") },
+                                            label = { Text(stringResource(R.string.cam_category)) },
                                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = catExpanded) },
                                             modifier = Modifier.menuAnchor().weight(1f)
                                         )
@@ -933,7 +934,7 @@ private fun ManualInventoryDialog(
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null)
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("   إضافة منتج آخر")
+                    Text("   " + stringResource(R.string.cam_add_another_product))
                 }
             }
         }

@@ -1,6 +1,7 @@
 // deno-lint-ignore-file
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.6";
 import { redactForLog } from "./redact.ts";
+import { foodFallbackUrl, looksLikeFoodAlt, toFoodSearchTerm } from "./foodImageQuery.ts";
 
 // ── Provider chain (2026-08-01): Gemini (5-key pool, native endpoint) primary, Groq
 // (2-key pool) secondary for TEXT/JSON only — vision never touches Groq ──────────────────
@@ -179,17 +180,30 @@ const PEXELS_API_KEY = Deno.env.get("PEXELS_API_KEY") || "";
  * يموت لوحده بالـ TTL بدل ما يحتاج مسح يدوي. */
 async function lookupMealImage(keyword: string): Promise<{ thumb: string; regular: string } | null> {
   const q = keyword.trim().toLowerCase();
-  if (!q || !PEXELS_API_KEY) return null;
+  if (!q) return null;
+  // No key configured is not "no picture" any more — a generic food photo beats a card
+  // that renders an empty box with a cutlery icon on it.
+  if (!PEXELS_API_KEY) {
+    const url = foodFallbackUrl(q);
+    return { thumb: url, regular: url };
+  }
 
-  const cacheKey = "meal_image_v2:" + q;
+  // Cache on the raw term but search on the normalized one: "مطبخ" and "مطبخ " should
+  // share an entry, while what actually reaches Pexels is "home cooked meal food".
+  const searchTerm = toFoodSearchTerm(q);
+  const cacheKey = "meal_image_v3:" + q;
   const cached = await getCachedAiResponse(cacheKey);
   if (cached && typeof (cached as Record<string, unknown>).regular === "string") {
     return cached as { thumb: string; regular: string };
   }
+  if (!searchTerm) {
+    const url = foodFallbackUrl(q);
+    return { thumb: url, regular: url };
+  }
 
   try {
-    const url = "https://api.pexels.com/v1/search?per_page=1&orientation=landscape&query=" +
-      encodeURIComponent(q);
+    const url = "https://api.pexels.com/v1/search?per_page=8&orientation=landscape&query=" +
+      encodeURIComponent(searchTerm);
     const resp = await fetch(url, {
       headers: { "Authorization": PEXELS_API_KEY },
       signal: AbortSignal.timeout(6000),
@@ -199,21 +213,40 @@ async function lookupMealImage(keyword: string): Promise<{ thumb: string; regula
       return null;
     }
     const data = await resp.json();
-    const first = data?.photos?.[0];
-    const src = first?.src;
-    // `landscape` هو المقصوص للعرض اللي الكارت محتاجه؛ `large` احتياطي لو Pexels ما
-    // رجّعتوش. من غير واحد منهم مفيش صورة نعرضها.
-    const regular = src?.landscape ?? src?.large ?? src?.original;
-    if (!regular) return null;
+    // Was `photos[0]`, whatever it happened to be. Pexels never answers "nothing" — it
+    // answers with the closest thing it has, which is how "مطبخ" produced an empty
+    // kitchen and "لبن ومية" produced a lake. Walk the results and take the first one
+    // whose own alt text does not say it is something else.
+    const photos: Array<Record<string, any>> = Array.isArray(data?.photos) ? data.photos : [];
+    let regular: string | undefined;
+    let src: Record<string, any> | undefined;
+    for (const photo of photos) {
+      const candidateSrc = photo?.src;
+      const candidate = candidateSrc?.landscape ?? candidateSrc?.large ?? candidateSrc?.original;
+      if (!candidate) continue;
+      if (looksLikeFoodAlt(photo?.alt)) {
+        regular = String(candidate);
+        src = candidateSrc;
+        break;
+      }
+    }
+    if (!regular) {
+      console.warn(`[CoreIntel] pexels had ${photos.length} results for "${searchTerm}", none read as food`);
+      const fallback = foodFallbackUrl(q);
+      const out = { thumb: fallback, regular: fallback };
+      await setCachedAiResponse(cacheKey, "meal_image", out);
+      return out;
+    }
     const out = {
       thumb: String(src?.tiny ?? src?.small ?? src?.medium ?? regular),
-      regular: String(regular),
+      regular,
     };
     await setCachedAiResponse(cacheKey, "meal_image", out);
     return out;
   } catch (e) {
     console.warn(`[CoreIntel] pexels lookup failed for "${q}":`, (e as Error).message);
-    return null;
+    const fallback = foodFallbackUrl(q);
+    return { thumb: fallback, regular: fallback };
   }
 }
 
@@ -783,10 +816,16 @@ async function logged<T>(
   run: () => Promise<T>,
 ): Promise<T> {
   const startedAt = Date.now();
+  // `userId ?? null` is not enough: the client posts `user_id: ""` for an
+  // unauthenticated call, and "" is neither null nor undefined, so it reached Postgres
+  // as a uuid literal and every insert died with
+  // `invalid input syntax for type uuid: ""` (seen live 2026-08-16). agent_logs is the
+  // observability feed the dashboard reads, so this silently blinded it.
+  const loggedUserId = typeof userId === "string" && userId.trim().length > 0 ? userId.trim() : null;
   try {
     const output = await run();
     supabase.from("agent_logs").insert({
-      user_id: userId ?? null,
+      user_id: loggedUserId,
       agent_name: agentName || "unknown",
       tool_used: toolUsed,
       payload: { input: redactForLog(input), output: redactForLog(output) },
@@ -798,7 +837,7 @@ async function logged<T>(
     return output;
   } catch (e) {
     supabase.from("agent_logs").insert({
-      user_id: userId ?? null,
+      user_id: loggedUserId,
       agent_name: agentName || "unknown",
       tool_used: toolUsed,
       payload: { input: redactForLog(input), error: String((e as { message?: string })?.message ?? e) },

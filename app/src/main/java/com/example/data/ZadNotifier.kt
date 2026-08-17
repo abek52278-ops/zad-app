@@ -25,6 +25,17 @@ object ZadNotifier {
 
     fun send(context: Context, title: String, message: String, priority: Int = NotificationCompat.PRIORITY_DEFAULT, speak: Boolean = false) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        // NotificationManager.notify() بترجع بهدوء لو الإذن مترفض — مش بترمي، ومش بتسيب
+        // أي أثر. كل نداء هنا كان بيعدي كأنه نجح. اللوج ده هو اللي بيخلي "الإشعارات مش
+        // بتوصل" سؤال ليه إجابة بدل ما يبقى تخمين.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.POST_NOTIFICATIONS,
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            android.util.Log.w("ZadNotifier", "POST_NOTIFICATIONS not granted — \"$title\" will not be shown")
+            return
+        }
         // القناة بتتسمى بحسب نسخة الصوت المختار — NotificationChannel.sound مينفعش يتغيّر
         // بعد الإنشاء، فتغيير الصوت من AssistantAlertsScreen بيزوّد النسخة (AlertPrefs)
         // فتتعمل قناة جديدة بالصوت الجديد بدل ما نحاول نعدّل واحدة قديمة (بيتجاهله أندرويد بصمت).

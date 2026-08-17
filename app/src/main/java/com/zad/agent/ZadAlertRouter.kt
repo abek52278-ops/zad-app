@@ -172,13 +172,36 @@ object ZadAlertRouter {
                 ZadInsightMirror(it.id, it.kind, it.surface, it.priority, it.title, it.body, it.dedupeKey, it.status, it.actionType, it.aboutItem, it.createdAt)
             })
 
-            // التنبيهات الحرجة اللي لسه pending بتتوجه صوتياً لحظة الـ sync — من أي surface
-            // (العقل بيرسل أغلبها home_card افتراضياً، فتصفية voice بس كانت بتخليها تختفي نهائياً).
-            // بيتحدد "seen" بعد التوجيه عشان الـ sync الجاي ميعيدش نفس الإشعار.
-            remote.filter { it.priority == "critical" && it.status == "pending" }
+            // كان الشرط هنا `priority == "critical"`. الـenum بتاع emit_insight فيه قيمتين
+            // بس — "normal" و"critical" — والافتراضي "normal"، والأسئلة كلها متثبتة على
+            // "normal" في الكود نفسه. النتيجة: تمن رؤى في أسبوعين، كلهم "normal"، وولا
+            // إشعار واحد وصل التليفون من العقل خالص. المسار كله كان كود ميت.
+            //
+            // دلوقتي أي رؤية لسه pending بتنزل إشعار، و"critical" بقت بتحدد **الصوت** بس —
+            // وده اللي AlertStateStore والسقف اليومي كانوا موجودين عشانه من الأصل.
+            // بيتحدد "seen" بعد التوجيه، وده اللي بيمنع التكرار: الـsync الجاي مش هيلاقيها
+            // pending. الكارت في الصفحة الرئيسية لسه بيظهر عادي — observeBySurface بتستبعد
+            // "dismissed" بس، مش "seen".
+            // فيه رؤى pending عمرها أسبوع — عمرها ما اتبعتت عشان الشرط القديم. من غير سقف
+            // عمر، أول sync بعد التحديث كان هيرمي كوم إشعارات قديمة مرة واحدة. اللي أقدم من
+            // يومين بيفضل كارت في الصفحة والجرس (وده مكانه الصح)، بس مابيرنّش.
+            val freshCutoff = java.time.Instant.now().minusSeconds(48 * 3600)
+            remote.filter { it.status == "pending" }
                 .forEach { insight ->
-                    routeVoice(context, insight.title, insight.body)
-                    updateStatus(context, insight.id, "seen")
+                    // PostgREST بترجّع `+00:00` مش `Z`، وInstant.parse على أندرويد (حتى
+                    // مع desugaring) بتترمي على الشكل ده. OffsetDateTime بتاكل الاتنين.
+                    val createdAt = insight.createdAt?.let { raw ->
+                        try {
+                            java.time.OffsetDateTime.parse(raw).toInstant()
+                        } catch (e: Exception) {
+                            try { java.time.Instant.parse(raw) } catch (e2: Exception) { null }
+                        }
+                    }
+                    val isFresh = createdAt == null || createdAt.isAfter(freshCutoff)
+                    if (isFresh) {
+                        routeAlert(context, insight.title, insight.body, speak = insight.priority == "critical")
+                        updateStatus(context, insight.id, "seen")
+                    }
                 }
         } catch (e: Exception) {
             android.util.Log.e("ZadAlertRouter", "sync() failed: ${e.message}")
@@ -193,15 +216,18 @@ object ZadAlertRouter {
     fun bellInsights(context: Context): Flow<List<ZadInsightMirror>> =
         ZadInsightDatabase.getDatabase(context).insightDao().observeAll()
 
-    private suspend fun routeVoice(context: Context, title: String, body: String) {
-        if (!AlertStateStore.canSpeakToday(context)) {
-            android.util.Log.d("ZadAlertRouter", "Voice alert cap reached today — showing visual only")
-        }
+    private suspend fun routeAlert(context: Context, title: String, body: String, speak: Boolean) {
         // الإشعار المرئي أولاً دايماً، الصوت إضافة مش بديل — لو الـ TTS فشل أو اللغة مش متاحة
         // برضه المستخدم شاف الإشعار
         showSystemNotification(context, title, body)
-
-        if (AlertStateStore.canSpeakToday(context)) {
+        if (!speak) return
+        if (!AlertStateStore.canSpeakToday(context)) {
+            android.util.Log.d("ZadAlertRouter", "Voice alert cap reached today — showing visual only")
+        } else {
+            // العدّاد بيتزوّد هنا، عند النطق فعلاً. كان بيتزوّد جوه showSystemNotification،
+            // يعني كل إشعار **مرئي** كان بيستهلك من سقف الصوت اليومي — وبعد تلات إشعارات
+            // صامتة كان زاد بيخرس بقية اليوم من غير ما ينطق ولا مرة.
+            AlertStateStore.recordSpoken(context)
             // كان الـ TTS instance عمره ما بيتعمله shutdown() — نفس التسريب بالظبط اللي في
             // ZadNotifier.speakArabic، وده المسار اللي بينادى أكتر (PeriodicAnalysisWorker
             // كل ٦ ساعات + كل فتح تطبيق + كل دخول geofence). applicationContext هنا كمان
@@ -238,9 +264,19 @@ object ZadAlertRouter {
         }
     }
 
-    private suspend fun showSystemNotification(context: Context, title: String, body: String) {
-        AlertStateStore.recordSpoken(context)
+    private fun showSystemNotification(context: Context, title: String, body: String) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        // لو الإذن مترفض، notify() بترجع من غير ما ترمي أي حاجة — الإشعار بيختفي في صمت
+        // تام ومفيش أي أثر في اللوج يقول ليه. السطر ده هو الفرق بين "الإشعارات مش بتيجي"
+        // و"الإشعارات مش بتيجي لأن الإذن مترفض".
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.POST_NOTIFICATIONS,
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            android.util.Log.w("ZadAlertRouter", "POST_NOTIFICATIONS not granted — \"$title\" will not be shown")
+            return
+        }
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             // الافتراضي كان نغمة النظام — نفس صوت أي إشعار من أي تطبيق. زاد بقى له
             // نغمته: خامسة صاعدة بظرف صوتي ناعم (res/raw/zad_alert.wav، مولّدة بنفس
@@ -263,7 +299,10 @@ object ZadAlertRouter {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .build()
-        manager.notify(System.currentTimeMillis().toInt(), notification)
+        // هاش العنوان+النص بدل currentTimeMillis().toInt() — ده كان بيفيض ويلف، ونفس
+        // الرؤية لو اتوجّهت مرتين كانت بتبقى إشعارين في الشيد بدل ما التاني يستبدل الأول.
+        val notifId = (title + body).hashCode().let { if (it == Int.MIN_VALUE) 0 else kotlin.math.abs(it) }
+        manager.notify(notifId, notification)
     }
 
     /** المستخدم شاف الكارت — يتسجل seen محلياً وعلى Supabase */

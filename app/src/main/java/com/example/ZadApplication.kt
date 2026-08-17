@@ -2,6 +2,7 @@ package com.example
 
 import android.app.Application
 import android.content.Context
+import com.example.ads.RewardedBrainAdManager
 
 /**
  * موجودة عشان حاجة واحدة: تلف الـ base context بتاع التطبيق كله باللغة اللي العميل
@@ -23,6 +24,11 @@ import android.content.Context
  * لغة السوق، مش إنجليزي.
  */
 class ZadApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        RewardedBrainAdManager.initialize(this)
+    }
+
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(com.example.data.MarketPrefs.wrapWithStoredLocale(base))
     }

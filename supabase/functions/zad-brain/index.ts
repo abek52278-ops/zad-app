@@ -56,7 +56,8 @@
 import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { CONFIRM_REQUIRED_TOOLS, freshContext, looksLikeAnsweredQuestion, RunContext, validateTool } from "./validators.ts";
 import { callModel, smokeTestTools, Turn, ToolDef } from "./callModel.ts";
-import { decideOnBrainFailure, hasRecentMutatingRun } from "./shared.ts";
+import { decideOnBrainFailure, hasRecentMutatingRun, normalizeDoseTimes } from "./shared.ts";
+import { type FastIntent, formatBalanceReply, parseFastPath } from "./fastPath.ts";
 import { AgentSource, AuditScope, recordAction, writeRows } from "./audit.ts";
 import { redactNotificationText } from "./redact.ts";
 
@@ -753,10 +754,40 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       return "تم — السؤال اتسجل";
     }
     case "remember": {
+      const scope = input.scope ?? "general";
+
+      // The customer already settled a conflict this tool reported last turn. Replace the
+      // old belief, record the contradiction, and drop the old note's confidence rather
+      // than deleting it — having been wrong once is itself evidence about a note.
+      if (input.replaces_note_id) {
+        const { data: resolved, error: resolveErr } = await sb.rpc("zad_memory_resolve_conflict", {
+          p_user: userId, p_old_id: input.replaces_note_id, p_scope: scope,
+          p_note: input.note, p_conf: input.confidence ?? 0.6,
+        });
+        if (resolveErr) return `فشل الحفظ: ${resolveErr.message}`;
+        if (!(resolved as any)?.ok) return "مرفوض: الملاحظة القديمة اللي بتشاور عليها مش موجودة.";
+        return "سجّلت الجديدة وربطتها بالقديمة كتناقض، وقلّلت ثقتي في القديمة";
+      }
+
       const { data, error } = await sb.rpc("zad_memory_upsert", {
-        p_user: userId, p_scope: input.scope ?? "general", p_note: input.note, p_conf: input.confidence ?? 0.5,
+        p_user: userId, p_scope: scope, p_note: input.note, p_conf: input.confidence ?? 0.5,
       });
       if (error) return `فشل الحفظ: ${error.message}`;
+
+      // zad_memory_upsert used to read a contradiction as agreement: a near-identical note
+      // with the negation flipped cleared the 0.6 merge threshold, overwrote the stored
+      // one and RAISED confidence. It now refuses instead, and this is where that refusal
+      // turns into a question for the customer rather than a silent pick.
+      if (data === "conflict") {
+        const { data: clash } = await sb.rpc("zad_memory_conflict", {
+          p_user: userId, p_scope: scope, p_note: input.note,
+        });
+        const existing = clash as { id: string; note: string } | null;
+        if (!existing) return "اتحفظت";
+        return `متعارضة مع ملاحظة متخزنة: "${existing.note}". ماخزنتش حاجة. `
+          + `اسأل العميل أنهي واحدة الصح دلوقتي، ولما يرد نادِ remember تاني بنفس الملاحظة `
+          + `الجديدة مع replaces_note_id="${existing.id}".`;
+      }
       if (data === "strengthened") return "الملاحظة موجودة — قوّيتها بدل ما أكررها";
       return "اتحفظت";
     }
@@ -1186,7 +1217,7 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
     }
     case "add_pharmacy_item": {
       const medName = String(input.name).trim();
-      const doseTimes = input.dose_times ? String(input.dose_times).trim() : null;
+      const doseTimes = normalizeDoseTimes(input.dose_times, input.daily_dose_count, input.times_explicit);
 
       // Idempotent by (user, medicine name). On 2026-08-15 this account held six pharmacy
       // rows for two medicines — "اجمانتين" and "سبروفار" written three times each inside
@@ -1233,7 +1264,10 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
           user_id: userId,
           name: medName,
           dosage: input.dosage ? String(input.dosage).trim() : null,
-          daily_dose_count: input.daily_dose_count ?? (doseTimes ? doseTimes.split(",").length : 1),
+          // Derived from the normalized list, not the model's own count: the two used to
+          // be able to disagree (3 times listed, daily_dose_count 2), and every
+          // days-of-supply figure on the phone divides by this number.
+          daily_dose_count: doseTimes ? doseTimes.split(",").length : (input.daily_dose_count ?? 1),
           dose_times: doseTimes,
           unit: input.unit ?? "قرص",
           remaining_quantity: input.quantity ?? 1,
@@ -1263,8 +1297,14 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       const patch: Record<string, unknown> = {};
       if (input.dosage !== undefined) patch.dosage = String(input.dosage).trim();
       if (input.remaining_quantity !== undefined) patch.remaining_quantity = input.remaining_quantity;
-      if (input.dose_times !== undefined) patch.dose_times = String(input.dose_times).trim();
-      if (input.daily_dose_count !== undefined) patch.daily_dose_count = input.daily_dose_count;
+      if (input.dose_times !== undefined) {
+        const normalized = normalizeDoseTimes(input.dose_times, input.daily_dose_count, input.times_explicit);
+        if (normalized === null) return `مرفوض: مواعيد الجرعات مش مفهومة — لازم تكون بصيغة HH:MM مفصولة بفاصلة.`;
+        patch.dose_times = normalized;
+        patch.daily_dose_count = normalized.split(",").length;
+      } else if (input.daily_dose_count !== undefined) {
+        patch.daily_dose_count = input.daily_dose_count;
+      }
       const w = await writeRows(sb.from("zad_pharmacy_items").update(patch).eq("id", before.id).eq("user_id", userId).select("id,name,dosage,remaining_quantity,dose_times,daily_dose_count"), "تعديل الدواء");
       if (!w.ok) return `مرفوض: ${w.reason}`;
       ctx.mutationCount++;
@@ -1767,6 +1807,21 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       if (!d?.in_family) return "العميل مش منضم لعيلة في التطبيق.";
       return JSON.stringify(d);
     }
+    case "forward_ledger": {
+      // Deterministic: this is a SQL projection, not an estimate. The point of the tool is
+      // that the model stops doing arithmetic on the snapshot in its head — every number
+      // below came from zad_forward_ledger walking the next N days one at a time.
+      const days = Number(input?.days);
+      const horizon = Number.isFinite(days) && days >= 1 ? Math.min(Math.trunc(days), 120) : 30;
+      const { data: ledger, error } = await sb.rpc("zad_forward_ledger", {
+        // Same timezone the cycle boundaries were resolved in — projecting in UTC while
+        // the app renders in Africa/Cairo is how a day-edge event lands on the wrong day.
+        p_user: userId, p_days: horizon, p_tz: snap?.cycle?.timezone ?? "UTC",
+      });
+      if (error) return `مقدرتش أحسب التوقّع دلوقتي: ${error.message}`;
+      if (!ledger) return "مفيش بيانات كفاية أحسب منها توقّع للأيام الجاية.";
+      return JSON.stringify(ledger);
+    }
     case "query_family": {
       const { data: membership } = await sb.from("family_members")
         .select("family_id").eq("user_id", userId).maybeSingle();
@@ -1803,6 +1858,21 @@ async function runTool(sb: SupabaseClient, userId: string, name: string, input: 
 // ═══════════════════════════════════════════════════════════
 
 const TOOLS: ToolDef[] = [
+  {
+    name: "forward_ledger",
+    description:
+      "توقّع يوم بيوم للأيام الجاية (SQL حتمي، مش تقدير، وبصفر كوتة): الرصيد المتوقع كل " +
+      "يوم، أول يوم هيبقى فيه بالسالب، الالتزامات والاشتراكات اللي هتتخصم، والأصناف اللي " +
+      "هتخلص وإمتى. **نادِها قبل أي رؤية عن المستقبل** — تحذير زي \"هتبقى ناقص\" أو " +
+      "\"المية هتخلص\" لازم يكون رقمه من هنا مش من حسابك على الـsnapshot. اللي في " +
+      "stock_unknown معدل استهلاكه لسه مش معروف — متخمّنش ليه تاريخ.",
+    input_schema: {
+      type: "object",
+      properties: {
+        days: { type: "number", description: "عدد الأيام للأمام. الافتراضي ٣٠، الأقصى ١٢٠." },
+      },
+    },
+  },
   {
     name: "emit_insight",
     description: "سجّل رؤية أو تنبيه للعميل — يظهر في الصفحة الرئيسية أو الجرس أو بالصوت.",
@@ -1842,6 +1912,12 @@ const TOOLS: ToolDef[] = [
     input_schema: {
       type: "object",
       properties: {
+        replaces_note_id: {
+          type: "string",
+          description:
+            "استخدمها **بس** بعد ما remember ترجّعلك تعارض وتسأل العميل ويرد. حط فيها الـid " +
+            "اللي رجع في رسالة التعارض. من غيرها الملاحظة المتناقضة مش هتتخزن.",
+        },
         scope: { type: "string" },
         note: { type: "string", description: "بين ١٠ و٢٠٠ حرف" },
         confidence: { type: "number", description: "رقم بين 0 و1" },
@@ -2108,14 +2184,15 @@ const CHAT_TOOLS: ToolDef[] = [
   },
   {
     name: "add_pharmacy_item",
-    description: "ضيف دواء لجدول الصيدلية بمواعيد جرعاته. احسب dose_times من الوقت الحالي والفاصل اللي قاله العميل.",
+    description: "ضيف دواء لجدول الصيدلية بمواعيد جرعاته. **متحسبش المواعيد من الوقت الحالي** — انت مش شايف ساعة العميل ولا منطقته الزمنية. لو العميل قال عدد مرات بس (\"مرتين في اليوم\") سيب dose_times فاضية وابعت daily_dose_count، والنظام هيحط مواعيد نهارية مناسبة. مبعتش dose_times إلا لو العميل نطق ساعات بعينها، وساعتها حط times_explicit=true.",
     input_schema: {
       type: "object",
       properties: {
         name: { type: "string" },
         dosage: { type: "string", description: "وصف الجرعة زي ما قاله العميل" },
         daily_dose_count: { type: "number", description: "لازم يساوي عدد المواعيد في dose_times" },
-        dose_times: { type: "string", description: "HH:MM مفصولة بفاصلة، ٢٤ ساعة. ممنوع 24:00 — استخدم 00:00" },
+        dose_times: { type: "string", description: "الساعات اللي العميل نطقها بنفسه بس، HH:MM مفصولة بفاصلة، ٢٤ ساعة. ممنوع 24:00 — استخدم 00:00. سيبها فاضية لو هو قال عدد مرات بس." },
+        times_explicit: { type: "boolean", description: "true بس لو العميل نطق الساعات دي حرفياً في كلامه" },
         unit: { type: "string", enum: ["قرص", "مل", "كريم"] },
         quantity: { type: "number", description: "الكمية المتاحة عنده" },
         category: { type: "string", enum: ["عام", "مسكن", "مضاد حيوي", "فيتامين", "مزمن"] },
@@ -2142,7 +2219,9 @@ const CHAT_TOOLS: ToolDef[] = [
       type: "object",
       properties: {
         name: { type: "string" }, dosage: { type: "string" }, remaining_quantity: { type: "number" },
-        daily_dose_count: { type: "number" }, dose_times: { type: "string", description: "HH:MM مفصولة بفاصلة" },
+        daily_dose_count: { type: "number" },
+        dose_times: { type: "string", description: "HH:MM مفصولة بفاصلة — الساعات اللي العميل نطقها بس" },
+        times_explicit: { type: "boolean", description: "true بس لو العميل نطق الساعات دي حرفياً" },
       }, required: ["name"],
     },
   },
@@ -2398,6 +2477,22 @@ const CHAT_TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "forward_ledger",
+    description:
+      "توقّع يوم بيوم للأيام الجاية: الرصيد المتوقع كل يوم، أول يوم هيبقى فيه بالسالب، " +
+      "الالتزامات والاشتراكات اللي هتتخصم في الفترة دي، والأصناف اللي هتخلص وإمتى. " +
+      "نادِها لأي سؤال عن المستقبل (\"هعرف أكمّل للراتب؟\"، \"كام هيفضل معايا يوم ٢٤؟\"، " +
+      "\"المية هتكفيني كام يوم؟\"). **متحسبش الأرقام دي بنفسك من الـsnapshot** — الأداة " +
+      "دي بتحسبها بالظبط ومن غير أي استهلاك للكوتة. اللي في stock_unknown معناه إن معدل " +
+      "استهلاكه لسه مش معروف — قول كده صراحة، متخمّنش ليه تاريخ.",
+    input_schema: {
+      type: "object",
+      properties: {
+        days: { type: "number", description: "عدد الأيام للأمام. الافتراضي ٣٠، الأقصى ١٢٠." },
+      },
+    },
+  },
+  {
     name: "query_family",
     description: "اقرا حالة العيلة والأولاد (عددهم، أدوارهم، أرصدتهم). نادِها لما العميل يسأل عن عيلته أو أولاده.",
     input_schema: { type: "object", properties: {} },
@@ -2607,6 +2702,48 @@ async function processDueAgentTasks(sb: SupabaseClient): Promise<{ processed: nu
 }
 
 /**
+ * Turns a [FastIntent] into the same response shape the model path produces.
+ *
+ * Returns null when the intent cannot be served without the model after all (a read that
+ * failed, say) — the caller then falls through and nothing is lost.
+ *
+ * An expense is a **proposal**, never a write. CONFIRM_REQUIRED_TOOLS exists because the
+ * customer approves their own spending; parsing the sentence faster does not change who
+ * approves it.
+ */
+async function answerFastPath(
+  sb: SupabaseClient,
+  userId: string,
+  intent: FastIntent,
+): Promise<{ reply: string; proposals: Proposal[] } | null> {
+  if (intent.kind === "balance") {
+    // Same call buildSnapshot makes — p_tz defaults inside the function, which derives the
+    // zone from the account's country. Passing one from here would be a second source of
+    // truth for the cycle edge, which is the defect 20260809120000 closed.
+    const { data: state, error } = await sb.rpc("zad_budget_state", { p_user: userId });
+    if (error || !state) {
+      console.error("fast path balance read failed:", error?.message);
+      return null;
+    }
+    return { reply: formatBalanceReply(state as Record<string, unknown>), proposals: [] };
+  }
+
+  const input: Record<string, unknown> = {
+    amount: intent.amount,
+    txn_kind: "expense",
+    title: intent.title,
+  };
+  if (intent.wallet) input.wallet = intent.wallet;
+
+  const { data: userRow } = await sb.from("zad_users").select("currency").eq("id", userId).maybeSingle();
+  const currency = (userRow as { currency: string | null } | null)?.currency ?? "غير معروف";
+  return {
+    reply: "محتاج تأكيدك على ده قبل ما أسجله 👇",
+    proposals: [{ tool: "log_transaction", input, summary: describeProposal("log_transaction", input, currency) }],
+  };
+}
+
+/**
  * لفة محادثة واحدة. بترجع رد نصي جاهز للعرض + الأدوات اللي اتنفذت فعلاً + الاقتراحات
  * المستنية تأكيد.
  *
@@ -2637,6 +2774,37 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
       reply: "وصلت لحد أقصى من طلباتي معاك النهاردة — عشان أفضل مستقر وما أستهلكش فوق طاقتي. جرب تاني بكرة 🙏",
       executed: [], proposals: [], tool_attempted: false, rate_limited: true,
     }), { headers: CORS_HEADERS });
+  }
+
+  // ── The deterministic layer (gaps item 4) ────────────────────────────────────
+  // Placed after the daily cap and before buildSnapshot/callModel on purpose: a message
+  // this can answer should cost neither a snapshot nor a model request. On 2026-08-15,
+  // 14 of 14 brain failures were quota; the cheapest request is the one never sent.
+  //
+  // parseFastPath under-matches by design — see fastPath.ts. Anything it returns null for
+  // falls straight through to the model path below, unchanged.
+  const fast = parseFastPath(message);
+  if (fast) {
+    const fastReply = await answerFastPath(sb, userId, fast);
+    if (fastReply) {
+      // Usage is still recorded: this was a real request against the daily cap, it just
+      // did not spend any tokens. Not recording it would make the cap undercount.
+      try {
+        await sb.rpc("zad_agent_usage_record", { p_user: userId, p_input_tokens: 0, p_output_tokens: 0 });
+      } catch (e) {
+        console.error("zad_agent_usage_record (fast path) failed:", e);
+      }
+      return new Response(JSON.stringify({
+        ok: true,
+        reply: fastReply.reply,
+        executed: [],
+        proposals: fastReply.proposals,
+        tool_attempted: fastReply.proposals.length > 0,
+        rejections: [],
+        observations: [],
+        fast_path: fast.kind,
+      }), { headers: CORS_HEADERS });
+    }
   }
 
   const snap = await buildSnapshot(sb, userId);
@@ -3124,7 +3292,7 @@ function buildSystemPrompt(snap: any): string {
 - أي تحذير أو رؤية عن الميزانية لازم يبني على available (رقم "متاح")، مش remaining — remaining بيتجاهل الالتزامات الثابتة القادمة (إيجار/قسط/اشتراكات)، available هو اللي بيحسبها.
 - dismissal_reasons جوه الـ snapshot بيقولك ليه العميل رفض حاجة قبل كده: wrong_data معناها الرقم/البيانات غلط فعلاً — لو شايف نفس الموضوع تاني، ماتفترضش إنه صح من غير سبب جديد. not_relevant معناها الموضوع مش مهم له، مش إن البيانات غلط — منفعش تتوقف عن رصد نفس النوع في مواضيع تانية بس عشان ده اتقفل.
 - memory جوه الـ snapshot فيه scope: "data_quality" (من رفض wrong_data) و"dismissal" (من رفض not_relevant/timing) — مش نفس الوزن. data_quality معناها العميل بلّغ عن رقم غلط فعلاً؛ عامله كتحذير قائم، ومتستخدمش نفس الرقم/المصدر ده في حساب تقترحه من غير ما تنبّه إن مصدره كان اتشكك فيه قبل كده. evidence_count على أي ملاحظة (مش بس data_quality) هو عدد المرات اللي اتقالت/اتأكدت فيها ملاحظة مشابهة — evidence_count عالي (٣+) يبقى نمط مؤكد يستاهل تتصرف بناءً عليه بثقة أكبر من ملاحظة evidence_count=1 لسه مالهاش تكرار.
-- **data_errors**: لو المصفوفة دي مش فاضية، يبقى فيه مصادر فشل تحميلها — البيانات بتاعتها **مجهولة مش فاضية**. ممنوع منعاً باتاً تبني أي رقم أو تحذير على مصدر موجود في data_errors. مثال: لو "معاملاتك المالية" فيها، يبقى spent=0 و remaining=البادجت كله أرقام كاذبة، مينفعش تقول "مصرفتش حاجة الشهر ده". في الحالة دي نادِ emit_insight بـ priority="low" تقول فيها إن جزء من البيانات ماوصلش وإيه اللي مقدرتش تحلله. **اكتبها بلغة العميل**: قول "مقدرتش أقرا معاملاتك دلوقتي، فأرقام الشهر ناقصة — هحاول تاني" ومتكتبش أي اسم تقني (اسم جدول، اسم عمود، رسالة خطأ، كود). العميل مش هيعرف يعمل حاجة باسم جدول، والرؤية دي بتظهرله في الجرس والصفحة الرئيسية.
+- **data_errors**: لو المصفوفة دي مش فاضية، يبقى فيه مصادر فشل تحميلها — البيانات بتاعتها **مجهولة مش فاضية**. ممنوع منعاً باتاً تبني أي رقم أو تحذير على مصدر موجود في data_errors. مثال: لو "معاملاتك المالية" فيها، يبقى spent=0 و remaining=البادجت كله أرقام كاذبة، مينفعش تقول "مصرفتش حاجة الشهر ده". في الحالة دي نادِ emit_insight بـ priority="normal" تقول فيها إن جزء من البيانات ماوصلش وإيه اللي مقدرتش تحلله. **اكتبها بلغة العميل**: قول "مقدرتش أقرا معاملاتك دلوقتي، فأرقام الشهر ناقصة — هحاول تاني" ومتكتبش أي اسم تقني (اسم جدول، اسم عمود، رسالة خطأ، كود). العميل مش هيعرف يعمل حاجة باسم جدول، والرؤية دي بتظهرله في الجرس والصفحة الرئيسية.
 - الحد الأدنى لسداد الديون (debts[].min_payment) التزام ثابت زي الإيجار بالظبط — ممنوع تقترح تقليله أو تأجيله، وممنوع تحسب "متاح" وكأنه فلوس اختيارية.
 - notifications_sent هو اللي التطبيق قاله للعميل فعلاً آخر أسبوع (من مسارات تانية غيرك). لو موضوعك اتقال فيه بالفعل، ماتكررهوش — العميل شايفه أصلاً. read=false برضه بيتحسب اتقال.
 - behavior_profile أرقام محسوبة من معاملات حقيقية سيرفر-سايد. لو رقمك مختلف عنها اختلاف كبير، الغلط الأرجح عندك انت — راجع حسابك قبل ما تنبّه.
@@ -3135,6 +3303,11 @@ function buildSystemPrompt(snap: any): string {
 - شوف الرد ده بيقولك إيه عن العميل غير الرقم. لو فيه نمط فعلاً، اكتبه بـ remember.
   مثال: رد إن فاضل ٢ بس من حاجة اشتراها الأسبوع اللي فات = بيستهلكها بسرعة.
 - لو الرد رقم عادي ومفيش منه استنتاج، متكتبش ملاحظة. ملاحظة فاضية أوحش من مفيش.
+
+لو remember رجّعت "متعارضة مع ملاحظة متخزنة": ماتخزّنش الاتنين وماتختارش لوحدك. اسأل
+العميل أنهي واحدة الصح دلوقتي (نادِ ask_user)، ولما يرد نادِ remember تاني بنفس الملاحظة
+الجديدة و replaces_note_id بالـid اللي رجعلك. الناس بتتغير — اللي كان صح الشهر اللي فات
+ممكن يبقى غلط دلوقتي، والمفروض تعرف الفرق بين "اتأكدت" و"اتغيّرت".
 
 remember مش للأرقام. للأنماط:
 - سلوك متكرر ("بيصرف أكتر آخر الشهر")

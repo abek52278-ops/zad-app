@@ -69,4 +69,42 @@ class PexelsRepoTest {
         val body = """{"photos":[{"src":{"landscape":"","large":"","original":"https://x/o.jpg"}}]}"""
         assertEquals("https://x/o.jpg", PexelsRepo.parseFirstPhotoUrl(body))
     }
+
+    /**
+     * The reason the parser stopped taking `photos[0]` on faith. Pexels does not answer
+     * "nothing" — it answers with the closest thing it has, so "مطبخ" came back as an
+     * empty kitchen and "لبن ومية" as a lake, and the card rendered scenery as dinner.
+     */
+    @Test
+    fun `a scenery photo is skipped in favour of a later food one`() {
+        val body = """
+            {"photos":[
+              {"alt":"Snow covered mountain under blue sky","src":{"landscape":"https://x/mountain.jpg"}},
+              {"alt":"Cooked food on a white ceramic plate","src":{"landscape":"https://x/food.jpg"}}
+            ]}
+        """.trimIndent()
+        assertEquals("https://x/food.jpg", PexelsRepo.parseFirstPhotoUrl(body))
+    }
+
+    /**
+     * Null, not the first result. The caller reads null as "use the curated food
+     * placeholder", which is the honest outcome when the query itself has gone astray.
+     */
+    @Test
+    fun `results that are all scenery yield null rather than the wrong picture`() {
+        val body = """
+            {"photos":[
+              {"alt":"Green forest during daytime","src":{"landscape":"https://x/forest.jpg"}},
+              {"alt":"Body of water near a mountain","src":{"landscape":"https://x/lake.jpg"}}
+            ]}
+        """.trimIndent()
+        assertNull(PexelsRepo.parseFirstPhotoUrl(body))
+    }
+
+    /** Most real Pexels photos carry no alt at all — absence must not read as rejection. */
+    @Test
+    fun `a photo with no alt text is still accepted`() {
+        val body = """{"photos":[{"src":{"landscape":"https://x/ls.jpg"}}]}"""
+        assertEquals("https://x/ls.jpg", PexelsRepo.parseFirstPhotoUrl(body))
+    }
 }

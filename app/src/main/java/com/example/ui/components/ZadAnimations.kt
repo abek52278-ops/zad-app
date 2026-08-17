@@ -208,6 +208,29 @@ fun animatedCountAsState(targetValue: Int, durationMs: Int = 800): State<Int> {
 }
 
 /**
+ * تقدّم رسم من ٠ لـ١ بيشتغل **مرة واحدة** أول ما العنصر يظهر.
+ *
+ * الحاجة ليها جت من بق حقيقي: تلات كروت في شاشة عقل زاد كانت مكتوبة كده
+ *
+ *     val progress by animateFloatAsState(targetValue = 1f, animationSpec = tween(1200))
+ *
+ * و`animateFloatAsState` بتبدأ **عند** الهدف في أول تكوين. الهدف ثابت ١، يبقى القيمة ١ من
+ * أول فريم ومفيش أي حركة تحصل أبداً — الدونات والأعمدة كانوا بيظهروا مرسومين خلاص، ومدة
+ * الـ1200ms المكتوبة في الكود عمرها ما اشتغلت.
+ *
+ * [key] بيعيد التشغيل لما المعطيات تتغير — مرّر بيه البيانات اللي الرسمة مبنية عليها.
+ */
+@Composable
+fun drawProgressOnEntry(key: Any? = Unit, durationMs: Int = 1000): State<Float> {
+    val animated = remember(key) { Animatable(0f) }
+    LaunchedEffect(key) {
+        animated.snapTo(0f)
+        animated.animateTo(1f, animationSpec = tween(durationMs, easing = FastOutSlowInEasing))
+    }
+    return animated.asState()
+}
+
+/**
  * ظهور محتوى تدريجي عند فتح الشاشة (استخدمها حوالين أول عنصر)
  */
 @Composable

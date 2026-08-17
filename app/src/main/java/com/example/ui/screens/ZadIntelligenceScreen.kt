@@ -51,6 +51,7 @@ import com.example.data.ZadInventory
 import com.example.data.ZadSubscription
 import com.example.data.AiInsight
 import com.example.data.ZadAiRepository
+import com.example.ads.RewardedBrainAdManager
 import kotlinx.coroutines.launch
 
 // ════════════════════════════════════════════════════════════════
@@ -179,6 +180,66 @@ fun ZadIntelligenceScreen(
                             Text(stringResource(R.string.knowledge_map_subtitle), style = Typography.bodySmall, color = onSurfaceVariant)
                         }
                         Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = onSurfaceVariant)
+                    }
+                }
+            }
+
+            item {
+                var isBrainUnlocked by remember { mutableStateOf(RewardedBrainAdManager.hasUnlockedToday(context)) }
+                var isLoadingReward by remember { mutableStateOf(false) }
+
+                com.example.ui.components.ZadListCard(shape = RoundedCornerShape(20.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Star,
+                            contentDescription = null,
+                            tint = primary,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "فتح تحليل عقل زاد",
+                                style = Typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = onSurface
+                            )
+                            Text(
+                                if (isBrainUnlocked) "تم تفعيل التحليل الذكي اليوم بنجاح." else "شاهد إعلان مكافأة لتحرير جلسة تحليل الذكاء لمدة 24 ساعة.",
+                                style = Typography.bodySmall,
+                                color = onSurfaceVariant
+                            )
+                        }
+                        Button(
+                            onClick = {
+                                isLoadingReward = true
+                                RewardedBrainAdManager.showRewardedBrainUnlock(
+                                    context = context,
+                                    onRewarded = {
+                                        isBrainUnlocked = true
+                                        isLoadingReward = false
+                                    },
+                                    onFailed = {
+                                        isLoadingReward = false
+                                    }
+                                )
+                            },
+                            enabled = !isLoadingReward && !isBrainUnlocked,
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
+                        ) {
+                            if (isLoadingReward) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            } else {
+                                Text(if (isBrainUnlocked) "مفتوح" else "مشاهدة إعلان")
+                            }
+                        }
                     }
                 }
             }
@@ -732,11 +793,11 @@ fun ZadDonutChart(
     onSegmentTap: (Int) -> Unit = {}
 ) {
     val total = segments.sum()
-    val animatedProgress by animateFloatAsState(
-        targetValue = 1f,
-        animationSpec = tween(1200, easing = FastOutSlowInEasing),
-        label = "donut"
-    )
+    // Was animateFloatAsState(targetValue = 1f): a constant target means the value starts
+    // AT the target, so the 1200ms sweep in this file has never once played — the donut
+    // has always appeared fully drawn. Keyed on the segments so it also re-sweeps when the
+    // category split changes, not only on first entry.
+    val animatedProgress by com.example.ui.components.drawProgressOnEntry(segments, durationMs = 1200)
     // حدود كل قطاع بالدرجات — محسوبة مرة كل ما تتغير المعطيات، ومستخدمة لكل من
     // الرسم واختبار موضع الضغطة (نفس المنطق، مرة واحدة).
     val boundaries = remember(segments) {
@@ -1006,7 +1067,8 @@ fun WeeklyTrendCard(transactions: List<ZadTransaction>) {
 @Composable
 fun MonthlyBarChartCard(monthlyData: List<Pair<String, Double>>, forecast: com.example.data.AiExpensePrediction?) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val animatedProgress by animateFloatAsState(targetValue = 1f, animationSpec = tween(1000), label = "bars")
+    // Same dead-constant animation as the donut had — see drawProgressOnEntry.
+    val animatedProgress by com.example.ui.components.drawProgressOnEntry(durationMs = 1000)
 
     com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
@@ -2523,7 +2585,11 @@ private fun MonthComparisonCard(mc: com.example.data.ZadCentralBrain.MonthCompar
     val improved = mc.deltaPct <= 0
     val deltaColor = if (improved) successColor else dangerColor
     val maxSpend = maxOf(mc.thisMonthSpent, mc.lastMonthSpent, 1.0)
-    val animatedProgress by animateFloatAsState(targetValue = 1f, animationSpec = tween(900), label = "mc")
+    // Same dead-constant animation as the donut had — see drawProgressOnEntry. Keyed on
+    // the figures so switching month re-runs the bars instead of snapping.
+    val animatedProgress by com.example.ui.components.drawProgressOnEntry(
+        key = mc.thisMonthSpent to mc.lastMonthSpent, durationMs = 900,
+    )
 
     com.example.ui.components.ZadListCard(shape = RoundedCornerShape(20.dp), contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(18.dp)) {

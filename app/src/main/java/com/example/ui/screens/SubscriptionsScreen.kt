@@ -257,7 +257,7 @@ fun SubscriptionsScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.LocalOffer, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("فرص واقتصاد", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                            Text(stringResource(R.string.subs_deals_section), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
                         }
                     }
                     // العروض المتاحة لنواقصك — بحث حي حقيقي (Deal Matcher)
@@ -460,7 +460,7 @@ fun AddSubscriptionDialog(onDismiss: () -> Unit, onSave: (String, Double, String
                 OutlinedTextField(value = provider, onValueChange = { provider = it }, label = { Text(stringResource(R.string.service_provider_hint)) }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = renewalDate, onValueChange = { renewalDate = it }, label = { Text(stringResource(R.string.renewal_date_hint)) }, modifier = Modifier.fillMaxWidth())
                 if (title.length >= 3) {
-                    Text("الفئة المقترحة: $category", style = Typography.labelSmall, color = onSurfaceVariant)
+                    Text(stringResource(R.string.subs_suggested_category, category), style = Typography.labelSmall, color = onSurfaceVariant)
                 }
             }
         },
@@ -934,6 +934,7 @@ fun FinancialChallengesCard(familyViewModel: FamilyViewModel) {
 // ── Seasonal & Event Budget Forecasting: sinking funds card ────────────────
 @Composable
 fun SinkingFundsCard(familyViewModel: FamilyViewModel) {
+    val sinkingContext = LocalContext.current
     val familyState by familyViewModel.state.collectAsState()
     val funds by familyViewModel.sinkingFunds.collectAsState()
     val upcomingEvents by familyViewModel.upcomingSeasonalEvents.collectAsState()
@@ -1026,7 +1027,7 @@ fun SinkingFundsCard(familyViewModel: FamilyViewModel) {
                         upcomingEvents.forEach { (event, window) ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 RadioButton(selected = selectedEventId == event.id, onClick = { selectedEventId = event.id })
-                                Text(seasonalEventDisplayNameOrRaw(event), style = Typography.bodySmall)
+                                Text(seasonalEventDisplayNameOrRaw(sinkingContext, event), style = Typography.bodySmall)
                             }
                         }
                     }
@@ -1066,10 +1067,15 @@ fun SinkingFundsCard(familyViewModel: FamilyViewModel) {
     }
 }
 
-private fun seasonalEventDisplayNameOrRaw(event: com.example.data.SeasonalEvent): String = when (event.slug) {
-    "ramadan" -> "رمضان"
-    "eid_al_fitr" -> "عيد الفطر"
-    "eid_al_adha" -> "عيد الأضحى"
-    "back_to_school" -> "العودة للمدارس"
+/** The slug is the stable key; the label follows the app's language. `event.name` is the
+ *  server's own text and is left alone — we have no translation for a custom event. */
+private fun seasonalEventDisplayNameOrRaw(
+    context: android.content.Context,
+    event: com.example.data.SeasonalEvent,
+): String = when (event.slug) {
+    "ramadan" -> context.getString(R.string.season_ramadan)
+    "eid_al_fitr" -> context.getString(R.string.season_eid_fitr)
+    "eid_al_adha" -> context.getString(R.string.season_eid_adha)
+    "back_to_school" -> context.getString(R.string.season_back_to_school)
     else -> event.name
 }

@@ -216,6 +216,7 @@ fun InventoryScreen(
 ) {
     val allItems by viewModel.inventory.collectAsState()
     val searchQuery by viewModel.inventorySearchQuery.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
     var selectedCategory by remember { mutableStateOf("الكل") }
     var showAddDialog by remember { mutableStateOf(false) }
     var editingItem by remember { mutableStateOf<ZadInventory?>(null) }
@@ -300,6 +301,31 @@ fun InventoryScreen(
                         iconBackground = successColor.copy(alpha = 0.1f)
                     )
                 } else {
+                    // شراء النواقص من أمازون بالتاج. القسم ده كان على الشاشة الرئيسية بس،
+                    // ومربوط بكتالوج من خمس منتجات مابيقابلش اللي العيلة دي بتشتريه فعلاً —
+                    // فعملياً ماكانش بيبان. هنا الصنف الناقص نفسه هو البحث، فالقايمة دايماً
+                    // ليها معنى: أي حاجة ظاهرة في التبويب ده ينفع تتشترى منها على طول.
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(shortageItems, key = { "buy_${it.id}" }) { item ->
+                            com.example.ui.widgets.ZadAmazonSearchChip(
+                                itemName = item.itemName,
+                                reason = stringResource(R.string.amazon_buy_this),
+                                onClick = {
+                                    com.example.data.AffiliateHelper.open(
+                                        context,
+                                        com.example.data.AffiliateHelper.productUrl(
+                                            asin = null,
+                                            fallbackSearchTerm = item.itemName,
+                                        )
+                                    )
+                                }
+                            )
+                        }
+                    }
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(2),
                         // bottom=100dp clears the floating Add/Scan buttons — same clearance

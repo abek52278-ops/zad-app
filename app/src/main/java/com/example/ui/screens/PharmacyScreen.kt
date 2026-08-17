@@ -463,7 +463,7 @@ private fun PharmacyItemCard(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.WarningAmber, contentDescription = null, tint = dangerColor, modifier = Modifier.size(12.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("وقت جرعة مش مفهوم — عدّله", style = Typography.labelSmall, color = dangerColor, fontSize = 10.sp)
+                        Text(stringResource(R.string.pharmacy_invalid_dose_time), style = Typography.labelSmall, color = dangerColor, fontSize = 10.sp)
                     }
                 }
                 Spacer(modifier = Modifier.height(10.dp))
@@ -496,7 +496,7 @@ private fun PharmacyItemCard(
                                 .clickable { showConfirmDialog = true }
                                 .padding(horizontal = 8.dp, vertical = 3.dp)
                         ) {
-                            Text("الكمية محتاجة تأكيد", style = Typography.labelSmall, color = warningColor, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                            Text(stringResource(R.string.pharmacy_qty_needs_confirm), style = Typography.labelSmall, color = warningColor, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
                         }
                     }
                 }
@@ -544,7 +544,7 @@ private fun PharmacyItemCard(
                         modifier = Modifier.height(30.dp).pressableScale(),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                     ) {
-                        Text("فاضل قد إيه فعلاً؟", style = Typography.labelSmall, color = onSurfaceVariant)
+                        Text(stringResource(R.string.pharmacy_how_many_left), style = Typography.labelSmall, color = onSurfaceVariant)
                     }
                 }
             }
@@ -684,7 +684,7 @@ private fun PharmacyItemGridCard(
                     .clickable { showConfirmDialog = true }
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) {
-                Text("الكمية محتاجة تأكيد", style = Typography.labelSmall, color = warningColor, fontWeight = FontWeight.SemiBold, fontSize = 10.sp)
+                Text(stringResource(R.string.pharmacy_qty_needs_confirm), style = Typography.labelSmall, color = warningColor, fontWeight = FontWeight.SemiBold, fontSize = 10.sp)
             }
         }
     }

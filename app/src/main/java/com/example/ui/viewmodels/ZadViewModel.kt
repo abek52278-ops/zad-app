@@ -3060,6 +3060,12 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             val updated = _pharmacyItems.value.map { if (it.id == itemId) it.copy(remainingQuantity = quantity) else it }
             _pharmacyItems.value = updated
             updated.find { it.id == itemId }?.let { dao.insertPharmacyItem(it) }
+            // The customer just counted the box by hand, so any part-dose carried over from
+            // previous fractional deductions (see markPharmacyDoseTaken) is now stale — it
+            // would be applied on top of a number that already accounts for it.
+            getApplication<android.app.Application>()
+                .getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+                .edit().remove("dose_carry_$itemId").apply()
             SupabaseRepo.confirmPharmacyQuantity(itemId, quantity)
         }
     }
@@ -4381,6 +4387,55 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 picks += AffiliatePick(product = product, reason = matched.third, score = bestScore)
             }
             picks.sortedByDescending { it.score }.take(8)
+        }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** حاجة العميل محتاجها فعلاً ومفيش ليها صف في الكتالوج — بتتفتح كبحث على أمازون. */
+    data class AffiliateNeed(val itemName: String, val reason: String, val score: Int)
+
+    /**
+     * الجسر اللي كان ناقص بين "ترشيح حقيقي" و"القسم اختفى خالص".
+     *
+     * [affiliatePicks] بيربط حاجة العميل بصف في `affiliate_products`، والكتالوج ده **خمس
+     * منتجات** (زيت زيتون، حليب، أرز، شاي، سكر). العيلة دي محتاجة مياه وبيض ولحمة وفراخ
+     * ولسان عصفور — ولا واحدة فيهم في الكتالوج، فالمطابقة رجّعت فاضي وقسم أمازون اختفى من
+     * الشاشة تماماً. الترشيح المربوط بنقص حقيقي كان القرار الصح، بس اللي حصل عملياً إن
+     * الميزة بقت مش موجودة.
+     *
+     * والكتالوج مش شرط أصلاً: [AffiliateHelper.productUrl] بتبني لينك بحث بالتاج لأي كلمة،
+     * وده بالظبط اللي بيحصل حالياً لكل المنتجات الخمسة (`asin_verified` = 0 لكلهم). يعني
+     * الكتالوج بيضيف صورة وسعر بس — مش بيضيف القدرة على الشراء.
+     *
+     * فاللي مالوش صف في الكتالوج بيتعرض كبحث صريح، مش ككارت منتج بصورة وسعر متأليفين.
+     */
+    val affiliateSearchNeeds: StateFlow<List<AffiliateNeed>> =
+        kotlinx.coroutines.flow.combine(
+            _affiliateProducts, _inventory, _shoppingList
+        ) { products, inv, shopping ->
+            val catalogue = products.filter { it.isActive }.flatMap { product ->
+                (listOf(product.productNameAr) + product.productNameSearchKeywords)
+                    .map { normalizeArabicForMatch(it) }
+                    .filter { it.isNotBlank() }
+            }
+
+            val needs = LinkedHashMap<String, AffiliateNeed>()
+            fun consider(rawName: String, score: Int, reason: String) {
+                val name = rawName.trim()
+                val key = normalizeArabicForMatch(name)
+                if (key.isBlank()) return
+                // مغطى بكارت منتج حقيقي — مايتكررش كشِريطة بحث كمان.
+                if (catalogue.any { it == key || it.contains(key) || key.contains(it) }) return
+                val existing = needs[key]
+                if (existing == null || score > existing.score) {
+                    needs[key] = AffiliateNeed(itemName = name, reason = reason, score = score)
+                }
+            }
+
+            inv.filter { it.quantity <= 0 }.forEach { consider(it.itemName, 3, "خلص من مخزونك") }
+            inv.filter { it.quantity > 0 && it.quantity <= (it.lowStockThreshold ?: 2) }
+                .forEach { consider(it.itemName, 2, "قارب على النفاد") }
+            shopping.filter { !it.isPurchased }.forEach { consider(it.itemName, 2, "في قايمة التسوق") }
+
+            needs.values.sortedByDescending { it.score }.take(10)
         }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** تطبيع خفيف للمطابقة العربية: همزات/تاء مربوطة/تشكيل/مسافات زيادة. */

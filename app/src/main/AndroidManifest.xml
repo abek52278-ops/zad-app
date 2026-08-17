@@ -30,6 +30,10 @@
         android:localeConfig="@xml/locales_config"
         android:theme="@style/Theme.MyApplication">
 
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-4433736715872551~7866252380" />
+
         <!--
           Persists the in-app language choice on API < 33. AppCompat's
           setApplicationLocales() only writes the selection to disk when this service is

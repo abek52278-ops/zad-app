@@ -182,10 +182,20 @@ const MAX_CHECKINS_PER_USER_PER_DAY = 2;
 async function checkinsSentToday(sb: SupabaseClient, userId: string): Promise<number> {
   const todayStart = new Date();
   todayStart.setUTCHours(0, 0, 0, 0);
-  const { count } = await sb.from("telegram_checkin_prompts")
+  // The column is `sent_at`, not `created_at` — this table never had a created_at.
+  // PostgREST answered 400 on every call (seen live 2026-08-16), the `count` came back
+  // undefined, and `?? 0` turned the failure into "nobody has been asked today", so the
+  // daily cap this function exists to enforce was never actually enforced.
+  const { count, error } = await sb.from("telegram_checkin_prompts")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
-    .gte("created_at", todayStart.toISOString());
+    .gte("sent_at", todayStart.toISOString());
+  if (error) {
+    // Fail closed: an unreadable counter must not read as "zero sent today" and let the
+    // bot spam a user it has already asked.
+    console.error("checkinsSentToday failed:", error.message);
+    return Number.MAX_SAFE_INTEGER;
+  }
   return count ?? 0;
 }
 
@@ -263,8 +273,12 @@ async function runDailySubscriptionAlerts(sb: SupabaseClient): Promise<{ usersCh
 
   for (const b of rows) {
     const [{ data: subs }, { data: obligations }, { data: userRow }] = await Promise.all([
+      // No `currency` column exists on zad_subscriptions — asking for it made PostgREST
+      // 400 the whole select (seen live 2026-08-16), so `subs` was always null and the
+      // renewal reminders below have never fired once. The user's currency is already
+      // fetched from zad_users in this same Promise.all.
       sb.from("zad_subscriptions")
-        .select("title,amount,renewal_date,currency")
+        .select("title,amount,renewal_date")
         .eq("user_id", b.user_id)
         .eq("is_active", true)
         .not("renewal_date", "is", null),
@@ -276,12 +290,12 @@ async function runDailySubscriptionAlerts(sb: SupabaseClient): Promise<{ usersCh
     ]);
     const currency = (userRow as { currency: string | null } | null)?.currency ?? null;
 
-    for (const sub of (subs ?? []) as Array<{ title: string; amount: number; renewal_date: string; currency: string | null }>) {
+    for (const sub of (subs ?? []) as Array<{ title: string; amount: number; renewal_date: string }>) {
       const renewal = new Date(sub.renewal_date);
       if (isNaN(renewal.getTime())) continue;
       const daysLeft = Math.round((renewal.getTime() - today.getTime()) / 86400000);
       if (daysLeft < 0 || daysLeft > 3) continue;
-      const amountText = `${sub.amount}${sub.currency ? " " + sub.currency : ""}`;
+      const amountText = `${sub.amount}${currency ? " " + currency : ""}`;
       const when = daysLeft === 0 ? "اليوم" : `خلال ${daysLeft} يوم`;
       await sendTelegramMessage(b.chat_id, `🔔 ${isolate(sanitizeName(sub.title))} يتجدد ${when} (${isolate(amountText)})`);
       alertsSent++;

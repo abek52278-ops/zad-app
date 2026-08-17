@@ -204,6 +204,12 @@ fun ZadKnowledgeMapScreen(
     var selectedDomain by remember { mutableStateOf<String?>(null) }
     val totalNodes = domains.size + domains.sumOf { it.count }
 
+    // onAskZad is an event lambda, not a composable, so the template is resolved here and
+    // formatted at click time. The prefill is text the customer sends to Zad, so it has to
+    // follow the app's language like anything else they read.
+    val explainMoreTemplate = stringResource(R.string.map_explain_more_prompt)
+    val explainMoreFor: (String) -> String = { label -> String.format(explainMoreTemplate, label) }
+
     // مجالات وعلاقات عندها رؤية حية pending من زاد دلوقتي — تخمين نصي، مش تاج مؤكد
     // من زاد-برين (انظر التعليق فوق kmDomainKeywords).
     val insightDomainSets = remember(zadInsights) { zadInsights.map { matchedDomainKeys(it) } }
@@ -259,16 +265,16 @@ fun ZadKnowledgeMapScreen(
                         budget = budget,
                         committed = committed,
                         available = availableFigure?.value,
-                        onAskZad = { askZadAbout(viewModel, onNavigateToRoute, domains.first { it.key == key }.label) }
+                        onAskZad = { askZadAbout(viewModel, onNavigateToRoute, explainMoreFor(domains.first { it.key == key }.label)) }
                     )
                 } else {
                     val domain = domains.first { it.key == key }
-                    val items = itemsForDomain(key, obligations, activeSubs, activeDebts, lowStockInventory, pendingShopping, lowStockPharmacy, maintenanceItems)
+                    val items = itemsForDomain(context, key, obligations, activeSubs, activeDebts, lowStockInventory, pendingShopping, lowStockPharmacy, maintenanceItems)
                     ItemRing(
                         domain = domain,
                         items = items,
                         onOpenScreen = kmDomainRoutes[key]?.let { route -> { onNavigateToRoute(route) } },
-                        onAskZad = { askZadAbout(viewModel, onNavigateToRoute, domain.label) }
+                        onAskZad = { askZadAbout(viewModel, onNavigateToRoute, explainMoreFor(domain.label)) }
                     )
                 }
             }
@@ -290,8 +296,8 @@ fun ZadKnowledgeMapScreen(
 // بيحط سؤال جاهز في صندوق شات زاد وينقل المستخدم لشاشة "زاد الذكاء" —
 // نفس الآلية اللي شاشة الصيدلية بتستخدمها بالظبط (setChatPrefill/consumeChatPrefill)،
 // مفيش استدعاء LLM هنا ولا Agent جديد، المستخدم هو اللي بيبعت السؤال.
-private fun askZadAbout(viewModel: ZadViewModel, onNavigateToRoute: (String) -> Unit, domainLabel: String) {
-    viewModel.setChatPrefill("وضّحلي أكتر عن $domainLabel")
+private fun askZadAbout(viewModel: ZadViewModel, onNavigateToRoute: (String) -> Unit, prefill: String) {
+    viewModel.setChatPrefill(prefill)
     onNavigateToRoute(com.example.ui.components.ZadRoutes.ASSISTANT)
 }
 
@@ -324,6 +330,7 @@ private fun LegendDot(color: Color, dashed: Boolean, label: String) {
 }
 
 private fun itemsForDomain(
+    context: android.content.Context,
     key: String,
     obligations: List<com.example.data.ZadObligation>,
     activeSubs: List<com.example.data.ZadSubscription>,
@@ -334,11 +341,13 @@ private fun itemsForDomain(
     maintenanceItems: List<com.example.data.ZadMaintenanceItem>
 ): List<MapItem> = when (key) {
     "obligations" -> obligations.map { MapItem(it.title, "${it.amount}") }
-    "subscriptions" -> activeSubs.map { MapItem(it.title, "${it.amount}/شهر") }
-    "debts" -> activeDebts.map { MapItem(it.name, "متبقي ${it.remainingBalance}") }
+    "subscriptions" -> activeSubs.map { MapItem(it.title, context.getString(R.string.map_per_month, "${it.amount}")) }
+    "debts" -> activeDebts.map { MapItem(it.name, context.getString(R.string.map_remaining, "${it.remainingBalance}")) }
     "inventory" -> lowStockInventory.map { MapItem(it.itemName, "${it.quantity} ${it.unit ?: ""}") }
     "shopping" -> pendingShopping.map { MapItem(it.itemName, "${it.quantity}") }
-    "pharmacy" -> lowStockPharmacy.map { MapItem(it.name, "متبقي ${it.remainingQuantity} ${it.unit}") }
+    "pharmacy" -> lowStockPharmacy.map {
+        MapItem(it.name, context.getString(R.string.map_remaining_with_unit, "${it.remainingQuantity}", it.unit))
+    }
     "maintenance" -> maintenanceItems.map { MapItem(it.name, if (it.estimatedCost > 0) "${it.estimatedCost}" else it.category) }
     else -> emptyList()
 }

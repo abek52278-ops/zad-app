@@ -1073,8 +1073,11 @@ private fun TasksTab(
     showFinancials: Boolean = true
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
-    var selectedFilter by remember { mutableStateOf("الكل") }
-    val filters = listOf("الكل", "قادمة", "منجزة")
+    // The chip label and the value compared in the `when` blocks below used to be the same
+    // Arabic string, so translating the chip would have silently matched nothing and every
+    // filter would have fallen through to "all". Key is stable, label is looked up.
+    var selectedFilter by remember { mutableStateOf("all") }
+    val filterKeys = listOf("all", "pending", "done")
     val context = androidx.compose.ui.platform.LocalContext.current
 
     // Group chores by member
@@ -1116,11 +1119,19 @@ private fun TasksTab(
         // Filter chips
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(filters) { filter ->
+                items(filterKeys) { key ->
                     FilterChip(
-                        selected = selectedFilter == filter,
-                        onClick = { selectedFilter = filter },
-                        label = { Text(filter) }
+                        selected = selectedFilter == key,
+                        onClick = { selectedFilter = key },
+                        label = {
+                            Text(
+                                when (key) {
+                                    "pending" -> stringResource(R.string.chores_filter_pending)
+                                    "done" -> stringResource(R.string.chores_filter_done)
+                                    else -> stringResource(R.string.chores_filter_all)
+                                }
+                            )
+                        }
                     )
                 }
             }
@@ -1131,8 +1142,8 @@ private fun TasksTab(
         // بتفضل فاضية تماماً (بس العنوان + الفلاتر) من غير أي رسالة توضح إن ده طبيعي.
         val hasAnyVisibleChore = choresByMember.any { (_, memberChores) ->
             when (selectedFilter) {
-                "قادمة" -> memberChores.any { !it.isCompleted }
-                "منجزة" -> memberChores.any { it.isCompleted }
+                "pending" -> memberChores.any { !it.isCompleted }
+                "done" -> memberChores.any { it.isCompleted }
                 else -> memberChores.isNotEmpty()
             }
         }
@@ -1150,8 +1161,8 @@ private fun TasksTab(
         // Per-member task sections
         choresByMember.forEach { (member, memberChores) ->
             val filteredChores = when (selectedFilter) {
-                "قادمة" -> memberChores.filter { !it.isCompleted }
-                "منجزة" -> memberChores.filter { it.isCompleted }
+                "pending" -> memberChores.filter { !it.isCompleted }
+                "done" -> memberChores.filter { it.isCompleted }
                 else -> memberChores
             }
 
@@ -1557,7 +1568,7 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Icon(Icons.Default.Savings, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
-                        Text("هدف الادخار العائلي", style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text(stringResource(R.string.family_savings_goal_title), style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                     if (currentGoal != null) {
@@ -1582,7 +1593,7 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
                             }
                         }
                     } else {
-                        Text("لسه مفيش هدف ادخار للشهر ده", style = Typography.bodySmall, color = onSurfaceVariant)
+                        Text(stringResource(R.string.family_savings_goal_empty), style = Typography.bodySmall, color = onSurfaceVariant)
                         Spacer(modifier = Modifier.height(10.dp))
                         Button(
                             onClick = { viewModel.suggestFamilyGoal() },
@@ -1594,7 +1605,7 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
                             } else {
                                 Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("اقترح هدف بالذكاء الاصطناعي")
+                                Text(stringResource(R.string.family_savings_goal_suggest))
                             }
                         }
                     }
@@ -1672,7 +1683,7 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
             title = { Text("${suggestion.emoji} ${suggestion.goalTitle}", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("الهدف: ${com.example.data.CurrencyFormatter.format(context, suggestion.targetAmount)} خلال ${suggestion.durationDays} يوم", style = Typography.bodyMedium)
+                    Text(stringResource(R.string.family_savings_goal_target, com.example.data.CurrencyFormatter.format(context, suggestion.targetAmount), suggestion.durationDays), style = Typography.bodyMedium)
                     if (suggestion.rewardSuggestion.isNotBlank()) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Icon(Icons.Default.CardGiftcard, contentDescription = null, tint = onSurfaceVariant, modifier = Modifier.size(14.dp))
@@ -1682,7 +1693,7 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
                 }
             },
             confirmButton = {
-                Button(onClick = { viewModel.createSuggestedGoal() }) { Text("اعتماد الهدف") }
+                Button(onClick = { viewModel.createSuggestedGoal() }) { Text(stringResource(R.string.family_savings_goal_approve)) }
             },
             dismissButton = {
                 TextButton(onClick = { viewModel.clearSuggestedGoal() }) { Text(stringResource(R.string.cancel)) }
@@ -1716,9 +1727,11 @@ fun ChatTab(
     val needAmountPattern = stringResource(R.string.need_amount_purchase)
     val haptic = LocalHapticFeedback.current
 
-    // Start typing monitor
+    // Start typing monitor. The loop runs *inside* this effect now, so leaving the screen
+    // cancels it — it used to hand the loop to viewModelScope and every visit stacked
+    // another one that outlived the screen.
     LaunchedEffect(myMemberInfo.familyId) {
-        viewModel?.startTypingMonitor(myMemberInfo.familyId)
+        viewModel?.monitorTyping(myMemberInfo.familyId)
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -1884,9 +1897,13 @@ fun ChatTab(
                         val typingNames = typingMembers.joinToString(", ") { it.alias }
                         Surface(shape = RoundedCornerShape(12.dp), color = surfaceContainer) {
                             Text(
-                                "$typingNames يكتب${
-                                    if (typingMembers.size > 1) "ون" else ""
-                                }...",
+                                // Was "يكتب" + "ون" glued on for the plural. That only works
+                                // in Arabic; every other locale needs a whole different
+                                // sentence, so both forms are full strings now.
+                                if (typingMembers.size > 1)
+                                    stringResource(R.string.family_typing_many, typingNames)
+                                else
+                                    stringResource(R.string.family_typing_one, typingNames),
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                                 fontSize = 12.sp,
                                 color = onSurfaceVariant

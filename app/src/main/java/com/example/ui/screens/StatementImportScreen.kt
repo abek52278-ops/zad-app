@@ -215,6 +215,18 @@ private fun PreviewStep(
             contentPadding = PaddingValues(16.dp, 0.dp, 16.dp, 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            // كشف اتقرا وطلع منه صفر صف كان بيدي "معاينة ٠ صف" ومساحة بيضا تحتيها.
+            // العميل مش عارف الملف غلط، ولا القراءة فشلت، ولا الشاشة لسه بتشتغل.
+            if (rows.isEmpty()) {
+                item {
+                    com.example.ui.components.ZadEmptyState(
+                        icon = Icons.Default.Description,
+                        title = stringResource(R.string.statement_no_rows_title),
+                        subtitle = stringResource(R.string.statement_no_rows_subtitle),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
+                    )
+                }
+            }
             items(rows, key = { it.rowIndex }) { row ->
                 com.example.ui.components.ZadListCard(
                     containerColor = if (row.hasError) dangerColor.copy(alpha = 0.06f) else surface,
