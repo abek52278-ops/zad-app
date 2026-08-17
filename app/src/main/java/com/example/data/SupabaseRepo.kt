@@ -745,11 +745,11 @@ object SupabaseRepo {
             try {
                 client.postgrest.rpc(
                     "zad_set_tier",
-                    mapOf(
-                        "p_user" to userId,
-                        "p_tier" to tier.lowercase(),
-                        "p_expires" to expiry.toString()
-                    )
+                    buildJsonObject {
+                        put("p_user", userId)
+                        put("p_tier", tier.lowercase())
+                        put("p_expires", expiry.toString())
+                    }
                 )
             } catch (rpcErr: Exception) {
                 Log.w(TAG, "zad_set_tier RPC fallback: ${rpcErr.message}")

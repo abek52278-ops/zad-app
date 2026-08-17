@@ -393,11 +393,12 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(18.dp))
 
                 // ── 2. Days left / daily safe spend pair (mockup: two 18dp white cards) ──
-                if (budgetConfirmed && availableFigureValue != null) {
+                if (budgetConfirmed && (balanceFigureValue != null || availableFigureValue != null)) {
+                    val currentBal = balanceFigureValue?.value ?: availableFigureValue?.value ?: 0.0
                     com.example.ui.components.AppearOnEntry(delayMs = 60) {
                         com.example.ui.components.ZadDaysAndSafeSpendRow(
                             daysLeft = daysLeft,
-                            available = availableFigureValue.value
+                            available = currentBal
                         )
                     }
                     Spacer(modifier = Modifier.height(18.dp))

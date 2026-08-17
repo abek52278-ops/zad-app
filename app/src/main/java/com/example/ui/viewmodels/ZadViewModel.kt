@@ -2152,16 +2152,17 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         val label = title?.trim().takeUnless { it.isNullOrBlank() }
             ?: getApplication<Application>().getString(R.string.quick_deduct_default_title)
         Log.d(TAG, "quickDeduct() → amount=$amount, title=$label")
-        addTransaction(
-            ZadTransaction(
-                title = label,
-                amount = amount,
-                isExpense = true,
-                category = QUICK_DEDUCT_CATEGORY,
-                isVerified = true,
-                sourceType = "quick_deduct",
-            )
+        val tx = ZadTransaction(
+            title = label,
+            amount = amount,
+            isExpense = true,
+            txnKind = "expense",
+            category = QUICK_DEDUCT_CATEGORY,
+            isVerified = true,
+            sourceType = "quick_deduct",
+            createdAt = java.time.Instant.now().toString()
         )
+        addTransaction(tx)
     }
 
     /**
@@ -2198,17 +2199,20 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             val delta = BudgetMath.correctionToReachBalance(target, opening, txs, cycleStart, cycleEnd, balanceAnchoredAt)
             if (kotlin.math.abs(delta) >= 0.01) {
                 Log.d(TAG, "setBalanceTo() → target=$target needs a correction of $delta")
+                val isExpense = delta < 0
                 val correctionTx = ZadTransaction(
                     title = getApplication<Application>().getString(R.string.manual_balance_correction_title),
                     amount = kotlin.math.abs(delta),
-                    isExpense = delta < 0,
+                    isExpense = isExpense,
+                    txnKind = if (isExpense) "expense" else "income",
                     category = QUICK_DEDUCT_CATEGORY,
                     isVerified = true,
                     sourceType = "manual_balance_override",
                     createdAt = java.time.Instant.now().toString()
                 )
                 dao.insertTransaction(correctionTx)
-                _transactions.value = listOf(correctionTx) + _transactions.value
+                val updatedTxs = listOf(correctionTx) + _transactions.value
+                _transactions.value = updatedTxs
                 try {
                     SupabaseRepo.addTransaction(correctionTx)
                 } catch (e: Exception) {
@@ -2348,12 +2352,22 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun addTransaction(transaction: ZadTransaction) {
+        val completeTx = if (transaction.txnKind.isNullOrBlank()) {
+            transaction.copy(txnKind = if (transaction.isExpense) "expense" else "income")
+        } else {
+            transaction
+        }
+        // 1. Instant optimistic update to StateFlow
+        val updatedList = listOf(completeTx) + _transactions.value.filter { it.id != completeTx.id }
+        _transactions.value = updatedList
+        recalculateLocalBudgetFigures(updatedList, _budget.value)
+
         viewModelScope.launch {
-            Log.d(TAG, "addTransaction() → title=${transaction.title}, amount=${transaction.amount}, isExpense=${transaction.isExpense}")
-            dao.insertTransaction(transaction)
-            Log.d(TAG, "addTransaction() → saved to Room DB, id=${transaction.id}")
+            Log.d(TAG, "addTransaction() → title=${completeTx.title}, amount=${completeTx.amount}, isExpense=${completeTx.isExpense}")
+            dao.insertTransaction(completeTx)
+            Log.d(TAG, "addTransaction() → saved to Room DB, id=${completeTx.id}")
             try {
-                SupabaseRepo.addTransaction(transaction)
+                SupabaseRepo.addTransaction(completeTx)
                 Log.d(TAG, "addTransaction() → synced to Supabase table=zad_transactions")
             } catch (e: Exception) {
                 Log.e(TAG, "addTransaction() Supabase sync FAILED: ${e.message}")
@@ -2361,6 +2375,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             }
             com.example.widgets.TransactionWidget.updateAllWidgets(getApplication())
             loadHabitChips()
+            refreshBudgetState()
         }
     }
 

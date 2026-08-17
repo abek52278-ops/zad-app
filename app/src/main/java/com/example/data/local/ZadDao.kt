@@ -21,6 +21,12 @@ interface ZadDao {
     @Query("SELECT * FROM zad_transactions ORDER BY createdAt DESC")
     fun getAllTransactions(): Flow<List<ZadTransaction>>
 
+    @Query("SELECT COALESCE(SUM(amount), 0.0) FROM zad_transactions WHERE txnKind = 'expense' OR (txnKind IS NULL AND isExpense = 1)")
+    fun getTotalExpenses(): Flow<Double>
+
+    @Query("SELECT COALESCE(SUM(amount), 0.0) FROM zad_transactions WHERE txnKind = 'income' OR (txnKind IS NULL AND isExpense = 0)")
+    fun getTotalIncome(): Flow<Double>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransactions(transactions: List<ZadTransaction>)
 
