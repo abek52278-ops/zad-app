@@ -188,44 +188,34 @@ class ZadVoiceManager(private val context: Context) {
         }
     }
 
+    private val naturalVoiceEngine = ZadNaturalVoiceEngine(context)
+
+    fun setVoicePersona(persona: ZadNaturalVoiceEngine.VoicePersona) {
+        naturalVoiceEngine.setPersona(persona)
+    }
+
+    fun getCurrentPersona(): ZadNaturalVoiceEngine.VoicePersona = naturalVoiceEngine.currentPersona.value
+
+    fun speakHumanLike(text: String, onDone: () -> Unit = {}) {
+        if (text.isBlank()) {
+            onDone()
+            return
+        }
+
+        _voiceState.value = VoiceState.Speaking(text)
+        naturalVoiceEngine.speakHumanLike(text) {
+            _voiceState.value = VoiceState.Idle
+            onDone()
+        }
+    }
+
     fun speakFemaleVoice(text: String, onDone: () -> Unit = {}) {
-        if (!isTtsReady || text.isBlank()) {
-            onDone()
-            return
-        }
-
-        val cleaned = text
-            .replace(Regex("[*#_`~\\[\\]()]"), " ")
-            .replace(Regex("https?://\\S+"), "")
-            .trim()
-
-        if (cleaned.isBlank()) {
-            onDone()
-            return
-        }
-
-        _voiceState.value = VoiceState.Speaking(cleaned)
-        val tts = textToSpeech ?: return
-
-        tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) {}
-            override fun onDone(utteranceId: String?) {
-                _voiceState.value = VoiceState.Idle
-                onDone()
-            }
-
-            @Deprecated("Deprecated in Java")
-            override fun onError(utteranceId: String?) {
-                _voiceState.value = VoiceState.Idle
-                onDone()
-            }
-        })
-
-        tts.speak(cleaned, TextToSpeech.QUEUE_FLUSH, null, "zad_voice_assistant")
+        speakHumanLike(text, onDone)
     }
 
     fun stopSpeaking() {
         try {
+            naturalVoiceEngine.stop()
             textToSpeech?.stop()
         } catch (e: Exception) {
             Log.w(TAG, "stopSpeaking error: ${e.message}")
@@ -239,6 +229,7 @@ class ZadVoiceManager(private val context: Context) {
         try {
             speechRecognizer?.destroy()
             speechRecognizer = null
+            naturalVoiceEngine.release()
             textToSpeech?.stop()
             textToSpeech?.shutdown()
             textToSpeech = null

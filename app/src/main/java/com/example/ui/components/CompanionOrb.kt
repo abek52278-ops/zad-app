@@ -229,7 +229,76 @@ fun CompanionOrb(
             // مابتفتحش عينيها وهي بتتثاءب.
             val lid = minOf(eyeOpenAmount, drowsiness) * (1f - 0.92f * yawnStretch)
             drawEyes(state, center, radius, lid.coerceIn(0f, 1f))
+            drawBlushCheeks(state, center, radius)
+            drawCuteMouth(state, center, radius, yawnStretch)
         }
+    }
+}
+
+/**
+ * خدود وردية لطيفة تظهر عند السعادة والاحتفال والمداعبة
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBlushCheeks(
+    state: CompanionState,
+    center: Offset,
+    radius: Float
+) {
+    if (state == CompanionState.Happy || state == CompanionState.Celebrating) {
+        val blushSpacing = radius * 0.52f
+        val blushY = center.y + radius * 0.18f
+        val blushRadius = radius * 0.12f
+        val blushColor = Color(0xFFFF69B4).copy(alpha = 0.45f) // Pink blush
+
+        drawCircle(
+            color = blushColor,
+            radius = blushRadius,
+            center = Offset(center.x - blushSpacing, blushY)
+        )
+        drawCircle(
+            color = blushColor,
+            radius = blushRadius,
+            center = Offset(center.x + blushSpacing, blushY)
+        )
+    }
+}
+
+/**
+ * ابتسامة قطة/أليف لطيفة مقوسة (Cute Cat Smile Arc)
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawCuteMouth(
+    state: CompanionState,
+    center: Offset,
+    radius: Float,
+    yawnStretch: Float
+) {
+    val mouthY = center.y + radius * 0.28f
+    val mouthWidth = radius * 0.22f
+    val mouthPath = Path()
+
+    if (yawnStretch > 0.1f) {
+        // فم مفتوح للتثاؤب
+        val openYawn = radius * 0.18f * yawnStretch
+        mouthPath.addOval(
+            androidx.compose.ui.geometry.Rect(
+                center.x - mouthWidth / 2f,
+                mouthY - openYawn / 2f,
+                center.x + mouthWidth / 2f,
+                mouthY + openYawn / 2f
+            )
+        )
+        drawPath(mouthPath, color = Color(0xFF4A148C).copy(alpha = 0.6f))
+    } else if (state == CompanionState.Happy || state == CompanionState.Celebrating) {
+        // ابتسامة قطة لطيفة على شكل :3 أو قوس ناعم
+        val hw = mouthWidth / 2f
+        mouthPath.moveTo(center.x - hw, mouthY)
+        mouthPath.quadraticTo(center.x - hw / 2f, mouthY + radius * 0.08f, center.x, mouthY)
+        mouthPath.quadraticTo(center.x + hw / 2f, mouthY + radius * 0.08f, center.x + hw, mouthY)
+
+        drawPath(
+            path = mouthPath,
+            color = Color.White.copy(alpha = 0.9f),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        )
     }
 }
 

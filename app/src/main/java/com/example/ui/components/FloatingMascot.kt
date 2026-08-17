@@ -146,13 +146,12 @@ fun FloatingMascotCompanion(
     }
 
     fun fireChime(mood: CompanionState) {
-        ZadChime.play(
-            when (mood) {
-                CompanionState.Happy, CompanionState.Celebrating -> ZadChime.Tone.Success
-                CompanionState.Alert -> ZadChime.Tone.Alert
-                else -> ZadChime.Tone.Tap
-            },
-        )
+        when (mood) {
+            CompanionState.Happy -> com.example.voice.ZadCutePetSoundFx.play(com.example.voice.ZadCutePetSoundFx.PetSound.HappyChirp)
+            CompanionState.Celebrating -> com.example.voice.ZadCutePetSoundFx.play(com.example.voice.ZadCutePetSoundFx.PetSound.CelebrationTrill)
+            CompanionState.Alert -> ZadChime.play(ZadChime.Tone.Alert)
+            else -> com.example.voice.ZadCutePetSoundFx.play(com.example.voice.ZadCutePetSoundFx.PetSound.MeowChirp)
+        }
     }
 
     if (showVoiceAssistant) {
@@ -200,7 +199,11 @@ fun FloatingMascotCompanion(
                     .draggable(
                         state = draggableState,
                         orientation = Orientation.Horizontal,
-                        onDragStarted = { showBubble = false }
+                        onDragStarted = {
+                            showBubble = false
+                            // مداعبة وسحب الأليف — يصدر خرخرة دافئة (Purr)
+                            com.example.voice.ZadCutePetSoundFx.play(com.example.voice.ZadCutePetSoundFx.PetSound.Purr, 0.40f)
+                        }
                     )
                     .combinedClickable(
                         interactionSource = remember { MutableInteractionSource() },
@@ -210,11 +213,13 @@ fun FloatingMascotCompanion(
                         onLongClick = {
                             fireHaptic(25, 180)
                             showBubble = false
+                            com.example.voice.ZadCutePetSoundFx.play(com.example.voice.ZadCutePetSoundFx.PetSound.HappyChirp)
                             showVoiceAssistant = true
                         },
                         onDoubleClick = {
                             fireHaptic(25, 180)
                             showBubble = false
+                            com.example.voice.ZadCutePetSoundFx.play(com.example.voice.ZadCutePetSoundFx.PetSound.HappyChirp)
                             onNavigateToChat()
                         },
                         onClick = {

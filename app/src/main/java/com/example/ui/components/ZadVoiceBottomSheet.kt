@@ -95,12 +95,17 @@ fun ZadVoiceBottomSheet(
         startListeningWithPermission()
     }
 
-    // When agent responds, speak with female voice
+    var selectedPersona by remember { mutableStateOf(voiceManager.getCurrentPersona()) }
+
+    // When agent responds, speak with selected natural studio persona and resume listening afterwards
     LaunchedEffect(chatMessages) {
         val lastAssistantMessage = chatMessages.lastOrNull { !it.isUser }
         if (lastAssistantMessage != null && lastAssistantMessage.id != lastSpokenResponseId) {
             lastSpokenResponseId = lastAssistantMessage.id
-            voiceManager.speakFemaleVoice(lastAssistantMessage.text)
+            voiceManager.speakHumanLike(lastAssistantMessage.text) {
+                // المحادثة الحية المستمرة — يستمع تلقائياً بعد انتهاء الرد مثل ChatGPT Voice و Gemini Live
+                startListeningWithPermission()
+            }
         }
     }
 
@@ -128,18 +133,68 @@ fun ZadVoiceBottomSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "المساعد الصوتي الذكي — زاد",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Column {
+                    Text(
+                        text = "محادثة صوتية حية — زاد AI",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "تحدث واسمع طبيعياً مثل ChatGPT Voice",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp
+                    )
+                }
                 IconButton(onClick = onDismiss) {
                     Icon(Icons.Default.Close, contentDescription = "إغلاق")
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
+
+            // Voice Personas Selector
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFF0F172A).copy(alpha = 0.05f))
+                    .padding(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                com.example.voice.ZadNaturalVoiceEngine.VoicePersona.values().forEach { persona ->
+                    val isSel = selectedPersona == persona
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isSel) MaterialTheme.colorScheme.surface else Color.Transparent)
+                            .clickable {
+                                selectedPersona = persona
+                                voiceManager.setVoicePersona(persona)
+                                if (persona.isPetPersona) {
+                                    com.example.voice.ZadCutePetSoundFx.play(com.example.voice.ZadCutePetSoundFx.PetSound.MeowChirp)
+                                } else {
+                                    com.example.voice.ZadCutePetSoundFx.play(com.example.voice.ZadCutePetSoundFx.PetSound.HappyChirp)
+                                }
+                            }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            persona.displayNameAr.take(12),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSel) primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 10.sp,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
 
             // 3D Animated Voice Orb / Wave
             val infiniteTransition = rememberInfiniteTransition(label = "voice_orb")
