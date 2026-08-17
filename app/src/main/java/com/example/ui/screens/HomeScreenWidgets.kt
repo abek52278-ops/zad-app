@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -28,6 +29,7 @@ import com.example.data.ZadInventory
 import com.example.data.ZadShoppingItem
 import com.example.data.SupabaseRepo
 import com.example.ui.components.pressableScale
+import com.example.ui.components.ZadListCard
 import com.example.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -606,7 +608,7 @@ fun MarketRadarLiveWidget(
                                     }
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Text(
-                                            "${com.example.data.CurrencyFormatter.format(item.price)} ${item.currency}",
+                                            "${com.example.data.CurrencyFormatter.format(context, item.price)} ${item.currency}",
                                             style = Typography.bodyMedium,
                                             fontWeight = FontWeight.Bold,
                                             color = onSurface
@@ -679,7 +681,7 @@ fun MarketRadarLiveWidget(
                                         }
                                     }
                                     Text(
-                                        "${com.example.data.CurrencyFormatter.format(item.avgPrice)} ${item.currency} / ${item.unit}",
+                                        "${com.example.data.CurrencyFormatter.format(context, item.avgPrice)} ${item.currency} / ${item.unit}",
                                         style = Typography.bodyMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = onSurface
@@ -730,7 +732,7 @@ fun ZadAutonomousIdeasWidget(
             )
         )
         // 2. فكرة وجبة من المخزون
-        val availableNames = inventory.filter { it.quantity > 0 }.map { it.name }.take(3)
+        val availableNames = inventory.filter { it.quantity > 0 }.map { it.itemName }.take(3)
         if (availableNames.isNotEmpty()) {
             list.add(
                 Triple(
