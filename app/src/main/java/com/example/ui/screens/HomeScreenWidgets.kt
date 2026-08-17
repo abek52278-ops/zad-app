@@ -536,13 +536,13 @@ fun MarketRadarLiveWidget(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(catInvestmentBg)
+                        .background(catSavingsBg)
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(catInvestmentIcon))
+                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(catSavingsIcon))
                         Spacer(Modifier.width(4.dp))
-                        Text("مباشر", style = Typography.labelSmall, color = catInvestmentIcon, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                        Text("مباشر", style = Typography.labelSmall, color = catSavingsIcon, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                     }
                 }
             }
@@ -583,110 +583,104 @@ fun MarketRadarLiveWidget(
 
             Spacer(Modifier.height(14.dp))
 
-            AnimatedContent(
-                targetState = selectedTab,
-                transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) },
-                label = "market_tab_content"
-            ) { tab ->
-                when (tab) {
-                    0 -> { // Gold
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            marketData.goldPrices.forEach { item ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(Color(0xFF0F172A).copy(alpha = 0.03f))
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("🥇", fontSize = 14.sp)
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(item.karat, style = Typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                                    }
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            "${com.example.data.CurrencyFormatter.format(context, item.price)} ${item.currency}",
-                                            style = Typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = onSurface
-                                        )
-                                        Spacer(Modifier.width(8.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(6.dp))
-                                                .background(if (item.isUp) positiveGreen.copy(alpha = 0.12f) else dangerColor.copy(alpha = 0.12f))
-                                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                                        ) {
-                                            Text(
-                                                "${if (item.isUp) "+" else ""}${item.changePercent}% ${if (item.isUp) "↗" else "↘"}",
-                                                style = Typography.labelSmall,
-                                                color = if (item.isUp) positiveGreen else dangerColor,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 10.sp
-                                            )
-                                        }
-                                    }
+            when (selectedTab) {
+                0 -> { // Gold
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        marketData.goldPrices.forEach { item ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFF0F172A).copy(alpha = 0.03f))
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("🥇", fontSize = 14.sp)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(item.karat, style = Typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                                 }
-                            }
-                        }
-                    }
-                    1 -> { // Fuel
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            marketData.fuelPrices.forEach { item ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(Color(0xFF0F172A).copy(alpha = 0.03f))
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("⛽", fontSize = 14.sp)
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(item.fuelType, style = Typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                                    }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        "${com.example.data.CurrencyFormatter.format(item.price)} ${item.currency} / ${item.unit}",
-                                        style = Typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = primary
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    2 -> { // Produce & Essentials
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            marketData.producePrices.forEach { item ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(Color(0xFF0F172A).copy(alpha = 0.03f))
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(item.iconEmoji, fontSize = 14.sp)
-                                        Spacer(Modifier.width(8.dp))
-                                        Column {
-                                            Text(item.itemName, style = Typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                                            Text(item.statusText, style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
-                                        }
-                                    }
-                                    Text(
-                                        "${com.example.data.CurrencyFormatter.format(context, item.avgPrice)} ${item.currency} / ${item.unit}",
+                                        "${com.example.data.CurrencyFormatter.format(context, item.price)} ${item.currency}",
                                         style = Typography.bodyMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = onSurface
                                     )
+                                    Spacer(Modifier.width(8.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (item.isUp) successColor.copy(alpha = 0.12f) else dangerColor.copy(alpha = 0.12f))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            "${if (item.isUp) "+" else ""}${item.changePercent}% ${if (item.isUp) "↗" else "↘"}",
+                                            style = Typography.labelSmall,
+                                            color = if (item.isUp) successColor else dangerColor,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 10.sp
+                                        )
+                                    }
                                 }
+                            }
+                        }
+                    }
+                }
+                1 -> { // Fuel
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        marketData.fuelPrices.forEach { item ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFF0F172A).copy(alpha = 0.03f))
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("⛽", fontSize = 14.sp)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(item.fuelType, style = Typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                }
+                                Text(
+                                    "${com.example.data.CurrencyFormatter.format(context, item.price)} ${item.currency} / ${item.unit}",
+                                    style = Typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = primary
+                                )
+                            }
+                        }
+                    }
+                }
+                2 -> { // Produce & Essentials
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        marketData.producePrices.forEach { item ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFF0F172A).copy(alpha = 0.03f))
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(item.iconEmoji, fontSize = 14.sp)
+                                    Spacer(Modifier.width(8.dp))
+                                    Column {
+                                        Text(item.itemName, style = Typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                        Text(item.statusText, style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
+                                    }
+                                }
+                                Text(
+                                    "${com.example.data.CurrencyFormatter.format(context, item.avgPrice)} ${item.currency} / ${item.unit}",
+                                    style = Typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = onSurface
+                                )
                             }
                         }
                     }
@@ -761,7 +755,6 @@ fun ZadAutonomousIdeasWidget(
             .padding(horizontal = 16.dp, vertical = 6.dp),
         shape = RoundedCornerShape(24.dp),
         containerColor = MaterialTheme.colorScheme.surface,
-        borderColor = primary.copy(alpha = 0.2f),
         contentPadding = 0.dp
     ) {
         Column(modifier = Modifier.padding(18.dp)) {

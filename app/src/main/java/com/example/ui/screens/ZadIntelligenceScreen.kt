@@ -2788,13 +2788,6 @@ private fun ExportReportButton(report: com.example.data.ZadCentralBrain.BrainRep
     }
 }
 
-// ════════════════════════════════════════════════════════════════
-//  MONTHLY REPORT CARD — التقرير الشهري المكتوب (ملخص + نصايح من الذكاء الاصطناعي).
-//  الأرقام (المتحصّل/المصروف/أعلى الفئات) بتتحسب هنا من transactions الحقيقية — نفس
-//  المصدر اللي كروت الـ Executive فوق بتستخدمه، فمعاملات كشف الحساب المستورد
-//  (StatementImportScreen) داخلة في التحليل زي أي معاملة تانية من غير ربط إضافي.
-// ════════════════════════════════════════════════════════════════
-
 @Composable
 internal fun MonthlyReportCard(
     transactions: List<ZadTransaction>,
@@ -2924,10 +2917,6 @@ internal fun MonthlyReportCard(
         }
     }
 }
-
-// ════════════════════════════════════════════════════════════════
-//  BRAIN REPORT CARDS — تقرير العقل المركزي
-// ════════════════════════════════════════════════════════════════
 
 @Composable
 private fun HealthScoreCard(report: com.example.data.ZadCentralBrain.BrainReport) {
@@ -3060,9 +3049,6 @@ private fun DepletionForecastCard(forecasts: List<com.example.data.ZadCentralBra
     }
 }
 
-/**
- * 👨‍👩‍👧‍👦 بطاقة شبكة عقل العائلة العصبية المشتركة (Multi-Agent Family Mesh Card)
- */
 @Composable
 fun FamilyNeuralMeshCard(
     familyState: com.example.ui.viewmodels.FamilyState,
@@ -3079,7 +3065,6 @@ fun FamilyNeuralMeshCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
         containerColor = MaterialTheme.colorScheme.surface,
-        borderColor = Color(0xFF9333EA).copy(alpha = 0.25f),
         contentPadding = 0.dp
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
@@ -3178,9 +3163,6 @@ fun FamilyNeuralMeshCard(
     }
 }
 
-/**
- * 📑 شيت تقرير الذكاء العائلي المشترك الشامل (Family Neural Intelligence Bottom Sheet)
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FamilyNeuralReportBottomSheet(
@@ -3190,6 +3172,8 @@ fun FamilyNeuralReportBottomSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val activeState = familyState as? com.example.ui.viewmodels.FamilyState.Active
+    val context = LocalContext.current
+    val currency = com.example.data.MarketPrefs.getMarket(context).currencySymbol
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -3253,11 +3237,8 @@ fun FamilyNeuralReportBottomSheet(
                     }
                 }
             } else {
-                // أفراد الأسرة ومهامهم
                 val children = activeState.members.filter { it.role == "child" }
-                val parents = activeState.members.filter { it.role != "child" }
 
-                // 1. أداء ومصروف الأبناء
                 Text("🎯 رادار الأبناء والمهام والمصروف", style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = primary)
                 Spacer(Modifier.height(8.dp))
                 if (children.isEmpty()) {
@@ -3281,23 +3262,21 @@ fun FamilyNeuralReportBottomSheet(
                                 Spacer(Modifier.width(8.dp))
                                 Column {
                                     Text(child.alias ?: "ابن", style = Typography.bodyMedium, fontWeight = FontWeight.Bold)
-                                    Text("أنجز $done من $total مهام · رصيد المصروف: ${child.balance ?: 0} ${activeState.familyGroup.currencySymbol}", style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
+                                    Text("أنجز $done من $total مهام · رصيد المصروف: ${child.balance ?: 0} $currency", style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
                                 }
                             }
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(if (done == total && total > 0) positiveGreen.copy(alpha = 0.12f) else primary.copy(alpha = 0.12f))
+                                    .background(if (done == total && total > 0) successColor.copy(alpha = 0.12f) else primary.copy(alpha = 0.12f))
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
-                                Text(if (done == total && total > 0) "مكتمل ⭐" else "نشط", style = Typography.labelSmall, color = if (done == total && total > 0) positiveGreen else primary, fontSize = 10.sp)
+                                Text(if (done == total && total > 0) "مكتمل ⭐" else "نشط", style = Typography.labelSmall, color = if (done == total && total > 0) successColor else primary, fontSize = 10.sp)
                             }
                         }
                         Spacer(Modifier.height(6.dp))
                     }
                 }
-
-                Spacer(Modifier.height(16.dp))
 
                 // 2. تدبير مقاضي البيت
                 Text("🛒 تدبير مقاضي واحتياجات البيت المشتركة", style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = tertiary)
@@ -3307,7 +3286,7 @@ fun FamilyNeuralReportBottomSheet(
                     Text("لا توجد نواقص معلقة في قائمة مقاضي العائلة المشتركة ✅", style = Typography.bodySmall, color = onSurfaceVariant)
                 } else {
                     Text(
-                        "نواقص العائلة المطلوبة: ${pendingGroceries.take(5).joinToString("، ") { it.name }}",
+                        "نواقص العائلة المطلوبة: ${pendingGroceries.take(5).joinToString("، ") { it.itemName }}",
                         style = Typography.bodyMedium,
                         color = onSurface
                     )
