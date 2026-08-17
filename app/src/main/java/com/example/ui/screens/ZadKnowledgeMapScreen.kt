@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -12,6 +13,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -33,7 +35,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -430,8 +434,8 @@ internal fun DomainRing(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .androidx.compose.ui.input.pointer.pointerInput(Unit) {
-                androidx.compose.foundation.gestures.detectTransformGestures { _, pan, zoom, _ ->
+            .pointerInput(Unit) {
+                detectTransformGestures { _, pan, zoom, _ ->
                     zoomScale = (zoomScale * zoom).coerceIn(0.65f, 2.8f)
                     panOffset += pan
                 }
@@ -454,7 +458,7 @@ internal fun DomainRing(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .androidx.compose.ui.graphics.graphicsLayer {
+                .graphicsLayer {
                     scaleX = zoomScale
                     scaleY = zoomScale
                     translationX = panOffset.x
