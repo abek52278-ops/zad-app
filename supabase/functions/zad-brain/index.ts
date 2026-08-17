@@ -2808,6 +2808,25 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
     }
   }
 
+  // البوابة التجارية. مكانها هنا بالظبط لنفس سبب بوابة W4 اللي فوقها: طلب مقفول
+  // ميصحش يكلّف استعلام ولا توكن واحد. الفرق بين الاتنين إن W4 حارس إساءة استخدام
+  // (سقف يومي ثابت لكل الناس)، ودي حارس تجاري (بيقرا باقة العميل من الداتابيز).
+  //
+  // التصنيف بيفصل التسجيل عن التحليل: "صرفت ٥٠ قهوة" بتتحاسب على رصيد الشات الرخيص
+  // (أو بتعدي مجاناً)، و"حلل مصاريفي" هي اللي بتخصم من رصيد العقل. النص الجاي من
+  // تليجرام بيعدي من نفس هنا، فالبوت مش محتاج نسخة تانية من القاعدة.
+  const entitlement = await consumeEntitlement(sb, userId, classifyMessage(message), String(body.tz ?? "UTC"));
+  if (!entitlement.allowed) {
+    // ok:true مش خطأ: ده رد فعلي للعميل، والتطبيق بيعرضه في نفس فقاعة الشات. الكتلة
+    // entitlement جنبه هي اللي الواجهة بتقرا منها عشان تفتح شاشة الباقات/الإعلانات.
+    return new Response(JSON.stringify({
+      ok: true,
+      reply: lockedReply(entitlement),
+      executed: [], proposals: [], tool_attempted: false,
+      entitlement,
+    }), { headers: CORS_HEADERS });
+  }
+
   const snap = await buildSnapshot(sb, userId);
   const ctx: RunContext = freshContext(userId);
   const systemPrompt = buildChatSystemPrompt(snap);

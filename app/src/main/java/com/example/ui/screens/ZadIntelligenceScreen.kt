@@ -185,60 +185,46 @@ fun ZadIntelligenceScreen(
             }
 
             item {
-                var isBrainUnlocked by remember { mutableStateOf(RewardedBrainAdManager.hasUnlockedToday(context)) }
-                var isLoadingReward by remember { mutableStateOf(false) }
+                var adWatchCount by remember { mutableStateOf(RewardedBrainAdManager.getAdWatchCount(context)) }
+                var isSessionUnlocked by remember { mutableStateOf(RewardedBrainAdManager.isSessionUnlocked(context)) }
 
-                com.example.ui.components.ZadListCard(shape = RoundedCornerShape(20.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.Star,
-                            contentDescription = null,
-                            tint = primary,
-                            modifier = Modifier.size(28.dp)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                "فتح تحليل عقل زاد",
-                                style = Typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = onSurface
+                if (!isSessionUnlocked) {
+                    com.example.ui.components.AdEnergyBatteryCard(
+                        adWatchCount = adWatchCount,
+                        totalRequired = RewardedBrainAdManager.TOTAL_ADS_REQUIRED,
+                        onWatchAdClick = {
+                            RewardedBrainAdManager.showRewardedEnergyAd(
+                                context = context,
+                                onAdWatched = { newCount, isFullyUnlocked ->
+                                    adWatchCount = newCount
+                                    isSessionUnlocked = isFullyUnlocked
+                                },
+                                onFailed = {}
                             )
-                            Text(
-                                if (isBrainUnlocked) "تم تفعيل التحليل الذكي اليوم بنجاح." else "شاهد إعلان مكافأة لتحرير جلسة تحليل الذكاء لمدة 24 ساعة.",
-                                style = Typography.bodySmall,
-                                color = onSurfaceVariant
-                            )
+                        },
+                        onUpgradeClick = {
+                            // Link to upgrade or Zad Plus
                         }
-                        Button(
-                            onClick = {
-                                isLoadingReward = true
-                                RewardedBrainAdManager.showRewardedBrainUnlock(
-                                    context = context,
-                                    onRewarded = {
-                                        isBrainUnlocked = true
-                                        isLoadingReward = false
-                                    },
-                                    onFailed = {
-                                        isLoadingReward = false
-                                    }
-                                )
-                            },
-                            enabled = !isLoadingReward && !isBrainUnlocked,
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
+                    )
+                } else {
+                    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(20.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            if (isLoadingReward) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary
-                                )
-                            } else {
-                                Text(if (isBrainUnlocked) "مفتوح" else "مشاهدة إعلان")
-                            }
+                            Icon(
+                                Icons.Default.Star,
+                                contentDescription = null,
+                                tint = primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                stringResource(R.string.ad_energy_unlocked_session),
+                                style = Typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = primary
+                            )
                         }
                     }
                 }

@@ -1162,6 +1162,11 @@
     <string name="season_eid_adha">عيد الأضحى</string>
     <string name="season_back_to_school">العودة للمدارس</string>
     <string name="map_per_month">%1$s/شهر</string>
-    <string name="map_remaining">متبقي %1$s</string>
-    <string name="map_remaining_with_unit">متبقي %1$s %2$s</string>
+    <string name="map_remaining">فاضل %1$s</string>
+    <string name="map_remaining_with_unit">فاضل %1$s %2$s</string>
+    <string name="ad_energy_title">بطارية شحن الذكاء الاصطناعي</string>
+    <string name="ad_watch_action">مشاهدة فيديو (%1$d/%2$d)</string>
+    <string name="ad_energy_refill_hint">رصيدك بيتجدد تلقائياً كل 5 ساعات، أو شاهد %1$d إعلانات للشحن الفوري (+5 رسائل).</string>
+    <string name="ad_energy_unlocked_session">تم فتح جلسة الذكاء الاصطناعي بنجاح!</string>
+    <string name="upgrade_action">ترقية ⭐</string>
 </resources>

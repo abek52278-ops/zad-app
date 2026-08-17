@@ -1186,4 +1186,9 @@
     <string name="map_per_month">%1$s/month</string>
     <string name="map_remaining">%1$s left</string>
     <string name="map_remaining_with_unit">%1$s %2$s left</string>
+    <string name="ad_energy_title">AI Energy Battery</string>
+    <string name="ad_watch_action">Watch video (%1$d/%2$d)</string>
+    <string name="ad_energy_refill_hint">Your balance refills every 5 hours, or watch %1$d ads to recharge immediately (+5 messages).</string>
+    <string name="ad_energy_unlocked_session">AI session unlocked successfully!</string>
+    <string name="upgrade_action">Upgrade ⭐</string>
 </resources>

@@ -300,13 +300,9 @@ fun InventoryScreen(
                         iconBackground = successColor.copy(alpha = 0.1f)
                     )
                 } else {
-                    // شراء النواقص من أمازون بالتاج. القسم ده كان على الشاشة الرئيسية بس،
-                    // ومربوط بكتالوج من خمس منتجات مابيقابلش اللي العيلة دي بتشتريه فعلاً —
-                    // فعملياً ماكانش بيبان. هنا الصنف الناقص نفسه هو البحث، فالقايمة دايماً
-                    // ليها معنى: أي حاجة ظاهرة في التبويب ده ينفع تتشترى منها على طول.
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         items(shortageItems, key = { "buy_${it.id}" }) { item ->

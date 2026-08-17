@@ -50,3 +50,8 @@ cd supabase/functions/zad-telegram-bot && deno test --allow-all
 1. **Privacy & Redaction**: Never log unredacted base64 image strings, raw tokens, or sensitive health data. Always use `redactForLog()` from `redact.ts`.
 2. **Deterministic Fallbacks**: Tool mutations must strictly validate inputs (bounds, non-negative balances, valid 24h dose times).
 3. **Deep Links & Ingestion**: Normalize invite codes via `extractInviteCode()` to handle both `zad://` scheme, `https://zad.app/invite?code=...`, and raw text.
+4. **Monetization & AdMob Invariants**:
+   - Routine Spend Logging: 100% free and unmetered across App & Telegram bot.
+   - 5-Hour Dynamic Recharge: Free users refill 5 AI chat messages every 5 hours (`cycle_reset_at = now() + interval '5 hours'`).
+   - Rewarded Ad Battery (3 Ads): 3 rewarded video ads grant +5 instant AI messages and a 12-hour Zad Brain session.
+   - AdMob IDs: App ID `ca-app-pub-4433736715872551~7866252380` | Rewarded Unit `ca-app-pub-4433736715872551/5974535887`.

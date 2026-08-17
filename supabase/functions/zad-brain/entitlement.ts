@@ -111,7 +111,7 @@ export function lockedReply(d: EntitlementDecision): string {
   }
   // free tier, weekly consultation already spent
   const watched = d.ad_watch_count ?? 0;
-  const total = d.ads_per_session ?? 5;
+  const total = d.ads_per_session ?? 3;
   const when = d.next_weekly_free_at ? ` استشارتك المجانية الجاية ${arabicDate(d.next_weekly_free_at)}.` : "";
   return [
     `🔒 استهلكت استشارتك الأسبوعية المجانية لعقل زاد.${when}`,

@@ -11,13 +11,15 @@ import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
-import java.time.LocalDate
 
 object RewardedBrainAdManager {
     private const val TAG = "RewardedBrainAdManager"
-    private const val AD_UNIT_ID = "ca-app-pub-4433736715872551/5974535887"
+    const val AD_UNIT_ID = "ca-app-pub-4433736715872551/5974535887"
+    const val TOTAL_ADS_REQUIRED = 3
+
     private const val PREF_NAME = "rewarded_brain_unlock"
-    private const val KEY_UNLOCK_DATE = "unlock_date"
+    private const val KEY_AD_WATCH_COUNT = "ad_watch_count"
+    private const val KEY_SESSION_EXPIRY_TS = "session_expiry_ts"
     private const val KEY_LAST_REWARD_TS = "last_reward_ts"
 
     private var rewardedAd: RewardedAd? = null
@@ -28,15 +30,20 @@ object RewardedBrainAdManager {
         preload(context.applicationContext)
     }
 
-    fun hasUnlockedToday(context: Context): Boolean {
-        val today = LocalDate.now().toString()
+    fun getAdWatchCount(context: Context): Int {
         val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-        return prefs.getString(KEY_UNLOCK_DATE, null) == today
+        return prefs.getInt(KEY_AD_WATCH_COUNT, 0)
     }
 
-    fun showRewardedBrainUnlock(
+    fun isSessionUnlocked(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+        val expiry = prefs.getLong(KEY_SESSION_EXPIRY_TS, 0L)
+        return System.currentTimeMillis() < expiry
+    }
+
+    fun showRewardedEnergyAd(
         context: Context,
-        onRewarded: () -> Unit,
+        onAdWatched: (newCount: Int, isFullyUnlocked: Boolean) -> Unit,
         onFailed: () -> Unit
     ) {
         val activity = context as? Activity ?: (context as? android.content.ContextWrapper)?.baseContext as? Activity
@@ -56,14 +63,24 @@ object RewardedBrainAdManager {
 
         ad.show(activity) {
             val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-            val today = LocalDate.now().toString()
-            prefs.edit()
-                .putString(KEY_UNLOCK_DATE, today)
-                .putLong(KEY_LAST_REWARD_TS, System.currentTimeMillis())
-                .apply()
+            val current = prefs.getInt(KEY_AD_WATCH_COUNT, 0)
+            val next = current + 1
+
+            val isFullyUnlocked = next >= TOTAL_ADS_REQUIRED
+            val editor = prefs.edit()
+            if (isFullyUnlocked) {
+                editor.putInt(KEY_AD_WATCH_COUNT, 0)
+                // 12 hour session
+                editor.putLong(KEY_SESSION_EXPIRY_TS, System.currentTimeMillis() + 12 * 3600 * 1000L)
+            } else {
+                editor.putInt(KEY_AD_WATCH_COUNT, next)
+            }
+            editor.putLong(KEY_LAST_REWARD_TS, System.currentTimeMillis())
+            editor.apply()
+
             rewardedAd = null
             preload(context.applicationContext)
-            onRewarded()
+            onAdWatched(if (isFullyUnlocked) 0 else next, isFullyUnlocked)
         }
     }
 
