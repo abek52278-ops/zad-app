@@ -543,6 +543,9 @@ data class FamilyBalanceUpdatePayload(val memberId: String, val newBalance: Doub
 @Serializable
 data class AvatarUpdatePayload(val avatarUri: String)
 
+@Serializable
+data class UserProfileUpdatePayload(val name: String? = null, val avatarUri: String? = null)
+
 /** Payload for opType "inventory_delete" — ZadInventory itself carries no delete marker, so a
  * failed SupabaseRepo.deleteInventory() retry just needs the id. */
 @Serializable

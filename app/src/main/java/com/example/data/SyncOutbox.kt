@@ -211,6 +211,22 @@ object SyncOutbox {
         }
     }
 
+    suspend fun enqueueUserProfileUpdate(context: Context, name: String?, avatarUri: String?) {
+        try {
+            val dao = ZadDatabase.getDatabase(context).zadDao()
+            dao.insertPendingSyncOp(
+                PendingSyncOp(
+                    opType = "user_profile_update",
+                    payloadJson = json.encodeToString(UserProfileUpdatePayload(name, avatarUri)),
+                    createdAt = java.time.Instant.now().toString()
+                )
+            )
+            Log.d(TAG, "enqueueUserProfileUpdate: queued name=$name avatar=$avatarUri for retry")
+        } catch (e: Exception) {
+            Log.e(TAG, "enqueueUserProfileUpdate failed: ${e.message}")
+        }
+    }
+
     /** يقيّد نص/عنوان بنكي فشل تحليله الفوري (SaBankParser + AI) — retry في [flush] القادم */
     suspend fun enqueueUnparsedNotification(context: Context, source: String, title: String, text: String) {
         try {
@@ -327,6 +343,15 @@ object SyncOutbox {
                     "avatar_update" -> {
                         val payload = json.decodeFromString<AvatarUpdatePayload>(op.payloadJson)
                         if (SupabaseRepo.updateUserProfile(null, payload.avatarUri)) {
+                            dao.deletePendingSyncOp(op.id)
+                            Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
+                        } else {
+                            Log.w(TAG, "flush: op ${op.id} (${op.opType}) still failing — left queued for next run")
+                        }
+                    }
+                    "user_profile_update" -> {
+                        val payload = json.decodeFromString<UserProfileUpdatePayload>(op.payloadJson)
+                        if (SupabaseRepo.updateUserProfile(payload.name, payload.avatarUri)) {
                             dao.deletePendingSyncOp(op.id)
                             Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
                         } else {

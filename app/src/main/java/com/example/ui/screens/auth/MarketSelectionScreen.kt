@@ -86,7 +86,7 @@ fun MarketSelectionScreen(onContinue: () -> Unit) {
                         scope.launch {
                             val synced = com.example.data.SupabaseRepo.syncMarketProfile(market)
                             if (!synced) {
-                                Toast.makeText(context, syncFailedText, Toast.LENGTH_LONG).show()
+                                android.util.Log.i("MarketSelectionScreen", "Market profile sync offline — enqueued to SyncOutbox")
                                 com.example.data.SyncOutbox.enqueueMarketProfile(context, market.currencyCode, market.countryCode)
                             }
                         }

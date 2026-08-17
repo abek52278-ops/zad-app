@@ -4211,11 +4211,17 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun loadUserProfile() {
+        val app: Application = getApplication()
+        // 1. Instant local-first cache read
+        val cachedName = CurrentUser.getCachedName(app)
+        val cachedAvatar = CurrentUser.getCachedAvatar(app)
+        if (!cachedName.isNullOrBlank()) _userName.value = cachedName
+        if (!cachedAvatar.isNullOrBlank()) _avatarUri.value = cachedAvatar
+
         viewModelScope.launch {
             try {
                 val profile = SupabaseRepo.getUserProfile()
                 if (profile != null) {
-                    _userProfile.value = profile
                     if (!profile.name.isNullOrBlank()) {
                         _userName.value = profile.name
                     }
@@ -4223,6 +4229,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                         _avatarUri.value = profile.avatarUri
                     }
                     _emergencyFund.value = profile.emergencyFundBalance
+                    CurrentUser.cacheProfile(app, _userName.value, _avatarUri.value)
                 }
                 // Fallback to email if no name set
                 if (_userName.value.isNullOrBlank()) {
@@ -4230,9 +4237,6 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     val emailName = session?.user?.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() }
                     _userName.value = emailName ?: "مستخدم جديد"
                 }
-                // اختيار السوق بيحصل في شاشة قبل التسجيل، فرفعه للسيرفر ساعتها بيفشل
-                // (مفيش جلسة). دي أول نقطة مضمون فيها إن في مستخدم مسجّل — من غيرها
-                // zad_users.currency بيفضل null والبوت يسأل عن العملة كل مرة.
                 try {
                     SupabaseRepo.ensureMarketProfileSynced(getApplication())
                 } catch (e: Exception) {
@@ -4250,19 +4254,41 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Offline-First with Retry Policy:
+     * 1. Updates UI state and caches to disk immediately.
+     * 2. Returns success callback immediately to eliminate "Couldn't save changes" toasts.
+     * 3. Retries Supabase network write in background with exponential backoff.
+     * 4. Enqueues to SyncOutbox if offline/unreachable for durable synchronization.
+     */
     fun updateUserProfile(name: String, avatarUri: String?, onResult: (Boolean) -> Unit = {}) {
+        val app: Application = getApplication()
+        _userName.value = name
+        if (avatarUri != null) _avatarUri.value = avatarUri
+        CurrentUser.cacheProfile(app, name, avatarUri)
+        onResult(true)
+
         viewModelScope.launch {
-            try {
-                val success = SupabaseRepo.updateUserProfile(name, avatarUri)
-                if (success) {
-                    _userName.value = name
-                    if (avatarUri != null) _avatarUri.value = avatarUri
+            var synced = false
+            var delayMs = 1000L
+            for (attempt in 1..3) {
+                try {
+                    val success = SupabaseRepo.updateUserProfile(name, avatarUri)
+                    if (success) {
+                        synced = true
+                        Log.d(TAG, "updateUserProfile() synced to Supabase on attempt $attempt")
+                        break
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "updateUserProfile() attempt $attempt failed: ${e.message}")
                 }
-                Log.d(TAG, "updateUserProfile() → success=$success, name=$name, avatarUri=$avatarUri")
-                onResult(success)
-            } catch (e: Exception) {
-                Log.e(TAG, "updateUserProfile() FAILED: ${e.message}")
-                onResult(false)
+                kotlinx.coroutines.delay(delayMs)
+                delayMs *= 2
+            }
+
+            if (!synced) {
+                Log.i(TAG, "updateUserProfile() offline — enqueuing to SyncOutbox for background sync")
+                SyncOutbox.enqueueUserProfileUpdate(app, name, avatarUri)
             }
         }
     }

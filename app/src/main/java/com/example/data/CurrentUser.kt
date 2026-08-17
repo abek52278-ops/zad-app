@@ -15,6 +15,9 @@ object CurrentUser {
     private const val PREFS = "zad_prefs"
     private const val KEY = "current_user_id"
 
+    private const val KEY_NAME = "current_user_name"
+    private const val KEY_AVATAR = "current_user_avatar"
+
     fun cache(context: Context, userId: String?) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().putString(KEY, userId).apply()
@@ -22,4 +25,20 @@ object CurrentUser {
 
     fun get(context: Context): String? =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, null)
+
+    fun cacheProfile(context: Context, name: String?, avatarUri: String?) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .apply {
+                if (name != null) putString(KEY_NAME, name)
+                if (avatarUri != null) putString(KEY_AVATAR, avatarUri)
+            }
+            .apply()
+    }
+
+    fun getCachedName(context: Context): String? =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_NAME, null)
+
+    fun getCachedAvatar(context: Context): String? =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_AVATAR, null)
 }

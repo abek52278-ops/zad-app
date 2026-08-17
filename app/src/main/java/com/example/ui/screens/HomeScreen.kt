@@ -280,7 +280,7 @@ fun HomeScreen(
                             scope.launch {
                                 val synced = com.example.data.SupabaseRepo.syncMarketProfile(suggestedMarket)
                                 if (!synced) {
-                                    Toast.makeText(context, marketSyncFailedText, Toast.LENGTH_LONG).show()
+                                    android.util.Log.i("HomeScreen", "Travel market profile sync offline — enqueued to SyncOutbox")
                                     com.example.data.SyncOutbox.enqueueMarketProfile(context, suggestedMarket.currencyCode, suggestedMarket.countryCode)
                                 }
                             }
