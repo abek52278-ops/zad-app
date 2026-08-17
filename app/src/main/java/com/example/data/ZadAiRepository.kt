@@ -206,7 +206,136 @@ object ZadAiRepository {
                     ?.mapNotNull { it as? String } ?: emptyList(),
             )
         }
-        return ChefSuggestion(text = text, recipes = recipes)
+        val finalRecipes = recipes.ifEmpty {
+            if (available.isNotEmpty()) generateDeterministicChefRecipes(available) else emptyList()
+        }
+        val finalText = if (text == MEAL_SUGGESTIONS_FALLBACK && finalRecipes.isNotEmpty()) {
+            "جمعتلك أفكار وصفات شهية تقدر تطبخها النهاردة من المخزون المتاح عندك! 🍳"
+        } else text
+        return ChefSuggestion(text = finalText, recipes = finalRecipes)
+    }
+
+    fun generateDeterministicChefRecipes(available: List<ZadInventory>): List<ZadRecipe> {
+        val names = available.map { it.itemName.lowercase().trim() }
+        val recipes = mutableListOf<ZadRecipe>()
+
+        fun hasAny(vararg keywords: String): Boolean = keywords.any { kw -> names.any { it.contains(kw) } }
+
+        if (hasAny("فراخ", "دجاج", "chicken") && hasAny("رز", "أرز", "ارز", "rice")) {
+            recipes.add(
+                ZadRecipe(
+                    recipeName = "كبسة دجاج شهية بالبهارات",
+                    imageKeywordEn = "chicken kabsa rice spiced delicious",
+                    prepTimeMinutes = 35,
+                    costEstimate = 65.0,
+                    availableIngredientsUsed = available.filter { it.itemName.contains("دجاج") || it.itemName.contains("فراخ") || it.itemName.contains("رز") || it.itemName.contains("أرز") }.map { it.itemName },
+                    missingIngredientsToBuy = listOf("بهارات كبسة", "مكسرات للتزيين"),
+                    cookingInstructions = listOf(
+                        "حمري قطع الدجاج في قدر عميق مع البصل والبهارات حتى تأخذ لوناً ذهبياً.",
+                        "أضيفي الماء الساخن واتركي الدجاج ينضج على نار متوسطة لمدة ٢٥ دقيقة.",
+                        "أضيفي الأرز المغسول فوق مرق الدجاج واتركيه يغلي ثم هدئي النار تماماً.",
+                        "قدمي الكبسة ساخنة مع رشة مكسرات محمصة وبالهناء والشفاء."
+                    )
+                )
+            )
+        }
+
+        if (hasAny("مكرونة", "معكرونة", "pasta") && hasAny("طماطم", "صلصة", "جبن", "جبنة", "cheese", "لحم", "لحمة")) {
+            recipes.add(
+                ZadRecipe(
+                    recipeName = "مكرونة باستا بصلصة الطماطم والجبن",
+                    imageKeywordEn = "pasta tomato sauce basil cheese delicious",
+                    prepTimeMinutes = 20,
+                    costEstimate = 35.0,
+                    availableIngredientsUsed = available.filter { it.itemName.contains("مكرونة") || it.itemName.contains("طماطم") || it.itemName.contains("جبن") }.map { it.itemName },
+                    missingIngredientsToBuy = listOf("ريحان طازج"),
+                    cookingInstructions = listOf(
+                        "اسلقي المكرونة في ماء مغلي مملح حتى تصبح طرية ومتماسكة.",
+                        "جهزي صلصة الطماطم مع الثوم والزيت والملح والفلفل الأسود.",
+                        "اخلطي المكرونة مع الصلصة الساخنة ورشي الجبن على الوجه.",
+                        "قدمي الطبق ساخناً ومزيناً بأوراق الريحان."
+                    )
+                )
+            )
+        }
+
+        if (hasAny("بيض", "eggs") && hasAny("طماطم", "بصل", "فلفل", "جبن", "جبنة")) {
+            recipes.add(
+                ZadRecipe(
+                    recipeName = "شكشوكة بيض بالخضار والجبن",
+                    imageKeywordEn = "shakshuka eggs tomato breakfast pan",
+                    prepTimeMinutes = 15,
+                    costEstimate = 25.0,
+                    availableIngredientsUsed = available.filter { it.itemName.contains("بيض") || it.itemName.contains("طماطم") || it.itemName.contains("بصل") || it.itemName.contains("فلفل") }.map { it.itemName },
+                    missingIngredientsToBuy = listOf("خبز بلدي طازج"),
+                    cookingInstructions = listOf(
+                        "شوحي البصل والفلفل المفروم في مقلاة مع قليل من الزيت حتى يذبل.",
+                        "أضيفي الطماطم المفرومة والبهارات واتركيها تتسبك لمدة ٥ دقائق.",
+                        "اصنعي فجوات في الصلصة واكسري حبات البيض بداخلها.",
+                        "غطي المقلاة على نار هادئة حتى ينضج البيض ورشي رشة فلفل وجبن."
+                    )
+                )
+            )
+        }
+
+        if (hasAny("لحم", "لحمة", "كفتة", "meat", "beef", "burger") && hasAny("بصل", "خبز", "عيش", "بطاطس")) {
+            recipes.add(
+                ZadRecipe(
+                    recipeName = "كفتة مشوية شهية مع البطاطس",
+                    imageKeywordEn = "kofta grilled kebab plate salad",
+                    prepTimeMinutes = 30,
+                    costEstimate = 80.0,
+                    availableIngredientsUsed = available.filter { it.itemName.contains("لحم") || it.itemName.contains("كفتة") || it.itemName.contains("بصل") || it.itemName.contains("بطاطس") }.map { it.itemName },
+                    missingIngredientsToBuy = listOf("بقدونس", "طحينة"),
+                    cookingInstructions = listOf(
+                        "تبلي اللحم المفروم بالبصل المبشور والبهارات واعجنيه جيداً.",
+                        "شكلي الكفتة على أسياخ أو أصابع متساوية الحجم.",
+                        "اشوي الكفتة في الفرن أو على الشواية حتى تنضج وتكتسب نكهة الشواء.",
+                        "قدميها مع البطاطس وسلطة الطحينة والخبز الساخن."
+                    )
+                )
+            )
+        }
+
+        if (hasAny("تونة", "تونا", "tuna") || hasAny("سلطة", "خيار", "طماطم", "خس", "salad")) {
+            recipes.add(
+                ZadRecipe(
+                    recipeName = "سلطة تونة صحية ومنعشة",
+                    imageKeywordEn = "fresh tuna salad bowl vegetables",
+                    prepTimeMinutes = 10,
+                    costEstimate = 30.0,
+                    availableIngredientsUsed = available.filter { it.itemName.contains("تونة") || it.itemName.contains("خيار") || it.itemName.contains("طماطم") || it.itemName.contains("خس") }.map { it.itemName },
+                    missingIngredientsToBuy = listOf("ليمون", "زيت زيتون"),
+                    cookingInstructions = listOf(
+                        "صفي التونة من الزيت أو الماء وضعيها في وعاء عميق.",
+                        "قطعي الخيار والطماطم والخس وضعيهم فوق التونة.",
+                        "تبلي بعصير الليمون وزيت الزيتون ورشة ملح وكمون.",
+                        "قلبي المكونات برفق وقدمي السلطة باردة ولذيذة."
+                    )
+                )
+            )
+        }
+
+        if (recipes.isEmpty() && available.isNotEmpty()) {
+            val firstThree = available.take(3).map { it.itemName }
+            recipes.add(
+                ZadRecipe(
+                    recipeName = "وجبة منزلية سريعة بـ ${firstThree.joinToString(" و ")}",
+                    imageKeywordEn = "home cooked delicious food plate dinner",
+                    prepTimeMinutes = 20,
+                    costEstimate = 30.0,
+                    availableIngredientsUsed = firstThree,
+                    missingIngredientsToBuy = listOf("توابل وزيت طهي"),
+                    cookingInstructions = listOf(
+                        "جهزي المكونات المتاحة وقومي بتقطيعها بحجم مناسب للطهي.",
+                        "سخني ملعقة زيت في المقلاة وشوحي المكونات بالتتابع على نار متوسطة.",
+                        "أضيفي الملح والبهارات المفضلة مع نصف كوب ماء لتكتمل التسوية.",
+                        "قدمي الطبق ساخناً مع الخبز أو الأرز."
+                    )
+                )
+            )
+        }
+        return recipes
     }
 
     /**

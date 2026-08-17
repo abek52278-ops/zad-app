@@ -1,0 +1,229 @@
+package com.example.voice
+
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
+import android.speech.tts.Voice
+import android.util.Log
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import java.util.Locale
+
+sealed class VoiceState {
+    object Idle : VoiceState()
+    object Listening : VoiceState()
+    data class Recognized(val text: String) : VoiceState()
+    object Thinking : VoiceState()
+    data class Speaking(val text: String) : VoiceState()
+    data class Error(val message: String) : VoiceState()
+}
+
+class ZadVoiceManager(private val context: Context) {
+    private val TAG = "ZadVoiceManager"
+
+    private val _voiceState = MutableStateFlow<VoiceState>(VoiceState.Idle)
+    val voiceState: StateFlow<VoiceState> = _voiceState.asStateFlow()
+
+    private val _soundLevel = MutableStateFlow(0f)
+    val soundLevel: StateFlow<Float> = _soundLevel.asStateFlow()
+
+    private var speechRecognizer: SpeechRecognizer? = null
+    private var textToSpeech: TextToSpeech? = null
+    private var isTtsReady = false
+
+    init {
+        initTts()
+    }
+
+    private fun initTts() {
+        textToSpeech = TextToSpeech(context.applicationContext) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                isTtsReady = true
+                configureFemaleArabicVoice()
+            } else {
+                Log.w(TAG, "TextToSpeech init failed: $status")
+            }
+        }
+    }
+
+    private fun configureFemaleArabicVoice() {
+        val tts = textToSpeech ?: return
+        try {
+            val marketLocale = com.example.data.MarketPrefs.getMarket(context).toLocale()
+            val locale = if (tts.isLanguageAvailable(marketLocale) >= TextToSpeech.LANG_AVAILABLE) {
+                marketLocale
+            } else {
+                Locale("ar")
+            }
+
+            tts.language = locale
+            // Set pleasant female pitch & speed
+            tts.setPitch(1.20f)
+            tts.setSpeechRate(1.05f)
+
+            // Try to find a female voice among available voices
+            val voices = tts.voices
+            if (voices != null) {
+                val femaleVoice = voices.firstOrNull { v ->
+                    v.locale.language == "ar" && (
+                        v.name.contains("female", ignoreCase = true) ||
+                        v.name.contains("fem", ignoreCase = true) ||
+                        v.name.contains("ar-x-", ignoreCase = true)
+                    )
+                }
+                if (femaleVoice != null) {
+                    tts.voice = femaleVoice
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Voice configuration exception: ${e.message}")
+        }
+    }
+
+    fun startListening(onResult: (String) -> Unit) {
+        stopSpeaking()
+        val mainHandler = Handler(Looper.getMainLooper())
+        mainHandler.post {
+            try {
+                if (speechRecognizer == null) {
+                    speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
+                }
+
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-EG")
+                    putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayOf("ar", "ar-SA", "en-US"))
+                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                }
+
+                speechRecognizer?.setRecognitionListener(object : RecognitionListener {
+                    override fun onReadyForSpeech(params: Bundle?) {
+                        _voiceState.value = VoiceState.Listening
+                    }
+
+                    override fun onBeginningOfSpeech() {}
+
+                    override fun onRmsChanged(rmsdB: Float) {
+                        // Normalize 0..10 dB to 0..1
+                        _soundLevel.value = (rmsdB.coerceIn(0f, 10f) / 10f)
+                    }
+
+                    override fun onBufferReceived(buffer: ByteArray?) {}
+
+                    override fun onEndOfSpeech() {
+                        _soundLevel.value = 0f
+                        _voiceState.value = VoiceState.Thinking
+                    }
+
+                    override fun onError(error: Int) {
+                        _soundLevel.value = 0f
+                        _voiceState.value = VoiceState.Idle
+                    }
+
+                    override fun onResults(results: Bundle?) {
+                        val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        val text = matches?.firstOrNull()?.trim().orEmpty()
+                        if (text.isNotEmpty()) {
+                            _voiceState.value = VoiceState.Recognized(text)
+                            onResult(text)
+                        } else {
+                            _voiceState.value = VoiceState.Idle
+                        }
+                    }
+
+                    override fun onPartialResults(partialResults: Bundle?) {
+                        val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        val text = matches?.firstOrNull()?.trim().orEmpty()
+                        if (text.isNotEmpty()) {
+                            _voiceState.value = VoiceState.Recognized(text)
+                        }
+                    }
+
+                    override fun onEvent(eventType: Int, params: Bundle?) {}
+                })
+
+                speechRecognizer?.startListening(intent)
+                _voiceState.value = VoiceState.Listening
+            } catch (e: Exception) {
+                Log.e(TAG, "SpeechRecognizer error: ${e.message}")
+                _voiceState.value = VoiceState.Error("تعذر تفعيل الميكروفون")
+            }
+        }
+    }
+
+    fun stopListening() {
+        try {
+            speechRecognizer?.stopListening()
+        } catch (e: Exception) {
+            Log.w(TAG, "stopListening error: ${e.message}")
+        }
+    }
+
+    fun speakFemaleVoice(text: String, onDone: () -> Unit = {}) {
+        if (!isTtsReady || text.isBlank()) {
+            onDone()
+            return
+        }
+
+        val cleaned = text
+            .replace(Regex("[*#_`~\\[\\]()]"), " ")
+            .replace(Regex("https?://\\S+"), "")
+            .trim()
+
+        if (cleaned.isBlank()) {
+            onDone()
+            return
+        }
+
+        _voiceState.value = VoiceState.Speaking(cleaned)
+        val tts = textToSpeech ?: return
+
+        tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) {}
+            override fun onDone(utteranceId: String?) {
+                _voiceState.value = VoiceState.Idle
+                onDone()
+            }
+
+            @Deprecated("Deprecated in Java")
+            override fun onError(utteranceId: String?) {
+                _voiceState.value = VoiceState.Idle
+                onDone()
+            }
+        })
+
+        tts.speak(cleaned, TextToSpeech.QUEUE_FLUSH, null, "zad_voice_assistant")
+    }
+
+    fun stopSpeaking() {
+        try {
+            textToSpeech?.stop()
+        } catch (e: Exception) {
+            Log.w(TAG, "stopSpeaking error: ${e.message}")
+        }
+        if (_voiceState.value is VoiceState.Speaking) {
+            _voiceState.value = VoiceState.Idle
+        }
+    }
+
+    fun release() {
+        try {
+            speechRecognizer?.destroy()
+            speechRecognizer = null
+            textToSpeech?.stop()
+            textToSpeech?.shutdown()
+            textToSpeech = null
+        } catch (e: Exception) {
+            Log.w(TAG, "release error: ${e.message}")
+        }
+    }
+}

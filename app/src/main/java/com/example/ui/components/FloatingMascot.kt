@@ -144,11 +144,7 @@ fun FloatingMascotCompanion(
         } catch (_: Exception) {}
     }
 
-    // نغمة تختلف بحسب المزاج بدل صفارة واحدة ثابتة — أعلى وأمرح لما المزاج سعيد/احتفال،
-    // أخفض وتحذيرية وقت التنبيه.
     fun fireChime(mood: CompanionState) {
-        // كان ToneGenerator بـ TONE_PROP_BEEP — نغمة DTMF، حرفياً صوت أزرار التليفون.
-        // ZadChime بيولّد جرس جيبي بظرف صوتي ناعم؛ التفاصيل في الملف نفسه.
         ZadChime.play(
             when (mood) {
                 CompanionState.Happy, CompanionState.Celebrating -> ZadChime.Tone.Success
@@ -158,12 +154,16 @@ fun FloatingMascotCompanion(
         )
     }
 
+    if (showVoiceAssistant) {
+        ZadVoiceBottomSheet(
+            viewModel = viewModel,
+            onDismiss = { showVoiceAssistant = false }
+        )
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
-            // مرسوم كـ sibling بعد الـ Scaffold في MainScreen فعلاً (آخر واحد بيتحط فوق
-            // الكل)، لكن zIndex هنا بيثبّت الأولوية دي بالاسم بدل الاعتماد بس على ترتيب
-            // الإضافة — يضمن الأيجنت يفضل ظاهر فوق أي كارت تاني حتى لو ترتيب MainScreen اتغيّر.
             .zIndex(100f)
             .navigationBarsPadding()
             .padding(bottom = 94.dp),
@@ -205,11 +205,11 @@ fun FloatingMascotCompanion(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClickLabel = companionStateDescription(displayMood),
-                        onLongClickLabel = "فتح شات سريع",
+                        onLongClickLabel = "المساعد الصوتي الذكي",
                         onLongClick = {
                             fireHaptic(25, 180)
                             showBubble = false
-                            if (onQuickChat != null) onQuickChat() else onNavigateToChat()
+                            showVoiceAssistant = true
                         },
                         onDoubleClick = {
                             fireHaptic(25, 180)
