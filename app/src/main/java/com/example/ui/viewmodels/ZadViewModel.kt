@@ -2166,39 +2166,65 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun setBalanceTo(targetRaw: Double) {
         val target = targetRaw.asMoney()
-        val opening = _budget.value
-        if (opening <= 0.0) {
-            Log.d(TAG, "setBalanceTo() → no opening balance yet, adopting $target as the starting point")
-            updateBudget(target)
-            return
-        }
+        viewModelScope.launch {
+            val opening = _budget.value
+            if (opening <= 0.0) {
+                Log.d(TAG, "setBalanceTo() → no opening balance yet, adopting $target as the starting point")
+                updateBudget(target)
+                return@launch
+            }
 
-        val market = MarketPrefs.getMarket(getApplication())
-        val txs = BudgetMath.normalizedToCurrency(_transactions.value, market.currencyCode)
-        val asOf = LocalDate.now()
-        val cycleStart = CycleMath.cycleStart(asOf, cycleStartDay, cycleAnchor, market)
-        val cycleEnd = CycleMath.cycleEnd(asOf, cycleStartDay, cycleAnchor, market)
-        // نفس النقطة اللي recalculateLocalBudgetFigures بيحسب بيها — التصحيح لازم يتقاس
-        // على الرصيد اللي العميل شايفه، مش على نافذة تانية.
-        val delta = BudgetMath.correctionToReachBalance(target, opening, txs, cycleStart, cycleEnd, balanceAnchoredAt)
-        if (kotlin.math.abs(delta) < 0.01) {
-            Log.d(TAG, "setBalanceTo() → already at $target, nothing to correct")
-            return
-        }
+            val market = MarketPrefs.getMarket(getApplication())
+            val txs = BudgetMath.normalizedToCurrency(_transactions.value, market.currencyCode)
+            val asOf = LocalDate.now()
+            val cycleStart = CycleMath.cycleStart(asOf, cycleStartDay, cycleAnchor, market)
+            val cycleEnd = CycleMath.cycleEnd(asOf, cycleStartDay, cycleAnchor, market)
+            val delta = BudgetMath.correctionToReachBalance(target, opening, txs, cycleStart, cycleEnd, balanceAnchoredAt)
+            if (kotlin.math.abs(delta) >= 0.01) {
+                Log.d(TAG, "setBalanceTo() → target=$target needs a correction of $delta")
+                val correctionTx = ZadTransaction(
+                    title = getApplication<Application>().getString(R.string.manual_balance_correction_title),
+                    amount = kotlin.math.abs(delta),
+                    isExpense = delta < 0,
+                    category = QUICK_DEDUCT_CATEGORY,
+                    isVerified = true,
+                    sourceType = "manual_balance_override",
+                    createdAt = java.time.Instant.now().toString()
+                )
+                dao.insertTransaction(correctionTx)
+                _transactions.value = listOf(correctionTx) + _transactions.value
+                try {
+                    SupabaseRepo.addTransaction(correctionTx)
+                } catch (e: Exception) {
+                    Log.e(TAG, "setBalanceTo Supabase sync FAILED: ${e.message}")
+                }
+            }
 
-        Log.d(TAG, "setBalanceTo() → target=$target needs a correction of $delta")
-        addTransaction(
-            ZadTransaction(
-                title = getApplication<Application>().getString(R.string.manual_balance_correction_title),
-                amount = kotlin.math.abs(delta),
-                isExpense = delta < 0,
-                category = QUICK_DEDUCT_CATEGORY,
-                isVerified = true,
-                sourceType = "manual_balance_override",
-            )
-        )
-        // كلمة العميل الأخيرة تستاهل تعدّي على عقل زاد فوراً، زي أي تعديل يدوي تاني.
-        maybeAutoRefreshAgentSummary(force = true)
+            recalculateLocalBudgetFigures(_transactions.value, _budget.value)
+            _remainingBalance.value = target
+            _balanceFigure.value = Figure(value = target, confident = true)
+            val committed = BudgetMath.committedInCycle(_obligations.value, _subscriptions.value, cycleEnd, asOf)
+            val avail = (target - committed).coerceAtLeast(0.0)
+            _availableFigure.value = Figure(value = avail, confident = true)
+
+            refreshBudgetState()
+            maybeAutoRefreshAgentSummary(force = true)
+            com.example.widgets.TransactionWidget.updateAllWidgets(getApplication())
+        }
+    }
+
+    /**
+     * تفعيل وترقية اشتراك المستخدم بعد إتمام الدفع بنجاح عبر بوابة الدفع الآمنة
+     */
+    suspend fun activateSubscription(tierId: String, isAnnual: Boolean, provider: String = "google_play"): Boolean {
+        val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return false
+        val success = SupabaseRepo.upgradeUserTier(userId, tierId, isAnnual, provider)
+        if (success) {
+            val prefs = getApplication<Application>().getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+            prefs.edit().putString("user_tier", tierId).apply()
+            maybeAutoRefreshAgentSummary(force = true)
+        }
+        return success
     }
 
     /**

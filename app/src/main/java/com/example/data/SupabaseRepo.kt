@@ -683,6 +683,53 @@ object SupabaseRepo {
         }
     }
 
+    suspend fun upgradeUserTier(
+        userId: String,
+        tier: String,
+        isAnnual: Boolean,
+        provider: String = "google_play"
+    ): Boolean {
+        return try {
+            val now = java.time.Instant.now()
+            val expiry = if (isAnnual) now.plus(365, java.time.temporal.ChronoUnit.DAYS)
+                         else now.plus(30, java.time.temporal.ChronoUnit.DAYS)
+
+            client.postgrest["zad_users"].update(
+                mapOf(
+                    "tier" to tier,
+                    "subscription_status" to "active",
+                    "subscription_expires_at" to expiry.toString()
+                )
+            ) {
+                filter { eq("id", userId) }
+            }
+
+            client.postgrest["zad_entitlements"].update(
+                mapOf(
+                    "tier" to tier,
+                    "tier_expires_at" to expiry.toString()
+                )
+            ) {
+                filter { eq("user_id", userId) }
+            }
+
+            val subRow = mapOf(
+                "user_id" to userId,
+                "tier" to tier,
+                "provider" to provider,
+                "status" to "active",
+                "current_period_start" to now.toString(),
+                "current_period_end" to expiry.toString()
+            )
+            client.postgrest["subscriptions"].insert(subRow)
+            Log.d(TAG, "upgradeUserTier() SUCCESS -> user=$userId upgraded to $tier")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "upgradeUserTier() FAILED: ${e.message}")
+            false
+        }
+    }
+
     // ─── Pharmacy ──────────────────────────────────────────────────────────────
     suspend fun getPharmacyItems(): List<ZadPharmacyItem> {
         return try {

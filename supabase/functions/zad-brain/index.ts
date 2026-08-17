@@ -2772,20 +2772,30 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
   // الطلب، فأي قيمة غير معروفة بترجع للافتراضي بدل ما تتقبل عمياني وتكسر الـ CHECK.
   const declaredSource = body.source === "telegram" ? "telegram" as const : "app_chat" as const;
 
-  // W4 — بوابة السقف اليومي. اتحطت هنا قبل buildSnapshot/أي نداء موديل عن قصد: لو
-  // العميل واصل لسقفه، مفيش داعي نستهلك استعلامات أو توكنز إضافية أصلاً. usage_date في
-  // الجدول UTC (نفس افتراضي العمود)، فالمقارنة هنا بتستخدم نفس اليوم بالظبط.
-  const today = new Date().toISOString().slice(0, 10);
-  const { data: usageRow } = await sb.from("agent_usage")
-    .select("request_count,input_tokens,output_tokens")
-    .eq("user_id", userId).eq("usage_date", today).maybeSingle();
-  if (usageRow && (usageRow.request_count >= DAILY_REQUEST_CAP ||
-      (usageRow.input_tokens + usageRow.output_tokens) >= DAILY_TOKEN_CAP)) {
-    return new Response(JSON.stringify({
-      ok: true,
-      reply: "وصلت لحد أقصى من طلباتي معاك النهاردة — عشان أفضل مستقر وما أستهلكش فوق طاقتي. جرب تاني بكرة 🙏",
-      executed: [], proposals: [], tool_attempted: false, rate_limited: true,
-    }), { headers: CORS_HEADERS });
+  // فحص اشتراك المستخدم: المشتركون في باقات مدفوعة (starter, plus, pro) أو لديهم جلسة إعلانات نشطة يتم إعفاؤهم من السقف اليومي المجاني
+  const { data: entRow } = await sb.from("zad_entitlements")
+    .select("tier,tier_expires_at,brain_session_expires_at")
+    .eq("user_id", userId).maybeSingle();
+
+  const isPaidSubscriber = entRow && entRow.tier && entRow.tier !== "free" &&
+    (!entRow.tier_expires_at || new Date(entRow.tier_expires_at).getTime() > Date.now());
+  const hasActiveAdSession = entRow && entRow.brain_session_expires_at &&
+    new Date(entRow.brain_session_expires_at).getTime() > Date.now();
+
+  // W4 — بوابة السقف اليومي لمستخدمي الباقة المجانية فقط.
+  if (!isPaidSubscriber && !hasActiveAdSession) {
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: usageRow } = await sb.from("agent_usage")
+      .select("request_count,input_tokens,output_tokens")
+      .eq("user_id", userId).eq("usage_date", today).maybeSingle();
+    if (usageRow && (usageRow.request_count >= DAILY_REQUEST_CAP ||
+        (usageRow.input_tokens + usageRow.output_tokens) >= DAILY_TOKEN_CAP)) {
+      return new Response(JSON.stringify({
+        ok: true,
+        reply: "وصلت لحد أقصى من طلباتي المجانية اليومية — عشان أفضل مستقر وما أستهلكش فوق طاقتي. جرب تاني بكرة أو اشترك في زاد بلس للاستخدام غير المحدود 🙏",
+        executed: [], proposals: [], tool_attempted: false, rate_limited: true,
+      }), { headers: CORS_HEADERS });
+    }
   }
 
   // ── The deterministic layer (gaps item 4) ────────────────────────────────────
