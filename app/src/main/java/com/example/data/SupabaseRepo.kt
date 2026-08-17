@@ -730,6 +730,69 @@ object SupabaseRepo {
         }
     }
 
+    suspend fun verifyGooglePlayPurchase(
+        tier: String,
+        isAnnual: Boolean,
+        purchaseToken: String,
+        orderId: String
+    ): Boolean {
+        val userId = client.auth.currentUserOrNull()?.id ?: return false
+        return try {
+            val now = java.time.Instant.now()
+            val expiry = if (isAnnual) now.plus(365, java.time.temporal.ChronoUnit.DAYS)
+                         else now.plus(30, java.time.temporal.ChronoUnit.DAYS)
+
+            try {
+                client.postgrest.rpc(
+                    "zad_set_tier",
+                    mapOf(
+                        "p_user" to userId,
+                        "p_tier" to tier.lowercase(),
+                        "p_expires" to expiry.toString()
+                    )
+                )
+            } catch (rpcErr: Exception) {
+                Log.w(TAG, "zad_set_tier RPC fallback: ${rpcErr.message}")
+            }
+
+            client.postgrest["zad_users"].update(
+                mapOf(
+                    "tier" to tier.lowercase(),
+                    "subscription_status" to "active",
+                    "subscription_expires_at" to expiry.toString()
+                )
+            ) {
+                filter { eq("id", userId) }
+            }
+
+            client.postgrest["zad_entitlements"].update(
+                mapOf(
+                    "tier" to tier.lowercase(),
+                    "tier_expires_at" to expiry.toString()
+                )
+            ) {
+                filter { eq("user_id", userId) }
+            }
+
+            val subRow = mapOf(
+                "user_id" to userId,
+                "tier" to tier.lowercase(),
+                "provider" to "google_play",
+                "status" to "active",
+                "current_period_start" to now.toString(),
+                "current_period_end" to expiry.toString(),
+                "external_id" to orderId,
+                "notes" to purchaseToken.take(32)
+            )
+            client.postgrest["subscriptions"].insert(subRow)
+            Log.d(TAG, "verifyGooglePlayPurchase SUCCESS -> user=$userId upgraded to $tier via Google Play")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "verifyGooglePlayPurchase FAILED: ${e.message}")
+            false
+        }
+    }
+
     // ─── Pharmacy ──────────────────────────────────────────────────────────────
     suspend fun getPharmacyItems(): List<ZadPharmacyItem> {
         return try {

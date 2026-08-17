@@ -785,6 +785,22 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.e(TAG, "subscribeToOwnUserProfile() FAILED: ${e.message}")
             }
         }
+
+        // تهيئة Google Play Billing لترقية الباقات وتأكيد الاشتراكات
+        try {
+            com.example.billing.GooglePlayBillingManager.initialize(application)
+            com.example.billing.GooglePlayBillingManager.setVerificationCallback { tier, isAnnual, token, orderId ->
+                val success = SupabaseRepo.verifyGooglePlayPurchase(tier, isAnnual, token, orderId)
+                if (success) {
+                    val prefs = getApplication<Application>().getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+                    prefs.edit().putString("user_tier", tier).apply()
+                    maybeAutoRefreshAgentSummary(force = true)
+                }
+                success
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "GooglePlayBillingManager init error: ${e.message}")
+        }
     }
 
     private fun persistChatMessage(msg: AiChatMessage) {

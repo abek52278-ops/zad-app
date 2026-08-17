@@ -118,6 +118,7 @@ dependencies {
   implementation(libs.play.services.location)
   implementation(libs.retrofit)
   implementation("com.google.android.gms:play-services-ads:23.3.0")
+  implementation("com.android.billingclient:billing-ktx:7.1.1")
 
   // Gemini & Supabase
   // Removed generativeai to fix Ktor 3 conflicts
