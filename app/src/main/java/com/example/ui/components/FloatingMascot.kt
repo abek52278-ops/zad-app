@@ -128,6 +128,7 @@ fun FloatingMascotCompanion(
     val vibrator = remember { context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator }
     val tapScale = remember { Animatable(1f) }
     var showBubble by remember { mutableStateOf(false) }
+    var showVoiceAssistant by remember { mutableStateOf(false) }
     var blinkTrigger by remember { mutableStateOf(0L) }
     var glowTrigger by remember { mutableStateOf(0L) }
 

@@ -63,7 +63,7 @@ fun ZadVoiceBottomSheet(
         voiceManager.startListening { query ->
             currentTranscription = query
             scope.launch {
-                viewModel.sendAiMessage(query)
+                viewModel.sendAiChatMessage(query)
             }
         }
     }
@@ -93,7 +93,7 @@ fun ZadVoiceBottomSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp, vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterVertically
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Header
             Row(
@@ -226,7 +226,7 @@ fun ZadVoiceBottomSheet(
                         onClick = {
                             currentTranscription = prompt
                             voiceManager.stopSpeaking()
-                            scope.launch { viewModel.sendAiMessage(prompt) }
+                            scope.launch { viewModel.sendAiChatMessage(prompt) }
                         },
                         label = { Text(prompt, fontSize = 11.sp) },
                         shape = RoundedCornerShape(20.dp),
@@ -252,7 +252,7 @@ fun ZadVoiceBottomSheet(
                         } else {
                             voiceManager.startListening { query ->
                                 currentTranscription = query
-                                scope.launch { viewModel.sendAiMessage(query) }
+                                scope.launch { viewModel.sendAiChatMessage(query) }
                             }
                         }
                     },
