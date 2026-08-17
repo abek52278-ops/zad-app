@@ -65,21 +65,13 @@ object ZadNotifier {
         val notifId = (title + message).hashCode().let { if (it == Int.MIN_VALUE) 0 else Math.abs(it) }
         manager.notify(notifId, notification)
 
-        // "المفروض الإشعارات تكون ذكية وبصوت" — الـ HIGH/الحرجة بتتنطق بالعربي، الباقي صامت.
-        // نفس نمط TTS المستخدم في ZadAlertRouter/ChatNotificationService. الـ TTS بيشتغل
-        // لحظي (بصوت النداء مش بصوت التنبيه الميت)، والـ notification اتعرضت فوق أيوا.
-        if (speak && priority >= NotificationCompat.PRIORITY_HIGH) {
+        // النطق الصوتي العربي الهادئ — يعمل فقط إذا كانت التنبيهات الصوتية مفعلة في الإعدادات
+        val isVoiceSpokenEnabled = AlertPrefs.isEnabled(context, AlertPrefs.KEY_VOICE_SPOKEN_ALERTS)
+        if (speak && priority >= NotificationCompat.PRIORITY_HIGH && isVoiceSpokenEnabled) {
             speakArabic(context, "$title. $message")
         }
     }
 
-    /**
-     * كان الـ TextToSpeech instance عمره ما بيتعمله shutdown() — كل نداء هنا (من
-     * PeriodicAnalysisWorker كل ٦ ساعات، أو أي HIGH priority notification) بيفتح محرك TTS
-     * جديد وسيبه معلّق للأبد؛ "الـ worker قصير العمر" في التعليق القديم مش حجة — محرك
-     * TTS نفسه بيربط بـ TTS service منفصل عن عمر الـ caller. نفس نمط
-     * PharmacyReminderReceiver.speakReminder: shutdown في onDone/onError + سقف أمان.
-     */
     private fun speakArabic(context: Context, text: String) {
         var tts: TextToSpeech? = null
         var finished = false
@@ -94,9 +86,6 @@ object ZadNotifier {
                 finishOnce()
                 return@TextToSpeech
             }
-            // البلد المختار (MarketPrefs) بيحدد لهجة النطق مش عربي عام بس — نفس المصدر
-            // اللي بيحدد dialectInstruction للشات (MarketProfile.kt). لو الجهاز مالوش صوت
-            // TTS لللهجة دي بالذات (شائع)، بيرجع تلقائي لأي صوت عربي عام متاح.
             val marketLocale = com.example.data.MarketPrefs.getMarket(context).toLocale()
             val locale = when {
                 tts?.isLanguageAvailable(marketLocale)?.let { it >= TextToSpeech.LANG_AVAILABLE } == true -> marketLocale
@@ -108,6 +97,25 @@ object ZadNotifier {
                 return@TextToSpeech
             }
             tts?.language = locale
+            // نبرة هادئة ومريحة وطبيعية
+            tts?.setPitch(1.10f)
+            tts?.setSpeechRate(0.96f)
+
+            // محاولة اختيار صوت أنثوي ناعم إن وُجد
+            val voices = tts?.voices
+            if (voices != null) {
+                val femaleVoice = voices.firstOrNull { v ->
+                    v.locale.language == "ar" && (
+                        v.name.contains("female", ignoreCase = true) ||
+                        v.name.contains("fem", ignoreCase = true) ||
+                        v.name.contains("ar-x-", ignoreCase = true)
+                    )
+                }
+                if (femaleVoice != null) {
+                    tts?.voice = femaleVoice
+                }
+            }
+
             tts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {}
                 override fun onDone(utteranceId: String?) { finishOnce() }

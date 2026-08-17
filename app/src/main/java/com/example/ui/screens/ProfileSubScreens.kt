@@ -375,6 +375,7 @@ object AlertPrefs {
     const val KEY_LOW_INVENTORY = "alert_low_inventory"
     const val KEY_BUDGET_OVERRUN = "alert_budget_overrun"
     const val KEY_TASBIH_REMINDER = "alert_tasbih_reminder"
+    const val KEY_VOICE_SPOKEN_ALERTS = "alert_voice_spoken_alerts"
     private const val KEY_NOTIFICATION_SOUND_URI = "notification_sound_uri"
     // NotificationChannel.sound مينفعش يتغيّر بعد ما القناة اتعملت (Android O+) — القناة
     // القديمة بصوتها القديم بتفضل موجودة على الجهاز، والرقم ده بيتزوّد كل مرة يتغيّر فيها
@@ -414,6 +415,7 @@ fun AssistantAlertsScreen(onBack: () -> Unit) {
     var lowInventoryAlerts by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_LOW_INVENTORY)) }
     var budgetOverrunAlerts by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_BUDGET_OVERRUN)) }
     var tasbihReminder by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_TASBIH_REMINDER)) }
+    var voiceSpokenAlerts by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_VOICE_SPOKEN_ALERTS)) }
     var soundUri by remember { mutableStateOf(AlertPrefs.getNotificationSoundUri(context)) }
 
     val soundPickerLauncher = rememberLauncherForActivityResult(
@@ -430,6 +432,10 @@ fun AssistantAlertsScreen(onBack: () -> Unit) {
 
         AppearOnEntry {
         Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
+            AlertSwitchItem("🔔 النطق الصوتي للإشعارات والجرعات", "نطق الإشعارات والجرعات بصوت عربي هادئ. يمكنك إيقافه إذا كنت تفضل التنبيه الصامت.", voiceSpokenAlerts) {
+                voiceSpokenAlerts = it
+                AlertPrefs.setEnabled(context, AlertPrefs.KEY_VOICE_SPOKEN_ALERTS, it)
+            }
             AlertSwitchItem(stringResource(R.string.low_inventory_alerts), stringResource(R.string.low_inventory_alerts_desc), lowInventoryAlerts) {
                 lowInventoryAlerts = it
                 AlertPrefs.setEnabled(context, AlertPrefs.KEY_LOW_INVENTORY, it)

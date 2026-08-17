@@ -21,20 +21,14 @@ private const val TAG = "GroceryGeofenceManager"
 /** بادئة الـ geofence id بتحدد GeofenceBroadcastReceiver يستعلم عن إيه لحظة الدخول: نواقص المؤن ولا الدواء */
 enum class GeofenceCategory(val idPrefix: String) {
     SUPERMARKET("grocery_geofence_"),
-    PHARMACY("pharmacy_geofence_")
+    PHARMACY("pharmacy_geofence_"),
+    MALL("mall_geofence_")
 }
 
 /**
- * تنبيهات قرب السوبرماركت/الصيدلية — opt-in منفصل تماماً عن NearbyDealsScreen (بحث يدوي
- * مرة واحدة). ده geofencing حقيقي: بيسجل أقرب ~15 سوبرماركت + ~15 صيدلية كـ geofences،
- * ولما المستخدم يدخل نطاق واحد منهم (حتى لو التطبيق مقفول)، GeofenceBroadcastReceiver
- * بيستعلم لحظياً عن النواقص الفعلية (مقاضي أو دواء حسب نوع المحل) ويبعت إشعار.
- *
- * مصدر أماكن المحلات: LocationIQ أولاً (بيانات تجارية أدق، محتاجة LOCATIONIQ_API_KEY
- * سيرفر-سايد)، ولو فاضي (مفتاح مش متظبط أو فشل الطلب) بيرجع لـ OverpassRepo (OSM مجاني).
- *
- * مفيش تصنيف "المحل ده غالي/رخيص" هنا — مفيش مصدر بيانات أسعار محلات في المشروع
- * (نفس الصدق اللي NearbyDealsScreen موثقه). النسخة دي بس: نواقصك وأنت قريب من متجر.
+ * تنبيهات قرب السوبرماركت/الصيدلية/المول — opt-in منفصل تماماً عن NearbyDealsScreen.
+ * ده geofencing حقيقي: بيسجل أقرب متاجر ومولات وصيدليات، ولما المستخدم يدخل نطاق واحد
+ * منهم، GeofenceBroadcastReceiver يذكره بنواقص البيت ويحثه على التوفير.
  */
 object GroceryGeofenceManager {
     private const val PREFS = "zad_location_alerts_prefs"
@@ -42,9 +36,9 @@ object GroceryGeofenceManager {
     private const val KEY_STORE_NAMES = "geofence_store_names" // JSON: { geofenceId: storeName }
     private const val KEY_LAST_NOTIFIED_PREFIX = "last_notified_"
     private const val MAX_GEOFENCES_PER_CATEGORY = 15
-    private const val GEOFENCE_RADIUS_METERS = 100f
+    private const val GEOFENCE_RADIUS_METERS = 120f
     private const val SEARCH_RADIUS_METERS = 3000
-    const val NOTIFY_COOLDOWN_MS = 24 * 60 * 60 * 1000L // مرة كل ٢٤ ساعة لنفس المحل، عشان مايبقاش إزعاج
+    const val NOTIFY_COOLDOWN_MS = 24 * 60 * 60 * 1000L // مرة كل ٢٤ ساعة لنفس المكان
 
     /** كل فئة بتاخد مصدرها: LocationIQ أولاً، Overpass fallback لو فاضي */
     fun categoryOf(geofenceId: String): GeofenceCategory? =
@@ -52,12 +46,12 @@ object GroceryGeofenceManager {
 
     private suspend fun findStores(category: GeofenceCategory, lat: Double, lon: Double): List<NearbyStore> {
         val fromLocationIq = when (category) {
-            GeofenceCategory.SUPERMARKET -> LocationIqRepo.findNearbySupermarkets(lat, lon, SEARCH_RADIUS_METERS)
+            GeofenceCategory.SUPERMARKET, GeofenceCategory.MALL -> LocationIqRepo.findNearbySupermarkets(lat, lon, SEARCH_RADIUS_METERS)
             GeofenceCategory.PHARMACY -> LocationIqRepo.findNearbyPharmacies(lat, lon, SEARCH_RADIUS_METERS)
         }
         if (fromLocationIq.isNotEmpty()) return fromLocationIq
         return when (category) {
-            GeofenceCategory.SUPERMARKET -> OverpassRepo.findNearbySupermarkets(lat, lon, SEARCH_RADIUS_METERS)
+            GeofenceCategory.SUPERMARKET, GeofenceCategory.MALL -> OverpassRepo.findNearbySupermarkets(lat, lon, SEARCH_RADIUS_METERS)
             GeofenceCategory.PHARMACY -> OverpassRepo.findNearbyPharmacies(lat, lon, SEARCH_RADIUS_METERS)
         }
     }

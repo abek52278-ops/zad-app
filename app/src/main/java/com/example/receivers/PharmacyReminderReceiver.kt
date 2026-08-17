@@ -148,6 +148,11 @@ class PharmacyReminderReceiver : BroadcastReceiver() {
     }
 
     private fun speakReminder(context: Context, itemName: String, pendingResult: PendingResult) {
+        if (!com.example.ui.screens.AlertPrefs.isEnabled(context, com.example.ui.screens.AlertPrefs.KEY_VOICE_SPOKEN_ALERTS)) {
+            pendingResult.finish()
+            return
+        }
+
         val text = context.getString(R.string.pharmacy_reminder_voice_text, itemName)
         var tts: TextToSpeech? = null
         var finished = false
@@ -167,8 +172,25 @@ class PharmacyReminderReceiver : BroadcastReceiver() {
             val voiceLocale = com.example.data.MarketPrefs.currentMarket.toLocale()
             val result = tts?.setLanguage(voiceLocale)
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                Log.w(TAG, "TTS voice not available for locale $voiceLocale on this device")
+                tts?.setLanguage(java.util.Locale("ar"))
             }
+            tts?.setPitch(1.10f)
+            tts?.setSpeechRate(0.96f)
+
+            val voices = tts?.voices
+            if (voices != null) {
+                val femaleVoice = voices.firstOrNull { v ->
+                    v.locale.language == "ar" && (
+                        v.name.contains("female", ignoreCase = true) ||
+                        v.name.contains("fem", ignoreCase = true) ||
+                        v.name.contains("ar-x-", ignoreCase = true)
+                    )
+                }
+                if (femaleVoice != null) {
+                    tts?.voice = femaleVoice
+                }
+            }
+
             tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                 override fun onStart(utteranceId: String?) {}
                 override fun onDone(utteranceId: String?) { finishOnce() }

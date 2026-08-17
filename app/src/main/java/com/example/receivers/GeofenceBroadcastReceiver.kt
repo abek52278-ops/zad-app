@@ -66,43 +66,31 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         // عشان الإشعار يعكس النواقص الحقيقية دلوقتي بالظبط (طلب المستخدم صراحة).
         val dao = ZadDatabase.getDatabase(context).zadDao()
         val missingItems = when (category) {
-            GeofenceCategory.SUPERMARKET ->
+            GeofenceCategory.SUPERMARKET, GeofenceCategory.MALL ->
                 dao.getAllShoppingItems().first().filter { !it.isPurchased }.map { it.itemName }
             GeofenceCategory.PHARMACY ->
                 // نفس عتبة "قرب يخلص" اللي NearbyDealsScreen بيستخدمها (٥ أيام أو أقل)
                 dao.getAllPharmacyItemsOnce().filter { it.isLowStock() }.map { it.name }
         }
-        if (missingItems.isEmpty()) {
-            // مفيش نواقص فعلياً — إشعار بلا فايدة أسوأ من مفيش إشعار (AUDIT.md)
-            Log.d(TAG, "handleEnteredGeofences() → near $storeName but no missing items, skipping notification")
-            GroceryGeofenceManager.markNotified(context, geofenceId)
-            return
-        }
 
         GroceryGeofenceManager.markNotified(context, geofenceId)
-        showNotification(context, storeName, missingItems.take(6))
+        showNotification(context, storeName, category, missingItems.take(6))
         notifyBrain(context, storeName, category, missingItems)
     }
 
     /**
-     * مرحلة ٤ (docs/agent/PLAN_2026_08_06_rebuild.md) — قبل كده الإشعار المحلي كان كل
-     * حاجة؛ العقل (zad-brain) عمره ما كان بيعرف إن المستخدم دخل نطاق محل خالص، فمفيش
-     * نصيحة إنفاق لحظية مربوطة بالمكان زي "أنت قريب من X وميزانية الشهر أوشكت". نفس
-     * نمط UnifiedBankListener (نداء Supabase مباشر من مسار خلفية، من غير ViewModel) —
-     * zad-brain نفسه بيجيب سياق الميزانية/المعاملات من السيرفر، هنا بس بنبلّغه بالحدث.
-     * فشل هنا (لا إنترنت وقت الدخول، مثلاً) مايأثرش على الإشعار المحلي اللي فات فوق.
-     *
-     * كان بيبعت للعقل وبس، ويسيب أي emit_insight critical يستنى الـ periodic worker
-     * (ZadAlertRouter عبر PeriodicAnalysisWorker) — نصيحة "وفّر" ممكن توصل بعد ساعات،
-     * لما المستخدم يبقى رجع البيت خلاص. callEdgeFunction فوق بالفعل suspend وبتستنى
-     * الرد (يعني السطر في zad_insights اتكتب فعلاً)، فـ sync() هنا بتسحبه وتطلع إشعار
-     * صوتي/مرئي فوري لو priority=critical — نفس مسار sync() الموجود أصلاً، مفيش تكرار.
+     * مرحلة ٤ — إشعار عقل زاد بالدخول لنطاق المحل أو المول ليرسل نصيحة ميزانية فورية
+     * عبر بوت تليجرام وقنوات التنبيهات الموحدة في الخلفية دائماً.
      */
     private suspend fun notifyBrain(context: Context, storeName: String, category: GeofenceCategory, missingItems: List<String>) {
         try {
             val userId = com.example.data.SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return
-            val kind = if (category == GeofenceCategory.PHARMACY) "صيدلية" else "سوبرماركت"
-            val userMessage = "المستخدم دلوقتي قريب من $storeName ($kind). النواقص المعروفة: ${missingItems.joinToString("، ")}. لو في تنبيه إنفاق مناسب اللحظة دي (زي اقتراب حد الميزانية)، وضّحه."
+            val kind = when (category) {
+                GeofenceCategory.PHARMACY -> "صيدلية"
+                GeofenceCategory.MALL -> "مول / مركز تسوق"
+                GeofenceCategory.SUPERMARKET -> "سوبرماركت"
+            }
+            val userMessage = "المستخدم دلوقتي في $storeName ($kind). ${if (missingItems.isNotEmpty()) "النواقص المعروفة: " + missingItems.joinToString("، ") else "لا توجد نواقص مسجلة"}. وجّه له نصيحة ميزانية وتوفير فورية مناسبة للمكان."
             com.example.data.SupabaseRepo.callEdgeFunction(
                 "zad-brain",
                 mapOf("user_id" to userId, "trigger" to "geofence_enter", "user_message" to userMessage)
@@ -114,34 +102,25 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun showNotification(context: Context, storeName: String, missingItems: List<String>) {
-        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            manager.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, context.getString(R.string.location_alerts_channel_name), NotificationManager.IMPORTANCE_DEFAULT)
-            )
+    private fun showNotification(context: Context, storeName: String, category: GeofenceCategory, missingItems: List<String>) {
+        val title = when (category) {
+            GeofenceCategory.MALL -> "🛍️ أنت في $storeName — وفّر في مصاريفك"
+            GeofenceCategory.PHARMACY -> context.getString(R.string.location_alert_notification_title, storeName)
+            GeofenceCategory.SUPERMARKET -> context.getString(R.string.location_alert_notification_title, storeName)
+        }
+        val body = if (missingItems.isNotEmpty()) {
+            "تذكير ذكي: ركّز على الأساسيات. نواقص البيت: ${missingItems.joinToString("، ")}"
+        } else {
+            "تذكير ذكي من زاد: انتبه لميزانية الشهر وفكّر قبل الشراء المفاجئ!"
         }
 
-        val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-        val pendingIntent = PendingIntent.getActivity(
-            context, 0, launchIntent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        com.example.data.ZadNotifier.send(
+            context,
+            title = title,
+            message = body,
+            speak = true,
+            priority = NotificationCompat.PRIORITY_HIGH
         )
-
-        val title = context.getString(R.string.location_alert_notification_title, storeName)
-        val body = context.getString(R.string.location_alert_notification_body, missingItems.joinToString("، "))
-
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setContentTitle(title)
-            .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-            .build()
-
-        manager.notify(storeName.hashCode(), notification)
         Log.d(TAG, "showNotification() → near $storeName, ${missingItems.size} missing items")
     }
 }
