@@ -426,11 +426,22 @@ fun HomeScreen(
                 }
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // ── 3c. المخزون/النواقص/التسبيحة/شيف زاد/الصيدلية/الاشتراكات — كانت
-                // مبعثرة على طول الشاشة (بعضها فوق، بعضها تحت في قسم "Beyond the mockup")
-                // فمكانش شكلها مقصود. دلوقتي كتلة واحدة متتالية بنفس الترتيب المنطقي:
-                // إيه عندك، إيه هيخلص، عادتك اليومية (تسبيحة)، اقتراح أكل، وضع الصيدلية
-                // والاشتراكات — بدل ما تكون متناثرة عشوائي.
+                // ── رادار الأسعار الحية اليومية (ذهب، وقود، سلع وخضار) ──
+                com.example.ui.components.AppearOnEntry(delayMs = 100) {
+                    MarketRadarLiveWidget(onNavigateToAssistant = onNavigateToAssistant)
+                }
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // ── نبضات وأفكار عقل زاد الذكية (توفير، وجبات من المخزون، ورادار المناسبات) ──
+                com.example.ui.components.AppearOnEntry(delayMs = 110) {
+                    ZadAutonomousIdeasWidget(
+                        inventory = inventory,
+                        onAskAi = { onNavigateToAssistant() },
+                        onAddToShopping = { onNavigateToShopping() }
+                    )
+                }
+                Spacer(modifier = Modifier.height(18.dp))
+
                 MiniInventoryWidget(inventory = inventory, onNavigateToInventory = onNavigateToInventory)
                 Spacer(modifier = Modifier.height(18.dp))
 

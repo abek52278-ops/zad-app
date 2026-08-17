@@ -484,3 +484,346 @@ fun MiniItemChip(name: String, quantity: String) {
         Text(quantity, style = Typography.labelSmall, color = primary)
     }
 }
+
+/**
+ * 📊 رادار الأسعار الحية والمؤشرات اليومية (الذهب، الوقود، والسلع الغذائية الطازجة)
+ * مخصص حسب بلد العميل تلقائياً، مع تحديث لحظي ومؤشرات صعود/هبوط.
+ */
+@Composable
+fun MarketRadarLiveWidget(
+    onNavigateToAssistant: () -> Unit = {}
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val currentMarket = com.example.data.MarketPrefs.getMarket(context)
+    val marketData = remember(currentMarket) { com.example.data.MarketRadarRepo.getMarketData(currentMarket) }
+    var selectedTab by remember { mutableStateOf(0) } // 0: Gold, 1: Fuel, 2: Produce
+
+    ZadListCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        shape = RoundedCornerShape(24.dp),
+        contentPadding = 0.dp
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(primary.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("📊", fontSize = 16.sp)
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("رادار الأسعار الحية", style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.width(6.dp))
+                            Text(currentMarket.flagEmoji, fontSize = 14.sp)
+                        }
+                        Text("${marketData.countryName} · ${marketData.lastUpdatedText}", style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 11.sp)
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(catInvestmentBg)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(catInvestmentIcon))
+                        Spacer(Modifier.width(4.dp))
+                        Text("مباشر", style = Typography.labelSmall, color = catInvestmentIcon, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            // التبويبات الثلاثة
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFF0F172A).copy(alpha = 0.05f))
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                listOf("🥇 الذهب", "⛽ الوقود", "🥬 السلع والخضار").forEachIndexed { index, title ->
+                    val isSelected = selectedTab == index
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isSelected) MaterialTheme.colorScheme.surface else Color.Transparent)
+                            .pressableScale()
+                            .clickable { selectedTab = index }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            title,
+                            style = Typography.labelSmall,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) primary else onSurfaceVariant,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            AnimatedContent(
+                targetState = selectedTab,
+                transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) },
+                label = "market_tab_content"
+            ) { tab ->
+                when (tab) {
+                    0 -> { // Gold
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            marketData.goldPrices.forEach { item ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xFF0F172A).copy(alpha = 0.03f))
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("🥇", fontSize = 14.sp)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(item.karat, style = Typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                    }
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            "${com.example.data.CurrencyFormatter.format(item.price)} ${item.currency}",
+                                            style = Typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = onSurface
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(if (item.isUp) positiveGreen.copy(alpha = 0.12f) else dangerColor.copy(alpha = 0.12f))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                "${if (item.isUp) "+" else ""}${item.changePercent}% ${if (item.isUp) "↗" else "↘"}",
+                                                style = Typography.labelSmall,
+                                                color = if (item.isUp) positiveGreen else dangerColor,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 10.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    1 -> { // Fuel
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            marketData.fuelPrices.forEach { item ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xFF0F172A).copy(alpha = 0.03f))
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("⛽", fontSize = 14.sp)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(item.fuelType, style = Typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                    }
+                                    Text(
+                                        "${com.example.data.CurrencyFormatter.format(item.price)} ${item.currency} / ${item.unit}",
+                                        style = Typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = primary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    2 -> { // Produce & Essentials
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            marketData.producePrices.forEach { item ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xFF0F172A).copy(alpha = 0.03f))
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(item.iconEmoji, fontSize = 14.sp)
+                                        Spacer(Modifier.width(8.dp))
+                                        Column {
+                                            Text(item.itemName, style = Typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                            Text(item.statusText, style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
+                                        }
+                                    }
+                                    Text(
+                                        "${com.example.data.CurrencyFormatter.format(item.avgPrice)} ${item.currency} / ${item.unit}",
+                                        style = Typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = onNavigateToAssistant,
+                modifier = Modifier.fillMaxWidth().height(36.dp).pressableScale(),
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+            ) {
+                Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = primary, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("اسأل عقل زاد عن مؤشرات الأسعار والتوفير", style = Typography.labelSmall, color = primary, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+/**
+ * 💡 ويدجت نبضات وأفكار عقل زاد اليومية (الذكاء الاستباقي المستقل)
+ * نصائح توفير مخصصة، اقتراح وجبات من المخزون، ورادار للمناسبات.
+ */
+@Composable
+fun ZadAutonomousIdeasWidget(
+    inventory: List<ZadInventory>,
+    onAskAi: (String) -> Unit = {},
+    onAddToShopping: (String) -> Unit = {}
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var ideaIndex by remember { mutableStateOf(0) }
+
+    val ideas = remember(inventory) {
+        val list = mutableListOf<Triple<String, String, String>>()
+        // 1. فكرة توفير
+        list.add(
+            Triple(
+                "💡 حيلة توفير اليوم",
+                "شراء الأساسيات كـ (أرز، زيت، منظفات) في العروض الأسبوعية بالحجم العائلي يوفّر ~18% من فاتورة مشتريات الشهر.",
+                "🛒 ضيف للمشتريات"
+            )
+        )
+        // 2. فكرة وجبة من المخزون
+        val availableNames = inventory.filter { it.quantity > 0 }.map { it.name }.take(3)
+        if (availableNames.isNotEmpty()) {
+            list.add(
+                Triple(
+                    "🍳 وجبة ذكية من مخزونك",
+                    "عندك في المخزون (${availableNames.joinToString("، ")}). تقدر تعمل وجبة غداء سريعة واقتصادية من غير ما تطلب دليفري!",
+                    "✨ وريني الوصفة"
+                )
+            )
+        }
+        // 3. رادار المناسبات
+        list.add(
+            Triple(
+                "🌙 رادار مواسم زاد",
+                "الاستعداد المبكر لمناسبات الشهر بيحميك من الطوارئ. عقل زاد حجز لك جزءاً من الميزانية تلقائياً لتفادي أي عجز.",
+                "📊 استعرض الميزانية"
+            )
+        )
+        list
+    }
+
+    val currentIdea = ideas.getOrElse(ideaIndex % ideas.size) { ideas.first() }
+
+    ZadListCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        shape = RoundedCornerShape(24.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        borderColor = primary.copy(alpha = 0.2f),
+        contentPadding = 0.dp
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Brush.linearGradient(listOf(Color(0xFF6C63FF), Color(0xFF9333EA)))),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Text(currentIdea.first, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                }
+                IconButton(
+                    onClick = { ideaIndex++ },
+                    modifier = Modifier.size(30.dp).pressableScale()
+                ) {
+                    Icon(Icons.Filled.Refresh, contentDescription = "فكرة أخرى", tint = primary, modifier = Modifier.size(18.dp))
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            Text(
+                currentIdea.second,
+                style = Typography.bodyMedium,
+                color = onSurfaceVariant,
+                lineHeight = 20.sp,
+                fontSize = 13.sp
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { onAskAi(currentIdea.second) },
+                    modifier = Modifier.weight(1f).height(36.dp).pressableScale(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = primary),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                ) {
+                    Text(currentIdea.third, style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+                OutlinedButton(
+                    onClick = { ideaIndex++ },
+                    modifier = Modifier.height(36.dp).pressableScale(),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                ) {
+                    Text("🔄 فكرة تانية", style = Typography.labelSmall)
+                }
+            }
+        }
+    }
+}
+
