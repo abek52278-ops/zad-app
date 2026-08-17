@@ -96,7 +96,20 @@ fun ZadIntelligenceScreen(
 
     var inputText by remember { mutableStateOf("") }
     var chatExpanded by remember { mutableStateOf(false) }
+    var showSubscriptionPaywall by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+
+    if (showSubscriptionPaywall) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showSubscriptionPaywall = false },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            ZadSubscriptionPaywallScreen(
+                viewModel = viewModel,
+                onBack = { showSubscriptionPaywall = false }
+            )
+        }
+    }
 
     // نص جاهز جاي من شاشة تانية (مثلاً زر "إضافة ذكية بالشات 💬" في الصيدلية) — يتقرا
     // مرة واحدة بس ويتحط في صندوق الشات، ومفتوح مباشرة عشان المستخدم يشوفه ويبعته.
@@ -188,6 +201,13 @@ fun ZadIntelligenceScreen(
                 var adWatchCount by remember { mutableStateOf(RewardedBrainAdManager.getAdWatchCount(context)) }
                 var isSessionUnlocked by remember { mutableStateOf(RewardedBrainAdManager.isSessionUnlocked(context)) }
 
+                LaunchedEffect(Unit) {
+                    val claimedFreeDaily = RewardedBrainAdManager.checkAndClaimDailyFreeSession(context)
+                    if (claimedFreeDaily) {
+                        isSessionUnlocked = true
+                    }
+                }
+
                 if (!isSessionUnlocked) {
                     com.example.ui.components.AdEnergyBatteryCard(
                         adWatchCount = adWatchCount,
@@ -203,28 +223,34 @@ fun ZadIntelligenceScreen(
                             )
                         },
                         onUpgradeClick = {
-                            // Link to upgrade or Zad Plus
+                            showSubscriptionPaywall = true
                         }
                     )
                 } else {
                     com.example.ui.components.ZadListCard(shape = RoundedCornerShape(20.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                Icons.Default.Star,
-                                contentDescription = null,
-                                tint = primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                stringResource(R.string.ad_energy_unlocked_session),
-                                style = Typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = primary
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Star,
+                                    contentDescription = null,
+                                    tint = primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    stringResource(R.string.ad_energy_unlocked_session),
+                                    style = Typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = primary
+                                )
+                            }
+                            TextButton(onClick = { showSubscriptionPaywall = true }) {
+                                Text("ترقية الباقة ⚡", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
                         }
                     }
                 }

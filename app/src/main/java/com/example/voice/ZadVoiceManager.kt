@@ -93,14 +93,22 @@ class ZadVoiceManager(private val context: Context) {
         val mainHandler = Handler(Looper.getMainLooper())
         mainHandler.post {
             try {
-                if (speechRecognizer == null) {
-                    speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
+                if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+                    _voiceState.value = VoiceState.Error("التعرف على الصوت غير مدعوم على هذا الجهاز")
+                    return@post
                 }
+
+                try {
+                    speechRecognizer?.destroy()
+                } catch (_: Exception) {}
+
+                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
 
                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-EG")
-                    putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayOf("ar", "ar-SA", "en-US"))
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "ar-EG")
+                    putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayOf("ar", "ar-SA", "ar-AE", "en-US"))
                     putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
                     putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 }
@@ -110,7 +118,9 @@ class ZadVoiceManager(private val context: Context) {
                         _voiceState.value = VoiceState.Listening
                     }
 
-                    override fun onBeginningOfSpeech() {}
+                    override fun onBeginningOfSpeech() {
+                        _voiceState.value = VoiceState.Listening
+                    }
 
                     override fun onRmsChanged(rmsdB: Float) {
                         // Normalize 0..10 dB to 0..1
@@ -126,7 +136,17 @@ class ZadVoiceManager(private val context: Context) {
 
                     override fun onError(error: Int) {
                         _soundLevel.value = 0f
-                        _voiceState.value = VoiceState.Idle
+                        val msg = when (error) {
+                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "يرجى منح إذن استخدام الميكروفون"
+                            SpeechRecognizer.ERROR_AUDIO -> "تعذر الوصول للميكروفون"
+                            SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "تأكد من الاتصال بالإنترنت"
+                            SpeechRecognizer.ERROR_NO_MATCH -> "لم أسمع شيئاً، اضغط الميكروفون وحاول مرة أخرى"
+                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "جاهزة، اضغط الميكروفون وتحدث"
+                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "جاري إعادة التهيئة..."
+                            else -> "حدث خطأ مؤقت، اضغط للتحدث مجدداً"
+                        }
+                        Log.w(TAG, "SpeechRecognizer error: $error ($msg)")
+                        _voiceState.value = VoiceState.Error(msg)
                     }
 
                     override fun onResults(results: Bundle?) {
@@ -136,7 +156,7 @@ class ZadVoiceManager(private val context: Context) {
                             _voiceState.value = VoiceState.Recognized(text)
                             onResult(text)
                         } else {
-                            _voiceState.value = VoiceState.Idle
+                            _voiceState.value = VoiceState.Error("لم أسمع شيئاً، اضغط وتحدث ثانية")
                         }
                     }
 
@@ -155,7 +175,7 @@ class ZadVoiceManager(private val context: Context) {
                 _voiceState.value = VoiceState.Listening
             } catch (e: Exception) {
                 Log.e(TAG, "SpeechRecognizer error: ${e.message}")
-                _voiceState.value = VoiceState.Error("تعذر تفعيل الميكروفون")
+                _voiceState.value = VoiceState.Error("تعذر تفعيل الميكروفون: ${e.message}")
             }
         }
     }

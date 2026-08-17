@@ -21,6 +21,7 @@ object RewardedBrainAdManager {
     private const val KEY_AD_WATCH_COUNT = "ad_watch_count"
     private const val KEY_SESSION_EXPIRY_TS = "session_expiry_ts"
     private const val KEY_LAST_REWARD_TS = "last_reward_ts"
+    private const val KEY_FREE_DAILY_DATE = "free_daily_date"
 
     private var rewardedAd: RewardedAd? = null
     private var isLoading = false
@@ -28,6 +29,20 @@ object RewardedBrainAdManager {
     fun initialize(context: Context) {
         MobileAds.initialize(context) { }
         preload(context.applicationContext)
+    }
+
+    fun checkAndClaimDailyFreeSession(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+        val today = java.time.LocalDate.now().toString()
+        val lastClaimedDate = prefs.getString(KEY_FREE_DAILY_DATE, null)
+        if (lastClaimedDate != today) {
+            prefs.edit()
+                .putString(KEY_FREE_DAILY_DATE, today)
+                .putLong(KEY_SESSION_EXPIRY_TS, System.currentTimeMillis() + 12 * 3600 * 1000L)
+                .apply()
+            return true
+        }
+        return false
     }
 
     fun getAdWatchCount(context: Context): Int {

@@ -1,5 +1,9 @@
 package com.example.ui.components
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -33,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.example.R
 import com.example.ui.theme.primary
 import com.example.ui.theme.secondary
@@ -58,14 +63,36 @@ fun ZadVoiceBottomSheet(
     var lastSpokenResponseId by remember { mutableStateOf<String?>(null) }
     var currentTranscription by remember { mutableStateOf("") }
 
-    // Start listening on launch
-    LaunchedEffect(Unit) {
-        voiceManager.startListening { query ->
-            currentTranscription = query
-            scope.launch {
-                viewModel.sendAiChatMessage(query)
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            voiceManager.startListening { query ->
+                currentTranscription = query
+                scope.launch { viewModel.sendAiChatMessage(query) }
             }
         }
+    }
+
+    fun startListeningWithPermission() {
+        val hasPermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasPermission) {
+            voiceManager.startListening { query ->
+                currentTranscription = query
+                scope.launch { viewModel.sendAiChatMessage(query) }
+            }
+        } else {
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    // Start listening on launch
+    LaunchedEffect(Unit) {
+        startListeningWithPermission()
     }
 
     // When agent responds, speak with female voice
@@ -112,13 +139,13 @@ fun ZadVoiceBottomSheet(
                 }
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(16.dp))
 
             // 3D Animated Voice Orb / Wave
             val infiniteTransition = rememberInfiniteTransition(label = "voice_orb")
             val pulseScale by infiniteTransition.animateFloat(
                 initialValue = 1f,
-                targetValue = 1.08f + (soundLevel * 0.25f),
+                targetValue = 1.06f + (soundLevel * 0.25f),
                 animationSpec = infiniteRepeatable(
                     animation = tween(800, easing = FastOutSlowInEasing),
                     repeatMode = RepeatMode.Reverse
@@ -162,7 +189,34 @@ fun ZadVoiceBottomSheet(
                 )
             }
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(14.dp))
+
+            // Audio Waveform Equalizer Bars
+            if (voiceState is VoiceState.Listening) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.height(24.dp)
+                ) {
+                    val heights = listOf(
+                        10.dp + (soundLevel * 14).dp,
+                        16.dp + (soundLevel * 20).dp,
+                        8.dp + (soundLevel * 24).dp,
+                        14.dp + (soundLevel * 18).dp,
+                        10.dp + (soundLevel * 12).dp
+                    )
+                    heights.forEach { h ->
+                        Box(
+                            modifier = Modifier
+                                .width(4.dp)
+                                .height(h)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(primary)
+                        )
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+            }
 
             // Status & transcription
             val statusText = when (val state = voiceState) {
@@ -182,7 +236,7 @@ fun ZadVoiceBottomSheet(
                 textAlign = TextAlign.Center
             )
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
 
             // Display latest answer or recognized text
             val displayText = when (val state = voiceState) {
@@ -200,7 +254,7 @@ fun ZadVoiceBottomSheet(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp)
+                        .padding(vertical = 6.dp)
                 ) {
                     Text(
                         text = displayText,
@@ -213,7 +267,7 @@ fun ZadVoiceBottomSheet(
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
 
             // Quick suggestion chips
             Row(
@@ -235,7 +289,7 @@ fun ZadVoiceBottomSheet(
                 }
             }
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(16.dp))
 
             // Mic Action Button
             Row(
@@ -250,10 +304,7 @@ fun ZadVoiceBottomSheet(
                         } else if (voiceState is VoiceState.Listening) {
                             voiceManager.stopListening()
                         } else {
-                            voiceManager.startListening { query ->
-                                currentTranscription = query
-                                scope.launch { viewModel.sendAiChatMessage(query) }
-                            }
+                            startListeningWithPermission()
                         }
                     },
                     containerColor = if (voiceState is VoiceState.Listening) MaterialTheme.colorScheme.error else primary,
