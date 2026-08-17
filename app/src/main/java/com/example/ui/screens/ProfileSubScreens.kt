@@ -376,6 +376,7 @@ object AlertPrefs {
     const val KEY_BUDGET_OVERRUN = "alert_budget_overrun"
     const val KEY_TASBIH_REMINDER = "alert_tasbih_reminder"
     const val KEY_VOICE_SPOKEN_ALERTS = "alert_voice_spoken_alerts"
+    const val KEY_VOICE_TONE_MODE = "alert_voice_tone_mode"
     private const val KEY_NOTIFICATION_SOUND_URI = "notification_sound_uri"
     // NotificationChannel.sound مينفعش يتغيّر بعد ما القناة اتعملت (Android O+) — القناة
     // القديمة بصوتها القديم بتفضل موجودة على الجهاز، والرقم ده بيتزوّد كل مرة يتغيّر فيها
@@ -389,6 +390,14 @@ object AlertPrefs {
     fun setEnabled(context: android.content.Context, key: String, enabled: Boolean) =
         context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
             .edit().putBoolean(key, enabled).apply()
+
+    fun getVoiceToneMode(context: android.content.Context): String =
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+            .getString(KEY_VOICE_TONE_MODE, "gentle") ?: "gentle"
+
+    fun setVoiceToneMode(context: android.content.Context, mode: String) =
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+            .edit().putString(KEY_VOICE_TONE_MODE, mode).apply()
 
     /** null = لسه محددش صوت مخصص، النظام هيستخدم صوت قناة الإشعارات الافتراضي. */
     fun getNotificationSoundUri(context: android.content.Context): String? =
@@ -416,6 +425,7 @@ fun AssistantAlertsScreen(onBack: () -> Unit) {
     var budgetOverrunAlerts by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_BUDGET_OVERRUN)) }
     var tasbihReminder by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_TASBIH_REMINDER)) }
     var voiceSpokenAlerts by remember { mutableStateOf(AlertPrefs.isEnabled(context, AlertPrefs.KEY_VOICE_SPOKEN_ALERTS)) }
+    var voiceToneMode by remember { mutableStateOf(AlertPrefs.getVoiceToneMode(context)) }
     var soundUri by remember { mutableStateOf(AlertPrefs.getNotificationSoundUri(context)) }
 
     val soundPickerLauncher = rememberLauncherForActivityResult(
@@ -435,6 +445,54 @@ fun AssistantAlertsScreen(onBack: () -> Unit) {
             AlertSwitchItem("🔔 النطق الصوتي للإشعارات والجرعات", "نطق الإشعارات والجرعات بصوت عربي هادئ. يمكنك إيقافه إذا كنت تفضل التنبيه الصامت.", voiceSpokenAlerts) {
                 voiceSpokenAlerts = it
                 AlertPrefs.setEnabled(context, AlertPrefs.KEY_VOICE_SPOKEN_ALERTS, it)
+            }
+
+            if (voiceSpokenAlerts) {
+                Spacer(Modifier.height(8.dp))
+                Text("نبرة صوت المساعد الصوتي", fontWeight = FontWeight.Bold, color = onSurface, fontSize = 13.sp)
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF0F172A).copy(alpha = 0.05f))
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    val tones = listOf(
+                        "gentle" to "🌿 هادئ وطبيعي",
+                        "professional" to "💼 موجز ومهني",
+                        "silent" to "🔇 صامت"
+                    )
+                    tones.forEach { (mode, label) ->
+                        val isSel = voiceToneMode == mode
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSel) MaterialTheme.colorScheme.surface else Color.Transparent)
+                                .clickable {
+                                    voiceToneMode = mode
+                                    AlertPrefs.setVoiceToneMode(context, mode)
+                                    if (mode == "silent") {
+                                        voiceSpokenAlerts = false
+                                        AlertPrefs.setEnabled(context, AlertPrefs.KEY_VOICE_SPOKEN_ALERTS, false)
+                                    }
+                                }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                label,
+                                style = Typography.labelSmall,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSel) primary else onSurfaceVariant,
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
             }
             AlertSwitchItem(stringResource(R.string.low_inventory_alerts), stringResource(R.string.low_inventory_alerts_desc), lowInventoryAlerts) {
                 lowInventoryAlerts = it

@@ -1191,4 +1191,7 @@
     <string name="ad_energy_refill_hint">Your balance refills every 5 hours, or watch %1$d ads to recharge immediately (+5 messages).</string>
     <string name="ad_energy_unlocked_session">AI session unlocked successfully!</string>
     <string name="upgrade_action">Upgrade ⭐</string>
+    <string name="premium_plans_title">Smart Zad Premium Plans</string>
+    <string name="smart_radar_title">Live Market &amp; Price Radar</string>
+    <string name="daily_spending_graph_title">Live Daily Spending Trend</string>
 </resources>

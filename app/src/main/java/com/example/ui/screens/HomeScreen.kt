@@ -90,6 +90,7 @@ fun HomeScreen(
      * (زاد-برين بيكتب "غير معروف" ويطلب من العميل يحدده في الإعدادات)، بدل ما نسيب
      * المستخدم يدوّر بنفسه على الشاشة الصح. */
     onNavigateToCurrencySettings: () -> Unit = {},
+    onNavigateToPlans: () -> Unit = {},
     /** تفعيل يدوي من الأب/الأم (Switch to Kids Mode) — بيفرض واجهة الأطفال حتى لو role الحساب "admin" */
     kidsModeOverride: Boolean = false
 ) {
@@ -401,6 +402,23 @@ fun HomeScreen(
                     }
                     Spacer(modifier = Modifier.height(18.dp))
                 }
+
+                // ── 2b. جراف الإنفاق اليومي المباشر (مؤشر الصرف التفاعلي لآخر 7 أيام) ──
+                com.example.ui.components.AppearOnEntry(delayMs = 70) {
+                    LiveSpendingLineGraphWidget(
+                        transactions = transactions,
+                        onNavigateToBudget = onNavigateToBudget
+                    )
+                }
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // ── 2c. باقات زاد الذكية والترقية (Zad Pro Dynamic Highlight) ──
+                com.example.ui.components.AppearOnEntry(delayMs = 75) {
+                    ZadProHighlightWidget(
+                        onNavigateToPlans = onNavigateToPlans
+                    )
+                }
+                Spacer(modifier = Modifier.height(18.dp))
 
                 // ── 3. Shortcut grid — 6 fixed columns, exactly the mockup's six
                 // destinations. Was a 9-item horizontally-scrolling LazyRow, which is why

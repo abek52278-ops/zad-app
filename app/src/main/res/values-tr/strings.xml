@@ -1188,4 +1188,7 @@
     <string name="ad_energy_refill_hint">Bakiyeniz 5 saatte bir yenilenir veya anında yükleme için %1$d reklam izleyin (+5 mesaj).</string>
     <string name="ad_energy_unlocked_session">Yapay zeka oturumu başarıyla açıldı!</string>
     <string name="upgrade_action">Yükselt ⭐</string>
+    <string name="premium_plans_title">Akıllı Zad Premium Paketleri</string>
+    <string name="smart_radar_title">Canlı Piyasa ve Fiyat Radarı</string>
+    <string name="daily_spending_graph_title">Canlı Günlük Harcama Trendi</string>
 </resources>

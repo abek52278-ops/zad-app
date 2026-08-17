@@ -400,8 +400,6 @@ internal fun DomainRing(
     activeEdges: Set<MapEdge> = emptySet(),
     onSelect: (String) -> Unit
 ) {
-    // نبض واحد لكل الخطوط النشطة، بنفس مدة/منحنى pulseGlow() (900ms، FastOutSlowInEasing)
-    // عشان الحركة تحس إنها لغة واحدة في الشاشة مش منحنيين مختلفين.
     val livePulse = rememberInfiniteTransition(label = "kmLivePulse")
     val liveAlpha by livePulse.animateFloat(
         initialValue = 0.35f,
@@ -410,7 +408,35 @@ internal fun DomainRing(
         label = "kmLiveAlpha"
     )
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    // نبض حركة جزيئات البيانات المتدفقة عبر الأعصاب (Neural Data Particles Flow)
+    val particleProgress by livePulse.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2400, easing = androidx.compose.animation.core.LinearEasing), RepeatMode.Restart),
+        label = "kmParticleProgress"
+    )
+
+    // دوران رادار ثلاثي الأبعاد خفيف في الخلفية
+    val orbitAngle by livePulse.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(36000, easing = androidx.compose.animation.core.LinearEasing), RepeatMode.Restart),
+        label = "kmOrbitAngle"
+    )
+
+    var zoomScale by remember { mutableStateOf(1f) }
+    var panOffset by remember { mutableStateOf(Offset.Zero) }
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .androidx.compose.ui.input.pointer.pointerInput(Unit) {
+                androidx.compose.foundation.gestures.detectTransformGestures { _, pan, zoom, _ ->
+                    zoomScale = (zoomScale * zoom).coerceIn(0.65f, 2.8f)
+                    panOffset += pan
+                }
+            }
+    ) {
         val centerX = maxWidth / 2
         val centerY = maxHeight / 2
         val radius = (minOf(maxWidth, maxHeight) / 2) - 64.dp
@@ -425,115 +451,188 @@ internal fun DomainRing(
             }.toMap()
         }
 
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val centerPx = Offset(centerX.toPx(), centerY.toPx())
-            val radiusPx = radius.toPx()
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .androidx.compose.ui.graphics.graphicsLayer {
+                    scaleX = zoomScale
+                    scaleY = zoomScale
+                    translationX = panOffset.x
+                    translationY = panOffset.y
+                }
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val centerPx = Offset(centerX.toPx(), centerY.toPx())
+                val radiusPx = radius.toPx()
 
-            // خطوط رادار متحدة المركز — طبقة جوية بصرية فقط، مفيش بيانات فيها
-            listOf(0.34f, 0.67f, 1f).forEach { fraction ->
-                drawCircle(
-                    color = kmGrid.copy(alpha = 0.6f),
-                    radius = radiusPx * fraction,
-                    center = centerPx,
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1f)
-                )
+                // خطوط رادار متحدة المركز بتأثير إشعاعي ثلاثي الأبعاد
+                listOf(0.34f, 0.67f, 1f).forEach { fraction ->
+                    drawCircle(
+                        color = kmGrid.copy(alpha = 0.6f),
+                        radius = radiusPx * fraction,
+                        center = centerPx,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.2f)
+                    )
+                }
+
+                // رسم الأعصاب وحركة الجسيمات
+                domains.forEach { d ->
+                    val (x, y) = positions.getValue(d.key)
+                    val end = Offset(x.toPx(), y.toPx())
+                    drawLine(color = d.color.copy(alpha = 0.18f), start = centerPx, end = end, strokeWidth = 6.dp.toPx())
+                    drawLine(color = d.color.copy(alpha = 0.55f), start = centerPx, end = end, strokeWidth = 1.5.dp.toPx())
+
+                    // جزيء نبض يسري من زاد نحو العقدة
+                    val pX = centerPx.x + (end.x - centerPx.x) * particleProgress
+                    val pY = centerPx.y + (end.y - centerPx.y) * particleProgress
+                    drawCircle(
+                        color = d.color,
+                        radius = 3.5.dp.toPx(),
+                        center = Offset(pX, pY)
+                    )
+                }
+
+                edges.forEach { e ->
+                    val from = positions[e.from] ?: return@forEach
+                    val to = positions[e.to] ?: return@forEach
+                    val start = Offset(from.first.toPx(), from.second.toPx())
+                    val end = Offset(to.first.toPx(), to.second.toPx())
+                    drawLine(
+                        color = kmTextSecondary.copy(alpha = if (e.solid) 0.8f else 0.45f),
+                        start = start,
+                        end = end,
+                        strokeWidth = 2.dp.toPx(),
+                        pathEffect = if (!e.solid) PathEffect.dashPathEffect(floatArrayOf(14f, 12f)) else null
+                    )
+
+                    // سريان بيانات بين العقد المشتركة
+                    if (e.solid) {
+                        val epX = start.x + (end.x - start.x) * particleProgress
+                        val epY = start.y + (end.y - start.y) * particleProgress
+                        drawCircle(
+                            color = primaryLight,
+                            radius = 2.8.dp.toPx(),
+                            center = Offset(epX, epY)
+                        )
+                    }
+
+                    if (e in activeEdges) {
+                        drawLine(
+                            color = primaryLight.copy(alpha = liveAlpha),
+                            start = start,
+                            end = end,
+                            strokeWidth = 3.dp.toPx()
+                        )
+                    }
+                }
+            }
+
+            // مركز الشبكة — "زاد" نفسه، بتوهج نيون خلفه
+            Box(
+                modifier = Modifier
+                    .offset(centerX - 56.dp, centerY - 56.dp)
+                    .size(112.dp)
+                    .background(Brush.radialGradient(listOf(primary.copy(alpha = 0.55f), primary.copy(alpha = 0f)))),
+            )
+            Box(
+                modifier = Modifier
+                    .offset(centerX - 36.dp, centerY - 36.dp)
+                    .size(72.dp)
+                    .clip(CircleShape)
+                    .background(primary)
+                    .border(2.dp, primaryFixed.copy(alpha = 0.6f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("زاد", style = Typography.titleMedium, fontFamily = kmMono, fontWeight = FontWeight.Black, color = Color.White)
             }
 
             domains.forEach { d ->
                 val (x, y) = positions.getValue(d.key)
-                val end = Offset(x.toPx(), y.toPx())
-                // توهج: خط عريض شفاف تحت خط رفيع ساطع
-                drawLine(color = d.color.copy(alpha = 0.18f), start = centerPx, end = end, strokeWidth = 6.dp.toPx())
-                drawLine(color = d.color.copy(alpha = 0.55f), start = centerPx, end = end, strokeWidth = 1.5.dp.toPx())
-            }
-            edges.forEach { e ->
-                val from = positions[e.from] ?: return@forEach
-                val to = positions[e.to] ?: return@forEach
-                val start = Offset(from.first.toPx(), from.second.toPx())
-                val end = Offset(to.first.toPx(), to.second.toPx())
-                drawLine(
-                    color = kmTextSecondary.copy(alpha = if (e.solid) 0.8f else 0.45f),
-                    start = start,
-                    end = end,
-                    strokeWidth = 2.dp.toPx(),
-                    pathEffect = if (!e.solid) PathEffect.dashPathEffect(floatArrayOf(14f, 12f)) else null
-                )
-                // خط نابض إضافي فوق العلاقات اللي عندها رؤية حية pending من زاد دلوقتي
-                if (e in activeEdges) {
-                    drawLine(
-                        color = primaryLight.copy(alpha = liveAlpha),
-                        start = start,
-                        end = end,
-                        strokeWidth = 3.dp.toPx()
-                    )
-                }
-            }
-        }
-
-        // مركز الشبكة — "زاد" نفسه، بتوهج نيون خلفه
-        Box(
-            modifier = Modifier
-                .offset(centerX - 56.dp, centerY - 56.dp)
-                .size(112.dp)
-                .background(Brush.radialGradient(listOf(primary.copy(alpha = 0.45f), primary.copy(alpha = 0f)))),
-        )
-        Box(
-            modifier = Modifier
-                .offset(centerX - 36.dp, centerY - 36.dp)
-                .size(72.dp)
-                .clip(CircleShape)
-                .background(primary),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("زاد", style = Typography.titleMedium, fontFamily = kmMono, fontWeight = FontWeight.Black, color = Color.White)
-        }
-
-        domains.forEach { d ->
-            val (x, y) = positions.getValue(d.key)
-            Column(
-                modifier = Modifier
-                    .offset(x - 40.dp, y - nodeSize / 2)
-                    .width(80.dp)
-                    .clickable { onSelect(d.key) },
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                val isLive = d.key in activeDomains
-                Box(modifier = Modifier.size(nodeSize * 1.6f).offset(-(nodeSize * 0.3f)), contentAlignment = Alignment.Center) {
-                    Box(
-                        modifier = Modifier
-                            .size(nodeSize * 1.6f)
-                            .then(if (isLive) Modifier.pulseGlow(minScale = 1f, maxScale = 1.18f) else Modifier)
-                            .background(Brush.radialGradient(listOf(d.color.copy(alpha = if (isLive) 0.55f else 0.35f), d.color.copy(alpha = 0f))))
-                    )
-                }
-                Box(modifier = Modifier.size(nodeSize).offset(-(nodeSize * 0.3f)), contentAlignment = Alignment.Center) {
-                    Box(
-                        modifier = Modifier
-                            .size(nodeSize)
-                            .clip(CircleShape)
-                            .background(kmBg)
-                            .border(2.dp, d.color, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(d.icon, contentDescription = null, tint = d.color, modifier = Modifier.size(24.dp))
-                    }
-                    // Badge لازم يكون برا الـ Box المقصوص دائريًا (clip(CircleShape)) —
-                    // لو اتحط جواه بيتقطع نص شكله لأنه قاعد على حافة الدايرة.
-                    if (d.count > 0) {
+                Column(
+                    modifier = Modifier
+                        .offset(x - 40.dp, y - nodeSize / 2)
+                        .width(80.dp)
+                        .clickable { onSelect(d.key) },
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    val isLive = d.key in activeDomains
+                    Box(modifier = Modifier.size(nodeSize * 1.6f).offset(-(nodeSize * 0.3f)), contentAlignment = Alignment.Center) {
                         Box(
                             modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .size(18.dp)
+                                .size(nodeSize * 1.6f)
+                                .then(if (isLive) Modifier.pulseGlow(minScale = 1f, maxScale = 1.18f) else Modifier)
+                                .background(Brush.radialGradient(listOf(d.color.copy(alpha = if (isLive) 0.55f else 0.35f), d.color.copy(alpha = 0f))))
+                        )
+                    }
+                    Box(modifier = Modifier.size(nodeSize).offset(-(nodeSize * 0.3f)), contentAlignment = Alignment.Center) {
+                        Box(
+                            modifier = Modifier
+                                .size(nodeSize)
                                 .clip(CircleShape)
-                                .background(d.color),
+                                .background(kmBg)
+                                .border(2.dp, d.color, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("${d.count}", fontSize = 10.sp, fontFamily = kmMono, fontWeight = FontWeight.Bold, color = Color.White)
+                            Icon(d.icon, contentDescription = null, tint = d.color, modifier = Modifier.size(24.dp))
+                        }
+                        if (d.count > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .size(18.dp)
+                                    .clip(CircleShape)
+                                    .background(d.color),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("${d.count}", fontSize = 10.sp, fontFamily = kmMono, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
                         }
                     }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(d.label, style = Typography.labelSmall, fontFamily = kmMono, color = d.color, textAlign = TextAlign.Center, maxLines = 1)
                 }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(d.label, style = Typography.labelSmall, fontFamily = kmMono, color = d.color, textAlign = TextAlign.Center, maxLines = 1)
+            }
+        }
+
+        // أزرار التحكم والتكبير/التصغير العائمة (Floating 3D Zoom Controls)
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            IconButton(
+                onClick = { zoomScale = (zoomScale * 1.25f).coerceAtMost(2.8f) },
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF17242C).copy(alpha = 0.85f))
+                    .border(1.dp, kmTextSecondary.copy(alpha = 0.3f), CircleShape)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "تكبير", tint = kmTextPrimary, modifier = Modifier.size(18.dp))
+            }
+            IconButton(
+                onClick = { zoomScale = (zoomScale / 1.25f).coerceAtLeast(0.65f) },
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF17242C).copy(alpha = 0.85f))
+                    .border(1.dp, kmTextSecondary.copy(alpha = 0.3f), CircleShape)
+            ) {
+                Icon(Icons.Default.Remove, contentDescription = "تصغير", tint = kmTextPrimary, modifier = Modifier.size(18.dp))
+            }
+            IconButton(
+                onClick = {
+                    zoomScale = 1f
+                    panOffset = Offset.Zero
+                },
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF17242C).copy(alpha = 0.85f))
+                    .border(1.dp, kmTextSecondary.copy(alpha = 0.3f), CircleShape)
+            ) {
+                Icon(Icons.Default.RestartAlt, contentDescription = "إعادة ضبط", tint = primaryLight, modifier = Modifier.size(18.dp))
             }
         }
     }

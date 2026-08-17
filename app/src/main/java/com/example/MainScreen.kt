@@ -380,7 +380,8 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                                 onNavigateToProfile = { go(ZadRoutes.PROFILE) },
                                 onNavigateToPharmacy = { go(ZadRoutes.PHARMACY) },
                                 onNavigateToNotifications = { go(ZadRoutes.NOTIFICATIONS) },
-                                onNavigateToCurrencySettings = { go(ZadNav.PAYMENT_BUDGET) }
+                                onNavigateToCurrencySettings = { go(ZadNav.PAYMENT_BUDGET) },
+                                onNavigateToPlans = { go(ZadRoutes.PREMIUM_PLANS) }
                             )
                         }
                         composable(ZadRoutes.NOTIFICATIONS) {
@@ -462,6 +463,12 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                             ShoppingListScreen(
                                 viewModel = viewModel,
                                 onNavigateToAssistant = { go(ZadRoutes.ASSISTANT) }
+                            )
+                        }
+                        composable(ZadRoutes.PREMIUM_PLANS) {
+                            com.example.ui.screens.SubscriptionPlansScreen(
+                                viewModel = viewModel,
+                                onBack = { navController.popBackStack() }
                             )
                         }
                         // Sub-screens — full-viewport, reached from inside a screen

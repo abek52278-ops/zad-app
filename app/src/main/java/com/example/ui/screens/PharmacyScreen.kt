@@ -279,6 +279,8 @@ fun PharmacyScreen(
                             item = item,
                             daysUntilExpiry = daysUntilExpiry(item),
                             familyMemberName = familyMembers.find { it.id == item.familyMemberId }?.alias,
+                            onConsumeDose = { scheduledAt -> viewModel.consumePharmacyDose(item.id, scheduledAt) },
+                            onRefill = { refillTarget = item },
                             onDelete = { viewModel.deletePharmacyItem(item.id) },
                             onConfirmQuantity = { qty -> viewModel.confirmPharmacyQuantity(item.id, qty) },
                             onSetUnitsPerDose = { perDose -> viewModel.setPharmacyUnitsPerDose(item.id, perDose) }
@@ -626,6 +628,8 @@ private fun PharmacyItemGridCard(
     item: ZadPharmacyItem,
     daysUntilExpiry: Int?,
     familyMemberName: String?,
+    onConsumeDose: (String?) -> Unit,
+    onRefill: () -> Unit,
     onDelete: () -> Unit,
     onConfirmQuantity: (Int) -> Unit,
     onSetUnitsPerDose: (Double) -> Unit = {}
@@ -674,9 +678,6 @@ private fun PharmacyItemGridCard(
                 style = Typography.labelSmall, color = statusColor, fontSize = 10.sp
             )
         }
-        // Task 27.1(b) — نفس فولباك PharmacyItemCard (list view): units_per_dose مش معروف
-        // فـ"أيام متبقية" رقم مخمّن مالوش معنى، أهون نقول "محتاجة تأكيد" قابلة للضغط بدل
-        // ما نسكت. الجريد كارت كان ناقصه ده (سيناريو 17.2.1 كان مغطى في list view بس).
         if (!isExpired && supplyDays == null && !item.dosage.isNullOrBlank()) {
             Spacer(modifier = Modifier.height(4.dp))
             Box(
@@ -685,6 +686,37 @@ private fun PharmacyItemGridCard(
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) {
                 Text(stringResource(R.string.pharmacy_qty_needs_confirm), style = Typography.labelSmall, color = warningColor, fontWeight = FontWeight.SemiBold, fontSize = 10.sp)
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        // Quick Action Buttons in Grid
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (item.remainingQuantity > 0) {
+                IconButton(
+                    onClick = {
+                        val firstDose = item.doseTimesList().firstOrNull()
+                        onConsumeDose(firstDose?.let { com.example.data.PharmacyReminderScheduler.canonicalScheduledAt(it) })
+                    },
+                    modifier = Modifier.size(30.dp).clip(CircleShape).background(primary.copy(alpha = 0.12f)).pressableScale()
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = "أخذ الجرعة", tint = primary, modifier = Modifier.size(16.dp))
+                }
+            }
+            IconButton(
+                onClick = onRefill,
+                modifier = Modifier.size(30.dp).clip(CircleShape).background(Color(0xFF0F172A).copy(alpha = 0.06f)).pressableScale()
+            ) {
+                Icon(Icons.Default.Refresh, contentDescription = "إعادة طلب", tint = onSurfaceVariant, modifier = Modifier.size(16.dp))
+            }
+            IconButton(
+                onClick = { showConfirmDialog = true },
+                modifier = Modifier.size(30.dp).clip(CircleShape).background(Color(0xFF0F172A).copy(alpha = 0.06f)).pressableScale()
+            ) {
+                Icon(Icons.Default.Edit, contentDescription = "تعديل الكمية", tint = onSurfaceVariant, modifier = Modifier.size(14.dp))
             }
         }
     }

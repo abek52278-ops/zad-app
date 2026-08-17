@@ -822,3 +822,317 @@ fun ZadAutonomousIdeasWidget(
     }
 }
 
+/**
+ * 📈 ويدجت مؤشر الإنفاق اليومي المباشر (Live Daily Spending Trend Curve)
+ * جراف خطي انسيابي تفاعلي يوضح وتيرة الصرف لآخر 7 أيام مع نقاط التفاعل والمتوسط اليومي.
+ */
+@Composable
+fun LiveSpendingLineGraphWidget(
+    transactions: List<ZadTransaction>,
+    onNavigateToBudget: () -> Unit = {}
+) {
+    val context = LocalContext.current
+    val currency = remember { com.example.data.MarketPrefs.getMarket(context).currencySymbol }
+
+    // حساب آخر 7 أيام
+    val dailyData = remember(transactions) {
+        val today = java.time.LocalDate.now()
+        val days = (6 downTo 0).map { today.minusDays(it.toLong()) }
+        
+        val dayLabels = listOf("ح", "ن", "ث", "ر", "خ", "ج", "س") // أو أسماء الأيام
+        val formatter = java.time.format.DateTimeFormatter.ofPattern("EEEE", java.util.Locale("ar"))
+        val shortFormatter = java.time.format.DateTimeFormatter.ofPattern("d/M")
+
+        days.map { date ->
+            val dateStr = date.toString()
+            val daySpend = transactions.filter {
+                it.txnKind == "expense" && it.date.take(10) == dateStr
+            }.sumOf { it.amount }
+
+            val dayName = date.format(formatter)
+            val shortDate = date.format(shortFormatter)
+            Triple(dayName, shortDate, daySpend)
+        }
+    }
+
+    val total7Days = dailyData.sumOf { it.third }
+    val avgDaily = total7Days / 7.0
+    val maxSpend = maxOf(dailyData.maxOf { it.third }, 10.0)
+
+    var selectedDayIndex by remember { mutableStateOf<Int?>(null) }
+
+    ZadListCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        shape = RoundedCornerShape(24.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentPadding = 0.dp
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(primary.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Filled.ShowChart, contentDescription = null, tint = primary, modifier = Modifier.size(18.dp))
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text("مؤشر الإنفاق اليومي (7 أيام)", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                        Text("متوسط الصرف: ${com.example.data.CurrencyFormatter.format(context, avgDaily)} $currency / يوم", style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
+                    }
+                }
+                TextButton(
+                    onClick = onNavigateToBudget,
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Text("التفاصيل", style = Typography.labelSmall, color = primary, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            // Tooltip or selected day highlight
+            val activeIndex = selectedDayIndex ?: (dailyData.size - 1)
+            val selectedInfo = dailyData.getOrNull(activeIndex)
+            if (selectedInfo != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFF0F172A).copy(alpha = 0.04f))
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("${selectedInfo.first} (${selectedInfo.second})", style = Typography.labelSmall, color = onSurfaceVariant, fontWeight = FontWeight.Medium)
+                    Text(
+                        "${com.example.data.CurrencyFormatter.format(context, selectedInfo.third)} $currency",
+                        style = Typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (selectedInfo.third > avgDaily * 1.3) dangerColor else primary
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // Interactive Bezier Curve Chart
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+            ) {
+                androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+                    val width = size.width
+                    val height = size.height - 24f
+                    val pointSpacing = width / (dailyData.size - 1)
+
+                    val points = dailyData.mapIndexed { index, item ->
+                        val x = index * pointSpacing
+                        val y = height - ((item.third / maxSpend).toFloat() * (height - 20f))
+                        androidx.compose.ui.geometry.Offset(x, y)
+                    }
+
+                    // Average horizontal dashed line
+                    val avgY = height - ((avgDaily / maxSpend).toFloat() * (height - 20f))
+                    drawLine(
+                        color = Color(0xFF64748B).copy(alpha = 0.35f),
+                        start = androidx.compose.ui.geometry.Offset(0f, avgY),
+                        end = androidx.compose.ui.geometry.Offset(width, avgY),
+                        strokeWidth = 2f,
+                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 10f))
+                    )
+
+                    // Draw Smooth Cubic Curve
+                    val path = androidx.compose.ui.graphics.Path().apply {
+                        if (points.isNotEmpty()) {
+                            moveTo(points[0].x, points[0].y)
+                            for (i in 0 until points.size - 1) {
+                                val current = points[i]
+                                val next = points[i + 1]
+                                val controlPoint1 = androidx.compose.ui.geometry.Offset((current.x + next.x) / 2f, current.y)
+                                val controlPoint2 = androidx.compose.ui.geometry.Offset((current.x + next.x) / 2f, next.y)
+                                cubicTo(controlPoint1.x, controlPoint1.y, controlPoint2.x, controlPoint2.y, next.x, next.y)
+                            }
+                        }
+                    }
+
+                    // Fill gradient below curve
+                    val fillPath = androidx.compose.ui.graphics.Path().apply {
+                        addPath(path)
+                        lineTo(width, size.height)
+                        lineTo(0f, size.height)
+                        close()
+                    }
+                    drawPath(
+                        path = fillPath,
+                        brush = Brush.verticalGradient(
+                            colors = listOf(primary.copy(alpha = 0.28f), primary.copy(alpha = 0.0f))
+                        )
+                    )
+
+                    // Stroke line
+                    drawPath(
+                        path = path,
+                        color = primary,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
+                    )
+
+                    // Draw Point Dots
+                    points.forEachIndexed { i, p ->
+                        val isSel = i == activeIndex
+                        drawCircle(
+                            color = Color.White,
+                            radius = if (isSel) 6.dp.toPx() else 4.dp.toPx(),
+                            center = p
+                        )
+                        drawCircle(
+                            color = if (isSel) successColor else primary,
+                            radius = if (isSel) 4.5.dp.toPx() else 2.5.dp.toPx(),
+                            center = p
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Day Labels Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                dailyData.forEachIndexed { index, item ->
+                    val isSel = index == activeIndex
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (isSel) primary.copy(alpha = 0.12f) else Color.Transparent)
+                            .clickable { selectedDayIndex = index }
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            item.first.take(3),
+                            style = Typography.labelSmall,
+                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSel) primary else onSurfaceVariant,
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 👑 ويدجت زاد بريميوم الملون والمغري (Zad Pro Dynamic Highlight Widget)
+ * بطاقة مضيئة جذابة بتصميم أبل السائل تعرض حالة طاقة الذكاء الاصطناعي وباقات الاشتراك.
+ */
+@Composable
+fun ZadProHighlightWidget(
+    onNavigateToPlans: () -> Unit = {}
+) {
+    val context = LocalContext.current
+    val adWatchCount = remember { com.example.ui.components.RewardedBrainAdManager.getAdWatchCount(context) }
+    val isSessionUnlocked = remember { com.example.ui.components.RewardedBrainAdManager.isSessionUnlocked(context) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        Color(0xFF064E3B),
+                        Color(0xFF0F766E),
+                        Color(0xFF1E3A8A)
+                    )
+                )
+            )
+            .clickable { onNavigateToPlans() }
+            .padding(18.dp)
+    ) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.20f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = primaryFixed, modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text("باقات زاد الذكية 👑", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("عقل ذكاء اصطناعي فوري بدون إعلانات", style = Typography.labelSmall, color = primaryFixed, fontSize = 10.sp)
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (isSessionUnlocked) successColor else Color(0xFFF59E0B))
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        if (isSessionUnlocked) "جلسة نشطة ⚡" else "ترقية ⭐",
+                        style = Typography.labelSmall,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Text(
+                "استمتع باستشارات عميقة لميزانيتك، مسح فوري للفواتير عبر الكاميرا، وتنبؤ بالنواقص والمصاريف.",
+                style = Typography.bodySmall,
+                color = Color.White.copy(alpha = 0.9f),
+                lineHeight = 18.sp,
+                fontSize = 12.sp
+            )
+
+            Spacer(Modifier.height(14.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Verified, contentDescription = null, tint = primaryFixed, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("ضمان استرجاع 14 يوم", style = Typography.labelSmall, color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("استعرض الباقات", style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = primaryFixed)
+                    Spacer(Modifier.width(4.dp))
+                    Icon(Icons.Filled.ChevronLeft, contentDescription = null, tint = primaryFixed, modifier = Modifier.size(16.dp))
+                }
+            }
+        }
+    }
+}
+
+
