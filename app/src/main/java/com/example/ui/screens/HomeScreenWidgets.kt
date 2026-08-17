@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.example.data.TasbihaTree
 import com.example.data.ZadInventory
 import com.example.data.ZadShoppingItem
+import com.example.data.ZadTransaction
 import com.example.data.SupabaseRepo
 import com.example.ui.components.pressableScale
 import com.example.ui.components.ZadListCard
@@ -851,7 +852,7 @@ fun LiveSpendingLineGraphWidget(
         days.map { date ->
             val dateStr = date.toString()
             val daySpend = transactions.filter {
-                it.txnKind == "expense" && it.date.take(10) == dateStr
+                (it.isExpense) && (it.createdAt?.take(10) == dateStr)
             }.sumOf { it.amount }
 
             val dayName = date.format(formatter)
