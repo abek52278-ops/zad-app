@@ -93,10 +93,12 @@ fun ZadIntelligenceScreen(
     val resilienceRemainingBalance by viewModel.remainingBalance.collectAsState()
     val companionState by viewModel.companionState.collectAsState()
     val pendingAgentProposals by viewModel.pendingAgentProposals.collectAsState()
+    val familyState by familyViewModel.state.collectAsState()
 
     var inputText by remember { mutableStateOf("") }
     var chatExpanded by remember { mutableStateOf(false) }
     var showSubscriptionPaywall by remember { mutableStateOf(false) }
+    var showFamilyNeuralSheet by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     if (showSubscriptionPaywall) {
@@ -109,6 +111,14 @@ fun ZadIntelligenceScreen(
                 onBack = { showSubscriptionPaywall = false }
             )
         }
+    }
+
+    if (showFamilyNeuralSheet) {
+        FamilyNeuralReportBottomSheet(
+            familyState = familyState,
+            onDismiss = { showFamilyNeuralSheet = false },
+            onNavigateToFamily = onNavigateToFamily
+        )
     }
 
     // نص جاهز جاي من شاشة تانية (مثلاً زر "إضافة ذكية بالشات 💬" في الصيدلية) — يتقرا
@@ -254,6 +264,15 @@ fun ZadIntelligenceScreen(
                         }
                     }
                 }
+            }
+
+            // ═══ شبكة عقل العائلة العصبية المشتركة (Multi-Agent Family Mesh) ═══
+            item {
+                FamilyNeuralMeshCard(
+                    familyState = familyState,
+                    onOpenReport = { showFamilyNeuralSheet = true },
+                    onNavigateToFamily = onNavigateToFamily
+                )
             }
 
             // ═══ TOP: executive financial health + daily spend velocity ═══
@@ -3038,3 +3057,282 @@ private fun DepletionForecastCard(forecasts: List<com.example.data.ZadCentralBra
         }
     }
 }
+
+/**
+ * 👨‍👩‍👧‍👦 بطاقة شبكة عقل العائلة العصبية المشتركة (Multi-Agent Family Mesh Card)
+ */
+@Composable
+fun FamilyNeuralMeshCard(
+    familyState: com.example.ui.viewmodels.FamilyState,
+    onOpenReport: () -> Unit,
+    onNavigateToFamily: () -> Unit
+) {
+    val activeState = familyState as? com.example.ui.viewmodels.FamilyState.Active
+    val memberCount = activeState?.members?.size ?: 1
+    val completedChores = activeState?.chores?.count { it.isCompleted } ?: 0
+    val totalChores = activeState?.chores?.size ?: 0
+    val pendingGroceries = activeState?.groceries?.count { !it.isPurchased } ?: 0
+
+    com.example.ui.components.ZadListCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        borderColor = Color(0xFF9333EA).copy(alpha = 0.25f),
+        contentPadding = 0.dp
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Brush.linearGradient(listOf(Color(0xFF9333EA), Color(0xFF6C63FF)))),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Filled.Hub, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text("شبكة عقل العائلة العصبية", style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("Multi-Agent Family Neural Mesh", style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF9333EA).copy(alpha = 0.12f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text("$memberCount أفراد متصلين 🌐", style = Typography.labelSmall, color = Color(0xFF9333EA), fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF0F172A).copy(alpha = 0.04f))
+                        .padding(10.dp)
+                ) {
+                    Column {
+                        Text("🎯 مهام الأبناء", style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
+                        Spacer(Modifier.height(2.dp))
+                        Text("$completedChores / $totalChores مكتملة", style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = primary)
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFF0F172A).copy(alpha = 0.04f))
+                        .padding(10.dp)
+                ) {
+                    Column {
+                        Text("🛒 مقاضي البيت", style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
+                        Spacer(Modifier.height(2.dp))
+                        Text("$pendingGroceries أصناف مطلوبة", style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = tertiary)
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = onOpenReport,
+                    modifier = Modifier.weight(1f).height(38.dp).pressableScale(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9333EA)),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                ) {
+                    Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("تقرير الذكاء العائلي الشامل", style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+                OutlinedButton(
+                    onClick = onNavigateToFamily,
+                    modifier = Modifier.height(38.dp).pressableScale(),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                ) {
+                    Text("إدارة العائلة", style = Typography.labelSmall)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 📑 شيت تقرير الذكاء العائلي المشترك الشامل (Family Neural Intelligence Bottom Sheet)
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FamilyNeuralReportBottomSheet(
+    familyState: com.example.ui.viewmodels.FamilyState,
+    onDismiss: () -> Unit,
+    onNavigateToFamily: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val activeState = familyState as? com.example.ui.viewmodels.FamilyState.Active
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 8.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF9333EA).copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Filled.Hub, contentDescription = null, tint = Color(0xFF9333EA), modifier = Modifier.size(22.dp))
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text("تقرير شبكة العائلة العصبية", style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("تحليل الذكاء الاصطناعي المشترك لأفراد الأسرة", style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 11.sp)
+                    }
+                }
+                IconButton(onClick = onDismiss, modifier = Modifier.size(30.dp)) {
+                    Icon(Icons.Filled.Close, contentDescription = "إغلاق", tint = onSurfaceVariant)
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            if (activeState == null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF0F172A).copy(alpha = 0.04f))
+                        .padding(20.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("👨‍👩‍👧‍👦", fontSize = 32.sp)
+                        Spacer(Modifier.height(8.dp))
+                        Text("لم تنضم لعائلة بعد في زاد", style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(4.dp))
+                        Text("أضف أفراد أسرتك (الزوجة، الأبناء) لربط شبكاتهم العصبية وتبادل الرؤى وتدبير المنزل معاً.", style = Typography.bodySmall, color = onSurfaceVariant, textAlign = TextAlign.Center)
+                        Spacer(Modifier.height(14.dp))
+                        Button(onClick = { onDismiss(); onNavigateToFamily() }, colors = ButtonDefaults.buttonColors(containerColor = primary)) {
+                            Text("إنشاء / انضمام لعائلة", style = Typography.labelMedium, color = Color.White)
+                        }
+                    }
+                }
+            } else {
+                // أفراد الأسرة ومهامهم
+                val children = activeState.members.filter { it.role == "child" }
+                val parents = activeState.members.filter { it.role != "child" }
+
+                // 1. أداء ومصروف الأبناء
+                Text("🎯 رادار الأبناء والمهام والمصروف", style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = primary)
+                Spacer(Modifier.height(8.dp))
+                if (children.isEmpty()) {
+                    Text("لا يوجد أبناء مضافين حالياً. يمكنك إضافة حسابات الأبناء لمتابعة مهامهم ومصروفهم بأمان.", style = Typography.bodySmall, color = onSurfaceVariant)
+                } else {
+                    children.forEach { child ->
+                        val childChores = activeState.chores.filter { it.assignedTo == child.id }
+                        val done = childChores.count { it.isCompleted }
+                        val total = childChores.size
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF0F172A).copy(alpha = 0.04f))
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("👦", fontSize = 18.sp)
+                                Spacer(Modifier.width(8.dp))
+                                Column {
+                                    Text(child.alias ?: "ابن", style = Typography.bodyMedium, fontWeight = FontWeight.Bold)
+                                    Text("أنجز $done من $total مهام · رصيد المصروف: ${child.balance ?: 0} ${activeState.familyGroup.currencySymbol}", style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
+                                }
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(if (done == total && total > 0) positiveGreen.copy(alpha = 0.12f) else primary.copy(alpha = 0.12f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(if (done == total && total > 0) "مكتمل ⭐" else "نشط", style = Typography.labelSmall, color = if (done == total && total > 0) positiveGreen else primary, fontSize = 10.sp)
+                            }
+                        }
+                        Spacer(Modifier.height(6.dp))
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                // 2. تدبير مقاضي البيت
+                Text("🛒 تدبير مقاضي واحتياجات البيت المشتركة", style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = tertiary)
+                Spacer(Modifier.height(8.dp))
+                val pendingGroceries = activeState.groceries.filter { !it.isPurchased }
+                if (pendingGroceries.isEmpty()) {
+                    Text("لا توجد نواقص معلقة في قائمة مقاضي العائلة المشتركة ✅", style = Typography.bodySmall, color = onSurfaceVariant)
+                } else {
+                    Text(
+                        "نواقص العائلة المطلوبة: ${pendingGroceries.take(5).joinToString("، ") { it.name }}",
+                        style = Typography.bodyMedium,
+                        color = onSurface
+                    )
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                // 3. توصيات عقل زاد لرب الأسرة
+                Text("💡 توصيات عقل زاد الذكية لرب الأسرة", style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = Color(0xFF9333EA))
+                Spacer(Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFF9333EA).copy(alpha = 0.08f))
+                        .padding(14.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("• التزام الأبناء بالمهام ممتاز هذا الأسبوع؛ يمكنك مكافأتهم بزيادة بسيطة في رصيد الادخار.", style = Typography.bodySmall, color = onSurface)
+                        Text("• تجميع مشتريات مقاضي البيت في زيارة سوبرماركت واحدة نهاية الأسبوع سيوفر ~15% من المصروفات العشوائية.", style = Typography.bodySmall, color = onSurface)
+                        Text("• بستان التسبيح العائلي يسير بمعدل رائع نحو الشجرة المزهرة المشتركة 🌸.", style = Typography.bodySmall, color = onSurface)
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
