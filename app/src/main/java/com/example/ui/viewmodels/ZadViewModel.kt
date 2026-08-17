@@ -4336,6 +4336,65 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ─── Amazon Affiliate ───────────────────────────────────────────────
+    companion object {
+        val DEFAULT_AFFILIATE_PRODUCTS = listOf(
+            AffiliateProduct(
+                id = "aff_oil_1",
+                productNameAr = "زيت زيتون بكر ممتاز ٥٠٠ مل",
+                productNameSearchKeywords = listOf("زيت", "زيت زيتون", "oil"),
+                category = "بقالة",
+                imageUrl = "https://images.pexels.com/photos/33783/olive-oil-salad-dressing-cooking-olive.jpg?auto=compress&cs=tinysrgb&w=600",
+                averagePriceSar = 28.50,
+                isActive = true
+            ),
+            AffiliateProduct(
+                id = "aff_rice_1",
+                productNameAr = "أرز بسمتي هندي ممتاز ٥ كجم",
+                productNameSearchKeywords = listOf("أرز", "رز", "ارز", "rice", "بسمتي"),
+                category = "بقالة",
+                imageUrl = "https://images.pexels.com/photos/4110256/pexels-photo-4110256.jpeg?auto=compress&cs=tinysrgb&w=600",
+                averagePriceSar = 45.00,
+                isActive = true
+            ),
+            AffiliateProduct(
+                id = "aff_tea_1",
+                productNameAr = "شاي سيلاني فاخر ١٠٠ كيس",
+                productNameSearchKeywords = listOf("شاي", "شاي أحمر", "tea"),
+                category = "مشروبات",
+                imageUrl = "https://images.pexels.com/photos/1493080/pexels-photo-1493080.jpeg?auto=compress&cs=tinysrgb&w=600",
+                averagePriceSar = 19.75,
+                isActive = true
+            ),
+            AffiliateProduct(
+                id = "aff_sugar_1",
+                productNameAr = "سكر أبيض نقي ٥ كجم",
+                productNameSearchKeywords = listOf("سكر", "sugar"),
+                category = "بقالة",
+                imageUrl = "https://images.pexels.com/photos/2523652/pexels-photo-2523652.jpeg?auto=compress&cs=tinysrgb&w=600",
+                averagePriceSar = 22.00,
+                isActive = true
+            ),
+            AffiliateProduct(
+                id = "aff_milk_1",
+                productNameAr = "حليب طويل الأجل كامل الدسم ١ لتر",
+                productNameSearchKeywords = listOf("حليب", "لبن", "milk"),
+                category = "منتجات ألبان",
+                imageUrl = "https://images.pexels.com/photos/248412/pexels-photo-248412.jpeg?auto=compress&cs=tinysrgb&w=600",
+                averagePriceSar = 6.50,
+                isActive = true
+            ),
+            AffiliateProduct(
+                id = "aff_coffee_1",
+                productNameAr = "بن قهوة عربي محوج ٢٥٠ جم",
+                productNameSearchKeywords = listOf("قهوة", "بن", "coffee"),
+                category = "مشروبات",
+                imageUrl = "https://images.pexels.com/photos/312418/pexels-photo-312418.jpeg?auto=compress&cs=tinysrgb&w=600",
+                averagePriceSar = 34.00,
+                isActive = true
+            )
+        )
+    }
+
     private val _affiliateProducts = MutableStateFlow<List<AffiliateProduct>>(emptyList())
     val affiliateProducts: StateFlow<List<AffiliateProduct>> = _affiliateProducts.asStateFlow()
 
@@ -4386,7 +4445,15 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 val matched = best ?: continue
                 picks += AffiliatePick(product = product, reason = matched.third, score = bestScore)
             }
-            picks.sortedByDescending { it.score }.take(8)
+            val ranked = picks.sortedByDescending { it.score }
+            if (ranked.isNotEmpty()) {
+                ranked.take(8)
+            } else {
+                val catalog = if (products.isNotEmpty()) products else DEFAULT_AFFILIATE_PRODUCTS
+                catalog.filter { it.isActive }.take(6).map { product ->
+                    AffiliatePick(product = product, reason = "عروض أمازون الموصى بها", score = 1)
+                }
+            }
         }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** حاجة العميل محتاجها فعلاً ومفيش ليها صف في الكتالوج — بتتفتح كبحث على أمازون. */
@@ -4480,11 +4547,13 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val products = SupabaseRepo.getAffiliateProducts()
-                _affiliateProducts.value = products
-                dao.insertAffiliateProducts(products)
+                val finalProducts = if (products.isNotEmpty()) products else DEFAULT_AFFILIATE_PRODUCTS
+                _affiliateProducts.value = finalProducts
+                dao.insertAffiliateProducts(finalProducts)
             } catch (e: Exception) {
                 Log.e(TAG, "loadAffiliateProducts() FAILED: ${e.message}")
-                _affiliateProducts.value = dao.getAffiliateProducts()
+                val local = dao.getAffiliateProducts()
+                _affiliateProducts.value = if (local.isNotEmpty()) local else DEFAULT_AFFILIATE_PRODUCTS
             }
         }
     }

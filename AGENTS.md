@@ -55,3 +55,4 @@ cd supabase/functions/zad-telegram-bot && deno test --allow-all
    - 5-Hour Dynamic Recharge: Free users refill 5 AI chat messages every 5 hours (`cycle_reset_at = now() + interval '5 hours'`).
    - Rewarded Ad Battery (3 Ads): 3 rewarded video ads grant +5 instant AI messages and a 12-hour Zad Brain session.
    - AdMob IDs: App ID `ca-app-pub-4433736715872551~7866252380` | Rewarded Unit `ca-app-pub-4433736715872551/5974535887`.
+5. **Git Push Invariant**: Always commit and push directly to the main branch unless explicitly asked to create a feature branch.
