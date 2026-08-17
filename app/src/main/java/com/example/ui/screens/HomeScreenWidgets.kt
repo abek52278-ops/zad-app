@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import com.example.data.TasbihaTree
 import com.example.data.ZadInventory
 import com.example.data.ZadShoppingItem
@@ -32,6 +33,12 @@ import com.example.ui.components.pressableScale
 import com.example.ui.components.ZadListCard
 import com.example.ui.theme.*
 import kotlinx.coroutines.launch
+
+data class DailySpendPoint(
+    val dayName: String,
+    val shortDate: String,
+    val amount: Double
+)
 
 @Composable
 fun FeaturesCarousel(
@@ -835,11 +842,9 @@ fun LiveSpendingLineGraphWidget(
     val currency = remember { com.example.data.MarketPrefs.getMarket(context).currencySymbol }
 
     // حساب آخر 7 أيام
-    val dailyData = remember(transactions) {
+    val dailyData: List<DailySpendPoint> = remember(transactions) {
         val today = java.time.LocalDate.now()
         val days = (6 downTo 0).map { today.minusDays(it.toLong()) }
-        
-        val dayLabels = listOf("ح", "ن", "ث", "ر", "خ", "ج", "س") // أو أسماء الأيام
         val formatter = java.time.format.DateTimeFormatter.ofPattern("EEEE", java.util.Locale("ar"))
         val shortFormatter = java.time.format.DateTimeFormatter.ofPattern("d/M")
 
@@ -851,13 +856,13 @@ fun LiveSpendingLineGraphWidget(
 
             val dayName = date.format(formatter)
             val shortDate = date.format(shortFormatter)
-            Triple(dayName, shortDate, daySpend)
+            DailySpendPoint(dayName, shortDate, daySpend)
         }
     }
 
-    val total7Days = dailyData.sumOf { it.third }
+    val total7Days = dailyData.sumOf { it.amount }
     val avgDaily = total7Days / 7.0
-    val maxSpend = maxOf(dailyData.maxOf { it.third }, 10.0)
+    val maxSpend = maxOf(dailyData.maxOf { it.amount }, 10.0)
 
     var selectedDayIndex by remember { mutableStateOf<Int?>(null) }
 
@@ -914,12 +919,12 @@ fun LiveSpendingLineGraphWidget(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("${selectedInfo.first} (${selectedInfo.second})", style = Typography.labelSmall, color = onSurfaceVariant, fontWeight = FontWeight.Medium)
+                    Text("${selectedInfo.dayName} (${selectedInfo.shortDate})", style = Typography.labelSmall, color = onSurfaceVariant, fontWeight = FontWeight.Medium)
                     Text(
-                        "${com.example.data.CurrencyFormatter.format(context, selectedInfo.third)} $currency",
+                        "${com.example.data.CurrencyFormatter.format(context, selectedInfo.amount)} $currency",
                         style = Typography.labelMedium,
                         fontWeight = FontWeight.Bold,
-                        color = if (selectedInfo.third > avgDaily * 1.3) dangerColor else primary
+                        color = if (selectedInfo.amount > avgDaily * 1.3) dangerColor else primary
                     )
                 }
             }
@@ -927,28 +932,29 @@ fun LiveSpendingLineGraphWidget(
             Spacer(Modifier.height(12.dp))
 
             // Interactive Bezier Curve Chart
+            val pointsCount = dailyData.size
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(120.dp)
             ) {
                 androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
-                    val width = size.width
-                    val height = size.height - 24f
-                    val pointSpacing = width / (dailyData.size - 1)
+                    val canvasWidth = size.width
+                    val canvasHeight = size.height - 24f
+                    val pointSpacing = if (pointsCount > 1) canvasWidth / (pointsCount - 1) else canvasWidth
 
-                    val points = dailyData.mapIndexed { index, item ->
+                    val points: List<androidx.compose.ui.geometry.Offset> = dailyData.mapIndexed { index, item ->
                         val x = index * pointSpacing
-                        val y = height - ((item.third / maxSpend).toFloat() * (height - 20f))
+                        val y = canvasHeight - ((item.amount / maxSpend).toFloat() * (canvasHeight - 20f))
                         androidx.compose.ui.geometry.Offset(x, y)
                     }
 
                     // Average horizontal dashed line
-                    val avgY = height - ((avgDaily / maxSpend).toFloat() * (height - 20f))
+                    val avgY = canvasHeight - ((avgDaily / maxSpend).toFloat() * (canvasHeight - 20f))
                     drawLine(
                         color = Color(0xFF64748B).copy(alpha = 0.35f),
                         start = androidx.compose.ui.geometry.Offset(0f, avgY),
-                        end = androidx.compose.ui.geometry.Offset(width, avgY),
+                        end = androidx.compose.ui.geometry.Offset(canvasWidth, avgY),
                         strokeWidth = 2f,
                         pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 10f))
                     )
@@ -970,7 +976,7 @@ fun LiveSpendingLineGraphWidget(
                     // Fill gradient below curve
                     val fillPath = androidx.compose.ui.graphics.Path().apply {
                         addPath(path)
-                        lineTo(width, size.height)
+                        lineTo(canvasWidth, size.height)
                         lineTo(0f, size.height)
                         close()
                     }
@@ -1012,7 +1018,7 @@ fun LiveSpendingLineGraphWidget(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                dailyData.forEachIndexed { index, item ->
+                for ((index, item) in dailyData.withIndex()) {
                     val isSel = index == activeIndex
                     Box(
                         modifier = Modifier
@@ -1023,7 +1029,7 @@ fun LiveSpendingLineGraphWidget(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            item.first.take(3),
+                            item.dayName.take(3),
                             style = Typography.labelSmall,
                             fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
                             color = if (isSel) primary else onSurfaceVariant,
