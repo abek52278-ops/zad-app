@@ -36,6 +36,8 @@ import com.example.ui.components.ZadListCard
 import com.example.ui.components.pressableScale
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun SubscriptionPlansScreen(
@@ -46,6 +48,7 @@ fun SubscriptionPlansScreen(
     val currentMarket = remember { MarketPrefs.getMarket(context) }
     var selectedTier by remember { mutableStateOf<ZadPlanTier>(ZadPlanTier.PLUS) }
     var isAnnualBilling by remember { mutableStateOf<Boolean>(false) }
+    var showPaymentSheet by remember { mutableStateOf<Boolean>(false) }
     var showSuccessDialog by remember { mutableStateOf<Boolean>(false) }
 
     var adWatchCount by remember { mutableStateOf<Int>(RewardedBrainAdManager.getAdWatchCount(context)) }
@@ -509,7 +512,7 @@ fun PaymentGatewayBottomSheet(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    val rawPrice = if (isAnnual) (selectedTier.monthlyEgpPrice * 0.80 * 12) else selectedTier.monthlyEgpPrice
+    val rawPrice = if (isAnnual) (selectedTier.priceEgp * 0.80 * 12) else selectedTier.priceEgp
     val formattedTotal = com.example.data.CurrencyFormatter.format(context, rawPrice)
 
     ModalBottomSheet(

@@ -165,6 +165,7 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
 
     var showMoreSheet by remember { mutableStateOf(false) }
     var showCameraSheet by remember { mutableStateOf(false) }
+    var showVoiceSheet by remember { mutableStateOf(false) }
     // W6 — سطح المحادثة السريع (ZadAgentOverlay)، بيتفتح بضغطة طويلة على المسكوت.
     var showAgentOverlay by remember { mutableStateOf(false) }
 
@@ -348,6 +349,7 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                             kidsMode = kidsModeEffective,
                             onNavigate = { goGuarded(it) },
                             onOpenCamera = { showCameraSheet = true },
+                            onOpenVoice = { showVoiceSheet = true },
                             onOpenMore = { showMoreSheet = true },
                             modifier = Modifier.navigationBarsPadding()
                         )
@@ -525,6 +527,13 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                 showCameraSheet = false
                 navController.navigate("${ZadRoutes.CAMERA}/RECEIPT") { launchSingleTop = true }
             }
+        )
+    }
+
+    if (showVoiceSheet) {
+        com.example.ui.components.ZadVoiceBottomSheet(
+            viewModel = viewModel,
+            onDismiss = { showVoiceSheet = false }
         )
     }
 }

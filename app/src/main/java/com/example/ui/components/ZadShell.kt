@@ -286,12 +286,14 @@ private data class ZadNavItem(val route: String, val icon: ImageVector, val labe
  * Kids mode collapses it to Home + Family, matching `renderKidsNav` — no camera
  * (receipt/inventory scanning is an adult surface) and no "more" grid.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ZadBottomNavBar(
     currentRoute: String?,
     kidsMode: Boolean,
     onNavigate: (String) -> Unit,
     onOpenCamera: () -> Unit,
+    onOpenVoice: () -> Unit = onOpenCamera,
     onOpenMore: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -301,7 +303,7 @@ fun ZadBottomNavBar(
             .padding(horizontal = 16.dp)
             .padding(bottom = 22.dp)
             .fillMaxWidth()
-            .height(64.dp)
+            .height(66.dp)
     ) {
         Box(
             modifier = Modifier
@@ -318,7 +320,7 @@ fun ZadBottomNavBar(
                 modifier = Modifier
                     .matchParentSize()
                     .zadGlassBlur(16.dp)
-                    .background(Color.White.copy(alpha = 0.72f))
+                    .background(Color.White.copy(alpha = 0.76f))
             )
             Box(modifier = Modifier.matchParentSize().border(1.dp, Color.Black.copy(alpha = 0.06f), pillShape))
         }
@@ -331,8 +333,8 @@ fun ZadBottomNavBar(
         } else {
             listOf(
                 ZadNavItem(ZadRoutes.HOME, Icons.Default.Home, R.string.nav_tab_home),
-                ZadNavItem(ZadRoutes.INVENTORY, Icons.Default.Inventory2, R.string.nav_inventory),
                 ZadNavItem(ZadRoutes.ASSISTANT, Icons.Default.Psychology, R.string.screen_title_assistant),
+                ZadNavItem(ZadRoutes.INVENTORY, Icons.Default.Inventory2, R.string.nav_inventory),
             )
         }
 
@@ -342,9 +344,11 @@ fun ZadBottomNavBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             items.forEachIndexed { index, item ->
-                // Camera sits between Inventory and Zad Mind in the mockup.
                 if (index == 2 && !kidsMode) {
-                    ZadCameraNavButton(onClick = onOpenCamera)
+                    ZadActionNavButton(
+                        onClick = onOpenCamera,
+                        onLongClick = onOpenVoice
+                    )
                 }
                 ZadNavTab(
                     icon = item.icon,
@@ -365,25 +369,41 @@ fun ZadBottomNavBar(
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun ZadCameraNavButton(onClick: () -> Unit) {
+private fun ZadActionNavButton(
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
     Box(
         modifier = Modifier
             .offset(y = (-16).dp)
-            .size(46.dp)
+            .size(52.dp)
             .shadow(
-                elevation = 16.dp,
+                elevation = 18.dp,
                 shape = CircleShape,
                 ambientColor = primary.copy(alpha = 0.35f),
-                spotColor = primary.copy(alpha = 0.45f)
+                spotColor = primary.copy(alpha = 0.50f)
             )
             .clip(CircleShape)
-            .background(primary)
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(primary, Color(0xFF0F766E), Color(0xFF1E3A8A))
+                )
+            )
             .pressableScale()
-            .clickable { onClick() },
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         contentAlignment = Alignment.Center
     ) {
-        Icon(Icons.Default.CameraAlt, contentDescription = stringResource(R.string.camera_sheet_title), tint = Color.White, modifier = Modifier.size(20.dp))
+        Icon(
+            Icons.Default.AutoAwesome,
+            contentDescription = "Zad Action & Voice Hub",
+            tint = Color.White,
+            modifier = Modifier.size(24.dp)
+        )
     }
 }
 
