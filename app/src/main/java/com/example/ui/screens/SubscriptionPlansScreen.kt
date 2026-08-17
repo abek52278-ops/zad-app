@@ -30,8 +30,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.ads.RewardedBrainAdManager
 import com.example.data.MarketPrefs
-import com.example.ui.components.RewardedBrainAdManager
 import com.example.ui.components.ZadListCard
 import com.example.ui.components.pressableScale
 import com.example.ui.theme.*
@@ -44,12 +44,12 @@ fun SubscriptionPlansScreen(
 ) {
     val context = LocalContext.current
     val currentMarket = remember { MarketPrefs.getMarket(context) }
-    var selectedTier by remember { mutableStateOf(ZadPlanTier.PLUS) }
-    var isAnnualBilling by remember { mutableStateOf(false) }
-    var showSuccessDialog by remember { mutableStateOf(false) }
+    var selectedTier by remember { mutableStateOf<ZadPlanTier>(ZadPlanTier.PLUS) }
+    var isAnnualBilling by remember { mutableStateOf<Boolean>(false) }
+    var showSuccessDialog by remember { mutableStateOf<Boolean>(false) }
 
-    var adWatchCount by remember { mutableStateOf(RewardedBrainAdManager.getAdWatchCount(context)) }
-    var isSessionUnlocked by remember { mutableStateOf(RewardedBrainAdManager.isSessionUnlocked(context)) }
+    var adWatchCount by remember { mutableStateOf<Int>(RewardedBrainAdManager.getAdWatchCount(context)) }
+    var isSessionUnlocked by remember { mutableStateOf<Boolean>(RewardedBrainAdManager.isSessionUnlocked(context)) }
 
     val annualDiscountMultiplier = 0.80 // 20% discount (2 months free)
 

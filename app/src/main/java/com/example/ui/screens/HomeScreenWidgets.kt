@@ -1045,8 +1045,8 @@ fun ZadProHighlightWidget(
     onNavigateToPlans: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val adWatchCount = remember { com.example.ui.components.RewardedBrainAdManager.getAdWatchCount(context) }
-    val isSessionUnlocked = remember { com.example.ui.components.RewardedBrainAdManager.isSessionUnlocked(context) }
+    val adWatchCount = remember { com.example.ads.RewardedBrainAdManager.getAdWatchCount(context) }
+    val isSessionUnlocked = remember { com.example.ads.RewardedBrainAdManager.isSessionUnlocked(context) }
 
     Box(
         modifier = Modifier
