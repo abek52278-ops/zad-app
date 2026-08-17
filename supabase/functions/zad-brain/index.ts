@@ -3465,6 +3465,49 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ ok: true }), { headers: CORS_HEADERS });
     }
 
+    // ── حلقة التأمل الليلي المستقلة (Nightly Autonomous Dream & Memory Synthesis) ──
+    // تعمل في الخلفية يومياً لتحليل سرعة الاستهلاك، استنتاج أنماط الإنفاق، وتغذية شبكة الذاكرة.
+    if (body.action === "nightly_dream_reflection") {
+      const sbDream = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+      const targetUserId = body.user_id;
+
+      const { data: users } = targetUserId
+        ? await sbDream.from("zad_users").select("id, currency, monthly_limit").eq("id", targetUserId)
+        : await sbDream.from("zad_users").select("id, currency, monthly_limit").limit(50);
+
+      let synthesized = 0;
+      for (const u of (users ?? [])) {
+        try {
+          const { data: pantryItems } = await sbDream.from("zad_inventory").select("id, name, quantity, unit, updated_at").eq("user_id", u.id);
+          for (const item of (pantryItems ?? [])) {
+            if (item.quantity <= 1) {
+              const { data: existingShop } = await sbDream.from("zad_shopping_list").select("id").eq("user_id", u.id).eq("item_name", item.name).maybeSingle();
+              if (!existingShop) {
+                await sbDream.from("zad_shopping_list").insert({ user_id: u.id, item_name: item.name, quantity: 1, unit: item.unit ?? "قطعة" });
+              }
+            }
+          }
+
+          const { data: recentTxns } = await sbDream.from("zad_transactions").select("amount, category, created_at").eq("user_id", u.id).order("created_at", { ascending: false }).limit(20);
+          if (recentTxns && recentTxns.length >= 5) {
+            const totalSpent = recentTxns.reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+            const avgDaily = totalSpent / 14;
+            if (avgDaily > 0) {
+              const note = `معدل الصرف التقديري اليومي للأسرة حوالي ${Math.round(avgDaily)} ${u.currency ?? ""}`;
+              const { data: existingMem } = await sbDream.from("zad_memory").select("id").eq("user_id", u.id).eq("note", note).maybeSingle();
+              if (!existingMem) {
+                await sbDream.from("zad_memory").insert({ user_id: u.id, scope: "spending_pattern", note, confidence: 0.85, evidence_count: 1 });
+              }
+            }
+          }
+          synthesized++;
+        } catch (e) {
+          console.error("nightly_dream_reflection failed for user", u.id, e);
+        }
+      }
+      return new Response(JSON.stringify({ ok: true, synthesized_users: synthesized }), { headers: CORS_HEADERS });
+    }
+
     // ── المرحلة ٢: مسار المحادثة ──────────────────────────────────────────────
     // منفصل عن مسار التحليل تحت، وبيستخدم هوية مختلفة عن قصد. مسار التحليل بياخد
     // user_id من جسم الطلب (سلوك قديم، بيتنادى من workers ومن الكلاينت بجلسته)؛ المسار
