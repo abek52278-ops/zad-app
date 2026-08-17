@@ -64,6 +64,22 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="zad" android:host="invite" />
+                <data android:scheme="zad" android:host="family" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="zad" />
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="zad.app" android:pathPrefix="/invite" />
+                <data android:scheme="https" android:host="zad.app" android:pathPrefix="/family" />
+                <data android:scheme="http" android:host="zad.app" android:pathPrefix="/invite" />
+                <data android:scheme="http" android:host="zad.app" android:pathPrefix="/family" />
             </intent-filter>
         </activity>
 

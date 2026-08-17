@@ -17,6 +17,7 @@
 // through that table, never by anything the client claims about itself.
 import { Bot, InlineKeyboard, webhookCallback } from "npm:grammy@1";
 import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
+import { mediaGate } from "./entitlement.ts";
 import {
   InlineKeyboardButton, mainMenuKeyboard, dismissKeyboard,
   reasonForCode, parseDismissCallback, normalizeBindingCode, memoryNoteForDismissal,
@@ -889,6 +890,14 @@ bot.on("message:voice", async (ctx) => {
     await ctx.reply("أهلاً! لو عندك كود ربط من تطبيق زاد ابعته كده: /start الكود");
     return;
   }
+  // البوابة المدفوعة — قبل التنزيل عن قصد: مستخدم مقفول ميصحش نصرف عليه
+  // تنزيل ملف ولا نداء موديل. النص بتاعه لسه شغال مجاناً، فهو مش مقطوع.
+  const gate = await mediaGate(sb, userId, "voice");
+  if (!gate.allowed) {
+    await ctx.reply(gate.reply!);
+    return;
+  }
+
   await ctx.replyWithChatAction("typing");
 
   const bytes = await downloadTelegramFileBytes(ctx.message.voice.file_id);
@@ -947,6 +956,14 @@ bot.on("message:photo", async (ctx) => {
     await ctx.reply("أهلاً! لو عندك كود ربط من تطبيق زاد ابعته كده: /start الكود");
     return;
   }
+  // البوابة المدفوعة — قبل التنزيل عن قصد: مستخدم مقفول ميصحش نصرف عليه
+  // تنزيل ملف ولا نداء موديل. النص بتاعه لسه شغال مجاناً، فهو مش مقطوع.
+  const gate = await mediaGate(sb, userId, "scan");
+  if (!gate.allowed) {
+    await ctx.reply(gate.reply!);
+    return;
+  }
+
   await ctx.replyWithChatAction("typing");
 
   // آخر عنصر في مصفوفة PhotoSize دايماً أعلى دقة بعتها تليجرام (الترتيب تصاعدي مضمون)

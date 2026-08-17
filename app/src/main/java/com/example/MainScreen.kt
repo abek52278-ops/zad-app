@@ -1,14 +1,24 @@
 package com.example
 
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -190,6 +200,12 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
         }
     }
 
+    LaunchedEffect(pendingInviteCode) {
+        if (!pendingInviteCode.isNullOrBlank()) {
+            goGuarded(ZadRoutes.FAMILY)
+        }
+    }
+
     val drawerEntries: List<ZadDrawerEntry> = if (kidsModeEffective) {
         zadDrawerEntries.filter { it.route == ZadRoutes.HOME || it.route == ZadRoutes.FAMILY }
     } else {
@@ -246,6 +262,10 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                 contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 topBar = {
                     if (chromeVisible) {
+                        val isInventory = currentRoute == ZadRoutes.INVENTORY
+                        val inventorySearchQuery by viewModel.inventorySearchQuery.collectAsState()
+                        var isInventorySearchOpen by remember { mutableStateOf(false) }
+
                         ZadTopHeader(
                             title = zadScreenTitle(if (kidsModeEffective && currentRoute != ZadRoutes.FAMILY) ZadRoutes.HOME else currentRoute),
                             kidsMode = kidsModeEffective,
@@ -256,7 +276,65 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                             onExitKidsMode = { showPinPrompt = true },
                             showRelockAction = isChildRole && pinUnlockedOverride,
                             onRelockKidsMode = { pinUnlockedOverride = false },
-                            onAvatarClick = { goGuarded(ZadRoutes.PROFILE) }
+                            onAvatarClick = { goGuarded(ZadRoutes.PROFILE) },
+                            actions = {
+                                if (isInventory) {
+                                    AnimatedVisibility(
+                                        visible = isInventorySearchOpen,
+                                        enter = fadeIn() + expandHorizontally(),
+                                        exit = fadeOut() + shrinkHorizontally()
+                                    ) {
+                                        OutlinedTextField(
+                                            value = inventorySearchQuery,
+                                            onValueChange = { viewModel.setSearchQuery(it) },
+                                            placeholder = {
+                                                Text(
+                                                    stringResource(R.string.search_inventory),
+                                                    fontSize = 12.sp
+                                                )
+                                            },
+                                            singleLine = true,
+                                            shape = RoundedCornerShape(50),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = primary,
+                                                unfocusedBorderColor = primary.copy(alpha = 0.3f),
+                                                focusedContainerColor = Color.White,
+                                                unfocusedContainerColor = Color.White
+                                            ),
+                                            trailingIcon = {
+                                                if (inventorySearchQuery.isNotEmpty()) {
+                                                    IconButton(
+                                                        onClick = { viewModel.setSearchQuery("") },
+                                                        modifier = Modifier.size(20.dp)
+                                                    ) {
+                                                        Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(13.dp))
+                                                    }
+                                                }
+                                            },
+                                            modifier = Modifier
+                                                .width(170.dp)
+                                                .height(38.dp)
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            isInventorySearchOpen = !isInventorySearchOpen
+                                            if (!isInventorySearchOpen) viewModel.setSearchQuery("")
+                                        },
+                                        modifier = Modifier
+                                            .size(34.dp)
+                                            .clip(CircleShape)
+                                            .background(if (isInventorySearchOpen || inventorySearchQuery.isNotEmpty()) primary.copy(alpha = 0.12f) else primary.copy(alpha = 0.08f))
+                                    ) {
+                                        Icon(
+                                            if (isInventorySearchOpen) Icons.Default.Close else Icons.Default.Search,
+                                            contentDescription = stringResource(R.string.search_inventory),
+                                            tint = primary,
+                                            modifier = Modifier.size(17.dp)
+                                        )
+                                    }
+                                }
+                            }
                         )
                     }
                 },

@@ -111,6 +111,7 @@ fun ZadTopHeader(
     onExitKidsMode: () -> Unit = {},
     onRelockKidsMode: () -> Unit = {},
     onAvatarClick: () -> Unit = {},
+    actions: @Composable RowScope.() -> Unit = {}
 ) {
     Column(
         modifier = modifier
@@ -248,13 +249,25 @@ fun ZadTopHeader(
                 }
             }
         }
-        Text(
-            title,
-            fontSize = 26.sp,
-            lineHeight = 32.sp,
-            fontWeight = FontWeight.Bold,
-            color = textPrimary
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                title,
+                fontSize = 26.sp,
+                lineHeight = 32.sp,
+                fontWeight = FontWeight.Bold,
+                color = textPrimary
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                actions()
+            }
+        }
     }
     Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(primary.copy(alpha = 0.06f)))
 }
@@ -410,13 +423,12 @@ fun ZadSegmentedTabs(
     tabs: List<String>,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
     scrollable: Boolean = tabs.size > 3,
 ) {
     val trackShape = RoundedCornerShape(999.dp)
     val track = modifier
         .fillMaxWidth()
-        .padding(horizontal = 20.dp, vertical = 12.dp)
         .zadCardShadow(trackShape)
         .clip(trackShape)
         .background(Color.White)

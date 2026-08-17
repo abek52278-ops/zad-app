@@ -256,9 +256,18 @@ fun InventoryScreen(
     // screen, and a white fill here flattens every white list card on top of it.
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            InventorySearchBar(
-                searchQuery = searchQuery,
-                onSearchChange = { viewModel.setSearchQuery(it) }
+            // شريط التبويبات المدمج بعرض الشاشة
+            com.example.ui.components.ZadSegmentedTabs(
+                tabs = listOf(
+                    stringResource(R.string.tab_all_products),
+                    if (shortageItems.isEmpty()) stringResource(R.string.tab_shortages)
+                    else "${stringResource(R.string.tab_shortages)} (${shortageItems.size})"
+                ),
+                selectedIndex = selectedTab,
+                onSelect = { selectedTab = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
             )
 
             if (lowStockItems.isNotEmpty()) {
@@ -280,23 +289,13 @@ fun InventoryScreen(
                 )
             }
 
-            com.example.ui.components.ZadSegmentedTabs(
-                tabs = listOf(
-                    stringResource(R.string.tab_all_products),
-                    if (shortageItems.isEmpty()) stringResource(R.string.tab_shortages)
-                    else "${stringResource(R.string.tab_shortages)} (${shortageItems.size})"
-                ),
-                selectedIndex = selectedTab,
-                onSelect = { selectedTab = it }
-            )
-
             if (selectedTab == 1) {
                 if (shortageItems.isEmpty()) {
                     com.example.ui.components.ZadEmptyState(
                         icon = Icons.Default.CheckCircle,
                         title = stringResource(R.string.no_shortages_title),
                         subtitle = stringResource(R.string.no_shortages_hint),
-                        modifier = Modifier.fillMaxSize().padding(bottom = 100.dp),
+                        modifier = Modifier.fillMaxSize().padding(bottom = 90.dp),
                         iconTint = successColor,
                         iconBackground = successColor.copy(alpha = 0.1f)
                     )
@@ -328,12 +327,9 @@ fun InventoryScreen(
                     }
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(2),
-                        // bottom=100dp clears the floating Add/Scan buttons — same clearance
-                        // EmptyInventoryState/EmptySearchState already use below; the grid
-                        // itself was still using a flat 12dp, so its last row sat under the FABs.
-                        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 100.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 80.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
                         items(shortageItems, key = { it.id }) { item ->
@@ -365,16 +361,13 @@ fun InventoryScreen(
                 } else {
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(2),
-                        // bottom=100dp clears the floating Add/Scan buttons — same clearance
-                        // EmptyInventoryState/EmptySearchState already use below; the grid
-                        // itself was still using a flat 12dp, so its last row sat under the FABs.
-                        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 100.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 80.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
                         itemsIndexed(filteredItems, key = { _, item -> item.id }) { index, item ->
-                            com.example.ui.components.AppearOnEntry(delayMs = (index * 40).coerceAtMost(400)) {
+                            com.example.ui.components.AppearOnEntry(delayMs = (index * 30).coerceAtMost(300)) {
                                 InventoryItemCard(
                                     item = item,
                                     onDelete = { viewModel.deleteInventory(item.id) },
@@ -392,8 +385,8 @@ fun InventoryScreen(
         Row(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 20.dp, bottom = 28.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(end = 16.dp, bottom = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             FloatingActionButton(
                 onClick = { onNavigateToCamera() },
@@ -516,43 +509,6 @@ private fun EditInventoryDialog(
     )
 }
 
-/**
- * The mockup's inventory screen has no app bar of its own — `ZadTopHeader` in the
- * shell carries the title, so all that is left here is the search field, promoted
- * from a collapsed icon to a persistent pill (a filter you cannot see is a filter
- * nobody uses).
- */
-@Composable
-private fun InventorySearchBar(
-    searchQuery: String,
-    onSearchChange: (String) -> Unit
-) {
-    OutlinedTextField(
-        value = searchQuery,
-        onValueChange = onSearchChange,
-        placeholder = { Text(stringResource(R.string.search_inventory), color = onSurfaceVariant) },
-        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = onSurfaceVariant) },
-        trailingIcon = {
-            if (searchQuery.isNotEmpty()) {
-                IconButton(onClick = { onSearchChange("") }) {
-                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear_cd), tint = onSurfaceVariant)
-                }
-            }
-        },
-        singleLine = true,
-        shape = RoundedCornerShape(50),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = primary,
-            unfocusedBorderColor = Color.Transparent,
-            focusedContainerColor = Color.White,
-            unfocusedContainerColor = Color.White
-        ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp)
-    )
-}
-
 private fun getEstimatedPrice(itemName: String): Double {
     val lower = itemName.lowercase()
     return when {
@@ -579,15 +535,15 @@ private fun LowStockBanner(items: List<ZadInventory>, onShopClick: () -> Unit = 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 8.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .clip(RoundedCornerShape(8.dp))
             .background(errorContainer)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(36.dp)
+                .size(20.dp)
                 .clip(CircleShape)
                 .background(dangerColor.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center
@@ -596,26 +552,38 @@ private fun LowStockBanner(items: List<ZadInventory>, onShopClick: () -> Unit = 
                 Icons.Default.ShoppingCartCheckout,
                 contentDescription = null,
                 tint = dangerColor,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(11.dp)
             )
         }
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                stringResource(R.string.inventory_shortages_count, items.size),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                color = onErrorContainer
-            )
-            Text(
-                stringResource(R.string.estimated_shopping_cost, com.example.data.CurrencyFormatter.format(context, totalEstimatedCost)),
-                style = MaterialTheme.typography.bodySmall,
-                color = onErrorContainer.copy(alpha = 0.8f)
-            )
-        }
-        TextButton(onClick = onShopClick) {
-            Text(stringResource(R.string.add_to_shopping_list), color = dangerColor, fontWeight = FontWeight.Bold)
-        }
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            stringResource(R.string.inventory_shortages_count, items.size),
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Bold,
+            color = onErrorContainer,
+            fontSize = 12.sp
+        )
+        Text(
+            " (${com.example.data.CurrencyFormatter.format(context, totalEstimatedCost)})",
+            style = MaterialTheme.typography.labelSmall,
+            color = onErrorContainer.copy(alpha = 0.75f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            fontSize = 11.sp,
+            modifier = Modifier.weight(1f)
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            stringResource(R.string.add_to_shopping_list),
+            style = MaterialTheme.typography.labelSmall,
+            color = dangerColor,
+            fontWeight = FontWeight.Bold,
+            fontSize = 11.sp,
+            modifier = Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .clickable { onShopClick() }
+                .padding(horizontal = 6.dp, vertical = 2.dp)
+        )
     }
 }
 
@@ -627,7 +595,7 @@ private fun ExpiringSoonSection(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .padding(horizontal = 6.dp, vertical = 2.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -637,7 +605,7 @@ private fun ExpiringSoonSection(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(18.dp)
                         .clip(CircleShape)
                         .background(warningColor.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
@@ -646,63 +614,78 @@ private fun ExpiringSoonSection(
                         Icons.Default.Timer,
                         contentDescription = null,
                         tint = warningColor,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(11.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     stringResource(R.string.expiring_soon_badge),
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = onBackground
+                    color = onBackground,
+                    fontSize = 12.sp
                 )
             }
-            TextButton(onClick = onNavigateToAssistant) {
-                Text(stringResource(R.string.suggest_recipe), color = primary, fontWeight = FontWeight.Medium)
-                Spacer(modifier = Modifier.width(4.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable { onNavigateToAssistant() }
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    stringResource(R.string.suggest_recipe),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = primary,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 11.sp
+                )
+                Spacer(modifier = Modifier.width(2.dp))
                 Icon(
                     Icons.Default.AutoAwesome,
                     contentDescription = null,
                     tint = primary,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(11.dp)
                 )
             }
         }
 
         LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(vertical = 4.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            contentPadding = PaddingValues(vertical = 2.dp)
         ) {
             items(items) { item ->
                 val days = daysUntilExpiry(item.expiryDate)
                 com.example.ui.components.ZadListCard(
-                    modifier = Modifier.padding(vertical = 2.dp),
+                    modifier = Modifier.padding(vertical = 1.dp),
                     contentPadding = 0.dp
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(8.dp)
+                                .size(6.dp)
                                 .clip(CircleShape)
                                 .background(expiryColor(days))
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Column {
                             Text(
                                 item.itemName,
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Medium,
                                 color = onSurface,
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = TextOverflow.Ellipsis,
+                                fontSize = 11.sp
                             )
                             Text(
                                 if (days != null && days <= 0) stringResource(R.string.expired) else stringResource(R.string.days_remaining, days?.toString() ?: "?"),
                                 style = MaterialTheme.typography.labelSmall,
-                                color = expiryColor(days)
+                                color = expiryColor(days),
+                                fontSize = 9.5.sp
                             )
                         }
                     }
@@ -717,33 +700,29 @@ private fun CategoryPills(
     selected: String,
     onSelect: (String) -> Unit
 ) {
-    // The mockup's category chip: fully rounded, white with a soft shadow when
-    // idle, solid brand green when active, and the icon inside a 20dp tinted
-    // circle rather than loose next to the label. The old chip was a transparent
-    // outline — on the canvas gradient that reads as a disabled control.
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         categoryDefs.forEach { def ->
             val isSelected = selected == def.key
             val shape = RoundedCornerShape(50)
             Row(
                 modifier = Modifier
-                    .then(if (isSelected) Modifier else Modifier.zadCardShadow(shape, elevation = 6.dp))
+                    .then(if (isSelected) Modifier else Modifier.zadCardShadow(shape, elevation = 3.dp))
                     .clip(shape)
                     .background(if (isSelected) primary else Color.White)
                     .clickable { onSelect(def.key) }
-                    .padding(start = 6.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
+                    .padding(start = 4.dp, end = 8.dp, top = 3.dp, bottom = 3.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(20.dp)
+                        .size(16.dp)
                         .clip(CircleShape)
                         .background(if (isSelected) Color.White.copy(alpha = 0.2f) else def.bg),
                     contentAlignment = Alignment.Center
@@ -752,12 +731,12 @@ private fun CategoryPills(
                         def.icon,
                         contentDescription = null,
                         tint = if (isSelected) Color.White else def.fg,
-                        modifier = Modifier.size(13.dp)
+                        modifier = Modifier.size(10.dp)
                     )
                 }
                 Text(
                     def.label,
-                    fontSize = 12.5.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = if (isSelected) Color.White else textSecondary
                 )
@@ -812,12 +791,12 @@ private fun InventoryItemCard(
     val days = daysUntilExpiry(item.expiryDate)
     val catDef = categoryDefFor(item.category, item.itemName)
     val isLowStock = item.quantity <= (item.lowStockThreshold ?: 2)
-    val cardShape = RoundedCornerShape(20.dp)
+    val cardShape = RoundedCornerShape(12.dp)
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .zadCardShadow(cardShape, elevation = 10.dp)
+            .zadCardShadow(cardShape, elevation = 4.dp)
             .clip(cardShape)
             .background(
                 Brush.verticalGradient(listOf(catDef.bg.copy(alpha = 0.35f), surface))
@@ -826,7 +805,7 @@ private fun InventoryItemCard(
             .pressableScale()
     ) {
         Column(
-            modifier = Modifier.padding(12.dp)
+            modifier = Modifier.padding(6.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -835,38 +814,39 @@ private fun InventoryItemCard(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(8.dp))
                         .background(catDef.bg),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = getEmojiForItem(item.itemName, item.category),
-                        fontSize = 20.sp,
-                        modifier = Modifier.floatingIdle(amplitude = 2.5f)
+                        fontSize = 16.sp,
+                        modifier = Modifier.floatingIdle(amplitude = 1.5f)
                     )
                 }
                 Box(
                     modifier = Modifier
-                        .size(10.dp)
+                        .size(7.dp)
                         .clip(CircleShape)
                         .background(expiryColor(days))
                 )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
                 item.itemName,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
                 color = onSurface,
-                maxLines = 2,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                lineHeight = 20.sp
+                fontSize = 13.sp,
+                lineHeight = 16.sp
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(3.dp))
 
             // تحكم بالكمية: − استهلاك (يغذي التعلم والنواقص) / + إعادة تعبئة
             Row(
@@ -879,36 +859,37 @@ private fun InventoryItemCard(
                 IconButton(
                     onClick = onConsume,
                     enabled = item.quantity > 0,
-                    modifier = Modifier.size(26.dp).pressableScale()
+                    modifier = Modifier.size(22.dp).pressableScale()
                 ) {
                     Icon(
                         Icons.Default.RemoveCircleOutline,
                         contentDescription = stringResource(R.string.consume_one_cd),
                         tint = if (item.quantity > 0) dangerColor else outline,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                 }
                 Text(
                     "${item.quantity} ${item.unit ?: ""}",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = onSurface,
-                    modifier = Modifier.padding(horizontal = 6.dp)
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(horizontal = 2.dp)
                 )
                 IconButton(
                     onClick = onRestock,
-                    modifier = Modifier.size(26.dp).pressableScale()
+                    modifier = Modifier.size(22.dp).pressableScale()
                 ) {
                     Icon(
                         Icons.Default.AddCircleOutline,
                         contentDescription = stringResource(R.string.restock_one_cd),
                         tint = primary,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             val animatedStock by androidx.compose.animation.core.animateFloatAsState(
                 targetValue = stockRatio(item),
                 animationSpec = com.example.ui.components.ZadSprings.Screen,
@@ -918,23 +899,24 @@ private fun InventoryItemCard(
                 progress = { animatedStock },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(4.dp)
+                    .height(3.dp)
                     .clip(RoundedCornerShape(2.dp)),
                 color = stockColor(item),
                 trackColor = outlineVariant
             )
 
             if (days != null) {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     if (days <= 0) stringResource(R.string.expired_short) else stringResource(R.string.days_count, days),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Medium,
-                    color = expiryColor(days)
+                    color = expiryColor(days),
+                    fontSize = 9.5.sp
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -951,36 +933,35 @@ private fun InventoryItemCard(
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = dangerColor,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            fontSize = 9.5.sp,
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                         )
                     }
                 } else {
                     Spacer(modifier = Modifier.width(1.dp))
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    // تعديل جنب المسح — تصحيح كمية غلط مكانش ليه طريق غير المسح وإعادة
-                    // الإدخال، واللي بيضيّع معدل الاستهلاك المتعلّم للصنف.
+                Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
                     IconButton(
                         onClick = onEdit,
-                        modifier = Modifier.size(28.dp).pressableScale()
+                        modifier = Modifier.size(22.dp).pressableScale()
                     ) {
                         Icon(
                             Icons.Default.Edit,
                             contentDescription = stringResource(R.string.inventory_edit_title),
                             tint = outline,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(14.dp)
                         )
                     }
                     IconButton(
                         onClick = onDelete,
-                        modifier = Modifier.size(28.dp).pressableScale()
+                        modifier = Modifier.size(22.dp).pressableScale()
                     ) {
                         Icon(
                             Icons.Default.DeleteOutline,
                             contentDescription = stringResource(R.string.delete_cd),
                             tint = outline,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(14.dp)
                         )
                     }
                 }
@@ -999,58 +980,60 @@ private fun ShortageItemCard(
     var added by remember(item.id) { mutableStateOf(false) }
 
     com.example.ui.components.ZadListCard(contentPadding = 0.dp) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(8.dp))
                         .background(catDef.bg),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = getEmojiForItem(item.itemName, item.category),
-                        fontSize = 18.sp,
-                        modifier = Modifier.floatingIdle(amplitude = 2f)
+                        fontSize = 15.sp,
+                        modifier = Modifier.floatingIdle(amplitude = 1.5f)
                     )
                 }
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         item.itemName,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Bold,
                         color = onSurface,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        fontSize = 12.sp
                     )
                     Text(
                         if (days != null && days <= 0) stringResource(R.string.expired_short)
                         else if (days != null) stringResource(R.string.days_count, days)
                         else stringResource(R.string.quantity_colon_count, item.quantity),
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (days != null) expiryColor(days) else dangerColor
+                        color = if (days != null) expiryColor(days) else dangerColor,
+                        fontSize = 9.5.sp
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             LinearProgressIndicator(
                 progress = { stockRatio(item) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(4.dp)
+                    .height(3.dp)
                     .clip(RoundedCornerShape(2.dp)),
                 color = stockColor(item),
                 trackColor = outlineVariant
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Button(
                 onClick = { added = true; onAddToShoppingList() },
                 enabled = !added,
-                shape = RoundedCornerShape(10.dp),
-                contentPadding = PaddingValues(vertical = 8.dp),
+                shape = RoundedCornerShape(8.dp),
+                contentPadding = PaddingValues(vertical = 4.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (added) successColor else primary,
                     contentColor = Color.White,
@@ -1061,12 +1044,13 @@ private fun ShortageItemCard(
                 Icon(
                     if (added) Icons.Default.Check else Icons.Default.AddShoppingCart,
                     contentDescription = null,
-                    modifier = Modifier.size(14.dp)
+                    modifier = Modifier.size(12.dp)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(3.dp))
                 Text(
                     stringResource(if (added) R.string.added_to_list_label else R.string.add_to_shopping_list),
                     style = MaterialTheme.typography.labelSmall,
+                    fontSize = 10.5.sp,
                     maxLines = 1
                 )
             }

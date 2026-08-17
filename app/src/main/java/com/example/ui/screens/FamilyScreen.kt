@@ -53,6 +53,17 @@ import android.util.Log
 import kotlinx.serialization.encodeToString
 import androidx.compose.ui.platform.LocalContext
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.ImageDecoder
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.FileProvider
+import java.io.File
+import com.example.ui.components.decodeQrFromBitmap
+import com.example.ui.components.extractInviteCode
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 
@@ -127,8 +138,16 @@ fun NoFamilyScreen(
     onCreateFamily: () -> Unit,
     onJoinFamily: (String, String) -> Unit
 ) {
+    var showJoinDialog by remember { mutableStateOf(false) }
     var inviteCode by remember { mutableStateOf(pendingInviteCode ?: "") }
     var alias by remember { mutableStateOf("") }
+
+    LaunchedEffect(pendingInviteCode) {
+        if (!pendingInviteCode.isNullOrBlank()) {
+            inviteCode = pendingInviteCode
+            showJoinDialog = true
+        }
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -157,38 +176,62 @@ fun NoFamilyScreen(
             color = onSurfaceVariant,
             textAlign = TextAlign.Center
         )
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
         Button(
             onClick = onCreateFamily,
-            modifier = Modifier.fillMaxWidth().height(56.dp).pressableScale(),
+            modifier = Modifier.fillMaxWidth().height(54.dp).pressableScale(),
             colors = ButtonDefaults.buttonColors(containerColor = primary),
             shape = RoundedCornerShape(50)
         ) {
             Icon(Icons.Default.Add, null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text(text = stringResource(R.string.create_new_family_admin), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(text = stringResource(R.string.create_new_family_admin), fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Button(
+            onClick = { showJoinDialog = true },
+            modifier = Modifier.fillMaxWidth().height(54.dp).pressableScale(),
+            colors = ButtonDefaults.buttonColors(containerColor = secondary),
+            shape = RoundedCornerShape(50)
+        ) {
+            Icon(Icons.Default.GroupAdd, null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(text = stringResource(R.string.join_family_action), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
         Text(stringResource(R.string.or_word), color = onSurfaceVariant)
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         AuthTextField(label = stringResource(R.string.your_alias_label), value = alias, onValueChange = { alias = it }, placeholder = stringResource(R.string.eg_child_alias))
-        AuthTextField(label = stringResource(R.string.invite_code_label), value = inviteCode, onValueChange = { inviteCode = it }, placeholder = stringResource(R.string.eg_invite_code))
+        AuthTextField(label = stringResource(R.string.invite_code_label), value = inviteCode, onValueChange = { inviteCode = extractInviteCode(it) }, placeholder = stringResource(R.string.eg_invite_code))
 
         Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedButton(
-            onClick = { onJoinFamily(inviteCode, alias) },
-            modifier = Modifier.fillMaxWidth().height(56.dp).pressableScale(),
+            onClick = { onJoinFamily(inviteCode.trim(), alias.trim()) },
+            modifier = Modifier.fillMaxWidth().height(54.dp).pressableScale(),
             shape = RoundedCornerShape(50),
             enabled = inviteCode.isNotBlank() && alias.isNotBlank()
         ) {
             Icon(Icons.Default.ArrowForward, null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text(text = stringResource(R.string.join_family_action), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(text = stringResource(R.string.join_family_action), fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
+    }
+
+    if (showJoinDialog) {
+        JoinFamilyDialog(
+            initialCode = inviteCode,
+            onDismiss = { showJoinDialog = false },
+            onJoin = { code, name ->
+                onJoinFamily(code, name)
+                showJoinDialog = false
+            }
+        )
     }
 }
 
@@ -206,6 +249,7 @@ fun ActiveFamilyScreen(
     var selectedTab by remember { mutableStateOf(0) }
     val context = LocalContext.current
     var showInviteDialog by remember { mutableStateOf(false) }
+    var showJoinDialog by remember { mutableStateOf(false) }
 
     val isParent = state.myMemberInfo.role == "admin"
     val needAmountPattern = stringResource(R.string.need_amount_purchase)
@@ -258,9 +302,6 @@ fun ActiveFamilyScreen(
                         )
                     }
                     Row {
-                        // نداء طوارئ سريع من أي مكان في الهب — كان قبل كده مدفون جوه زرار
-                        // تاب الشات بس، لازم تفتح المحادثة الأول عشان توصله. تأكيد بضغطة
-                        // واحدة قبل الإرسال — نداء طوارئ حقيقي، مش فعل قابل للتراجع.
                         IconButton(
                             onClick = {
                                 headerHaptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -270,13 +311,33 @@ fun ActiveFamilyScreen(
                         ) {
                             Icon(Icons.Default.Warning, contentDescription = stringResource(R.string.sos_message), tint = Color.White)
                         }
+                        IconButton(
+                            onClick = { showJoinDialog = true },
+                            modifier = Modifier.pressableScale()
+                        ) {
+                            Icon(Icons.Default.GroupAdd, contentDescription = stringResource(R.string.join_family_action), tint = Color.White)
+                        }
                         IconButton(onClick = { showInviteDialog = true }) {
                             Icon(Icons.Default.PersonAdd, null, tint = Color.White)
                         }
                         IconButton(onClick = {
+                            val webLink = "https://zad.app/invite?code=${state.familyGroup.inviteCode}"
+                            val deepLink = "zad://invite?code=${state.familyGroup.inviteCode}"
+                            val shareMessage = """
+🌱 دعوة للانضمام إلى عائلتي على تطبيق زاد
+
+📲 اضغط على الرابط التالي للانضمام فوراً وفتح التطبيق:
+$webLink
+
+🔑 كود الدعوة المباشر:
+${state.familyGroup.inviteCode}
+
+🔗 رابط التطبيق المباشر:
+$deepLink
+                            """.trimIndent()
                             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, "$joinFamilyShareText\n$inviteCodeColon ${state.familyGroup.inviteCode}\n$tapToOpen zad://invite?code=${state.familyGroup.inviteCode}")
+                                putExtra(Intent.EXTRA_TEXT, shareMessage)
                             }
                             context.startActivity(Intent.createChooser(shareIntent, shareInviteTitle))
                         }) {
@@ -287,8 +348,7 @@ fun ActiveFamilyScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // شريط أفاتارات الأعضاء — أول ٦ + شارة "+N" لو زيادة. نفس دايرة الحرف
-                // الأول المستخدمة أصلاً في فقاعات الشات (سطر ~1616) بدل ما نخترع شكل جديد.
+                // شريط أفاتارات الأعضاء
                 Row(horizontalArrangement = Arrangement.spacedBy((-8).dp)) {
                     state.members.take(6).forEach { member ->
                         Box(
@@ -340,9 +400,7 @@ fun ActiveFamilyScreen(
             )
         }
 
-        // The mockup's segmented pill, shared with Zad Mind. Was a
-        // `ScrollableTabRow` whose 3dp underline indicator sat on a near-white
-        // strip — on the canvas gradient the selected tab was barely legible.
+        // The mockup's segmented pill, shared with Zad Mind.
         com.example.ui.components.ZadSegmentedTabs(
             tabs = tabs.map { it.title },
             selectedIndex = selectedTab,
@@ -354,7 +412,7 @@ fun ActiveFamilyScreen(
             when (selectedTab) {
                 0 -> ChatTab(state.messages, state.members, state.myMemberInfo, onSendMessage, onUpdateRequestStatus, viewModel = viewModel, showFinancials = showFinancials)
                 1 -> TasksTab(state.chores, state.members, state.myMemberInfo.role == "admin", onToggleChore, onAddChore, showFinancials = showFinancials)
-                2 -> MembersTab(state = state, viewModel = viewModel, showFinancials = showFinancials)
+                2 -> MembersTab(state = state, viewModel = viewModel, showFinancials = showFinancials, onOpenJoinDialog = { showJoinDialog = true })
                 3 -> GroceriesTab(state.groceries, onToggleGrocery)
                 4 -> if (isParent && showFinancials) KidsSpendingTab(state = state, viewModel = viewModel, onUpdateRequestStatus = onUpdateRequestStatus)
                 5 -> if (isParent && showFinancials) BudgetGoalsTab(state.goals, state.members, state.chores, viewModel)
@@ -366,6 +424,17 @@ fun ActiveFamilyScreen(
         InviteMemberDialog(
             inviteCode = state.familyGroup.inviteCode,
             onDismiss = { showInviteDialog = false }
+        )
+    }
+
+    if (showJoinDialog) {
+        JoinFamilyDialog(
+            initialCode = "",
+            onDismiss = { showJoinDialog = false },
+            onJoin = { code, alias ->
+                viewModel.joinFamily(code, alias)
+                showJoinDialog = false
+            }
         )
     }
 }
@@ -545,7 +614,12 @@ private fun KidsSpendingTab(
 
 // ── MEMBERS TAB ──
 @Composable
-private fun MembersTab(state: FamilyState.Active, viewModel: FamilyViewModel, showFinancials: Boolean = true) {
+private fun MembersTab(
+    state: FamilyState.Active,
+    viewModel: FamilyViewModel,
+    showFinancials: Boolean = true,
+    onOpenJoinDialog: () -> Unit = {}
+) {
     var selectedMember by remember { mutableStateOf<com.example.data.FamilyMember?>(null) }
     var showLeaveConfirm by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -1533,6 +1607,110 @@ private fun InviteMemberDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.done_action)) }
+        }
+    )
+}
+
+// ── JOIN FAMILY DIALOG ──
+@Composable
+private fun JoinFamilyDialog(
+    initialCode: String = "",
+    onDismiss: () -> Unit,
+    onJoin: (code: String, alias: String) -> Unit
+) {
+    var inviteCode by remember { mutableStateOf(initialCode) }
+    var alias by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    var scanError by remember { mutableStateOf(false) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, _, _ ->
+                        decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                        decoder.isMutableRequired = true
+                    }
+                } else {
+                    @Suppress("DEPRECATION")
+                    MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
+                }
+                val rawCode = decodeQrFromBitmap(bitmap)
+                if (!rawCode.isNullOrBlank()) {
+                    inviteCode = extractInviteCode(rawCode)
+                    scanError = false
+                } else {
+                    scanError = true
+                }
+            } catch (e: Exception) {
+                Log.e(TAG_FAM, "Error decoding QR from gallery image", e)
+                scanError = true
+            }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.GroupAdd, contentDescription = null, tint = primary)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.join_family_action))
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                AuthTextField(
+                    label = stringResource(R.string.your_alias_label),
+                    value = alias,
+                    onValueChange = { alias = it },
+                    placeholder = stringResource(R.string.eg_child_alias)
+                )
+
+                AuthTextField(
+                    label = stringResource(R.string.invite_code_label),
+                    value = inviteCode,
+                    onValueChange = { inviteCode = extractInviteCode(it) },
+                    placeholder = stringResource(R.string.eg_invite_code)
+                )
+
+                OutlinedButton(
+                    onClick = { photoPickerLauncher.launch("image/*") },
+                    modifier = Modifier.fillMaxWidth().pressableScale(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.scan_to_join), fontSize = 14.sp)
+                }
+
+                if (scanError) {
+                    Text(
+                        stringResource(R.string.changes_save_failed),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onJoin(inviteCode.trim(), alias.trim()) },
+                enabled = inviteCode.isNotBlank() && alias.isNotBlank(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(stringResource(R.string.join_family_action))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
         }
     )
 }

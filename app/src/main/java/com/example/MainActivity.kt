@@ -228,6 +228,7 @@ class MainActivity : ComponentActivity() {
         }
 
         enableEdgeToEdge()
+        handleIntent(intent)
         setContent {
             AppTheme {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
@@ -244,12 +245,25 @@ class MainActivity : ComponentActivity() {
 
     private fun handleIntent(intent: Intent?) {
         val uri = intent?.data
-        if (uri?.scheme == "zad" && uri.host == "invite") {
-            val code = uri.getQueryParameter("code")
-            if (code != null) {
-                Log.d("ZAD_DEEPLINK", "Received invite code from intent: $code")
+        if (uri != null) {
+            Log.d("ZAD_DEEPLINK", "Received intent URI: $uri")
+            val codeFromParam = uri.getQueryParameter("code")
+            val code = if (!codeFromParam.isNullOrBlank()) {
+                codeFromParam.trim()
+            } else {
+                val lastSegment = uri.lastPathSegment
+                if (!lastSegment.isNullOrBlank() && lastSegment != "invite" && lastSegment != "family") {
+                    lastSegment.trim()
+                } else null
+            }
+            if (!code.isNullOrBlank()) {
+                Log.d("ZAD_DEEPLINK", "Extracted invite code from intent: $code")
                 pendingInviteCode.value = code
             }
+        }
+        val explicitCode = intent?.getStringExtra("invite_code")
+        if (!explicitCode.isNullOrBlank()) {
+            pendingInviteCode.value = explicitCode.trim()
         }
         if (intent?.getBooleanExtra("open_family_chat", false) == true) {
             Log.d("ZAD_NOTIF", "Opening family chat from notification")

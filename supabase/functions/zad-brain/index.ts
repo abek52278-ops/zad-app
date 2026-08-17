@@ -60,6 +60,7 @@ import { decideOnBrainFailure, hasRecentMutatingRun, normalizeDoseTimes } from "
 import { type FastIntent, formatBalanceReply, parseFastPath } from "./fastPath.ts";
 import { AgentSource, AuditScope, recordAction, writeRows } from "./audit.ts";
 import { redactNotificationText } from "./redact.ts";
+import { classifyMessage, consume as consumeEntitlement, lockedReply } from "./entitlement.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
