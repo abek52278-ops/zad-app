@@ -49,7 +49,7 @@ import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
 private val PHARMACY_CATEGORIES = listOf("عام", "مسكن", "مضاد حيوي", "فيتامين", "مزمن")
-private val PHARMACY_UNITS = listOf("قرص", "مل", "كريم")
+private val PHARMACY_UNITS = listOf("حبة", "قرص", "كبسولة", "مل", "بخاخ", "نقطة", "كريم", "كيس", "أمبول", "علبة")
 
 /** مواعيد افتراضية مقترحة لو المستخدم سايب حقل المواعيد فاضي — موزّعة على ساعات الصحيان (8ص-10م) */
 private fun suggestDoseTimes(dailyDoseCount: Int): String {
@@ -775,6 +775,20 @@ private fun AddPharmacyItemDialog(
 
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(stringResource(R.string.dose_times_hint), style = Typography.labelSmall, color = onSurfaceVariant)
+                    androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        val presets = listOf("08:00" to "🌅 صباحاً", "14:00" to "☀️ ظهراً", "20:00" to "🌙 مساءً", "23:00" to "🛌 قبل النوم")
+                        items(presets) { (slot, label) ->
+                            val selected = doseTimesList.contains(slot)
+                            FilterChip(
+                                selected = selected,
+                                onClick = {
+                                    doseTimesList = if (selected) doseTimesList - slot else (doseTimesList + slot).sorted()
+                                    dailyDoseCount = doseTimesList.size.coerceAtLeast(1).toString()
+                                },
+                                label = { Text("$label $slot", style = Typography.labelSmall) }
+                            )
+                        }
+                    }
                     if (doseTimesList.isEmpty()) {
                         Text(
                             stringResource(R.string.dose_times_empty_hint, suggestDoseTimes(dailyDoseCount.toIntOrNull() ?: 1).ifBlank { "09:00" }),

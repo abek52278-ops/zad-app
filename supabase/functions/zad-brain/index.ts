@@ -1260,6 +1260,17 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
         return `"${medName}" مسجل عندك خلاص بنفس البيانات — مضفتش نسخة تانية`;
       }
 
+      const rawUnit = String(input.unit ?? "حبة").trim();
+      const normalizedUnit = rawUnit.startsWith("قرص") || rawUnit.startsWith("أقراص") ? "قرص"
+        : rawUnit.startsWith("كبسول") ? "كبسولة"
+        : rawUnit.startsWith("كيس") || rawUnit.startsWith("أكياس") ? "كيس"
+        : rawUnit.startsWith("أمبول") ? "أمبول"
+        : rawUnit.startsWith("مل") ? "مل"
+        : rawUnit.startsWith("كريم") ? "كريم"
+        : rawUnit.startsWith("بخاخ") ? "بخاخ"
+        : rawUnit.startsWith("نقط") || rawUnit.startsWith("قطر") ? "نقطة"
+        : "حبة";
+
       const w = await writeRows(
         sb.from("zad_pharmacy_items").insert({
           user_id: userId,
@@ -1270,7 +1281,7 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
           // days-of-supply figure on the phone divides by this number.
           daily_dose_count: doseTimes ? doseTimes.split(",").length : (input.daily_dose_count ?? 1),
           dose_times: doseTimes,
-          unit: input.unit ?? "قرص",
+          unit: normalizedUnit,
           remaining_quantity: input.quantity ?? 1,
           category: input.category ?? "عام",
         }).select("id,name,dose_times"),
@@ -2194,7 +2205,7 @@ const CHAT_TOOLS: ToolDef[] = [
         daily_dose_count: { type: "number", description: "لازم يساوي عدد المواعيد في dose_times" },
         dose_times: { type: "string", description: "الساعات اللي العميل نطقها بنفسه بس، HH:MM مفصولة بفاصلة، ٢٤ ساعة. ممنوع 24:00 — استخدم 00:00. سيبها فاضية لو هو قال عدد مرات بس." },
         times_explicit: { type: "boolean", description: "true بس لو العميل نطق الساعات دي حرفياً في كلامه" },
-        unit: { type: "string", enum: ["قرص", "مل", "كريم"] },
+        unit: { type: "string", enum: ["قرص", "أقراص", "حبة", "حبات", "حبوب", "كبسولة", "كبسولات", "مل", "كريم", "بخاخ", "نقطة", "قطرة", "كيس", "أكياس", "أمبول", "أمبولات", "علبة"] },
         quantity: { type: "number", description: "الكمية المتاحة عنده" },
         category: { type: "string", enum: ["عام", "مسكن", "مضاد حيوي", "فيتامين", "مزمن"] },
       },

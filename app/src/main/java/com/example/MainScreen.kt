@@ -189,6 +189,9 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
     // they navigate back to the kids-safe zone, or after 3 idle minutes past a guarded
     // screen, so one correct PIN entry can't stay unlocked for the rest of the session.
     LaunchedEffect(currentRoute) {
+        if (currentRoute != null) {
+            com.example.ads.InterstitialAdManager.recordNavigation(context)
+        }
         if (isChildRole && pinUnlockedOverride && (currentRoute == ZadRoutes.HOME || currentRoute == ZadRoutes.FAMILY)) {
             pinUnlockedOverride = false
         }

@@ -318,7 +318,10 @@ export const validateDeleteInventoryItem: Validator = (input, _snap, ctx) => {
   return { ok: true };
 };
 
-const PHARMACY_UNITS = ["قرص", "مل", "كريم"];
+const PHARMACY_UNITS = [
+  "قرص", "أقراص", "حبة", "حبات", "حبوب", "كبسولة", "كبسولات",
+  "مل", "كريم", "بخاخ", "نقطة", "قطرة", "كيس", "أكياس", "أمبول", "أمبولات", "علبة"
+];
 const DOSE_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export const validateAddPharmacyItem: Validator = (input, _snap, ctx) => {
