@@ -73,15 +73,25 @@ fun ZadCardHero(
     onOpenDetail: () -> Unit = {}
 ) {
     val currencyContext = LocalContext.current
+    val animatedBalance = remember { Animatable(balance.value.toFloat()) }
+    LaunchedEffect(balance.value) {
+        animatedBalance.animateTo(
+            balance.value.toFloat(),
+            animationSpec = spring(dampingRatio = 0.8f, stiffness = 400f)
+        )
+    }
 
     com.example.ui.components.HeroGradientCard(
         colors = com.example.ui.components.ZadHeroGradient,
         shape = RoundedCornerShape(28.dp),
         contentPadding = 0.dp
     ) {
-        Box(modifier = Modifier.clickable(onClick = onOpenDetail)) {
-            // بقعة ضوء زجاجية أعلى يسار الكارت — API 31+ بس (zadGlassBlur نفسها بترجع
-            // no-op تحت كده)، نفس الـ fallback المستخدم في GlassCard الموجودة أصلاً.
+        Box(
+            modifier = Modifier
+                .clickable(onClick = onOpenDetail)
+                .pressableScale(pressedScale = 0.985f)
+        ) {
+            // بقعة ضوء زجاجية أعلى يسار الكارت
             Box(
                 modifier = Modifier
                     .size(140.dp)
@@ -96,21 +106,28 @@ fun ZadCardHero(
                     .fillMaxWidth()
                     .padding(start = 24.dp, end = 24.dp, top = 28.dp, bottom = 28.dp)
             ) {
-                Text(
-                    stringResource(R.string.current_balance_label),
-                    style = Typography.labelSmall.copy(fontSize = 11.5.sp, letterSpacing = 0.4.sp),
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White.copy(alpha = 0.72f)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        stringResource(R.string.current_balance_label),
+                        style = Typography.labelSmall.copy(fontSize = 11.5.sp, letterSpacing = 0.4.sp),
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White.copy(alpha = 0.76f)
+                    )
+                    Icon(
+                        Icons.Filled.AccountBalanceWallet,
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.6f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 var showBalanceReason by remember { mutableStateOf(false) }
-                // التصميم بيرسم الرقم بجراديانت أبيض ← #D9F2E6؛ الرقم السالب بيسيب
-                // الجراديانت للون تحذيري مسطّح عشان يفضل مقروء كإنذار. dangerColor نفسه
-                // (#DC5B4B) على الخلفية الخضرا الغامقة دي بيقيس ~1.75:1 — ساقط في WCAG AA
-                // حتى للخط الكبير. coralLight (#FFA69E) نفس عائلة الأحمر بس ~3.5:1، وده
-                // بيعدّي حد الـ 3:1 بتاع الخط الكبير.
                 val figureStyle = Typography.displayLarge.copy(
                     fontSize = 44.sp,
                     fontWeight = FontWeight.ExtraBold,
@@ -119,10 +136,7 @@ fun ZadCardHero(
                         listOf(Color.White, Color(0xFFD9F2E6))
                     )
                 )
-                // الرقم والرمز في Text منفصلين بمحاذاة خط القاعدة، مش نص واحد من
-                // CurrencyFormatter.format. الرمز على 44sp بياكل عرض الكارت: رصيد من ٦ خانات
-                // + " ج.م" بيعدّي عرض السطر على شاشة ٣٦٠dp ويتقص. الرمز أصغر بيحل ده وكمان
-                // بيدّي الرقم نفسه الوزن البصري اللي المفروض يكون له لوحده.
+
                 Row(
                     verticalAlignment = Alignment.Bottom,
                     modifier = Modifier.combinedClickable(
@@ -132,7 +146,7 @@ fun ZadCardHero(
                 ) {
                     Text(
                         (if (!balance.confident) "≈ " else "") +
-                            com.example.data.CurrencyFormatter.formatNumber(currencyContext, balance.value),
+                            com.example.data.CurrencyFormatter.formatNumber(currencyContext, animatedBalance.value.toDouble()),
                         style = figureStyle,
                         maxLines = 1,
                         color = if (balance.value < 0) coralLight else Color.White,
@@ -325,7 +339,7 @@ fun ZadStatTile(
 @Composable
 fun ZadDaysAndSafeSpendRow(daysLeft: Int, available: Double) {
     val context = LocalContext.current
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(20.dp)
     val safeSpend = if (daysLeft > 0 && available > 0) available / daysLeft else null
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -334,35 +348,61 @@ fun ZadDaysAndSafeSpendRow(daysLeft: Int, available: Double) {
         Column(
             modifier = Modifier
                 .weight(1f)
-                .zadCardShadow(shape)
+                .zadCardShadow(shape, elevation = 3.dp)
                 .clip(shape)
                 .background(surface)
+                .pressableScale(pressedScale = 0.98f)
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(stringResource(R.string.days_left_label), style = Typography.labelSmall, color = textSecondary)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.days_left_label), style = Typography.labelSmall, color = textSecondary)
+                Icon(
+                    Icons.Filled.CalendarMonth,
+                    contentDescription = null,
+                    tint = primary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
             Text(
                 stringResource(R.string.days_left_value, daysLeft),
                 style = Typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.ExtraBold,
                 color = textPrimary
             )
         }
         Column(
             modifier = Modifier
                 .weight(1f)
-                .zadCardShadow(shape)
+                .zadCardShadow(shape, elevation = 3.dp)
                 .clip(shape)
                 .background(surface)
+                .pressableScale(pressedScale = 0.98f)
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(stringResource(R.string.safe_daily_spend_label), style = Typography.labelSmall, color = textSecondary, maxLines = 2)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.safe_daily_spend_label), style = Typography.labelSmall, color = textSecondary, maxLines = 1)
+                Icon(
+                    Icons.Filled.Security,
+                    contentDescription = null,
+                    tint = secondary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
             Text(
                 safeSpend?.let { com.example.data.CurrencyFormatter.format(context, it) } ?: "—",
-                style = Typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = textPrimary,
+                style = Typography.headlineSmall.copy(fontSize = 17.sp),
+                fontWeight = FontWeight.ExtraBold,
+                color = if (safeSpend != null) primary else textSecondary,
                 maxLines = 1
             )
         }

@@ -265,7 +265,9 @@ fun MiniSubscriptionsWidget(subscriptions: List<com.example.data.ZadSubscription
         .sortedBy { it.second }
 
     com.example.ui.components.ZadListCard(
-        modifier = Modifier.clickable { onNavigateToSubscriptions() },
+        modifier = Modifier
+            .pressableScale(pressedScale = 0.98f)
+            .clickable { onNavigateToSubscriptions() },
         shape = RoundedCornerShape(24.dp),
         contentPadding = 0.dp
     ) {
@@ -275,23 +277,56 @@ fun MiniSubscriptionsWidget(subscriptions: List<com.example.data.ZadSubscription
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("اشتراكات هتتجدد قريب", style = Typography.titleMedium, fontWeight = FontWeight.Bold)
-                Icon(Icons.Filled.ArrowForward, contentDescription = "View All", tint = primary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Subscriptions, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("اشتراكات هتتجدد قريب", style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+                }
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "View All", tint = primary, modifier = Modifier.size(18.dp))
             }
             Spacer(modifier = Modifier.height(16.dp))
             if (upcoming.isEmpty()) {
                 Text("لا يوجد تجديد اشتراكات خلال الأسبوع الجاي.", style = Typography.bodyMedium, color = Color.Gray)
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     upcoming.take(3).forEach { (sub, renewal) ->
                         val daysLeft = java.time.temporal.ChronoUnit.DAYS.between(today, renewal)
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                        val brand = com.example.ui.components.subscriptionBrandFor(sub.title, sub.provider)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(surfaceContainerLow.copy(alpha = 0.5f))
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.Circle, contentDescription = null, tint = primary, modifier = Modifier.size(8.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("${sub.title} — ${if (daysLeft == 0L) "النهاردة" else "خلال $daysLeft يوم"}", style = Typography.bodyMedium)
+                                if (brand != null) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(brand.color.copy(alpha = 0.15f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(brand.icon, contentDescription = null, tint = brand.color, modifier = Modifier.size(16.dp))
+                                    }
+                                } else {
+                                    Icon(Icons.Filled.Circle, contentDescription = null, tint = primary, modifier = Modifier.size(8.dp))
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(sub.title, style = Typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                    Text(if (daysLeft == 0L) "تجديد اليوم ⚡" else "خلال $daysLeft يوم", fontSize = 11.sp, color = textTertiary)
+                                }
                             }
-                            Text(com.example.data.CurrencyFormatter.format(context, sub.amount), style = Typography.labelSmall, color = onSurfaceVariant, fontWeight = FontWeight.Bold)
+                            Text(
+                                com.example.data.CurrencyFormatter.format(context, sub.amount),
+                                style = Typography.labelMedium,
+                                color = onSurface,
+                                fontWeight = FontWeight.ExtraBold
+                            )
                         }
                     }
                 }
@@ -301,15 +336,7 @@ fun MiniSubscriptionsWidget(subscriptions: List<com.example.data.ZadSubscription
 }
 
 /**
- * Home's Tasbiha garden card, rebuilt to the mockup's `tasbihaTitle` block:
- * translucent glass, the completion percentage on the trailing edge, the stage
- * emoji large and centered, a progress bar, and the count next to a purple tap
- * button.
- *
- * The mockup taps a hardcoded counter; here the button calls the real
- * `FamilyViewModel.tasbihaClick()` (Supabase-backed, streak-aware), so tasbih no
- * longer requires opening the full garden screen — tapping the card body still
- * does that.
+ * Home's Tasbiha garden card with floating tree physics & animated progress
  */
 @Composable
 fun TasbihaHomeWidget(
@@ -320,11 +347,12 @@ fun TasbihaHomeWidget(
     val pct = ((tree?.progressToNext() ?: 0f) * 100).toInt().coerceIn(0, 100)
     val animatedPct by animateFloatAsState(
         targetValue = (tree?.progressToNext() ?: 0f).coerceIn(0f, 1f),
-        animationSpec = tween(400),
+        animationSpec = spring(dampingRatio = 0.75f, stiffness = 300f),
         label = "tasbiha_progress"
     )
-    // The mockup rains petals the moment the bar fills; a level-up is this app's
-    // equivalent milestone, and it is the only event worth interrupting for.
+    val tapScale = remember { Animatable(1f) }
+    val scope = rememberCoroutineScope()
+
     var lastLevel by remember(tree?.id) { mutableStateOf(tree?.level ?: 1) }
     var showConfetti by remember { mutableStateOf(false) }
     LaunchedEffect(tree?.level) {
@@ -338,23 +366,51 @@ fun TasbihaHomeWidget(
     }
 
     com.example.ui.components.GlassCard(
-        modifier = Modifier.clickable { onNavigateToTasbiha() },
-        shape = RoundedCornerShape(18.dp),
-        containerColor = Color.White.copy(alpha = 0.7f),
+        modifier = Modifier
+            .pressableScale(pressedScale = 0.98f)
+            .clickable { onNavigateToTasbiha() },
+        shape = RoundedCornerShape(22.dp),
+        containerColor = Color.White.copy(alpha = 0.78f),
         contentPadding = 0.dp
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("بستان التسبيح", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textSecondary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Park, contentDescription = null, tint = secondaryDark, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("بستان التسبيح", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = textSecondary)
+                }
                 Spacer(Modifier.weight(1f))
-                Text("$pct%", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = primaryLight)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = primaryLight.copy(alpha = 0.15f)
+                ) {
+                    Text(
+                        "$pct%",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = primaryDark,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                    )
+                }
             }
 
-            Box(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
-                Text(tree?.stageEmoji() ?: "🌰", fontSize = 46.sp)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    tree?.stageEmoji() ?: "🌰",
+                    fontSize = 50.sp,
+                    modifier = Modifier.scale(tapScale.value)
+                )
                 if (showConfetti) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         listOf("🌸", "🍃", "🌸", "🍃", "🌸").forEach { Text(it, fontSize = 16.sp) }
@@ -382,18 +438,33 @@ fun TasbihaHomeWidget(
                 Text(
                     "${tree?.score ?: 0} / ${tree?.nextLevelAt()?.takeIf { it != Int.MAX_VALUE } ?: (tree?.score ?: 0)}",
                     fontSize = 12.sp,
-                    color = onSurfaceVariant
+                    color = onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold
                 )
                 Spacer(Modifier.weight(1f))
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
-                        .background(kidsPrimary)
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(kidsPrimary, Color(0xFF9333EA))
+                            )
+                        )
                         .pressableScale()
-                        .clickable { onTasbih() }
-                        .padding(horizontal = 20.dp, vertical = 9.dp)
+                        .clickable {
+                            scope.launch {
+                                tapScale.animateTo(1.22f, animationSpec = com.example.ui.components.ZadSprings.Celebrate)
+                                tapScale.animateTo(1f, animationSpec = com.example.ui.components.ZadSprings.Press)
+                            }
+                            onTasbih()
+                        }
+                        .padding(horizontal = 22.dp, vertical = 10.dp)
                 ) {
-                    Text("سبحان الله", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("✨", fontSize = 12.sp)
+                        Spacer(Modifier.width(4.dp))
+                        Text("سبحان الله", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
                 }
             }
         }
