@@ -282,7 +282,7 @@ fun MiniSubscriptionsWidget(subscriptions: List<com.example.data.ZadSubscription
                     Spacer(Modifier.width(8.dp))
                     Text("اشتراكات هتتجدد قريب", style = Typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "View All", tint = primary, modifier = Modifier.size(18.dp))
+                Icon(Icons.Filled.ArrowForward, contentDescription = "View All", tint = primary, modifier = Modifier.size(18.dp))
             }
             Spacer(modifier = Modifier.height(16.dp))
             if (upcoming.isEmpty()) {
