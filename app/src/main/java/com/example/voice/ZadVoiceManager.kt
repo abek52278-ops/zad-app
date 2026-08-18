@@ -123,7 +123,7 @@ class ZadVoiceManager(private val context: Context) {
                     override fun onReadyForSpeech(params: Bundle?) {
                         _voiceState.value = VoiceState.Listening
                         _isListening.value = true
-                        ZadSystemSoundFx.play(ZadSystemSoundFx.SoundEvent.VoiceInputStart)
+                        com.example.ui.components.ZadChime.play(com.example.ui.components.ZadChime.Tone.Tap)
                     }
 
                     override fun onBeginningOfSpeech() {
@@ -169,6 +169,7 @@ class ZadVoiceManager(private val context: Context) {
                         val text = matches?.firstOrNull()?.trim().orEmpty()
                         if (text.isNotEmpty()) {
                             _voiceState.value = VoiceState.Recognized(text)
+                            com.example.ui.components.ZadChime.play(com.example.ui.components.ZadChime.Tone.Success)
                             onResult(text)
                         } else {
                             _voiceState.value = VoiceState.Error("لم أسمع شيئاً، اضغط وتحدث ثانية")
