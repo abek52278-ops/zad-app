@@ -12,6 +12,7 @@ Zad (زاد) is an intelligent family pantry, pharmacy, budget, and task managem
      - `ZadShell.kt`: `ZadTopHeader`, `ZadBottomBar`, `ZadSegmentedTabs`, `ZadListCard`.
      - `ZadSprings.kt`: Unified spring physics animations and `pressableScale()`.
      - `QrCodeUtils.kt`: QR code generation & bitmap decoding (`ZXing`).
+     - **UI/UX Guidelines**: Apply [.agents/skills/ui-ux-pro-max](file:///workspaces/zad-app/.agents/skills/ui-ux-pro-max/SKILL.md) design intelligence for colors, spacing, typography, spring motion, and accessibility.
    - **Localization**: All UI text must use `stringResource(R.string.*)` across all 5 supported locales in `res/values*/strings.xml`. Avoid hardcoded Arabic or English text.
 
 2. **Backend & AI Brain (`supabase/functions/`)**:
