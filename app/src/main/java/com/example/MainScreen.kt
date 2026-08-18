@@ -383,7 +383,8 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
                                 onNavigateToPharmacy = { go(ZadRoutes.PHARMACY) },
                                 onNavigateToNotifications = { go(ZadRoutes.NOTIFICATIONS) },
                                 onNavigateToCurrencySettings = { go(ZadNav.PAYMENT_BUDGET) },
-                                onNavigateToPlans = { go(ZadRoutes.PREMIUM_PLANS) }
+                                onNavigateToPlans = { go(ZadRoutes.PREMIUM_PLANS) },
+                                onOpenVoice = { showVoiceSheet = true }
                             )
                         }
                         composable(ZadRoutes.NOTIFICATIONS) {

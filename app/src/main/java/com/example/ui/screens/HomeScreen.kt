@@ -91,6 +91,7 @@ fun HomeScreen(
      * المستخدم يدوّر بنفسه على الشاشة الصح. */
     onNavigateToCurrencySettings: () -> Unit = {},
     onNavigateToPlans: () -> Unit = {},
+    onOpenVoice: () -> Unit = {},
     /** تفعيل يدوي من الأب/الأم (Switch to Kids Mode) — بيفرض واجهة الأطفال حتى لو role الحساب "admin" */
     kidsModeOverride: Boolean = false
 ) {
@@ -403,6 +404,16 @@ fun HomeScreen(
                     }
                     Spacer(modifier = Modifier.height(18.dp))
                 }
+
+                // ── 2a. أزرار المهام السريعة بنمط Google Stitch (تسجيل صوتي، مسح فاتورة، إضافة للمخزون) ──
+                com.example.ui.components.AppearOnEntry(delayMs = 65) {
+                    StitchQuickActionGrid(
+                        onVoiceShopping = onOpenVoice,
+                        onScanReceipt = onNavigateToCamera,
+                        onAddToInventory = onNavigateToInventory
+                    )
+                }
+                Spacer(modifier = Modifier.height(18.dp))
 
                 // ── 2b. جراف الإنفاق اليومي المباشر (مؤشر الصرف التفاعلي لآخر 7 أيام) ──
                 com.example.ui.components.AppearOnEntry(delayMs = 70) {

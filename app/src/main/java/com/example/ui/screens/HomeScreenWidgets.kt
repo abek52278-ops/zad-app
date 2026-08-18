@@ -1142,4 +1142,164 @@ fun ZadProHighlightWidget(
     }
 }
 
+@Composable
+fun StitchQuickActionGrid(
+    onVoiceShopping: () -> Unit,
+    onScanReceipt: () -> Unit,
+    onAddToInventory: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // 1. Voice Shopping Action
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(18.dp))
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(primary, Color(0xFF0D5C46))
+                    )
+                )
+                .pressableScale()
+                .clickable { onVoiceShopping() }
+                .padding(vertical = 14.dp, horizontal = 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Mic,
+                        contentDescription = "قولي مشترياتك",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "قولي مشترياتك",
+                    style = Typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    fontSize = 11.5.sp,
+                    maxLines = 1
+                )
+                Text(
+                    "تسجيل صوتي",
+                    style = Typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 9.5.sp,
+                    maxLines = 1
+                )
+            }
+        }
+
+        // 2. Receipt Scanner Action
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(18.dp))
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(secondary, Color(0xFFD97706))
+                    )
+                )
+                .pressableScale()
+                .clickable { onScanReceipt() }
+                .padding(vertical = 14.dp, horizontal = 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.DocumentScanner,
+                        contentDescription = "مسح فاتورة",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "مسح فاتورة",
+                    style = Typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    fontSize = 11.5.sp,
+                    maxLines = 1
+                )
+                Text(
+                    "قراءة بالكاميرا",
+                    style = Typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 9.5.sp,
+                    maxLines = 1
+                )
+            }
+        }
+
+        // 3. Quick Inventory Restock Action
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(18.dp))
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(tertiary, Color(0xFF92400E))
+                    )
+                )
+                .pressableScale()
+                .clickable { onAddToInventory() }
+                .padding(vertical = 14.dp, horizontal = 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.AddShoppingCart,
+                        contentDescription = "إضافة للمخزون",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "إضافة للمخزون",
+                    style = Typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    fontSize = 11.5.sp,
+                    maxLines = 1
+                )
+                Text(
+                    "تحديث النواقص",
+                    style = Typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 9.5.sp,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+
 
