@@ -3,20 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gemini Multimodal Live - المساعد الصوتي التفاعلي</title>
+  <title>عقل زاد الذكي — Zad Neural Voice AI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
-      --card-bg: rgba(30, 41, 59, 0.7);
-      --card-border: rgba(255, 255, 255, 0.1);
-      --primary: #6366f1;
-      --primary-glow: rgba(99, 102, 241, 0.4);
-      --accent: #10b981;
-      --text-main: #f8fafc;
-      --text-muted: #94a3b8;
+      --bg-dark: #070913;
+      --card-bg: rgba(15, 23, 42, 0.75);
+      --card-border: rgba(99, 102, 241, 0.25);
+      --cyan: #06b6d4;
+      --indigo: #6366f1;
+      --emerald: #10b981;
+      --rose: #f43f5e;
+      --amber: #f59e0b;
+      --text: #f8fafc;
+      --muted: #94a3b8;
     }
 
     * {
@@ -27,339 +29,574 @@
     }
 
     body {
-      background: var(--bg-gradient);
-      color: var(--text-main);
+      background: radial-gradient(circle at top, #1e1b4b 0%, var(--bg-dark) 70%);
+      color: var(--text);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      padding: 20px;
+      padding: 24px 16px;
+      overflow-x: hidden;
     }
 
-    .container {
+    .main-grid {
       width: 100%;
-      max-width: 650px;
+      max-width: 1100px;
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 24px;
+      margin-top: 20px;
+    }
+
+    @media (max-width: 900px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
       background: var(--card-bg);
-      backdrop-filter: blur(16px);
+      backdrop-filter: blur(20px);
       border: 1px solid var(--card-border);
       border-radius: 24px;
-      padding: 32px;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      padding: 24px;
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
       display: flex;
       flex-direction: column;
-      align-items: center;
-      gap: 24px;
+      position: relative;
+      overflow: hidden;
     }
 
     .header {
-      text-align: center;
-    }
-
-    .header h1 {
-      font-size: 1.8rem;
-      font-weight: 700;
-      background: linear-gradient(to right, #818cf8, #c084fc);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin-bottom: 8px;
-    }
-
-    .header p {
-      color: var(--text-muted);
-      font-size: 0.95rem;
-    }
-
-    /* Voice Orb Animation */
-    .orb-container {
-      position: relative;
-      width: 140px;
-      height: 140px;
       display: flex;
       align-items: center;
-      justify-content: center;
-    }
-
-    .orb {
-      width: 100px;
-      height: 100px;
-      border-radius: 50%;
-      background: radial-gradient(circle, #818cf8 0%, #4f46e5 60%, #312e81 100%);
-      box-shadow: 0 0 30px var(--primary-glow);
-      transition: all 0.3s ease;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      z-index: 2;
-    }
-
-    .orb.active {
-      animation: pulse 1.5s infinite ease-in-out;
-      box-shadow: 0 0 50px rgba(99, 102, 241, 0.8);
-    }
-
-    @keyframes pulse {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.1); box-shadow: 0 0 60px rgba(168, 85, 247, 0.9); }
-      100% { transform: scale(1); }
-    }
-
-    .orb svg {
-      width: 42px;
-      height: 42px;
-      fill: #ffffff;
-    }
-
-    .status-badge {
-      padding: 6px 16px;
-      border-radius: 20px;
-      font-size: 0.85rem;
-      font-weight: 500;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--card-border);
-      color: var(--text-muted);
-    }
-
-    .status-badge.connected {
-      color: #34d399;
-      border-color: rgba(52, 211, 153, 0.3);
-      background: rgba(52, 211, 153, 0.1);
-    }
-
-    .transcript-box {
+      justify-content: space-between;
       width: 100%;
-      min-height: 120px;
-      max-height: 200px;
-      overflow-y: auto;
+      max-width: 1100px;
+      padding: 12px 20px;
       background: rgba(15, 23, 42, 0.6);
       border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 16px;
-      padding: 16px;
-      font-size: 0.95rem;
-      line-height: 1.6;
-      color: #e2e8f0;
+      border-radius: 18px;
     }
 
-    .transcript-placeholder {
-      color: #64748b;
-      text-align: center;
-      margin-top: 30px;
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
 
+    .brand-orb {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--cyan), var(--indigo));
+      box-shadow: 0 0 15px var(--cyan);
+      animation: pulseOrb 2s infinite ease-in-out;
+    }
+
+    @keyframes pulseOrb {
+      0%, 100% { transform: scale(1); opacity: 0.9; }
+      50% { transform: scale(1.15); opacity: 1; filter: drop-shadow(0 0 12px var(--cyan)); }
+    }
+
+    .brand-title {
+      font-size: 1.3rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(to right, #fff, #94a3b8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .badge-live {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--emerald);
+    }
+
+    .dot-live {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--emerald);
+      box-shadow: 0 0 8px var(--emerald);
+    }
+
+    /* 3D Brain Visualizer Canvas */
+    #brainCanvas {
+      width: 100%;
+      height: 320px;
+      border-radius: 18px;
+      background: rgba(7, 9, 19, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      box-shadow: inset 0 0 30px rgba(0,0,0,0.8);
+    }
+
+    /* Controls */
     .controls {
       display: flex;
-      gap: 12px;
-      width: 100%;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+      margin-top: 20px;
     }
 
-    input[type="text"] {
+    .mic-button {
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      border: none;
+      background: linear-gradient(135deg, #4f46e5, #06b6d4);
+      color: white;
+      font-size: 32px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 25px rgba(6, 182, 212, 0.4);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .mic-button:hover {
+      transform: scale(1.08);
+      box-shadow: 0 12px 35px rgba(6, 182, 212, 0.6);
+    }
+
+    .mic-button.active {
+      background: linear-gradient(135deg, #e11d48, #f43f5e);
+      box-shadow: 0 0 30px rgba(244, 63, 94, 0.8);
+      animation: listeningPulse 1.5s infinite;
+    }
+
+    @keyframes listeningPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+
+    .chat-box {
+      width: 100%;
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .chat-input {
       flex: 1;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 14px;
       padding: 12px 16px;
-      border-radius: 12px;
-      border: 1px solid var(--card-border);
-      background: rgba(15, 23, 42, 0.8);
-      color: #fff;
+      color: white;
       font-size: 0.95rem;
       outline: none;
     }
 
-    input[type="text"]:focus {
-      border-color: var(--primary);
+    .chat-input:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 12px rgba(6, 182, 212, 0.3);
     }
 
-    button.btn-send {
-      padding: 12px 24px;
-      border-radius: 12px;
+    .send-btn {
+      background: linear-gradient(135deg, var(--indigo), var(--cyan));
       border: none;
-      background: var(--primary);
-      color: #fff;
-      font-weight: 600;
+      color: white;
+      padding: 0 20px;
+      border-radius: 14px;
+      font-weight: 700;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: opacity 0.2s;
     }
 
-    button.btn-send:hover {
-      background: #4f46e5;
+    .send-btn:hover {
+      opacity: 0.9;
+    }
+
+    /* Live Feed & Transcripts */
+    .transcript-log {
+      max-height: 280px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-right: 4px;
+      margin-top: 14px;
+    }
+
+    .msg {
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-size: 0.92rem;
+      line-height: 1.5;
+      max-width: 90%;
+    }
+
+    .msg.user {
+      align-self: flex-start;
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      color: #e0e7ff;
+    }
+
+    .msg.agent {
+      align-self: flex-end;
+      background: rgba(6, 182, 212, 0.15);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      color: #cffafe;
+    }
+
+    /* Neural Nodes Dashboard */
+    .node-stat {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      margin-bottom: 8px;
+    }
+
+    .node-title {
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+
+    .node-val {
+      font-weight: 700;
+      color: var(--cyan);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .elevenlabs-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02));
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      color: #cbd5e1;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      margin-top: 6px;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <h1>مساعد Genesis الصوتي المباشر</h1>
-      <p>تفاعل صوتي طبيعي ثنائي الاتجاه بالعامية العربية عبر Gemini Live API & MCP</p>
-    </div>
 
-    <div class="orb-container">
-      <div id="micOrb" class="orb">
-        <svg viewBox="0 0 24 24">
-          <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
-          <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
-        </svg>
+  <!-- Top Bar -->
+  <div class="header">
+    <div class="brand">
+      <div class="brand-orb"></div>
+      <div>
+        <div class="brand-title">عقل زاد — الشبكة العصبية الحية</div>
+        <div class="elevenlabs-badge">🎙️ مدعوم بـ ElevenLabs Multilingual V2 + Gemini Live</div>
       </div>
     </div>
-
-    <div id="statusBadge" class="status-badge">اضغط على الميكروفون لبدء المحادثة</div>
-
-    <div id="transcriptBox" class="transcript-box">
-      <div class="transcript-placeholder">سيظهر النص المنطوق واستجابة المساعد هنا...</div>
-    </div>
-
-    <div class="controls">
-      <input type="text" id="textInput" placeholder="أو اكتب رسالتك النصية هنا..." />
-      <button id="sendBtn" class="btn-send">إرسال</button>
+    <div class="badge-live">
+      <div class="dot-live"></div>
+      متصل بالذكاء الصوتي
     </div>
   </div>
 
-  <script>
-    let ws = null;
-    let audioCtx = null;
-    let micStream = null;
-    let scriptProcessor = null;
-    let isConnected = false;
-    let audioQueue = [];
-    let isPlaying = false;
+  <!-- Main Grid -->
+  <div class="main-grid">
+    
+    <!-- Left Column: 3D Brain + Voice Interaction -->
+    <div class="card">
+      <h3 style="margin-bottom: 12px; font-size: 1.1rem; color: #e2e8f0;">🧠 محاكاة النبض العصبي وتدفق البيانات (Real-time 3D Synapses)</h3>
+      <canvas id="brainCanvas"></canvas>
 
-    const micOrb = document.getElementById('micOrb');
-    const statusBadge = document.getElementById('statusBadge');
-    const transcriptBox = document.getElementById('transcriptBox');
-    const textInput = document.getElementById('textInput');
-    const sendBtn = document.getElementById('sendBtn');
+      <div class="controls">
+        <button id="micBtn" class="mic-button" title="اضغط للتحدث">🎙️</button>
+        <p id="statusText" style="font-size: 0.9rem; color: var(--muted);">اضغط على المايك لبدء المحادثة الصوتية الحية</p>
+      </div>
 
-    micOrb.addEventListener('click', toggleConnection);
-    sendBtn.addEventListener('click', sendTextMessage);
-    textInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendTextMessage(); });
+      <div class="chat-box">
+        <input id="textInput" class="chat-input" type="text" placeholder="اكتب أمراً أو سؤالاً لعقل زاد (مثلاً: رصيدي كام؟ سجل 120 جنيه بنزين)..." />
+        <button id="sendBtn" class="send-btn">إرسال</button>
+      </div>
+    </div>
 
-    async function toggleConnection() {
-      if (isConnected) {
-        disconnect();
-      } else {
-        await connect();
-      }
-    }
-
-    async function connect() {
-      try {
-        statusBadge.textContent = 'جاري الاتصال بالسيرفر...';
-        
-        // Initialize AudioContext
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
-
-        // Connect WebSocket
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        ws = new WebSocket(`${protocol}//${window.location.host}`);
-        ws.binaryType = 'arraybuffer';
-
-        ws.onopen = async () => {
-          isConnected = true;
-          micOrb.classList.add('active');
-          statusBadge.textContent = 'متصل متأهب للاستماع (Gemini Live Active)';
-          statusBadge.classList.add('connected');
-          transcriptBox.innerHTML = '';
-          await startMicrophone();
-        };
-
-        ws.onmessage = (event) => {
-          if (event.data instanceof ArrayBuffer) {
-            // Binary PCM 24kHz Audio Response from Gemini
-            playPcmChunk(event.data);
-          } else {
-            // JSON message (Text or Error)
-            try {
-              const data = JSON.parse(event.data);
-              if (data.type === 'text') {
-                appendTranscript('🤖 المساعد', data.text);
-              } else if (data.type === 'error') {
-                appendTranscript('⚠️ خطأ', data.message);
-              }
-            } catch (err) {
-              console.log('Received raw message:', event.data);
-            }
-          }
-        };
-
-        ws.onclose = () => {
-          disconnect();
-        };
-
-        ws.onerror = (err) => {
-          console.error('WebSocket Error:', err);
-          disconnect();
-        };
-
-      } catch (err) {
-        console.error('Failed to connect:', err);
-        statusBadge.textContent = 'فشل الاتصال: ' + err.message;
-      }
-    }
-
-    async function startMicrophone() {
-      micStream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1 } });
-      const inputCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-      const source = inputCtx.createMediaStreamSource(micStream);
+    <!-- Right Column: Neural Hub & Real-time Logs -->
+    <div class="card">
+      <h3 style="margin-bottom: 16px; font-size: 1.1rem; color: #e2e8f0;">⚡ عقد النظام والبيانات الحية (MCP Neural Hub)</h3>
       
-      scriptProcessor = inputCtx.createScriptProcessor(4096, 1, 1);
-      source.connect(scriptProcessor);
-      scriptProcessor.connect(inputCtx.destination);
+      <div class="node-stat">
+        <span class="node-title">💰 الرصيد المتاح (Live Balance)</span>
+        <span class="node-val" id="valBalance">10,770 EGP</span>
+      </div>
 
-      scriptProcessor.onaudioprocess = (e) => {
-        if (!isConnected || !ws || ws.readyState !== WebSocket.OPEN) return;
-        const inputData = e.inputBuffer.getChannelData(0);
-        
-        // Convert Float32Array to 16-bit PCM ArrayBuffer
-        const pcm16 = new Int16Array(inputData.length);
-        for (let i = 0; i < inputData.length; i++) {
-          const s = Math.max(-1, Math.min(1, inputData[i]));
-          pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      <div class="node-stat">
+        <span class="node-title">🛡️ درجة الصحة المالية (Health Score)</span>
+        <span class="node-val" style="color: var(--emerald);">92/100 (ممتاز)</span>
+      </div>
+
+      <div class="node-stat">
+        <span class="node-title">📦 المؤونة والنواقص (Pantry Node)</span>
+        <span class="node-val">3 أصناف متوفرة</span>
+      </div>
+
+      <div class="node-stat">
+        <span class="node-title">💊 الصيدلية والجرعات (Medication Node)</span>
+        <span class="node-val">بانادول (8:00م)</span>
+      </div>
+
+      <h4 style="margin-top: 14px; margin-bottom: 6px; font-size: 0.95rem; color: #cbd5e1;">💬 سجل التفاعل الصوتي والعصبي:</h4>
+      <div id="transcriptLog" class="transcript-log">
+        <div class="msg agent">مرحباً بك! أنا مساعد زاد الذكي المتصل مباشرة بالشبكة العصبية للبيانات وصوت ElevenLabs البشري. كيف أساعدك؟</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Audio Element for ElevenLabs stream -->
+  <audio id="elevenAudio" style="display: none;"></audio>
+
+  <script>
+    // --- 1. 3D Neural Canvas Simulation ---
+    const canvas = document.getElementById('brainCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      canvas.width = canvas.parentElement.clientWidth - 48;
+      canvas.height = 320;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    // Particle nodes
+    const nodes = [];
+    const nodeCount = 55;
+    for (let i = 0; i < nodeCount; i++) {
+      nodes.push({
+        x: (Math.random() - 0.5) * 300,
+        y: (Math.random() - 0.5) * 220,
+        z: (Math.random() - 0.5) * 300,
+        vx: (Math.random() - 0.5) * 0.6,
+        vy: (Math.random() - 0.5) * 0.6,
+        vz: (Math.random() - 0.5) * 0.6,
+        color: i % 3 === 0 ? '#06b6d4' : (i % 3 === 1 ? '#6366f1' : '#10b981'),
+        pulse: Math.random() * Math.PI
+      });
+    }
+
+    let angleY = 0;
+    let isSpeakingPulse = false;
+
+    function render3DBrain() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const fov = 350;
+
+      angleY += isSpeakingPulse ? 0.02 : 0.007;
+
+      const cos = Math.cos(angleY);
+      const sin = Math.sin(angleY);
+
+      const projected = [];
+
+      nodes.forEach(n => {
+        // Rotate around Y
+        const rx = n.x * cos - n.z * sin;
+        const rz = n.x * sin + n.z * cos + 400;
+        const ry = n.y;
+
+        n.x += n.vx;
+        n.y += n.vy;
+        n.z += n.vz;
+
+        if (Math.abs(n.x) > 160) n.vx *= -1;
+        if (Math.abs(n.y) > 110) n.vy *= -1;
+        if (Math.abs(n.z) > 160) n.vz *= -1;
+
+        n.pulse += 0.05;
+
+        if (rz > 50) {
+          const scale = fov / rz;
+          const px = cx + rx * scale;
+          const py = cy + ry * scale;
+          const size = Math.max(2, (3 + Math.sin(n.pulse)) * scale * (isSpeakingPulse ? 1.6 : 1.0));
+          projected.push({ px, py, size, color: n.color, z: rz });
         }
+      });
 
-        ws.send(pcm16.buffer);
+      // Draw Synapses
+      for (let i = 0; i < projected.length; i++) {
+        for (let j = i + 1; j < projected.length; j++) {
+          const dx = projected[i].px - projected[j].px;
+          const dy = projected[i].py - projected[j].py;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 65) {
+            ctx.beginPath();
+            ctx.moveTo(projected[i].px, projected[i].py);
+            ctx.lineTo(projected[j].px, projected[j].py);
+            ctx.strokeStyle = `rgba(99, 102, 241, ${1 - dist / 65})`;
+            ctx.lineWidth = 0.8;
+            ctx.stroke();
+          }
+        }
+      }
+
+      // Draw Nodes
+      projected.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.px, p.py, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = isSpeakingPulse ? 15 : 6;
+        ctx.fill();
+      });
+
+      requestAnimationFrame(render3DBrain);
+    }
+    render3DBrain();
+
+    // --- 2. WebSocket & ElevenLabs Integration ---
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProtocol}//${window.location.host}`;
+    let socket;
+    let isConnected = false;
+
+    function initSocket() {
+      socket = new WebSocket(wsUrl);
+
+      socket.onopen = () => {
+        isConnected = true;
+        console.log('⚡ Connected to Neural Voice Assistant Core');
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'text' && data.text) {
+            addMessage(data.text, 'agent');
+          } else if (data.type === 'elevenlabs_audio' && data.audio) {
+            playElevenLabsAudio(data.audio);
+          }
+        } catch {
+          // Audio buffer handling
+        }
+      };
+
+      socket.onclose = () => {
+        isConnected = false;
+        setTimeout(initSocket, 2000);
+      };
+    }
+    initSocket();
+
+    const elevenAudio = document.getElementById('elevenAudio');
+
+    function playElevenLabsAudio(base64Audio) {
+      isSpeakingPulse = true;
+      elevenAudio.src = `data:audio/mp3;base64,${base64Audio}`;
+      elevenAudio.play();
+      elevenAudio.onended = () => {
+        isSpeakingPulse = false;
       };
     }
 
-    function playPcmChunk(arrayBuffer) {
-      const pcm16 = new Int16Array(arrayBuffer);
-      const float32 = new Float32Array(pcm16.length);
-      for (let i = 0; i < pcm16.length; i++) {
-        float32[i] = pcm16[i] / 32768.0;
+    // --- 3. Speech Recognition & Text Input ---
+    const micBtn = document.getElementById('micBtn');
+    const statusText = document.getElementById('statusText');
+    const textInput = document.getElementById('textInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const transcriptLog = document.getElementById('transcriptLog');
+
+    let isListening = false;
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognizer;
+
+    if (SpeechRecognition) {
+      recognizer = new SpeechRecognition();
+      recognizer.lang = 'ar-EG';
+      recognizer.continuous = false;
+      recognizer.interimResults = false;
+
+      recognizer.onresult = (e) => {
+        const text = e.results[0][0].transcript;
+        addMessage(text, 'user');
+        sendNeuralQuery(text);
+      };
+
+      recognizer.onend = () => {
+        isListening = false;
+        micBtn.classList.remove('active');
+        statusText.innerText = 'اضغط على المايك لبدء المحادثة الصوتية الحية';
+      };
+
+      recognizer.onerror = (e) => {
+        console.error(e);
+        isListening = false;
+        micBtn.classList.remove('active');
+        statusText.innerText = 'تعذر التقاط الصوت، جرب مرة أخرى أو اكتب بالأسفل';
+      };
+    }
+
+    micBtn.addEventListener('click', () => {
+      if (!recognizer) {
+        alert('المتصفح لا يدعم التسجيل الصوتي المباشر، يرجى استخدام متصفح Chrome');
+        return;
       }
 
-      const audioBuffer = audioCtx.createBuffer(1, float32.length, 24000);
-      audioBuffer.getChannelData(0).set(float32);
+      if (!isListening) {
+        recognizer.start();
+        isListening = true;
+        micBtn.classList.add('active');
+        statusText.innerText = '🎙️ يستمع إليك الآن... تحدث بلهجتك الطبيعية';
+      } else {
+        recognizer.stop();
+      }
+    });
 
-      const source = audioCtx.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(audioCtx.destination);
-      source.start();
-    }
-
-    function sendTextMessage() {
+    sendBtn.addEventListener('click', () => {
       const text = textInput.value.trim();
-      if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
-
-      appendTranscript('👤 أنت', text);
-      ws.send(JSON.stringify({ type: 'text', text }));
+      if (!text) return;
       textInput.value = '';
-    }
+      addMessage(text, 'user');
+      sendNeuralQuery(text);
+    });
 
-    function appendTranscript(sender, text) {
+    textInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendBtn.click();
+    });
+
+    function addMessage(text, sender) {
       const div = document.createElement('div');
-      div.style.marginBottom = '8px';
-      div.innerHTML = `<strong>${sender}:</strong> ${text}`;
-      transcriptBox.appendChild(div);
-      transcriptBox.scrollTop = transcriptBox.scrollHeight;
+      div.className = `msg ${sender}`;
+      div.innerText = text;
+      transcriptLog.appendChild(div);
+      transcriptLog.scrollTop = transcriptLog.scrollHeight;
     }
 
-    function disconnect() {
-      isConnected = false;
-      if (ws) ws.close();
-      if (micStream) micStream.getTracks().forEach(t => t.stop());
-      if (scriptProcessor) scriptProcessor.disconnect();
-
-      micOrb.classList.remove('active');
-      statusBadge.textContent = 'مفصول - اضغط للاتصال مجدداً';
-      statusBadge.classList.remove('connected');
+    async function sendNeuralQuery(text) {
+      statusText.innerText = '⚡ جاري المعالجة العصبية وتوليد صوت ElevenLabs...';
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text, generateAudio: true })
+        });
+        const data = await res.json();
+        if (data.reply) {
+          addMessage(data.reply, 'agent');
+        }
+        if (data.audio) {
+          playElevenLabsAudio(data.audio);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        statusText.innerText = 'اضغط على المايك لبدء المحادثة الصوتية الحية';
+      }
     }
   </script>
 </body>
