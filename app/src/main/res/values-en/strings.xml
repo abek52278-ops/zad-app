@@ -1194,4 +1194,9 @@
     <string name="premium_plans_title">Smart Zad Premium Plans</string>
     <string name="smart_radar_title">Live Market &amp; Price Radar</string>
     <string name="daily_spending_graph_title">Live Daily Spending Trend</string>
+
+    <!-- Voice Chat Bottom Sheet -->
+    <string name="voice_chat_title">Live Voice Chat — Zad AI</string>
+    <string name="voice_chat_subtitle">Talk and listen naturally like ChatGPT Voice</string>
+    <string name="voice_speak_button">Speak</string>
 </resources>

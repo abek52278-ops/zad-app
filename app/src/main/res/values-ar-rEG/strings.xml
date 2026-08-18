@@ -1172,4 +1172,9 @@
     <string name="premium_plans_title">باقات زاد الشهرية الذكية</string>
     <string name="smart_radar_title">رادار الأسعار الحية والمؤشرات</string>
     <string name="daily_spending_graph_title">مؤشر الإنفاق اليومي المباشر</string>
+
+    <!-- Voice Chat Bottom Sheet -->
+    <string name="voice_chat_title">محادثة صوتية حية — زاد AI</string>
+    <string name="voice_chat_subtitle">اتكلم واسمع بشكل طبيعي يا فندم</string>
+    <string name="voice_speak_button">اتكلم</string>
 </resources>

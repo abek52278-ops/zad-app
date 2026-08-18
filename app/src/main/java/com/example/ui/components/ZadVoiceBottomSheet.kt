@@ -135,20 +135,20 @@ fun ZadVoiceBottomSheet(
             ) {
                 Column {
                     Text(
-                        text = "محادثة صوتية حية — زاد AI",
+                        text = stringResource(R.string.voice_chat_title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "تحدث واسمع طبيعياً مثل ChatGPT Voice",
+                        text = stringResource(R.string.voice_chat_subtitle),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp
                     )
                 }
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "إغلاق")
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.close))
                 }
             }
 
@@ -371,7 +371,7 @@ fun ZadVoiceBottomSheet(
                 ) {
                     Icon(
                         if (voiceState is VoiceState.Listening) Icons.Default.Stop else Icons.Default.Mic,
-                        contentDescription = "تحدث",
+                        contentDescription = stringResource(R.string.voice_speak_button),
                         modifier = Modifier.size(28.dp)
                     )
                 }

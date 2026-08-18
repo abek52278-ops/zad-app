@@ -1191,4 +1191,9 @@
     <string name="premium_plans_title">Akıllı Zad Premium Paketleri</string>
     <string name="smart_radar_title">Canlı Piyasa ve Fiyat Radarı</string>
     <string name="daily_spending_graph_title">Canlı Günlük Harcama Trendi</string>
+
+    <!-- Voice Chat Bottom Sheet -->
+    <string name="voice_chat_title">Canlı Sesli Sohbet — Zad AI</string>
+    <string name="voice_chat_subtitle">ChatGPT Voice gibi doğal konuşun ve dinleyin</string>
+    <string name="voice_speak_button">Konuş</string>
 </resources>
