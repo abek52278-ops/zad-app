@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>الشبكة العصبية الحية - Zad Neural Brain Monitor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #0b0f19;
+      --card-bg: rgba(20, 27, 45, 0.8);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --primary: #3b82f6;
+      --primary-glow: rgba(59, 130, 246, 0.4);
+      --accent-green: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-cyan: #06b6d4;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Tajawal', sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    header {
+      background: rgba(15, 23, 42, 0.9);
+      border-bottom: 1px solid var(--card-border);
+      padding: 16px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      backdrop-filter: blur(12px);
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-badge {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #3b82f6, #06b6d4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 1.2rem;
+      box-shadow: 0 0 20px var(--primary-glow);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 16px;
+    }
+
+    .nav-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+
+    .nav-link.active, .nav-link:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 20px;
+      padding: 24px;
+      height: calc(100vh - 75px);
+    }
+
+    .canvas-container {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .hud-overlay {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      display: flex;
+      gap: 12px;
+      pointer-events: none;
+    }
+
+    .hud-card {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid var(--card-border);
+      padding: 10px 16px;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-green);
+      box-shadow: 0 0 10px var(--accent-green);
+      animation: blink 1.2s infinite ease-in-out;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .side-panel {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow: hidden;
+    }
+
+    .panel-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .log-stream {
+      flex: 1;
+      background: rgba(10, 15, 26, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 12px;
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: #38bdf8;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 300px;
+    }
+
+    .log-item {
+      line-height: 1.4;
+    }
+
+    .log-item span.time {
+      color: #64748b;
+      margin-left: 6px;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .metric-box {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 12px;
+      text-align: center;
+    }
+
+    .metric-value {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin-top: 4px;
+    }
+
+    .metric-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo-container">
+      <div class="logo-badge">ز</div>
+      <div>
+        <h2>الشبكة العصبية الحية (Zad Live Neural Brain)</h2>
+        <p style="font-size:0.8rem; color:var(--text-muted)">مراقب حركة البيانات والنماذج والذكاء الاصطناعي بالوقت الحقيقي</p>
+      </div>
+    </div>
+    <div class="nav-links">
+      <a href="/" class="nav-link">🎙️ المساعد الصوتي</a>
+      <a href="/network.html" class="nav-link active">🧠 مراقب الشبكة العصبية</a>
+    </div>
+  </header>
+
+  <main>
+    <div class="canvas-container">
+      <div class="hud-overlay">
+        <div class="hud-card">
+          <div class="pulse-dot"></div>
+          <span>الجلسة الحية: متصلة (Gemini 2.0 Flash)</span>
+        </div>
+        <div class="hud-card">
+          <span>الزمن المستغرق: <strong>32ms</strong></span>
+        </div>
+      </div>
+      <canvas id="neuralCanvas"></canvas>
+    </div>
+
+    <aside class="sidebar">
+      <div class="side-panel">
+        <div class="panel-title">
+          <span>مؤشرات الأداء الحية</span>
+          <span style="font-size:0.75rem; color:var(--accent-green)">● نشط</span>
+        </div>
+        <div class="metrics-grid">
+          <div class="metric-box">
+            <div class="metric-label">استجابة FastPath</div>
+            <div class="metric-value">18 ms</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">حوض المفاتيح</div>
+            <div class="metric-value">5 / 5</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">دقة البرسونا</div>
+            <div class="metric-value">100%</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-label">حالة الميزانية</div>
+            <div class="metric-value" style="color:var(--accent-green)">موحدة</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="side-panel" style="flex:1">
+        <div class="panel-title">
+          <span>سجل الإشارات العصبية المباشر</span>
+          <button id="simulateBtn" style="background:var(--primary); color:#fff; border:none; padding:4px 10px; border-radius:6px; font-size:0.75rem; cursor:pointer">محاكاة إشارة ⚡</button>
+        </div>
+        <div id="logStream" class="log-stream">
+          <div class="log-item"><span class="time">[15:21:00]</span> 🟢 تم تهيئة الشبكة العصبية لـ Zad Brain.</div>
+          <div class="log-item"><span class="time">[15:21:02]</span> ⚡ ربط حوض Gemini 2.0 Flash (5 Keys) بنجاح.</div>
+          <div class="log-item"><span class="time">[15:21:05]</span> 🎭 تحميل محرك البرسونا والذكاء العاطفي والتكيف اللهجي.</div>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    const canvas = document.getElementById('neuralCanvas');
+    const ctx = canvas.getContext('2d');
+    const logStream = document.getElementById('logStream');
+    const simulateBtn = document.getElementById('simulateBtn');
+
+    function resizeCanvas() {
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // Neural Network Nodes Definition
+    const nodes = [
+      { id: 'input', label: '🎙️ مدخلات العميل (Audio/Text)', x: 0.15, y: 0.5, color: '#3b82f6', radius: 24 },
+      { id: 'fastpath', label: '⚡ FastPath Router (<50ms)', x: 0.35, y: 0.3, color: '#10b981', radius: 20 },
+      { id: 'persona', label: '🎭 محرك البرسونا والذكاء العاطفي', x: 0.35, y: 0.7, color: '#818cf8', radius: 22 },
+      { id: 'brain', label: '🧠 zad-brain Core Engine', x: 0.55, y: 0.5, color: '#06b6d4', radius: 30 },
+      { id: 'gemini', label: '🤖 Gemini 2.0 Flash Pool (5 Keys)', x: 0.75, y: 0.3, color: '#3b82f6', radius: 22 },
+      { id: 'groq', label: '🔄 Groq Fallback (Llama 3.3)', x: 0.75, y: 0.7, color: '#f59e0b', radius: 18 },
+      { id: 'db', label: '🗄️ zad_budget_state RPC & DB', x: 0.90, y: 0.5, color: '#ec4899', radius: 26 }
+    ];
+
+    const connections = [
+      { from: 0, to: 1 },
+      { from: 0, to: 2 },
+      { from: 1, to: 3 },
+      { from: 2, to: 3 },
+      { from: 3, to: 4 },
+      { from: 4, to: 5 },
+      { from: 3, to: 6 }
+    ];
+
+    let signals = [];
+
+    function addSignal(fromIdx, toIdx) {
+      signals.push({
+        from: fromIdx,
+        to: toIdx,
+        progress: 0,
+        speed: 0.015 + Math.random() * 0.01
+      });
+    }
+
+    // Auto-trigger periodic pulse signals
+    setInterval(() => {
+      const conn = connections[Math.floor(Math.random() * connections.length)];
+      addSignal(conn.from, conn.to);
+    }, 1500);
+
+    simulateBtn.addEventListener('click', () => {
+      addSignal(0, 1);
+      addSignal(1, 3);
+      addSignal(3, 4);
+      addSignal(3, 6);
+      appendLog('⚡ تم محاكاة إشارة عصبية كاملة لتنفيذ أداة الميزانية.');
+    });
+
+    function appendLog(msg) {
+      const time = new Date().toLocaleTimeString('ar-EG');
+      const item = document.createElement('div');
+      item.className = 'log-item';
+      item.innerHTML = `<span class="time">[${time}]</span> ${msg}`;
+      logStream.appendChild(item);
+      logStream.scrollTop = logStream.scrollHeight;
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const w = canvas.width;
+      const h = canvas.height;
+
+      // Draw Connections (Synapses)
+      connections.forEach(conn => {
+        const n1 = nodes[conn.from];
+        const n2 = nodes[conn.to];
+        const x1 = n1.x * w;
+        const y1 = n1.y * h;
+        const x2 = n2.x * w;
+        const y2 = n2.y * h;
+
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      });
+
+      // Draw Pulsing Signals
+      for (let i = signals.length - 1; i >= 0; i--) {
+        const sig = signals[i];
+        sig.progress += sig.speed;
+        if (sig.progress >= 1) {
+          signals.splice(i, 1);
+          continue;
+        }
+
+        const n1 = nodes[sig.from];
+        const n2 = nodes[sig.to];
+        const sx = n1.x * w + (n2.x * w - n1.x * w) * sig.progress;
+        const sy = n1.y * h + (n2.y * h - n1.y * h) * sig.progress;
+
+        ctx.beginPath();
+        ctx.arc(sx, sy, 6, 0, Math.PI * 2);
+        ctx.fillStyle = '#60a5fa';
+        ctx.shadowColor = '#3b82f6';
+        ctx.shadowBlur = 12;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      // Draw Nodes
+      nodes.forEach(node => {
+        const nx = node.x * w;
+        const ny = node.y * h;
+
+        // Node Glow
+        ctx.beginPath();
+        ctx.arc(nx, ny, node.radius + 8, 0, Math.PI * 2);
+        ctx.fillStyle = node.color + '22';
+        ctx.fill();
+
+        // Node Circle
+        ctx.beginPath();
+        ctx.arc(nx, ny, node.radius, 0, Math.PI * 2);
+        ctx.fillStyle = node.color;
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Label
+        ctx.font = 'bold 13px Tajawal';
+        ctx.fillStyle = '#f8fafc';
+        ctx.textAlign = 'center';
+        ctx.fillText(node.label, nx, ny + node.radius + 20);
+      });
+
+      requestAnimationFrame(draw);
+    }
+
+    draw();
+  </script>
+</body>
+</html>

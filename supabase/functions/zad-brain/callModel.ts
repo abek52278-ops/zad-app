@@ -55,7 +55,7 @@ const GEMINI_KEY_POOL: string[] = [1, 2, 3, 4, 5]
   .map((n) => Deno.env.get(`ZAD_API_KEY_${n}`))
   .filter((k): k is string => !!k);
 if (GEMINI_KEY_POOL.length === 0) {
-  const legacy = Deno.env.get("ZAD_API_KEY");
+  const legacy = Deno.env.get("ZAD_API_KEY") || Deno.env.get("GEMINI_API_KEY");
   if (legacy) GEMINI_KEY_POOL.push(legacy);
 }
 

@@ -49,9 +49,11 @@ export class GeminiLiveClient {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN)
             return;
         const functionDeclarations = this.options.mcpManager.getGeminiFunctionDeclarations();
+        // Ensure model name format (models/gemini-2.0-flash-exp)
+        const modelPath = model.startsWith('models/') ? model : `models/${model}`;
         const setupPayload = {
             setup: {
-                model: `models/${model}`,
+                model: modelPath,
                 generationConfig: {
                     responseModalities: ['AUDIO', 'TEXT'],
                     speechConfig: {
@@ -72,7 +74,7 @@ export class GeminiLiveClient {
                 ]
             }
         };
-        console.log(`[GeminiLiveClient] Setup sent with ${functionDeclarations.length} tools registered.`);
+        console.log(`[GeminiLiveClient] Setup sent for ${modelPath} with ${functionDeclarations.length} tools registered.`);
         this.ws.send(JSON.stringify(setupPayload));
     }
     /**
