@@ -85,8 +85,10 @@ object RewardedBrainAdManager {
             val editor = prefs.edit()
             if (isFullyUnlocked) {
                 editor.putInt(KEY_AD_WATCH_COUNT, 0)
-                // 12 hour session
-                editor.putLong(KEY_SESSION_EXPIRY_TS, System.currentTimeMillis() + 12 * 3600 * 1000L)
+                // تراكم الوقت الإضافي فوق الرصيد الحالي
+                val currentExpiry = prefs.getLong(KEY_SESSION_EXPIRY_TS, System.currentTimeMillis())
+                val baseTime = if (currentExpiry > System.currentTimeMillis()) currentExpiry else System.currentTimeMillis()
+                editor.putLong(KEY_SESSION_EXPIRY_TS, baseTime + 12 * 3600 * 1000L)
             } else {
                 editor.putInt(KEY_AD_WATCH_COUNT, next)
             }

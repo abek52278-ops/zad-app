@@ -1301,5 +1301,82 @@ fun StitchQuickActionGrid(
     }
 }
 
+@Composable
+fun ZadAdEnergyWidget(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    var adWatchCount by remember { mutableStateOf(com.example.ads.RewardedBrainAdManager.getAdWatchCount(context)) }
+    var isSessionUnlocked by remember { mutableStateOf(com.example.ads.RewardedBrainAdManager.isSessionUnlocked(context)) }
 
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color(0xFF0F172A).copy(alpha = 0.03f))
+            .padding(16.dp)
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(Icons.Filled.PlayCircle, contentDescription = null, tint = primary, modifier = Modifier.size(24.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "شحن رصيد الذكاء الاصطناعي مجاناً ⚡",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "شاهد 3 إعلانات لشحن بطارية زاد بـ 5 محادثات وجلسة مجانية! (يتبقى ${if (adWatchCount >= 3) 3 else 3 - adWatchCount})",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center
+            )
+            
+            if (isSessionUnlocked) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "🎉 رصيدك الحالي مشحون! شاهد المزيد لتمديد وقتك ورصيدك التراكمي.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = successColor,
+                    fontSize = 10.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
 
+            Spacer(Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = {
+                    com.example.ads.RewardedBrainAdManager.showRewardedEnergyAd(
+                        context = context,
+                        onAdWatched = { newCount, fullyUnlocked ->
+                            adWatchCount = newCount
+                            isSessionUnlocked = fullyUnlocked
+                            android.widget.Toast.makeText(context, "تمت إضافة الرصيد بنجاح!", android.widget.Toast.LENGTH_SHORT).show()
+                        },
+                        onFailed = {
+                            android.widget.Toast.makeText(context, "لم نتمكن من تحميل الإعلان حالياً", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .pressableScale(),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = primary)
+            ) {
+                Text(
+                    "شاهد إعلان لجمع الرصيد 🎥 (${adWatchCount}/3)",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+            }
+        }
+    }
+}

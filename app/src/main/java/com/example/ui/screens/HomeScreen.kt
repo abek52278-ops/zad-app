@@ -432,6 +432,12 @@ fun HomeScreen(
                 }
                 Spacer(modifier = Modifier.height(18.dp))
 
+                // ── 2d. محطة شحن الرصيد بالإعلانات التراكمية ──
+                com.example.ui.components.AppearOnEntry(delayMs = 78) {
+                    ZadAdEnergyWidget()
+                }
+                Spacer(modifier = Modifier.height(18.dp))
+
                 // ── 3. Shortcut grid — 6 fixed columns, exactly the mockup's six
                 // destinations. Was a 9-item horizontally-scrolling LazyRow, which is why
                 // the row read as arbitrary: half of it was off-screen.
