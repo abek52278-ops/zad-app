@@ -101,7 +101,7 @@ object RewardedBrainAdManager {
         }
     }
 
-    private fun preload(context: Context) {
+    fun preload(context: Context) {
         if (isLoading) return
         isLoading = true
         val request = AdRequest.Builder().build()

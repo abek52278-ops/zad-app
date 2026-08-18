@@ -40,6 +40,20 @@ class ChatNotificationService : Service() {
         serviceScope.launch {
             val myMember = SupabaseRepo.getMyFamilyMember()
             if (myMember != null) {
+                // محاكاة إرسال فويس تفاعلي عشوائي (FOMO) بعد 15 ثانية من فتح التطبيق
+                launch {
+                    kotlinx.coroutines.delay(15000)
+                    val titles = listOf("رسالة من زاد 💌", "ألو! وحشتني 🎤", "خد بالك من ميزانيتك 💸")
+                    val msgs = listOf(
+                        "إيه الأخبار؟ أنا زاد.. بسأل عليك، إيه رأيك نراجع الميزانية سوا دلوقتي؟",
+                        "ألو! أنا هنا عشان أساعدك.. لو محتاج تسجل أي مصاريف أو تسأل عن أي حاجة، أنا جاهزة!",
+                        "خدت بالي إننا مسجلناش مصاريف النهاردة.. كل حاجة تمام؟"
+                    )
+                    val randomIdx = (0..2).random()
+                    showNotification(titles[randomIdx], msgs[randomIdx], false)
+                    voiceEngine?.speakHumanLike(msgs[randomIdx])
+                }
+
                 RealtimeChatRepo.subscribeToChat(myMember.familyId).collectLatest { newMsg ->
                     if (newMsg.senderId != myMember.id) {
                         val isSos = newMsg.messageType == "SOS"
