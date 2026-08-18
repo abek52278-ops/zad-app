@@ -7,12 +7,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <style>
     :root {
       --bg-color: #070a12;
-      --card-bg: rgba(15, 23, 42, 0.82);
+      --card-bg: rgba(15, 23, 42, 0.85);
       --card-border: rgba(255, 255, 255, 0.1);
       --primary: #3b82f6;
       --primary-glow: rgba(59, 130, 246, 0.5);
@@ -28,7 +26,7 @@
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      font-family: 'Tajawal', sans-serif;
+      font-family: 'Tajawal', system-ui, -apple-system, sans-serif;
       user-select: none;
     }
 
@@ -44,7 +42,7 @@
     header {
       background: rgba(11, 17, 32, 0.92);
       border-bottom: 1px solid var(--card-border);
-      padding: 14px 28px;
+      padding: 14px 24px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -79,9 +77,9 @@
     .nav-link {
       color: var(--text-muted);
       text-decoration: none;
-      padding: 8px 18px;
+      padding: 8px 16px;
       border-radius: 10px;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       font-weight: 500;
       transition: all 0.25s ease;
       background: rgba(255, 255, 255, 0.03);
@@ -98,17 +96,17 @@
     main {
       flex: 1;
       display: grid;
-      grid-template-columns: 1fr 360px;
-      gap: 20px;
-      padding: 20px;
-      height: calc(100vh - 73px);
+      grid-template-columns: 1fr 340px;
+      gap: 18px;
+      padding: 18px;
+      height: calc(100vh - 71px);
       position: relative;
     }
 
     .viewport-3d-container {
       background: radial-gradient(circle at center, #0f172a 0%, #070a12 100%);
       border: 1px solid var(--card-border);
-      border-radius: 24px;
+      border-radius: 20px;
       position: relative;
       overflow: hidden;
       display: flex;
@@ -116,23 +114,23 @@
       box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.8);
     }
 
-    #webglCanvas {
+    canvas {
       width: 100%;
       height: 100%;
       display: block;
       cursor: grab;
     }
 
-    #webglCanvas:active {
+    canvas:active {
       cursor: grabbing;
     }
 
     .hud-overlay {
       position: absolute;
-      top: 20px;
-      right: 20px;
+      top: 16px;
+      right: 16px;
       display: flex;
-      gap: 12px;
+      gap: 10px;
       pointer-events: none;
       z-index: 5;
     }
@@ -140,19 +138,19 @@
     .hud-card {
       background: rgba(15, 23, 42, 0.85);
       border: 1px solid var(--card-border);
-      padding: 10px 18px;
-      border-radius: 14px;
-      font-size: 0.85rem;
+      padding: 8px 14px;
+      border-radius: 12px;
+      font-size: 0.82rem;
       backdrop-filter: blur(12px);
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
     }
 
     .pulse-dot {
-      width: 10px;
-      height: 10px;
+      width: 9px;
+      height: 9px;
       border-radius: 50%;
       background: var(--accent-cyan);
       box-shadow: 0 0 12px var(--accent-cyan);
@@ -166,8 +164,8 @@
 
     .controls-overlay {
       position: absolute;
-      bottom: 20px;
-      right: 20px;
+      bottom: 16px;
+      right: 16px;
       display: flex;
       gap: 10px;
       z-index: 5;
@@ -177,14 +175,14 @@
       background: linear-gradient(135deg, #3b82f6, #1d4ed8);
       color: #fff;
       border: none;
-      padding: 10px 18px;
-      border-radius: 12px;
-      font-size: 0.85rem;
+      padding: 9px 16px;
+      border-radius: 10px;
+      font-size: 0.82rem;
       font-weight: 700;
       cursor: pointer;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
       transition: all 0.2s;
     }
@@ -197,24 +195,24 @@
     .sidebar {
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 14px;
       height: 100%;
     }
 
     .side-panel {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
-      border-radius: 24px;
-      padding: 20px;
+      border-radius: 20px;
+      padding: 16px;
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 12px;
       backdrop-filter: blur(16px);
       box-shadow: 0 12px 32px rgba(0,0,0,0.5);
     }
 
     .panel-title {
-      font-size: 1rem;
+      font-size: 0.95rem;
       font-weight: 700;
       color: #f1f5f9;
       display: flex;
@@ -225,32 +223,26 @@
     .metrics-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 12px;
+      gap: 10px;
     }
 
     .metric-box {
       background: rgba(15, 23, 42, 0.6);
       border: 1px solid var(--card-border);
-      border-radius: 14px;
-      padding: 12px;
+      border-radius: 12px;
+      padding: 10px;
       text-align: center;
-      transition: transform 0.2s;
-    }
-
-    .metric-box:hover {
-      transform: translateY(-2px);
-      border-color: rgba(59, 130, 246, 0.3);
     }
 
     .metric-value {
-      font-size: 1.35rem;
+      font-size: 1.2rem;
       font-weight: 800;
       color: var(--primary);
-      margin-top: 4px;
+      margin-top: 2px;
     }
 
     .metric-label {
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       color: var(--text-muted);
     }
 
@@ -258,40 +250,27 @@
       flex: 1;
       background: rgba(8, 12, 22, 0.9);
       border: 1px solid rgba(255, 255, 255, 0.06);
-      border-radius: 16px;
-      padding: 14px;
+      border-radius: 14px;
+      padding: 12px;
       font-family: monospace;
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       color: #38bdf8;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      max-height: 380px;
+      gap: 6px;
+      max-height: 320px;
     }
 
     .log-item {
-      line-height: 1.45;
-      padding-bottom: 6px;
+      line-height: 1.4;
+      padding-bottom: 4px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.03);
     }
 
     .log-item span.time {
       color: #64748b;
-      margin-left: 6px;
-    }
-
-    .tooltip-3d {
-      position: absolute;
-      background: rgba(15, 23, 42, 0.95);
-      border: 1px solid var(--primary);
-      padding: 10px 14px;
-      border-radius: 12px;
-      font-size: 0.85rem;
-      pointer-events: none;
-      display: none;
-      z-index: 100;
-      box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+      margin-left: 4px;
     }
   </style>
 </head>
@@ -301,7 +280,7 @@
       <div class="logo-badge">ز</div>
       <div>
         <h2>الشبكة العصبية 3D لعقل الأيجنت (Zad Neural Brain 3D)</h2>
-        <p style="font-size:0.8rem; color:var(--text-muted)">مُراقب حركة البيانات والنماذج والذكاء الاصطناعي بالوقت الحقيقي ثلاثي الأبعاد</p>
+        <p style="font-size:0.78rem; color:var(--text-muted)">مُراقب حركة البيانات والنماذج والذكاء الاصطناعي تفاعلي ثلاثي الأبعاد</p>
       </div>
     </div>
     <div class="nav-links">
@@ -315,36 +294,34 @@
       <div class="hud-overlay">
         <div class="hud-card">
           <div class="pulse-dot"></div>
-          <span>الموديل الفعّال: <strong>Gemini 2.0 Flash (Live API)</strong></span>
+          <span>الموديل الفعّال: <strong>Gemini 2.0 Flash</strong></span>
         </div>
         <div class="hud-card">
-          <span>الاستجابة (Latency): <strong id="latencyDisplay">24 ms</strong></span>
+          <span>الاستجابة: <strong id="latencyDisplay">24 ms</strong></span>
         </div>
         <div class="hud-card">
-          <span>النمط: <strong>3D Dynamic WebGL</strong></span>
+          <span>نمط التدوير: <strong>اسحب بالماوس للتدوير 3D 🔄</strong></span>
         </div>
       </div>
 
-      <canvas id="webglCanvas"></canvas>
+      <canvas id="neuralCanvas"></canvas>
 
       <div class="controls-overlay">
         <button id="pulseBtn" class="btn-action">⚡ إرسال نبضة بيانات 3D</button>
-        <button id="resetCamBtn" class="btn-action" style="background:rgba(255,255,255,0.1); box-shadow:none">🔄 إرجاع الكاميرا</button>
+        <button id="resetCamBtn" class="btn-action" style="background:rgba(255,255,255,0.1); box-shadow:none">🔄 إعادة ضبط العرض</button>
       </div>
-
-      <div id="nodeTooltip" class="tooltip-3d"></div>
     </div>
 
     <aside class="sidebar">
       <div class="side-panel">
         <div class="panel-title">
           <span>مؤشرات أداء العقل 3D</span>
-          <span style="font-size:0.75rem; color:var(--accent-cyan)">● متصل بالشبكة</span>
+          <span style="font-size:0.72rem; color:var(--accent-cyan)">● متصل بالشبكة</span>
         </div>
         <div class="metrics-grid">
           <div class="metric-box">
             <div class="metric-label">تدفق البيانات (Flow)</div>
-            <div class="metric-value" id="flowRate">1.2 GB/s</div>
+            <div class="metric-value">1.4 GB/s</div>
           </div>
           <div class="metric-box">
             <div class="metric-label">حوض المفاتيح (Pool)</div>
@@ -364,22 +341,23 @@
       <div class="side-panel" style="flex:1">
         <div class="panel-title">
           <span>سجل الإشارات العصبية المباشر</span>
-          <span style="font-size:0.75rem; color:var(--text-muted)" id="pulseCount">النبضات: 0</span>
+          <span style="font-size:0.72rem; color:var(--text-muted)" id="pulseCount">النبضات: 0</span>
         </div>
         <div id="logStream" class="log-stream">
-          <div class="log-item"><span class="time">[15:43:00]</span> 🌐 تم تشغيل المشفّر العصبي 3D بنجاح.</div>
-          <div class="log-item"><span class="time">[15:43:02]</span> ⚡ ربط عقود zad-brain ونماذج Gemini 2.0 Flash.</div>
-          <div class="log-item"><span class="time">[15:43:05]</span> 🎭 تفعيل برسونا zada ai و zad انتليجنس.</div>
+          <div class="log-item"><span class="time">[15:47:00]</span> 🌐 تم تشغيل المشفّر العصبي 3D بدون مكتبات خارجية.</div>
+          <div class="log-item"><span class="time">[15:47:02]</span> ⚡ ربط عقود zad-brain ونماذج Gemini 2.0 Flash.</div>
+          <div class="log-item"><span class="time">[15:47:05]</span> 🎭 تفعيل برسونا zada ai و zad انتليجنس.</div>
         </div>
       </div>
     </aside>
   </main>
 
   <script>
-    // THREE.JS 3D NEURAL BRAIN VISUALIZER
-    const container = document.querySelector('.viewport-3d-container');
-    const canvas = document.getElementById('webglCanvas');
-    const tooltip = document.getElementById('nodeTooltip');
+    // -------------------------------------------------------------
+    // ZERO-DEPENDENCY 3D CANVAS ENGINE (PURE VANILLA MATH)
+    // -------------------------------------------------------------
+    const canvas = document.getElementById('neuralCanvas');
+    const ctx = canvas.getContext('2d');
     const logStream = document.getElementById('logStream');
     const pulseBtn = document.getElementById('pulseBtn');
     const resetCamBtn = document.getElementById('resetCamBtn');
@@ -387,154 +365,135 @@
 
     let totalPulses = 0;
 
-    const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x070a12, 0.015);
-
-    const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000);
-    camera.position.set(0, 5, 25);
-
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.maxDistance = 60;
-    controls.minDistance = 8;
-
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambientLight);
-
-    const pointLight = new THREE.PointLight(0x3b82f6, 2, 80);
-    pointLight.position.set(0, 10, 10);
-    scene.add(pointLight);
-
-    const cyanLight = new THREE.PointLight(0x06b6d4, 2, 60);
-    cyanLight.position.set(-15, -5, -5);
-    scene.add(cyanLight);
-
-    const starsGeo = new THREE.BufferGeometry();
-    const starsCount = 1200;
-    const posArray = new Float32Array(starsCount * 3);
-    for (let i = 0; i < starsCount * 3; i++) {
-      posArray[i] = (Math.random() - 0.5) * 120;
+    function resizeCanvas() {
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight;
     }
-    starsGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-    const starsMat = new THREE.PointsMaterial({
-      size: 0.25,
-      color: 0x38bdf8,
-      transparent: true,
-      opacity: 0.6
-    });
-    const starMesh = new THREE.Points(starsGeo, starsMat);
-    scene.add(starMesh);
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
 
-    const nodeData = [
-      { id: 'brain', name: '🧠 zad-brain Core Engine', pos: [0, 0, 0], color: 0x06b6d4, radius: 2.2, details: 'محرك الدماغ الرئيسي والتحكم التكيفي' },
-      { id: 'input', name: '🎙️ مدخلات العميل (Audio STT)', pos: [-12, 4, 3], color: 0x3b82f6, radius: 1.4, details: 'التقاط الصوت والأوامر المباشرة' },
-      { id: 'fastpath', name: '⚡ FastPath Router (<50ms)', pos: [-6, 6, -4], color: 0x10b981, radius: 1.2, details: 'الموجّه السريع بالأوامر المباشرة' },
-      { id: 'persona', name: '🎭 محرك البرسونا والذكاء العاطفي', pos: [-6, -5, 4], color: 0x818cf8, radius: 1.3, details: 'zada ai & zad انتليجنس' },
-      { id: 'gemini', name: '🤖 Gemini 2.0 Flash Pool (5 Keys)', pos: [8, 5, 2], color: 0x3b82f6, radius: 1.5, details: 'حوض النماذج المتعددة والـ WebSockets' },
-      { id: 'groq', name: '🔄 Groq Fallback Engine', pos: [8, -5, -3], color: 0xf59e0b, radius: 1.2, details: 'نظام الطوارئ عند ضغط الخدمة' },
-      { id: 'db', name: '🗄️ Zad PostgreSQL DB & RPCs', pos: [14, 0, 0], color: 0xec4899, radius: 1.6, details: 'قواعد بيانات الميزانية والمخزون والتقويم' }
+    let camera = {
+      rotX: 0.25,
+      rotY: -0.4,
+      targetRotX: 0.25,
+      targetRotY: -0.4,
+      fov: 380
+    };
+
+    let isDragging = false;
+    let previousMousePosition = { x: 0, y: 0 };
+
+    canvas.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      previousMousePosition = { x: e.clientX, y: e.clientY };
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const deltaX = e.clientX - previousMousePosition.x;
+      const deltaY = e.clientY - previousMousePosition.y;
+
+      camera.targetRotY += deltaX * 0.006;
+      camera.targetRotX += deltaY * 0.006;
+
+      previousMousePosition = { x: e.clientX, y: e.clientY };
+    });
+
+    window.addEventListener('mouseup', () => { isDragging = false; });
+
+    canvas.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        isDragging = true;
+        previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+    });
+    canvas.addEventListener('touchmove', (e) => {
+      if (!isDragging || e.touches.length !== 1) return;
+      const deltaX = e.touches[0].clientX - previousMousePosition.x;
+      const deltaY = e.touches[0].clientY - previousMousePosition.y;
+
+      camera.targetRotY += deltaX * 0.006;
+      camera.targetRotX += deltaY * 0.006;
+
+      previousMousePosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    });
+    canvas.addEventListener('touchend', () => { isDragging = false; });
+
+    function project3D(x, y, z, cx, cy) {
+      const cosY = Math.cos(camera.rotY);
+      const sinY = Math.sin(camera.rotY);
+      const x1 = x * cosY - z * sinY;
+      const z1 = z * cosY + x * sinY;
+
+      const cosX = Math.cos(camera.rotX);
+      const sinX = Math.sin(camera.rotX);
+      const y2 = y * cosX - z1 * sinX;
+      const z2 = z1 * cosX + y * sinX;
+
+      const scale = camera.fov / (camera.fov + z2 + 250);
+      return {
+        x: cx + x1 * scale,
+        y: cy + y2 * scale,
+        scale: Math.max(0.1, scale),
+        z: z2
+      };
+    }
+
+    const nodes3D = [
+      { id: 'brain', label: '🧠 zad-brain Core Engine', x: 0, y: 0, z: 0, color: '#06b6d4', size: 36 },
+      { id: 'input', label: '🎙️ مدخلات العميل (Audio STT)', x: -220, y: 80, z: 60, color: '#3b82f6', size: 24 },
+      { id: 'fastpath', label: '⚡ FastPath Router (<50ms)', x: -110, y: 130, z: -80, color: '#10b981', size: 20 },
+      { id: 'persona', label: '🎭 محرك البرسونا والذكاء العاطفي', x: -110, y: -120, z: 80, color: '#818cf8', size: 22 },
+      { id: 'gemini', label: '🤖 Gemini 2.0 Flash Pool (5 Keys)', x: 140, y: 100, z: 40, color: '#3b82f6', size: 24 },
+      { id: 'groq', label: '🔄 Groq Fallback Engine', x: 140, y: -110, z: -40, color: '#f59e0b', size: 20 },
+      { id: 'db', label: '🗄️ Zad PostgreSQL DB & RPCs', x: 230, y: 0, z: 0, color: '#ec4899', size: 28 }
     ];
-
-    const nodeMeshes = [];
-    const nodeGroup = new THREE.Group();
-    scene.add(nodeGroup);
-
-    nodeData.forEach(data => {
-      const geo = new THREE.SphereGeometry(data.radius, 32, 32);
-      const mat = new THREE.MeshStandardMaterial({
-        color: data.color,
-        emissive: data.color,
-        emissiveIntensity: 0.5,
-        roughness: 0.2,
-        metalness: 0.8,
-        wireframe: data.id === 'brain'
-      });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(...data.pos);
-      mesh.userData = data;
-      nodeGroup.add(mesh);
-      nodeMeshes.push(mesh);
-
-      const innerGeo = new THREE.SphereGeometry(data.radius * 0.7, 16, 16);
-      const innerMat = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.6
-      });
-      const innerMesh = new THREE.Mesh(innerGeo, innerMat);
-      mesh.add(innerMesh);
-    });
 
     const connections = [
-      [1, 2], [1, 3], [2, 0], [3, 0], [0, 4], [4, 5], [0, 6]
+      { from: 1, to: 2 },
+      { from: 1, to: 3 },
+      { from: 2, to: 0 },
+      { from: 3, to: 0 },
+      { from: 0, to: 4 },
+      { from: 4, to: 5 },
+      { from: 0, to: 6 }
     ];
 
-    const curveObjects = [];
-    const pulses = [];
-
-    connections.forEach(([fromIdx, toIdx]) => {
-      const p1 = new THREE.Vector3(...nodeData[fromIdx].pos);
-      const p2 = new THREE.Vector3(...nodeData[toIdx].pos);
-      
-      const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-      mid.y += (Math.random() - 0.5) * 4;
-      mid.z += (Math.random() - 0.5) * 4;
-
-      const curve = new THREE.QuadraticBezierCurve3(p1, mid, p2);
-      const points = curve.getPoints(40);
-      const curveGeo = new THREE.BufferGeometry().setFromPoints(points);
-      
-      const curveMat = new THREE.LineBasicMaterial({
-        color: 0x38bdf8,
-        transparent: true,
-        opacity: 0.35
+    const stars3D = [];
+    for (let i = 0; i < 220; i++) {
+      stars3D.push({
+        x: (Math.random() - 0.5) * 800,
+        y: (Math.random() - 0.5) * 800,
+        z: (Math.random() - 0.5) * 800
       });
-      const line = new THREE.Line(curveGeo, curveMat);
-      scene.add(line);
+    }
 
-      curveObjects.push({ curve, fromIdx, toIdx });
-    });
+    let pulses = [];
 
-    function spawnPulse(curveObj) {
-      const pulseGeo = new THREE.SphereGeometry(0.3, 16, 16);
-      const pulseMat = new THREE.MeshBasicMaterial({
-        color: 0x60a5fa,
-        transparent: true,
-        opacity: 0.9
-      });
-      const pulseMesh = new THREE.Mesh(pulseGeo, pulseMat);
-      scene.add(pulseMesh);
-
+    function spawnPulse(fromIdx, toIdx) {
       pulses.push({
-        mesh: pulseMesh,
-        curve: curveObj.curve,
+        from: fromIdx,
+        to: toIdx,
         progress: 0,
-        speed: 0.008 + Math.random() * 0.01
+        speed: 0.012 + Math.random() * 0.008
       });
-
       totalPulses++;
       pulseCountEl.textContent = `النبضات: ${totalPulses}`;
     }
 
     setInterval(() => {
-      const c = curveObjects[Math.floor(Math.random() * curveObjects.length)];
-      spawnPulse(c);
+      const conn = connections[Math.floor(Math.random() * connections.length)];
+      spawnPulse(conn.from, conn.to);
     }, 1200);
 
     pulseBtn.addEventListener('click', () => {
-      curveObjects.forEach(c => spawnPulse(c));
+      connections.forEach(c => spawnPulse(c.from, c.to));
       appendLog('⚡ تم ضخ إشارة عصبية مكثفة عبر محركات زاد 3D.');
     });
 
     resetCamBtn.addEventListener('click', () => {
-      camera.position.set(0, 5, 25);
-      controls.target.set(0, 0, 0);
-      controls.update();
+      camera.targetRotX = 0.25;
+      camera.targetRotY = -0.4;
     });
 
     function appendLog(msg) {
@@ -546,65 +505,105 @@
       logStream.scrollTop = logStream.scrollHeight;
     }
 
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
+    let coreRotation = 0;
 
-    window.addEventListener('mousemove', (e) => {
-      const rect = canvas.getBoundingClientRect();
-      mouse.x = ((e.clientX - rect.left) / canvas.width) * 2 - 1;
-      mouse.y = -((e.clientY - rect.top) / canvas.height) * 2 + 1;
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(nodeMeshes);
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
 
-      if (intersects.length > 0) {
-        const data = intersects[0].object.userData;
-        tooltip.style.display = 'block';
-        tooltip.style.left = (e.clientX - container.getBoundingClientRect().left + 15) + 'px';
-        tooltip.style.top = (e.clientY - container.getBoundingClientRect().top + 15) + 'px';
-        tooltip.innerHTML = `<strong>${data.name}</strong><br><span style="color:#94a3b8; font-size:0.8rem">${data.details}</span>`;
-        document.body.style.cursor = 'pointer';
-      } else {
-        tooltip.style.display = 'none';
-        document.body.style.cursor = 'default';
-      }
-    });
+      camera.rotX += (camera.targetRotX - camera.rotX) * 0.08;
+      camera.rotY += (camera.targetRotY - camera.rotY) * 0.08;
+      coreRotation += 0.015;
 
-    window.addEventListener('resize', () => {
-      camera.aspect = container.clientWidth / container.clientHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(container.clientWidth, container.clientHeight);
-    });
+      stars3D.forEach(star => {
+        const p = project3D(star.x, star.y, star.z, cx, cy);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 1.2 * p.scale, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(56, 189, 248, ${0.4 * p.scale})`;
+        ctx.fill();
+      });
 
-    let clock = new THREE.Clock();
+      const projectedNodes = nodes3D.map(n => {
+        const p = project3D(n.x, n.y, n.z, cx, cy);
+        return { ...n, px: p.x, py: p.y, scale: p.scale, z: p.z };
+      });
 
-    function animate() {
-      requestAnimationFrame(animate);
-      const elapsedTime = clock.getElapsedTime();
+      connections.forEach(c => {
+        const n1 = projectedNodes[c.from];
+        const n2 = projectedNodes[c.to];
 
-      starMesh.rotation.y = elapsedTime * 0.02;
-      nodeGroup.children[0].rotation.y = elapsedTime * 0.3;
-      nodeGroup.children[0].rotation.x = elapsedTime * 0.15;
+        ctx.beginPath();
+        ctx.moveTo(n1.px, n1.py);
+        ctx.lineTo(n2.px, n2.py);
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+        ctx.lineWidth = Math.max(1, 2 * ((n1.scale + n2.scale) / 2));
+        ctx.stroke();
+      });
 
       for (let i = pulses.length - 1; i >= 0; i--) {
         const p = pulses[i];
         p.progress += p.speed;
         if (p.progress >= 1) {
-          scene.remove(p.mesh);
-          p.mesh.geometry.dispose();
-          p.mesh.material.dispose();
           pulses.splice(i, 1);
-        } else {
-          const pt = p.curve.getPoint(p.progress);
-          p.mesh.position.copy(pt);
+          continue;
         }
+
+        const n1 = projectedNodes[p.from];
+        const n2 = projectedNodes[p.to];
+
+        const pulseX = n1.px + (n2.px - n1.px) * p.progress;
+        const pulseY = n1.py + (n2.py - n1.py) * p.progress;
+        const pulseScale = n1.scale + (n2.scale - n1.scale) * p.progress;
+
+        ctx.beginPath();
+        ctx.arc(pulseX, pulseY, 6 * pulseScale, 0, Math.PI * 2);
+        ctx.fillStyle = '#60a5fa';
+        ctx.shadowColor = '#3b82f6';
+        ctx.shadowBlur = 12;
+        ctx.fill();
+        ctx.shadowBlur = 0;
       }
 
-      controls.update();
-      renderer.render(scene, camera);
+      projectedNodes.sort((a, b) => a.z - b.z);
+
+      projectedNodes.forEach(node => {
+        const r = node.size * node.scale;
+
+        if (node.id === 'brain') {
+          ctx.beginPath();
+          ctx.arc(node.px, node.py, r + 12 * node.scale, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(6, 182, 212, 0.4)';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([8, 8]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        ctx.beginPath();
+        ctx.arc(node.px, node.py, r + 8 * node.scale, 0, Math.PI * 2);
+        ctx.fillStyle = node.color + '25';
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(node.px, node.py, r, 0, Math.PI * 2);
+        ctx.fillStyle = node.color;
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = Math.max(1, 2 * node.scale);
+        ctx.stroke();
+
+        ctx.font = `bold ${Math.max(10, Math.floor(12 * node.scale))}px Tajawal`;
+        ctx.fillStyle = '#f8fafc';
+        ctx.textAlign = 'center';
+        ctx.fillText(node.label, node.px, node.py + r + 16 * node.scale);
+      });
+
+      requestAnimationFrame(draw);
     }
 
-    animate();
+    draw();
   </script>
 </body>
 </html>
