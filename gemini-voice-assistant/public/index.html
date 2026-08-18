@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gemini Multimodal Live - المساعد الصوتي التفاعلي</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+      --card-bg: rgba(30, 41, 59, 0.7);
+      --card-border: rgba(255, 255, 255, 0.1);
+      --primary: #6366f1;
+      --primary-glow: rgba(99, 102, 241, 0.4);
+      --accent: #10b981;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Tajawal', sans-serif;
+    }
+
+    body {
+      background: var(--bg-gradient);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 650px;
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 32px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .header {
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      background: linear-gradient(to right, #818cf8, #c084fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    /* Voice Orb Animation */
+    .orb-container {
+      position: relative;
+      width: 140px;
+      height: 140px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .orb {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #818cf8 0%, #4f46e5 60%, #312e81 100%);
+      box-shadow: 0 0 30px var(--primary-glow);
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 2;
+    }
+
+    .orb.active {
+      animation: pulse 1.5s infinite ease-in-out;
+      box-shadow: 0 0 50px rgba(99, 102, 241, 0.8);
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.1); box-shadow: 0 0 60px rgba(168, 85, 247, 0.9); }
+      100% { transform: scale(1); }
+    }
+
+    .orb svg {
+      width: 42px;
+      height: 42px;
+      fill: #ffffff;
+    }
+
+    .status-badge {
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+    }
+
+    .status-badge.connected {
+      color: #34d399;
+      border-color: rgba(52, 211, 153, 0.3);
+      background: rgba(52, 211, 153, 0.1);
+    }
+
+    .transcript-box {
+      width: 100%;
+      min-height: 120px;
+      max-height: 200px;
+      overflow-y: auto;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 16px;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: #e2e8f0;
+    }
+
+    .transcript-placeholder {
+      color: #64748b;
+      text-align: center;
+      margin-top: 30px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      width: 100%;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--card-border);
+      background: rgba(15, 23, 42, 0.8);
+      color: #fff;
+      font-size: 0.95rem;
+      outline: none;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--primary);
+    }
+
+    button.btn-send {
+      padding: 12px 24px;
+      border-radius: 12px;
+      border: none;
+      background: var(--primary);
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button.btn-send:hover {
+      background: #4f46e5;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>مساعد Genesis الصوتي المباشر</h1>
+      <p>تفاعل صوتي طبيعي ثنائي الاتجاه بالعامية العربية عبر Gemini Live API & MCP</p>
+    </div>
+
+    <div class="orb-container">
+      <div id="micOrb" class="orb">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+          <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+        </svg>
+      </div>
+    </div>
+
+    <div id="statusBadge" class="status-badge">اضغط على الميكروفون لبدء المحادثة</div>
+
+    <div id="transcriptBox" class="transcript-box">
+      <div class="transcript-placeholder">سيظهر النص المنطوق واستجابة المساعد هنا...</div>
+    </div>
+
+    <div class="controls">
+      <input type="text" id="textInput" placeholder="أو اكتب رسالتك النصية هنا..." />
+      <button id="sendBtn" class="btn-send">إرسال</button>
+    </div>
+  </div>
+
+  <script>
+    let ws = null;
+    let audioCtx = null;
+    let micStream = null;
+    let scriptProcessor = null;
+    let isConnected = false;
+    let audioQueue = [];
+    let isPlaying = false;
+
+    const micOrb = document.getElementById('micOrb');
+    const statusBadge = document.getElementById('statusBadge');
+    const transcriptBox = document.getElementById('transcriptBox');
+    const textInput = document.getElementById('textInput');
+    const sendBtn = document.getElementById('sendBtn');
+
+    micOrb.addEventListener('click', toggleConnection);
+    sendBtn.addEventListener('click', sendTextMessage);
+    textInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendTextMessage(); });
+
+    async function toggleConnection() {
+      if (isConnected) {
+        disconnect();
+      } else {
+        await connect();
+      }
+    }
+
+    async function connect() {
+      try {
+        statusBadge.textContent = 'جاري الاتصال بالسيرفر...';
+        
+        // Initialize AudioContext
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+
+        // Connect WebSocket
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(`${protocol}//${window.location.host}`);
+        ws.binaryType = 'arraybuffer';
+
+        ws.onopen = async () => {
+          isConnected = true;
+          micOrb.classList.add('active');
+          statusBadge.textContent = 'متصل متأهب للاستماع (Gemini Live Active)';
+          statusBadge.classList.add('connected');
+          transcriptBox.innerHTML = '';
+          await startMicrophone();
+        };
+
+        ws.onmessage = (event) => {
+          if (event.data instanceof ArrayBuffer) {
+            // Binary PCM 24kHz Audio Response from Gemini
+            playPcmChunk(event.data);
+          } else {
+            // JSON message (Text or Error)
+            try {
+              const data = JSON.parse(event.data);
+              if (data.type === 'text') {
+                appendTranscript('🤖 المساعد', data.text);
+              } else if (data.type === 'error') {
+                appendTranscript('⚠️ خطأ', data.message);
+              }
+            } catch (err) {
+              console.log('Received raw message:', event.data);
+            }
+          }
+        };
+
+        ws.onclose = () => {
+          disconnect();
+        };
+
+        ws.onerror = (err) => {
+          console.error('WebSocket Error:', err);
+          disconnect();
+        };
+
+      } catch (err) {
+        console.error('Failed to connect:', err);
+        statusBadge.textContent = 'فشل الاتصال: ' + err.message;
+      }
+    }
+
+    async function startMicrophone() {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1 } });
+      const inputCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+      const source = inputCtx.createMediaStreamSource(micStream);
+      
+      scriptProcessor = inputCtx.createScriptProcessor(4096, 1, 1);
+      source.connect(scriptProcessor);
+      scriptProcessor.connect(inputCtx.destination);
+
+      scriptProcessor.onaudioprocess = (e) => {
+        if (!isConnected || !ws || ws.readyState !== WebSocket.OPEN) return;
+        const inputData = e.inputBuffer.getChannelData(0);
+        
+        // Convert Float32Array to 16-bit PCM ArrayBuffer
+        const pcm16 = new Int16Array(inputData.length);
+        for (let i = 0; i < inputData.length; i++) {
+          const s = Math.max(-1, Math.min(1, inputData[i]));
+          pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        }
+
+        ws.send(pcm16.buffer);
+      };
+    }
+
+    function playPcmChunk(arrayBuffer) {
+      const pcm16 = new Int16Array(arrayBuffer);
+      const float32 = new Float32Array(pcm16.length);
+      for (let i = 0; i < pcm16.length; i++) {
+        float32[i] = pcm16[i] / 32768.0;
+      }
+
+      const audioBuffer = audioCtx.createBuffer(1, float32.length, 24000);
+      audioBuffer.getChannelData(0).set(float32);
+
+      const source = audioCtx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioCtx.destination);
+      source.start();
+    }
+
+    function sendTextMessage() {
+      const text = textInput.value.trim();
+      if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+      appendTranscript('👤 أنت', text);
+      ws.send(JSON.stringify({ type: 'text', text }));
+      textInput.value = '';
+    }
+
+    function appendTranscript(sender, text) {
+      const div = document.createElement('div');
+      div.style.marginBottom = '8px';
+      div.innerHTML = `<strong>${sender}:</strong> ${text}`;
+      transcriptBox.appendChild(div);
+      transcriptBox.scrollTop = transcriptBox.scrollHeight;
+    }
+
+    function disconnect() {
+      isConnected = false;
+      if (ws) ws.close();
+      if (micStream) micStream.getTracks().forEach(t => t.stop());
+      if (scriptProcessor) scriptProcessor.disconnect();
+
+      micOrb.classList.remove('active');
+      statusBadge.textContent = 'مفصول - اضغط للاتصال مجدداً';
+      statusBadge.classList.remove('connected');
+    }
+  </script>
+</body>
+</html>
