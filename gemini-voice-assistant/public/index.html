@@ -10,13 +10,12 @@
   <style>
     :root {
       --bg-dark: #070913;
-      --card-bg: rgba(15, 23, 42, 0.75);
-      --card-border: rgba(99, 102, 241, 0.25);
+      --card-bg: rgba(15, 23, 42, 0.78);
+      --card-border: rgba(99, 102, 241, 0.3);
       --cyan: #06b6d4;
       --indigo: #6366f1;
       --emerald: #10b981;
-      --rose: #f43f5e;
-      --amber: #f59e0b;
+      --pink: #ec4899;
       --text: #f8fafc;
       --muted: #94a3b8;
     }
@@ -35,8 +34,62 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 24px 16px;
+      padding: 20px 16px;
       overflow-x: hidden;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 1100px;
+      padding: 14px 22px;
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      backdrop-filter: blur(16px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-orb {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--pink), var(--cyan));
+      box-shadow: 0 0 18px var(--pink);
+      animation: pulseOrb 2s infinite ease-in-out;
+    }
+
+    @keyframes pulseOrb {
+      0%, 100% { transform: scale(1); opacity: 0.9; }
+      50% { transform: scale(1.15); opacity: 1; filter: drop-shadow(0 0 15px var(--cyan)); }
+    }
+
+    .brand-title {
+      font-size: 1.35rem;
+      font-weight: 800;
+      background: linear-gradient(to right, #fff, #cbd5e1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .badge-persona {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(236, 72, 153, 0.15);
+      border: 1px solid rgba(236, 72, 153, 0.35);
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: #f472b6;
     }
 
     .main-grid {
@@ -44,14 +97,12 @@
       max-width: 1100px;
       display: grid;
       grid-template-columns: 1.2fr 0.8fr;
-      gap: 24px;
+      gap: 22px;
       margin-top: 20px;
     }
 
     @media (max-width: 900px) {
-      .main-grid {
-        grid-template-columns: 1fr;
-      }
+      .main-grid { grid-template-columns: 1fr; }
     }
 
     .card {
@@ -63,111 +114,71 @@
       box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
       display: flex;
       flex-direction: column;
-      position: relative;
-      overflow: hidden;
     }
 
-    .header {
+    #brainCanvas {
+      width: 100%;
+      height: 300px;
+      border-radius: 18px;
+      background: rgba(7, 9, 19, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    /* Sound Bar Action */
+    .voice-bar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      width: 100%;
-      max-width: 1100px;
-      padding: 12px 20px;
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 18px;
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      padding: 10px 16px;
+      border-radius: 14px;
+      margin-top: 14px;
     }
 
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .brand-orb {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, var(--cyan), var(--indigo));
-      box-shadow: 0 0 15px var(--cyan);
-      animation: pulseOrb 2s infinite ease-in-out;
-    }
-
-    @keyframes pulseOrb {
-      0%, 100% { transform: scale(1); opacity: 0.9; }
-      50% { transform: scale(1.15); opacity: 1; filter: drop-shadow(0 0 12px var(--cyan)); }
-    }
-
-    .brand-title {
-      font-size: 1.3rem;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-      background: linear-gradient(to right, #fff, #94a3b8);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .badge-live {
+    .btn-test-voice {
+      background: linear-gradient(135deg, var(--pink), var(--indigo));
+      border: none;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 0.88rem;
       display: flex;
       align-items: center;
       gap: 6px;
-      background: rgba(16, 185, 129, 0.15);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      padding: 6px 14px;
-      border-radius: 999px;
-      font-size: 0.82rem;
-      font-weight: 600;
-      color: var(--emerald);
+      transition: transform 0.2s;
     }
 
-    .dot-live {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--emerald);
-      box-shadow: 0 0 8px var(--emerald);
-    }
-
-    /* 3D Brain Visualizer Canvas */
-    #brainCanvas {
-      width: 100%;
-      height: 320px;
-      border-radius: 18px;
-      background: rgba(7, 9, 19, 0.9);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      box-shadow: inset 0 0 30px rgba(0,0,0,0.8);
-    }
+    .btn-test-voice:hover { transform: scale(1.05); }
 
     /* Controls */
     .controls {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 18px;
-      margin-top: 20px;
+      gap: 14px;
+      margin-top: 18px;
     }
 
     .mic-button {
-      width: 88px;
-      height: 88px;
+      width: 84px;
+      height: 84px;
       border-radius: 50%;
       border: none;
-      background: linear-gradient(135deg, #4f46e5, #06b6d4);
+      background: linear-gradient(135deg, var(--pink), var(--cyan));
       color: white;
       font-size: 32px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 10px 25px rgba(6, 182, 212, 0.4);
+      box-shadow: 0 10px 25px rgba(236, 72, 153, 0.4);
       transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    .mic-button:hover {
-      transform: scale(1.08);
-      box-shadow: 0 12px 35px rgba(6, 182, 212, 0.6);
-    }
+    .mic-button:hover { transform: scale(1.08); }
 
     .mic-button.active {
       background: linear-gradient(135deg, #e11d48, #f43f5e);
@@ -184,12 +195,12 @@
       width: 100%;
       display: flex;
       gap: 8px;
-      margin-top: 10px;
+      margin-top: 14px;
     }
 
     .chat-input {
       flex: 1;
-      background: rgba(15, 23, 42, 0.9);
+      background: rgba(15, 23, 42, 0.95);
       border: 1px solid rgba(255, 255, 255, 0.15);
       border-radius: 14px;
       padding: 12px 16px;
@@ -198,29 +209,20 @@
       outline: none;
     }
 
-    .chat-input:focus {
-      border-color: var(--cyan);
-      box-shadow: 0 0 12px rgba(6, 182, 212, 0.3);
-    }
+    .chat-input:focus { border-color: var(--pink); }
 
     .send-btn {
-      background: linear-gradient(135deg, var(--indigo), var(--cyan));
+      background: linear-gradient(135deg, var(--pink), var(--indigo));
       border: none;
       color: white;
       padding: 0 20px;
       border-radius: 14px;
       font-weight: 700;
       cursor: pointer;
-      transition: opacity 0.2s;
     }
 
-    .send-btn:hover {
-      opacity: 0.9;
-    }
-
-    /* Live Feed & Transcripts */
     .transcript-log {
-      max-height: 280px;
+      max-height: 270px;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
@@ -246,12 +248,11 @@
 
     .msg.agent {
       align-self: flex-end;
-      background: rgba(6, 182, 212, 0.15);
-      border: 1px solid rgba(6, 182, 212, 0.3);
-      color: #cffafe;
+      background: rgba(236, 72, 153, 0.15);
+      border: 1px solid rgba(236, 72, 153, 0.35);
+      color: #fce7f3;
     }
 
-    /* Neural Nodes Dashboard */
     .node-stat {
       display: flex;
       align-items: center;
@@ -263,29 +264,8 @@
       margin-bottom: 8px;
     }
 
-    .node-title {
-      font-size: 0.88rem;
-      color: var(--muted);
-    }
-
-    .node-val {
-      font-weight: 700;
-      color: var(--cyan);
-      font-family: 'JetBrains Mono', monospace;
-    }
-
-    .elevenlabs-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02));
-      padding: 4px 10px;
-      border-radius: 8px;
-      font-size: 0.75rem;
-      color: #cbd5e1;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      margin-top: 6px;
-    }
+    .node-title { font-size: 0.88rem; color: var(--muted); }
+    .node-val { font-weight: 700; color: var(--cyan); font-family: 'JetBrains Mono', monospace; }
   </style>
 </head>
 <body>
@@ -296,37 +276,42 @@
       <div class="brand-orb"></div>
       <div>
         <div class="brand-title">عقل زاد — الشبكة العصبية الحية</div>
-        <div class="elevenlabs-badge">🎙️ مدعوم بـ ElevenLabs Multilingual V2 + Gemini Live</div>
+        <div style="font-size: 0.78rem; color: #cbd5e1; margin-top: 2px;">🎙️ شخصية زادا AI (صوت أنثوي استوديو دافئ وبشري)</div>
       </div>
     </div>
-    <div class="badge-live">
-      <div class="dot-live"></div>
-      متصل بالذكاء الصوتي
+    <div class="badge-persona">
+      👩 زادا AI متصلة وحية
     </div>
   </div>
 
   <!-- Main Grid -->
   <div class="main-grid">
     
-    <!-- Left Column: 3D Brain + Voice Interaction -->
+    <!-- Left Column: 3D Brain Visualizer + Voice -->
     <div class="card">
-      <h3 style="margin-bottom: 12px; font-size: 1.1rem; color: #e2e8f0;">🧠 محاكاة النبض العصبي وتدفق البيانات (Real-time 3D Synapses)</h3>
+      <h3 style="margin-bottom: 12px; font-size: 1.05rem; color: #e2e8f0;">🧠 المحاكاة العصبية التفاعلية (Real-time 3D Brain)</h3>
       <canvas id="brainCanvas"></canvas>
 
+      <!-- Test Voice Bar -->
+      <div class="voice-bar">
+        <span style="font-size: 0.88rem; color: #cbd5e1;">🔊 استمع لرسالة زادا الصوتية الترحيبية الآن:</span>
+        <button id="btnPlayWelcome" class="btn-test-voice">▶️ تشغيل الصوت</button>
+      </div>
+
       <div class="controls">
-        <button id="micBtn" class="mic-button" title="اضغط للتحدث">🎙️</button>
-        <p id="statusText" style="font-size: 0.9rem; color: var(--muted);">اضغط على المايك لبدء المحادثة الصوتية الحية</p>
+        <button id="micBtn" class="mic-button" title="اضغط للتحدث بالصوت">🎙️</button>
+        <p id="statusText" style="font-size: 0.9rem; color: var(--muted);">اضغط على المايك لبدء المحادثة الصوتية أو اكتب بالأسفل</p>
       </div>
 
       <div class="chat-box">
-        <input id="textInput" class="chat-input" type="text" placeholder="اكتب أمراً أو سؤالاً لعقل زاد (مثلاً: رصيدي كام؟ سجل 120 جنيه بنزين)..." />
+        <input id="textInput" class="chat-input" type="text" placeholder="اكتب سؤالاً لـ زادا (مثلاً: رصيدي كام؟ أو أنتِ بني آدم حقيقي؟)..." />
         <button id="sendBtn" class="send-btn">إرسال</button>
       </div>
     </div>
 
-    <!-- Right Column: Neural Hub & Real-time Logs -->
+    <!-- Right Column: Live Nodes & Chat Log -->
     <div class="card">
-      <h3 style="margin-bottom: 16px; font-size: 1.1rem; color: #e2e8f0;">⚡ عقد النظام والبيانات الحية (MCP Neural Hub)</h3>
+      <h3 style="margin-bottom: 16px; font-size: 1.05rem; color: #e2e8f0;">⚡ عقد البيانات الحية والمهام (MCP Neural Hub)</h3>
       
       <div class="node-stat">
         <span class="node-title">💰 الرصيد المتاح (Live Balance)</span>
@@ -334,55 +319,52 @@
       </div>
 
       <div class="node-stat">
-        <span class="node-title">🛡️ درجة الصحة المالية (Health Score)</span>
+        <span class="node-title">🛡️ درجة الصحة المالية</span>
         <span class="node-val" style="color: var(--emerald);">92/100 (ممتاز)</span>
       </div>
 
       <div class="node-stat">
-        <span class="node-title">📦 المؤونة والنواقص (Pantry Node)</span>
+        <span class="node-title">📦 المؤونة والنواقص</span>
         <span class="node-val">3 أصناف متوفرة</span>
       </div>
 
       <div class="node-stat">
-        <span class="node-title">💊 الصيدلية والجرعات (Medication Node)</span>
-        <span class="node-val">بانادول (8:00م)</span>
+        <span class="node-title">💊 الصيدلية والجرعات</span>
+        <span class="node-val">بانادول (8:00 مساءً)</span>
       </div>
 
-      <h4 style="margin-top: 14px; margin-bottom: 6px; font-size: 0.95rem; color: #cbd5e1;">💬 سجل التفاعل الصوتي والعصبي:</h4>
+      <h4 style="margin-top: 14px; margin-bottom: 6px; font-size: 0.92rem; color: #cbd5e1;">💬 المحادثة الصوتية مع زادا:</h4>
       <div id="transcriptLog" class="transcript-log">
-        <div class="msg agent">مرحباً بك! أنا مساعد زاد الذكي المتصل مباشرة بالشبكة العصبية للبيانات وصوت ElevenLabs البشري. كيف أساعدك؟</div>
+        <div class="msg agent">أهلاً بك يا فندم! أنا زادا مساعِدتِك الذكية. متصلة بالشبكة العصبية وبصوت أنثوي بشري دافئ. كيف أساعدك اليوم؟</div>
       </div>
     </div>
 
   </div>
 
-  <!-- Audio Element for ElevenLabs stream -->
-  <audio id="elevenAudio" style="display: none;"></audio>
+  <audio id="elevenAudio" preload="auto"></audio>
 
   <script>
-    // --- 1. 3D Neural Canvas Simulation ---
+    // --- 1. 3D Canvas ---
     const canvas = document.getElementById('brainCanvas');
     const ctx = canvas.getContext('2d');
 
     function resizeCanvas() {
       canvas.width = canvas.parentElement.clientWidth - 48;
-      canvas.height = 320;
+      canvas.height = 300;
     }
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
-    // Particle nodes
     const nodes = [];
-    const nodeCount = 55;
-    for (let i = 0; i < nodeCount; i++) {
+    for (let i = 0; i < 55; i++) {
       nodes.push({
         x: (Math.random() - 0.5) * 300,
-        y: (Math.random() - 0.5) * 220,
+        y: (Math.random() - 0.5) * 200,
         z: (Math.random() - 0.5) * 300,
-        vx: (Math.random() - 0.5) * 0.6,
-        vy: (Math.random() - 0.5) * 0.6,
-        vz: (Math.random() - 0.5) * 0.6,
-        color: i % 3 === 0 ? '#06b6d4' : (i % 3 === 1 ? '#6366f1' : '#10b981'),
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: (Math.random() - 0.5) * 0.5,
+        vz: (Math.random() - 0.5) * 0.5,
+        color: i % 3 === 0 ? '#ec4899' : (i % 3 === 1 ? '#06b6d4' : '#6366f1'),
         pulse: Math.random() * Math.PI
       });
     }
@@ -396,26 +378,20 @@
       const cy = canvas.height / 2;
       const fov = 350;
 
-      angleY += isSpeakingPulse ? 0.02 : 0.007;
-
+      angleY += isSpeakingPulse ? 0.025 : 0.008;
       const cos = Math.cos(angleY);
       const sin = Math.sin(angleY);
-
       const projected = [];
 
       nodes.forEach(n => {
-        // Rotate around Y
         const rx = n.x * cos - n.z * sin;
         const rz = n.x * sin + n.z * cos + 400;
         const ry = n.y;
 
-        n.x += n.vx;
-        n.y += n.vy;
-        n.z += n.vz;
-
-        if (Math.abs(n.x) > 160) n.vx *= -1;
-        if (Math.abs(n.y) > 110) n.vy *= -1;
-        if (Math.abs(n.z) > 160) n.vz *= -1;
+        n.x += n.vx; n.y += n.vy; n.z += n.vz;
+        if (Math.abs(n.x) > 150) n.vx *= -1;
+        if (Math.abs(n.y) > 100) n.vy *= -1;
+        if (Math.abs(n.z) > 150) n.vz *= -1;
 
         n.pulse += 0.05;
 
@@ -423,35 +399,33 @@
           const scale = fov / rz;
           const px = cx + rx * scale;
           const py = cy + ry * scale;
-          const size = Math.max(2, (3 + Math.sin(n.pulse)) * scale * (isSpeakingPulse ? 1.6 : 1.0));
+          const size = Math.max(2, (3 + Math.sin(n.pulse)) * scale * (isSpeakingPulse ? 1.8 : 1.0));
           projected.push({ px, py, size, color: n.color, z: rz });
         }
       });
 
-      // Draw Synapses
       for (let i = 0; i < projected.length; i++) {
         for (let j = i + 1; j < projected.length; j++) {
           const dx = projected[i].px - projected[j].px;
           const dy = projected[i].py - projected[j].py;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 65) {
+          if (dist < 60) {
             ctx.beginPath();
             ctx.moveTo(projected[i].px, projected[i].py);
             ctx.lineTo(projected[j].px, projected[j].py);
-            ctx.strokeStyle = `rgba(99, 102, 241, ${1 - dist / 65})`;
+            ctx.strokeStyle = `rgba(236, 72, 153, ${1 - dist / 60})`;
             ctx.lineWidth = 0.8;
             ctx.stroke();
           }
         }
       }
 
-      // Draw Nodes
       projected.forEach(p => {
         ctx.beginPath();
         ctx.arc(p.px, p.py, p.size, 0, Math.PI * 2);
         ctx.fillStyle = p.color;
         ctx.shadowColor = p.color;
-        ctx.shadowBlur = isSpeakingPulse ? 15 : 6;
+        ctx.shadowBlur = isSpeakingPulse ? 18 : 6;
         ctx.fill();
       });
 
@@ -459,52 +433,22 @@
     }
     render3DBrain();
 
-    // --- 2. WebSocket & ElevenLabs Integration ---
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProtocol}//${window.location.host}`;
-    let socket;
-    let isConnected = false;
-
-    function initSocket() {
-      socket = new WebSocket(wsUrl);
-
-      socket.onopen = () => {
-        isConnected = true;
-        console.log('⚡ Connected to Neural Voice Assistant Core');
-      };
-
-      socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'text' && data.text) {
-            addMessage(data.text, 'agent');
-          } else if (data.type === 'elevenlabs_audio' && data.audio) {
-            playElevenLabsAudio(data.audio);
-          }
-        } catch {
-          // Audio buffer handling
-        }
-      };
-
-      socket.onclose = () => {
-        isConnected = false;
-        setTimeout(initSocket, 2000);
-      };
-    }
-    initSocket();
-
+    // --- 2. Audio Playback ---
     const elevenAudio = document.getElementById('elevenAudio');
 
-    function playElevenLabsAudio(base64Audio) {
+    function playAudioBase64(base64Audio) {
       isSpeakingPulse = true;
       elevenAudio.src = `data:audio/mp3;base64,${base64Audio}`;
-      elevenAudio.play();
-      elevenAudio.onended = () => {
-        isSpeakingPulse = false;
-      };
+      elevenAudio.play().catch(e => console.warn("Audio autoplay blocked, click anywhere:", e));
+      elevenAudio.onended = () => { isSpeakingPulse = false; };
     }
 
-    // --- 3. Speech Recognition & Text Input ---
+    // Welcome Voice Button
+    document.getElementById('btnPlayWelcome').addEventListener('click', () => {
+      sendNeuralQuery("صباح الخير يا زادا");
+    });
+
+    // --- 3. Interaction & Chat ---
     const micBtn = document.getElementById('micBtn');
     const statusText = document.getElementById('statusText');
     const textInput = document.getElementById('textInput');
@@ -518,40 +462,32 @@
     if (SpeechRecognition) {
       recognizer = new SpeechRecognition();
       recognizer.lang = 'ar-EG';
-      recognizer.continuous = false;
-      recognizer.interimResults = false;
-
       recognizer.onresult = (e) => {
         const text = e.results[0][0].transcript;
         addMessage(text, 'user');
         sendNeuralQuery(text);
       };
-
       recognizer.onend = () => {
         isListening = false;
         micBtn.classList.remove('active');
-        statusText.innerText = 'اضغط على المايك لبدء المحادثة الصوتية الحية';
+        statusText.innerText = 'اضغط على المايك لبدء المحادثة الصوتية أو اكتب بالأسفل';
       };
-
-      recognizer.onerror = (e) => {
-        console.error(e);
+      recognizer.onerror = () => {
         isListening = false;
         micBtn.classList.remove('active');
-        statusText.innerText = 'تعذر التقاط الصوت، جرب مرة أخرى أو اكتب بالأسفل';
       };
     }
 
     micBtn.addEventListener('click', () => {
       if (!recognizer) {
-        alert('المتصفح لا يدعم التسجيل الصوتي المباشر، يرجى استخدام متصفح Chrome');
+        alert('يرجى استخدام متصفح يدعم المايك مثل Chrome أو كتابة السؤال بالأسفل');
         return;
       }
-
       if (!isListening) {
         recognizer.start();
         isListening = true;
         micBtn.classList.add('active');
-        statusText.innerText = '🎙️ يستمع إليك الآن... تحدث بلهجتك الطبيعية';
+        statusText.innerText = '🎙️ زادا تستمع إليك الآن... تحدث بلهجتك الطبيعية';
       } else {
         recognizer.stop();
       }
@@ -578,7 +514,7 @@
     }
 
     async function sendNeuralQuery(text) {
-      statusText.innerText = '⚡ جاري المعالجة العصبية وتوليد صوت ElevenLabs...';
+      statusText.innerText = '⚡ زادا تعالج طلبك وتولد الصوت الأنثوي...';
       try {
         const res = await fetch('/api/chat', {
           method: 'POST',
@@ -586,16 +522,12 @@
           body: JSON.stringify({ message: text, generateAudio: true })
         });
         const data = await res.json();
-        if (data.reply) {
-          addMessage(data.reply, 'agent');
-        }
-        if (data.audio) {
-          playElevenLabsAudio(data.audio);
-        }
+        if (data.reply) addMessage(data.reply, 'agent');
+        if (data.audio) playAudioBase64(data.audio);
       } catch (err) {
         console.error(err);
       } finally {
-        statusText.innerText = 'اضغط على المايك لبدء المحادثة الصوتية الحية';
+        statusText.innerText = 'اضغط على المايك لبدء المحادثة الصوتية أو اكتب بالأسفل';
       }
     }
   </script>
