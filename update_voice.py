@@ -1,4 +1,10 @@
-package com.example.voice
+import re
+
+with open('app/src/main/java/com/example/voice/ZadNaturalVoiceEngine.kt', 'r', encoding='utf-8') as f:
+    content = f.read()
+
+# I will replace the entire file content cleanly
+new_content = """package com.example.voice
 
 import android.content.Context
 import android.media.AudioAttributes
@@ -290,10 +296,10 @@ class ZadNaturalVoiceEngine(private val context: Context) {
 
     private fun prepareNaturalSpeechText(rawText: String, persona: VoicePersona): String {
         var cleaned = rawText
-            .replace(Regex("[#*`_~>\[\]()]"), " ")
-            .replace(Regex("https?://\\S+"), "الرابط")
-            .replace(Regex("[\\p{So}\\p{Cn}]"), " ")
-            .replace(Regex("\\s+"), " ")
+            .replace(Regex("[#*`_~>\\[\\]()]"), " ")
+            .replace(Regex("https?://\\\\S+"), "الرابط")
+            .replace(Regex("[\\\\p{So}\\\\p{Cn}]"), " ")
+            .replace(Regex("\\\\s+"), " ")
             .trim()
 
         cleaned = cleaned.replace("،", "، ... ")
@@ -315,3 +321,7 @@ class ZadNaturalVoiceEngine(private val context: Context) {
         return cleaned
     }
 }
+"""
+
+with open('app/src/main/java/com/example/voice/ZadNaturalVoiceEngine.kt', 'w', encoding='utf-8') as f:
+    f.write(new_content)
