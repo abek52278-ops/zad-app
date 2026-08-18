@@ -290,10 +290,10 @@ class ZadNaturalVoiceEngine(private val context: Context) {
 
     private fun prepareNaturalSpeechText(rawText: String, persona: VoicePersona): String {
         var cleaned = rawText
-            .replace(Regex("[#*`_~>\[\]()]"), " ")
-            .replace(Regex("https?://\\S+"), "الرابط")
-            .replace(Regex("[\\p{So}\\p{Cn}]"), " ")
-            .replace(Regex("\\s+"), " ")
+            .replace(Regex("""[#*`_~>\[\]()]"""), " ")
+            .replace(Regex("https?://\\\\S+"), "الرابط")
+            .replace(Regex("[\\\\p{So}\\\\p{Cn}]"), " ")
+            .replace(Regex("\\\\s+"), " ")
             .trim()
 
         cleaned = cleaned.replace("،", "، ... ")
