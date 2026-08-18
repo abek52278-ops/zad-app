@@ -182,7 +182,7 @@ class ZadNaturalVoiceEngine(private val context: Context) {
         initAudioTrack()
 
         // استبدل هذا المفتاح بمفتاح ElevenLabs الحقيقي (يفضل جلبه من BuildConfig أو الخادم)
-        val apiKey = com.example.data.MarketPrefs.getElevenLabsKey(context) ?: "YOUR_ELEVENLABS_API_KEY"
+        val apiKey = "YOUR_ELEVENLABS_API_KEY"
         val url = "wss://api.elevenlabs.io/v1/text-to-speech/${persona.elevenLabsVoiceId}/stream-input?model_id=eleven_multilingual_v2&output_format=pcm_24000"
 
         val request = Request.Builder()
