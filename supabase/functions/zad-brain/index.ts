@@ -309,7 +309,7 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
   const cashKey = isoWeekKey(new Date());
   const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes, askedRes, selfMemRes, cashBalRes, cashAskedRes, obligRes, debtRes, maintRes, behaviorRes, notifRes, doseRes, budgetRes, obsRes, lifeRes] =
     await Promise.all([
-      sb.from("zad_users").select("monthly_limit,cycle_start_day,cycle_anchor,currency,country").eq("id", userId).maybeSingle(),
+      sb.from("zad_users").select("monthly_limit,cycle_start_day,cycle_anchor,currency,country,gender").eq("id", userId).maybeSingle(),
       // `id` مضاف عشان set_transaction_category و update_transaction يقدروا يشاوروا على
       // معاملة حقيقية. من غيره الموديل مكانش قدامه غير إنه يخترع معرّف — وأداة
       // set_transaction_category كانت موجودة من غير أي مصدر شرعي للـ transaction_id.
