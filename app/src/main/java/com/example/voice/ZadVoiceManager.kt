@@ -32,6 +32,12 @@ class ZadVoiceManager(private val context: Context) {
     private val _voiceState = MutableStateFlow<VoiceState>(VoiceState.Idle)
     val voiceState: StateFlow<VoiceState> = _voiceState.asStateFlow()
 
+    private val _isSpeaking = MutableStateFlow(false)
+    val isSpeaking = _isSpeaking.asStateFlow()
+
+    private val _isListening = MutableStateFlow(false)
+    val isListening = _isListening.asStateFlow()
+
     private val _soundLevel = MutableStateFlow(0f)
     val soundLevel: StateFlow<Float> = _soundLevel.asStateFlow()
 
@@ -116,26 +122,28 @@ class ZadVoiceManager(private val context: Context) {
                 speechRecognizer?.setRecognitionListener(object : RecognitionListener {
                     override fun onReadyForSpeech(params: Bundle?) {
                         _voiceState.value = VoiceState.Listening
+                        _isListening.value = true
+                        ZadSystemSoundFx.play(ZadSystemSoundFx.SoundEvent.VoiceInputStart)
                     }
 
                     override fun onBeginningOfSpeech() {
-                        _voiceState.value = VoiceState.Listening
+                        _isListening.value = true
                     }
 
                     override fun onRmsChanged(rmsdB: Float) {
-                        // Normalize 0..10 dB to 0..1
-                        _soundLevel.value = (rmsdB.coerceIn(0f, 10f) / 10f)
+                        _soundLevel.value = rmsdB
                     }
 
                     override fun onBufferReceived(buffer: ByteArray?) {}
 
                     override fun onEndOfSpeech() {
-                        _soundLevel.value = 0f
                         _voiceState.value = VoiceState.Thinking
+                        _isListening.value = false
                     }
 
                     override fun onError(error: Int) {
-                        _soundLevel.value = 0f
+                        _voiceState.value = VoiceState.Idle
+                        _isListening.value = false
                         val msg = when (error) {
                             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "يرجى منح إذن استخدام الميكروفون"
                             SpeechRecognizer.ERROR_AUDIO -> "تعذر الوصول للميكروفون"
@@ -143,13 +151,20 @@ class ZadVoiceManager(private val context: Context) {
                             SpeechRecognizer.ERROR_NO_MATCH -> "لم أسمع شيئاً، اضغط الميكروفون وحاول مرة أخرى"
                             SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "جاهزة، اضغط الميكروفون وتحدث"
                             SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "جاري إعادة التهيئة..."
-                            else -> "حدث خطأ مؤقت، اضغط للتحدث مجدداً"
+                            else -> "حدث خطأ (${error})"
                         }
                         Log.w(TAG, "SpeechRecognizer error: $error ($msg)")
-                        _voiceState.value = VoiceState.Error(msg)
+                        if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                            _voiceState.value = VoiceState.Error(msg)
+                            onResult(msg)
+                        } else {
+                            _voiceState.value = VoiceState.Error(msg)
+                        }
                     }
 
                     override fun onResults(results: Bundle?) {
+                        _voiceState.value = VoiceState.Idle
+                        _isListening.value = false
                         val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         val text = matches?.firstOrNull()?.trim().orEmpty()
                         if (text.isNotEmpty()) {
