@@ -109,6 +109,10 @@ class MainActivity : ComponentActivity() {
 
         MarketPrefs.applyStoredLocale(this)
 
+        // Initialize AdMob and Preload Rewarded Ad
+        com.example.ads.RewardedBrainAdManager.initialize(this)
+        com.example.ads.RewardedBrainAdManager.preload(this)
+
         // صلاحية ممنوحة مش معناها سيرفس شغال. أندرويد بيقتل NotificationListenerService
         // تحت ضغط الذاكرة أو بعد تحديث/إعادة تشغيل وساعات مابيرجعش يربطه، ومفيش حاجة في
         // الواجهة كانت بتفرّق — البانر بيقرا الصلاحية بس. النتيجة إن

@@ -2056,11 +2056,10 @@ fun AmazonPicksSummaryCard(viewModel: ZadViewModel) {
 fun AiNarrativeSection(narrative: String?, isLoading: Boolean, onExplain: (() -> Unit)?) {
     when {
         isLoading -> Row(verticalAlignment = Alignment.CenterVertically) {
-            ZadLottieAsset(
-                resId = R.raw.lottie_ai_thinking,
-                modifier = Modifier.size(20.dp),
-                iterations = LottieConstants.IterateForever,
-                contentDescription = null
+            com.example.ui.components.CompanionOrb(
+                state = com.example.ui.components.CompanionState.Focused,
+                size = 20.dp,
+                animated = true
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(stringResource(R.string.ai_narrative_loading), style = Typography.labelSmall, color = onSurfaceVariant)
@@ -2473,11 +2472,10 @@ private fun ZadIntTypingIndicator() {
             modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(surfaceContainerHigh).padding(horizontal = 12.dp, vertical = 6.dp),
             contentAlignment = Alignment.Center
         ) {
-            ZadLottieAsset(
-                resId = R.raw.lottie_ai_thinking,
-                modifier = Modifier.size(36.dp),
-                iterations = LottieConstants.IterateForever,
-                contentDescription = stringResource(R.string.ai_narrative_loading)
+            com.example.ui.components.CompanionOrb(
+                state = com.example.ui.components.CompanionState.Focused,
+                size = 36.dp,
+                animated = true
             )
         }
     }
