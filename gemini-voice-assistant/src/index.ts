@@ -129,6 +129,70 @@ async function main() {
       return;
     }
 
+    // 2.5 API: Broadcast Voice Note to All Users (/api/telegram/broadcast_voice)
+    if (req.url === '/api/telegram/broadcast_voice' && req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', async () => {
+        try {
+          const { chatIds, text, botToken, voiceId } = JSON.parse(body || '{}');
+          if (!Array.isArray(chatIds) || chatIds.length === 0 || !botToken) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'chatIds (array) and botToken are required' }));
+            return;
+          }
+
+          const defaultScripts = [
+            "صباح الورد والنشاط! أنا زادا.. حبيت أفكّرك تراجع مصاريف الأسبوع وتشوف الرصيد المتاح عشان نظبط خروجة الويكند من غير أي ضغط مالي! يومك سعيد وجميل يا رب 🌸",
+            "مساء الخير يا غالي! زادا معاك.. شفت شوية عروض حلوة على البقالة والتموين النهاردة، شيك على مخزون البيت لو في حاجة ناقصة 🛒✨",
+            "طمني عليك! زادا بتسأل.. كل الفواتير والمصاريف متسجلة تمام؟ لو صرفت أي حاجة في مشوارك ابعتهالي هنا علطول 💫"
+          ];
+          const broadcastText = text || defaultScripts[Math.floor(Math.random() * defaultScripts.length)];
+
+          const audioBuffer = await elevenLabs.generateSpeech(
+            broadcastText,
+            voiceId || ELEVENLABS_VOICE_ID,
+            'eleven_multilingual_v2'
+          );
+
+          if (!audioBuffer) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Failed to synthesize broadcast voice note' }));
+            return;
+          }
+
+          let sent = 0;
+          let failed = 0;
+
+          for (const cid of chatIds) {
+            try {
+              const blob = new Blob([new Uint8Array(audioBuffer)], { type: 'audio/mpeg' });
+              const formData = new FormData();
+              formData.append('chat_id', String(cid));
+              formData.append('voice', blob, 'zada_broadcast.mp3');
+              formData.append('caption', `🎙️ رسالة صوتية من زادا:\n"${broadcastText}"`);
+
+              const r = await fetch(`https://api.telegram.org/bot${botToken}/sendVoice`, {
+                method: 'POST',
+                body: formData
+              });
+              const j = await r.json();
+              if (j.ok) sent++; else failed++;
+            } catch {
+              failed++;
+            }
+          }
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, text: broadcastText, sent, failed, total: chatIds.length }));
+        } catch (err: any) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
+    }
+
     // 3. API: Agent Direct Brain Query (/api/chat)
     if (req.url === '/api/chat' && req.method === 'POST') {
       let body = '';
