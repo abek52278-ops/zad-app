@@ -2306,6 +2306,52 @@ fun ChatTab(
         )
     }
 
+    val context = LocalContext.current
+    val voiceManager = remember { com.example.voice.ZadVoiceManager(context) }
+    val isListening by voiceManager.isListening.collectAsState()
+    var lastSpokenResponseId by remember { mutableStateOf<String?>(null) }
+
+    val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            voiceManager.startListening { query -> 
+                onInputChange(query)
+                onSend() 
+            }
+        }
+    }
+
+    fun startListeningWithPermission() {
+        val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+            context, android.Manifest.permission.RECORD_AUDIO
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+        if (hasPermission) {
+            voiceManager.startListening { query -> 
+                onInputChange(query)
+                onSend() 
+            }
+        } else {
+            permissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    LaunchedEffect(messages) {
+        val lastAssistantMessage = messages.lastOrNull { !it.isUser }
+        if (lastAssistantMessage != null && lastAssistantMessage.id != lastSpokenResponseId) {
+            lastSpokenResponseId = lastAssistantMessage.id
+            voiceManager.speakHumanLike(lastAssistantMessage.text) {
+                // المحادثة الحية المستمرة — يستمع تلقائياً بعد انتهاء الرد
+                startListeningWithPermission()
+            }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { voiceManager.release() }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), contentAlignment = Alignment.Center) {
             com.example.ui.components.CompanionOrb(state = companionState, size = 64.dp)
@@ -2406,10 +2452,16 @@ fun ChatTab(
             )
             Spacer(modifier = Modifier.width(10.dp))
             IconButton(
-                onClick = onSend,
-                modifier = Modifier.size(46.dp).clip(CircleShape).background(primary)
+                onClick = {
+                    if (inputText.isNotBlank()) onSend()
+                    else startListeningWithPermission()
+                },
+                modifier = Modifier.size(46.dp).clip(CircleShape).background(if (isListening) dangerColor else primary)
             ) {
-                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(R.string.send_action), tint = Color.White)
+                Icon(
+                    if (inputText.isNotBlank()) Icons.AutoMirrored.Filled.Send else if (isListening) Icons.Default.Mic else Icons.Default.MicNone,
+                    contentDescription = stringResource(R.string.send_action), tint = Color.White
+                )
             }
         }
     }
