@@ -116,6 +116,8 @@ fun ZadSubscriptionPaywallScreen(
     val context = LocalContext.current
     val currentMarket = remember { MarketPrefs.getMarket(context) }
     var selectedTier by remember { mutableStateOf(ZadPlanTier.PLUS) }
+    var adWatchCount by remember { mutableStateOf(com.example.ads.RewardedBrainAdManager.getAdWatchCount(context)) }
+    var isSessionUnlocked by remember { mutableStateOf(com.example.ads.RewardedBrainAdManager.isSessionUnlocked(context)) }
 
     Scaffold(
         topBar = {
@@ -337,6 +339,58 @@ fun ZadSubscriptionPaywallScreen(
                 textAlign = TextAlign.Center,
                 fontSize = 11.sp
             )
+            Spacer(Modifier.height(24.dp))
+
+            // Ad battery alternative option
+            com.example.ui.components.ZadListCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                containerColor = Color(0xFF0F172A).copy(alpha = 0.03f),
+                contentPadding = 0.dp
+            ) {
+                Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "⚡ لست مستعداً للاشتراك الآن؟",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "يمكنك شحن بطارية الذكاء الاصطناعي مجاناً بمشاهدة 3 إعلانات قصيرة (+5 رسائل فورية).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        fontSize = 11.sp
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = {
+                            com.example.ads.RewardedBrainAdManager.showRewardedEnergyAd(
+                                context = context,
+                                onAdWatched = { newCount, isFullyUnlocked ->
+                                    adWatchCount = newCount
+                                    isSessionUnlocked = isFullyUnlocked
+                                    Toast.makeText(context, "تمت مشاهدة الإعلان بنجاح ($newCount/3)", Toast.LENGTH_SHORT).show()
+                                },
+                                onFailed = {
+                                    Toast.makeText(context, "لم نتمكن من تحميل الإعلان، يرجى المحاولة لاحقاً", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.pressableScale()
+                    ) {
+                        Icon(Icons.Default.PlayCircle, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "مشاهدة إعلان مجاني (${adWatchCount}/3)",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
             Spacer(Modifier.height(16.dp))
         }
     }
