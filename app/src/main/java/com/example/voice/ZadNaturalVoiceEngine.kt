@@ -117,37 +117,22 @@ class ZadNaturalVoiceEngine(private val context: Context) {
             tts.setPitch(persona.pitch)
             tts.setSpeechRate(persona.speechRate)
 
-            // بحث عن أفضل صوت عربي عصبي (Neural / Wavenet / Studio / Natural)
+            // اختيار أعلى وأحدث الأصوات العصبية البشرية (Neural / Wavenet / Studio / Natural)
             val availableVoices = tts.voices
             if (availableVoices != null && availableVoices.isNotEmpty()) {
-                val bestVoice = when (persona) {
-                    VoicePersona.SARAH_STUDIO_WARM -> {
-                        availableVoices.firstOrNull { v ->
-                            v.locale.language == "ar" && (
-                                v.name.contains("natural", ignoreCase = true) ||
-                                v.name.contains("neural", ignoreCase = true) ||
-                                v.name.contains("wavenet", ignoreCase = true) ||
-                                v.name.contains("female", ignoreCase = true) ||
-                                v.name.contains("ar-x-", ignoreCase = true)
-                            )
-                        }
-                    }
-                    VoicePersona.KARIM_STUDIO_PRO -> {
-                        availableVoices.firstOrNull { v ->
-                            v.locale.language == "ar" && (
-                                v.name.contains("male", ignoreCase = true) &&
-                                !v.name.contains("female", ignoreCase = true)
-                            )
-                        }
-                    }
-                    VoicePersona.PET_MASCOT_CUTE -> {
-                        availableVoices.firstOrNull { v ->
-                            v.locale.language == "ar" && (
-                                v.name.contains("female", ignoreCase = true) ||
-                                v.name.contains("ar-x-", ignoreCase = true)
-                            )
-                        }
-                    }
+                val bestVoice = availableVoices.firstOrNull { v ->
+                    v.locale.language == "ar" && (
+                        v.name.contains("studio", ignoreCase = true) ||
+                        v.name.contains("neural", ignoreCase = true) ||
+                        v.name.contains("wavenet", ignoreCase = true) ||
+                        v.name.contains("natural", ignoreCase = true) ||
+                        v.name.contains("ar-x-", ignoreCase = true)
+                    )
+                } ?: availableVoices.firstOrNull { v ->
+                    v.locale.language == "ar" && (
+                        v.name.contains("female", ignoreCase = true) ||
+                        v.name.contains("male", ignoreCase = true)
+                    )
                 }
 
                 if (bestVoice != null) {

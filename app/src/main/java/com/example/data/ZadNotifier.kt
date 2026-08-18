@@ -81,6 +81,18 @@ object ZadNotifier {
             try { tts?.stop(); tts?.shutdown() } catch (e: Exception) { /* ignore */ }
         }
 
+        // Clean text for natural human speech (strip markdown & URL, add breath pauses)
+        val naturalSpeechText = text
+            .replace(Regex("[#*`_~>\\[\\]()]"), " ")
+            .replace(Regex("https?://\\S+"), " ")
+            .replace(Regex("[\\p{So}\\p{Cn}]"), " ")
+            .replace(Regex("\\s+"), " ")
+            .replace("،", "، ... ")
+            .replace(".", ". ... ")
+            .replace("!", "! ... ")
+            .replace("؟", "؟ ... ")
+            .trim()
+
         tts = TextToSpeech(context.applicationContext) { status ->
             if (status != TextToSpeech.SUCCESS) {
                 finishOnce()
@@ -97,22 +109,25 @@ object ZadNotifier {
                 return@TextToSpeech
             }
             tts?.language = locale
-            // نبرة هادئة ومريحة وطبيعية
-            tts?.setPitch(1.10f)
-            tts?.setSpeechRate(0.96f)
+            // نبرة دافئة وطبيعية جداً مثل التحدث البشري المباشر
+            tts?.setPitch(1.05f)
+            tts?.setSpeechRate(0.98f)
 
-            // محاولة اختيار صوت أنثوي ناعم إن وُجد
+            // دقة اختيار أعلى وأحدث صوت عصبي بشري (Neural / Wavenet / Studio / Natural)
             val voices = tts?.voices
-            if (voices != null) {
-                val femaleVoice = voices.firstOrNull { v ->
+            if (voices != null && voices.isNotEmpty()) {
+                val neuralVoice = voices.firstOrNull { v ->
                     v.locale.language == "ar" && (
-                        v.name.contains("female", ignoreCase = true) ||
-                        v.name.contains("fem", ignoreCase = true) ||
-                        v.name.contains("ar-x-", ignoreCase = true)
+                        v.name.contains("neural", ignoreCase = true) ||
+                        v.name.contains("wavenet", ignoreCase = true) ||
+                        v.name.contains("studio", ignoreCase = true) ||
+                        v.name.contains("natural", ignoreCase = true) ||
+                        v.name.contains("ar-x-", ignoreCase = true) ||
+                        v.name.contains("female", ignoreCase = true)
                     )
                 }
-                if (femaleVoice != null) {
-                    tts?.voice = femaleVoice
+                if (neuralVoice != null) {
+                    tts?.voice = neuralVoice
                 }
             }
 
@@ -122,7 +137,7 @@ object ZadNotifier {
                 @Deprecated("Deprecated in Java")
                 override fun onError(utteranceId: String?) { finishOnce() }
             })
-            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "zad_notifier")
+            tts?.speak(naturalSpeechText, TextToSpeech.QUEUE_FLUSH, null, "zad_notifier")
         }
 
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ finishOnce() }, 15_000)
