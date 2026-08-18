@@ -6,26 +6,27 @@ import { WebSocketServer, WebSocket } from 'ws';
 import dotenv from 'dotenv';
 import { MCPManager } from './mcpManager.js';
 import { GeminiLiveClient } from './geminiLiveClient.js';
-import { ElevenLabsService } from './elevenLabsService.js';
+import { ElevenLabsService, FEMALE_VOICES } from './elevenLabsService.js';
 dotenv.config();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 8080;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash-live-001';
 const GEMINI_VOICE = process.env.GEMINI_VOICE || 'Puck';
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || 'sk_53259a25a6218b4fbd842f504cc35100e51a7a9a3f95876a';
-const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'JBFqnCBsd6RMkjVDRZzb';
+const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || FEMALE_VOICES.ZADA_AI;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PUBLIC_DIR = path.join(__dirname, '../public');
 async function main() {
     console.log('===============================================================');
     console.log('🧠 Zad Neural Brain & ElevenLabs Ultra-Realistic Voice Server');
+    console.log('👩 Persona Voice: Female Natural Studio (Zada AI / Rachel)');
     console.log('===============================================================');
     const mcpManager = new MCPManager();
     const elevenLabs = new ElevenLabsService(ELEVENLABS_API_KEY);
     // HTTP Server with static files + REST API for voice synthesis & agent queries
     const httpServer = http.createServer(async (req, res) => {
-        // CORS headers for Android app and web clients
+        // CORS headers for Android app, Telegram webhooks, and web clients
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -34,7 +35,7 @@ async function main() {
             res.end();
             return;
         }
-        // 1. API: ElevenLabs Voice Synthesizer (/api/tts)
+        // 1. API: ElevenLabs Female Voice Synthesizer (/api/tts)
         if (req.url === '/api/tts' && req.method === 'POST') {
             let body = '';
             req.on('data', chunk => { body += chunk; });
@@ -66,7 +67,47 @@ async function main() {
             });
             return;
         }
-        // 2. API: Agent Direct Brain Query (/api/chat)
+        // 2. API: Telegram Voice Message Sender (/api/telegram/send_voice)
+        if (req.url === '/api/telegram/send_voice' && req.method === 'POST') {
+            let body = '';
+            req.on('data', chunk => { body += chunk; });
+            req.on('end', async () => {
+                try {
+                    const { chatId, text, botToken, voiceId } = JSON.parse(body || '{}');
+                    if (!chatId || !text || !botToken) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'chatId, text, and botToken are required' }));
+                        return;
+                    }
+                    // Generate ElevenLabs female voice
+                    const audioBuffer = await elevenLabs.generateSpeech(text, voiceId || ELEVENLABS_VOICE_ID, 'eleven_multilingual_v2');
+                    if (!audioBuffer) {
+                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'Failed to synthesize audio for Telegram' }));
+                        return;
+                    }
+                    // Send voice note via Telegram Bot API multipart/form-data
+                    const blob = new Blob([new Uint8Array(audioBuffer)], { type: 'audio/mpeg' });
+                    const formData = new FormData();
+                    formData.append('chat_id', String(chatId));
+                    formData.append('voice', blob, 'zada_voice.mp3');
+                    formData.append('caption', `🎙️ زادا: ${text}`);
+                    const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendVoice`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const tgJson = await tgRes.json();
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ ok: true, telegram: tgJson }));
+                }
+                catch (err) {
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: err.message }));
+                }
+            });
+            return;
+        }
+        // 3. API: Agent Direct Brain Query (/api/chat)
         if (req.url === '/api/chat' && req.method === 'POST') {
             let body = '';
             req.on('data', chunk => { body += chunk; });
@@ -78,12 +119,11 @@ async function main() {
                         res.end(JSON.stringify({ error: 'Message is required' }));
                         return;
                     }
-                    // Fallback response with neural tools execution
                     const toolResult = await mcpManager.executeToolCall('get_financial_summary', {});
-                    const replyText = `أهلاً بك! رصيدك المتاح حالياً ${toolResult.data.remainingBalance} جنيه، ومصروفاتك الشهرية منتظمة بنسبة أمان 92%. كيف أساعدك اليوم؟`;
+                    const replyText = `أهلاً بك! أنا زادا. رصيدك المتاح حالياً ${toolResult.data.remainingBalance} جنيه، وكل أمورك المالية منتظمة ومحسوبة بالكامل.`;
                     let audioBase64 = null;
                     if (generateAudio) {
-                        const audioBuf = await elevenLabs.generateSpeech(replyText);
+                        const audioBuf = await elevenLabs.generateSpeech(replyText, ELEVENLABS_VOICE_ID);
                         if (audioBuf)
                             audioBase64 = audioBuf.toString('base64');
                     }
@@ -91,6 +131,7 @@ async function main() {
                     res.end(JSON.stringify({
                         reply: replyText,
                         audio: audioBase64,
+                        persona: 'zada_ai_female',
                         neuralStatus: 'connected'
                     }));
                 }
@@ -101,7 +142,7 @@ async function main() {
             });
             return;
         }
-        // 3. Static Files
+        // 4. Static Files
         let filePath = path.join(PUBLIC_DIR, req.url === '/' ? 'index.html' : req.url || 'index.html');
         if (!fs.existsSync(filePath)) {
             filePath = path.join(PUBLIC_DIR, 'index.html');
@@ -132,8 +173,7 @@ async function main() {
     // WebSocket Server for Real-Time Bidirectional Voice & Brain Feed
     const wss = new WebSocketServer({ server: httpServer });
     wss.on('connection', (clientWs) => {
-        console.log('[WebSocketServer] 🌐 New Client connected to Zad Neural Core.');
-        // Initialize Gemini Live Client
+        console.log('[WebSocketServer] 🌐 Client connected to Zada Female Voice Core.');
         const geminiClient = new GeminiLiveClient({
             apiKey: GEMINI_API_KEY,
             model: GEMINI_MODEL,
@@ -147,15 +187,16 @@ async function main() {
             onTextData: async (text) => {
                 if (clientWs.readyState === WebSocket.OPEN) {
                     clientWs.send(JSON.stringify({ type: 'text', text }));
-                    // Optionally synthesize with ElevenLabs for premium high-fidelity voice
+                    // Synthesize with ElevenLabs Female Voice (Rachel / Zada AI)
                     if (text.trim() && text.length > 3) {
                         try {
-                            const mp3Buffer = await elevenLabs.generateSpeech(text);
+                            const mp3Buffer = await elevenLabs.generateSpeech(text, ELEVENLABS_VOICE_ID);
                             if (mp3Buffer && clientWs.readyState === WebSocket.OPEN) {
                                 clientWs.send(JSON.stringify({
                                     type: 'elevenlabs_audio',
                                     audio: mp3Buffer.toString('base64'),
-                                    text: text
+                                    text: text,
+                                    voice: 'zada_female'
                                 }));
                             }
                         }
@@ -190,12 +231,12 @@ async function main() {
                         geminiClient.sendTextMessage(msg.text);
                     }
                     else if (msg.type === 'speak_elevenlabs' && msg.text) {
-                        // Direct ElevenLabs voice generation request
-                        const audioBuf = await elevenLabs.generateSpeech(msg.text, msg.voiceId);
+                        const audioBuf = await elevenLabs.generateSpeech(msg.text, msg.voiceId || ELEVENLABS_VOICE_ID);
                         if (audioBuf && clientWs.readyState === WebSocket.OPEN) {
                             clientWs.send(JSON.stringify({
                                 type: 'elevenlabs_audio',
-                                audio: audioBuf.toString('base64')
+                                audio: audioBuf.toString('base64'),
+                                voice: 'zada_female'
                             }));
                         }
                     }
@@ -210,8 +251,9 @@ async function main() {
         });
     });
     httpServer.listen(PORT, () => {
-        console.log(`🚀 Neural Brain & ElevenLabs Voice Server listening on http://localhost:${PORT}`);
-        console.log(`🎙️ ElevenLabs API: Connected & Ready (Voice ID: ${ELEVENLABS_VOICE_ID})`);
+        console.log(`🚀 Zada AI (Female Persona) Server listening on http://localhost:${PORT}`);
+        console.log(`🎙️ ElevenLabs Voice: Connected & Ready (Female Voice: ${ELEVENLABS_VOICE_ID})`);
+        console.log(`📱 Telegram Voice Notes API: Ready at POST /api/telegram/send_voice`);
         console.log(`⚡ WebSocket URL: ws://localhost:${PORT}`);
     });
 }
