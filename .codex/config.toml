@@ -1,0 +1,10 @@
+# Project-scoped Codex configuration for zad-app.
+# Codex CLI and the IDE extension share this config when the project is trusted.
+
+[mcp_servers.supabase]
+url = "https://mcp.supabase.com/mcp?project_ref=auuftqncrjsnyylolhbu"
+
+[mcp_servers.figma]
+command = "npx"
+args = ["-y", "figma-developer-mcp", "--stdio"]
+env_vars = ["FIGMA_PERSONAL_TOKEN"]
