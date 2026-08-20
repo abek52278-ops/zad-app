@@ -134,6 +134,9 @@ fun HomeScreen(
     val autoSuggestions by viewModel.autoSuggestions.collectAsState()
     val inventoryCheckIns by viewModel.inventoryCheckIns.collectAsState()
     val pendingGroceryPurchase by viewModel.pendingGroceryPurchase.collectAsState()
+    val transactionProposals by viewModel.transactionProposals.collectAsState()
+    val resolvingTransactionProposals by viewModel.resolvingTransactionProposals.collectAsState()
+    val failedTransactionProposals by viewModel.failedTransactionProposals.collectAsState()
 
     // "مصروف" في كارت الميزانية لازم يكون مصروف نفس الدورة اللي "متاح" اتحسب عليها.
     // كان BudgetMath.totalExpense — إجمالي كل المعاملات من أول يوم في التطبيق — جنب
@@ -168,6 +171,7 @@ fun HomeScreen(
                 isNotificationAccessGranted = androidx.core.app.NotificationManagerCompat
                     .getEnabledListenerPackages(context).contains(context.packageName)
                 bankReaderConnectedAt = com.example.data.BankReadingStatus.lastConnectedAt(context)
+                viewModel.loadTransactionProposals()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -191,6 +195,7 @@ fun HomeScreen(
         viewModel.predictNextMonthExpenses()
         viewModel.refreshOutingSuggestion()
         viewModel.loadZadInsights()
+        viewModel.loadTransactionProposals()
         familyViewModel.loadUpcomingSeasonalEvents()
         Log.d(TAG_HOME, "HomeScreen loaded — userName=$userNameState, budget=$budget, transactions=${transactions.size}, isChild=$isChild")
     }
@@ -451,6 +456,27 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(18.dp))
                         MiniSubscriptionsWidget(subscriptions = subscriptions, onNavigateToSubscriptions = onNavigateToSubscriptions)
                     }
+                }
+
+                if (transactionProposals.isNotEmpty()) {
+                    Text(
+                        stringResource(R.string.bank_proposals_title),
+                        style = Typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = onSurface,
+                        modifier = Modifier.padding(bottom = 10.dp)
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        transactionProposals.forEach { proposal ->
+                            com.example.ui.widgets.TransactionProposalCard(
+                                proposal = proposal,
+                                resolving = proposal.id in resolvingTransactionProposals,
+                                failed = proposal.id in failedTransactionProposals,
+                                onDecision = { decision -> viewModel.resolveTransactionProposal(proposal.id, decision) }
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(18.dp))
                 }
 
                 // ── 4. Insights (mockup: translucent glass rows, dot + text + tag) ──

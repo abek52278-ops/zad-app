@@ -116,6 +116,35 @@ data class ZadInsight(
     @SerialName("updated_at") val updatedAt: String? = null
 )
 
+/** One bank notification awaiting a human decision. Android and Telegram read and
+ * resolve this same row; only the database RPC can turn it into a transaction. */
+@Serializable
+data class ZadTransactionProposal(
+    val id: String = "",
+    @SerialName("user_id") val userId: String = "",
+    val status: String = "awaiting_confirmation",
+    @SerialName("txn_kind") val txnKind: String? = null,
+    val amount: Double = 0.0,
+    val title: String = "",
+    val category: String? = null,
+    val currency: String? = null,
+    @SerialName("merchant_name") val merchantName: String? = null,
+    @SerialName("bank_name") val bankName: String? = null,
+    val confidence: Double? = null,
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("expires_at") val expiresAt: String? = null
+)
+
+@Serializable
+data class ZadTransactionProposalResult(
+    val ok: Boolean = false,
+    val status: String = "",
+    @SerialName("proposal_id") val proposalId: String = "",
+    @SerialName("transaction_id") val transactionId: String? = null,
+    @SerialName("txn_kind") val txnKind: String? = null,
+    @SerialName("already_resolved") val alreadyResolved: Boolean = false
+)
+
 @Serializable
 data class TasbihaTree(
     val id: String = "",

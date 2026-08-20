@@ -51,13 +51,16 @@ fun NotificationCenterScreen(
     val insights by viewModel.insights.collectAsState()
     val notifications by viewModel.appNotifications.collectAsState()
     val zadInsights by viewModel.zadInsights.collectAsState()
+    val transactionProposals by viewModel.transactionProposals.collectAsState()
+    val resolvingTransactionProposals by viewModel.resolvingTransactionProposals.collectAsState()
+    val failedTransactionProposals by viewModel.failedTransactionProposals.collectAsState()
     // "Warning" = budget-at-risk insights (analyzeBudgetOverruns/analyzeSubscriptionUsage) — was
     // excluded here too, same bug as HomeScreen's alert banner, so they never reached this list.
     val alertInsights = insights.filter { it.type == "Alert" || it.type == "Warning" }
     // zad-brain's emit_insight(surface="bell") output — was written to zad_insights
     // and never surfaced anywhere; this is its bell-side home now.
     val brainAlerts = zadInsights.filter { it.surface == "bell" }
-    val unreadCount = notifications.count { !it.isRead } + brainAlerts.size
+    val unreadCount = notifications.count { !it.isRead } + brainAlerts.size + transactionProposals.size
 
     var tts: TextToSpeech? by remember { mutableStateOf(null) }
     DisposableEffect(Unit) {
@@ -77,6 +80,7 @@ fun NotificationCenterScreen(
         Log.d(TAG_NOTIF, "NotificationCenterScreen loaded — refreshing notifications")
         viewModel.loadNotifications()
         viewModel.loadZadInsights()
+        viewModel.loadTransactionProposals()
     }
 
     fun readAloud() {
@@ -109,7 +113,7 @@ fun NotificationCenterScreen(
             }
         }
     ) { padding ->
-        if (alertInsights.isEmpty() && notifications.isEmpty() && brainAlerts.isEmpty()) {
+        if (alertInsights.isEmpty() && notifications.isEmpty() && brainAlerts.isEmpty() && transactionProposals.isEmpty()) {
             com.example.ui.components.ZadEmptyState(
                 icon = Icons.Default.NotificationsNone,
                 title = stringResource(R.string.no_notifications_yet),
@@ -123,6 +127,23 @@ fun NotificationCenterScreen(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(16.dp)
         ) {
+            if (transactionProposals.isNotEmpty()) {
+                item {
+                    Text(stringResource(R.string.bank_proposals_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = primary)
+                    Spacer(Modifier.height(8.dp))
+                }
+                items(transactionProposals, key = { it.id }) { proposal ->
+                    com.example.ui.widgets.TransactionProposalCard(
+                        proposal = proposal,
+                        resolving = proposal.id in resolvingTransactionProposals,
+                        failed = proposal.id in failedTransactionProposals,
+                        onDecision = { decision -> viewModel.resolveTransactionProposal(proposal.id, decision) }
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+                item { Spacer(Modifier.height(12.dp)) }
+            }
+
             if (alertInsights.isNotEmpty()) {
                 item {
                     Text(stringResource(R.string.notif_section_intelligence), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = primary)

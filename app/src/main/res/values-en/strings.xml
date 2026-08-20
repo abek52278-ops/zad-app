@@ -1218,4 +1218,20 @@
     <string name="bank_last_seen_format">Last notification seen by the service: %1$s</string>
     <string name="bank_listener_never_connected">The service has not connected yet, even if permission is enabled</string>
     <string name="bank_notification_never_seen">No notification has reached the service yet</string>
+    <string name="bank_proposals_title">Bank activity awaiting review</string>
+    <string name="bank_proposal_amount">%1$.2f %2$s</string>
+    <string name="bank_proposal_source">Source: %1$s</string>
+    <string name="bank_proposal_needs_classification">Choose direction</string>
+    <string name="bank_proposal_expected_expense">Expected expense</string>
+    <string name="bank_proposal_expected_income">Expected income</string>
+    <string name="bank_proposal_expected_transfer">Expected transfer</string>
+    <string name="bank_proposal_review_note">Your balance will not change until you decide.</string>
+    <string name="bank_proposal_confirm">Confirm</string>
+    <string name="bank_proposal_reject">Reject</string>
+    <string name="bank_proposal_expense">Expense</string>
+    <string name="bank_proposal_income">Income</string>
+    <string name="bank_proposal_transfer">Transfer</string>
+    <string name="bank_proposal_correct_direction">Wrong direction?</string>
+    <string name="bank_proposal_processing">Applying your decision…</string>
+    <string name="bank_proposal_failed">Could not apply the decision. Try again.</string>
 </resources>

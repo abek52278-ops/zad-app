@@ -23,6 +23,7 @@ import {
   reasonForCode, parseDismissCallback, normalizeBindingCode, memoryNoteForDismissal,
   formatBalanceMessage, type BudgetStateRow, formatTransactionsMessage, formatInsightTitle,
   confirmSpendKeyboard, parseSpendCallback,
+  transactionProposalKeyboard, parseTransactionProposalCallback,
   confirmMedicationKeyboard, parseMedicationCallback,
   checkInKeyboard, parseCheckInCallback, checkInPromptMessage,
   confirmToolKeyboard, parseToolCallback,
@@ -81,12 +82,9 @@ const REALTIME_PUSH_CRON_SECRET = "7e78ce0aa8d2e83f67fbe48c39b5c39c17e54d32f781c
 const LIVE_CHECKIN_CRON_SECRET = "58dda37fa693d2351ab038f07303fb9b621ce983c597046de7c7edc2b6d283a6";
 
 // Same rationale again, own distinct value. Gates ?job=confirm_transaction below — called
-// by zad-brain's handleNotificationIngest the moment the phone's NotificationListener
-// hands it a bank notification it could read. This endpoint asks; it never writes money.
-// The row it creates is a telegram_pending_writes row, and the write itself still happens
-// only in the confirm-button branch of callback_query, which is the single place in this
-// function that has ever written a transaction. zad-brain holds the same literal — see
-// NOTIFICATION_CONFIRM_SECRET there, and keep the two in step.
+// by zad-brain after it creates a shared bank proposal. This endpoint only renders that
+// proposal in Telegram; the callback resolves it through the database RPC used by Android
+// too. zad-brain holds the same literal — keep the two in step.
 const CONFIRM_TRANSACTION_SECRET = "b1f0a4c7d29e63581c0a7f4e2b9d8c3a65e07f14d8b2c96035ae7143f0d92b68";
 
 function toGrammyKeyboard(rows: InlineKeyboardButton[][]): InlineKeyboard {
@@ -1100,6 +1098,39 @@ bot.on("callback_query:data", async (ctx) => {
 
   const data = ctx.callbackQuery.data;
 
+  // Bank notifications use one durable proposal shared with Android. The RPC locks the
+  // row and posts at most one transaction, so two quick taps or an app + Telegram race
+  // both return the same terminal result without duplicating money.
+  const proposalCallback = parseTransactionProposalCallback(data);
+  if (proposalCallback) {
+    const { data: result, error } = await sb.rpc("zad_resolve_transaction_proposal_service", {
+      p_user: userId,
+      p_proposal: proposalCallback.proposalId,
+      p_decision: proposalCallback.decision,
+      p_channel: "telegram",
+    });
+    if (error || !result) {
+      console.error("transaction proposal resolution failed:", error?.message ?? "missing result");
+      await ctx.reply("معلش، مقدرتش أنفذ القرار دلوقتي. جرب تاني.");
+      return;
+    }
+    const resolved = result as { ok?: boolean; status?: string; already_resolved?: boolean };
+    if (resolved.status === "expired") {
+      await ctx.reply("الطلب ده انتهت صلاحيته.");
+      return;
+    }
+    if (resolved.status === "rejected") {
+      await ctx.reply(resolved.already_resolved ? "العملية كانت مرفوضة بالفعل." : "تمام، العملية اترفضت ومش هتتحسب.");
+      return;
+    }
+    if (resolved.status === "posted") {
+      await ctx.reply(resolved.already_resolved ? "العملية كانت متسجلة بالفعل، وماتكررتش." : "تمام، اتأكدت واتسجلت مرة واحدة.");
+      return;
+    }
+    await ctx.reply("القرار موصلش لحالة نهائية. افتح التطبيق وراجع العملية.");
+    return;
+  }
+
   // تأكيد أداة غير مالية (tx:/tc:) — نفس بروتوكول تأكيد الفلوس بالظبط: نقرا الصف،
   // نتأكد إنه بتاع نفس المستخدم، ما اتصرفش فيه قبل كده، وما انتهتش صلاحيته؛ ندّعيه
   // بتحديث مشروط عشان ضغطتين سريعتين ما ينفذوش الأداة مرتين؛ وبعدين ننفذ عن طريق
@@ -1548,13 +1579,9 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // A bank notification the phone read and zad-brain accepted — delivered here as a
-  // question, not as news. The customer presses تأكيد and the existing callback_query
-  // branch does the write; they press إلغاء and nothing ever reaches zad_transactions.
-  // This endpoint performs no money math and writes no transaction: it resolves the chat,
-  // parks a telegram_pending_writes row, and sends it with the same confirm keyboard a
-  // typed message gets. delivered:false (unlinked account) is a 200, and zad-brain falls
-  // back to an in-app question — an unlinked customer must still be asked.
+  // A bank notification proposal already exists in the database. This endpoint only
+  // resolves the linked chat and renders that same proposal; it never copies the amount
+  // into a second pending table, so app and Telegram cannot disagree.
   if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "confirm_transaction") {
     if (req.headers.get("X-Confirm-Transaction-Secret") !== CONFIRM_TRANSACTION_SECRET) {
       return new Response("unauthorized", { status: 401 });
@@ -1563,16 +1590,9 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ ok: false, reason: "bot not configured" }), { status: 503 });
     }
     try {
-      const { user_id, txn_kind, amount, title, category, confidence, source_label } = await req.json() as {
-        user_id?: string; txn_kind?: string; amount?: number; title?: string;
-        category?: string; confidence?: number; source_label?: string;
-      };
-      // txn_kind is checked against the same two values log_transaction accepts, here
-      // rather than only at confirm time: a row parked with an unusable kind would sit in
-      // the customer's chat as a button that can only ever fail.
-      if (!user_id || !amount || !Number.isFinite(amount) || amount <= 0 || !title ||
-          (txn_kind !== "expense" && txn_kind !== "income")) {
-        return new Response(JSON.stringify({ ok: false, reason: "missing or invalid user_id/txn_kind/amount/title" }), { status: 400 });
+      const { user_id, proposal_id } = await req.json() as { user_id?: string; proposal_id?: string };
+      if (!user_id || !proposal_id) {
+        return new Response(JSON.stringify({ ok: false, reason: "missing user_id/proposal_id" }), { status: 400 });
       }
       const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
       const chatId = await resolveChatId(sb, user_id);
@@ -1582,36 +1602,41 @@ Deno.serve(async (req: Request) => {
         });
       }
 
-      const { data: pending, error } = await sb.from("telegram_pending_writes").insert({
-        user_id,
-        chat_id: chatId,
-        txn_kind,
-        amount,
-        title,
-        category: category ?? null,
-        confidence: confidence ?? null,
-      }).select("id").maybeSingle();
-      if (error || !pending) {
-        console.error("confirm_transaction pending write insert failed:", error);
-        return new Response(JSON.stringify({ ok: false, reason: "insert failed" }), { status: 500 });
+      const { data: proposal, error } = await sb.from("zad_transaction_proposals")
+        .select("id,user_id,status,txn_kind,amount,title,category,currency,merchant_name,bank_name")
+        .eq("id", proposal_id)
+        .eq("user_id", user_id)
+        .maybeSingle();
+      const row = proposal as {
+        id: string; status: "needs_classification" | "awaiting_confirmation" | "posted" | "rejected" | "expired";
+        txn_kind: string | null; amount: number; title: string; category: string | null;
+        currency: string | null; merchant_name: string | null; bank_name: string | null;
+      } | null;
+      if (error || !row) {
+        console.error("confirm_transaction proposal fetch failed:", error?.message ?? "not found");
+        return new Response(JSON.stringify({ ok: false, reason: "proposal not found" }), { status: 404 });
+      }
+      if (row.status !== "needs_classification" && row.status !== "awaiting_confirmation") {
+        return new Response(JSON.stringify({ ok: true, delivered: false, reason: "already resolved" }), {
+          headers: { "Content-Type": "application/json" },
+        });
       }
 
       const { data: u } = await sb.from("zad_users").select("currency").eq("id", user_id).maybeSingle();
-      const cur = (u as { currency?: string } | null)?.currency ?? "غير معروف";
-      // "جالك" / "صرفت" — the customer's own framing of the question. The amount and the
-      // direction are the whole message; the source is named so an unexpected charge can
-      // be recognised without opening the app.
-      const heard = txn_kind === "income"
-        ? `جالك ${isolate(money(amount, cur))}`
-        : `صرفت ${isolate(money(amount, cur))}`;
-      const from = source_label ? ` من ${isolate(sanitizeName(source_label))}` : "";
+      const cur = row.currency || (u as { currency?: string } | null)?.currency || "غير معروف";
+      const source = row.merchant_name || row.bank_name;
+      const direction = row.status === "needs_classification"
+        ? "مش واضح دي مصروف ولا دخل ولا تحويل"
+        : row.txn_kind === "income" ? "دخل متوقع" : row.txn_kind === "transfer" ? "تحويل متوقع" : "مصروف متوقع";
       const text = [
-        `${heard}${from}؟`,
-        "",
-        confirmSpendMessage({ is_spend: true, kind: txn_kind, amount, title, category: category ?? "أخرى", confidence: confidence ?? 0.9 }, cur),
-      ].join("\n");
+        `حركة بنكية: ${isolate(money(row.amount, cur))}`,
+        isolate(sanitizeName(row.title)),
+        source ? `المصدر: ${isolate(sanitizeName(source))}` : "",
+        direction,
+        "راجعها قبل ما تأثر على الرصيد.",
+      ].filter(Boolean).join("\n");
 
-      await sendTelegramMessage(chatId, clampForTelegram(text), confirmSpendKeyboard((pending as { id: string }).id));
+      await sendTelegramMessage(chatId, clampForTelegram(text), transactionProposalKeyboard(row.id, row.status, row.txn_kind));
       return new Response(JSON.stringify({ ok: true, delivered: true }), {
         headers: { "Content-Type": "application/json" },
       });

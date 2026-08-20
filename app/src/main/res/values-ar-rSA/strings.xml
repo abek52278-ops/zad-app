@@ -1066,4 +1066,20 @@
     <string name="bank_last_seen_format">آخر إشعار وصل للخدمة: %1$s</string>
     <string name="bank_listener_never_connected">الخدمة لم تتصل بعد، حتى لو كانت الصلاحية مفعلة</string>
     <string name="bank_notification_never_seen">لم يصل أي إشعار للخدمة بعد</string>
+    <string name="bank_proposals_title">عمليات بنكية بانتظارك</string>
+    <string name="bank_proposal_amount">%1$.2f %2$s</string>
+    <string name="bank_proposal_source">المصدر: %1$s</string>
+    <string name="bank_proposal_needs_classification">حدد الاتجاه</string>
+    <string name="bank_proposal_expected_expense">مصروف متوقع</string>
+    <string name="bank_proposal_expected_income">دخل متوقع</string>
+    <string name="bank_proposal_expected_transfer">تحويل متوقع</string>
+    <string name="bank_proposal_review_note">لن يتغير الرصيد قبل قرارك.</string>
+    <string name="bank_proposal_confirm">تأكيد</string>
+    <string name="bank_proposal_reject">رفض</string>
+    <string name="bank_proposal_expense">مصروف</string>
+    <string name="bank_proposal_income">دخل</string>
+    <string name="bank_proposal_transfer">تحويل</string>
+    <string name="bank_proposal_correct_direction">الاتجاه غير صحيح؟</string>
+    <string name="bank_proposal_processing">جارٍ تنفيذ القرار…</string>
+    <string name="bank_proposal_failed">تعذر تنفيذ القرار. حاول مرة أخرى.</string>
 </resources>

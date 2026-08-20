@@ -4,6 +4,7 @@ import {
   formatBalanceMessage, formatTransactionsMessage, mainMenuKeyboard, dismissKeyboard,
   checkInKeyboard, parseCheckInCallback, checkInPromptMessage,
   confirmToolKeyboard, parseToolCallback,
+  transactionProposalKeyboard, parseTransactionProposalCallback,
 } from "./telegram.ts";
 
 Deno.test("normalizeBindingCode uppercases a valid code", () => {
@@ -195,4 +196,40 @@ Deno.test("confirmToolKeyboard stays inside Telegram's 64-byte callback_data cap
   // والأهم: الرد بيرجع مفكوك لنفس الـ id، فالزرار والراوتر متفقين.
   assertEquals(parseToolCallback(buttons[0].callback_data)?.action, "confirm");
   assertEquals(parseToolCallback(buttons[1].callback_data)?.action, "cancel");
+});
+
+// ── shared bank-transaction proposals ──────────────────────────────────────
+
+Deno.test("parseTransactionProposalCallback maps every proposal decision", () => {
+  const id = "3f1a2b4c-5d6e-4f70-8a91-b2c3d4e5f607";
+  assertEquals(parseTransactionProposalCallback(`pc:${id}`), { decision: "confirm", proposalId: id });
+  assertEquals(parseTransactionProposalCallback(`pr:${id}`), { decision: "reject", proposalId: id });
+  assertEquals(parseTransactionProposalCallback(`pe:${id}`), { decision: "expense", proposalId: id });
+  assertEquals(parseTransactionProposalCallback(`pi:${id}`), { decision: "income", proposalId: id });
+  assertEquals(parseTransactionProposalCallback(`pt:${id}`), { decision: "transfer", proposalId: id });
+});
+
+Deno.test("parseTransactionProposalCallback rejects malformed and unrelated callbacks", () => {
+  assertEquals(parseTransactionProposalCallback("pc:not-a-uuid"), null);
+  assertEquals(parseTransactionProposalCallback("x:3f1a2b4c-5d6e-4f70-8a91-b2c3d4e5f607"), null);
+  assertEquals(parseTransactionProposalCallback("pc:"), null);
+});
+
+Deno.test("classification proposal keyboard is complete and within Telegram callback limit", () => {
+  const id = "3f1a2b4c-5d6e-4f70-8a91-b2c3d4e5f607";
+  const buttons = transactionProposalKeyboard(id, "needs_classification").flat();
+  assertEquals(buttons.map((button) => parseTransactionProposalCallback(button.callback_data)?.decision), [
+    "expense", "income", "transfer", "reject",
+  ]);
+  for (const button of buttons) {
+    assert(new TextEncoder().encode(button.callback_data).length <= 64);
+  }
+});
+
+Deno.test("confirmation proposal keyboard offers confirmation, rejection, and corrections", () => {
+  const id = "3f1a2b4c-5d6e-4f70-8a91-b2c3d4e5f607";
+  const decisions = transactionProposalKeyboard(id, "awaiting_confirmation", "expense")
+    .flat()
+    .map((button) => parseTransactionProposalCallback(button.callback_data)?.decision);
+  assertEquals(decisions, ["confirm", "reject", "income", "transfer"]);
 });

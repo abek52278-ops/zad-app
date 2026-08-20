@@ -1743,6 +1743,12 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     // the bell merges in surface=bell, and surface=voice gets spoken once via TTS.
     private val _zadInsights = MutableStateFlow<List<com.example.data.ZadInsight>>(emptyList())
     val zadInsights: StateFlow<List<com.example.data.ZadInsight>> = _zadInsights.asStateFlow()
+    private val _transactionProposals = MutableStateFlow<List<ZadTransactionProposal>>(emptyList())
+    val transactionProposals: StateFlow<List<ZadTransactionProposal>> = _transactionProposals.asStateFlow()
+    private val _resolvingTransactionProposals = MutableStateFlow<Set<String>>(emptySet())
+    val resolvingTransactionProposals: StateFlow<Set<String>> = _resolvingTransactionProposals.asStateFlow()
+    private val _failedTransactionProposals = MutableStateFlow<Set<String>>(emptySet())
+    val failedTransactionProposals: StateFlow<Set<String>> = _failedTransactionProposals.asStateFlow()
     private var insightsTts: android.speech.tts.TextToSpeech? = null
 
     fun loadZadInsights() {
@@ -1755,6 +1761,31 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 speakInsight(insight)
                 SupabaseRepo.updateInsightStatus(insight.id, "seen")
             }
+        }
+    }
+
+    fun loadTransactionProposals() {
+        viewModelScope.launch {
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return@launch
+            _transactionProposals.value = SupabaseRepo.getPendingTransactionProposals(userId)
+            val visibleIds = _transactionProposals.value.mapTo(mutableSetOf()) { it.id }
+            _failedTransactionProposals.value = _failedTransactionProposals.value.intersect(visibleIds)
+        }
+    }
+
+    fun resolveTransactionProposal(proposalId: String, decision: String) {
+        if (proposalId in _resolvingTransactionProposals.value) return
+        viewModelScope.launch {
+            _resolvingTransactionProposals.value += proposalId
+            _failedTransactionProposals.value -= proposalId
+            val result = SupabaseRepo.resolveTransactionProposal(proposalId, decision)
+            if (result?.status == "posted" || result?.status == "rejected" || result?.status == "expired") {
+                _transactionProposals.value = _transactionProposals.value.filterNot { it.id == proposalId }
+                if (result.status == "posted") syncData()
+            } else {
+                _failedTransactionProposals.value += proposalId
+            }
+            _resolvingTransactionProposals.value -= proposalId
         }
     }
 

@@ -1215,4 +1215,20 @@
     <string name="bank_last_seen_format">Hizmetin gördüğü son bildirim: %1$s</string>
     <string name="bank_listener_never_connected">İzin açık olsa bile hizmet henüz bağlanmadı</string>
     <string name="bank_notification_never_seen">Hizmete henüz hiçbir bildirim ulaşmadı</string>
+    <string name="bank_proposals_title">İncelenmeyi bekleyen banka işlemleri</string>
+    <string name="bank_proposal_amount">%1$.2f %2$s</string>
+    <string name="bank_proposal_source">Kaynak: %1$s</string>
+    <string name="bank_proposal_needs_classification">İşlem yönünü seçin</string>
+    <string name="bank_proposal_expected_expense">Tahmini gider</string>
+    <string name="bank_proposal_expected_income">Tahmini gelir</string>
+    <string name="bank_proposal_expected_transfer">Tahmini transfer</string>
+    <string name="bank_proposal_review_note">Karar verene kadar bakiyeniz değişmez.</string>
+    <string name="bank_proposal_confirm">Onayla</string>
+    <string name="bank_proposal_reject">Reddet</string>
+    <string name="bank_proposal_expense">Gider</string>
+    <string name="bank_proposal_income">Gelir</string>
+    <string name="bank_proposal_transfer">Transfer</string>
+    <string name="bank_proposal_correct_direction">İşlem yönü yanlış mı?</string>
+    <string name="bank_proposal_processing">Kararınız uygulanıyor…</string>
+    <string name="bank_proposal_failed">Karar uygulanamadı. Tekrar deneyin.</string>
 </resources>

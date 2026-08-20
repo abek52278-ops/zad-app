@@ -1905,6 +1905,49 @@ object SupabaseRepo {
         }
     }
 
+    suspend fun getPendingTransactionProposals(userId: String): List<ZadTransactionProposal> {
+        return try {
+            client.postgrest["zad_transaction_proposals"]
+                .select {
+                    filter {
+                        eq("user_id", userId)
+                        isIn("status", listOf("needs_classification", "awaiting_confirmation"))
+                    }
+                    order("created_at", Order.DESCENDING)
+                    limit(20)
+                }
+                .decodeList<ZadTransactionProposal>()
+        } catch (e: Exception) {
+            Log.e(TAG, "getPendingTransactionProposals() FAILED: ${e.message}")
+            emptyList()
+        }
+    }
+
+    @Serializable
+    private data class ResolveTransactionProposalParams(
+        @SerialName("p_proposal") val proposalId: String,
+        @SerialName("p_decision") val decision: String,
+        @SerialName("p_channel") val channel: String = "app"
+    )
+
+    suspend fun resolveTransactionProposal(
+        proposalId: String,
+        decision: String
+    ): ZadTransactionProposalResult? {
+        if (decision !in setOf("confirm", "reject", "expense", "income", "transfer")) return null
+        return try {
+            client.postgrest.rpc(
+                "zad_resolve_transaction_proposal",
+                Json.encodeToJsonElement(
+                    ResolveTransactionProposalParams(proposalId = proposalId, decision = decision)
+                ).jsonObject
+            ).decodeAs<ZadTransactionProposalResult>()
+        } catch (e: Exception) {
+            Log.e(TAG, "resolveTransactionProposal() FAILED: ${e.message}")
+            null
+        }
+    }
+
     @Serializable
     private data class MonthlyLimitRow(
         @SerialName("monthly_limit") val monthlyLimit: Double? = null,

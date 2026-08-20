@@ -69,6 +69,53 @@ export function parseSpendCallback(data: string): { action: "confirm" | "cancel"
   return { action: parts[0] === "x" ? "confirm" : "cancel", pendingId: parts[1] };
 }
 
+export type TransactionProposalDecision = "confirm" | "reject" | "expense" | "income" | "transfer";
+
+/** A bank-notification proposal is shared with Android, so Telegram only carries the
+ * proposal id and the customer's decision. The amount never lives in callback_data. */
+export function transactionProposalKeyboard(
+  proposalId: string,
+  status: "needs_classification" | "awaiting_confirmation",
+  txnKind?: string | null,
+): InlineKeyboardButton[][] {
+  if (status === "needs_classification") {
+    return [
+      [
+        { text: "مصروف", callback_data: `pe:${proposalId}` },
+        { text: "دخل", callback_data: `pi:${proposalId}` },
+        { text: "تحويل", callback_data: `pt:${proposalId}` },
+      ],
+      [{ text: "رفض", callback_data: `pr:${proposalId}` }],
+    ];
+  }
+
+  const corrections = ["expense", "income", "transfer"]
+    .filter((kind) => kind !== txnKind)
+    .map((kind) => ({
+      text: kind === "expense" ? "تصحيح: مصروف" : kind === "income" ? "تصحيح: دخل" : "تصحيح: تحويل",
+      callback_data: `${kind === "expense" ? "pe" : kind === "income" ? "pi" : "pt"}:${proposalId}`,
+    }));
+  return [
+    [
+      { text: "أكد", callback_data: `pc:${proposalId}` },
+      { text: "رفض", callback_data: `pr:${proposalId}` },
+    ],
+    corrections,
+  ];
+}
+
+export function parseTransactionProposalCallback(
+  data: string,
+): { decision: TransactionProposalDecision; proposalId: string } | null {
+  const parts = data.split(":");
+  if (parts.length !== 2 || !/^[0-9a-fA-F-]{36}$/.test(parts[1])) return null;
+  const decisions: Record<string, TransactionProposalDecision> = {
+    pc: "confirm", pr: "reject", pe: "expense", pi: "income", pt: "transfer",
+  };
+  const decision = decisions[parts[0]];
+  return decision ? { decision, proposalId: parts[1] } : null;
+}
+
 /**
  * تأكيد/إلغاء لأي أداة تانية محتاجة موافقة غير `log_transaction` — تعديل معاملة،
  * مسحها، أو تغيير السقف الشهري.

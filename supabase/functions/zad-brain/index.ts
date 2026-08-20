@@ -3083,8 +3083,8 @@ async function sha256Hex(text: string): Promise<string> {
  * Server-side gate for Android NotificationListenerService. The phone may parse the bank
  * format, but this endpoint still re-applies the trust rules before any money write:
  * failed/pending/informational text never writes; ambiguous text waits for confirmation;
- * only a client-completed parse with high confidence becomes a transaction, and that write
- * is audited in agent_actions with source=event and the raw notification in input.
+ * a parse with a usable amount becomes a durable proposal, and only a user decision can
+ * turn that proposal into a transaction. Low-confidence direction requires classification.
  */
 async function handleNotificationIngest(sb: SupabaseClient, userId: string, body: any): Promise<Response> {
   const packageName = String(body.package_name ?? "").trim();
@@ -3100,7 +3100,7 @@ async function handleNotificationIngest(sb: SupabaseClient, userId: string, body
   // البصمة بتتحسب على النص الخام عشان التكرار يفضل يتمسك بنفس الدقة، والنص اللي بيتخزّن
   // منقّى. الاتنين مقصودين: المطابقة محتاجة الخام، والتخزين لأ.
   const dedupeHash = await sha256Hex(`${userId}\n${packageName}\n${rawText}`);
-  const { error: dedupeErr } = await sb.from("zad_notification_ingest_events").insert({
+  const { data: ingestEvent, error: dedupeErr } = await sb.from("zad_notification_ingest_events").insert({
     user_id: userId,
     dedupe_hash: dedupeHash,
     package_name: packageName,
@@ -3108,13 +3108,22 @@ async function handleNotificationIngest(sb: SupabaseClient, userId: string, body
     body: redactNotificationText(text),
     client_classification: String(body.client_classification ?? null),
     status: "received",
-  });
+  }).select("id").maybeSingle();
   if (dedupeErr) {
     const code = (dedupeErr as any)?.code;
     if (code === "23505") {
       return new Response(JSON.stringify({ ok: true, status: "ignored", reason: "duplicate" }), { headers: CORS_HEADERS });
     }
     console.error("notification dedupe insert failed:", dedupeErr.message);
+    return new Response(JSON.stringify({ ok: false, status: "rejected", reason: "audit_insert_failed" }), {
+      status: 500, headers: CORS_HEADERS,
+    });
+  }
+  const ingestEventId = (ingestEvent as { id?: string } | null)?.id;
+  if (!ingestEventId) {
+    return new Response(JSON.stringify({ ok: false, status: "rejected", reason: "audit_event_missing" }), {
+      status: 500, headers: CORS_HEADERS,
+    });
   }
 
   const mark = async (status: string, reason?: string, transactionId?: string | null) => {
@@ -3136,7 +3145,7 @@ async function handleNotificationIngest(sb: SupabaseClient, userId: string, body
   const clientClassification = normalizeClientClassification(body.client_classification);
   const amount = Number(parsed.amount);
   const confidence = Number(parsed.confidence ?? 0);
-  if (clientClassification !== "completed" || !Number.isFinite(amount) || amount <= 0 || confidence < 0.9) {
+  if (!Number.isFinite(amount) || amount <= 0) {
     await mark("ambiguous", "needs_confirmation");
     // كان بيقف هنا — العميل يشوفه بس لو دوّر يدوي على شاشة المعاملات، مفيش سؤال فعلي.
     // دلوقتي سؤال حقيقي (نفس شكل ask_user) يظهر في "رؤى زاد" فوراً؛ إجابة العميل
@@ -3157,146 +3166,79 @@ async function handleNotificationIngest(sb: SupabaseClient, userId: string, body
     return new Response(JSON.stringify({ ok: true, status: "ambiguous", classification: "ambiguous" }), { headers: CORS_HEADERS });
   }
 
-  const txnKind = parsed.txn_kind === "transfer" ? "transfer" : (parsed.txn_kind === "income" || parsed.is_expense === false ? "income" : "expense");
-  const isExpense = txnKind !== "income";
-
-  // ── Ask before it counts ────────────────────────────────────────────────────
-  // A readable notification is a question now, not news. Direct instruction from the
-  // customer (2026-08-16): "يقراها عقل الايجنت يحلل يشوف سحب ولا إيداع ويبعتلي عن طريق
-  // البوت ... أقوله أيوة أو لا، ويسجل ويعدل الكارت الأخضر". Nothing below writes a
-  // transaction any more; the write happens in zad-telegram-bot's confirm button, which
-  // routes back through agent_confirm -> log_transaction, i.e. the same audited path a
-  // typed message takes. Same rule, one channel.
-  //
-  // Transfers are the single exception and it is not a loophole: card -> cash leaves the
-  // ledger balance identical, so there is no figure for the customer to approve, and
-  // log_transaction refuses the kind anyway (validators.ts). Those still write directly.
-  if (txnKind !== "transfer") {
-    const askTitle = String(parsed.title ?? title).trim().slice(0, 80) || packageName;
-    const askCategory = String(parsed.category ?? (txnKind === "income" ? "دخل" : "أخرى")).trim().slice(0, 40);
-    const sourceLabel = String(parsed.merchant_name ?? parsed.bank_name ?? packageName).trim().slice(0, 80);
-    const rounded = Math.round(amount * 100) / 100;
-
-    let deliveredToTelegram = false;
-    try {
-      const askRes = await fetch(`${SUPABASE_URL}/functions/v1/zad-telegram-bot?job=confirm_transaction`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Confirm-Transaction-Secret": NOTIFICATION_CONFIRM_SECRET,
-        },
-        body: JSON.stringify({
-          user_id: userId,
-          txn_kind: txnKind,
-          amount: rounded,
-          title: askTitle,
-          category: askCategory,
-          confidence,
-          source_label: sourceLabel,
-        }),
-      });
-      // delivered:false is the normal answer for an account with no Telegram link — not
-      // an error, and specifically not a reason to skip asking. The in-app question below
-      // is the other half of the same channel, not a degraded fallback.
-      const askBody = await askRes.json().catch(() => ({})) as { delivered?: boolean };
-      deliveredToTelegram = askRes.ok && askBody.delivered === true;
-    } catch (e) {
-      console.error("notification confirm prompt to telegram failed:", (e as Error).message);
-    }
-
-    if (!deliveredToTelegram) {
-      const direction = txnKind === "income" ? "جالك" : "صرفت";
-      await sb.from("zad_insights").upsert({
-        user_id: userId, kind: "question", surface: "home_card", priority: "normal",
-        title: "معاملة محتاجة تأكيد",
-        // Distinct from the ambiguous-notification question above it: there the app is
-        // asking WHAT the message was, here it knows and is asking WHETHER to record it.
-        // Merging the two would put "أيوة = إيداع" on a question whose answer is yes/no.
-        body: `${direction} ${rounded} من ${sourceLabel} — أسجلها؟`,
-        dedupe_key: `notif_confirm_${dedupeHash.slice(0, 24)}`,
-        action_type: "yes_no",
-        about_item: rawText.slice(0, 200),
-        status: "pending", updated_at: new Date().toISOString(),
-      }, { onConflict: "user_id,dedupe_key" });
-    }
-
-    await recordAction(sb, userId, { source: "event", runId: null }, {
-      tool: "parse_notification_payload",
-      input: { package_name: packageName, title, text, client_classification: body.client_classification, parsed },
-      // مفيش table ولا targetId: مفيش صف اتكتب. ActionRecord بيستخدم previous/next
-      // للتراجع، وسؤال مالوش تراجع — اللي يتراجع هو الكتابة اللي بعد "أيوة"، وهي
-      // بتتسجّل بنفسها في مسار agent_confirm.
-      summary: deliveredToTelegram
-        ? "قرا إشعار بنك وبعت سؤال تأكيد على تيليجرام"
-        : "قرا إشعار بنك وحط سؤال تأكيد في رؤى زاد",
-    });
-    await mark("awaiting_confirmation", "needs_user_approval");
-    return new Response(JSON.stringify({
-      ok: true,
-      status: "awaiting_confirmation",
-      classification: "completed_transaction",
-      channel: deliveredToTelegram ? "telegram" : "insight",
-    }), { headers: CORS_HEADERS });
-  }
-
-  // من هنا لتحت التحويلات بس — الفرع فوق بيرجّع لكل مصروف ودخل. الحقول اللي كانت
-  // بتتفرّع على txn_kind اتحطّت على قيمتها للتحويل مباشرة: TypeScript ضيّق النوع لـ
-  // "transfer" بعد الـ return، فمقارنة زي `txnKind === "income"` بقت خطأ ترجمة
-  // (TS2367) مش فرع ميت — وهي اللي كسرت الـ CI.
-  const row = {
+  const parsedKind = parsed.txn_kind === "transfer"
+    ? "transfer"
+    : (parsed.txn_kind === "income" || parsed.is_expense === false ? "income" : "expense");
+  const needsClassification = clientClassification !== "completed" || confidence < 0.9;
+  const txnKind = needsClassification ? null : parsedKind;
+  const sourceLabel = String(parsed.merchant_name ?? parsed.bank_name ?? packageName).trim().slice(0, 80);
+  const proposalRow = {
     user_id: userId,
-    amount: Math.round(amount * 100) / 100,
-    title: String(parsed.title ?? title).trim().slice(0, 80),
-    // سحب من ماكينة مش فئة إنفاق: الفلوس اتنقلت من البطاقة للكاش ولسه ما اتصرفتش.
-    // الفئة الحقيقية بتتحدد لما الكاش نفسه يتصرف.
-    category: String(parsed.category ?? "تحويل").trim().slice(0, 40),
-    is_expense: isExpense,
-    txn_kind: txnKind,
-    transfer_to: "cash",
-    wallet: "card",
-    merchant_name: String(parsed.merchant_name ?? parsed.bank_name ?? packageName).trim().slice(0, 80),
-    bank_name: String(parsed.bank_name ?? packageName).trim().slice(0, 80),
+    source_event_id: ingestEventId,
+    idempotency_key: dedupeHash,
     source_type: "notification_listener",
-    is_verified: true,
+    status: needsClassification ? "needs_classification" : "awaiting_confirmation",
+    txn_kind: txnKind,
+    amount: Math.round(amount * 100) / 100,
+    title: String(parsed.title ?? title).trim().slice(0, 80) || packageName,
+    category: String(parsed.category ?? (txnKind === "income" ? "دخل" : txnKind === "transfer" ? "تحويل" : "أخرى")).trim().slice(0, 40),
     currency: String(parsed.currency ?? "").trim() || null,
+    wallet: "card",
+    transfer_to: txnKind === "transfer" ? "cash" : null,
+    merchant_name: sourceLabel,
+    bank_name: String(parsed.bank_name ?? packageName).trim().slice(0, 80),
+    confidence: Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : null,
   };
 
-  const w = await writeRows(
-    sb.from("zad_transactions").insert(row).select("id,amount,title,category,txn_kind,merchant_name,bank_name,source_type,is_verified,currency"),
-    "تسجيل معاملة إشعار البنك",
-  );
-  if (!w.ok) {
-    await mark("rejected", w.reason);
-    return new Response(JSON.stringify({ ok: false, status: "rejected", reason: w.reason }), { headers: CORS_HEADERS });
+  const { data: proposal, error: proposalError } = await sb.from("zad_transaction_proposals")
+    .upsert(proposalRow, { onConflict: "user_id,idempotency_key", ignoreDuplicates: false })
+    .select("id,status")
+    .single();
+  if (proposalError || !proposal) {
+    console.error("notification proposal insert failed:", proposalError?.message ?? "missing row");
+    await mark("rejected", "proposal_insert_failed");
+    return new Response(JSON.stringify({ ok: false, status: "rejected", reason: "proposal_insert_failed" }), {
+      status: 500, headers: CORS_HEADERS,
+    });
   }
 
-  const transactionId = (w.rows[0] as any).id as string;
+  let deliveredToTelegram = false;
+  try {
+    const askRes = await fetch(`${SUPABASE_URL}/functions/v1/zad-telegram-bot?job=confirm_transaction`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Confirm-Transaction-Secret": NOTIFICATION_CONFIRM_SECRET,
+      },
+      body: JSON.stringify({ user_id: userId, proposal_id: (proposal as { id: string }).id }),
+    });
+    const askBody = await askRes.json().catch(() => ({})) as { delivered?: boolean };
+    deliveredToTelegram = askRes.ok && askBody.delivered === true;
+  } catch (e) {
+    console.error("notification proposal prompt to telegram failed:", (e as Error).message);
+  }
+
   await recordAction(sb, userId, { source: "event", runId: null }, {
     tool: "parse_notification_payload",
-    input: { package_name: packageName, title, text, client_classification: body.client_classification, parsed },
-    table: "zad_transactions",
-    targetId: transactionId,
-    previous: null,
-    next: w.rows[0],
-    summary: "سجل إشعار بنك مكتمل بعد فحص الثقة",
+    input: {
+      package_name: packageName,
+      title: redactNotificationText(title),
+      text: redactNotificationText(text),
+      client_classification: body.client_classification,
+      parsed: { ...parsed, raw_text: undefined },
+    },
+    summary: deliveredToTelegram
+      ? "أنشأ اقتراح معاملة موحد وبعت تأكيده على تيليجرام"
+      : "أنشأ اقتراح معاملة موحد للتأكيد داخل التطبيق",
   });
-  await mark("logged", undefined, transactionId);
-
-  // كان لحد دلوقتي pull بس: العقل ميعرفش بمعاملة إشعار البنك دي غير لما المستخدم يفتح
-  // شات/الرئيسية أو يجي دور agent-proactive-scan-hourly. نفس فحص "الإنفاق أسرع من
-  // المتوقع" اللي الكرون الساعة بيعمله لكل المستخدمين (_agent_spending_ahead_for_user)،
-  // بس فوري لصاحب المعاملة دي بس — مش مسح كامل. فشل هنا ميكسرش نجاح تسجيل المعاملة.
-  try {
-    await sb.rpc("_agent_spending_ahead_for_user", { p_user: userId });
-  } catch (e) {
-    console.error("immediate proactive check after notification_ingest failed:", (e as Error).message);
-  }
+  await mark(needsClassification ? "ambiguous" : "awaiting_confirmation", "needs_user_approval");
 
   return new Response(JSON.stringify({
     ok: true,
-    status: "logged",
-    classification: "completed_transaction",
-    transaction_id: transactionId,
+    status: needsClassification ? "needs_classification" : "awaiting_confirmation",
+    classification: needsClassification ? "ambiguous" : "completed_transaction",
+    proposal_id: (proposal as { id: string }).id,
+    channel: deliveredToTelegram ? "telegram_and_app" : "app",
   }), { headers: CORS_HEADERS });
 }
 
