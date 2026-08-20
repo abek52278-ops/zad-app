@@ -12,6 +12,7 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
 import android.util.Log
+import com.example.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -100,7 +101,7 @@ class ZadVoiceManager(private val context: Context) {
         mainHandler.post {
             try {
                 if (!SpeechRecognizer.isRecognitionAvailable(context)) {
-                    _voiceState.value = VoiceState.Error("التعرف على الصوت غير مدعوم على هذا الجهاز")
+                    _voiceState.value = VoiceState.Error(context.getString(R.string.voice_error_unavailable))
                     return@post
                 }
 
@@ -153,13 +154,13 @@ class ZadVoiceManager(private val context: Context) {
                         _voiceState.value = VoiceState.Idle
                         _isListening.value = false
                         val msg = when (error) {
-                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "يرجى منح إذن استخدام الميكروفون"
-                            SpeechRecognizer.ERROR_AUDIO -> "تعذر الوصول للميكروفون"
-                            SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "تأكد من الاتصال بالإنترنت"
-                            SpeechRecognizer.ERROR_NO_MATCH -> "لم أسمع شيئاً، اضغط الميكروفون وحاول مرة أخرى"
-                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "جاهزة، اضغط الميكروفون وتحدث"
-                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "جاري إعادة التهيئة..."
-                            else -> "حدث خطأ (${error})"
+                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> context.getString(R.string.voice_error_permission)
+                            SpeechRecognizer.ERROR_AUDIO -> context.getString(R.string.voice_error_audio)
+                            SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> context.getString(R.string.voice_error_network)
+                            SpeechRecognizer.ERROR_NO_MATCH -> context.getString(R.string.voice_error_no_match)
+                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> context.getString(R.string.voice_error_timeout)
+                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> context.getString(R.string.voice_error_busy)
+                            else -> context.getString(R.string.voice_error_generic)
                         }
                         Log.w(TAG, "SpeechRecognizer error: $error ($msg)")
                         // Recognition errors are UI state, never user speech. Passing msg to
@@ -178,7 +179,7 @@ class ZadVoiceManager(private val context: Context) {
                             com.example.ui.components.ZadChime.play(com.example.ui.components.ZadChime.Tone.Success)
                             onResult(text)
                         } else {
-                            _voiceState.value = VoiceState.Error("لم أسمع شيئاً، اضغط وتحدث ثانية")
+                            _voiceState.value = VoiceState.Error(context.getString(R.string.voice_error_no_match))
                         }
                     }
 
@@ -197,7 +198,7 @@ class ZadVoiceManager(private val context: Context) {
                 _voiceState.value = VoiceState.Listening
             } catch (e: Exception) {
                 Log.e(TAG, "SpeechRecognizer error: ${e.message}")
-                _voiceState.value = VoiceState.Error("تعذر تفعيل الميكروفون: ${e.message}")
+                _voiceState.value = VoiceState.Error(context.getString(R.string.voice_error_microphone))
             }
         }
     }

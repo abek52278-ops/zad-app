@@ -41,10 +41,18 @@ import androidx.core.content.ContextCompat
 import com.example.R
 import com.example.ui.theme.primary
 import com.example.ui.theme.secondary
+import com.example.ui.viewmodels.AiChatMessage
 import com.example.ui.viewmodels.ZadViewModel
 import com.example.voice.VoiceState
 import com.example.voice.ZadVoiceManager
 import kotlinx.coroutines.delay
+
+internal fun voiceReplyForTurn(
+    messages: List<AiChatMessage>,
+    userMessageId: String?
+): AiChatMessage? = userMessageId?.let { id ->
+    messages.lastOrNull { !it.isUser && it.replyToMessageId == id }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,23 +63,22 @@ fun ZadVoiceBottomSheet(
     val context = LocalContext.current
     val voiceManager = remember { ZadVoiceManager(context) }
     val voiceState by voiceManager.voiceState.collectAsState()
+    val isListening by voiceManager.isListening.collectAsState()
     val soundLevel by voiceManager.soundLevel.collectAsState()
     val chatMessages by viewModel.aiChatMessages.collectAsState()
 
-    var lastSpokenResponseId by remember {
-        mutableStateOf(chatMessages.lastOrNull { !it.isUser }?.id)
-    }
-    var awaitingVoiceReply by remember { mutableStateOf(false) }
+    var awaitingVoiceReplyId by remember { mutableStateOf<String?>(null) }
+    var voiceTurnGeneration by remember { mutableLongStateOf(0L) }
     var currentTranscription by remember { mutableStateOf("") }
 
     fun submitVoiceQuery(query: String) {
         val clean = query.trim()
         if (clean.isEmpty()) return
+        voiceTurnGeneration += 1
+        voiceManager.stopSpeaking()
         currentTranscription = clean
-        lastSpokenResponseId = chatMessages.lastOrNull { !it.isUser }?.id
-        awaitingVoiceReply = true
         voiceManager.markThinking()
-        viewModel.sendAiChatMessage(clean, voiceMode = true)
+        awaitingVoiceReplyId = viewModel.sendAiChatMessage(clean, voiceMode = true)
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -82,7 +89,12 @@ fun ZadVoiceBottomSheet(
         }
     }
 
-    fun startListeningWithPermission() {
+    fun startListeningWithPermission(invalidateCurrentTurn: Boolean = false) {
+        if (invalidateCurrentTurn) {
+            voiceTurnGeneration += 1
+            awaitingVoiceReplyId = null
+            voiceManager.stopSpeaking()
+        }
         val hasPermission = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.RECORD_AUDIO
@@ -103,13 +115,12 @@ fun ZadVoiceBottomSheet(
     var selectedPersona by remember { mutableStateOf(voiceManager.getCurrentPersona()) }
 
     // When agent responds, speak with selected natural studio persona and resume listening afterwards
-    LaunchedEffect(chatMessages, awaitingVoiceReply) {
-        if (!awaitingVoiceReply) return@LaunchedEffect
-        val lastAssistantMessage = chatMessages.lastOrNull { !it.isUser }
-        if (lastAssistantMessage != null && lastAssistantMessage.id != lastSpokenResponseId) {
-            lastSpokenResponseId = lastAssistantMessage.id
-            awaitingVoiceReply = false
-            voiceManager.speakHumanLike(lastAssistantMessage.text) {
+    LaunchedEffect(chatMessages, awaitingVoiceReplyId) {
+        val reply = voiceReplyForTurn(chatMessages, awaitingVoiceReplyId) ?: return@LaunchedEffect
+        awaitingVoiceReplyId = null
+        val spokenTurnGeneration = voiceTurnGeneration
+        voiceManager.speakHumanLike(reply.text) {
+            if (spokenTurnGeneration == voiceTurnGeneration) {
                 // المحادثة الحية المستمرة — يستمع تلقائياً بعد انتهاء الرد مثل ChatGPT Voice و Gemini Live
                 startListeningWithPermission()
             }
@@ -172,6 +183,14 @@ fun ZadVoiceBottomSheet(
             ) {
                 com.example.voice.ZadNaturalVoiceEngine.VoicePersona.values().forEach { persona ->
                     val isSel = selectedPersona == persona
+                    val personaName = when (persona) {
+                        com.example.voice.ZadNaturalVoiceEngine.VoicePersona.SARAH_STUDIO_WARM ->
+                            stringResource(R.string.voice_persona_sarah)
+                        com.example.voice.ZadNaturalVoiceEngine.VoicePersona.KARIM_STUDIO_PRO ->
+                            stringResource(R.string.voice_persona_karim)
+                        com.example.voice.ZadNaturalVoiceEngine.VoicePersona.PET_MASCOT_CUTE ->
+                            stringResource(R.string.voice_persona_zad)
+                    }
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -190,7 +209,7 @@ fun ZadVoiceBottomSheet(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            persona.displayNameAr.take(12),
+                            personaName,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
                             color = if (isSel) primary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -215,11 +234,11 @@ fun ZadVoiceBottomSheet(
                 label = "pulse_scale"
             )
 
-            val companionMood = when (voiceState) {
-                is VoiceState.Listening -> CompanionState.Happy
-                is VoiceState.Thinking -> CompanionState.Focused
-                is VoiceState.Speaking -> CompanionState.Celebrating
-                is VoiceState.Error -> CompanionState.Alert
+            val companionMood = when {
+                isListening -> CompanionState.Happy
+                voiceState is VoiceState.Thinking -> CompanionState.Focused
+                voiceState is VoiceState.Speaking -> CompanionState.Celebrating
+                voiceState is VoiceState.Error -> CompanionState.Alert
                 else -> CompanionState.Idle
             }
 
@@ -254,7 +273,7 @@ fun ZadVoiceBottomSheet(
             Spacer(Modifier.height(14.dp))
 
             // Audio Waveform Equalizer Bars
-            if (voiceState is VoiceState.Listening) {
+            if (isListening) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -282,12 +301,12 @@ fun ZadVoiceBottomSheet(
 
             // Status & transcription
             val statusText = when (val state = voiceState) {
-                is VoiceState.Listening -> "أنا سامعاك، اتفضل قول اللي عاوزه..."
-                is VoiceState.Recognized -> "فهمت: \"${state.text}\""
-                is VoiceState.Thinking -> "جاري التفكير والتنفيذ في عقل زاد..."
-                is VoiceState.Speaking -> "تفضل الإجابة:"
+                is VoiceState.Listening -> stringResource(R.string.voice_status_listening)
+                is VoiceState.Recognized -> stringResource(R.string.voice_status_recognized, state.text)
+                is VoiceState.Thinking -> stringResource(R.string.voice_status_thinking)
+                is VoiceState.Speaking -> stringResource(R.string.voice_status_speaking)
                 is VoiceState.Error -> state.message
-                else -> "جاهزة لسماع طلبك"
+                else -> stringResource(R.string.voice_status_ready)
             }
 
             Text(
@@ -336,7 +355,11 @@ fun ZadVoiceBottomSheet(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val suggestions = listOf("صرفت ٥٠ قهوة", "اقترحي أكلة", "حلل مصاريفي")
+                val suggestions = listOf(
+                    stringResource(R.string.voice_suggestion_spend),
+                    stringResource(R.string.voice_suggestion_meal),
+                    stringResource(R.string.voice_suggestion_analyze)
+                )
                 suggestions.forEach { prompt ->
                     SuggestionChip(
                         onClick = {
@@ -361,14 +384,14 @@ fun ZadVoiceBottomSheet(
                 FloatingActionButton(
                     onClick = {
                         if (voiceState is VoiceState.Speaking) {
-                            voiceManager.stopSpeaking()
-                        } else if (voiceState is VoiceState.Listening) {
+                            startListeningWithPermission(invalidateCurrentTurn = true)
+                        } else if (isListening) {
                             voiceManager.stopListening()
                         } else {
-                            startListeningWithPermission()
+                            startListeningWithPermission(invalidateCurrentTurn = true)
                         }
                     },
-                    containerColor = if (voiceState is VoiceState.Listening) MaterialTheme.colorScheme.error else primary,
+                    containerColor = if (isListening) MaterialTheme.colorScheme.error else primary,
                     contentColor = Color.White,
                     shape = CircleShape,
                     modifier = Modifier
@@ -376,7 +399,7 @@ fun ZadVoiceBottomSheet(
                         .pressableScale()
                 ) {
                     Icon(
-                        if (voiceState is VoiceState.Listening) Icons.Default.Stop else Icons.Default.Mic,
+                        if (isListening) Icons.Default.Stop else Icons.Default.Mic,
                         contentDescription = stringResource(R.string.voice_speak_button),
                         modifier = Modifier.size(28.dp)
                     )

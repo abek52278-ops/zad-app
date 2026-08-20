@@ -37,7 +37,9 @@ data class AiChatMessage(
      * منطقي في نفس الجلسة، مش بعد ما التطبيق يتقفل ويتفتح والمخزون يكون اتغير من مسارات
      * تانية (كاميرا، بوت، تشيك-إن).
      */
-    val undoableCommitId: String? = null
+    val undoableCommitId: String? = null,
+    /** In-memory turn correlation for live voice. Persisted chat remains backward-compatible. */
+    val replyToMessageId: String? = null
 )
 
 private const val TAG = "ZadViewModel"
@@ -1450,7 +1452,11 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             "=== نهاية الملخص ===\n\n"
     }
 
-    private suspend fun tryAgentTurn(userText: String, voiceMode: Boolean): Boolean {
+    private suspend fun tryAgentTurn(
+        userText: String,
+        voiceMode: Boolean,
+        replyToMessageId: String
+    ): Boolean {
         val history = _aiChatMessages.value.dropLast(1).takeLast(8)
             .map { (if (it.isUser) "user" else "assistant") to it.text }
 
@@ -1463,7 +1469,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         pendingAgentProposalsValue = result.proposals
         val text = buildAgentTurnReply(result) ?: return false
 
-        val msg = AiChatMessage(text = text, isUser = false)
+        val msg = AiChatMessage(text = text, isUser = false, replyToMessageId = replyToMessageId)
         _aiChatMessages.value = _aiChatMessages.value + msg
         persistChatMessage(msg)
         _companionState.value = com.example.ui.components.companionStateForMessage(msg.text)
@@ -1513,17 +1519,17 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      * التنفيذ الفعلي بيحصل سيرفر-سايد (`agent_confirm`) اللي بيعيد التحقق من الاقتراح.
      * الكلاينت مبيكتبش المعاملة بنفسه.
      */
-    private suspend fun handleAgentProposalReply(userText: String): Boolean {
+    private suspend fun handleAgentProposalReply(userText: String, replyToMessageId: String): Boolean {
         val proposals = pendingAgentProposalsValue
         if (proposals.isEmpty()) return false
 
         if (negativeReplyRegex.containsMatchIn(userText)) {
-            cancelPendingAgentProposals()
+            cancelPendingAgentProposals(replyToMessageId)
             return true
         }
         if (!affirmativeReplyRegex.containsMatchIn(userText)) return false
 
-        confirmAgentProposals(proposals)
+        confirmAgentProposals(proposals, replyToMessageId)
         return true
     }
 
@@ -1532,7 +1538,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      * محلية. مشتركة بين مسار الرد النصي ("أيوه" في الشات) وكارت التأكيد في الواجهة
      * ([confirmPendingAgentProposals])، عشان الاتنين ينفذوا نفس المسار بالظبط.
      */
-    private suspend fun confirmAgentProposals(proposals: List<com.example.data.ZadAiRepository.AgentProposal>) {
+    private suspend fun confirmAgentProposals(
+        proposals: List<com.example.data.ZadAiRepository.AgentProposal>,
+        replyToMessageId: String? = null
+    ) {
         pendingAgentProposalsValue = emptyList()
         val results = proposals.map { com.example.data.ZadAiRepository.agentConfirm(it) }
         val succeeded = results.count { it.first }
@@ -1542,7 +1551,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             "معلش، بعض الحاجات مانفعتش تتسجل — جرب تاني.\n" +
                 results.joinToString("\n") { (ok, summary) -> "${if (ok) "✅" else "⚠️"} $summary" }
         }
-        val confirmMsg = AiChatMessage(text = text, isUser = false)
+        val confirmMsg = AiChatMessage(text = text, isUser = false, replyToMessageId = replyToMessageId)
         _aiChatMessages.value = _aiChatMessages.value + confirmMsg
         persistChatMessage(confirmMsg)
         if (succeeded > 0) {
@@ -1561,10 +1570,14 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** زرار "إلغاء" في كارت الاقتراح على الشاشة — بديل واضح لكتابة "لا". */
-    fun cancelPendingAgentProposals() {
+    fun cancelPendingAgentProposals(replyToMessageId: String? = null) {
         if (pendingAgentProposalsValue.isEmpty()) return
         pendingAgentProposalsValue = emptyList()
-        val cancelMsg = AiChatMessage(text = "تمام، ملغيتهاش.", isUser = false)
+        val cancelMsg = AiChatMessage(
+            text = "تمام، ملغيتهاش.",
+            isUser = false,
+            replyToMessageId = replyToMessageId
+        )
         _aiChatMessages.value = _aiChatMessages.value + cancelMsg
         persistChatMessage(cancelMsg)
     }
@@ -1576,8 +1589,8 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      *  context, short of the open-ended budget that made replies feel hung. */
     private val CHAT_THINKING_BUDGET = 512
 
-    fun sendAiChatMessage(userText: String, voiceMode: Boolean = false) {
-        if (userText.isBlank()) return
+    fun sendAiChatMessage(userText: String, voiceMode: Boolean = false): String? {
+        if (userText.isBlank()) return null
         val userMsg = AiChatMessage(text = userText, isUser = true)
         _aiChatMessages.value = _aiChatMessages.value + userMsg
         persistChatMessage(userMsg)
@@ -1593,16 +1606,21 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 val confirmMsg = AiChatMessage(
                     text = "📦 اتضاف للمخزون: $added",
                     isUser = false,
-                    undoableCommitId = commitId
+                    undoableCommitId = commitId,
+                    replyToMessageId = userMsg.id
                 )
                 _aiChatMessages.value = _aiChatMessages.value + confirmMsg
                 persistChatMessage(confirmMsg)
-                return
+                return userMsg.id
             } else if (negativeReplyRegex.containsMatchIn(userText)) {
-                val cancelMsg = AiChatMessage(text = "تمام، ملغيتهاش.", isUser = false)
+                val cancelMsg = AiChatMessage(
+                    text = "تمام، ملغيتهاش.",
+                    isUser = false,
+                    replyToMessageId = userMsg.id
+                )
                 _aiChatMessages.value = _aiChatMessages.value + cancelMsg
                 persistChatMessage(cancelMsg)
-                return
+                return userMsg.id
             }
             // مش تأكيد ولا رفض واضح → اعتبرها اتلغت ضمنياً وكمّل معالجة السؤال الجديد عادي
         }
@@ -1613,15 +1631,23 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             if (affirmativeReplyRegex.containsMatchIn(userText)) {
                 addPharmacyItem(pendingPharmacy)
                 val timesText = pendingPharmacy.doseTimes?.let { " (المواعيد: $it)" } ?: ""
-                val confirmMsg = AiChatMessage(text = "✅ تم، ضفنا ${pendingPharmacy.name} لجدول الأدوية$timesText.", isUser = false)
+                val confirmMsg = AiChatMessage(
+                    text = "✅ تم، ضفنا ${pendingPharmacy.name} لجدول الأدوية$timesText.",
+                    isUser = false,
+                    replyToMessageId = userMsg.id
+                )
                 _aiChatMessages.value = _aiChatMessages.value + confirmMsg
                 persistChatMessage(confirmMsg)
-                return
+                return userMsg.id
             } else if (negativeReplyRegex.containsMatchIn(userText)) {
-                val cancelMsg = AiChatMessage(text = "تمام، ملغيتهاش.", isUser = false)
+                val cancelMsg = AiChatMessage(
+                    text = "تمام، ملغيتهاش.",
+                    isUser = false,
+                    replyToMessageId = userMsg.id
+                )
                 _aiChatMessages.value = _aiChatMessages.value + cancelMsg
                 persistChatMessage(cancelMsg)
-                return
+                return userMsg.id
             }
         }
 
@@ -1633,24 +1659,25 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         if (pendingAgentProposalsValue.isNotEmpty()) {
             viewModelScope.launch {
                 try {
-                    if (!handleAgentProposalReply(userText)) {
+                    if (!handleAgentProposalReply(userText, userMsg.id)) {
                         pendingAgentProposalsValue = emptyList()
-                        runChatTurn(userText, voiceMode)
+                        runChatTurn(userText, voiceMode, userMsg.id)
                     }
                 } finally {
                     _isAiTyping.value = false
                 }
             }
-            return
+            return userMsg.id
         }
 
         viewModelScope.launch {
             try {
-                runChatTurn(userText, voiceMode)
+                runChatTurn(userText, voiceMode, userMsg.id)
             } finally {
                 _isAiTyping.value = false
             }
         }
+        return userMsg.id
     }
 
     /**
@@ -1660,7 +1687,11 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      * اتفصلت عن [sendAiChatMessage] عشان مسار الرد على اقتراح معلّق يقدر يعيد استخدامها
      * لما الرد يطلع مش تأكيد ولا رفض — من غير كده كان لازم يتكرر الجسم كله.
      */
-    private suspend fun runChatTurn(userText: String, voiceMode: Boolean) {
+    private suspend fun runChatTurn(
+        userText: String,
+        voiceMode: Boolean,
+        replyToMessageId: String
+    ) {
             try {
                 // لو تقرير العقل مش جاهز، احسبه عشان الشات يكون عارف كل حاجة.
                 //
@@ -1701,7 +1732,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 // موديل مش متاح)، الشات بيفضل شغال بالسلوك القديم بدل ما يقع في وش
                 // المستخدم. الفرق إن المسار الجديد مايقدرش يدّعي تنفيذ محصلش — الرد
                 // مبني على نتيجة الأدوات الفعلية.
-                if (tryAgentTurn(userText, voiceMode)) return
+                if (tryAgentTurn(userText, voiceMode, replyToMessageId)) return
 
                 // ذاكرة المحادثة: آخر 8 رسائل عشان يفهم سياق الحوار
                 val history = _aiChatMessages.value.dropLast(1).takeLast(8)
@@ -1744,9 +1775,17 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     systemPrompt, userText, thinkingBudget = CHAT_THINKING_BUDGET
                 )
                 val aiMsg = if (response != null) {
-                    AiChatMessage(text = applyChatAction(response), isUser = false)
+                    AiChatMessage(
+                        text = applyChatAction(response),
+                        isUser = false,
+                        replyToMessageId = replyToMessageId
+                    )
                 } else {
-                    AiChatMessage(text = "الذكاء الاصطناعي مشغول شوي دلوقتي 🙏 جرب تاني بعد لحظات.", isUser = false)
+                    AiChatMessage(
+                        text = "الذكاء الاصطناعي مشغول شوي دلوقتي 🙏 جرب تاني بعد لحظات.",
+                        isUser = false,
+                        replyToMessageId = replyToMessageId
+                    )
                 }
                 _aiChatMessages.value = _aiChatMessages.value + aiMsg
                 persistChatMessage(aiMsg)
@@ -1760,7 +1799,11 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     triggerBrainEvent(userText, trigger = "chat")
                 }
             } catch(e: Exception) {
-                val errMsg = AiChatMessage(text = "حدث خطأ غير متوقع.", isUser = false)
+                val errMsg = AiChatMessage(
+                    text = "حدث خطأ غير متوقع.",
+                    isUser = false,
+                    replyToMessageId = replyToMessageId
+                )
                 _aiChatMessages.value = _aiChatMessages.value + errMsg
                 persistChatMessage(errMsg)
                 _companionState.value = com.example.ui.components.CompanionState.Idle
