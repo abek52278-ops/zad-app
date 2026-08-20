@@ -124,8 +124,32 @@ interface ZadDao {
     @Query("DELETE FROM zad_shopping_list WHERE id NOT IN (:remoteIds)")
     suspend fun pruneShoppingItemsNotIn(remoteIds: List<String>)
 
+    @Query("DELETE FROM zad_shopping_list")
+    suspend fun clearShoppingItems()
+
     @Query("DELETE FROM zad_pharmacy_items WHERE id NOT IN (:remoteIds)")
     suspend fun prunePharmacyItemsNotIn(remoteIds: List<String>)
+
+    @Query("DELETE FROM zad_pharmacy_items")
+    suspend fun clearPharmacyItems()
+
+    @Query("DELETE FROM zad_inventory WHERE id NOT IN (:remoteIds)")
+    suspend fun pruneInventoryNotIn(remoteIds: List<String>)
+
+    @Query("DELETE FROM zad_inventory")
+    suspend fun clearInventory()
+
+    @Query("DELETE FROM zad_subscriptions WHERE id NOT IN (:remoteIds)")
+    suspend fun pruneSubscriptionsNotIn(remoteIds: List<String>)
+
+    @Query("DELETE FROM zad_subscriptions")
+    suspend fun clearSubscriptions()
+
+    @Query("DELETE FROM zad_maintenance_items WHERE id NOT IN (:remoteIds)")
+    suspend fun pruneMaintenanceItemsNotIn(remoteIds: List<String>)
+
+    @Query("DELETE FROM zad_maintenance_items")
+    suspend fun clearMaintenanceItems()
 
     @Query("DELETE FROM zad_transactions WHERE id = :id")
     suspend fun deleteTransaction(id: String)

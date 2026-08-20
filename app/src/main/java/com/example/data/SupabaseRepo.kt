@@ -33,6 +33,11 @@ import kotlinx.serialization.json.jsonPrimitive
 
 private const val TAG = "SupabaseRepo"
 
+data class RemoteListSnapshot<T>(
+    val items: List<T>,
+    val authoritative: Boolean
+)
+
 object SupabaseRepo {
     val client: SupabaseClient = createSupabaseClient(
         supabaseUrl = BuildConfig.SUPABASE_URL,
@@ -43,6 +48,29 @@ object SupabaseRepo {
         install(Realtime)
         install(Functions)
         install(Storage)
+    }
+
+    private suspend inline fun <reified T : Any> getOwnedListSnapshot(
+        table: String,
+        operation: String
+    ): RemoteListSnapshot<T> {
+        val userId = client.auth.currentUserOrNull()?.id
+        if (userId == null) {
+            Log.w(TAG, "$operation() skipped — user not authenticated")
+            return RemoteListSnapshot(emptyList(), authoritative = false)
+        }
+
+        return try {
+            Log.d(TAG, "$operation() → userId=$userId, table=$table")
+            val result = client.postgrest[table].select {
+                filter { eq("user_id", userId) }
+            }.decodeList<T>()
+            Log.d(TAG, "$operation() → returned ${result.size} items")
+            RemoteListSnapshot(result, authoritative = true)
+        } catch (e: Exception) {
+            Log.e(TAG, "$operation() FAILED: ${e.message}")
+            RemoteListSnapshot(emptyList(), authoritative = false)
+        }
     }
 
     // auth-kt's Auth plugin already persists/restores/refreshes sessions on its own —
@@ -337,23 +365,11 @@ object SupabaseRepo {
 
     // ─── Inventory ─────────────────────────────────────────────────────────
     suspend fun getInventory(): List<ZadInventory> {
-        return try {
-            val userId = client.auth.currentUserOrNull()?.id
-            Log.d(TAG, "getInventory() → userId=$userId, table=zad_inventory")
-            val result = if (userId != null) {
-                client.postgrest["zad_inventory"].select {
-                    filter { eq("user_id", userId) }
-                }.decodeList<ZadInventory>()
-            } else {
-                client.postgrest["zad_inventory"].select().decodeList<ZadInventory>()
-            }
-            Log.d(TAG, "getInventory() → returned ${result.size} items")
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "getInventory() FAILED: ${e.message}")
-            emptyList()
-        }
+        return getInventorySnapshot().items
     }
+
+    suspend fun getInventorySnapshot(): RemoteListSnapshot<ZadInventory> =
+        getOwnedListSnapshot("zad_inventory", "getInventory")
 
     suspend fun addInventory(item: ZadInventory): Boolean {
         try {
@@ -586,23 +602,11 @@ object SupabaseRepo {
 
     // ─── Subscriptions ─────────────────────────────────────────────────────────
     suspend fun getSubscriptions(): List<ZadSubscription> {
-        return try {
-            val userId = client.auth.currentUserOrNull()?.id
-            Log.d(TAG, "getSubscriptions() → userId=$userId, table=zad_subscriptions")
-            val result = if (userId != null) {
-                client.postgrest["zad_subscriptions"].select {
-                    filter { eq("user_id", userId) }
-                }.decodeList<ZadSubscription>()
-            } else {
-                client.postgrest["zad_subscriptions"].select().decodeList<ZadSubscription>()
-            }
-            Log.d(TAG, "getSubscriptions() → returned ${result.size} subscriptions")
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "getSubscriptions() FAILED: ${e.message}")
-            emptyList()
-        }
+        return getSubscriptionsSnapshot().items
     }
+
+    suspend fun getSubscriptionsSnapshot(): RemoteListSnapshot<ZadSubscription> =
+        getOwnedListSnapshot("zad_subscriptions", "getSubscriptions")
 
     suspend fun addSubscription(sub: ZadSubscription) {
         try {
@@ -795,23 +799,11 @@ object SupabaseRepo {
 
     // ─── Pharmacy ──────────────────────────────────────────────────────────────
     suspend fun getPharmacyItems(): List<ZadPharmacyItem> {
-        return try {
-            val userId = client.auth.currentUserOrNull()?.id
-            Log.d(TAG, "getPharmacyItems() → userId=$userId, table=zad_pharmacy_items")
-            val result = if (userId != null) {
-                client.postgrest["zad_pharmacy_items"].select {
-                    filter { eq("user_id", userId) }
-                }.decodeList<ZadPharmacyItem>()
-            } else {
-                client.postgrest["zad_pharmacy_items"].select().decodeList<ZadPharmacyItem>()
-            }
-            Log.d(TAG, "getPharmacyItems() → returned ${result.size} items")
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "getPharmacyItems() FAILED: ${e.message}")
-            emptyList()
-        }
+        return getPharmacyItemsSnapshot().items
     }
+
+    suspend fun getPharmacyItemsSnapshot(): RemoteListSnapshot<ZadPharmacyItem> =
+        getOwnedListSnapshot("zad_pharmacy_items", "getPharmacyItems")
 
     suspend fun addPharmacyItem(item: ZadPharmacyItem) {
         try {
@@ -1016,23 +1008,11 @@ object SupabaseRepo {
 
     // ─── Home Maintenance ──────────────────────────────────────────────────────
     suspend fun getMaintenanceItems(): List<ZadMaintenanceItem> {
-        return try {
-            val userId = client.auth.currentUserOrNull()?.id
-            Log.d(TAG, "getMaintenanceItems() → userId=$userId, table=zad_maintenance_items")
-            val result = if (userId != null) {
-                client.postgrest["zad_maintenance_items"].select {
-                    filter { eq("user_id", userId) }
-                }.decodeList<ZadMaintenanceItem>()
-            } else {
-                client.postgrest["zad_maintenance_items"].select().decodeList<ZadMaintenanceItem>()
-            }
-            Log.d(TAG, "getMaintenanceItems() → returned ${result.size} items")
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "getMaintenanceItems() FAILED: ${e.message}")
-            emptyList()
-        }
+        return getMaintenanceItemsSnapshot().items
     }
+
+    suspend fun getMaintenanceItemsSnapshot(): RemoteListSnapshot<ZadMaintenanceItem> =
+        getOwnedListSnapshot("zad_maintenance_items", "getMaintenanceItems")
 
     suspend fun addMaintenanceItem(item: ZadMaintenanceItem) {
         try {
@@ -1594,23 +1574,11 @@ object SupabaseRepo {
 
     // ─── Shopping List (Personal) ─────────────────────────────────────────────────────────
     suspend fun getShoppingList(): List<ZadShoppingItem> {
-        return try {
-            val userId = client.auth.currentUserOrNull()?.id
-            Log.d(TAG, "getShoppingList() → userId=$userId, table=zad_shopping_list")
-            val result = if (userId != null) {
-                client.postgrest["zad_shopping_list"].select {
-                    filter { eq("user_id", userId) }
-                }.decodeList<ZadShoppingItem>()
-            } else {
-                client.postgrest["zad_shopping_list"].select().decodeList<ZadShoppingItem>()
-            }
-            Log.d(TAG, "getShoppingList() → returned ${result.size} items")
-            result
-        } catch (e: Exception) {
-            Log.e(TAG, "getShoppingList() FAILED: ${e.message}")
-            emptyList()
-        }
+        return getShoppingListSnapshot().items
     }
+
+    suspend fun getShoppingListSnapshot(): RemoteListSnapshot<ZadShoppingItem> =
+        getOwnedListSnapshot("zad_shopping_list", "getShoppingList")
 
     suspend fun addShoppingItem(item: ZadShoppingItem) {
         try {

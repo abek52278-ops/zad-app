@@ -14,6 +14,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -108,9 +110,24 @@ internal fun buildAgentTurnReply(result: com.example.data.ZadAiRepository.AgentT
     return lines.joinToString("\n\n")
 }
 
+internal enum class CacheReconciliationAction { SKIP, CLEAR, PRUNE }
+
+internal fun cacheReconciliationAction(
+    authoritative: Boolean,
+    itemCount: Int,
+    outboxDrained: Boolean,
+    serverPageLimit: Int = 1000
+): CacheReconciliationAction = when {
+    !authoritative || !outboxDrained -> CacheReconciliationAction.SKIP
+    itemCount == 0 -> CacheReconciliationAction.CLEAR
+    itemCount < serverPageLimit -> CacheReconciliationAction.PRUNE
+    else -> CacheReconciliationAction.SKIP
+}
+
 class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val database = ZadDatabase.getDatabase(application)
     private val dao = database.zadDao()
+    private val syncMutex = Mutex()
 
     private val _inventory = MutableStateFlow<List<ZadInventory>>(emptyList())
     val inventory: StateFlow<List<ZadInventory>> = _inventory.asStateFlow()
@@ -836,13 +853,15 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     // Sync with Supabase (Background)
     fun syncData() {
         viewModelScope.launch {
-            Log.d(TAG, "syncData() → starting Supabase sync")
-            try {
+            syncMutex.withLock {
+                Log.d(TAG, "syncData() → starting Supabase sync")
+                try {
                 // الطابور الأول، قبل أي قراءة. أي حاجة اتعملت أوفلاين لازم تبقى على
                 // السيرفر قبل ما نعتبر السيرفر هو المرجع — وإلا التنضيف تحت هيمسحها.
                 com.example.data.SyncOutbox.flush(getApplication())
                 val outboxDrained = dao.getAllPendingSyncOps().isEmpty()
-                val remoteInventory = SupabaseRepo.getInventory()
+                val inventorySnapshot = SupabaseRepo.getInventorySnapshot()
+                val remoteInventory = inventorySnapshot.items
                 Log.d(TAG, "syncData() → remoteInventory count=${remoteInventory.size}")
                 if (remoteInventory.isNotEmpty()) dao.insertInventory(remoteInventory)
 
@@ -850,15 +869,18 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.d(TAG, "syncData() → remoteTransactions count=${remoteTransactions.size}")
                 if (remoteTransactions.isNotEmpty()) dao.insertTransactions(remoteTransactions)
 
-                val remoteSubscriptions = SupabaseRepo.getSubscriptions()
+                val subscriptionsSnapshot = SupabaseRepo.getSubscriptionsSnapshot()
+                val remoteSubscriptions = subscriptionsSnapshot.items
                 Log.d(TAG, "syncData() → remoteSubscriptions count=${remoteSubscriptions.size}")
                 if (remoteSubscriptions.isNotEmpty()) dao.insertSubscriptions(remoteSubscriptions)
 
-                val remotePharmacyItems = SupabaseRepo.getPharmacyItems()
+                val pharmacySnapshot = SupabaseRepo.getPharmacyItemsSnapshot()
+                val remotePharmacyItems = pharmacySnapshot.items
                 Log.d(TAG, "syncData() → remotePharmacyItems count=${remotePharmacyItems.size}")
                 if (remotePharmacyItems.isNotEmpty()) dao.insertPharmacyItems(remotePharmacyItems)
 
-                val remoteMaintenanceItems = SupabaseRepo.getMaintenanceItems()
+                val maintenanceSnapshot = SupabaseRepo.getMaintenanceItemsSnapshot()
+                val remoteMaintenanceItems = maintenanceSnapshot.items
                 Log.d(TAG, "syncData() → remoteMaintenanceItems count=${remoteMaintenanceItems.size}")
                 if (remoteMaintenanceItems.isNotEmpty()) dao.insertMaintenanceItems(remoteMaintenanceItems)
 
@@ -866,7 +888,8 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.d(TAG, "syncData() → remoteDoseLogs count=${remoteDoseLogs.size}")
                 if (remoteDoseLogs.isNotEmpty()) dao.insertDoseLogs(remoteDoseLogs)
 
-                val remoteShoppingList = SupabaseRepo.getShoppingList()
+                val shoppingSnapshot = SupabaseRepo.getShoppingListSnapshot()
+                val remoteShoppingList = shoppingSnapshot.items
                 Log.d(TAG, "syncData() → remoteShoppingList count=${remoteShoppingList.size}")
                 if (remoteShoppingList.isNotEmpty()) {
                     remoteShoppingList.forEach { dao.insertShoppingItem(it) }
@@ -880,31 +903,50 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 // شرطين قبل أي مسح، والاتنين مقصودين:
                 //   • الطابور اتفضّى — يعني كل حاجة محلية وصلت السيرفر فعلاً، فغيابها من
                 //     الرد معناه إنها اتشالت مش إنها لسه ما اترفعتش.
-                //   • الرد مش فاضي ومش مقصوص — PostgREST بيقص عند حد أقصى للصفوف، ورد
-                //     مقصوص لو اتعامل كمرجع كان هيمسح اللي بعده. رد فاضي بيتساب برضه
-                //     لأنه أشهر شكل لفشل قراءة اتبلع.
+                //   • القراءة نجحت فعلاً ومش مقصوصة — PostgREST بيقص عند حد أقصى
+                //     للصفوف. النجاح الفاضي معناه إن القائمة اتمسحت فعلاً، أما فشل
+                //     الاتصال فـ snapshot بتعلّمه كغير موثوق وممنوع يمسح الكاش.
                 //
                 // المعاملات مستثناة عن قصد: دي فلوس، وقراءة ناقصة مرة واحدة كفيلة تمسح
                 // تاريخ مالي مش هيرجع. المسح هنا محصور في القوايم اللي ضررها محدود وقابل
                 // للإرجاع من السيرفر في أي لحظة.
-                if (outboxDrained) {
-                    if (remoteShoppingList.isNotEmpty() && remoteShoppingList.size < 1000) {
-                        dao.pruneShoppingItemsNotIn(remoteShoppingList.map { it.id })
-                    }
-                    if (remotePharmacyItems.isNotEmpty() && remotePharmacyItems.size < 1000) {
-                        dao.prunePharmacyItemsNotIn(remotePharmacyItems.map { it.id })
-                    }
-                } else {
+                when (cacheReconciliationAction(inventorySnapshot.authoritative, remoteInventory.size, outboxDrained)) {
+                    CacheReconciliationAction.CLEAR -> dao.clearInventory()
+                    CacheReconciliationAction.PRUNE -> dao.pruneInventoryNotIn(remoteInventory.map { it.id })
+                    CacheReconciliationAction.SKIP -> Unit
+                }
+                when (cacheReconciliationAction(subscriptionsSnapshot.authoritative, remoteSubscriptions.size, outboxDrained)) {
+                    CacheReconciliationAction.CLEAR -> dao.clearSubscriptions()
+                    CacheReconciliationAction.PRUNE -> dao.pruneSubscriptionsNotIn(remoteSubscriptions.map { it.id })
+                    CacheReconciliationAction.SKIP -> Unit
+                }
+                when (cacheReconciliationAction(pharmacySnapshot.authoritative, remotePharmacyItems.size, outboxDrained)) {
+                    CacheReconciliationAction.CLEAR -> dao.clearPharmacyItems()
+                    CacheReconciliationAction.PRUNE -> dao.prunePharmacyItemsNotIn(remotePharmacyItems.map { it.id })
+                    CacheReconciliationAction.SKIP -> Unit
+                }
+                when (cacheReconciliationAction(maintenanceSnapshot.authoritative, remoteMaintenanceItems.size, outboxDrained)) {
+                    CacheReconciliationAction.CLEAR -> dao.clearMaintenanceItems()
+                    CacheReconciliationAction.PRUNE -> dao.pruneMaintenanceItemsNotIn(remoteMaintenanceItems.map { it.id })
+                    CacheReconciliationAction.SKIP -> Unit
+                }
+                when (cacheReconciliationAction(shoppingSnapshot.authoritative, remoteShoppingList.size, outboxDrained)) {
+                    CacheReconciliationAction.CLEAR -> dao.clearShoppingItems()
+                    CacheReconciliationAction.PRUNE -> dao.pruneShoppingItemsNotIn(remoteShoppingList.map { it.id })
+                    CacheReconciliationAction.SKIP -> Unit
+                }
+                if (!outboxDrained) {
                     Log.w(TAG, "syncData() → outbox still has pending ops; skipping local prune this round")
                 }
 
                 Log.d(TAG, "syncData() SUCCESS")
 
-            } catch (e: Exception) {
-                Log.e(TAG, "syncData() FAILED: ${e.message} — falling back to cached Room data")
-                e.printStackTrace()
+                } catch (e: Exception) {
+                    Log.e(TAG, "syncData() FAILED: ${e.message} — falling back to cached Room data")
+                    e.printStackTrace()
+                }
+                loadNotifications()
             }
-            loadNotifications()
         }
     }
 
@@ -1443,8 +1485,12 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         val tools = executed.map { it.tool }.toSet()
         val touchedSyncedTables = tools.any {
             it in setOf(
-                "add_inventory_item", "update_inventory_qty", "add_pharmacy_item",
-                "add_shopping_item", "set_transaction_category", "log_transaction", "update_transaction"
+                "add_inventory_item", "update_inventory_qty", "delete_inventory_item",
+                "add_pharmacy_item", "update_pharmacy_item", "log_pharmacy_dose", "delete_pharmacy_item",
+                "add_shopping_item", "complete_shopping_item", "delete_shopping_item",
+                "add_subscription", "update_subscription", "delete_subscription",
+                "add_maintenance_item", "update_maintenance_item", "delete_maintenance_item",
+                "set_transaction_category", "log_transaction", "update_transaction"
             )
         }
         if (touchedSyncedTables) syncData()
