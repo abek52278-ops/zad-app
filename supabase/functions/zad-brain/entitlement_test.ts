@@ -18,7 +18,7 @@ Deno.test("تسجيل المصاريف العادي مجاني — مهما كا
       "امسح آخر معاملة",
     ]
   ) {
-    assertEquals(classifyMessage(m), "chat", m);
+    assertEquals(classifyMessage(m), "routine", m);
   }
 });
 
@@ -42,8 +42,8 @@ Deno.test("طلب التحليل العميق بيتحاسب على رصيد ا�
 // الحالة دي بالظبط هي سبب ترتيب الفحص: فعل التسجيل بيكسب على كلمة التحليل، عشان
 // جملة فيها الاتنين ماتبقاش باب خلفي بيحاسب على التسجيل.
 Deno.test("جملة فيها تسجيل وتحليل مع بعض بتفضل مجانية", () => {
-  assertEquals(classifyMessage("سجل 50 قهوة وقوللي رأيك في صرفي"), "chat");
-  assertEquals(classifyMessage("دفعت 300 وحلل كده"), "chat");
+  assertEquals(classifyMessage("سجل 50 قهوة وقوللي رأيك في صرفي"), "routine");
+  assertEquals(classifyMessage("دفعت 300 وحلل كده"), "routine");
 });
 
 Deno.test("الرسالة الفاضية أو الكلام العادي بيعدي كشات", () => {
@@ -86,10 +86,11 @@ Deno.test("رسالة القفل بتفرق بين مش-مشمول وخلص-رص
     allowed: false,
     reason: "needs_ads_or_upgrade",
     ad_watch_count: 2,
-    ads_per_session: 5,
+    ads_per_session: 3,
     next_weekly_free_at: "2026-08-22T00:00:00Z",
   });
-  // التقدم المحرز لازم يبان: "خلصت ٢ من ٥" بيخلي العميل يكمل، "شوف ٥ فيديوهات" بيوقّفه.
-  assertEquals(needsAds.includes("2 من 5"), true);
+  assertEquals(needsAds.includes("2 من 3"), true);
+  assertEquals(needsAds.includes("١٢ ساعة"), true);
+  assertEquals(needsAds.includes("٢٤ ساعة"), false);
   assertEquals(needsAds.includes("الأسبوعية"), true);
 });

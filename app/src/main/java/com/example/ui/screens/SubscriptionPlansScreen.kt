@@ -58,6 +58,13 @@ fun SubscriptionPlansScreen(
     var adWatchCount by remember { mutableStateOf<Int>(RewardedBrainAdManager.getAdWatchCount(context)) }
     var isSessionUnlocked by remember { mutableStateOf<Boolean>(RewardedBrainAdManager.isSessionUnlocked(context)) }
 
+    LaunchedEffect(Unit) {
+        RewardedBrainAdManager.syncServerState(context)?.let { state ->
+            adWatchCount = state.adWatchCount
+            isSessionUnlocked = state.brainSessionActive
+        }
+    }
+
     val annualDiscountMultiplier = 0.80 // 20% discount (2 months free)
 
     LaunchedEffect(purchaseState) {

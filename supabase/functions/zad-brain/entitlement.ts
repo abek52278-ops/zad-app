@@ -12,6 +12,7 @@
 
 /** What zad_entitlement_consume charges the request against. */
 export type EntitlementKind = "brain" | "scan" | "chat" | "voice";
+export type MessageEntitlementKind = EntitlementKind | "routine";
 
 export interface EntitlementDecision {
   allowed: boolean;
@@ -55,10 +56,10 @@ const DEEP_ANALYSIS = new RegExp(
  * Which bucket this message spends from. Not a security decision on its own — the SQL
  * function is what actually authorizes — just which price to quote it at.
  */
-export function classifyMessage(message: string): EntitlementKind {
+export function classifyMessage(message: string): MessageEntitlementKind {
   const text = (message ?? "").trim();
   if (!text) return "chat";
-  if (ROUTINE_LOG.test(text)) return "chat";
+  if (ROUTINE_LOG.test(text)) return "routine";
   if (DEEP_ANALYSIS.test(text)) return "brain";
   return "chat";
 }
@@ -109,14 +110,14 @@ export function lockedReply(d: EntitlementDecision): string {
     const when = d.cycle_reset_at ? ` رصيدك بيتجدد ${arabicDate(d.cycle_reset_at)}.` : "";
     return `🔒 خلص رصيدك من التحليلات العميقة في باقتك الحالية.${when} تقدر ترقّي باقتك من التطبيق.`;
   }
-  // free tier, weekly consultation already spent
+  // Free deep consultation already spent.
   const watched = d.ad_watch_count ?? 0;
   const total = d.ads_per_session ?? 3;
   const when = d.next_weekly_free_at ? ` استشارتك المجانية الجاية ${arabicDate(d.next_weekly_free_at)}.` : "";
   return [
     `🔒 استهلكت استشارتك الأسبوعية المجانية لعقل زاد.${when}`,
     "",
-    `تقدر تفتح جلسة كاملة ٢٤ ساعة دلوقتي: شاهد ${total} فيديوهات قصيرة من التطبيق` +
+    `تقدر تفتح جلسة كاملة ١٢ ساعة ومعاها ٥ رسائل فوراً: شاهد ${total} فيديوهات قصيرة من التطبيق` +
       (watched > 0 ? ` — إنت خلصت ${watched} من ${total} بالفعل.` : "."),
     "أو اشترك في زاد بلس وتحليل من غير إعلانات ولا حدود.",
   ].join("\n");

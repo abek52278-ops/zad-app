@@ -119,6 +119,13 @@ fun ZadSubscriptionPaywallScreen(
     var adWatchCount by remember { mutableStateOf(com.example.ads.RewardedBrainAdManager.getAdWatchCount(context)) }
     var isSessionUnlocked by remember { mutableStateOf(com.example.ads.RewardedBrainAdManager.isSessionUnlocked(context)) }
 
+    LaunchedEffect(Unit) {
+        com.example.ads.RewardedBrainAdManager.syncServerState(context)?.let { state ->
+            adWatchCount = state.adWatchCount
+            isSessionUnlocked = state.brainSessionActive
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(

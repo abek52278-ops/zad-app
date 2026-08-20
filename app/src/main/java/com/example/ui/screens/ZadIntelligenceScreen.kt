@@ -214,9 +214,9 @@ fun ZadIntelligenceScreen(
                 var isSessionUnlocked by remember { mutableStateOf(RewardedBrainAdManager.isSessionUnlocked(context)) }
 
                 LaunchedEffect(Unit) {
-                    val claimedFreeDaily = RewardedBrainAdManager.checkAndClaimDailyFreeSession(context)
-                    if (claimedFreeDaily) {
-                        isSessionUnlocked = true
+                    RewardedBrainAdManager.syncServerState(context)?.let { state ->
+                        adWatchCount = state.adWatchCount
+                        isSessionUnlocked = state.brainSessionActive
                     }
                 }
 
@@ -3366,4 +3366,3 @@ fun FamilyNeuralReportBottomSheet(
         }
     }
 }
-

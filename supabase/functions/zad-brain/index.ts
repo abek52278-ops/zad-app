@@ -2821,10 +2821,13 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
   // ميصحش يكلّف استعلام ولا توكن واحد. الفرق بين الاتنين إن W4 حارس إساءة استخدام
   // (سقف يومي ثابت لكل الناس)، ودي حارس تجاري (بيقرا باقة العميل من الداتابيز).
   //
-  // التصنيف بيفصل التسجيل عن التحليل: "صرفت ٥٠ قهوة" بتتحاسب على رصيد الشات الرخيص
-  // (أو بتعدي مجاناً)، و"حلل مصاريفي" هي اللي بتخصم من رصيد العقل. النص الجاي من
+  // التصنيف بيفصل التسجيل عن التحليل: "صرفت ٥٠ قهوة" مجاني دائماً حتى لو احتاج
+  // الموديل، و"حلل مصاريفي" هي اللي بتخصم من رصيد العقل. النص الجاي من
   // تليجرام بيعدي من نفس هنا، فالبوت مش محتاج نسخة تانية من القاعدة.
-  const entitlement = await consumeEntitlement(sb, userId, classifyMessage(message), String(body.tz ?? "UTC"));
+  const entitlementKind = classifyMessage(message);
+  const entitlement = entitlementKind === "routine"
+    ? { allowed: true, reason: "routine_free" }
+    : await consumeEntitlement(sb, userId, entitlementKind, String(body.tz ?? "UTC"));
   if (!entitlement.allowed) {
     // ok:true مش خطأ: ده رد فعلي للعميل، والتطبيق بيعرضه في نفس فقاعة الشات. الكتلة
     // entitlement جنبه هي اللي الواجهة بتقرا منها عشان تفتح شاشة الباقات/الإعلانات.

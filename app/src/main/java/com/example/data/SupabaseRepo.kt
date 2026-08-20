@@ -2068,6 +2068,70 @@ object SupabaseRepo {
         }
     }
 
+    @Serializable
+    data class ZadEntitlementState(
+        val tier: String = "free",
+        @SerialName("chat_left") val chatLeft: Int = 0,
+        @SerialName("cycle_reset_at") val cycleResetAt: String? = null,
+        @SerialName("ad_watch_count") val adWatchCount: Int = 0,
+        @SerialName("ads_per_session") val adsPerSession: Int = 3,
+        @SerialName("brain_session_expires_at") val brainSessionExpiresAt: String? = null,
+        @SerialName("brain_session_active") val brainSessionActive: Boolean = false,
+    )
+
+    @Serializable
+    private data class EntitlementParams(
+        @SerialName("p_user") val user: String,
+        @SerialName("p_tz") val timezone: String,
+    )
+
+    @Serializable
+    private data class RewardGrantParams(@SerialName("p_user") val user: String)
+
+    @Serializable
+    private data class RewardGrantResponse(
+        val granted: Boolean = false,
+        val reason: String? = null,
+    )
+
+    /** Server-authoritative ad count, chat balance, recharge time, and Brain session. */
+    suspend fun getEntitlementState(): ZadEntitlementState? {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id ?: return null
+            client.postgrest.rpc(
+                "zad_entitlement_status",
+                Json.encodeToJsonElement(
+                    EntitlementParams(user = userId, timezone = java.time.ZoneId.systemDefault().id)
+                ).jsonObject
+            ).decodeAs<ZadEntitlementState>()
+        } catch (e: Exception) {
+            Log.e(TAG, "getEntitlementState() FAILED: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Claims one completed rewarded ad, then reads the resulting state back from the DB.
+     * The UI must not mint sessions or message credit locally.
+     */
+    suspend fun claimRewardedAd(): ZadEntitlementState? {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id ?: return null
+            val grant = client.postgrest.rpc(
+                "zad_ad_reward_grant",
+                Json.encodeToJsonElement(RewardGrantParams(userId)).jsonObject
+            ).decodeAs<RewardGrantResponse>()
+            if (!grant.granted) {
+                Log.w(TAG, "claimRewardedAd() rejected: ${grant.reason}")
+                return null
+            }
+            getEntitlementState()
+        } catch (e: Exception) {
+            Log.e(TAG, "claimRewardedAd() FAILED: ${e.message}")
+            null
+        }
+    }
+
     /** Task 20 — (نافذة الساعات، نسبة التسامح٪) لبلد معين، أو null لو فشل/مش موجود */
     suspend fun getLocaleConfig(country: String): Pair<Int, Double>? {
         return try {

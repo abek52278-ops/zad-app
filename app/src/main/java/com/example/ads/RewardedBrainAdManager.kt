@@ -11,6 +11,11 @@ import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
+import com.example.data.SupabaseRepo
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 object RewardedBrainAdManager {
     private const val TAG = "RewardedBrainAdManager"
@@ -21,28 +26,14 @@ object RewardedBrainAdManager {
     private const val KEY_AD_WATCH_COUNT = "ad_watch_count"
     private const val KEY_SESSION_EXPIRY_TS = "session_expiry_ts"
     private const val KEY_LAST_REWARD_TS = "last_reward_ts"
-    private const val KEY_FREE_DAILY_DATE = "free_daily_date"
 
     private var rewardedAd: RewardedAd? = null
     private var isLoading = false
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     fun initialize(context: Context) {
         MobileAds.initialize(context) { }
         preload(context.applicationContext)
-    }
-
-    fun checkAndClaimDailyFreeSession(context: Context): Boolean {
-        val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-        val today = java.time.LocalDate.now().toString()
-        val lastClaimedDate = prefs.getString(KEY_FREE_DAILY_DATE, null)
-        if (lastClaimedDate != today) {
-            prefs.edit()
-                .putString(KEY_FREE_DAILY_DATE, today)
-                .putLong(KEY_SESSION_EXPIRY_TS, System.currentTimeMillis() + 12 * 3600 * 1000L)
-                .apply()
-            return true
-        }
-        return false
     }
 
     fun getAdWatchCount(context: Context): Int {
@@ -54,6 +45,17 @@ object RewardedBrainAdManager {
         val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
         val expiry = prefs.getLong(KEY_SESSION_EXPIRY_TS, 0L)
         return System.currentTimeMillis() < expiry
+    }
+
+    suspend fun syncServerState(context: Context): SupabaseRepo.ZadEntitlementState? {
+        val state = try {
+            SupabaseRepo.getEntitlementState()
+        } catch (error: Throwable) {
+            Log.w(TAG, "Server entitlement state unavailable: ${error.message}")
+            null
+        } ?: return null
+        persistServerState(context.applicationContext, state)
+        return state
     }
 
     fun showRewardedEnergyAd(
@@ -77,28 +79,34 @@ object RewardedBrainAdManager {
         }
 
         ad.show(activity) {
-            val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-            val current = prefs.getInt(KEY_AD_WATCH_COUNT, 0)
-            val next = current + 1
-
-            val isFullyUnlocked = next >= TOTAL_ADS_REQUIRED
-            val editor = prefs.edit()
-            if (isFullyUnlocked) {
-                editor.putInt(KEY_AD_WATCH_COUNT, 0)
-                // تراكم الوقت الإضافي فوق الرصيد الحالي
-                val currentExpiry = prefs.getLong(KEY_SESSION_EXPIRY_TS, System.currentTimeMillis())
-                val baseTime = if (currentExpiry > System.currentTimeMillis()) currentExpiry else System.currentTimeMillis()
-                editor.putLong(KEY_SESSION_EXPIRY_TS, baseTime + 12 * 3600 * 1000L)
-            } else {
-                editor.putInt(KEY_AD_WATCH_COUNT, next)
-            }
-            editor.putLong(KEY_LAST_REWARD_TS, System.currentTimeMillis())
-            editor.apply()
-
             rewardedAd = null
             preload(context.applicationContext)
-            onAdWatched(if (isFullyUnlocked) 0 else next, isFullyUnlocked)
+            scope.launch {
+                val state = try {
+                    SupabaseRepo.claimRewardedAd()
+                } catch (error: Throwable) {
+                    Log.e(TAG, "Reward grant unavailable: ${error.message}")
+                    null
+                }
+                if (state == null) {
+                    onFailed()
+                    return@launch
+                }
+                persistServerState(context.applicationContext, state)
+                onAdWatched(state.adWatchCount, state.brainSessionActive)
+            }
         }
+    }
+
+    private fun persistServerState(context: Context, state: SupabaseRepo.ZadEntitlementState) {
+        val expiry = state.brainSessionExpiresAt?.let { value ->
+            runCatching { java.time.OffsetDateTime.parse(value).toInstant().toEpochMilli() }.getOrNull()
+        } ?: 0L
+        context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE).edit()
+            .putInt(KEY_AD_WATCH_COUNT, state.adWatchCount)
+            .putLong(KEY_SESSION_EXPIRY_TS, expiry)
+            .putLong(KEY_LAST_REWARD_TS, System.currentTimeMillis())
+            .apply()
     }
 
     fun preload(context: Context) {
