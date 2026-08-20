@@ -1381,34 +1381,28 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       if (!match) return `مرفوض: مفيش دواء اسمه "${spoken}" في قايمة العميل — عدّل وحاول تاني.`;
 
       const nowIso = new Date().toISOString();
-      const { error: doseErr } = await sb.from("zad_pharmacy_doses").insert({
-        user_id: userId, item_id: match.id, taken_at: nowIso, status: "taken", units: 1,
+      const { data: mutation, error: doseErr } = await sb.rpc("zad_log_pharmacy_dose_atomic", {
+        p_user: userId,
+        p_item: match.id,
+        p_scheduled_at: null,
+        p_taken_at: nowIso,
       });
-      if (doseErr) {
-        // نفس منطق الكلاينت: تكرار نفس الجرعة المجدولة مايتخصمش تاني.
-        if (String(doseErr.message).includes("duplicate")) return "الجرعة دي متسجلة قبل كده";
-        console.error("log_pharmacy_dose insert failed:", doseErr.message);
+      if (doseErr || !mutation?.ok) {
+        console.error("zad_log_pharmacy_dose_atomic failed:", doseErr?.message ?? mutation?.reason ?? "unknown");
+        return "مرفوض: مقدرتش أسجل الجرعة بأمان — الكمية ماتغيرتش";
       }
+      if (mutation.duplicate === true) return "الجرعة دي متسجلة قبل كده — الكمية ماتخصمتش تاني";
 
-      const newQty = Math.max(0, (match.remaining_quantity ?? 0) - 1);
-      const w = await writeRows(
-        sb.from("zad_pharmacy_items").update({ remaining_quantity: newQty })
-          .eq("id", match.id).eq("user_id", userId).select("remaining_quantity"),
-        "تعديل الكمية",
-      );
-      if (!w.ok) return `اتسجلت الجرعة بس الكمية ماتعدلتش: ${w.reason}`;
+      const newQty = Number(mutation.remaining_quantity ?? match.remaining_quantity ?? 0);
       ctx.mutationCount++;
       ctx.mutations.push({ tool: name, old: match.remaining_quantity, new: newQty });
       await recordAction(sb, userId, scope, {
         tool: name, input, table: "zad_pharmacy_items", targetId: match.id,
-        previous: { remaining_quantity: match.remaining_quantity }, next: w.rows[0],
+        previous: { remaining_quantity: match.remaining_quantity },
+        next: { remaining_quantity: newQty, dose_id: mutation.dose_id },
       });
 
-      // قرّب يخلص؟ حطه في قائمة التسوق — نفس عتبة الكلاينت (يوم واحد من الاستهلاك).
-      const perDay = match.daily_dose_count ?? 1;
-      if (newQty > 0 && newQty <= perDay) {
-        await sb.from("zad_shopping_list")
-          .insert({ user_id: userId, item_name: match.name, quantity: 1, is_purchased: false });
+      if (mutation.shopping_added === true) {
         return `اتسجلت الجرعة — فاضل ${newQty} ${match.unit ?? ""} بس، فحطيت "${match.name}" في قائمة التسوق`;
       }
       return `اتسجلت جرعة ${match.name} — فاضل ${newQty} ${match.unit ?? ""}`;

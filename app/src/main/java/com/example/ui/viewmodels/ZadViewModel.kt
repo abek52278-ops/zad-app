@@ -3168,6 +3168,9 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             val updated = _pharmacyItems.value.map { if (it.id == itemId) it.copy(unitsPerDose = unitsPerDose) else it }
             _pharmacyItems.value = updated
             updated.find { it.id == itemId }?.let { dao.insertPharmacyItem(it) }
+            getApplication<android.app.Application>()
+                .getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
+                .edit().remove("dose_carry_$itemId").apply()
             SupabaseRepo.setPharmacyUnitsPerDose(itemId, unitsPerDose)
         }
     }

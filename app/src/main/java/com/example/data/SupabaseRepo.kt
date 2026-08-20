@@ -925,26 +925,55 @@ object SupabaseRepo {
         }
     }
 
-    enum class DoseLogOutcome { INSERTED, DUPLICATE, FAILED }
+    @Serializable
+    data class PharmacyDoseMutationResult(
+        val ok: Boolean = false,
+        val duplicate: Boolean = false,
+        @SerialName("item_id") val itemId: String? = null,
+        val name: String? = null,
+        val unit: String? = null,
+        val units: Double = 1.0,
+        @SerialName("previous_quantity") val previousQuantity: Int? = null,
+        @SerialName("remaining_quantity") val remainingQuantity: Int = 0,
+        @SerialName("dose_carry") val doseCarry: Double = 0.0,
+        @SerialName("scheduled_at") val scheduledAt: String? = null,
+        @SerialName("shopping_added") val shoppingAdded: Boolean = false,
+        val reason: String? = null
+    )
 
-    // Task 17.2.2 — the unique index on (user_id, item_id, scheduled_at) is what makes
-    // tapping the notification button and the pharmacy-screen button for the SAME
-    // scheduled dose safe: the second insert violates the constraint instead of silently
-    // creating a second row, and the caller must NOT decrement stock again on DUPLICATE.
-    suspend fun insertPharmacyDose(dose: ZadPharmacyDose): DoseLogOutcome {
+    @Serializable
+    private data class PharmacyDoseMutationParams(
+        @SerialName("p_user") val user: String,
+        @SerialName("p_item") val item: String,
+        @SerialName("p_scheduled_at") val scheduledAt: String?,
+        @SerialName("p_taken_at") val takenAt: String
+    )
+
+    /**
+     * Single database transaction for dose history, fractional-unit carry, stock deduction,
+     * and low-stock shopping insertion. Every device and agent channel shares this path.
+     */
+    suspend fun logPharmacyDoseAtomic(
+        itemId: String,
+        scheduledAt: String?,
+        takenAt: String
+    ): PharmacyDoseMutationResult? {
         return try {
-            val userId = client.auth.currentUserOrNull()?.id
-            client.postgrest["zad_pharmacy_doses"].insert(dose.copy(userId = userId))
-            DoseLogOutcome.INSERTED
+            val userId = client.auth.currentUserOrNull()?.id ?: return null
+            client.postgrest.rpc(
+                "zad_log_pharmacy_dose_atomic",
+                Json.encodeToJsonElement(
+                    PharmacyDoseMutationParams(
+                        user = userId,
+                        item = itemId,
+                        scheduledAt = scheduledAt,
+                        takenAt = takenAt
+                    )
+                ).jsonObject
+            ).decodeAs<PharmacyDoseMutationResult>()
         } catch (e: Exception) {
-            val msg = e.message ?: ""
-            if (msg.contains("23505") || msg.contains("duplicate key") || msg.contains("zad_doses_unique")) {
-                Log.d(TAG, "insertPharmacyDose() → duplicate, already logged for this scheduled dose")
-                DoseLogOutcome.DUPLICATE
-            } else {
-                Log.e(TAG, "insertPharmacyDose() FAILED: ${e.message}")
-                DoseLogOutcome.FAILED
-            }
+            Log.e(TAG, "logPharmacyDoseAtomic() FAILED: ${e.message}")
+            null
         }
     }
 
@@ -954,6 +983,7 @@ object SupabaseRepo {
             client.postgrest["zad_pharmacy_items"].update(
                 buildJsonObject {
                     put("remaining_quantity", quantity)
+                    put("dose_carry", 0)
                     put("qty_confirmed_at", java.time.Instant.now().toString())
                 }
             ) { filter { eq("id", id) } }
@@ -966,7 +996,7 @@ object SupabaseRepo {
     suspend fun setPharmacyUnitsPerDose(id: String, unitsPerDose: Double) {
         try {
             client.postgrest["zad_pharmacy_items"].update(
-                mapOf("units_per_dose" to unitsPerDose)
+                mapOf("units_per_dose" to unitsPerDose, "dose_carry" to 0)
             ) { filter { eq("id", id) } }
             Log.d(TAG, "setPharmacyUnitsPerDose() SUCCESS — id=$id, units=$unitsPerDose")
         } catch (e: Exception) {

@@ -472,49 +472,18 @@ object ZadCentralBrain {
         val item = dao.getAllPharmacyItemsOnce().find { it.id == itemId } ?: return@withContext false
         val nowIso = Instant.now().toString()
 
-        val doseRow = ZadPharmacyDose(
-            itemId = itemId, scheduledAt = scheduledAt, takenAt = nowIso,
-            status = "taken", units = item.unitsPerDose ?: 1.0, createdAt = nowIso
-        )
-        val outcome = try { SupabaseRepo.insertPharmacyDose(doseRow) } catch (e: Exception) {
-            Log.e(TAG, "markPharmacyDoseTaken() insertPharmacyDose threw: ${e.message}")
-            SupabaseRepo.DoseLogOutcome.FAILED
+        val mutation = SupabaseRepo.logPharmacyDoseAtomic(itemId, scheduledAt, nowIso)
+        if (mutation == null || !mutation.ok) {
+            Log.e(TAG, "markPharmacyDoseTaken() atomic mutation failed: ${mutation?.reason ?: "network"}")
+            return@withContext false
         }
-        if (outcome == SupabaseRepo.DoseLogOutcome.DUPLICATE) {
+        if (mutation.duplicate) {
             Log.d(TAG, "markPharmacyDoseTaken() → already logged for scheduledAt=$scheduledAt, skipping stock deduction")
             return@withContext false
         }
-        // FAILED (network/etc) still proceeds locally below — Room is the source of truth for
-        // the UI, and the sync retry paths elsewhere pick up the Supabase-side gap. Only an
-        // actual DUPLICATE blocks the deduction, since that's the one case a repeat is wrong.
-
-        val perDose = item.unitsPerDose ?: 1.0
-        if (item.remainingQuantity > 0) {
-            // remaining_quantity is an Int column but units_per_dose is fractional (half a
-            // tablet is an ordinary prescription). `(remaining - 0.5).toInt()` truncates, so
-            // a half-tablet dose burned a WHOLE tablet: a 10-tablet strip read as empty after
-            // 10 doses instead of 20, which fires "الدواء قرب يخلص", auto-adds it to the
-            // shopping list, and eventually shows 0 while five tablets are still in the box.
-            // Carry the fraction between doses instead of throwing it away — for the common
-            // perDose = 1.0 case the carry is always 0 and this behaves exactly as before.
-            val carryPrefs = context.getSharedPreferences("zad_prefs", Context.MODE_PRIVATE)
-            val carryKey = "dose_carry_$itemId"
-            val accumulated = carryPrefs.getFloat(carryKey, 0f) + perDose
-            val wholeUnits = kotlin.math.floor(accumulated).toInt()
-            carryPrefs.edit().putFloat(carryKey, (accumulated - wholeUnits).toFloat()).apply()
-
-            val newQty = (item.remainingQuantity - wholeUnits).coerceAtLeast(0)
-            val updated = item.copy(remainingQuantity = newQty)
-            dao.insertPharmacyItem(updated)
-            try { SupabaseRepo.updatePharmacyQuantity(itemId, updated.remainingQuantity) } catch (e: Exception) {
-                Log.e(TAG, "markPharmacyDoseTaken() Supabase sync failed: ${e.message}")
-            }
-
-            val daysLeft = updated.daysOfSupplyLeft()
-            if (daysLeft != null && daysLeft <= 1) {
-                executeAutoAction(AutoAction("ADD_TO_SHOPPING", updated.name, "دواء أوشك على النفاد: ${updated.name} (${updated.remainingQuantity} متبقي)"), context)
-            }
-        }
+        // The server row lock is the authority. Updating Room with the returned value avoids
+        // a second client-side calculation drifting across two phones or the Telegram bot.
+        dao.insertPharmacyItem(item.copy(remainingQuantity = mutation.remainingQuantity))
 
         if (doseLogId != null) {
             val log = dao.getDoseLogById(doseLogId)
