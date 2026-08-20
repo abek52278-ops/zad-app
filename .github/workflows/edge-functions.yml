@@ -149,6 +149,9 @@ jobs:
       # الـ project ref مش سر — هو موجود في supabase/config.toml في الريبو أصلاً، وRLS هي
       # الحماية مش خفاء المعرّف. قراءته من الملف بدل سر إضافي معناها سر أقل ممكن ينسى
       # يتحط فيفشل النشر لسبب مالوش علاقة بالكود.
+      # ملاحظة: وجود SUPABASE_DB_PASSWORD وحده لا يثبت إنه حديث؛ لو اتعمل reset لكلمة
+      # مرور قاعدة البيانات لازم GitHub Secret يتحدث هو كمان، وإلا `db push` هيرجع
+      # SQLSTATE 28P01 حتى مع access token سليم.
       - name: Read project ref
         if: steps.preflight.outputs.ready == 'true'
         run: echo "PROJECT_REF=$(grep -oP '(?<=^id = ")[^"]+' supabase/config.toml)" >> "$GITHUB_ENV"
