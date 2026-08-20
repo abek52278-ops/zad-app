@@ -729,6 +729,7 @@
     <string name="deactivate">إلغاء التفعيل</string>
     <string name="delete_account">حذف الحساب</string>
     <string name="delete_account_confirm">متأكد عايز تمسح حسابك خالص؟ مش هتقدر ترجع في القرار ده.</string>
+    <string name="delete_account_failed">معرفناش نمسح الحساب. اتأكد من النت وجرب تاني.</string>
     <string name="delete_account_permanently">حذف الحساب خالص</string>
     <string name="edit_name">تعديل الاسم</string>
     <string name="edit_profile_subtitle">الاسم، الصورة، والإيميل</string>

@@ -729,6 +729,7 @@
     <string name="deactivate">Devre dışı bırak</string>
     <string name="delete_account">Hesabı sil</string>
     <string name="delete_account_confirm">Hesabını kalıcı olarak silmek istediğine emin misin? Bu işlem geri alınamaz.</string>
+    <string name="delete_account_failed">Hesap silinemedi. Bağlantınızı kontrol edip tekrar deneyin.</string>
     <string name="delete_account_permanently">Hesabı kalıcı olarak sil</string>
     <string name="edit_name">Adı düzenle</string>
     <string name="edit_profile_subtitle">Ad, fotoğraf ve e-posta</string>

@@ -3385,17 +3385,14 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         _pendingSubscriptions.value = _pendingSubscriptions.value.filterNot { it.name == sub.name }
     }
 
-    fun logout() {
+    fun logout(onComplete: () -> Unit = {}) {
         viewModelScope.launch {
             try {
-                SupabaseRepo.client.auth.signOut()
+                SupabaseRepo.signOut(getApplication())
             } catch (e: Exception) {
                 Log.e(TAG, "logout() FAILED: ${e.message}")
             }
-            // الكاش مفاتيحه متقسمة بالـ user id، فمستحيل يتقدّم لحساب تاني — بس سيبان
-            // ملخصات مالية لحساب على القرص بعد ما صاحبه خرج مش حاجة تتعمل على تليفون
-            // مشترك. بيتمسح بعد signOut بغض النظر عن نجاحه: الخروج المحلي حصل في الحالتين.
-            AiLocalCache.clear(getApplication())
+            onComplete()
         }
     }
 
@@ -4491,15 +4488,18 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun deleteAccount() {
+    fun deleteAccount(onResult: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
-            try {
-                SupabaseRepo.deleteAccount()
-                SupabaseRepo.client.auth.signOut()
-                Log.d(TAG, "deleteAccount() SUCCESS")
+            val deleted = try {
+                val deleted = SupabaseRepo.deleteAccount(getApplication())
+                if (deleted) Log.d(TAG, "deleteAccount() SUCCESS")
+                else Log.e(TAG, "deleteAccount() FAILED: backend rejected deletion")
+                deleted
             } catch (e: Exception) {
                 Log.e(TAG, "deleteAccount() FAILED: ${e.message}")
+                false
             }
+            onResult(deleted)
         }
     }
 

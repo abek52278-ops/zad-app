@@ -41,4 +41,13 @@ object CurrentUser {
 
     fun getCachedAvatar(context: Context): String? =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_AVATAR, null)
+
+    fun clear(context: Context) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .remove(KEY)
+            .remove(KEY_NAME)
+            .remove(KEY_AVATAR)
+            .apply()
+    }
 }

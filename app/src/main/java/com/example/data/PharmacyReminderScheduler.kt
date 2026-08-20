@@ -89,6 +89,16 @@ object PharmacyReminderScheduler {
         }
     }
 
+    /** Cancel every medicine alarm before an account leaves this device. */
+    fun cancelAll(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val keys = prefs.getStringSet(KEY_SCHEDULED, emptySet()).orEmpty().toSet()
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        keys.forEach { cancelByKey(context, alarmManager, it) }
+        prefs.edit().remove(KEY_SCHEDULED).apply()
+        Log.d(TAG, "cancelAll() → cancelled=${keys.size}")
+    }
+
     /** @return false if timeStr couldn't be parsed (nothing was scheduled for it) */
     private fun scheduleOne(
         context: Context,

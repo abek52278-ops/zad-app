@@ -774,6 +774,7 @@
     <string name="deactivate">Deactivate</string>
     <string name="delete_account">Delete Account</string>
     <string name="delete_account_confirm">Are you sure you want to permanently delete your account? This action cannot be undone.</string>
+    <string name="delete_account_failed">Could not delete your account. Check your connection and try again.</string>
     <string name="delete_account_permanently">Permanently Delete Account</string>
     <string name="edit_name">Edit Name</string>
     <string name="edit_profile_subtitle">Name, photo, and email</string>

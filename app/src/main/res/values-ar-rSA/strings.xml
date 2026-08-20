@@ -715,6 +715,7 @@
     <string name="deactivate">إلغاء التفعيل</string>
     <string name="delete_account">حذف الحساب</string>
     <string name="delete_account_confirm">متأكد تبي تحذف حسابك نهائياً؟ ما تقدر ترجّع الوضع بعدها.</string>
+    <string name="delete_account_failed">ما قدرنا نحذف الحساب. تأكد من الاتصال وحاول مرة ثانية.</string>
     <string name="delete_account_permanently">حذف الحساب نهائياً</string>
     <string name="edit_name">تعديل الاسم</string>
     <string name="edit_profile_subtitle">الاسم، الصورة، والبريد</string>

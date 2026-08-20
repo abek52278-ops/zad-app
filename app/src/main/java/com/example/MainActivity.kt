@@ -317,7 +317,7 @@ fun AppNavigation(pendingInviteCode: String? = null) {
             }
             if (sessionDiedUnexpectedly && navController.currentDestination?.route == "main") {
                 Log.w("AppNavigation", "Session died unexpectedly ($status) — forcing re-login")
-                SupabaseRepo.signOut()
+                SupabaseRepo.signOut(context)
                 android.widget.Toast.makeText(context, context.getString(R.string.session_expired_message), android.widget.Toast.LENGTH_LONG).show()
                 navController.navigate("login") { popUpTo(0) { inclusive = true } }
             }

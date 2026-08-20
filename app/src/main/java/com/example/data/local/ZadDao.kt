@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.example.data.ZadInventory
 import com.example.data.ZadSubscription
 import com.example.data.ZadTransaction
@@ -150,6 +151,48 @@ interface ZadDao {
 
     @Query("DELETE FROM zad_maintenance_items")
     suspend fun clearMaintenanceItems()
+
+    @Query("DELETE FROM zad_transactions")
+    suspend fun clearTransactions()
+
+    @Query("DELETE FROM zad_dose_log")
+    suspend fun clearDoseLogs()
+
+    @Query("DELETE FROM zad_behavior_patterns")
+    suspend fun clearBehaviorPatterns()
+
+    @Query("DELETE FROM zad_pending_sync_ops")
+    suspend fun clearPendingSyncOps()
+
+    @Query("DELETE FROM zad_rejected_bank_messages")
+    suspend fun clearRejectedBankMessages()
+
+    @Query("DELETE FROM affiliate_clicks")
+    suspend fun clearAffiliateClicks()
+
+    @Query("DELETE FROM affiliate_catalog_requests")
+    suspend fun clearAffiliateCatalogRequests()
+
+    /**
+     * Room isn't partitioned per account, so every user-owned row must leave together.
+     * Keeping this transactional prevents another account from seeing a half-cleared cache.
+     */
+    @Transaction
+    suspend fun clearAccountData() {
+        clearTransactions()
+        clearInventory()
+        clearSubscriptions()
+        clearPharmacyItems()
+        clearDoseLogs()
+        clearMaintenanceItems()
+        clearBehaviorPatterns()
+        clearShoppingItems()
+        clearChatMessages()
+        clearPendingSyncOps()
+        clearRejectedBankMessages()
+        clearAffiliateClicks()
+        clearAffiliateCatalogRequests()
+    }
 
     @Query("DELETE FROM zad_transactions WHERE id = :id")
     suspend fun deleteTransaction(id: String)

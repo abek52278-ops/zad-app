@@ -133,8 +133,13 @@ object SupabaseRepo {
         }
     }
 
-    suspend fun signOut() {
+    suspend fun signOut(context: android.content.Context) {
         Log.d(TAG, "signOut() called")
+        try {
+            LocalAccountData.clear(context)
+        } catch (e: Exception) {
+            Log.e(TAG, "signOut() local cleanup FAILED: $e", e)
+        }
         try {
             client.auth.signOut()
             Log.d(TAG, "signOut() SUCCESS")
@@ -1829,7 +1834,7 @@ object SupabaseRepo {
         }
     }
 
-    suspend fun deleteAccount(): Boolean {
+    suspend fun deleteAccount(context: android.content.Context): Boolean {
         return try {
             val userId = client.auth.currentUserOrNull()?.id ?: return false
             Log.d(TAG, "deleteAccount() → userId=$userId, invoking delete-account edge function")
@@ -1839,7 +1844,12 @@ object SupabaseRepo {
             // service role: it cleans every table lacking an ON DELETE CASCADE to
             // auth.users, then deletes the auth user itself, which cascades the rest.
             client.functions.invoke("delete-account")
-            client.auth.signOut()
+            try {
+                client.auth.signOut()
+            } catch (e: Exception) {
+                Log.w(TAG, "deleteAccount() remote user deleted; local sign-out reported: ${e.message}")
+            }
+            LocalAccountData.clear(context)
             Log.d(TAG, "deleteAccount() SUCCESS")
             true
         } catch (e: Exception) {

@@ -76,6 +76,7 @@ fun ProfileScreen(
     val loadingText = stringResource(R.string.loading_ellipsis)
     val newUserText = stringResource(R.string.new_user_default)
     val saveFailedText = stringResource(R.string.changes_save_failed)
+    val deleteAccountFailedText = stringResource(R.string.delete_account_failed)
     var userEmail by remember { mutableStateOf(loadingText) }
     var userId by remember { mutableStateOf("...") }
     val scope = rememberCoroutineScope()
@@ -105,6 +106,7 @@ fun ProfileScreen(
     }
 
     var showSaveSuccess by remember { mutableStateOf(false) }
+    var isDeletingAccount by remember { mutableStateOf(false) }
     var isUploadingAvatar by remember { mutableStateOf(false) }
     val avatarPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
@@ -168,17 +170,47 @@ fun ProfileScreen(
 
     if (showDeleteAccountDialog) {
         AlertDialog(
-            onDismissRequest = { showDeleteAccountDialog = false },
+            onDismissRequest = { if (!isDeletingAccount) showDeleteAccountDialog = false },
             title = { Text(stringResource(R.string.delete_account), fontWeight = FontWeight.Bold, color = dangerColor) },
             text = { Text(stringResource(R.string.delete_account_confirm), color = onSurface) },
             confirmButton = {
-                Button(onClick = {
-                    viewModel.deleteAccount()
-                    showDeleteAccountDialog = false
-                    onLogout()
-                }, colors = ButtonDefaults.buttonColors(containerColor = dangerColor)) { Text(stringResource(R.string.confirm_delete_account)) }
+                Button(
+                    onClick = {
+                        isDeletingAccount = true
+                        viewModel.deleteAccount { deleted ->
+                            isDeletingAccount = false
+                            if (deleted) {
+                                showDeleteAccountDialog = false
+                                onLogout()
+                            } else {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    deleteAccountFailedText,
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                    },
+                    enabled = !isDeletingAccount,
+                    colors = ButtonDefaults.buttonColors(containerColor = dangerColor)
+                ) {
+                    if (isDeletingAccount) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onError
+                        )
+                    } else {
+                        Text(stringResource(R.string.confirm_delete_account))
+                    }
+                }
             },
-            dismissButton = { TextButton(onClick = { showDeleteAccountDialog = false }) { Text(stringResource(R.string.cancel), color = primary) } },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteAccountDialog = false },
+                    enabled = !isDeletingAccount
+                ) { Text(stringResource(R.string.cancel), color = primary) }
+            },
             containerColor = surface
         )
     }
@@ -457,14 +489,9 @@ fun ProfileScreen(
                 // Logout Button
                 Button(
                     onClick = {
-                        Log.d(TAG_PROF, "Logout button clicked -> calling Supabase auth.signOut()")
-                        scope.launch {
-                            try {
-                                SupabaseRepo.client.auth.signOut()
-                                Log.d(TAG_PROF, "Logout success")
-                            } catch (e: Exception) {
-                                Log.e(TAG_PROF, "Logout error: ${e.message}")
-                            }
+                        Log.d(TAG_PROF, "Logout button clicked -> clearing account state and signing out")
+                        viewModel.logout {
+                            Log.d(TAG_PROF, "Logout complete")
                             onLogout()
                         }
                     },
