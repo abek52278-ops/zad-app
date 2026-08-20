@@ -557,6 +557,8 @@ fun BankReadingStatusSection() {
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
 
     var listenerEnabled by remember { mutableStateOf(BankReadingStatus.isNotificationListenerEnabled(context)) }
+    var lastConnectedAt by remember { mutableStateOf(BankReadingStatus.lastConnectedAt(context)) }
+    var lastSawNotificationAt by remember { mutableStateOf(BankReadingStatus.lastSawNotificationAt(context)) }
     var lastParsedAt by remember { mutableStateOf(BankReadingStatus.lastParsedAt(context)) }
     var testResult by remember { mutableStateOf<String?>(null) }
 
@@ -565,6 +567,8 @@ fun BankReadingStatusSection() {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                 listenerEnabled = BankReadingStatus.isNotificationListenerEnabled(context)
+                lastConnectedAt = BankReadingStatus.lastConnectedAt(context)
+                lastSawNotificationAt = BankReadingStatus.lastSawNotificationAt(context)
                 lastParsedAt = BankReadingStatus.lastParsedAt(context)
             }
         }
@@ -586,6 +590,40 @@ fun BankReadingStatusSection() {
                 context.startActivity(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
             }
         )
+        Spacer(Modifier.height(8.dp))
+        BankReadingStatusRow(
+            label = stringResource(R.string.bank_listener_connected_label),
+            isOn = lastConnectedAt != null,
+            actionLabel = if (listenerEnabled && lastConnectedAt == null) {
+                stringResource(R.string.retry_action)
+            } else null,
+            onAction = {
+                BankReadingStatus.requestRebindIfPermitted(context)
+            },
+        )
+        Text(
+            lastConnectedAt?.let {
+                stringResource(R.string.bank_last_connected_format, formatBankStatusTime(context, it))
+            } ?: stringResource(R.string.bank_listener_never_connected),
+            fontSize = 12.sp,
+            color = onSurfaceVariant,
+        )
+
+        Spacer(Modifier.height(8.dp))
+        BankReadingStatusRow(
+            label = stringResource(R.string.bank_notification_seen_label),
+            isOn = lastSawNotificationAt != null,
+            actionLabel = null,
+            onAction = {},
+        )
+        Text(
+            lastSawNotificationAt?.let {
+                stringResource(R.string.bank_last_seen_format, formatBankStatusTime(context, it))
+            } ?: stringResource(R.string.bank_notification_never_seen),
+            fontSize = 12.sp,
+            color = onSurfaceVariant,
+        )
+
         Spacer(Modifier.height(8.dp))
         Text(
             lastParsedAt?.let {
@@ -657,6 +695,13 @@ fun BankReadingStatusSection() {
     }
 }
 
+private fun formatBankStatusTime(context: android.content.Context, timestamp: Long): String {
+    val date = java.util.Date(timestamp)
+    val day = android.text.format.DateFormat.getMediumDateFormat(context).format(date)
+    val time = android.text.format.DateFormat.getTimeFormat(context).format(date)
+    return "$day $time"
+}
+
 @Composable
 private fun BankReadingStatusRow(label: String, isOn: Boolean, actionLabel: String?, onAction: () -> Unit) {
     Row(
@@ -695,4 +740,3 @@ fun AlertSwitchItem(title: String, desc: String, checked: Boolean, onCheckedChan
         com.example.ui.components.ZadSwitch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
-

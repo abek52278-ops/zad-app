@@ -32,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.example.ui.viewmodels.ZadViewModel
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
@@ -56,6 +57,7 @@ import com.example.data.TasbihaTree
 import com.example.data.ZadInventory
 import com.example.data.ZadTransaction
 import com.example.data.SupabaseRepo
+import com.example.data.buildHomeActivationProgress
 import com.example.data.findActivity
 import io.github.jan.supabase.auth.auth
 import androidx.compose.ui.res.painterResource
@@ -130,8 +132,6 @@ fun HomeScreen(
     val agentSummary by viewModel.agentSummary.collectAsState()
     val isAgentLoading by viewModel.isAgentLoading.collectAsState()
     val autoSuggestions by viewModel.autoSuggestions.collectAsState()
-    val livePrices by viewModel.livePrices.collectAsState()
-    val marketPricesFetchState by viewModel.marketPricesFetchState.collectAsState()
     val inventoryCheckIns by viewModel.inventoryCheckIns.collectAsState()
     val pendingGroceryPurchase by viewModel.pendingGroceryPurchase.collectAsState()
 
@@ -158,12 +158,16 @@ fun HomeScreen(
                 .getEnabledListenerPackages(context).contains(context.packageName)
         )
     }
+    var bankReaderConnectedAt by remember {
+        mutableStateOf(com.example.data.BankReadingStatus.lastConnectedAt(context))
+    }
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                 isNotificationAccessGranted = androidx.core.app.NotificationManagerCompat
                     .getEnabledListenerPackages(context).contains(context.packageName)
+                bankReaderConnectedAt = com.example.data.BankReadingStatus.lastConnectedAt(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -185,7 +189,6 @@ fun HomeScreen(
         viewModel.refreshAgentSummary()
         viewModel.refreshAutoSuggestions()
         viewModel.predictNextMonthExpenses()
-        viewModel.refreshLiveMarketPrices()
         viewModel.refreshOutingSuggestion()
         viewModel.loadZadInsights()
         familyViewModel.loadUpcomingSeasonalEvents()
@@ -206,6 +209,7 @@ fun HomeScreen(
     var selectedRecipeTitle by remember { mutableStateOf<String?>(null) }
     var showRecipeDialog by remember { mutableStateOf(false) }
     var showTasbihaReminder by remember { mutableStateOf(false) }
+    var showHomeTools by rememberSaveable { mutableStateOf(false) }
 
     // Use FamilyViewModel's tasbiha data instead of direct SupabaseRepo call
     val myTasbiha = familyViewModel.myTasbiha
@@ -240,24 +244,10 @@ fun HomeScreen(
         } else {
             // ADULT/ADMIN MODE UI
             Spacer(modifier = Modifier.height(16.dp))
-            com.example.ui.components.LiveMarketTicker(
-                prices = livePrices,
-                fetchState = marketPricesFetchState,
-                onRetry = { viewModel.refreshLiveMarketPrices() }
-            )
-            if (livePrices.isNotEmpty() || marketPricesFetchState != com.example.ui.viewmodels.ZadViewModel.LiveFetchState.NotFetchedYet) {
-                Spacer(modifier = Modifier.height(16.dp))
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Section order below follows the "ZAD App.dc.html" mockup's Home screen
-            // top-to-bottom, verbatim: ticker → hero → days/safe-spend pair → 6-icon
-            // shortcut grid → insights → 2×2 stat grid → dark AI summary → tasbiha
-            // garden → Chef Zad → Amazon picks → recent transactions. Everything the
-            // mockup doesn't have (cash card, shortages, mini inventory/shopping,
-            // urgent recipes, events radar, forecast) now sits in one block *after*
-            // that sequence instead of being interleaved through it.
+            // Home is ordered around trust and completion: setup, balance, actions,
+            // decisions, then history. Secondary modules stay available behind one
+            // explicit disclosure instead of competing for attention on every launch.
             Column(modifier = Modifier.padding(horizontal = 20.dp)) {
                 // مرحلة ١ (docs/agent/PLAN_2026_08_06_rebuild.md) — اقتراح تحويل السوق لو
                 // بلد الشبكة الحالي مختلف عن السوق المختار. اقتراح بس، مفيش تبديل صامت —
@@ -306,51 +296,23 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                if (!isNotificationAccessGranted) {
-                    NotificationPermissionCard {
-                        Log.d(TAG_HOME, "NotificationPermissionCard button clicked")
-                        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-
-                // مرحلة ٤ — دعوة تفعيل تنبيهات الموقع هنا، مش مدفون في NearbyDealsScreen
-                // بس. تجاهل بيتفتكر دائماً (ميزة اختيارية، مش زي إذن إشعارات البنك اللي
-                // فوق واللي أساسي لعمل التطبيق).
-                var locationAlertsCardDismissed by remember {
-                    mutableStateOf(context.getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
-                        .getBoolean("location_alerts_card_dismissed", false))
-                }
-                if (!locationAlertsCardDismissed || com.example.data.GroceryGeofenceManager.isEnabled(context)) {
-                    com.example.ui.components.LocationAlertsCard(
-                        dismissed = locationAlertsCardDismissed,
-                        onDismiss = {
-                            locationAlertsCardDismissed = true
-                            context.getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
-                                .edit().putBoolean("location_alerts_card_dismissed", true).apply()
-                        }
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-
-                // تاسك ٤ — دعوة "المنبهات الدقيقة" هنا كمان، مش مدفون في PharmacyScreen بس،
-                // عشان مستخدم عنده جرعات مجدولة ومنبهاته مش شغالة يشوفها من أول ما يفتح
-                // التطبيق. البانر جوه PharmacyScreen فاضل زي ما هو (belt-and-suspenders).
-                var exactAlarmCardDismissed by remember {
-                    mutableStateOf(context.getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
-                        .getBoolean("exact_alarm_card_dismissed", false))
-                }
-                if (!exactAlarmCardDismissed &&
-                    pharmacyItems.any { it.doseTimesList().isNotEmpty() } &&
-                    !com.example.data.PharmacyReminderScheduler.canScheduleExact(context)
-                ) {
-                    com.example.ui.components.ExactAlarmPermissionCard(
-                        dismissed = exactAlarmCardDismissed,
-                        onDismiss = {
-                            exactAlarmCardDismissed = true
-                            context.getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
-                                .edit().putBoolean("exact_alarm_card_dismissed", true).apply()
-                        }
+                val activationProgress = buildHomeActivationProgress(
+                    hasConfirmedBalance = budgetConfirmed && balanceFigure != null,
+                    bankReadingEnabled = isNotificationAccessGranted && bankReaderConnectedAt != null,
+                    hasInventory = inventory.isNotEmpty(),
+                )
+                if (!activationProgress.isComplete) {
+                    com.example.ui.components.HomeActivationCard(
+                        progress = activationProgress,
+                        onSetBalance = { viewModel.showBudgetDialog() },
+                        onEnableBankReading = {
+                            if (isNotificationAccessGranted) {
+                                com.example.data.BankReadingStatus.requestRebindIfPermitted(context)
+                            } else {
+                                context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                            }
+                        },
+                        onAddInventoryItem = onNavigateToInventory,
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                 }
@@ -376,22 +338,16 @@ fun HomeScreen(
                 // كمان قبل ما نعرض كارت بيقول رقم.
                 val availableFigureValue = availableFigure
                 val balanceFigureValue = balanceFigure
-                com.example.ui.components.AppearOnEntry {
-                    if (budgetConfirmed && balanceFigureValue != null) {
+                if (budgetConfirmed && balanceFigureValue != null) {
+                    com.example.ui.components.AppearOnEntry {
                         com.example.ui.components.ZadCardHero(
                             balance = balanceFigureValue,
                             onBalanceLongPress = { showWhySheet = true },
                             onOpenDetail = { viewModel.showBudgetDialog() }
                         )
-                    } else {
-                        // Task 19.0 معيار قبول ٦ — سقف مش مؤكد، نسأل بدل ما نعرض رقم
-                        com.example.ui.components.BudgetSetupPromptCard(
-                            onSetBudget = { viewModel.showBudgetDialog() }
-                        )
                     }
+                    Spacer(modifier = Modifier.height(18.dp))
                 }
-
-                Spacer(modifier = Modifier.height(18.dp))
 
                 // ── 2. Days left / daily safe spend pair (mockup: two 18dp white cards) ──
                 if (budgetConfirmed && (balanceFigureValue != null || availableFigureValue != null)) {
@@ -424,63 +380,6 @@ fun HomeScreen(
                 }
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // ── 2c. باقات زاد الذكية والترقية (Zad Pro Dynamic Highlight) ──
-                com.example.ui.components.AppearOnEntry(delayMs = 75) {
-                    ZadProHighlightWidget(
-                        onNavigateToPlans = onNavigateToPlans
-                    )
-                }
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // ── 2d. محطة شحن الرصيد بالإعلانات التراكمية ──
-                com.example.ui.components.AppearOnEntry(delayMs = 78) {
-                    ZadAdEnergyWidget()
-                }
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // ── 3. Shortcut grid — 6 fixed columns, exactly the mockup's six
-                // destinations. Was a 9-item horizontally-scrolling LazyRow, which is why
-                // the row read as arbitrary: half of it was off-screen.
-                com.example.ui.components.AppearOnEntry(delayMs = 80) {
-                    com.example.ui.components.ZadPageShortcutsGrid(
-                        items = listOf(
-                            com.example.ui.components.ZadShortcutItem(Icons.Default.Inventory2, stringResource(R.string.nav_inventory), primary, onNavigateToInventory),
-                            com.example.ui.components.ZadShortcutItem(Icons.Default.ShoppingCart, stringResource(R.string.nav_shopping), catDailyIcon, onNavigateToShopping),
-                            com.example.ui.components.ZadShortcutItem(Icons.Default.FamilyRestroom, stringResource(R.string.nav_family), kidsPrimary, onNavigateToFamily),
-                            com.example.ui.components.ZadShortcutItem(Icons.Default.Subscriptions, stringResource(R.string.quick_stat_subscriptions_title), tertiary, onNavigateToSubscriptions),
-                            com.example.ui.components.ZadShortcutItem(Icons.Default.LocalPharmacy, stringResource(R.string.nav_pharmacy), dangerColor, onNavigateToPharmacy),
-                            com.example.ui.components.ZadShortcutItem(Icons.Default.Park, stringResource(R.string.tasbiha_short_label), secondaryDark, onNavigateToTasbiha)
-                        )
-                    )
-                }
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // ── 3b. Telegram bot — كان جوه البروفايل، والناس ما بتوصلش له. الرئيسية
-                // هي المكان اللي بيتشاف. زرار بيفتح شيت عشان الربط نفسه بيعمل نداء شبكة.
-                com.example.ui.components.AppearOnEntry(delayMs = 90) {
-                    com.example.ui.components.TelegramBotCard(onClick = { showTelegramSheet = true })
-                }
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // ── رادار الأسعار الحية اليومية (ذهب، وقود، سلع وخضار) ──
-                com.example.ui.components.AppearOnEntry(delayMs = 100) {
-                    MarketRadarLiveWidget(onNavigateToAssistant = onNavigateToAssistant)
-                }
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // ── نبضات وأفكار عقل زاد الذكية (توفير، وجبات من المخزون، ورادار المناسبات) ──
-                com.example.ui.components.AppearOnEntry(delayMs = 110) {
-                    ZadAutonomousIdeasWidget(
-                        inventory = inventory,
-                        onAskAi = { onNavigateToAssistant() },
-                        onAddToShopping = { onNavigateToShopping() }
-                    )
-                }
-                Spacer(modifier = Modifier.height(18.dp))
-
-                MiniInventoryWidget(inventory = inventory, onNavigateToInventory = onNavigateToInventory)
-                Spacer(modifier = Modifier.height(18.dp))
-
                 if (shortageCount > 0) {
                     com.example.ui.components.ShortagesSummaryCard(
                         shortageCount = shortageCount,
@@ -492,36 +391,67 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                TasbihaHomeWidget(
-                    tree = myTasbiha,
-                    onTasbih = { familyViewModel.tasbihaClick() },
-                    onNavigateToTasbiha = onNavigateToTasbiha
+                com.example.ui.components.HomeToolsToggle(
+                    expanded = showHomeTools,
+                    onToggle = { showHomeTools = !showHomeTools },
                 )
                 Spacer(modifier = Modifier.height(18.dp))
 
-                SmartChefSection(
-                    suggestions = mealSuggestions,
-                    onViewAll = onNavigateToAssistant,
-                    onOpenRecipe = { title ->
-                        selectedRecipeTitle = title
-                        showRecipeDialog = true
-                    },
-                    recipes = chefRecipes,
-                    onAddMissingToShopping = { missing ->
-                        missing.forEach { name ->
-                            viewModel.addShoppingItem(
-                                com.example.data.ZadShoppingItem(itemName = name, quantity = 1)
-                            )
-                        }
+                AnimatedVisibility(visible = showHomeTools) {
+                    Column {
+                        ZadProHighlightWidget(onNavigateToPlans = onNavigateToPlans)
+                        Spacer(modifier = Modifier.height(18.dp))
+                        ZadAdEnergyWidget()
+                        Spacer(modifier = Modifier.height(18.dp))
+                        com.example.ui.components.ZadPageShortcutsGrid(
+                            items = listOf(
+                                com.example.ui.components.ZadShortcutItem(Icons.Default.Inventory2, stringResource(R.string.nav_inventory), primary, onNavigateToInventory),
+                                com.example.ui.components.ZadShortcutItem(Icons.Default.ShoppingCart, stringResource(R.string.nav_shopping), catDailyIcon, onNavigateToShopping),
+                                com.example.ui.components.ZadShortcutItem(Icons.Default.FamilyRestroom, stringResource(R.string.nav_family), kidsPrimary, onNavigateToFamily),
+                                com.example.ui.components.ZadShortcutItem(Icons.Default.Subscriptions, stringResource(R.string.quick_stat_subscriptions_title), tertiary, onNavigateToSubscriptions),
+                                com.example.ui.components.ZadShortcutItem(Icons.Default.LocalPharmacy, stringResource(R.string.nav_pharmacy), dangerColor, onNavigateToPharmacy),
+                                com.example.ui.components.ZadShortcutItem(Icons.Default.Park, stringResource(R.string.tasbiha_short_label), secondaryDark, onNavigateToTasbiha),
+                            ),
+                        )
+                        Spacer(modifier = Modifier.height(18.dp))
+                        com.example.ui.components.TelegramBotCard(onClick = { showTelegramSheet = true })
+                        Spacer(modifier = Modifier.height(18.dp))
+                        ZadAutonomousIdeasWidget(
+                            inventory = inventory,
+                            onAskAi = { onNavigateToAssistant() },
+                            onAddToShopping = { onNavigateToShopping() },
+                        )
+                        Spacer(modifier = Modifier.height(18.dp))
+                        MiniInventoryWidget(inventory = inventory, onNavigateToInventory = onNavigateToInventory)
+                        Spacer(modifier = Modifier.height(18.dp))
+                        TasbihaHomeWidget(
+                            tree = myTasbiha,
+                            onTasbih = { familyViewModel.tasbihaClick() },
+                            onNavigateToTasbiha = onNavigateToTasbiha,
+                        )
+                        Spacer(modifier = Modifier.height(18.dp))
+                        SmartChefSection(
+                            suggestions = mealSuggestions,
+                            onViewAll = onNavigateToAssistant,
+                            onOpenRecipe = { title ->
+                                selectedRecipeTitle = title
+                                showRecipeDialog = true
+                            },
+                            recipes = chefRecipes,
+                            onAddMissingToShopping = { missing ->
+                                missing.forEach { name ->
+                                    viewModel.addShoppingItem(
+                                        com.example.data.ZadShoppingItem(itemName = name, quantity = 1),
+                                    )
+                                }
+                            },
+                        )
+                        Spacer(modifier = Modifier.height(18.dp))
+                        MiniPharmacyWidget(pharmacyItems = pharmacyItems, onNavigateToPharmacy = onNavigateToPharmacy)
+                        Spacer(modifier = Modifier.height(18.dp))
+                        MiniSubscriptionsWidget(subscriptions = subscriptions, onNavigateToSubscriptions = onNavigateToSubscriptions)
                     }
-                )
-                Spacer(modifier = Modifier.height(18.dp))
-
-                MiniPharmacyWidget(pharmacyItems = pharmacyItems, onNavigateToPharmacy = onNavigateToPharmacy)
-                Spacer(modifier = Modifier.height(18.dp))
-
-                MiniSubscriptionsWidget(subscriptions = subscriptions, onNavigateToSubscriptions = onNavigateToSubscriptions)
-                Spacer(modifier = Modifier.height(18.dp))
+                }
 
                 // ── 4. Insights (mockup: translucent glass rows, dot + text + tag) ──
                 // أهم تنبيهات عقل زاد — zad_insights كان مكتوب من زاد-برين وميتقراش
@@ -631,6 +561,14 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
+                // The visible home ends its core loop with proof of what Zad recorded.
+                // Users can verify the latest entries before opening analytics or extras.
+                PremiumTransactionsRow(
+                    transactions = visibleTransactions,
+                    onSeeAllClick = { showAllTransactionsDialog = true },
+                )
+                Spacer(modifier = Modifier.height(18.dp))
+
                 // ── 5. Stat grid — the mockup's 2×2 of plain white label/value tiles.
                 // Task 9 wired these ZadFacts numbers onto Home (they used to exist only
                 // inside ZadIntelligenceScreen's report). Trimmed from six colored
@@ -715,7 +653,7 @@ fun HomeScreen(
                 // أرز، شاي، سكر)، والعيلة دي ناقصها مياه وبيض ولحمة وفراخ — صفر تطابق،
                 // فقسم أمازون مابانش ولا مرة. الشرط "لازم نقص حقيقي" صح ويفضل؛ اللي اتصلح
                 // إن النقص اللي مالوش صف في الكتالوج بقى يتعرض كبحث بالتاج بدل ما يتبلع.
-                if (affiliatePicks.isNotEmpty() || affiliateSearchNeeds.isNotEmpty()) {
+                if (showHomeTools && (affiliatePicks.isNotEmpty() || affiliateSearchNeeds.isNotEmpty())) {
                     Text(stringResource(R.string.shop_from_amazon), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
                     Spacer(modifier = Modifier.height(10.dp))
                     if (affiliatePicks.isNotEmpty()) {
@@ -761,13 +699,6 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                // ── 10. Recent transactions ──
-                PremiumTransactionsRow(
-                    transactions = visibleTransactions,
-                    onSeeAllClick = { showAllTransactionsDialog = true }
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-
                 // ── Beyond the mockup ──────────────────────────────────────────────
                 // Cards Zad has and the mockup doesn't. They stay (each one is backed by
                 // real data the app computes), but they now sit below the mockup sequence
@@ -792,35 +723,39 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                if (autoSuggestions.isNotEmpty()) {
+                if (showHomeTools && autoSuggestions.isNotEmpty()) {
                     AutoSuggestionsCard(suggestions = autoSuggestions)
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
                 // رادار المناسبات (family-only: needs cross-member transaction history)
-                if (familyState is FamilyState.Active && seasonalForecasts.isNotEmpty()) {
+                if (showHomeTools && familyState is FamilyState.Active && seasonalForecasts.isNotEmpty()) {
                     EventsRadarCard(forecasts = seasonalForecasts)
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
                 // PredictionCard بيقارن توقّع الشهر الجاي بالسقف نفسه (budget)، مش بمتبقي
                 // الدورة — سقف <= 0 يبقى "غير معروف" أصلاً فمفيش كارت يتعرض من غير معنى.
-                if (expensePrediction != null && budget > 0) {
+                if (showHomeTools && expensePrediction != null && budget > 0) {
                     PredictionCard(expensePrediction!!, budget)
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
                 // زاد مش رقيب مالي بس — لو المتاح لسه صحي، بيرشح خروجة قريبة (OutingSuggestionCard
                 // بتتخفي تلقائياً لو مفيش اقتراح، مافيش حالة "فاضي" تتعرض هنا).
-                outingSuggestion?.let { spot ->
-                    OutingSuggestionCard(spot = spot)
-                    Spacer(modifier = Modifier.height(18.dp))
+                if (showHomeTools) {
+                    outingSuggestion?.let { spot ->
+                        OutingSuggestionCard(spot = spot)
+                        Spacer(modifier = Modifier.height(18.dp))
+                    }
                 }
 
                 // (المخزون السريع نقل لكتلة ٣c فوق)
 
-                MiniShoppingWidget(shoppingList = shoppingList, onNavigateToShopping = onNavigateToShopping)
-                Spacer(modifier = Modifier.height(18.dp))
+                if (showHomeTools) {
+                    MiniShoppingWidget(shoppingList = shoppingList, onNavigateToShopping = onNavigateToShopping)
+                    Spacer(modifier = Modifier.height(18.dp))
+                }
 
                 // العقل → الوصفات: "عندك دجاج هينتهي بكرة → 3 وصفات بيه"
                 urgentRecipes?.let { urgent ->
@@ -2568,4 +2503,3 @@ fun KidAvatar(seed: String, size: androidx.compose.ui.unit.Dp = 40.dp) {
         Text(emoji, fontSize = (size.value * 0.5f).sp)
     }
 }
-

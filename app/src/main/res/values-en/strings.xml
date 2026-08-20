@@ -1199,4 +1199,23 @@
     <string name="voice_chat_title">Live Voice Chat — Zad AI</string>
     <string name="voice_chat_subtitle">Talk and listen naturally like ChatGPT Voice</string>
     <string name="voice_speak_button">Speak</string>
+    <string name="home_activation_title">Set up Zad for your home</string>
+    <string name="home_activation_subtitle">Three steps make balances, alerts, and predictions useful from day one</string>
+    <string name="home_activation_progress">%1$d of %2$d</string>
+    <string name="home_activation_balance_title">Set your starting balance</string>
+    <string name="home_activation_balance_desc">Enter what you have now so withdrawals and deposits stay accurate</string>
+    <string name="home_activation_bank_title">Enable bank notification reading</string>
+    <string name="home_activation_bank_desc">Let Zad detect transactions and ask you to confirm them</string>
+    <string name="home_activation_inventory_title">Add your first household item</string>
+    <string name="home_activation_inventory_desc">Start with a recurring item so Zad can learn your usage</string>
+    <string name="home_activation_done">Done</string>
+    <string name="home_tools_show">Show more household tools</string>
+    <string name="home_tools_hide">Hide household tools</string>
+    <string name="open_action">Open</string>
+    <string name="bank_listener_connected_label">Reader service connection</string>
+    <string name="bank_notification_seen_label">Notifications reaching the device</string>
+    <string name="bank_last_connected_format">Last service connection: %1$s</string>
+    <string name="bank_last_seen_format">Last notification seen by the service: %1$s</string>
+    <string name="bank_listener_never_connected">The service has not connected yet, even if permission is enabled</string>
+    <string name="bank_notification_never_seen">No notification has reached the service yet</string>
 </resources>

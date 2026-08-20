@@ -1196,4 +1196,23 @@
     <string name="voice_chat_title">Canlı Sesli Sohbet — Zad AI</string>
     <string name="voice_chat_subtitle">ChatGPT Voice gibi doğal konuşun ve dinleyin</string>
     <string name="voice_speak_button">Konuş</string>
+    <string name="home_activation_title">Zad\'ı eviniz için hazırlayın</string>
+    <string name="home_activation_subtitle">Üç adım, bakiye, uyarı ve tahminleri ilk günden yararlı hale getirir</string>
+    <string name="home_activation_progress">%1$d / %2$d</string>
+    <string name="home_activation_balance_title">Başlangıç bakiyenizi belirleyin</string>
+    <string name="home_activation_balance_desc">Para çekme ve yatırma işlemlerini doğru hesaplamak için mevcut tutarı girin</string>
+    <string name="home_activation_bank_title">Banka bildirimlerini okumayı etkinleştirin</string>
+    <string name="home_activation_bank_desc">Zad işlemleri algılasın ve onayınızı istesin</string>
+    <string name="home_activation_inventory_title">İlk ev ürününüzü ekleyin</string>
+    <string name="home_activation_inventory_desc">Zad\'ın kullanımınızı öğrenmesi için sık aldığınız bir ürünle başlayın</string>
+    <string name="home_activation_done">Tamamlandı</string>
+    <string name="home_tools_show">Diğer ev araçlarını göster</string>
+    <string name="home_tools_hide">Ev araçlarını gizle</string>
+    <string name="open_action">Aç</string>
+    <string name="bank_listener_connected_label">Okuyucu hizmeti bağlantısı</string>
+    <string name="bank_notification_seen_label">Cihaza ulaşan bildirimler</string>
+    <string name="bank_last_connected_format">Son hizmet bağlantısı: %1$s</string>
+    <string name="bank_last_seen_format">Hizmetin gördüğü son bildirim: %1$s</string>
+    <string name="bank_listener_never_connected">İzin açık olsa bile hizmet henüz bağlanmadı</string>
+    <string name="bank_notification_never_seen">Hizmete henüz hiçbir bildirim ulaşmadı</string>
 </resources>

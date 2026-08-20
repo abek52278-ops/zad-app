@@ -1199,4 +1199,23 @@
     <string name="voice_chat_title">محادثة صوتية حية — زاد AI</string>
     <string name="voice_chat_subtitle">تحدث واسمع طبيعياً مثل ChatGPT Voice</string>
     <string name="voice_speak_button">تحدث</string>
+    <string name="home_activation_title">جهّز زاد لبيتك</string>
+    <string name="home_activation_subtitle">ثلاث خطوات تجعل الرصيد والتنبيهات والتوقعات مفيدة من أول يوم</string>
+    <string name="home_activation_progress">%1$d من %2$d</string>
+    <string name="home_activation_balance_title">ثبّت رصيد البداية</string>
+    <string name="home_activation_balance_desc">اكتب المبلغ الموجود الآن ليحسب زاد السحب والإيداع بدقة</string>
+    <string name="home_activation_bank_title">فعّل قراءة إشعارات البنك</string>
+    <string name="home_activation_bank_desc">اسمح لزاد بالتقاط العمليات وعرضها للتأكيد</string>
+    <string name="home_activation_inventory_title">أضف أول صنف للبيت</string>
+    <string name="home_activation_inventory_desc">ابدأ بصنف متكرر ليتعلم زاد استهلاكك</string>
+    <string name="home_activation_done">تم</string>
+    <string name="home_tools_show">عرض باقي أدوات البيت</string>
+    <string name="home_tools_hide">إخفاء أدوات البيت</string>
+    <string name="open_action">فتح</string>
+    <string name="bank_listener_connected_label">اتصال خدمة القراءة</string>
+    <string name="bank_notification_seen_label">وصول إشعارات للجهاز</string>
+    <string name="bank_last_connected_format">آخر اتصال فعلي: %1$s</string>
+    <string name="bank_last_seen_format">آخر إشعار وصل للخدمة: %1$s</string>
+    <string name="bank_listener_never_connected">الخدمة لم تتصل بعد، حتى لو كانت الصلاحية مفعلة</string>
+    <string name="bank_notification_never_seen">لم يصل أي إشعار للخدمة بعد</string>
 </resources>
