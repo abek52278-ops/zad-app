@@ -497,6 +497,12 @@ fun ZadIntelligenceScreen(
                     inputText = inputText,
                     listState = listState,
                     onInputChange = { inputText = it },
+                    onSendText = { text, voiceMode ->
+                        if (text.isNotBlank()) {
+                            viewModel.sendAiChatMessage(text, voiceMode = voiceMode)
+                            inputText = ""
+                        }
+                    },
                     onSend = {
                         if (inputText.isNotBlank()) {
                             viewModel.sendAiChatMessage(inputText)
@@ -2218,6 +2224,7 @@ fun ChatSectionCard(
     inputText: String,
     listState: androidx.compose.foundation.lazy.LazyListState,
     onInputChange: (String) -> Unit,
+    onSendText: (String, Boolean) -> Unit,
     onSend: () -> Unit,
     onClearChat: () -> Unit,
     onUndoCommit: (String) -> Unit,
@@ -2252,6 +2259,7 @@ fun ChatSectionCard(
                         inputText = inputText,
                         listState = listState,
                         onInputChange = onInputChange,
+                        onSendText = onSendText,
                         onSend = onSend,
                         onClearChat = onClearChat,
                         onUndoCommit = onUndoCommit,
@@ -2273,6 +2281,7 @@ fun ChatTab(
     inputText: String,
     listState: androidx.compose.foundation.lazy.LazyListState,
     onInputChange: (String) -> Unit,
+    onSendText: (String, Boolean) -> Unit,
     onSend: () -> Unit,
     onClearChat: () -> Unit = {},
     onUndoCommit: (String) -> Unit = {},
@@ -2309,16 +2318,24 @@ fun ChatTab(
     val context = LocalContext.current
     val voiceManager = remember { com.example.voice.ZadVoiceManager(context) }
     val isListening by voiceManager.isListening.collectAsState()
-    var lastSpokenResponseId by remember { mutableStateOf<String?>(null) }
+    var lastSpokenResponseId by remember { mutableStateOf(messages.lastOrNull { !it.isUser }?.id) }
+    var awaitingVoiceReply by remember { mutableStateOf(false) }
+
+    fun submitVoiceQuery(query: String) {
+        val clean = query.trim()
+        if (clean.isEmpty()) return
+        lastSpokenResponseId = messages.lastOrNull { !it.isUser }?.id
+        awaitingVoiceReply = true
+        voiceManager.markThinking()
+        onInputChange("")
+        onSendText(clean, true)
+    }
 
     val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            voiceManager.startListening { query -> 
-                onInputChange(query)
-                onSend() 
-            }
+            voiceManager.startListening(::submitVoiceQuery)
         }
     }
 
@@ -2328,19 +2345,18 @@ fun ChatTab(
         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
         if (hasPermission) {
-            voiceManager.startListening { query -> 
-                onInputChange(query)
-                onSend() 
-            }
+            voiceManager.startListening(::submitVoiceQuery)
         } else {
             permissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
         }
     }
 
-    LaunchedEffect(messages) {
+    LaunchedEffect(messages, awaitingVoiceReply) {
+        if (!awaitingVoiceReply) return@LaunchedEffect
         val lastAssistantMessage = messages.lastOrNull { !it.isUser }
         if (lastAssistantMessage != null && lastAssistantMessage.id != lastSpokenResponseId) {
             lastSpokenResponseId = lastAssistantMessage.id
+            awaitingVoiceReply = false
             voiceManager.speakHumanLike(lastAssistantMessage.text) {
                 // المحادثة الحية المستمرة — يستمع تلقائياً بعد انتهاء الرد
                 startListeningWithPermission()
@@ -2395,7 +2411,7 @@ fun ChatTab(
                                     Box(
                                         modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
                                             .background(primaryContainer)
-                                            .clickable { onInputChange(prompt); onSend() }
+                                            .clickable { onSendText(prompt, false) }
                                             .padding(10.dp),
                                         contentAlignment = Alignment.Center
                                     ) {

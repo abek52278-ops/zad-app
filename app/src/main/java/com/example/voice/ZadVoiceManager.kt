@@ -110,11 +110,19 @@ class ZadVoiceManager(private val context: Context) {
 
                 speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
 
+                val marketLocale = com.example.data.MarketPrefs.getMarket(context).toLocale()
+                val localeTag = marketLocale.toLanguageTag()
+                val additionalLanguages = buildList {
+                    add(localeTag)
+                    if (marketLocale.language == "ar") add("ar")
+                    add("en-US")
+                    add("tr-TR")
+                }.distinct().toTypedArray()
                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-EG")
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "ar-EG")
-                    putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayOf("ar", "ar-SA", "ar-AE", "en-US"))
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, localeTag)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, localeTag)
+                    putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", additionalLanguages)
                     putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
                     putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 }
@@ -131,7 +139,7 @@ class ZadVoiceManager(private val context: Context) {
                     }
 
                     override fun onRmsChanged(rmsdB: Float) {
-                        _soundLevel.value = rmsdB
+                        _soundLevel.value = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
                     }
 
                     override fun onBufferReceived(buffer: ByteArray?) {}
@@ -154,12 +162,10 @@ class ZadVoiceManager(private val context: Context) {
                             else -> "حدث خطأ (${error})"
                         }
                         Log.w(TAG, "SpeechRecognizer error: $error ($msg)")
-                        if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
-                            _voiceState.value = VoiceState.Error(msg)
-                            onResult(msg)
-                        } else {
-                            _voiceState.value = VoiceState.Error(msg)
-                        }
+                        // Recognition errors are UI state, never user speech. Passing msg to
+                        // onResult used to send "تأكد من الاتصال بالإنترنت" to the AI agent
+                        // as if the customer had spoken it.
+                        _voiceState.value = VoiceState.Error(msg)
                     }
 
                     override fun onResults(results: Bundle?) {
@@ -202,6 +208,14 @@ class ZadVoiceManager(private val context: Context) {
         } catch (e: Exception) {
             Log.w(TAG, "stopListening error: ${e.message}")
         }
+        _isListening.value = false
+        _soundLevel.value = 0f
+    }
+
+    fun markThinking() {
+        _voiceState.value = VoiceState.Thinking
+        _isListening.value = false
+        _soundLevel.value = 0f
     }
 
     private val naturalVoiceEngine = ZadNaturalVoiceEngine(context)
@@ -249,6 +263,9 @@ class ZadVoiceManager(private val context: Context) {
             textToSpeech?.stop()
             textToSpeech?.shutdown()
             textToSpeech = null
+            _isListening.value = false
+            _soundLevel.value = 0f
+            _voiceState.value = VoiceState.Idle
         } catch (e: Exception) {
             Log.w(TAG, "release error: ${e.message}")
         }

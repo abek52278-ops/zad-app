@@ -1408,11 +1408,15 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             "=== نهاية الملخص ===\n\n"
     }
 
-    private suspend fun tryAgentTurn(userText: String): Boolean {
+    private suspend fun tryAgentTurn(userText: String, voiceMode: Boolean): Boolean {
         val history = _aiChatMessages.value.dropLast(1).takeLast(8)
             .map { (if (it.isUser) "user" else "assistant") to it.text }
 
-        val result = com.example.data.ZadAiRepository.agentTurn(clientFactsPrefixForAgent() + userText, history) ?: return false
+        val result = com.example.data.ZadAiRepository.agentTurn(
+            clientFactsPrefixForAgent() + userText,
+            history,
+            voiceMode = voiceMode
+        ) ?: return false
 
         pendingAgentProposalsValue = result.proposals
         val text = buildAgentTurnReply(result) ?: return false
@@ -1526,7 +1530,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      *  context, short of the open-ended budget that made replies feel hung. */
     private val CHAT_THINKING_BUDGET = 512
 
-    fun sendAiChatMessage(userText: String) {
+    fun sendAiChatMessage(userText: String, voiceMode: Boolean = false) {
         if (userText.isBlank()) return
         val userMsg = AiChatMessage(text = userText, isUser = true)
         _aiChatMessages.value = _aiChatMessages.value + userMsg
@@ -1585,7 +1589,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 try {
                     if (!handleAgentProposalReply(userText)) {
                         pendingAgentProposalsValue = emptyList()
-                        runChatTurn(userText)
+                        runChatTurn(userText, voiceMode)
                     }
                 } finally {
                     _isAiTyping.value = false
@@ -1596,7 +1600,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             try {
-                runChatTurn(userText)
+                runChatTurn(userText, voiceMode)
             } finally {
                 _isAiTyping.value = false
             }
@@ -1610,7 +1614,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      * اتفصلت عن [sendAiChatMessage] عشان مسار الرد على اقتراح معلّق يقدر يعيد استخدامها
      * لما الرد يطلع مش تأكيد ولا رفض — من غير كده كان لازم يتكرر الجسم كله.
      */
-    private suspend fun runChatTurn(userText: String) {
+    private suspend fun runChatTurn(userText: String, voiceMode: Boolean) {
             try {
                 // لو تقرير العقل مش جاهز، احسبه عشان الشات يكون عارف كل حاجة.
                 //
@@ -1651,7 +1655,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 // موديل مش متاح)، الشات بيفضل شغال بالسلوك القديم بدل ما يقع في وش
                 // المستخدم. الفرق إن المسار الجديد مايقدرش يدّعي تنفيذ محصلش — الرد
                 // مبني على نتيجة الأدوات الفعلية.
-                if (tryAgentTurn(userText)) return
+                if (tryAgentTurn(userText, voiceMode)) return
 
                 // ذاكرة المحادثة: آخر 8 رسائل عشان يفهم سياق الحوار
                 val history = _aiChatMessages.value.dropLast(1).takeLast(8)
@@ -1685,6 +1689,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                        متقولش في كلامك إنك سجّلت أو ضفت حاجة — الـ ACTION هي اللي بتنفّذ فعلاً والتطبيق هو اللي بيرد بالتأكيد، فاكتفِ بالرد على كلامه من غير ما تدّعي إنك كتبت في المخزون
                     8. لو سأل عن خطة سداد الديون، استخدم أرقام قسم === الديون وخطة السداد === فوق بالظبط (الأشهر، الفوائد، الترتيب) — متخترعش خطة مختلفة
                     9. "الميزانية الشهرية" هي السقف الكلي، مش أي رقم تاني. "المحجوز (التزامات+اشتراكات)" رقم منفصل تماماً — لو سأل عن العجز أو الميزانية، قوله رقم "الميزانية الشهرية" بالظبط ومتستبدلوش برقم "المحجوز" أو "المتاح الفعلي" أبداً
+                    10. ${if (voiceMode) "دي مكالمة صوتية: رد بجمل قصيرة سهلة السماع، من غير Markdown أو قوائم طويلة." else "دي محادثة مكتوبة: استخدم تنسيق بسيط فقط لو هيسهّل القراءة."}
                 """.trimIndent()
 
                 // Chat is the one AI call with a human waiting on it and no streaming

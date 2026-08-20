@@ -21,8 +21,6 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
     // Secrets are automatically injected into BuildConfig by the secrets-gradle-plugin
-    val elevenLabsKey = project.findProperty("ELEVENLABS_API_KEY") as? String ?: "4f85a3a0921dc3ce16eb087b96ead882adef17d0ce9c1df01b0de4c6a3294d23"
-    buildConfigField("String", "ELEVENLABS_API_KEY", "\"$elevenLabsKey\"")
   }
 
   signingConfigs {

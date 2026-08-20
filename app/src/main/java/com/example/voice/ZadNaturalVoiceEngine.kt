@@ -5,37 +5,42 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
-import android.util.Base64
 import android.util.Log
+import com.example.BuildConfig
+import com.example.data.MarketPrefs
+import com.example.data.SupabaseRepo
+import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import okhttp3.Call
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.Response
-import okhttp3.WebSocket
-import okhttp3.WebSocketListener
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import java.util.Locale
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 
 /**
- * 🎙️ محرك الصوت البشري الطبيعي الذكي (Zad Natural Voice Engine)
- * يستخدم ElevenLabs WebSockets Streaming API للاستجابة اللحظية (Real-time).
- * يشمل Fallback محلي باستخدام Android TTS في حالة عدم توفر الاتصال.
+ * Streams natural speech through the authenticated Zad Edge Function. Provider secrets stay
+ * server-side; Android TTS remains an offline fallback when the session or provider is unavailable.
  */
 class ZadNaturalVoiceEngine(private val context: Context) {
 
-    private val TAG = "ZadNaturalVoiceEngine"
+    private val tag = "ZadNaturalVoiceEngine"
 
     enum class VoicePersona(
         val id: String,
-        val elevenLabsVoiceId: String,
         val displayNameAr: String,
         val descriptionAr: String,
         val pitch: Float,
@@ -44,7 +49,6 @@ class ZadNaturalVoiceEngine(private val context: Context) {
     ) {
         SARAH_STUDIO_WARM(
             id = "sarah_warm",
-            elevenLabsVoiceId = "EXAVITQu4vr4xnSDxMaL", // Sarah / Bella Voice ID
             displayNameAr = "👩 سارة (صوت استوديو دافئ)",
             descriptionAr = "صوت بشري طبيعي دافئ ومريح للأذن مع إيقاع متزن",
             pitch = 1.08f,
@@ -52,7 +56,6 @@ class ZadNaturalVoiceEngine(private val context: Context) {
         ),
         KARIM_STUDIO_PRO(
             id = "karim_pro",
-            elevenLabsVoiceId = "pNInz6obpgDQGcFmaJgB", // Adam / Karim Voice ID
             displayNameAr = "👨 كريم (صوت مهني وودود)",
             descriptionAr = "نبرة واثقة، واضحة ومباشرة مثل المستشار الشخصي",
             pitch = 0.95f,
@@ -60,7 +63,6 @@ class ZadNaturalVoiceEngine(private val context: Context) {
         ),
         PET_MASCOT_CUTE(
             id = "pet_mascot",
-            elevenLabsVoiceId = "MF3mGyEYCl7XYWbV9V6O", // Cute / Mascot Voice ID
             displayNameAr = "🐾 زاد الأليف (رفيق مرح وكيوت)",
             descriptionAr = "صوت مرح ولطيف مع أصوات وحركات الحيوان الأليف المحبوب",
             pitch = 1.35f,
@@ -69,24 +71,26 @@ class ZadNaturalVoiceEngine(private val context: Context) {
         )
     }
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val generation = AtomicLong(0L)
+    private val httpClient = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(90, TimeUnit.SECONDS)
+        .build()
+
     private var textToSpeech: TextToSpeech? = null
     private var isTtsInitialized = false
+    @Volatile private var activeCall: Call? = null
+    @Volatile private var audioTrack: AudioTrack? = null
+    @Volatile private var completion: (() -> Unit)? = null
 
-    // ElevenLabs WebSocket & AudioTrack for Real-time Streaming
-    private var webSocket: WebSocket? = null
-    private val httpClient = OkHttpClient.Builder()
-        .readTimeout(0, TimeUnit.MILLISECONDS)
-        .build()
-    private var audioTrack: AudioTrack? = null
-    private val SAMPLE_RATE = 24000
-
+    private val sampleRate = 24_000
     private val _isSpeaking = MutableStateFlow(false)
     val isSpeaking: StateFlow<Boolean> = _isSpeaking.asStateFlow()
 
     private val _currentPersona = MutableStateFlow(VoicePersona.SARAH_STUDIO_WARM)
     val currentPersona: StateFlow<VoicePersona> = _currentPersona.asStateFlow()
-
-    var onSpeechCompletedListener: (() -> Unit)? = null
 
     init {
         initFallbackTtsEngine()
@@ -99,17 +103,22 @@ class ZadNaturalVoiceEngine(private val context: Context) {
                 setupVoicePersona(_currentPersona.value)
                 textToSpeech?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) {
-                        _isSpeaking.value = true
+                        utteranceGeneration(utteranceId)?.let { id ->
+                            if (id == generation.get()) _isSpeaking.value = true
+                        }
                     }
+
                     override fun onDone(utteranceId: String?) {
-                        finishSpeaking()
+                        utteranceGeneration(utteranceId)?.let(::finishSpeaking)
                     }
+
                     @Deprecated("Deprecated in Java")
                     override fun onError(utteranceId: String?) {
-                        finishSpeaking()
+                        utteranceGeneration(utteranceId)?.let(::finishSpeaking)
                     }
+
                     override fun onError(utteranceId: String?, errorCode: Int) {
-                        finishSpeaking()
+                        utteranceGeneration(utteranceId)?.let(::finishSpeaking)
                     }
                 })
             }
@@ -118,182 +127,213 @@ class ZadNaturalVoiceEngine(private val context: Context) {
 
     fun setPersona(persona: VoicePersona) {
         _currentPersona.value = persona
-        if (isTtsInitialized) {
-            setupVoicePersona(persona)
-        }
+        if (isTtsInitialized) setupVoicePersona(persona)
     }
 
     private fun setupVoicePersona(persona: VoicePersona) {
         val tts = textToSpeech ?: return
         try {
-            val locale = Locale("ar")
-            tts.language = locale
+            val locale = MarketPrefs.getMarket(context).toLocale()
+            tts.language = if (tts.isLanguageAvailable(locale) >= TextToSpeech.LANG_AVAILABLE) {
+                locale
+            } else {
+                java.util.Locale.forLanguageTag(locale.language)
+            }
             tts.setPitch(persona.pitch)
             tts.setSpeechRate(persona.speechRate)
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed configuring TTS persona: ${e.message}")
+        } catch (error: Exception) {
+            Log.w(tag, "Failed configuring fallback TTS: ${error.message}")
         }
     }
 
-    private fun initAudioTrack() {
-        audioTrack?.release()
+    fun speakHumanLike(text: String, onDone: (() -> Unit)? = null) {
+        stopInternal()
+        if (text.isBlank()) {
+            onDone?.invoke()
+            return
+        }
+
+        val requestGeneration = generation.incrementAndGet()
+        completion = onDone
+        _isSpeaking.value = true
+
+        val persona = _currentPersona.value
+        if (persona.isPetPersona) {
+            ZadCutePetSoundFx.play(ZadCutePetSoundFx.PetSound.MeowChirp, 0.40f)
+        }
+        val naturalText = prepareNaturalSpeechText(text, persona)
+
+        scope.launch {
+            try {
+                val session = SupabaseRepo.client.auth.currentSessionOrNull()
+                val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id?.toString()
+                if (session == null || userId.isNullOrBlank()) {
+                    startFallback(requestGeneration, naturalText)
+                    return@launch
+                }
+
+                val body = JSONObject().apply {
+                    put("action", "voice_synthesize")
+                    put("user_id", userId)
+                    put("payload", JSONObject().apply {
+                        put("text", naturalText)
+                        put("persona", persona.id)
+                        put("locale", MarketPrefs.getMarket(context).localeTag)
+                    })
+                }.toString()
+                val request = Request.Builder()
+                    .url("${BuildConfig.SUPABASE_URL}/functions/v1/zad-core-intelligence")
+                    .addHeader("Authorization", "Bearer ${session.accessToken}")
+                    .addHeader("apikey", BuildConfig.SUPABASE_ANON_KEY)
+                    .addHeader("Accept", "audio/pcm")
+                    .post(body.toRequestBody("application/json; charset=utf-8".toMediaType()))
+                    .build()
+
+                val call = httpClient.newCall(request)
+                activeCall = call
+                call.execute().use { response ->
+                    if (requestGeneration != generation.get()) return@use
+                    if (!response.isSuccessful) {
+                        Log.w(tag, "Voice proxy unavailable: HTTP ${response.code}")
+                        startFallback(requestGeneration, naturalText)
+                        return@use
+                    }
+                    val responseBody = response.body
+                    if (responseBody == null) {
+                        startFallback(requestGeneration, naturalText)
+                        return@use
+                    }
+                    streamPcm(requestGeneration, responseBody.byteStream())
+                }
+            } catch (error: Exception) {
+                if (requestGeneration == generation.get()) {
+                    Log.w(tag, "Voice stream failed, using local TTS: ${error.message}")
+                    startFallback(requestGeneration, naturalText)
+                }
+            } finally {
+                if (requestGeneration == generation.get()) activeCall = null
+            }
+        }
+    }
+
+    private fun streamPcm(requestGeneration: Long, input: java.io.InputStream) {
         val minBufferSize = AudioTrack.getMinBufferSize(
-            SAMPLE_RATE,
+            sampleRate,
             AudioFormat.CHANNEL_OUT_MONO,
             AudioFormat.ENCODING_PCM_16BIT
-        )
-        audioTrack = AudioTrack.Builder()
+        ).coerceAtLeast(sampleRate / 2)
+        val track = AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setUsage(AudioAttributes.USAGE_ASSISTANT)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                     .build()
             )
             .setAudioFormat(
                 AudioFormat.Builder()
                     .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setSampleRate(SAMPLE_RATE)
+                    .setSampleRate(sampleRate)
                     .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                     .build()
             )
             .setBufferSizeInBytes(minBufferSize * 2)
             .setTransferMode(AudioTrack.MODE_STREAM)
             .build()
-        audioTrack?.play()
+        audioTrack = track
+        try {
+            track.play()
+            val buffer = ByteArray(8_192)
+            while (requestGeneration == generation.get()) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                if (read > 0) track.write(buffer, 0, read, AudioTrack.WRITE_BLOCKING)
+            }
+            if (requestGeneration == generation.get()) finishSpeaking(requestGeneration)
+        } finally {
+            if (audioTrack === track) audioTrack = null
+            try {
+                track.stop()
+            } catch (_: Exception) {
+            }
+            track.release()
+        }
     }
 
-    /**
-     * نطق النص بأسلوب بشري طبيعي باستخدام ElevenLabs WebSockets (لو فشل بيستخدم TTS)
-     */
-    fun speakHumanLike(text: String, onDone: (() -> Unit)? = null) {
-        onSpeechCompletedListener = onDone
-        val persona = _currentPersona.value
-
-        if (persona.isPetPersona) {
-            ZadCutePetSoundFx.play(ZadCutePetSoundFx.PetSound.MeowChirp, 0.40f)
+    private fun startFallback(requestGeneration: Long, text: String) {
+        mainHandler.post {
+            if (requestGeneration != generation.get()) return@post
+            if (!isTtsInitialized || textToSpeech == null) {
+                finishSpeaking(requestGeneration)
+                return@post
+            }
+            setupVoicePersona(_currentPersona.value)
+            val params = Bundle().apply {
+                putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
+            }
+            val result = textToSpeech?.speak(
+                text,
+                TextToSpeech.QUEUE_FLUSH,
+                params,
+                "zad_fallback_tts_$requestGeneration"
+            )
+            if (result == TextToSpeech.ERROR) finishSpeaking(requestGeneration)
         }
-
-        val naturalHumanText = prepareNaturalSpeechText(text, persona)
-
-        // إغلاق أي اتصال WebSocket أو AudioTrack شغال حالياً
-        stop()
-
-        _isSpeaking.value = true
-        initAudioTrack()
-
-        // جلب مفتاح ElevenLabs من الإعدادات الآمنة (يتم إضافته في local.properties)
-        val apiKey = com.example.BuildConfig.ELEVENLABS_API_KEY
-        val url = "wss://api.elevenlabs.io/v1/text-to-speech/${persona.elevenLabsVoiceId}/stream-input?model_id=eleven_multilingual_v2&output_format=pcm_24000"
-
-        val request = Request.Builder()
-            .url(url)
-            .addHeader("xi-api-key", apiKey)
-            .build()
-
-        webSocket = httpClient.newWebSocket(request, object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: Response) {
-                try {
-                    // 1. Initial settings message
-                    val initialMessage = JSONObject().apply {
-                        put("text", " ")
-                        put("voice_settings", JSONObject().apply {
-                            put("stability", 0.5)
-                            put("similarity_boost", 0.8)
-                        })
-                    }
-                    webSocket.send(initialMessage.toString())
-
-                    // 2. Stream the actual text (We can also chunk the text here if needed)
-                    val textMessage = JSONObject().apply {
-                        put("text", naturalHumanText)
-                    }
-                    webSocket.send(textMessage.toString())
-
-                    // 3. Signal end of input
-                    val endMessage = JSONObject().apply {
-                        put("text", "")
-                    }
-                    webSocket.send(endMessage.toString())
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error sending text to ElevenLabs WebSocket", e)
-                }
-            }
-
-            override fun onMessage(webSocket: WebSocket, text: String) {
-                try {
-                    val json = JSONObject(text)
-                    if (json.has("audio")) {
-                        val base64Audio = json.getString("audio")
-                        if (base64Audio.isNotEmpty() && base64Audio != "null") {
-                            val pcmData = Base64.decode(base64Audio, Base64.DEFAULT)
-                            audioTrack?.write(pcmData, 0, pcmData.size)
-                        }
-                    }
-                    if (json.has("isFinal") && json.getBoolean("isFinal")) {
-                        finishSpeaking()
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error parsing ElevenLabs message", e)
-                }
-            }
-
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                Log.e(TAG, "ElevenLabs WebSocket Failure, falling back to local TTS", t)
-                speakWithFallbackTTS(naturalHumanText)
-            }
-
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                finishSpeaking()
-            }
-        })
     }
 
-    private fun speakWithFallbackTTS(text: String) {
-        if (textToSpeech == null || !isTtsInitialized) {
-            finishSpeaking()
-            return
-        }
-        val params = Bundle().apply {
-            putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
-        }
-        _isSpeaking.value = true
-        textToSpeech?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "zad_fallback_tts")
-    }
+    private fun utteranceGeneration(utteranceId: String?): Long? =
+        utteranceId?.removePrefix("zad_fallback_tts_")?.toLongOrNull()
 
-    private fun finishSpeaking() {
-        _isSpeaking.value = false
-        onSpeechCompletedListener?.invoke()
-        onSpeechCompletedListener = null
+    private fun finishSpeaking(requestGeneration: Long) {
+        mainHandler.post {
+            if (requestGeneration != generation.get()) return@post
+            _isSpeaking.value = false
+            val callback = completion
+            completion = null
+            callback?.invoke()
+        }
     }
 
     fun stop() {
+        stopInternal()
+    }
+
+    private fun stopInternal() {
+        generation.incrementAndGet()
+        completion = null
         _isSpeaking.value = false
-        webSocket?.close(1000, "Stopped by user")
-        webSocket = null
+        activeCall?.cancel()
+        activeCall = null
+        val track = audioTrack
+        audioTrack = null
         try {
-            audioTrack?.stop()
-            audioTrack?.flush()
-        } catch (_: Exception) {}
+            track?.pause()
+            track?.flush()
+            track?.stop()
+        } catch (_: Exception) {
+        }
         textToSpeech?.stop()
     }
 
     fun release() {
-        stop()
-        audioTrack?.release()
-        audioTrack = null
+        stopInternal()
+        scope.cancel()
         try {
+            audioTrack?.release()
+            audioTrack = null
             textToSpeech?.shutdown()
             textToSpeech = null
             isTtsInitialized = false
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
     }
 
     private fun prepareNaturalSpeechText(rawText: String, persona: VoicePersona): String {
+        val linkWord = if (MarketPrefs.getMarket(context).localeTag.startsWith("tr")) "bağlantı" else "الرابط"
         var cleaned = rawText
+            .replace(Regex("""https?://\S+"""), linkWord)
             .replace(Regex("""[#*`_~>\[\]()]"""), " ")
-            .replace(Regex("https?://\\\\S+"), "الرابط")
-            .replace(Regex("[\\\\p{So}\\\\p{Cn}]"), " ")
-            .replace(Regex("\\\\s+"), " ")
+            .replace(Regex("""[\p{So}\p{Cn}]"""), " ")
+            .replace(Regex("""\s+"""), " ")
             .trim()
 
         cleaned = cleaned.replace("،", "، ... ")
@@ -302,16 +342,15 @@ class ZadNaturalVoiceEngine(private val context: Context) {
             .replace("؟", "؟ ... ")
 
         if (persona.isPetPersona) {
-            val cutePrefixes = listOf(
-                "أهلاً يا صديقي! ",
-                "من عيوني! ",
-                "تمام حاضر! ",
-                "يا سلام! "
-            )
+            val prefixes = if (MarketPrefs.getMarket(context).localeTag.startsWith("tr")) {
+                listOf("Merhaba! ", "Tabii! ", "Tamam! ")
+            } else {
+                listOf("أهلاً يا صديقي! ", "من عيوني! ", "تمام حاضر! ", "يا سلام! ")
+            }
             if (!cleaned.startsWith("أهل") && !cleaned.startsWith("مرحب")) {
-                cleaned = cutePrefixes.random() + cleaned
+                cleaned = prefixes.random() + cleaned
             }
         }
-        return cleaned
+        return cleaned.take(1_200)
     }
 }

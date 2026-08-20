@@ -45,7 +45,6 @@ import com.example.ui.viewmodels.ZadViewModel
 import com.example.voice.VoiceState
 import com.example.voice.ZadVoiceManager
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,23 +53,32 @@ fun ZadVoiceBottomSheet(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val voiceManager = remember { ZadVoiceManager(context) }
     val voiceState by voiceManager.voiceState.collectAsState()
     val soundLevel by voiceManager.soundLevel.collectAsState()
     val chatMessages by viewModel.aiChatMessages.collectAsState()
 
-    var lastSpokenResponseId by remember { mutableStateOf<String?>(null) }
+    var lastSpokenResponseId by remember {
+        mutableStateOf(chatMessages.lastOrNull { !it.isUser }?.id)
+    }
+    var awaitingVoiceReply by remember { mutableStateOf(false) }
     var currentTranscription by remember { mutableStateOf("") }
+
+    fun submitVoiceQuery(query: String) {
+        val clean = query.trim()
+        if (clean.isEmpty()) return
+        currentTranscription = clean
+        lastSpokenResponseId = chatMessages.lastOrNull { !it.isUser }?.id
+        awaitingVoiceReply = true
+        voiceManager.markThinking()
+        viewModel.sendAiChatMessage(clean, voiceMode = true)
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            voiceManager.startListening { query ->
-                currentTranscription = query
-                scope.launch { viewModel.sendAiChatMessage(query) }
-            }
+            voiceManager.startListening(::submitVoiceQuery)
         }
     }
 
@@ -81,10 +89,7 @@ fun ZadVoiceBottomSheet(
         ) == PackageManager.PERMISSION_GRANTED
 
         if (hasPermission) {
-            voiceManager.startListening { query ->
-                currentTranscription = query
-                scope.launch { viewModel.sendAiChatMessage(query) }
-            }
+            voiceManager.startListening(::submitVoiceQuery)
         } else {
             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
@@ -98,10 +103,12 @@ fun ZadVoiceBottomSheet(
     var selectedPersona by remember { mutableStateOf(voiceManager.getCurrentPersona()) }
 
     // When agent responds, speak with selected natural studio persona and resume listening afterwards
-    LaunchedEffect(chatMessages) {
+    LaunchedEffect(chatMessages, awaitingVoiceReply) {
+        if (!awaitingVoiceReply) return@LaunchedEffect
         val lastAssistantMessage = chatMessages.lastOrNull { !it.isUser }
         if (lastAssistantMessage != null && lastAssistantMessage.id != lastSpokenResponseId) {
             lastSpokenResponseId = lastAssistantMessage.id
+            awaitingVoiceReply = false
             voiceManager.speakHumanLike(lastAssistantMessage.text) {
                 // المحادثة الحية المستمرة — يستمع تلقائياً بعد انتهاء الرد مثل ChatGPT Voice و Gemini Live
                 startListeningWithPermission()
@@ -333,9 +340,8 @@ fun ZadVoiceBottomSheet(
                 suggestions.forEach { prompt ->
                     SuggestionChip(
                         onClick = {
-                            currentTranscription = prompt
                             voiceManager.stopSpeaking()
-                            scope.launch { viewModel.sendAiChatMessage(prompt) }
+                            submitVoiceQuery(prompt)
                         },
                         label = { Text(prompt, fontSize = 11.sp) },
                         shape = RoundedCornerShape(20.dp),

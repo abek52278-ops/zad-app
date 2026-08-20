@@ -2,6 +2,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.6";
 import { redactForLog } from "./redact.ts";
 import { foodFallbackUrl, looksLikeFoodAlt, toFoodSearchTerm } from "./foodImageQuery.ts";
+import { bearerToken, requestElevenLabsVoice, validateVoicePayload } from "./voice.ts";
 
 // ── Provider chain (2026-08-01): Gemini (5-key pool, native endpoint) primary, Groq
 // (2-key pool) secondary for TEXT/JSON only — vision never touches Groq ──────────────────
@@ -296,6 +297,7 @@ const ZAD_PERSONA_PREFIX = "أنت عقل زاد — مدير مالي ومنز�
 // anyone decompile it and burn the free-tier quota. nearby_pois below proxies it the same
 // way every other third-party AI/data call in this file already goes through the server.
 const LOCATIONIQ_API_KEY = Deno.env.get("LOCATIONIQ_API_KEY");
+const ELEVENLABS_API_KEY = Deno.env.get("ELEVENLABS_API_KEY") ?? "";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -857,6 +859,37 @@ Deno.serve(async (req: Request) => {
   try {
     const { action, user_id, payload, dialect } = await req.json();
     console.log(`[CoreIntel] action=${action}, user=${user_id}`);
+
+    if (action === "voice_synthesize") {
+      const token = bearerToken(req);
+      const { data: caller, error: authError } = token
+        ? await supabase.auth.getUser(token)
+        : { data: { user: null }, error: new Error("missing token") };
+      if (authError || !caller?.user?.id) {
+        return jsonResponse({ error: "unauthorized" }, 401);
+      }
+      if (user_id && user_id !== caller.user.id) {
+        return jsonResponse({ error: "forbidden" }, 403);
+      }
+      const voiceRequest = validateVoicePayload(payload);
+      if (!voiceRequest) return jsonResponse({ error: "invalid voice request" }, 400);
+      if (!ELEVENLABS_API_KEY) return jsonResponse({ error: "voice provider unavailable" }, 503);
+
+      const upstream = await requestElevenLabsVoice(voiceRequest, ELEVENLABS_API_KEY);
+      if (!upstream.ok || !upstream.body) {
+        console.error(`[CoreIntel] ElevenLabs failed with HTTP ${upstream.status}`);
+        return jsonResponse({ error: "voice provider unavailable" }, 502);
+      }
+      return new Response(upstream.body, {
+        status: 200,
+        headers: {
+          ...corsHeaders(),
+          "Content-Type": "audio/pcm",
+          "Cache-Control": "no-store",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+    }
 
     // توجيه اللهجة/اللغة القادم من MarketPrefs على الجهاز (سعودي/مصري/تركي) —
     // يُحقن قبل أي system prompt نصي عشان الرد يطابق لهجة/لغة بلد المستخدم.

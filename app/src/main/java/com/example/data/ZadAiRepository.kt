@@ -721,13 +721,18 @@ object ZadAiRepository {
      * كانت هتخلي أي حد معاه توكن صالح يكتب في دفتر حد تاني.
      */
     @Suppress("UNCHECKED_CAST")
-    suspend fun agentTurn(message: String, history: List<Pair<String, String>>): AgentTurnResult? {
+    suspend fun agentTurn(
+        message: String,
+        history: List<Pair<String, String>>,
+        voiceMode: Boolean = false
+    ): AgentTurnResult? {
         return try {
             val response = SupabaseRepo.callEdgeFunction(
                 BRAIN_FUNCTION,
                 mapOf(
                     "action" to "agent_turn",
                     "message" to message,
+                    "voice_mode" to voiceMode,
                     "history" to history.map { (role, text) -> mapOf("role" to role, "text" to text) }
                 ),
                 timeoutMs = AGENT_TURN_TIMEOUT_MS
