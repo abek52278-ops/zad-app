@@ -61,6 +61,7 @@ import { type FastIntent, formatBalanceReply, parseFastPath } from "./fastPath.t
 import { AgentSource, AuditScope, recordAction, writeRows } from "./audit.ts";
 import { redactNotificationText } from "./redact.ts";
 import { classifyMessage, consume as consumeEntitlement, lockedReply } from "./entitlement.ts";
+import { hasConfiguredSecret, hasServiceRoleAuthorization, resolveAuthedUserId } from "./auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -2593,25 +2594,12 @@ const CHAT_TOOLS: ToolDef[] = [
  *    هنا أصلاً، فالتحقق هنا مش هيضيف أي حماية. البوت بيحدد المستخدم من جدول
  *    telegram_bindings (chat_id ↔ user_id)، وده الحارس الحقيقي في المسار ده.
  */
-async function resolveAuthedUserId(req: Request, body: any): Promise<string | null> {
-  const header = req.headers.get("Authorization") ?? "";
-  const token = header.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : "";
-  if (!token) return null;
-
-  if (token === SERVICE_ROLE_KEY) {
-    const claimed = typeof body?.user_id === "string" ? body.user_id.trim() : "";
-    return claimed.length > 0 ? claimed : null;
-  }
-
-  try {
+async function resolveRequestUserId(req: Request, body: unknown): Promise<string | null> {
+  return await resolveAuthedUserId(req, body, SERVICE_ROLE_KEY, async (token) => {
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
     const { data, error } = await sb.auth.getUser(token);
-    if (error || !data?.user?.id) return null;
-    return data.user.id;
-  } catch (e) {
-    console.error("resolveAuthedUserId failed:", e);
-    return null;
-  }
+    return error || !data?.user?.id ? null : data.user.id;
+  });
 }
 
 /** اقتراح كتابة مالية مستني تأكيد العميل — مش متخزّن في أي جدول، بيرجع للكلاينت
@@ -3398,6 +3386,9 @@ Deno.serve(async (req: Request) => {
     // ZAD_PROVIDER/ZAD_API_KEY/ZAD_MODEL_ROUTINE can be checked in isolation
     // before trusting any real run. { "smoke_test": true } in the body.
     if (body.smoke_test === true) {
+      if (!hasServiceRoleAuthorization(req, SERVICE_ROLE_KEY)) {
+        return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: CORS_HEADERS });
+      }
       try {
         const result = await smokeTestTools(MODEL_ROUTINE);
         return new Response(JSON.stringify(result), { headers: CORS_HEADERS });
@@ -3410,7 +3401,7 @@ Deno.serve(async (req: Request) => {
     // ده كل ٥ دقايق، فالتحقق بسيكريت هيدر مخصص، نفس نمط X-Checkin-Cron-Secret/
     // X-Subscription-Cron-Secret في zad-telegram-bot بالظبط.
     if (body.action === "process_agent_tasks") {
-      if (req.headers.get("X-Agent-Tasks-Cron-Secret") !== AGENT_TASKS_CRON_SECRET) {
+      if (!hasConfiguredSecret(req.headers.get("X-Agent-Tasks-Cron-Secret"), AGENT_TASKS_CRON_SECRET)) {
         return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: CORS_HEADERS });
       }
       const sbTasks = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
@@ -3424,7 +3415,7 @@ Deno.serve(async (req: Request) => {
     // 20260810200000) — هنا بنناديها بس، بنفس فصل "البيانات والقرار في الـ DB والفانكشن
     // توصيل" اللي realtime_push بيشتغل بيه.
     if (body.action === "run_proactive_scan") {
-      if (req.headers.get("ZAD-PROACTIVE-CRON-SECRET") !== PROACTIVE_CRON_SECRET) {
+      if (!hasConfiguredSecret(req.headers.get("ZAD-PROACTIVE-CRON-SECRET"), PROACTIVE_CRON_SECRET)) {
         return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: CORS_HEADERS });
       }
       const sbScan = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
@@ -3438,6 +3429,9 @@ Deno.serve(async (req: Request) => {
     // ── حلقة التأمل الليلي المستقلة (Nightly Autonomous Dream & Memory Synthesis) ──
     // تعمل في الخلفية يومياً لتحليل سرعة الاستهلاك، استنتاج أنماط الإنفاق، وتغذية شبكة الذاكرة.
     if (body.action === "nightly_dream_reflection") {
+      if (!hasServiceRoleAuthorization(req, SERVICE_ROLE_KEY)) {
+        return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: CORS_HEADERS });
+      }
       const sbDream = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
       const targetUserId = body.user_id;
 
@@ -3484,7 +3478,7 @@ Deno.serve(async (req: Request) => {
     // ده بيكتب معاملات مالية، فبياخد الهوية من الـ JWT بس. لو أخدها من الجسم كان أي حد
     // معاه توكن صالح يقدر يكتب في دفتر أي مستخدم تاني بمجرد إنه يبعت الـ id بتاعه.
     if (body.action === "agent_turn" || body.action === "agent_confirm" || body.action === "agent_execute" || body.action === "notification_ingest") {
-      const authedUserId = await resolveAuthedUserId(req, body);
+      const authedUserId = await resolveRequestUserId(req, body);
       if (!authedUserId) {
         return new Response(
           JSON.stringify({ error: "unauthorized: agent actions require a user JWT" }),
@@ -3498,11 +3492,15 @@ Deno.serve(async (req: Request) => {
       return await handleAgentExecute(sbChat, authedUserId, body);
     }
 
-    const userId: string | undefined = body.user_id;
+    // التحليل اليومي/الحدثي يقرأ ويكتب بيانات العميل أيضاً، لذلك هويته لازم تكون من
+    // JWT موثوق مثل مسار المحادثة. service-role فقط مسموح له اختيار user_id صراحة.
+    const userId = await resolveRequestUserId(req, body);
     const trigger: Trigger = body.trigger ?? "event";
     const userMessage: string | undefined = body.user_message;
 
-    if (!userId) return new Response(JSON.stringify({ error: "user_id required" }), { status: 400, headers: CORS_HEADERS });
+    if (!userId) {
+      return new Response(JSON.stringify({ error: "unauthorized: a valid user JWT is required" }), { status: 401, headers: CORS_HEADERS });
+    }
 
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
