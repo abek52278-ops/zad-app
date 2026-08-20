@@ -5,6 +5,7 @@ import {
   checkInKeyboard, parseCheckInCallback, checkInPromptMessage,
   confirmToolKeyboard, parseToolCallback,
   transactionProposalKeyboard, parseTransactionProposalCallback,
+  notificationReviewMessage,
 } from "./telegram.ts";
 
 Deno.test("normalizeBindingCode uppercases a valid code", () => {
@@ -232,4 +233,17 @@ Deno.test("confirmation proposal keyboard offers confirmation, rejection, and co
     .flat()
     .map((button) => parseTransactionProposalCallback(button.callback_data)?.decision);
   assertEquals(decisions, ["confirm", "reject", "income", "transfer"]);
+});
+
+Deno.test("notification review message asks for amount and direction without claiming a write", () => {
+  const message = notificationReviewMessage({
+    packageName: "com.bank.app",
+    title: "حركة على البطاقة",
+    body: "تمت عملية غير واضحة",
+  });
+  assert(message.includes("com.bank.app"));
+  assert(message.includes("سحب 250"));
+  assert(message.includes("إيداع 1000"));
+  assert(message.includes("للتأكيد"));
+  assert(!message.includes("اتسجلت"));
 });

@@ -8,6 +8,14 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
+internal fun isAcceptedNotificationIngestStatus(status: String?): Boolean = status in setOf(
+    "logged",
+    "ignored",
+    "ambiguous",
+    "needs_classification",
+    "awaiting_confirmation"
+)
+
 /**
  * Retry queue for a Supabase write that failed while offline. Local-first paths already write
  * to Room immediately and only best-effort push to Supabase (SaBankParser's offline parse,
@@ -18,7 +26,6 @@ import kotlinx.serialization.json.Json
  */
 object SyncOutbox {
     private const val TAG = "SyncOutbox"
-    private const val MAX_UNPARSED_ATTEMPTS = 3
     private val json = Json { ignoreUnknownKeys = true }
 
     suspend fun enqueueTransaction(context: Context, transaction: ZadTransaction) {
@@ -365,17 +372,17 @@ object SyncOutbox {
                         // أقل من الـ 0.9 المعمول بيه في باقي مسارات التسجيل التلقائي) — يعني
                         // إشعار وصل هنا أصلاً لأن التحليل المحلي فشل يفهمه، وبرضه بيتسجل من
                         // غير ما حد يتأكد سحب ولا إيداع. دلوقتي بيسأل العميل بدل ما يخمّن.
-                        if (parsed != null && TxDeduplicator.isNewTransaction(context, parsed.amount, parsed.isExpense, parsed.merchantName ?: parsed.title)) {
-                            askServerToConfirmAmbiguous(payload, parsed)
+                        // This retry path never writes locally. Even when AI cannot extract an
+                        // amount, the raw notification still goes to zad-brain so Telegram can
+                        // ask the customer for the missing amount/direction. The server's
+                        // durable hash owns dedupe and resumes the same proposal or review.
+                        val serverStatus = askServerToConfirmAmbiguous(payload, parsed)
+                        if (isAcceptedNotificationIngestStatus(serverStatus)) {
                             dao.deletePendingSyncOp(op.id)
-                            Log.d(TAG, "flush: retry parsed '${parsed.title}' but ambiguous — asked in chat, cleared op ${op.id}")
-                        } else if (op.attempts + 1 >= MAX_UNPARSED_ATTEMPTS) {
-                            dao.deletePendingSyncOp(op.id)
-                            Log.w(TAG, "flush: op ${op.id} gave up after ${op.attempts + 1} attempts — genuinely unparseable")
-                            notifyGaveUp(payload)
+                            Log.d(TAG, "flush: server accepted '${parsed?.title ?: payload.title}' as $serverStatus — cleared op ${op.id}")
                         } else {
                             dao.insertPendingSyncOp(op.copy(attempts = op.attempts + 1))
-                            Log.w(TAG, "flush: op ${op.id} still unparsed (attempt ${op.attempts + 1}/$MAX_UNPARSED_ATTEMPTS) — left queued")
+                            Log.w(TAG, "flush: confirmation handoff failed for op ${op.id} (attempt ${op.attempts + 1}) — left queued")
                         }
                     }
                     else -> {
@@ -392,10 +399,13 @@ object SyncOutbox {
     /** بدل التسجيل التلقائي بتخمين الـ AI — بيبعت للعقل المشترك (zad-brain) يكتب سؤال
      * حقيقي ("سحب ولا إيداع؟") يظهر في "رؤى زاد" على الرئيسية، بدل ما يتسجل بتخمين ثقته
      * أقل من العتبة المعتمدة في كل مسار تسجيل تلقائي تاني في التطبيق. */
-    private suspend fun askServerToConfirmAmbiguous(payload: UnparsedNotificationPayload, parsed: ZadTransaction) {
-        try {
-            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return
-            SupabaseRepo.callEdgeFunction(
+    private suspend fun askServerToConfirmAmbiguous(
+        payload: UnparsedNotificationPayload,
+        parsed: ZadTransaction?
+    ): String? {
+        return try {
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return null
+            val response = SupabaseRepo.callEdgeFunction(
                 "zad-brain",
                 mapOf(
                     "action" to "notification_ingest",
@@ -405,36 +415,27 @@ object SyncOutbox {
                     "title" to payload.title,
                     "text" to payload.text,
                     "client_classification" to "ambiguous",
-                    "parsed" to mapOf(
-                        "amount" to parsed.amount,
-                        "is_expense" to parsed.isExpense,
-                        "title" to parsed.title,
-                        "category" to parsed.category,
-                        "merchant_name" to (parsed.merchantName ?: parsed.title),
-                        "bank_name" to payload.source,
-                        "txn_kind" to if (parsed.isExpense) "expense" else "income",
-                        "currency" to (parsed.currency ?: ""),
-                        "confidence" to 0.0
-                    )
+                    "parsed" to (parsed?.let {
+                        mapOf(
+                            "amount" to it.amount,
+                            "is_expense" to it.isExpense,
+                            "title" to it.title,
+                            "category" to it.category,
+                            "merchant_name" to (it.merchantName ?: it.title),
+                            "bank_name" to payload.source,
+                            "txn_kind" to if (it.isExpense) "expense" else "income",
+                            "currency" to (it.currency ?: ""),
+                            "confidence" to 0.0
+                        )
+                    } ?: emptyMap<String, Any>())
                 ),
                 timeoutMs = 20_000L
             )
+            response["status"]?.toString()
         } catch (e: Exception) {
             Log.e(TAG, "askServerToConfirmAmbiguous failed: ${e.message}")
+            null
         }
     }
 
-    /** بعد ما كل محاولات الفهم فشلت — تنبيه واحد بس (مش لكل محاولة) عشان المستخدم يراجعها يدوياً */
-    private suspend fun notifyGaveUp(payload: UnparsedNotificationPayload) {
-        try {
-            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return
-            SupabaseRepo.sendAppNotification(
-                userId,
-                "معاملة بنكية محتاجة مراجعة",
-                "وصل إشعار من ${payload.source} شكله عملية بنكية بس مقدرناش نفهمه تلقائياً. تقدر تضيفه يدوياً من شاشة المعاملات."
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "notifyGaveUp failed: ${e.message}")
-        }
-    }
 }

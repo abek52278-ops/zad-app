@@ -3065,6 +3065,79 @@ async function sha256Hex(text: string): Promise<string> {
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+type NotificationPrompt =
+  | { job: "confirm_transaction"; proposalId: string }
+  | { job: "review_notification" };
+type NotificationPromptDelivery = "delivered" | "not_linked" | "retryable_failure" | "in_flight";
+
+/**
+ * Deliver at most one active Telegram prompt for an ingest event. The database claim is a
+ * two-minute lease: a crashed invocation can be resumed, while concurrent notification
+ * reposts cannot both message the customer. Delivery is marked only after Telegram accepts
+ * the request, so a transient outage remains retryable.
+ */
+async function deliverNotificationPrompt(
+  sb: SupabaseClient,
+  userId: string,
+  ingestEventId: string,
+  prompt: NotificationPrompt,
+): Promise<NotificationPromptDelivery> {
+  const { data: eventState, error: stateError } = await sb.from("zad_notification_ingest_events")
+    .select("confirmation_prompt_delivered_at")
+    .eq("id", ingestEventId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (stateError) {
+    console.error("notification prompt state fetch failed:", stateError.message);
+    return "retryable_failure";
+  }
+  if ((eventState as { confirmation_prompt_delivered_at?: string | null } | null)?.confirmation_prompt_delivered_at) {
+    return "delivered";
+  }
+
+  const { data: claimed, error: claimError } = await sb.rpc("zad_claim_notification_prompt_service", {
+    p_user: userId,
+    p_event: ingestEventId,
+  });
+  if (claimError) {
+    console.error("notification prompt claim failed:", claimError.message);
+    return "retryable_failure";
+  }
+  if (claimed !== true) return "in_flight";
+
+  let delivery: NotificationPromptDelivery = "retryable_failure";
+  try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/zad-telegram-bot?job=${prompt.job}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Confirm-Transaction-Secret": NOTIFICATION_CONFIRM_SECRET,
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        ingest_event_id: ingestEventId,
+        ...(prompt.job === "confirm_transaction" ? { proposal_id: prompt.proposalId } : {}),
+      }),
+    });
+    const responseBody = await response.json().catch(() => ({})) as { delivered?: boolean; reason?: string };
+    if (response.ok && responseBody.delivered === true) {
+      delivery = "delivered";
+    } else if (response.ok && responseBody.reason === "not linked") {
+      delivery = "not_linked";
+    }
+  } catch (e) {
+    console.error("notification prompt to telegram failed:", (e as Error).message);
+  }
+
+  const { error: finishError } = await sb.rpc("zad_finish_notification_prompt_service", {
+    p_user: userId,
+    p_event: ingestEventId,
+    p_delivered: delivery === "delivered",
+  });
+  if (finishError) console.error("notification prompt finish failed:", finishError.message);
+  return delivery;
+}
+
 /**
  * Server-side gate for Android NotificationListenerService. The phone may parse the bank
  * format, but this endpoint still re-applies the trust rules before any money write:
@@ -3086,7 +3159,7 @@ async function handleNotificationIngest(sb: SupabaseClient, userId: string, body
   // البصمة بتتحسب على النص الخام عشان التكرار يفضل يتمسك بنفس الدقة، والنص اللي بيتخزّن
   // منقّى. الاتنين مقصودين: المطابقة محتاجة الخام، والتخزين لأ.
   const dedupeHash = await sha256Hex(`${userId}\n${packageName}\n${rawText}`);
-  const { data: ingestEvent, error: dedupeErr } = await sb.from("zad_notification_ingest_events").insert({
+  const { data: insertedEvent, error: dedupeErr } = await sb.from("zad_notification_ingest_events").insert({
     user_id: userId,
     dedupe_hash: dedupeHash,
     package_name: packageName,
@@ -3095,17 +3168,34 @@ async function handleNotificationIngest(sb: SupabaseClient, userId: string, body
     client_classification: String(body.client_classification ?? null),
     status: "received",
   }).select("id").maybeSingle();
+  let ingestEventId = (insertedEvent as { id?: string } | null)?.id;
+  let existingEventStatus: string | null = null;
   if (dedupeErr) {
     const code = (dedupeErr as any)?.code;
     if (code === "23505") {
-      return new Response(JSON.stringify({ ok: true, status: "ignored", reason: "duplicate" }), { headers: CORS_HEADERS });
+      const { data: existingEvent, error: existingEventError } = await sb.from("zad_notification_ingest_events")
+        .select("id,status")
+        .eq("user_id", userId)
+        .eq("dedupe_hash", dedupeHash)
+        .maybeSingle();
+      if (existingEventError || !existingEvent) {
+        console.error("notification duplicate recovery failed:", existingEventError?.message ?? "event missing");
+        return new Response(JSON.stringify({ ok: false, status: "rejected", reason: "duplicate_recovery_failed" }), {
+          status: 500, headers: CORS_HEADERS,
+        });
+      }
+      ingestEventId = (existingEvent as { id: string }).id;
+      existingEventStatus = (existingEvent as { status: string }).status;
+      if (["logged", "ignored", "rejected"].includes(existingEventStatus)) {
+        return new Response(JSON.stringify({ ok: true, status: "ignored", reason: "duplicate" }), { headers: CORS_HEADERS });
+      }
+    } else {
+      console.error("notification dedupe insert failed:", dedupeErr.message);
+      return new Response(JSON.stringify({ ok: false, status: "rejected", reason: "audit_insert_failed" }), {
+        status: 500, headers: CORS_HEADERS,
+      });
     }
-    console.error("notification dedupe insert failed:", dedupeErr.message);
-    return new Response(JSON.stringify({ ok: false, status: "rejected", reason: "audit_insert_failed" }), {
-      status: 500, headers: CORS_HEADERS,
-    });
   }
-  const ingestEventId = (ingestEvent as { id?: string } | null)?.id;
   if (!ingestEventId) {
     return new Response(JSON.stringify({ ok: false, status: "rejected", reason: "audit_event_missing" }), {
       status: 500, headers: CORS_HEADERS,
@@ -3149,7 +3239,17 @@ async function handleNotificationIngest(sb: SupabaseClient, userId: string, body
       about_item: rawText.slice(0, 200),
       status: "pending", updated_at: new Date().toISOString(),
     }, { onConflict: "user_id,dedupe_key" });
-    return new Response(JSON.stringify({ ok: true, status: "ambiguous", classification: "ambiguous" }), { headers: CORS_HEADERS });
+    const promptDelivery = await deliverNotificationPrompt(sb, userId, ingestEventId, {
+      job: "review_notification",
+    });
+    const shouldRetryDelivery = promptDelivery === "retryable_failure" || promptDelivery === "in_flight";
+    return new Response(JSON.stringify({
+      ok: true,
+      status: shouldRetryDelivery ? "delivery_retry" : "ambiguous",
+      classification: "ambiguous",
+      channel: promptDelivery === "delivered" ? "telegram_and_app" : "app",
+      prompt_delivery: promptDelivery,
+    }), { headers: CORS_HEADERS });
   }
 
   const parsedKind = parsed.txn_kind === "transfer"
@@ -3176,55 +3276,101 @@ async function handleNotificationIngest(sb: SupabaseClient, userId: string, body
     confidence: Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : null,
   };
 
-  const { data: proposal, error: proposalError } = await sb.from("zad_transaction_proposals")
-    .upsert(proposalRow, { onConflict: "user_id,idempotency_key", ignoreDuplicates: false })
+  type ProposalState = { id: string; status: string };
+  const { data: existingProposal, error: existingProposalError } = await sb.from("zad_transaction_proposals")
     .select("id,status")
-    .single();
-  if (proposalError || !proposal) {
-    console.error("notification proposal insert failed:", proposalError?.message ?? "missing row");
-    await mark("rejected", "proposal_insert_failed");
-    return new Response(JSON.stringify({ ok: false, status: "rejected", reason: "proposal_insert_failed" }), {
+    .eq("user_id", userId)
+    .eq("idempotency_key", dedupeHash)
+    .maybeSingle();
+  if (existingProposalError) {
+    console.error("notification proposal recovery failed:", existingProposalError.message);
+    await mark("received", "proposal_lookup_failed");
+    return new Response(JSON.stringify({ ok: false, status: "rejected", reason: "proposal_lookup_failed" }), {
       status: 500, headers: CORS_HEADERS,
     });
   }
 
-  let deliveredToTelegram = false;
-  try {
-    const askRes = await fetch(`${SUPABASE_URL}/functions/v1/zad-telegram-bot?job=confirm_transaction`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Confirm-Transaction-Secret": NOTIFICATION_CONFIRM_SECRET,
-      },
-      body: JSON.stringify({ user_id: userId, proposal_id: (proposal as { id: string }).id }),
-    });
-    const askBody = await askRes.json().catch(() => ({})) as { delivered?: boolean };
-    deliveredToTelegram = askRes.ok && askBody.delivered === true;
-  } catch (e) {
-    console.error("notification proposal prompt to telegram failed:", (e as Error).message);
+  let proposal = existingProposal as ProposalState | null;
+  let createdProposal = false;
+  if (proposal && ["posted", "rejected", "expired"].includes(proposal.status)) {
+    return new Response(JSON.stringify({
+      ok: true,
+      status: "ignored",
+      reason: "duplicate_resolved_proposal",
+      proposal_id: proposal.id,
+    }), { headers: CORS_HEADERS });
+  }
+  if (!proposal) {
+    const { data: insertedProposal, error: proposalError } = await sb.from("zad_transaction_proposals")
+      .insert(proposalRow)
+      .select("id,status")
+      .single();
+    if ((proposalError as { code?: string } | null)?.code === "23505") {
+      // A concurrent repost won the insert race. Recover its row and continue delivery;
+      // the unique key already guarantees both requests refer to the same proposal.
+      const { data: racedProposal, error: raceLookupError } = await sb.from("zad_transaction_proposals")
+        .select("id,status")
+        .eq("user_id", userId)
+        .eq("idempotency_key", dedupeHash)
+        .maybeSingle();
+      if (!raceLookupError && racedProposal) proposal = racedProposal as ProposalState;
+    } else if (!proposalError && insertedProposal) {
+      proposal = insertedProposal as ProposalState;
+      createdProposal = true;
+    }
+    if (!proposal) {
+      // The audit row is intentionally left resumable. A retry with the same dedupe hash
+      // will recover it and attempt this insert again instead of disappearing as a duplicate.
+      console.error("notification proposal insert failed:", proposalError?.message ?? "missing row");
+      await mark("received", "proposal_insert_failed");
+      return new Response(JSON.stringify({ ok: false, status: "rejected", reason: "proposal_insert_failed" }), {
+        status: 500, headers: CORS_HEADERS,
+      });
+    }
+  }
+  if (["posted", "rejected", "expired"].includes(proposal.status)) {
+    return new Response(JSON.stringify({
+      ok: true,
+      status: "ignored",
+      reason: "duplicate_resolved_proposal",
+      proposal_id: proposal.id,
+    }), { headers: CORS_HEADERS });
   }
 
-  await recordAction(sb, userId, { source: "event", runId: null }, {
-    tool: "parse_notification_payload",
-    input: {
-      package_name: packageName,
-      title: redactNotificationText(title),
-      text: redactNotificationText(text),
-      client_classification: body.client_classification,
-      parsed: { ...parsed, raw_text: undefined },
-    },
-    summary: deliveredToTelegram
-      ? "أنشأ اقتراح معاملة موحد وبعت تأكيده على تيليجرام"
-      : "أنشأ اقتراح معاملة موحد للتأكيد داخل التطبيق",
+  const promptDelivery = await deliverNotificationPrompt(sb, userId, ingestEventId, {
+    job: "confirm_transaction",
+    proposalId: proposal.id,
   });
-  await mark(needsClassification ? "ambiguous" : "awaiting_confirmation", "needs_user_approval");
+  const deliveredToTelegram = promptDelivery === "delivered";
+  const shouldRetryDelivery = promptDelivery === "retryable_failure" || promptDelivery === "in_flight";
+  const proposalNeedsClassification = proposal.status === "needs_classification";
+
+  if (createdProposal) {
+    await recordAction(sb, userId, { source: "event", runId: null }, {
+      tool: "parse_notification_payload",
+      input: {
+        package_name: packageName,
+        title: redactNotificationText(title),
+        text: redactNotificationText(text),
+        client_classification: body.client_classification,
+        parsed: { ...parsed, raw_text: undefined },
+      },
+      summary: deliveredToTelegram
+        ? "أنشأ اقتراح معاملة موحد وبعت تأكيده على تيليجرام"
+        : "أنشأ اقتراح معاملة موحد للتأكيد داخل التطبيق",
+    });
+  }
+  await mark(proposalNeedsClassification ? "ambiguous" : "awaiting_confirmation", "needs_user_approval");
 
   return new Response(JSON.stringify({
     ok: true,
-    status: needsClassification ? "needs_classification" : "awaiting_confirmation",
-    classification: needsClassification ? "ambiguous" : "completed_transaction",
-    proposal_id: (proposal as { id: string }).id,
+    status: shouldRetryDelivery
+      ? "delivery_retry"
+      : proposalNeedsClassification ? "needs_classification" : "awaiting_confirmation",
+    classification: proposalNeedsClassification ? "ambiguous" : "completed_transaction",
+    proposal_id: proposal.id,
     channel: deliveredToTelegram ? "telegram_and_app" : "app",
+    prompt_delivery: promptDelivery,
   }), { headers: CORS_HEADERS });
 }
 

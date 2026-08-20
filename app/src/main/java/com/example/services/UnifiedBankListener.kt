@@ -318,7 +318,7 @@ class UnifiedBankListener : NotificationListenerService() {
                     // old comment here was waiting for. The local outbox stays as the fallback
                     // for when that call couldn't be made at all (null = transport failure).
                     SaBankParser.logRejection(applicationContext, SaBankParser.RejectReason.UNPARSED, packageName, "$title $text")
-                    if (serverDecisionEarly == null && SaBankParser.extractAmount("$title $text") != null) {
+                    if (serverDecisionEarly == null || serverDecisionEarly == "delivery_retry") {
                         SyncOutbox.enqueueUnparsedNotification(applicationContext, packageName, title, text)
                     }
                     Log.d("UnifiedBankListener", "Notification requires confirmation: $title (server=$serverDecisionEarly)")

@@ -116,6 +116,20 @@ export function parseTransactionProposalCallback(
   return decision ? { decision, proposalId: parts[1] } : null;
 }
 
+export function notificationReviewMessage(event: {
+  packageName: string;
+  title?: string | null;
+  body: string;
+}): string {
+  const details = [event.title?.trim(), event.body.trim()].filter(Boolean).join(" - ").slice(0, 500);
+  return [
+    "إشعار بنكي محتاج مراجعتك",
+    `المصدر: ${event.packageName}`,
+    details,
+    "المبلغ أو الاتجاه مش واضح. رد عليا بجملة زي: ده سحب 250 من البطاقة، أو ده إيداع 1000. هعرضه عليك للتأكيد قبل ما أغيّر الرصيد.",
+  ].filter(Boolean).join("\n");
+}
+
 /**
  * تأكيد/إلغاء لأي أداة تانية محتاجة موافقة غير `log_transaction` — تعديل معاملة،
  * مسحها، أو تغيير السقف الشهري.

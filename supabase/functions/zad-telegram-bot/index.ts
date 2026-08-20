@@ -24,6 +24,7 @@ import {
   formatBalanceMessage, type BudgetStateRow, formatTransactionsMessage, formatInsightTitle,
   confirmSpendKeyboard, parseSpendCallback,
   transactionProposalKeyboard, parseTransactionProposalCallback,
+  notificationReviewMessage,
   confirmMedicationKeyboard, parseMedicationCallback,
   checkInKeyboard, parseCheckInCallback, checkInPromptMessage,
   confirmToolKeyboard, parseToolCallback,
@@ -112,18 +113,19 @@ async function resolveUserId(sb: SupabaseClient, chatId: number): Promise<string
  * row), never chat_id. Returns null for an unbound user, which the caller treats as a
  * silent no-op (most users won't have Telegram linked at all). */
 async function resolveChatId(sb: SupabaseClient, userId: string): Promise<number | null> {
-  const { data } = await sb.from("telegram_bindings")
+  const { data, error } = await sb.from("telegram_bindings")
     .select("chat_id")
     .eq("user_id", userId)
     .not("bound_at", "is", null)
     .maybeSingle();
+  if (error) throw new Error(`telegram binding lookup failed (${error.code ?? "unknown"})`);
   return (data as { chat_id: number } | null)?.chat_id ?? null;
 }
 
 /** Direct Telegram API call, not a grammY ctx.reply — this fires OUTSIDE any inbound
  * webhook update (the cron job below has no ctx to reply through). */
 async function sendTelegramMessage(chatId: number, text: string, keyboard?: InlineKeyboardButton[][]): Promise<void> {
-  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+  const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -132,6 +134,10 @@ async function sendTelegramMessage(chatId: number, text: string, keyboard?: Inli
       ...(keyboard ? { reply_markup: { inline_keyboard: keyboard } } : {}),
     }),
   });
+  const result = await response.json().catch(() => null) as { ok?: boolean } | null;
+  if (!response.ok || result?.ok !== true) {
+    throw new Error(`Telegram sendMessage failed (${response.status})`);
+  }
 }
 
 /** Server-side low-stock detection against zad_inventory + zad_consumption (Task 18's
@@ -1575,6 +1581,61 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ ok: true, delivered: true }), { headers: { "Content-Type": "application/json" } });
     } catch (e) {
       console.error("realtime_push failed:", e);
+      return new Response(JSON.stringify({ ok: false, error: String(e) }), { status: 500 });
+    }
+  }
+
+  // The parser could not recover a usable amount, so there is no safe structured proposal
+  // yet. Telegram asks for the missing amount/direction in free text; the normal chat agent
+  // will parse that reply and still require its usual financial confirmation.
+  if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "review_notification") {
+    if (req.headers.get("X-Confirm-Transaction-Secret") !== CONFIRM_TRANSACTION_SECRET) {
+      return new Response("unauthorized", { status: 401 });
+    }
+    if (!BOT_CONFIGURED) {
+      return new Response(JSON.stringify({ ok: false, reason: "bot not configured" }), { status: 503 });
+    }
+    try {
+      const { user_id, ingest_event_id } = await req.json() as { user_id?: string; ingest_event_id?: string };
+      if (!user_id || !ingest_event_id) {
+        return new Response(JSON.stringify({ ok: false, reason: "missing user_id/ingest_event_id" }), { status: 400 });
+      }
+      const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+      const chatId = await resolveChatId(sb, user_id);
+      if (chatId === null) {
+        return new Response(JSON.stringify({ ok: true, delivered: false, reason: "not linked" }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: event, error } = await sb.from("zad_notification_ingest_events")
+        .select("id,user_id,status,package_name,title,body")
+        .eq("id", ingest_event_id)
+        .eq("user_id", user_id)
+        .maybeSingle();
+      const row = event as {
+        status: string; package_name: string; title: string | null; body: string;
+      } | null;
+      if (error || !row) {
+        console.error("review_notification event fetch failed:", error?.message ?? "not found");
+        return new Response(JSON.stringify({ ok: false, reason: "notification not found" }), { status: 404 });
+      }
+      if (row.status !== "received" && row.status !== "ambiguous") {
+        return new Response(JSON.stringify({ ok: true, delivered: false, reason: "already resolved" }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      await sendTelegramMessage(chatId, clampForTelegram(notificationReviewMessage({
+        packageName: sanitizeName(row.package_name),
+        title: row.title ? sanitizeName(row.title) : null,
+        body: sanitizeName(row.body),
+      })));
+      return new Response(JSON.stringify({ ok: true, delivered: true }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (e) {
+      console.error("review_notification failed:", e);
       return new Response(JSON.stringify({ ok: false, error: String(e) }), { status: 500 });
     }
   }
