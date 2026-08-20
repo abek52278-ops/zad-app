@@ -163,7 +163,10 @@ jobs:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           supabase link --project-ref "$PROJECT_REF"
-          supabase db push
+          # Some reviewed migrations predate the current remote head because production
+          # was previously changed through MCP. Their SQL is idempotent and smoke-tested;
+          # --include-all lets the CLI reconcile them in version order.
+          supabase db push --include-all
 
       - name: Deploy edge functions
         if: steps.preflight.outputs.ready == 'true'
