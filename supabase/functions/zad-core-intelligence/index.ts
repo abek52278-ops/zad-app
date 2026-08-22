@@ -2,7 +2,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.6";
 import { redactForLog } from "./redact.ts";
 import { foodFallbackUrl, looksLikeFoodAlt, toFoodSearchTerm } from "./foodImageQuery.ts";
-import { bearerToken, requestElevenLabsVoice, validateVoicePayload } from "./voice.ts";
+import { bearerToken, requestGeminiVoice, validateVoicePayload } from "./voice.ts";
 
 // ── Provider chain (2026-08-01): Gemini (5-key pool, native endpoint) primary, Groq
 // (2-key pool) secondary for TEXT/JSON only — vision never touches Groq ──────────────────
@@ -77,6 +77,8 @@ if (GEMINI_KEYS.length === 0) {
   if (legacy) GEMINI_KEYS.push(legacy);
 }
 let geminiKeyCursor = 0;
+// TTS يستخدم نفس مسبح المفاتيح — أول مفتاح متاح
+const GEMINI_API_KEY = GEMINI_KEYS[0] ?? Deno.env.get("GEMINI_API_KEY") ?? "";
 function nextGeminiKeyIndex(): number {
   const i = geminiKeyCursor % Math.max(GEMINI_KEYS.length, 1);
   geminiKeyCursor = (geminiKeyCursor + 1) % Math.max(GEMINI_KEYS.length, 1);
@@ -873,11 +875,11 @@ Deno.serve(async (req: Request) => {
       }
       const voiceRequest = validateVoicePayload(payload);
       if (!voiceRequest) return jsonResponse({ error: "invalid voice request" }, 400);
-      if (!ELEVENLABS_API_KEY) return jsonResponse({ error: "voice provider unavailable" }, 503);
+      if (!GEMINI_API_KEY) return jsonResponse({ error: "voice provider unavailable" }, 503);
 
-      const upstream = await requestElevenLabsVoice(voiceRequest, ELEVENLABS_API_KEY);
+      const upstream = await requestGeminiVoice(voiceRequest, GEMINI_API_KEY);
       if (!upstream.ok || !upstream.body) {
-        console.error(`[CoreIntel] ElevenLabs failed with HTTP ${upstream.status}`);
+        console.error(`[CoreIntel] Gemini TTS failed with HTTP ${upstream.status}`);
         return jsonResponse({ error: "voice provider unavailable" }, 502);
       }
       return new Response(upstream.body, {
