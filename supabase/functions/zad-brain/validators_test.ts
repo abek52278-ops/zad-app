@@ -1,3 +1,4 @@
+import { normalizeDoseTimes } from "./validators.ts";
 // Task 16.4 — the 12 required tests. 1-7 and 9 are pure validator tests (no network,
 // no DB, per the spec: "validators... are pure functions given a snapshot"). 10 tests
 // retry/backoff with an injected fake fetch. 11 and 12 test the pure decision functions
@@ -640,10 +641,14 @@ Deno.test("add_pharmacy_item accepts a valid 24-hour schedule", async () => {
 });
 
 Deno.test("add_pharmacy_item rejects 24:00 and other malformed times", async () => {
-  for (const dose_times of ["24:00", "8:00", "08:60", "صباحاً"]) {
+  // "8:00" لم تعد تُرفض: normalizeDoseTimes يكمل الصفر البادئ (09:15-style fix).
+  for (const dose_times of ["24:00", "08:60", "صباحاً"]) {
     const v = await validateAddPharmacyItem({ name: "دوا", dose_times }, {}, freshContext("u"));
     assertEquals(v.ok, false, dose_times);
   }
+  // "8:00" بيتطبّع لـ "08:00" ويتقبل
+  const normalized = await validateAddPharmacyItem({ name: "دوا", dose_times: "8:00" }, {}, freshContext("u"));
+  assertEquals(normalized.ok, true);
 });
 
 Deno.test("add_pharmacy_item rejects a dose count that disagrees with the schedule", async () => {
@@ -1034,4 +1039,23 @@ Deno.test("suggest_product مرة واحدة بس في اللفة", async () => 
 Deno.test("suggest_product مش كتابة على بيانات العميل", () => {
   assertEquals(MUTATING_TOOLS.includes("suggest_product"), false);
   assertEquals(CONFIRM_REQUIRED_TOOLS.includes("suggest_product"), false);
+});
+
+// === normalizeDoseTimes — أرقام عربية هندية وفواصل عربية (فحص حي 2026-08-22) ===
+Deno.test("normalizeDoseTimes يحول الأرقام العربية الهندية لـ ASCII", () => {
+  assertEquals(normalizeDoseTimes("٠٣:٤٩"), "03:49");
+  assertEquals(normalizeDoseTimes("١٢:٣٠,١٤:٤٥"), "12:30,14:45");
+});
+
+Deno.test("normalizeDoseTimes يوحّد الفواصل العربية والشرطات", () => {
+  assertEquals(normalizeDoseTimes("08:00، 14:00"), "08:00,14:00");
+  assertEquals(normalizeDoseTimes("08:00 - 20:00"), "08:00,20:00");
+});
+
+Deno.test("normalizeDoseTimes مخرجاته تعدي DOSE_TIME_RE", () => {
+  const re = /^([01]\d|2[0-3]):[0-5]\d$/;
+  for (const raw of ["٠٣:٤٩", "١٢:٣٠،١٤:٤٥", "9:15 - 21:45"]) {
+    const norm = normalizeDoseTimes(raw);
+    for (const t of norm.split(",")) assertEquals(re.test(t.trim()), true, `${t} from ${raw}`);
+  }
 });

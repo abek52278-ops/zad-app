@@ -324,6 +324,27 @@ const PHARMACY_UNITS = [
 ];
 const DOSE_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+/**
+ * تطبيع أوقات الجرعات: الأرقام العربية الهندية (٠٣:٤٩) بتتحول لأرقام ASCII،
+ * والفواصل العربية (،) والشرطات بتتحول لفاصلة. الفحص الحي (2026-08-22) لقى دواء
+ * اتسجل بساعة "٠٣:٤٩" عدّت التخزين لكن الـ AlarmManager عمره ما هيفهمها.
+ */
+export function normalizeDoseTimes(raw: string): string {
+  return raw
+    .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)))
+    .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
+    .replace(/،/g, ",")
+    .replace(/\s*-\s*/g, ",")
+    .split(",")
+    .map((part) => {
+      const t = part.trim();
+      // أكمل الصفر البادئ للساعة فقط: "9:15" → "09:15" (مش بنلمس الدقايق)
+      const m = /^(\d{1,2}):(\d{1,2})$/.exec(t);
+      return m ? `${m[1].padStart(2, "0")}:${m[2].padStart(2, "0")}` : t;
+    })
+    .join(",");
+}
+
 export const validateAddPharmacyItem: Validator = (input, _snap, ctx) => {
   if ((ctx.counts["add_pharmacy_item"] ?? 0) >= 3) return { ok: false, reason: "وصلت لحد أقصى ٣ أدوية في المرة" };
   const name = String(input.name ?? "").trim();
@@ -332,6 +353,8 @@ export const validateAddPharmacyItem: Validator = (input, _snap, ctx) => {
     return { ok: false, reason: `الوحدة لازم تكون واحدة من: ${PHARMACY_UNITS.join("، ")}` };
   }
   if (input.dose_times !== undefined && input.dose_times !== null && String(input.dose_times).length > 0) {
+    // طبّع الأول (أرقام عربية، فواصل عربية/شرطات) ثم تحقق — بدل رفض صامت
+    input.dose_times = normalizeDoseTimes(String(input.dose_times));
     const times = String(input.dose_times).split(",").map((t: string) => t.trim());
     if (!times.every((t: string) => DOSE_TIME_RE.test(t))) {
       return { ok: false, reason: "المواعيد لازم تكون بصيغة HH:MM بنظام ٢٤ ساعة، مفصولة بفاصلة (ممنوع 24:00)" };
@@ -533,6 +556,7 @@ export const validateUpdatePharmacyItem: Validator = (input, _snap, ctx) => {
   if (String(input.name ?? "").trim().length < 2) return { ok: false, reason: "اسم الدواء مطلوب" };
   if (input.remaining_quantity !== undefined && (!Number.isFinite(input.remaining_quantity) || input.remaining_quantity < 0 || input.remaining_quantity > 9999)) return { ok: false, reason: "كمية الدواء لازم تكون بين ٠ و٩٩٩٩" };
   if (input.dose_times !== undefined) {
+    input.dose_times = normalizeDoseTimes(String(input.dose_times));
     const times = String(input.dose_times).split(",").map((t: string) => t.trim());
     if (!times.length || !times.every((t: string) => DOSE_TIME_RE.test(t))) return { ok: false, reason: "المواعيد لازم تكون HH:MM مفصولة بفاصلة" };
     if (input.daily_dose_count !== undefined && input.daily_dose_count !== times.length) return { ok: false, reason: "عدد الجرعات لازم يساوي عدد المواعيد" };
