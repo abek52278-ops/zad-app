@@ -309,6 +309,70 @@ async function callCoreIntel(action: string, payload: unknown, userId: string): 
 // عن مكان العميل مشي منه امبارح — وده أوحش من إننا نقول مش عارفين هو فين.
 const LOCATION_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 
+/**
+ * استرجاع ذاكرة مرتبط بالرسالة — deterministic بدون LLM:
+ * كل ملاحظة بتاخد نتيجة = (عدد الكلمات المشتركة مع الرسالة × 2) + confidence + evidence.
+ * الملاحظات اللي ملهاش علاقة بتفضل موجودة لكن ورا المرتبطة. كلمات التوقف مستبعدة
+ * عشان «هو انا قلتلك ايه» مايرجعش كل حاجة.
+ */
+export function rankMemoryForMessage(
+  memory: Array<{ id: string; scope: string; note: string; confidence: number; evidence_count?: number }>,
+  message: string,
+  limit = 12,
+): typeof memory {
+  if (!memory.length) return memory;
+  const STOP = new Set(["من", "في", "على", "عن", "الى", "إلى", "هذا", "هذه", "ذلك", "اللي", "الذى",
+    "انا", "أنا", "انت", "أنت", "هو", "هي", "ما", "مش", "لا", "ايه", "إيه", "ازاي", "فين", "كده",
+    "the", "a", "an", "is", "of", "to", "in", "and", "or"]);
+  const words = message.toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter((w) => w.length >= 3 && !STOP.has(w));
+  const wordSet = new Set(words);
+  const scored = memory.map((m) => {
+    const noteWords = m.note.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/);
+    let overlap = 0;
+    for (const w of noteWords) if (wordSet.has(w)) overlap++;
+    const score = overlap * 2 + m.confidence + Math.min(m.evidence_count ?? 0, 5) * 0.2;
+    return { m, score };
+  });
+  return scored.sort((a, b) => b.score - a.score).slice(0, limit).map((x) => x.m);
+}
+
+/**
+ * دروس من الأخطاء — آخر ١٤ يوم من agent_drift_events بتتلخص في سطرين:
+ * كل نمط انحرف مرتين+ بيتحول لتعليمة صريحة تدخل برومبت المحادثة، فالوكيل
+ * مبيكررش نفس الغلطة («قلت اتسجل» من غير أداة) مع نفس العميل.
+ */
+async function buildDriftLessons(sb: SupabaseClient, userId: string): Promise<string[]> {
+  try {
+    const { data } = await sb.from("agent_drift_events")
+      .select("matched_patterns")
+      .eq("user_id", userId)
+      .gte("created_at", new Date(Date.now() - 14 * 86400000).toISOString())
+      .order("created_at", { ascending: false })
+      .limit(50);
+    const counts = new Map<string, number>();
+    for (const row of (data ?? []) as Array<{ matched_patterns: string[] }>) {
+      for (const p of row.matched_patterns ?? []) counts.set(p, (counts.get(p) ?? 0) + 1);
+    }
+    const lessons: string[] = [];
+    for (const [pattern, n] of counts) {
+      if (n < 2) continue;
+      if (pattern === "future_confirmation") {
+        lessons.push(`انتبه (${n} مرات قبل كده): وعدت العميل إن "رسالة تأكيد هتوصله" — ده وهم. التأكيد بييجي من كارت في الشاشة أو رده انت، مش رسالة مستقبلية.`);
+      } else if (pattern === "future_action") {
+        lessons.push(`انتبه (${n} مرات قبل كده): استخدمت صيغة "اتسجل/هسجل" من غير نداء أداة فعلي في نفس الرد. أي فعل لازم أداة حقيقية فوراً.`);
+      } else if (pattern === "invented_schedule") {
+        lessons.push(`انتبه (${n} مرات قبل كده): ذكرت مواعيد جرعات/أوقات مش موجودة في البيانات. المواعيد من snapshot بس — لو مش موجودين اسأل.`);
+      }
+    }
+    return lessons;
+  } catch {
+    return [];
+  }
+}
+
 async function buildSnapshot(sb: SupabaseClient, userId: string) {
   const cashKey = isoWeekKey(new Date());
   const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes, askedRes, selfMemRes, cashBalRes, cashAskedRes, obligRes, debtRes, maintRes, behaviorRes, notifRes, doseRes, budgetRes, obsRes, lifeRes] =
@@ -1808,6 +1872,15 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       if (!res || res.ok === false) return "مقدرتش أتأكد من السعر — متقولش رقم من عندك.";
       return JSON.stringify(res);
     }
+    case "web_search": {
+      // بحث حقيقي عبر نفس بروكسي core-intelligence (DDG server-side). النتايج
+      // بترجع بمصادرها — الموديل ملزم يقول المصدر، وpromise-drift هيمسك أي ادعاء.
+      const res = await callCoreIntel("web_search", { query: input.query ?? "" }, userId);
+      if (!res || res.ok === false) return "مقدرتش أبحث دلوقتي — قول للعميل إن البحث مش متاح مؤقتاً، متختلقش إجابة.";
+      const hits = (res as { results?: Array<{ title: string; url: string; snippet: string }> }).results ?? [];
+      if (hits.length === 0) return "مفيش نتايج بحث — قول للعميل إنك ملقتش حاجة موثوقة، متخترعش.";
+      return JSON.stringify(hits.map((h, i) => `${i + 1}. ${h.title}\n${h.url}\n${h.snippet}`).join("\n\n"));
+    }
     case "family_digest": {
       // الأرقام مجمّعة عن قصد: الأب يشوف "أحمد صرف ٨٠٪ من سقفه"، مش معاملاته واحدة واحدة.
       // ده اللي بيخلي الميزة دي ملخّص عيلة مش أداة مراقبة.
@@ -2533,8 +2606,9 @@ const CHAT_TOOLS: ToolDef[] = [
   {
     name: "check_price_online",
     description:
-      "قدّر سعر منتج من السوق. نادِها قبل ما تقول للعميل إن حاجة غالية أو رخيصة — " +
-      "متقولش رقم من عندك. لو رجّعت مفيش نتيجة، قول إنك مش قادر تتأكد من السعر.",
+      "سعر حقيقي من بحث ويب فعلي (مش تخمين). نادِها قبل ما تقول للعميل إن حاجة غالية أو رخيصة. " +
+      "لو رجعت status=no_results أو unclear، قول للعميل إنك مش لاقي سعر موثوق — متخترعش رقم. " +
+      "الرد بيضم sources: اذكر مصدر واحد على الأقل في ردك.",
     input_schema: {
       type: "object",
       properties: {
@@ -2542,6 +2616,19 @@ const CHAT_TOOLS: ToolDef[] = [
         store: { type: "string", description: "اختياري" },
       },
       required: ["item_name"],
+    },
+  },
+  {
+    name: "web_search",
+    description:
+      "بحث في الإنترنت عن أي معلومة برّه بيانات البيت (مقارنة منتجات، معلومة عامة، خبر). " +
+      "بترد نتايج حقيقية بعناوينها وروابطها — استشهد بالمصدر في ردك ومتقولش معلومة مش موجودة في النتايج.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "سؤال البحث" },
+      },
+      required: ["query"],
     },
   },
   {
@@ -2840,8 +2927,17 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
   const ctx: RunContext = freshContext(userId);
   // التوجيه للوكيل المتخصص: deterministic، قبل أي نداء موديل. general = برومبت زي ما هو.
   const specialist = routeSpecialist(message);
+  // استرجاع ذاكرة مرتبط بالرسالة الحالية: بدل ترتيب الثقة الثابت، الملاحظات اللي
+  // فيها كلمات من رسالة العميل بتتقدم — «فاتك إني مش باكل تونة؟» بيرجّع ملاحظة
+  // التونة حتى لو ثقتها أقل من ملاحظات تانية.
+  const relevantMemory = rankMemoryForMessage(snap.memory ?? [], message);
+  // حلقة التعلم: دروس من انحرافات الوكيل السابقة مع نفس العميل
+  const driftLessons = await buildDriftLessons(sb, userId);
+  const lessonsBlock = driftLessons.length > 0
+    ? "\n=== دروس من أخطائك السابقة مع هذا العميل ===\n" + driftLessons.map((l) => "- " + l).join("\n") + "\n=== نهاية الدروس ===\n"
+    : "";
   const systemPrompt =
-    (specialistPromptBlock(specialist) ?? "") + "\n" + buildChatSystemPrompt(snap, body.voice_mode === true);
+    (specialistPromptBlock(specialist) ?? "") + "\n" + lessonsBlock + buildChatSystemPrompt({ ...snap, memory: relevantMemory }, body.voice_mode === true);
 
   // آخر ٨ رسائل زي ما شات التطبيق بيبعتها. أي عنصر مش user/assistant بيتجاهل بدل ما
   // يكسر النداء — الكلاينت مش مصدر موثوق لشكل الـ history.

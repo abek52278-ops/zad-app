@@ -809,6 +809,56 @@ async function setCachedAiResponse(cacheKey: string, action: string, response: R
   }
 }
 
+// ── webSearchSnippets — بحث ويب حقيقي عبر DuckDuckGo (بدون مفتاح، بدون LLM).
+// بترجع عناوين/روابط/مقاطع فعلية من نتايج البحث. الفشل بيرجع [] والمستدعي بيعرف
+// يتصرف («مقدرتش أتأكد») بدل ما الموديل يخترع.
+interface WebHit { title: string; url: string; snippet: string }
+
+export async function webSearchSnippets(query: string, maxResults = 8): Promise<WebHit[]> {
+  try {
+    const res = await fetch(
+      "https://html.duckduckgo.com/html/",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "User-Agent": "Mozilla/5.0 (compatible; ZadAssistant/1.0)",
+        },
+        body: new URLSearchParams({ q: query }).toString(),
+      },
+    );
+    if (!res.ok) {
+      console.error(`[CoreIntel] DDG search HTTP ${res.status}`);
+      return [];
+    }
+    const html = await res.text();
+    const hits: WebHit[] = [];
+    // نتائج DDG HTML: <a rel="nofollow" class="result__a" href="...">TITLE</a>
+    // + <a class="result__snippet" ...>SNIPPET</a>
+    const linkRe = /<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
+    const snipRe = /<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
+    const titles: Array<{ url: string; title: string }> = [];
+    let m: RegExpExecArray | null;
+    while ((m = linkRe.exec(html)) !== null) {
+      let url = m[1];
+      // DDG بيلف اللينكات في //duckduckgo.com/l/?uddg=<encoded>
+      const uddg = /[?&]uddg=([^&]+)/.exec(url);
+      if (uddg) url = decodeURIComponent(uddg[1]);
+      const title = m[2].replace(/<[^>]+>/g, "").trim();
+      if (title && url.startsWith("http")) titles.push({ url, title });
+    }
+    const snippets: string[] = [];
+    while ((m = snipRe.exec(html)) !== null) snippets.push(m[1].replace(/<[^>]+>/g, "").trim());
+    for (let i = 0; i < titles.length && hits.length < maxResults; i++) {
+      hits.push({ title: titles[i].title, url: titles[i].url, snippet: snippets[i] ?? "" });
+    }
+    return hits;
+  } catch (e) {
+    console.error("[CoreIntel] webSearchSnippets failed:", (e as Error).message);
+    return [];
+  }
+}
+
 // Observability: fire-and-forget log of every AI call to `agent_logs`, read live by the
 // React Flow dashboard (dashboard/) over Supabase Realtime. Never throws into the caller —
 // a logging failure must not break the actual AI action.
@@ -1292,18 +1342,58 @@ Deno.serve(async (req: Request) => {
         const cached = await getCachedAiResponse(cacheKey);
         if (cached) return jsonResponse(cached);
 
-        const systemPrompt = "أنت خبير أسعار في السعودية. قدّر سعر المنتج بناءً على اسمه والمتجر (إن وجد). أجب بصيغة JSON: {\"item_name\":\"\",\"low_price\":0.0,\"avg_price\":0.0,\"high_price\":0.0,\"store\":\"\",\"currency\":\"SAR\"}";
-        const userPrompt = "المنتج: " + (item_name || "") + ", المتجر: " + (store || "غير محدد");
-        const result = await logged(user_id, action, "callJsonModel", { args: [systemPrompt, userPrompt] }, () => callJsonModel(systemPrompt, userPrompt));
+        // ١) بحث حقيقي أولاً — نتائج DuckDuckGo الحية (أسعار فعلية من مواقع حقيقية).
+        //    ده بيتحقق من وجود المفتاح بس، ومفيش LLM في الخطوة دي.
+        const webHits = await webSearchSnippets(`${item_name} ${store || ""} سعر price`.trim());
+        const evidence = webHits.slice(0, 6);
+
+        // ٢) لو فيه نتايج حية: الموديل بيستخرج الأرقام **من النتايج بس** مع روابطها.
+        //    لو مفيش نتايج: نرجّع صراحة "unknown" بدل تخمين — العميل يستاهل الصدق.
+        if (evidence.length === 0) {
+          const response = {
+            item_name: item_name || "",
+            status: "no_results",
+            message: "مفيش نتائج بحث كافية تتأكد منها — مش هخمّن سعر.",
+            sources: [],
+          };
+          await setCachedAiResponse(cacheKey, "estimate_price", response);
+          return jsonResponse(response);
+        }
+
+        const extractionPrompt =
+          'أنت مستخرج أسعار. من مقاطع البحث التالية فقط، استخرج أسعار المنتج. ' +
+          'لو مفيش أي سعر واضح في المقاطع، رجّع prices: []. ممنوع تخترع رقم مش موجود في المقاطع. ' +
+          'أجب JSON: {"prices":[{"value":0.0,"currency":"","source_title":"","url":""}], "summary":"جملة واحدة"}';
+        const extractionInput = `المنتج: ${item_name}\n\nمقاطع البحث:\n${evidence.map((h, i) => `${i + 1}. [${h.title}](${h.url})\n${h.snippet}`).join("\n\n")}`;
+        const extracted = await callJsonModel(extractionPrompt, extractionInput);
+
+        const prices = (extracted?.prices ?? []).filter((p: { value?: number }) => typeof p.value === "number" && p.value > 0);
+        const values = prices.map((p: { value: number }) => p.value);
         const response = {
-          item_name: result?.item_name || item_name || "",
-          low_price: result?.low_price || 0,
-          avg_price: result?.avg_price || 0,
-          high_price: result?.high_price || 0,
-          store: result?.store || store || null,
-          currency: "SAR",
+          item_name: item_name || "",
+          status: values.length > 0 ? "ok" : "unclear",
+          low_price: values.length ? Math.min(...values) : null,
+          avg_price: values.length ? values.reduce((a: number, b: number) => a + b, 0) / values.length : null,
+          high_price: values.length ? Math.max(...values) : null,
+          currency: prices[0]?.currency || null,
+          summary: extracted?.summary ?? null,
+          sources: prices.map((p: { source_title?: string; url?: string }) => ({ title: p.source_title, url: p.url })),
         };
-        if (result != null) await setCachedAiResponse(cacheKey, "estimate_price", response);
+        if (values.length > 0) await setCachedAiResponse(cacheKey, "estimate_price", response);
+        return jsonResponse(response);
+      }
+
+      case "web_search": {
+        // بحث ويب عام حقيقي — للأسئلة اللي برّه بيانات البيت ("أنهي زيت أحسن دلوقتي؟").
+        // النتايج بترجع بعناوينها وروابطها عشان الوكيل يقول المصدر، مش يختلق.
+        const q = String(payload?.query ?? "").trim();
+        if (!q) return jsonResponse({ results: [], error: "empty_query" });
+        const cacheKey = "web_search:" + q;
+        const cached = await getCachedAiResponse(cacheKey);
+        if (cached) return jsonResponse(cached);
+        const hits = await webSearchSnippets(q);
+        const response = { query: q, results: hits.slice(0, 8) };
+        if (hits.length > 0) await setCachedAiResponse(cacheKey, "web_search", response);
         return jsonResponse(response);
       }
 
