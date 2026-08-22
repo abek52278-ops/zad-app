@@ -72,6 +72,20 @@ object BankReadingStatus {
      * بتتنادى عند فتح التطبيق. آمنة لو السيرفس مربوط بالفعل (بتبقى no-op فعلياً)، وبتتجاهل
      * بهدوء لو الصلاحية مش موجودة — الطلب وقتها بيترفض وده متوقع مش خطأ.
      */
+    /**
+     * صحة الاستماع لحظياً — الفرق بين "السيرفس عايش" و"شغال فعلاً":
+     * lastSawNotificationAt بيتحدث مع كل إشعار عدّى على الجهاز (حتى غير المالي)،
+     * فهو نبض حي. لو الصلاحية منوحة والسيرفس اتربط لكن مرّ وقت طويل من غير أي
+     * إشعار خالص، الأرجح إن النظام قتل السيرفس — والحكم هنا أعدل من الأخضر الكاذب.
+     */
+    fun isListenerAlive(context: Context): Boolean {
+        if (!isNotificationListenerEnabled(context)) return false
+        if (lastConnectedAt(context) == null) return false
+        val saw = lastSawNotificationAt(context) ?: return false
+        // سماحية 10 دقايق: الجهاز ممكن يكون ساكت فعلاً ومفيش أي إشعارات خالص
+        return System.currentTimeMillis() - saw < 10 * 60_000L
+    }
+
     fun requestRebindIfPermitted(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
         if (!isNotificationListenerEnabled(context)) return

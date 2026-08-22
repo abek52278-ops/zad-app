@@ -353,7 +353,21 @@ fun HomeScreen(
                             onOpenDetail = { viewModel.showBudgetDialog() }
                         )
                     }
-                    Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    // مؤشر الاستماع الحي — سطر صغير تحت الكارت الأخضر مباشرة:
+                    // أخضر «بسمع رسايل البنك» أو برتقالي «الاستماع وقف، اضغط للإصلاح».
+                    // بيشتغل بس لو العميل فعّل الميزة قبل كده (متزعّلش اللي مش عايزها).
+                    if (isNotificationAccessGranted) {
+                        val alive = com.example.data.BankReadingStatus.isListenerAlive(context)
+                        BankListeningPill(
+                            alive = alive,
+                            lastSeenAt = bankReaderConnectedAt,
+                            onClick = {
+                                com.example.data.BankReadingStatus.requestRebindIfPermitted(context)
+                            }
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
                 }
 
                 // ── 2. Days left / daily safe spend pair (mockup: two 18dp white cards) ──
