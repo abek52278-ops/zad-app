@@ -234,12 +234,14 @@ class MainActivity : ComponentActivity() {
             android.util.Log.e("MainActivity", "Failed to start ChatNotificationService: ${e.message}")
         }
 
-        // "Hey Zad" wake word — استماع دائم. لو RECORD_AUDIO مش متاح لسه (أول تشغيل)،
-        // الخدمة هتفشل بهدوء والمستخدم هيدي الصلاحية من شاشة الصوت العادية.
-        try {
-            com.example.voice.HeyZadWakeService.start(this)
-        } catch (e: Exception) {
-            android.util.Log.w("MainActivity", "Wake service not started: ${e.message}")
+        // "Hey Zad" wake word — استماع دائم (لو المستخدم مفعّله). لو RECORD_AUDIO مش
+        // متاح لسه (أول تشغيل)، الخدمة هتفشل بهدوء والمستخدم هيدي الصلاحية من شاشة الصوت.
+        if (com.example.data.WakePrefs.isEnabled(this)) {
+            try {
+                com.example.voice.HeyZadWakeService.start(this)
+            } catch (e: Exception) {
+                android.util.Log.w("MainActivity", "Wake service not started: ${e.message}")
+            }
         }
 
         enableEdgeToEdge()

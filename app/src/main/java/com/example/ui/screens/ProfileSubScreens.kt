@@ -442,6 +442,18 @@ fun AssistantAlertsScreen(onBack: () -> Unit) {
 
         AppearOnEntry {
         Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
+            // "Hey Zad" — الاستماع الدائم لكلمة التنبيه
+            var wakeEnabled by remember { mutableStateOf(com.example.data.WakePrefs.isEnabled(context)) }
+            AlertSwitchItem("🗣️ \"يا زاد\" — الاستماع المستمر", "قول \"يا زاد\" في أي وقت لفتح المساعد الصوتي. الإيقاف يوفر البطارية.", wakeEnabled) {
+                wakeEnabled = it
+                com.example.data.WakePrefs.setEnabled(context, it)
+                if (it) {
+                    com.example.voice.HeyZadWakeService.start(context)
+                } else {
+                    com.example.voice.HeyZadWakeService.stop(context)
+                }
+            }
+
             AlertSwitchItem("🔔 النطق الصوتي للإشعارات والجرعات", "نطق الإشعارات والجرعات بصوت عربي هادئ. يمكنك إيقافه إذا كنت تفضل التنبيه الصامت.", voiceSpokenAlerts) {
                 voiceSpokenAlerts = it
                 AlertPrefs.setEnabled(context, AlertPrefs.KEY_VOICE_SPOKEN_ALERTS, it)

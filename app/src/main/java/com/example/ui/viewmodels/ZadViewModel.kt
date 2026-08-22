@@ -1910,6 +1910,12 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         insightsTts?.speakHumanLike(insight.body.ifBlank { insight.title })
     }
 
+    override fun onCleared() {
+        insightsTts?.release()
+        insightsTts = null
+        super.onCleared()
+    }
+
     fun dismissInsight(id: String) {
         viewModelScope.launch {
             SupabaseRepo.updateInsightStatus(id, "dismissed")

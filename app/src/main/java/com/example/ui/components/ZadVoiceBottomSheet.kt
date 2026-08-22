@@ -151,6 +151,16 @@ fun ZadVoiceBottomSheet(
         }
     }
 
+    // تعارض المايك: الخدمة الدائمة توقف الاستماع لما الشاشة دي تفتح، وترجع لما تقفل
+    DisposableEffect(Unit) {
+        com.example.voice.HeyZadWakeService.pause(context)
+        onDispose {
+            if (com.example.data.WakePrefs.isEnabled(context)) {
+                com.example.voice.HeyZadWakeService.resume(context)
+            }
+        }
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),

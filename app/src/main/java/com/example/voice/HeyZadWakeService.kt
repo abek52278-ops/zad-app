@@ -37,6 +37,7 @@ class HeyZadWakeService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var recognizer: SpeechRecognizer? = null
     private var running = false
+    @Volatile private var paused = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -47,9 +48,22 @@ class HeyZadWakeService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP) {
-            stopSelf()
-            return START_NOT_STICKY
+        when (intent?.action) {
+            ACTION_STOP -> {
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            ACTION_PAUSE -> {
+                // شاشة الصوت مفتوحة — نسيب المايك ليها لوحدها
+                paused = true
+                try { recognizer?.stopListening() } catch (_: Exception) {}
+                return START_STICKY
+            }
+            ACTION_RESUME -> {
+                paused = false
+                if (running) rearm()
+                return START_STICKY
+            }
         }
         return START_STICKY
     }
@@ -90,7 +104,7 @@ class HeyZadWakeService : Service() {
     }
 
     private fun armRecognizer() {
-        if (!running) return
+        if (!running || paused) return
         try { recognizer?.destroy() } catch (_: Exception) {}
         recognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
             setRecognitionListener(object : RecognitionListener {
@@ -131,7 +145,7 @@ class HeyZadWakeService : Service() {
 
     /** إعادة تسليح بعد كل نتيجة/خطأ — مع مهلة قصيرة عشان ما نلفش الحلقة بسرعة جنونية. */
     private fun rearm() {
-        if (!running) return
+        if (!running || paused) return
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ armRecognizer() }, 400L)
     }
 
@@ -145,6 +159,8 @@ class HeyZadWakeService : Service() {
     companion object {
         const val WAKE_NOTIFICATION_ID = 4711
         const val ACTION_STOP = "com.example.voice.STOP_WAKE"
+        const val ACTION_PAUSE = "com.example.voice.PAUSE_WAKE"
+        const val ACTION_RESUME = "com.example.voice.RESUME_WAKE"
 
         /** كل الصيغ المقبولة لكلمة التنبيه (مصري/عربي/إنجليزي). */
         val WAKE_PHRASES = listOf(
@@ -163,6 +179,20 @@ class HeyZadWakeService : Service() {
 
         fun stop(context: Context) {
             context.startService(Intent(context, HeyZadWakeService::class.java).apply { action = ACTION_STOP })
+        }
+
+        /** شاشة الصوت مفتوحة — الخدمة تسيب المايك. */
+        fun pause(context: Context) {
+            try {
+                context.startService(Intent(context, HeyZadWakeService::class.java).apply { action = ACTION_PAUSE })
+            } catch (_: Exception) {}
+        }
+
+        /** شاشة الصوت اتقفلت — الخدمة ترجع تستمع. */
+        fun resume(context: Context) {
+            try {
+                context.startService(Intent(context, HeyZadWakeService::class.java).apply { action = ACTION_RESUME })
+            } catch (_: Exception) {}
         }
     }
 }
