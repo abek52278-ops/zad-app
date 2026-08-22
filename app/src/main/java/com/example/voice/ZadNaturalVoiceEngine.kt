@@ -197,6 +197,18 @@ class ZadNaturalVoiceEngine(private val context: Context) {
                         put("text", text)
                         put("persona", persona.id)
                         put("locale", MarketPrefs.getMarket(context).localeTag)
+                        // لهجة العميل توصل للـ style prompt — الصوت ينطق بنفس
+                        // لهجته مش فصحى محايدة (المصري «إزيك»، الخليجي «شخبارك»...)
+                        put("dialect_instruction", com.example.data.MarketPrefs.getMarket(context).let { m ->
+                            when (m.localeTag.substringBefore("-")) {
+                                "ar" -> when (m.localeTag) {
+                                    "ar-EG" -> "تحدث باللهجة المصرية العامية"
+                                    "ar-SA" -> "تحدث باللهجة السعودية"
+                                    else -> ""
+                                }
+                                else -> ""
+                            }
+                        })
                     })
                 }.toString()
                 val request = Request.Builder()

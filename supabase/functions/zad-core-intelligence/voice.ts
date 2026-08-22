@@ -30,6 +30,13 @@ export interface ValidVoiceRequest {
   voiceId: string;
 }
 
+/** تعليمات لهجة اختيارية قادمة من جهاز العميل (مصري/سعودي/...) */
+export interface VoiceDialectHint {
+  text: string;
+  voiceId: string;
+  dialect?: string;
+}
+
 export function bearerToken(req: Request): string {
   const header = req.headers.get("Authorization") ?? "";
   return header.toLowerCase().startsWith("bearer ")
@@ -45,6 +52,13 @@ export function validateVoicePayload(payload: unknown): ValidVoiceRequest | null
   const voiceId = VOICE_IDS[persona];
   if (!text || text.length > 1200 || !voiceId) return null;
   return { text, voiceId };
+}
+
+/** استخراج تعليمات اللهجة من الـ payload (اختياري — للتوافق مع الإصدارات القديمة). */
+export function extractDialectHint(payload: unknown): string {
+  if (!payload || typeof payload !== "object") return "";
+  const d = (payload as Record<string, unknown>).dialect_instruction;
+  return typeof d === "string" && d.length < 120 ? d.trim() : "";
 }
 
 /**
@@ -72,8 +86,10 @@ export async function requestGeminiVoice(
   input: ValidVoiceRequest,
   apiKey: string,
   fetcher: typeof fetch = fetch,
+  dialectInstruction = "",
 ): Promise<Response> {
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+  const dialectLine = dialectInstruction ? `\n${dialectInstruction}، مع الحفاظ على الطبيعية التامة.` : "";
   const res = await fetcher(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TTS_MODEL}:generateContent`,
     {
@@ -84,7 +100,7 @@ export async function requestGeminiVoice(
       },
       body: JSON.stringify({
         contents: [{
-          parts: [{ text: `${stylePrompt(input.text)}\n\n${input.text}` }],
+          parts: [{ text: `${stylePrompt(input.text)}${dialectLine}\n\n${input.text}` }],
         }],
         generationConfig: {
           responseModalities: ["AUDIO"],
