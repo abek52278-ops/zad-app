@@ -250,55 +250,58 @@ fun ZadVoiceBottomSheet(
 
             Spacer(Modifier.height(14.dp))
 
-            // 3D Animated Voice Orb / Wave
+            // ── Orb احترافي بأسلوب ChatGPT Voice: كرة متوهجة واحدة كبيرة، تتنفس
+            //    مع الصوت، لونها بيتغير حسب الحالة — بدون وجه كرتوني. ──
             val infiniteTransition = rememberInfiniteTransition(label = "voice_orb")
-            val pulseScale by infiniteTransition.animateFloat(
+            val breathe by infiniteTransition.animateFloat(
                 initialValue = 1f,
-                targetValue = 1.06f + (soundLevel * 0.25f),
+                targetValue = 1f + 0.06f + (soundLevel * 0.22f),
                 animationSpec = infiniteRepeatable(
-                    animation = tween(800, easing = FastOutSlowInEasing),
+                    animation = tween(1200, easing = FastOutSlowInEasing),
                     repeatMode = RepeatMode.Reverse
                 ),
-                label = "pulse_scale"
+                label = "orb_breathe"
+            )
+            // دوران بطيء للهالة الخارجية — إحساس "حية" حتى في السكون
+            val haloRotate by infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = 360f,
+                animationSpec = infiniteRepeatable(tween(24_000, easing = androidx.compose.animation.core.LinearEasing)),
+                label = "halo_rotate"
             )
 
-            val companionMood = when {
-                isListening -> CompanionState.Happy
-                voiceState is VoiceState.Thinking -> CompanionState.Focused
-                voiceState is VoiceState.Speaking -> CompanionState.Celebrating
-                voiceState is VoiceState.Error -> CompanionState.Alert
-                else -> CompanionState.Idle
+            val orbState = when {
+                voiceState is VoiceState.Speaking -> OrbState.Speaking
+                voiceState is VoiceState.Thinking -> OrbState.Thinking
+                isListening -> OrbState.Listening
+                voiceState is VoiceState.Error -> OrbState.Error
+                else -> OrbState.Idle
             }
 
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(130.dp)
-                    .scale(pulseScale)
-            ) {
-                // Outer glow
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(CircleShape)
-                        .background(
-                            Brush.radialGradient(
-                                colors = listOf(
-                                    companionMood.skyColor.copy(alpha = 0.4f),
-                                    Color.Transparent
-                                )
-                            )
-                        )
-                )
+            ZadVoiceOrb(
+                state = orbState,
+                size = 180.dp,
+                breathe = breathe,
+                haloRotationDegrees = haloRotate,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
 
-                CompanionOrb(
-                    state = companionMood,
-                    size = 96.dp,
-                    animated = true
-                )
+            Spacer(Modifier.height(10.dp))
+
+            // حالة الوكيل الحالية (من trace السيرفر) أو الحالة العامة
+            val specialistLine = when (val s = voiceState) {
+                is VoiceState.Thinking -> stringResource(R.string.voice_status_thinking)
+                else -> null
             }
-
-            Spacer(Modifier.height(14.dp))
+            if (specialistLine != null) {
+                Text(
+                    specialistLine,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(4.dp))
+            }
 
             // Audio Waveform Equalizer Bars
             if (isListening) {
