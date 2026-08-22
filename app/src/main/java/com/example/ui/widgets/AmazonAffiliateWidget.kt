@@ -112,14 +112,28 @@ fun ZadAmazonDealCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                if (product.averagePriceSar > 0)
-                    CurrencyFormatter.format(LocalContext.current, product.averagePriceSar)
-                else "—",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.ExtraBold,
-                color = secondaryDark
-            )
+            Column {
+                Text(
+                    if (product.averagePriceSar > 0)
+                        CurrencyFormatter.format(LocalContext.current, product.averagePriceSar)
+                    else "—",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = secondaryDark
+                )
+                // شفافية السعر: تقريب — مش سعر حي
+                val age = product.priceAgeDays
+                Text(
+                    when {
+                        age == null -> "سعر تقريبي"
+                        age <= 1 -> "اتحدث النهاردة"
+                        else -> "سعر منذ $age يوم"
+                    },
+                    fontSize = 8.sp,
+                    color = textTertiary,
+                    maxLines = 1
+                )
+            }
             Text(
                 "أمازون",
                 fontSize = 9.5.sp,
@@ -127,6 +141,14 @@ fun ZadAmazonDealCard(
                 color = textTertiary
             )
         }
+        // إفصاح الأفلييت — مطلوب لشروط برنامج أمازون وأمانة مع العميل
+        Text(
+            "رابط شراء أفلييت — عمولة لزاد بدون أي زيادة عليك",
+            fontSize = 7.5.sp,
+            color = textTertiary.copy(alpha = 0.7f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

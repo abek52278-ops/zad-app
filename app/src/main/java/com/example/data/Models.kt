@@ -456,11 +456,22 @@ data class AffiliateProduct(
     @SerialName("image_url") val imageUrl: String? = null,
     @ColumnInfo(name = "average_price_sar")
     @SerialName("average_price_sar") val averagePriceSar: Double = 0.0,
+    /** تاريخ آخر تحقق للسعر — الكارت بيعرض "منذ X يوم" بدل ما يمثّل السعر كأنه حي. */
+    @ColumnInfo(name = "price_checked_at")
+    @SerialName("price_checked_at") val priceCheckedAt: String? = null,
     @ColumnInfo(name = "is_active")
     @SerialName("is_active") val isActive: Boolean = true,
     @ColumnInfo(name = "created_at")
     @SerialName("created_at") val createdAt: String? = null
-)
+) {
+    /** عمر السعر بالأيام (null = مش عارفين امتى اتأكد آخر مرة). */
+    val priceAgeDays: Int?
+        get() = priceCheckedAt?.let {
+            runCatching {
+                ((System.currentTimeMillis() - java.time.Instant.parse(it).toEpochMilli()) / 86_400_000L).toInt()
+            }.getOrNull()
+        }
+}
 
 @Entity(tableName = "affiliate_clicks")
 @Serializable
