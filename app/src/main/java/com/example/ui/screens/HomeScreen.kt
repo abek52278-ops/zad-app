@@ -214,7 +214,9 @@ fun HomeScreen(
     var selectedRecipeTitle by remember { mutableStateOf<String?>(null) }
     var showRecipeDialog by remember { mutableStateOf(false) }
     var showTasbihaReminder by remember { mutableStateOf(false) }
-    var showHomeTools by rememberSaveable { mutableStateOf(false) }
+    // أدوات الرئيسية (شيف زاد + أمازون + التوقعات) ظاهرة افتراضيًا — كانت مدفونة
+    // وراء قسم مطوي فالمستخدمين مكانوش بيشوفوها خالص.
+    var showHomeTools by rememberSaveable { mutableStateOf(true) }
 
     // Use FamilyViewModel's tasbiha data instead of direct SupabaseRepo call
     val myTasbiha = familyViewModel.myTasbiha

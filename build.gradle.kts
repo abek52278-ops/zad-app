@@ -7,3 +7,4 @@ plugins {
   alias(libs.plugins.secrets) apply false
   alias(libs.plugins.kotlin.serialization) apply false
 }
+ 

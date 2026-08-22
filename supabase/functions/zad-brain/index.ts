@@ -2971,7 +2971,38 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
   // الرد المعروض مبني على نتيجة التنفيذ الفعلية، مش على كلام الموديل الحر. ده الحارس
   // ضد "وهم التنفيذ": لو الموديل قال "ضفتلك اللحمة" ومنداش أي أداة، مفيش تنفيذ يتأكد
   // وبالتالي مفيش كارت تأكيد يتعرض — والنص اللي بيتعرض هو نصه هو، من غير ادعاء.
-  const reply = modelText.trim();
+  let reply = modelText.trim();
+
+  // === نقاش الوكلاء (Orchestrator review) — المرحلة ٣ ===
+  // لو اللفة فيها اقتراحات مالية أو تنفيذ فعلي، وكيل مراجعة مستقل بيتصرف كـ orchestrator:
+  // بيبص على الرد + اللي اتنفذ فعلاً ويتأكد إن مفيش ادعاء زايد. مفيش نداء موديل إضافي
+  // إلا لما فيه حاجة تخطر — التكلفة صفر في الحالة العادية. الفشل هنا غير حرج.
+  if (proposals.length > 0 || executed.length > 0) {
+    try {
+      const claims = [
+        `أدوات اتنفذت فعلاً: ${executed.map((x) => x.tool).join("، ") || "ولا واحدة"}`,
+        `اقتراحات مستنية تأكيد: ${proposals.map((x) => x.tool).join("، ") || "ولا واحدة"}`,
+      ].join("\n");
+      const review = await callModel({
+        model: MODEL_ROUTINE,
+        system:
+          "انت مراجع جودة ردود مساعد منزلي. راجع أن رد المساعد مبيادعش تنفيذ حاجة مش موجودة في قائمة التنفيذ الفعلي، ومبيوعدش بحاجة اتمنعت عليه. رد بكلمة OK لو سليم، أو جملة تصحيح واحدة قصيرة بالعربية لو فيه ادعاء خاطئ.",
+        tools: [],
+        history: [
+          { role: "user", text: `رد المساعد:\n${reply}\n\nالحقائق:\n${claims}` },
+        ],
+        maxTokens: 120,
+      });
+      const verdict = review.text?.trim() ?? "";
+      if (verdict && !/^ok\b/i.test(verdict) && verdict.length < 200) {
+        // استبدال الرد بالتصحيح — الإيصالات نفسها متتلمسش
+        reply = `${verdict}\n\n${reply}`;
+      }
+    } catch (e) {
+      console.error("orchestrator review skipped:", e);
+    }
+  }
+
   await recordPromiseDrift(sb, userId, runId, declaredSource, reply, executed.map((x) => x.tool));
   await finishRun("success");
 

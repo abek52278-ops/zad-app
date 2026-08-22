@@ -3360,8 +3360,8 @@ fun FamilyNeuralReportBottomSheet(
 
                 Spacer(Modifier.height(16.dp))
 
-                // 3. توصيات عقل زاد لرب الأسرة
-                Text("💡 توصيات عقل زاد الذكية لرب الأسرة", style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = Color(0xFF9333EA))
+                // 3. توصيات مبنية على البيانات الفعلية — لا نصوص ثابتة وهمية
+                Text("💡 ملاحظات عقل زاد لرب الأسرة", style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = Color(0xFF9333EA))
                 Spacer(Modifier.height(8.dp))
                 Box(
                     modifier = Modifier
@@ -3371,9 +3371,32 @@ fun FamilyNeuralReportBottomSheet(
                         .padding(14.dp)
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("• التزام الأبناء بالمهام ممتاز هذا الأسبوع؛ يمكنك مكافأتهم بزيادة بسيطة في رصيد الادخار.", style = Typography.bodySmall, color = onSurface)
-                        Text("• تجميع مشتريات مقاضي البيت في زيارة سوبرماركت واحدة نهاية الأسبوع سيوفر ~15% من المصروفات العشوائية.", style = Typography.bodySmall, color = onSurface)
-                        Text("• بستان التسبيح العائلي يسير بمعدل رائع نحو الشجرة المزهرة المشتركة 🌸.", style = Typography.bodySmall, color = onSurface)
+                        val sheetChores = activeState.chores
+                        val choreDone = sheetChores.count { it.isCompleted }
+                        val choreTotal = sheetChores.size
+                        val notes = buildList {
+                            // مهام: بيانات حقيقية فقط — نتجاهل لو مفيش مهام أصلاً
+                            if (choreTotal > 0) {
+                                val ratio = choreDone.toFloat() / choreTotal
+                                when {
+                                    ratio >= 0.8f -> add("إنجاز المهام ممتاز ($choreDone من $choreTotal) — استحقاق مكافأة مناسبة هذا الأسبوع.")
+                                    ratio >= 0.4f -> add("المهام في المنتصف ($choreDone من $choreTotal) — تذكير خفيف قد يكمل القائمة.")
+                                    else -> add("$choreDone من $choreTotal مهمة فقط مكتملة — يستحق جلسة ترتيب للمهام المتعثرة.")
+                                }
+                            }
+                            if (pendingGroceries.isNotEmpty()) {
+                                add("${pendingGroceries.size} صنف ناقص في قائمة المشتريات العائلية — تجميعها في زيارة واحدة يقلل المصروف العشوائي.")
+                            }
+                            if (children.isNotEmpty()) {
+                                val totalChildBalance = children.sumOf { (it.balance ?: 0).toDouble() }
+                                add("إجمالي رصيد مصروف الأبناء الحالي: ${totalChildBalance.toInt()} $currency — راجعه معهم كدرس ادخار عملي.")
+                            }
+                        }
+                        if (notes.isEmpty()) {
+                            Text("أضف مهام وقائمة مشتريات عائلية ليبدأ زاد بملاحظات حقيقية على بياناتكم.", style = Typography.bodySmall, color = onSurfaceVariant)
+                        } else {
+                            notes.forEach { Text("• $it", style = Typography.bodySmall, color = onSurface) }
+                        }
                     }
                 }
             }
