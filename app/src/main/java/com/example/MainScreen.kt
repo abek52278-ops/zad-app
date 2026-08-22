@@ -20,6 +20,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.MainActivity
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -79,7 +80,7 @@ private val fullScreenRoutes = setOf(
 )
 
 @Composable
-fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
+fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, openVoiceOnStart: Boolean = false) {
     val navController = rememberNavController()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -165,7 +166,15 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null) {
 
     var showMoreSheet by remember { mutableStateOf(false) }
     var showCameraSheet by remember { mutableStateOf(false) }
-    var showVoiceSheet by remember { mutableStateOf(false) }
+    // "Hey Zad" — نراقب طلب الخدمة مباشرة، ونصفره بعد ما نفتح
+    val wakeRequest = MainActivity.openVoiceRequest.value
+    var showVoiceSheet by remember { mutableStateOf(wakeRequest) }
+    LaunchedEffect(wakeRequest) {
+        if (wakeRequest) {
+            showVoiceSheet = true
+            MainActivity.openVoiceRequest.value = false
+        }
+    }
     // W6 — سطح المحادثة السريع (ZadAgentOverlay)، بيتفتح بضغطة طويلة على المسكوت.
     var showAgentOverlay by remember { mutableStateOf(false) }
 

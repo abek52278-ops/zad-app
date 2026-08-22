@@ -8,15 +8,11 @@ import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import android.speech.tts.TextToSpeech
-import android.speech.tts.UtteranceProgressListener
-import android.speech.tts.Voice
 import android.util.Log
 import com.example.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.util.Locale
 
 sealed class VoiceState {
     object Idle : VoiceState()
@@ -27,6 +23,13 @@ sealed class VoiceState {
     data class Error(val message: String) : VoiceState()
 }
 
+/**
+ * بوابة الصوت الموحدة لزاد.
+ *
+ * إدخال: SpeechRecognizer (جوجل STT) — متعدد اللهجات.
+ * إخراج: ZadNaturalVoiceEngine فقط (ElevenLabs صوت بشري عبر سيرفرنا) — مفيش TTS آلي.
+ * Wake word: "hey zad / يا زاد / hey زاد" بيبدأ جلسة استماع تلقائيًا (see onWakeWord).
+ */
 class ZadVoiceManager(private val context: Context) {
     private val TAG = "ZadVoiceManager"
 
@@ -43,57 +46,6 @@ class ZadVoiceManager(private val context: Context) {
     val soundLevel: StateFlow<Float> = _soundLevel.asStateFlow()
 
     private var speechRecognizer: SpeechRecognizer? = null
-    private var textToSpeech: TextToSpeech? = null
-    private var isTtsReady = false
-
-    init {
-        initTts()
-    }
-
-    private fun initTts() {
-        textToSpeech = TextToSpeech(context.applicationContext) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                isTtsReady = true
-                configureFemaleArabicVoice()
-            } else {
-                Log.w(TAG, "TextToSpeech init failed: $status")
-            }
-        }
-    }
-
-    private fun configureFemaleArabicVoice() {
-        val tts = textToSpeech ?: return
-        try {
-            val marketLocale = com.example.data.MarketPrefs.getMarket(context).toLocale()
-            val locale = if (tts.isLanguageAvailable(marketLocale) >= TextToSpeech.LANG_AVAILABLE) {
-                marketLocale
-            } else {
-                Locale("ar")
-            }
-
-            tts.language = locale
-            // Set pleasant female pitch & speed
-            tts.setPitch(1.20f)
-            tts.setSpeechRate(1.05f)
-
-            // Try to find a female voice among available voices
-            val voices = tts.voices
-            if (voices != null) {
-                val femaleVoice = voices.firstOrNull { v ->
-                    v.locale.language == "ar" && (
-                        v.name.contains("female", ignoreCase = true) ||
-                        v.name.contains("fem", ignoreCase = true) ||
-                        v.name.contains("ar-x-", ignoreCase = true)
-                    )
-                }
-                if (femaleVoice != null) {
-                    tts.voice = femaleVoice
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Voice configuration exception: ${e.message}")
-        }
-    }
 
     fun startListening(onResult: (String) -> Unit) {
         stopSpeaking()
@@ -151,7 +103,6 @@ class ZadVoiceManager(private val context: Context) {
                     }
 
                     override fun onError(error: Int) {
-                        _voiceState.value = VoiceState.Idle
                         _isListening.value = false
                         val msg = when (error) {
                             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> context.getString(R.string.voice_error_permission)
@@ -163,9 +114,7 @@ class ZadVoiceManager(private val context: Context) {
                             else -> context.getString(R.string.voice_error_generic)
                         }
                         Log.w(TAG, "SpeechRecognizer error: $error ($msg)")
-                        // Recognition errors are UI state, never user speech. Passing msg to
-                        // onResult used to send "تأكد من الاتصال بالإنترنت" to the AI agent
-                        // as if the customer had spoken it.
+                        // أخطاء التعرف حالة واجهة، مش كلام المستخدم — عمرها ما تتبعت للوكيل.
                         _voiceState.value = VoiceState.Error(msg)
                     }
 
@@ -221,25 +170,53 @@ class ZadVoiceManager(private val context: Context) {
 
     private val naturalVoiceEngine = ZadNaturalVoiceEngine(context)
 
+    // حفظ الشخصية المختارة بين الجلسات
+    private val personaPrefs = context.getSharedPreferences("zad_voice_persona", Context.MODE_PRIVATE)
+
+    init {
+        val savedId = personaPrefs.getString("persona_id", null)
+        savedId?.let { id ->
+            ZadNaturalVoiceEngine.VoicePersona.values()
+                .firstOrNull { it.id == id }
+                ?.let { naturalVoiceEngine.setPersona(it) }
+        }
+    }
+
     fun setVoicePersona(persona: ZadNaturalVoiceEngine.VoicePersona) {
         naturalVoiceEngine.setPersona(persona)
+        personaPrefs.edit().putString("persona_id", persona.id).apply()
     }
 
     fun getCurrentPersona(): ZadNaturalVoiceEngine.VoicePersona = naturalVoiceEngine.currentPersona.value
 
-    fun speakHumanLike(text: String, onDone: () -> Unit = {}) {
+    /** حالة توفر الصوت البشري — لو ElevenLاس فشل، الواجهة تعرض النص بدل صمت. */
+    val humanVoiceAvailable: StateFlow<Boolean> = naturalVoiceEngine.humanVoiceAvailable
+
+    /** نطق بصوت بشري. onDone بعد نجاح التشغيل، onFailed لو الصوت البشري مش متاح. */
+    fun speakHumanLike(text: String, onDone: () -> Unit = {}, onFailed: () -> Unit = {}) {
         if (text.isBlank()) {
             onDone()
             return
         }
 
         _voiceState.value = VoiceState.Speaking(text)
-        naturalVoiceEngine.speakHumanLike(text) {
-            _voiceState.value = VoiceState.Idle
-            onDone()
-        }
+        _isSpeaking.value = true
+        naturalVoiceEngine.speakHumanLike(
+            text,
+            onDone = {
+                _isSpeaking.value = false
+                _voiceState.value = VoiceState.Idle
+                onDone()
+            },
+            onFailed = {
+                _isSpeaking.value = false
+                _voiceState.value = VoiceState.Idle
+                onFailed()
+            }
+        )
     }
 
+    /** توافق مع الاستدعاءات القديمة — نفس speakHumanLike. */
     fun speakFemaleVoice(text: String, onDone: () -> Unit = {}) {
         speakHumanLike(text, onDone)
     }
@@ -247,10 +224,10 @@ class ZadVoiceManager(private val context: Context) {
     fun stopSpeaking() {
         try {
             naturalVoiceEngine.stop()
-            textToSpeech?.stop()
         } catch (e: Exception) {
             Log.w(TAG, "stopSpeaking error: ${e.message}")
         }
+        _isSpeaking.value = false
         if (_voiceState.value is VoiceState.Speaking) {
             _voiceState.value = VoiceState.Idle
         }
@@ -261,10 +238,8 @@ class ZadVoiceManager(private val context: Context) {
             speechRecognizer?.destroy()
             speechRecognizer = null
             naturalVoiceEngine.release()
-            textToSpeech?.stop()
-            textToSpeech?.shutdown()
-            textToSpeech = null
             _isListening.value = false
+            _isSpeaking.value = false
             _soundLevel.value = 0f
             _voiceState.value = VoiceState.Idle
         } catch (e: Exception) {

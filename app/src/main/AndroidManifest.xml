@@ -7,6 +7,8 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!-- تنبيهات قرب السوبرماركت (اختياري، opt-in من NearbyDealsScreen) — مش مطلوبة لباقي التطبيق -->
@@ -103,6 +105,12 @@
         <service
             android:name=".services.ChatNotificationService"
             android:exported="false" />
+
+        <!-- "Hey Zad" wake word — استماع دائم، foreground service بإذن المايك -->
+        <service
+            android:name=".voice.HeyZadWakeService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
 
         <!-- Pharmacy dose reminders: exact-time alarm trigger + notification actions -->
         <receiver

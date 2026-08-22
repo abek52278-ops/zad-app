@@ -1252,4 +1252,6 @@
     <string name="bank_proposal_correct_direction">İşlem yönü yanlış mı?</string>
     <string name="bank_proposal_processing">Kararınız uygulanıyor…</string>
     <string name="bank_proposal_failed">Karar uygulanamadı. Tekrar deneyin.</string>
+    <string name="wake_service_title">Zad dinliyor</string>
+    <string name="wake_service_body">Sesli asistanı açmak için "Hey Zad" deyin</string>
 </resources>

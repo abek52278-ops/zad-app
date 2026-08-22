@@ -2,13 +2,12 @@ package com.example.voice
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioFocusRequest
 import android.media.AudioFormat
+import android.media.AudioManager
 import android.media.AudioTrack
-import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.speech.tts.TextToSpeech
-import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import com.example.BuildConfig
 import com.example.data.MarketPrefs
@@ -32,8 +31,14 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * Streams natural speech through the authenticated Zad Edge Function. Provider secrets stay
- * server-side; Android TTS remains an offline fallback when the session or provider is unavailable.
+ * محرك صوت زاد — ElevenLabs فقط عبر الـ Edge Function (المفتاح سيرفر-سايد).
+ *
+ * مبادئ إعادة الهيكلة:
+ * - مفيش TTS روبوتي: لو ElevenLabs فشل، بنعمل retry بسيط ثم نبلّغ بالفشل بدل ما
+ *   نشغّل صوت آلي يكسر إحساس "صوت بشري". (الـ fallback المحلي اتمسح نهائيًا.)
+ * - Audio Focus دايمًا قبل الكلام — مفيش خدمة تتكلم فوق زاد.
+ * - PCM 16-bit بحدود عينات محفوظة — لا تشويش ولا "صرير راديو".
+ * - generation counter يلغي أي تشغيل قديم فورًا عند طلب جديد (مقاطعة حقيقية).
  */
 class ZadNaturalVoiceEngine(private val context: Context) {
 
@@ -49,22 +54,22 @@ class ZadNaturalVoiceEngine(private val context: Context) {
     ) {
         SARAH_STUDIO_WARM(
             id = "sarah_warm",
-            displayNameAr = "👩 سارة (صوت استوديو دافئ)",
+            displayNameAr = "👩 سارة (صوت بشري دافئ)",
             descriptionAr = "صوت بشري طبيعي دافئ ومريح للأذن مع إيقاع متزن",
             pitch = 1.08f,
             speechRate = 1.02f
         ),
         KARIM_STUDIO_PRO(
             id = "karim_pro",
-            displayNameAr = "👨 كريم (صوت مهني وودود)",
+            displayNameAr = "👨 كريم (صوت بشري واثق)",
             descriptionAr = "نبرة واثقة، واضحة ومباشرة مثل المستشار الشخصي",
             pitch = 0.95f,
             speechRate = 1.05f
         ),
         PET_MASCOT_CUTE(
             id = "pet_mascot",
-            displayNameAr = "🐾 زاد الأليف (رفيق مرح وكيوت)",
-            descriptionAr = "صوت مرح ولطيف مع أصوات وحركات الحيوان الأليف المحبوب",
+            displayNameAr = "🐾 زاد الأليف (رفيق مرح)",
+            descriptionAr = "صوت مرح ولطيف مع أصوات الحيوان الأليف المحبوب",
             pitch = 1.35f,
             speechRate = 1.10f,
             isPetPersona = true
@@ -79,11 +84,34 @@ class ZadNaturalVoiceEngine(private val context: Context) {
         .readTimeout(90, TimeUnit.SECONDS)
         .build()
 
-    private var textToSpeech: TextToSpeech? = null
-    private var isTtsInitialized = false
     @Volatile private var activeCall: Call? = null
     @Volatile private var audioTrack: AudioTrack? = null
     @Volatile private var completion: (() -> Unit)? = null
+    @Volatile private var failedCompletion: (() -> Unit)? = null
+    private var audioFocusRequest: AudioFocusRequest? = null
+
+    private val audioManager get() =
+        context.applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
+    /** يطلب Audio Focus قبل أي نطق — بدون ده أي مشغل تاني بيتكلم فوق زاد. */
+    private fun requestAudioFocus(): Boolean {
+        val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ASSISTANT)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+            )
+            .setOnAudioFocusChangeListener { }
+            .build()
+        audioFocusRequest = request
+        return audioManager.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    }
+
+    private fun abandonAudioFocus() {
+        audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
+        audioFocusRequest = null
+    }
 
     private val sampleRate = 24_000
     private val _isSpeaking = MutableStateFlow(false)
@@ -92,61 +120,24 @@ class ZadNaturalVoiceEngine(private val context: Context) {
     private val _currentPersona = MutableStateFlow(VoicePersona.SARAH_STUDIO_WARM)
     val currentPersona: StateFlow<VoicePersona> = _currentPersona.asStateFlow()
 
-    init {
-        initFallbackTtsEngine()
-    }
-
-    private fun initFallbackTtsEngine() {
-        textToSpeech = TextToSpeech(context.applicationContext) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                isTtsInitialized = true
-                setupVoicePersona(_currentPersona.value)
-                textToSpeech?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                    override fun onStart(utteranceId: String?) {
-                        utteranceGeneration(utteranceId)?.let { id ->
-                            if (id == generation.get()) _isSpeaking.value = true
-                        }
-                    }
-
-                    override fun onDone(utteranceId: String?) {
-                        utteranceGeneration(utteranceId)?.let(::finishSpeaking)
-                    }
-
-                    @Deprecated("Deprecated in Java")
-                    override fun onError(utteranceId: String?) {
-                        utteranceGeneration(utteranceId)?.let(::finishSpeaking)
-                    }
-
-                    override fun onError(utteranceId: String?, errorCode: Int) {
-                        utteranceGeneration(utteranceId)?.let(::finishSpeaking)
-                    }
-                })
-            }
-        }
-    }
+    /** حالة توفر الصوت البشري — الواجهة تعرض بيها رسالة صادقة بدل صمت أو صوت آلي. */
+    private val _humanVoiceAvailable = MutableStateFlow(true)
+    val humanVoiceAvailable: StateFlow<Boolean> = _humanVoiceAvailable.asStateFlow()
 
     fun setPersona(persona: VoicePersona) {
         _currentPersona.value = persona
-        if (isTtsInitialized) setupVoicePersona(persona)
     }
 
-    private fun setupVoicePersona(persona: VoicePersona) {
-        val tts = textToSpeech ?: return
-        try {
-            val locale = MarketPrefs.getMarket(context).toLocale()
-            tts.language = if (tts.isLanguageAvailable(locale) >= TextToSpeech.LANG_AVAILABLE) {
-                locale
-            } else {
-                java.util.Locale.forLanguageTag(locale.language)
-            }
-            tts.setPitch(persona.pitch)
-            tts.setSpeechRate(persona.speechRate)
-        } catch (error: Exception) {
-            Log.w(tag, "Failed configuring fallback TTS: ${error.message}")
-        }
-    }
-
-    fun speakHumanLike(text: String, onDone: (() -> Unit)? = null) {
+    /**
+     * ينطق النص بصوت سارة/كريم البشري عبر ElevenLabs (streaming PCM). مع retry واحد
+     * للأخطاء العابرة (نت/5xx). لو فشل نهائيًا: onDone مش هيتنده — onFailed هو اللي
+     * هيشتغل، عشان الواجهة تعرض النص مكتوبًا وتقول الحقيقة بدل صوت روبوت.
+     */
+    fun speakHumanLike(
+        text: String,
+        onDone: (() -> Unit)? = null,
+        onFailed: (() -> Unit)? = null
+    ) {
         stopInternal()
         if (text.isBlank()) {
             onDone?.invoke()
@@ -155,6 +146,7 @@ class ZadNaturalVoiceEngine(private val context: Context) {
 
         val requestGeneration = generation.incrementAndGet()
         completion = onDone
+        failedCompletion = onFailed
         _isSpeaking.value = true
 
         val persona = _currentPersona.value
@@ -164,19 +156,45 @@ class ZadNaturalVoiceEngine(private val context: Context) {
         val naturalText = prepareNaturalSpeechText(text, persona)
 
         scope.launch {
+            val spoken = synthesizeWithRetry(requestGeneration, naturalText, persona)
+            if (requestGeneration != generation.get()) return@launch // اتقاطع بكلام أحدث
+            if (spoken == null) {
+                Log.w(tag, "Human voice unavailable after retries")
+                _humanVoiceAvailable.value = false
+                _isSpeaking.value = false
+                mainHandler.post {
+                    if (requestGeneration != generation.get()) return@post
+                    val cb = failedCompletion
+                    failedCompletion = null
+                    completion = null
+                    cb?.invoke()
+                }
+                return@launch
+            }
+            _humanVoiceAvailable.value = true
+            streamPcm(requestGeneration, spoken)
+        }
+    }
+
+    /** جلب الصوت من الـ Edge Function مع retry واحد للأخطاء العابرة. */
+    private suspend fun synthesizeWithRetry(
+        requestGeneration: Long,
+        text: String,
+        persona: VoicePersona
+    ): java.io.InputStream? {
+        repeat(2) { attempt ->
             try {
                 val session = SupabaseRepo.client.auth.currentSessionOrNull()
                 val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id?.toString()
                 if (session == null || userId.isNullOrBlank()) {
-                    startFallback(requestGeneration, naturalText)
-                    return@launch
+                    Log.w(tag, "No auth session for voice synthesis")
+                    return null
                 }
-
                 val body = JSONObject().apply {
                     put("action", "voice_synthesize")
                     put("user_id", userId)
                     put("payload", JSONObject().apply {
-                        put("text", naturalText)
+                        put("text", text)
                         put("persona", persona.id)
                         put("locale", MarketPrefs.getMarket(context).localeTag)
                     })
@@ -191,29 +209,35 @@ class ZadNaturalVoiceEngine(private val context: Context) {
 
                 val call = httpClient.newCall(request)
                 activeCall = call
-                call.execute().use { response ->
-                    if (requestGeneration != generation.get()) return@use
-                    if (!response.isSuccessful) {
-                        Log.w(tag, "Voice proxy unavailable: HTTP ${response.code}")
-                        startFallback(requestGeneration, naturalText)
-                        return@use
-                    }
-                    val responseBody = response.body
-                    if (responseBody == null) {
-                        startFallback(requestGeneration, naturalText)
-                        return@use
-                    }
-                    streamPcm(requestGeneration, responseBody.byteStream())
+                val response = call.execute()
+                if (requestGeneration != generation.get()) {
+                    response.close()
+                    activeCall = null
+                    return null
                 }
+                if (!response.isSuccessful || response.body == null) {
+                    Log.w(tag, "Voice proxy attempt ${attempt + 1}: HTTP ${response.code}")
+                    response.close()
+                    activeCall = null
+                    if (attempt == 0 && (response.code >= 500)) {
+                        Thread.sleep(600)
+                        return@repeat
+                    }
+                    return null
+                }
+                return response.body!!.byteStream()
             } catch (error: Exception) {
-                if (requestGeneration == generation.get()) {
-                    Log.w(tag, "Voice stream failed, using local TTS: ${error.message}")
-                    startFallback(requestGeneration, naturalText)
+                if (requestGeneration != generation.get()) return null
+                Log.w(tag, "Voice stream attempt ${attempt + 1} failed: ${error.message}")
+                activeCall = null
+                if (attempt == 0 && error !is kotlinx.coroutines.CancellationException) {
+                    try { Thread.sleep(600) } catch (_: InterruptedException) {}
+                    return@repeat
                 }
-            } finally {
-                if (requestGeneration == generation.get()) activeCall = null
+                return null
             }
         }
+        return null
     }
 
     private fun streamPcm(requestGeneration: Long, input: java.io.InputStream) {
@@ -241,47 +265,46 @@ class ZadNaturalVoiceEngine(private val context: Context) {
             .build()
         audioTrack = track
         try {
+            if (!requestAudioFocus()) {
+                Log.w(tag, "Audio focus denied — playing at reduced priority")
+            }
             track.play()
             val buffer = ByteArray(8_192)
+            var carry = 0
             while (requestGeneration == generation.get()) {
-                val read = input.read(buffer)
+                val read = input.read(buffer, carry, buffer.size - carry)
                 if (read < 0) break
-                if (read > 0) track.write(buffer, 0, read, AudioTrack.WRITE_BLOCKING)
+                var available = read + carry
+                // PCM 16-bit: كل كتابة لازم تكون عدد بايتات زوجي — نص عينة = تشويش
+                val usable = available - (available % 2)
+                if (usable > 0) {
+                    track.write(buffer, 0, usable, AudioTrack.WRITE_BLOCKING)
+                }
+                available -= usable
+                if (available == 1) {
+                    buffer[0] = buffer[usable]
+                    carry = 1
+                } else {
+                    carry = 0
+                }
+            }
+            if (carry == 1 && requestGeneration == generation.get()) {
+                track.write(byteArrayOf(buffer[0], 0), 0, 2, AudioTrack.WRITE_BLOCKING)
             }
             if (requestGeneration == generation.get()) finishSpeaking(requestGeneration)
-        } finally {
-            if (audioTrack === track) audioTrack = null
-            try {
-                track.stop()
-            } catch (_: Exception) {
+        } catch (error: Exception) {
+            if (requestGeneration == generation.get()) {
+                Log.w(tag, "Playback failed mid-stream: ${error.message}")
+                finishSpeaking(requestGeneration)
             }
+        } finally {
+            abandonAudioFocus()
+            if (audioTrack === track) audioTrack = null
+            try { input.close() } catch (_: Exception) {}
+            try { track.stop() } catch (_: Exception) {}
             track.release()
         }
     }
-
-    private fun startFallback(requestGeneration: Long, text: String) {
-        mainHandler.post {
-            if (requestGeneration != generation.get()) return@post
-            if (!isTtsInitialized || textToSpeech == null) {
-                finishSpeaking(requestGeneration)
-                return@post
-            }
-            setupVoicePersona(_currentPersona.value)
-            val params = Bundle().apply {
-                putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
-            }
-            val result = textToSpeech?.speak(
-                text,
-                TextToSpeech.QUEUE_FLUSH,
-                params,
-                "zad_fallback_tts_$requestGeneration"
-            )
-            if (result == TextToSpeech.ERROR) finishSpeaking(requestGeneration)
-        }
-    }
-
-    private fun utteranceGeneration(utteranceId: String?): Long? =
-        utteranceId?.removePrefix("zad_fallback_tts_")?.toLongOrNull()
 
     private fun finishSpeaking(requestGeneration: Long) {
         mainHandler.post {
@@ -289,6 +312,7 @@ class ZadNaturalVoiceEngine(private val context: Context) {
             _isSpeaking.value = false
             val callback = completion
             completion = null
+            failedCompletion = null
             callback?.invoke()
         }
     }
@@ -300,6 +324,7 @@ class ZadNaturalVoiceEngine(private val context: Context) {
     private fun stopInternal() {
         generation.incrementAndGet()
         completion = null
+        failedCompletion = null
         _isSpeaking.value = false
         activeCall?.cancel()
         activeCall = null
@@ -311,7 +336,6 @@ class ZadNaturalVoiceEngine(private val context: Context) {
             track?.stop()
         } catch (_: Exception) {
         }
-        textToSpeech?.stop()
     }
 
     fun release() {
@@ -320,9 +344,6 @@ class ZadNaturalVoiceEngine(private val context: Context) {
         try {
             audioTrack?.release()
             audioTrack = null
-            textToSpeech?.shutdown()
-            textToSpeech = null
-            isTtsInitialized = false
         } catch (_: Exception) {
         }
     }
@@ -331,7 +352,7 @@ class ZadNaturalVoiceEngine(private val context: Context) {
         val linkWord = if (MarketPrefs.getMarket(context).localeTag.startsWith("tr")) "bağlantı" else "الرابط"
         var cleaned = rawText
             .replace(Regex("""https?://\S+"""), linkWord)
-            .replace(Regex("""[#*`_~>\[\]()]"""), " ")
+            .replace(Regex("""[#*`_~\[\]()]"""), " ")
             .replace(Regex("""[\p{So}\p{Cn}]"""), " ")
             .replace(Regex("""\s+"""), " ")
             .trim()

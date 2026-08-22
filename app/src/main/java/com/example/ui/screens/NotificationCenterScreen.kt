@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import android.speech.tts.TextToSpeech
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -62,18 +61,10 @@ fun NotificationCenterScreen(
     val brainAlerts = zadInsights.filter { it.surface == "bell" }
     val unreadCount = notifications.count { !it.isRead } + brainAlerts.size + transactionProposals.size
 
-    var tts: TextToSpeech? by remember { mutableStateOf(null) }
+    // صوت زاد البشري (ElevenLabs عبر السيرفر) — نفس محرك الصوت في كل التطبيق
+    val alertSpeaker = remember { com.example.voice.ZadNaturalVoiceEngine(context.applicationContext) }
     DisposableEffect(Unit) {
-        tts = TextToSpeech(context) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                // نفس منطق ZadNotifier.speakArabic — لهجة البلد المختار لو الجهاز عنده صوتها،
-                // وإلا عربي عام.
-                val marketLocale = com.example.data.MarketPrefs.getMarket(context).toLocale()
-                val available = tts?.isLanguageAvailable(marketLocale)?.let { it >= TextToSpeech.LANG_AVAILABLE } == true
-                tts?.language = if (available) marketLocale else java.util.Locale("ar")
-            }
-        }
-        onDispose { tts?.shutdown() }
+        onDispose { alertSpeaker.release() }
     }
 
     LaunchedEffect(Unit) {
@@ -90,9 +81,9 @@ fun NotificationCenterScreen(
             notifications.filter { !it.isRead }.sortedByDescending { it.createdAt }.forEach { add("${it.title}. ${it.message}") }
         }
         if (spoken.isEmpty()) {
-            tts?.speak(noNewNotificationsSpoken, TextToSpeech.QUEUE_FLUSH, null, null)
+            alertSpeaker.speakHumanLike(noNewNotificationsSpoken)
         } else {
-            tts?.speak(spoken.joinToString(". "), TextToSpeech.QUEUE_FLUSH, null, null)
+            alertSpeaker.speakHumanLike(spoken.joinToString(". "))
         }
     }
 

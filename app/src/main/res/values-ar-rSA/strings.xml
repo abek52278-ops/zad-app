@@ -1103,4 +1103,6 @@
     <string name="bank_proposal_correct_direction">الاتجاه غير صحيح؟</string>
     <string name="bank_proposal_processing">جارٍ تنفيذ القرار…</string>
     <string name="bank_proposal_failed">تعذر تنفيذ القرار. حاول مرة أخرى.</string>
+    <string name="wake_service_title">زاد يسمع</string>
+    <string name="wake_service_body">قل "يا زاد" لفتح المساعد الصوتي</string>
 </resources>

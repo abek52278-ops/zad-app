@@ -77,6 +77,9 @@ class MainActivity : ComponentActivity() {
     companion object {
         var pendingInviteCode = mutableStateOf<String?>(null)
         var openChatFromNotification = mutableStateOf(false)
+
+        /** "Hey Zad" — الخدمة طلبت فتح شاشة الصوت (wake word اتكشف). */
+        var openVoiceRequest = mutableStateOf(false)
     }
 
     /**
@@ -231,6 +234,14 @@ class MainActivity : ComponentActivity() {
             android.util.Log.e("MainActivity", "Failed to start ChatNotificationService: ${e.message}")
         }
 
+        // "Hey Zad" wake word — استماع دائم. لو RECORD_AUDIO مش متاح لسه (أول تشغيل)،
+        // الخدمة هتفشل بهدوء والمستخدم هيدي الصلاحية من شاشة الصوت العادية.
+        try {
+            com.example.voice.HeyZadWakeService.start(this)
+        } catch (e: Exception) {
+            android.util.Log.w("MainActivity", "Wake service not started: ${e.message}")
+        }
+
         enableEdgeToEdge()
         handleIntent(intent)
         setContent {
@@ -272,6 +283,10 @@ class MainActivity : ComponentActivity() {
         if (intent?.getBooleanExtra("open_family_chat", false) == true) {
             Log.d("ZAD_NOTIF", "Opening family chat from notification")
             openChatFromNotification.value = true
+        }
+        if (intent?.getBooleanExtra("open_voice", false) == true) {
+            Log.d("ZAD_WAKE", "Wake word detected — opening voice screen")
+            openVoiceRequest.value = true
         }
     }
 }
@@ -399,7 +414,8 @@ fun AppNavigation(pendingInviteCode: String? = null) {
                             popUpTo(0) { inclusive = true }
                         }
                     },
-                    pendingInviteCode = pendingInviteCode
+                    pendingInviteCode = pendingInviteCode,
+                    openVoiceOnStart = MainActivity.openVoiceRequest.value
                 )
             }
         }

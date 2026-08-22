@@ -1233,8 +1233,18 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         _pendingChatPrefill.value = null
         return text
     }
-    private val affirmativeReplyRegex = Regex("""^\s*(أيوه|ايوه|ايه|أه|اه|نعم|تمام|ماشي|أكد|اكد|yes|ok|confirm)\b""", RegexOption.IGNORE_CASE)
-    private val negativeReplyRegex = Regex("""^\s*(لا|مش|إلغاء|الغاء|no|cancel)\b""", RegexOption.IGNORE_CASE)
+    // قاموس موافقة/رفض واسع: يغطي اللهجات المصرية والخليجية، الردود الصوتية الشائعة
+    // (الـ STT بيرجع "أيوا" / "أيوة" / "اوك" / "تم" بشكل متقلب)، وصيغ التأكيد
+    // المركّبة زي "أيوه نفّذ" و"اكيد اعملها". الرفض كمان بيشمل "استنى" و"بعدين"
+    // عشان اقتراح مالي مايتنفذش بالخطأ من رد غامض.
+    private val affirmativeReplyRegex = Regex(
+        """^\s*(أيوه|ايوه|أيوا|ايوا|أيوة|ايوة|ايه|أي|اي|أه|اه|نعم|تم|تمام|ماشي|موافق|موافقة|أكد|اكد|أكيد|اكيد|نفذ|نفّذ|اعملها|اوك|أوكي|اوكي|ok|okay|yes|yeah|yep|sure|confirm|go ahead)\b""",
+        RegexOption.IGNORE_CASE
+    )
+    private val negativeReplyRegex = Regex(
+        """^\s*(لا|لأ|مش|مت|متنفذش|إلغاء|الغاء|الغيها|استنى|استني|بعدين|لحد ما|no|nope|cancel|stop|wait|later)\b""",
+        RegexOption.IGNORE_CASE
+    )
 
     /**
      * يقرأ كل [[ACTION:{...}]] كتبها زاد في رده وينفذها على المخزون/الصيدلية.
@@ -1429,6 +1439,14 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         set(value) { _pendingAgentProposals.value = value }
 
     /**
+     * الوكيل المتخصص اللي عالج آخر لفة (finance/pantry/pharmacy/family) — قيمة من
+     * السيرفر نفسه (`agent_turn` → `specialist`)، مش استنتاج محلي. null = اللفة الأخيرة
+     * كانت عامة أو سيرفر قديم. الواجهة تعرضه ككارت تنفيذ حي بعد اكتمال الرد فقط.
+     */
+    private val _lastActiveSpecialist = MutableStateFlow<String?>(null)
+    val lastActiveSpecialist: StateFlow<String?> = _lastActiveSpecialist.asStateFlow()
+
+    /**
      * بينادي `agent_turn` ويعرض نتيجته. بيرجع true لو اللفة اتعالجت بالكامل (رد اتعرض)،
      * وfalse لو النداء فشل عشان الكولر يقع على مسار الشات القديم.
      *
@@ -1467,6 +1485,8 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         ) ?: return false
 
         pendingAgentProposalsValue = result.proposals
+        // إيصال السيرفر للوكيل اللي عالج الرسالة — بيتحدث بعد اكتمال اللفة بس.
+        _lastActiveSpecialist.value = result.specialist?.takeIf { it != "general" }
         val text = buildAgentTurnReply(result) ?: return false
 
         val msg = AiChatMessage(text = text, isUser = false, replyToMessageId = replyToMessageId)
@@ -1843,7 +1863,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     val resolvingTransactionProposals: StateFlow<Set<String>> = _resolvingTransactionProposals.asStateFlow()
     private val _failedTransactionProposals = MutableStateFlow<Set<String>>(emptySet())
     val failedTransactionProposals: StateFlow<Set<String>> = _failedTransactionProposals.asStateFlow()
-    private var insightsTts: android.speech.tts.TextToSpeech? = null
+    private var insightsTts: com.example.voice.ZadNaturalVoiceEngine? = null
 
     fun loadZadInsights() {
         viewModelScope.launch {
@@ -1885,24 +1905,9 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun speakInsight(insight: com.example.data.ZadInsight) {
         val ctx = getApplication<Application>()
-        if (insightsTts == null) {
-            insightsTts = android.speech.tts.TextToSpeech(ctx) { status ->
-                if (status == android.speech.tts.TextToSpeech.SUCCESS) {
-                    insightsTts?.language = java.util.Locale("ar")
-                    insightsTts?.speak(
-                        insight.body.ifBlank { insight.title },
-                        if (insight.priority == "critical") android.speech.tts.TextToSpeech.QUEUE_FLUSH else android.speech.tts.TextToSpeech.QUEUE_ADD,
-                        null, insight.id
-                    )
-                }
-            }
-        } else {
-            insightsTts?.speak(
-                insight.body.ifBlank { insight.title },
-                if (insight.priority == "critical") android.speech.tts.TextToSpeech.QUEUE_FLUSH else android.speech.tts.TextToSpeech.QUEUE_ADD,
-                null, insight.id
-            )
-        }
+        // صوت زاد البشري — نفس المحرك الموحد، مفيش TTS آلي
+        if (insightsTts == null) insightsTts = com.example.voice.ZadNaturalVoiceEngine(ctx)
+        insightsTts?.speakHumanLike(insight.body.ifBlank { insight.title })
     }
 
     fun dismissInsight(id: String) {

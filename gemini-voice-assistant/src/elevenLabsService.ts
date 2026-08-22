@@ -19,7 +19,7 @@ export class ElevenLabsService {
   private isAvailable: boolean = false;
 
   constructor(apiKey?: string) {
-    const key = apiKey || process.env.ELEVENLABS_API_KEY || 'sk_53259a25a6218b4fbd842f504cc35100e51a7a9a3f95876a';
+    const key = apiKey || process.env.ELEVENLABS_API_KEY || '';
     this.client = new ElevenLabsClient({ apiKey: key });
     this.isAvailable = !!key;
   }

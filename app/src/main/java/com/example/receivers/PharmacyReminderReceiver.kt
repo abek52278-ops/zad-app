@@ -7,8 +7,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.speech.tts.TextToSpeech
-import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.R
@@ -148,59 +146,9 @@ class PharmacyReminderReceiver : BroadcastReceiver() {
     }
 
     private fun speakReminder(context: Context, itemName: String, pendingResult: PendingResult) {
-        if (!com.example.ui.screens.AlertPrefs.isEnabled(context, com.example.ui.screens.AlertPrefs.KEY_VOICE_SPOKEN_ALERTS)) {
-            pendingResult.finish()
-            return
-        }
-
-        val text = context.getString(R.string.pharmacy_reminder_voice_text, itemName)
-        var tts: TextToSpeech? = null
-        var finished = false
-        fun finishOnce() {
-            if (finished) return
-            finished = true
-            try { tts?.stop(); tts?.shutdown() } catch (e: Exception) { /* ignore */ }
+        // صوت زاد البشري (ElevenLabs عبر السيرفر) بدل TTS الآلي — نفس الصوت في كل التطبيق.
+        com.example.voice.ZadAlertSpeaker.speakAlert(context, context.getString(R.string.pharmacy_reminder_voice_text, itemName)) {
             pendingResult.finish()
         }
-
-        tts = TextToSpeech(context.applicationContext) { status ->
-            if (status != TextToSpeech.SUCCESS) {
-                Log.w(TAG, "TTS init failed, status=$status")
-                finishOnce()
-                return@TextToSpeech
-            }
-            val voiceLocale = com.example.data.MarketPrefs.currentMarket.toLocale()
-            val result = tts?.setLanguage(voiceLocale)
-            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                tts?.setLanguage(java.util.Locale("ar"))
-            }
-            tts?.setPitch(1.10f)
-            tts?.setSpeechRate(0.96f)
-
-            val voices = tts?.voices
-            if (voices != null) {
-                val femaleVoice = voices.firstOrNull { v ->
-                    v.locale.language == "ar" && (
-                        v.name.contains("female", ignoreCase = true) ||
-                        v.name.contains("fem", ignoreCase = true) ||
-                        v.name.contains("ar-x-", ignoreCase = true)
-                    )
-                }
-                if (femaleVoice != null) {
-                    tts?.voice = femaleVoice
-                }
-            }
-
-            tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) {}
-                override fun onDone(utteranceId: String?) { finishOnce() }
-                @Deprecated("Deprecated in Java")
-                override fun onError(utteranceId: String?) { finishOnce() }
-            })
-            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "pharmacy_reminder")
-        }
-
-        // شبكة أمان: TTS ممكن يفشل يبعت callback خالص (جهاز بدون محرك صوت) — سقف 15 ثانية
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ finishOnce() }, 15_000)
     }
 }

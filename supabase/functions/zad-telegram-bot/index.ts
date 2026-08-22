@@ -826,6 +826,122 @@ async function agentTurnReply(
   return { lines, pendingId: (pending as { id: string }).id };
 }
 
+/**
+ * تأكيد/رفض مصروف معلّق **بالنص** ("أيوه"/"لا") بدل الضغط على الزر — نفس منطق
+ * مسار callback بالظبط: إعادة تحقق مالك، claim بـ status=idempotent، تنفيذ عبر
+ * agent_confirm سيرفر-سايد. بيرجع true لو فيه pending اتعالج (فمتتعتبرش الرسالة
+ * سؤال جديد)، وfalse لو مفيش حاجة معلّقة.
+ */
+async function handleSpendCallbackText(
+  ctx: { reply: (t: string) => Promise<unknown> },
+  sb: SupabaseClient,
+  userId: string,
+  isAffirm: boolean
+): Promise<boolean> {
+  const { data: rows } = await sb.from("telegram_pending_writes")
+    .select("id,txn_kind,amount,title,category,status,expires_at")
+    .eq("user_id", userId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const row = (rows as {
+    id: string; txn_kind: string; amount: number; title: string;
+    category: string | null; status: string; expires_at: string;
+  }[] | null)?.[0];
+  if (!row) return false;
+
+  if (!isAffirm) {
+    await sb.from("telegram_pending_writes").update({ status: "cancelled" }).eq("id", row.id).eq("status", "pending");
+    await ctx.reply("تمام، ملغيته ✖️");
+    return true;
+  }
+  if (new Date(row.expires_at) < new Date()) {
+    await sb.from("telegram_pending_writes").update({ status: "cancelled" }).eq("id", row.id);
+    await ctx.reply("الطلب ده انتهت صلاحيته — ابعت المصروف تاني.");
+    return true;
+  }
+
+  const { error: claimError } = await sb.from("telegram_pending_writes")
+    .update({ status: "confirmed" })
+    .eq("id", row.id)
+    .eq("status", "pending");
+  if (claimError) {
+    await ctx.reply("حصلت مشكلة، جرب تاني.");
+    return true;
+  }
+
+  const confirmed = await agentConfirm(userId, "log_transaction", {
+    amount: row.amount,
+    title: row.title,
+    category: row.category ?? undefined,
+    txn_kind: row.txn_kind,
+    wallet: "card",
+  });
+  if (!confirmed.ok) {
+    console.error("telegram text confirmation via zad-brain failed");
+    await sb.from("telegram_pending_writes").update({ status: "pending" }).eq("id", row.id);
+    await ctx.reply("معلش، التسجيل فشل — جرب تاني.");
+    return true;
+  }
+  const { data: u } = await sb.from("zad_users").select("currency").eq("id", userId).maybeSingle();
+  const cur = (u as { currency?: string } | null)?.currency ?? "غير معروف";
+  await ctx.reply(`اتسجل ✅ ${isolate(sanitizeName(row.title))} — ${isolate(money(row.amount, cur))}`);
+  return true;
+}
+
+/**
+ * تأكيد/رفض أداة غير مالية معلّقة **بالنص** — نفس بروتوكول مسار tx:/tc:: claim
+ * مشروط بـ status ثم تنفيذ عبر zad-brain (agent_confirm). بترجع true لو اتعالجت.
+ */
+async function handleToolCallbackText(
+  ctx: { reply: (t: string) => Promise<unknown> },
+  sb: SupabaseClient,
+  userId: string,
+  isAffirm: boolean
+): Promise<boolean> {
+  const { data: rows } = await sb.from("telegram_pending_tools")
+    .select("id,user_id,tool,input,summary,status,expires_at")
+    .eq("user_id", userId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const row = (rows as {
+    id: string; user_id: string; tool: string; input: Record<string, unknown>;
+    summary: string; status: string; expires_at: string;
+  }[] | null)?.[0];
+  if (!row || row.user_id !== userId) return false;
+
+  if (!isAffirm) {
+    await sb.from("telegram_pending_tools").update({ status: "cancelled" }).eq("id", row.id).eq("status", "pending");
+    await ctx.reply("تمام، ملغيته ✖️");
+    return true;
+  }
+  if (new Date(row.expires_at).getTime() < Date.now()) {
+    await sb.from("telegram_pending_tools").update({ status: "cancelled" }).eq("id", row.id);
+    await ctx.reply("الطلب ده عدى عليه وقت طويل — ابعته تاني لو لسه عايزه.");
+    return true;
+  }
+
+  const { error: claimError } = await sb.from("telegram_pending_tools")
+    .update({ status: "confirmed" })
+    .eq("id", row.id)
+    .eq("status", "pending");
+  if (claimError) {
+    await ctx.reply("معلش، حصلت مشكلة — جرب تاني.");
+    return true;
+  }
+
+  const confirmed = await agentConfirm(userId, row.tool, row.input);
+  if (!confirmed.ok) {
+    console.error("telegram tool text confirmation failed:", row.tool);
+    await sb.from("telegram_pending_tools").update({ status: "pending" }).eq("id", row.id);
+    await ctx.reply("معلش، التنفيذ فشل — جرب تاني.");
+    return true;
+  }
+  await ctx.reply(`تنفذ ✅ ${row.summary}`);
+  return true;
+}
+
 bot.on("message:text", async (ctx) => {
   if (ctx.message.text.startsWith("/")) return; // أوامر متسجلة فوق بتتعامل لوحدها
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
@@ -833,6 +949,19 @@ bot.on("message:text", async (ctx) => {
   if (!userId) {
     await ctx.reply("أهلاً! لو عندك كود ربط من تطبيق زاد ابعته كده: /start الكود");
     return;
+  }
+
+  // تأكيد/رفض بالنص — العميل يقدر يرد "أيوه"/"لا" بدل الضغط على الزر (نفس اللي
+  // بيعمله التطبيق). بنقرا أحدث pending write/tool لسه pending بتاعه، ولو رده
+  // موافق/رافض ننفذ نفس منطق الـ callback بالظبط عبر handleSpendCallbackText /
+  // handleToolCallbackText تحت (idempotent: claim بـ status).
+  const affirmative = /^\s*(أيوه|ايوه|أيوا|ايوا|أيوة|ايوة|أي|اي|أه|اه|نعم|تم|تمام|ماشي|موافق|أكد|اكد|أكيد|اكيد|نفذ|نفّذ|اوك|أوكي|اوكي|ok|okay|yes|yeah|yep|sure|confirm)\b/i;
+  const negative = /^\s*(لا|لأ|مش|مت|إلغاء|الغاء|استنى|استني|بعدين|no|nope|cancel|stop|wait|later)\b/i;
+  if (affirmative.test(ctx.message.text) || negative.test(ctx.message.text)) {
+    const isAffirm = affirmative.test(ctx.message.text);
+    if (await handleSpendCallbackText(ctx, sb, userId, isAffirm)) return;
+    if (await handleToolCallbackText(ctx, sb, userId, isAffirm)) return;
+    // مفيش حاجة معلّقة → كمّل كرسالة عادية للوكيل
   }
 
   await ctx.replyWithChatAction("typing");

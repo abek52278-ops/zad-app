@@ -54,6 +54,20 @@ internal fun voiceReplyForTurn(
     messages.lastOrNull { !it.isUser && it.replyToMessageId == id }
 }
 
+/**
+ * أسماء الوكلاء المتخصصين للعرض. الـ id بيجي من رد `agent_turn` السيرفر نفسه —
+ * الدالة دي بس بتترجمه لاسم بشري، وأي id مش معروف بيرجع للافتراضي بدل ما يتعرض غلط.
+ */
+internal object SpecialistRegistry {
+    fun displayNameAr(id: String): String = when (id) {
+        "finance" -> "💰 وكيل المال"
+        "pantry" -> "🧺 وكيل المخزون والمطبخ"
+        "pharmacy" -> "💊 وكيل الصيدلية"
+        "family" -> "👨‍👩‍👧 وكيل العائلة والمهام"
+        else -> "🤖 زاد"
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ZadVoiceBottomSheet(
@@ -66,6 +80,10 @@ fun ZadVoiceBottomSheet(
     val isListening by voiceManager.isListening.collectAsState()
     val soundLevel by voiceManager.soundLevel.collectAsState()
     val chatMessages by viewModel.aiChatMessages.collectAsState()
+    // اقتراحات معلّقة محتاجة تأكيد — بتظهر ككارت تأكيد صريح جوه شاشة الصوت
+    val pendingAgentProposals by viewModel.pendingAgentProposals.collectAsState()
+    // الوكيل المتخصص اللي عالج آخر لفة — إيصال من السيرفر، بيتعرض بعد اكتمال الرد
+    val lastSpecialist by viewModel.lastActiveSpecialist.collectAsState()
 
     var awaitingVoiceReplyId by remember { mutableStateOf<String?>(null) }
     var voiceTurnGeneration by remember { mutableLongStateOf(0L) }
@@ -348,9 +366,46 @@ fun ZadVoiceBottomSheet(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            // كارت تأكيد الاقتراحات المالية — نفس المسار المستخدم في الشات النصي،
+            // عشان تأكيد صوتي ("أيوه") أو زر الاتنين ينفذوا نفس `agent_confirm`
+            if (pendingAgentProposals.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                AgentProposalsCard(
+                    proposals = pendingAgentProposals,
+                    onConfirm = {
+                        viewModel.confirmPendingAgentProposals()
+                        voiceManager.speakHumanLike("تمام، نفذتها ✅") {
+                            startListeningWithPermission()
+                        }
+                    },
+                    onCancel = {
+                        viewModel.cancelPendingAgentProposals()
+                        voiceManager.speakHumanLike("تمام، ملغيتها.") {
+                            startListeningWithPermission()
+                        }
+                    }
+                )
+            }
 
-            // Quick suggestion chips
+            // كارت الوكيل المتخصص الحي — الاسم بيجي من إيصال السيرفر (specialist في
+            // رد agent_turn)، فمفيش أي اسم بيترسم من غير تنفيذ حقيقي حصل فعلاً.
+            if (lastSpecialist != null && voiceState is VoiceState.Speaking) {
+                Spacer(Modifier.height(6.dp))
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = primary.copy(alpha = 0.10f)
+                ) {
+                    Text(
+                        text = SpecialistRegistry.displayNameAr(lastSpecialist!!),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = primary,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)

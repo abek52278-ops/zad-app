@@ -1233,4 +1233,6 @@
     <string name="bank_proposal_correct_direction">الاتجاه مش صح؟</string>
     <string name="bank_proposal_processing">بنفذ قرارك…</string>
     <string name="bank_proposal_failed">القرار ماتنفذش. جرب تاني.</string>
+    <string name="wake_service_title">زاد بيسمع</string>
+    <string name="wake_service_body">قول "يا زاد" عشان تفتح المساعد الصوتي</string>
 </resources>

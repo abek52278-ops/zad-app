@@ -8,11 +8,9 @@ import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
-import android.speech.tts.TextToSpeech
 import androidx.core.app.NotificationCompat
 import com.example.R
 import com.example.ui.screens.AlertPrefs
-import java.util.Locale
 
 // Real, system-level push notification — used by both ZadCentralBrain's deterministic rules
 // and its merged AI tool-loop (formerly the separate ZadBrainEngine) so proactive notifications
@@ -25,7 +23,7 @@ object ZadNotifier {
 
     fun send(context: Context, title: String, message: String, priority: Int = NotificationCompat.PRIORITY_DEFAULT, speak: Boolean = false) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        // NotificationManager.notify() بترجع بهدوء لو الإذن مترفض — مش بترمي، ومش بتسيب
+        // NotificationManager.notify() بترجع بهدوء لو الإذن مترفض — مش بترمي، ومش بترمي، ومش بتسيب
         // أي أثر. كل نداء هنا كان بيعدي كأنه نجح. اللوج ده هو اللي بيخلي "الإشعارات مش
         // بتوصل" سؤال ليه إجابة بدل ما يبقى تخمين.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -65,81 +63,11 @@ object ZadNotifier {
         val notifId = (title + message).hashCode().let { if (it == Int.MIN_VALUE) 0 else Math.abs(it) }
         manager.notify(notifId, notification)
 
-        // النطق الصوتي العربي الهادئ — يعمل فقط إذا كانت التنبيهات الصوتية مفعلة في الإعدادات
+        // النطق بصوت زاد البشري (ElevenLabs) — فقط إذا التنبيهات الصوتية مفعلة في الإعدادات.
+        // مفيش TTS آلي أبدًا: لو الشبكة مش متاحة → إشعار صامت.
         val isVoiceSpokenEnabled = AlertPrefs.isEnabled(context, AlertPrefs.KEY_VOICE_SPOKEN_ALERTS)
         if (speak && priority >= NotificationCompat.PRIORITY_HIGH && isVoiceSpokenEnabled) {
-            speakArabic(context, "$title. $message")
+            com.example.voice.ZadAlertSpeaker.speakAlert(context, "$title. $message") {}
         }
-    }
-
-    private fun speakArabic(context: Context, text: String) {
-        var tts: TextToSpeech? = null
-        var finished = false
-        fun finishOnce() {
-            if (finished) return
-            finished = true
-            try { tts?.stop(); tts?.shutdown() } catch (e: Exception) { /* ignore */ }
-        }
-
-        // Clean text for natural human speech (strip markdown & URL, add breath pauses)
-        val naturalSpeechText = text
-            .replace(Regex("[#*`_~>\\[\\]()]"), " ")
-            .replace(Regex("https?://\\S+"), " ")
-            .replace(Regex("[\\p{So}\\p{Cn}]"), " ")
-            .replace(Regex("\\s+"), " ")
-            .replace("،", "، ... ")
-            .replace(".", ". ... ")
-            .replace("!", "! ... ")
-            .replace("؟", "؟ ... ")
-            .trim()
-
-        tts = TextToSpeech(context.applicationContext) { status ->
-            if (status != TextToSpeech.SUCCESS) {
-                finishOnce()
-                return@TextToSpeech
-            }
-            val marketLocale = com.example.data.MarketPrefs.getMarket(context).toLocale()
-            val locale = when {
-                tts?.isLanguageAvailable(marketLocale)?.let { it >= TextToSpeech.LANG_AVAILABLE } == true -> marketLocale
-                else -> Locale("ar")
-            }
-            val available = tts?.isLanguageAvailable(locale) ?: TextToSpeech.LANG_MISSING_DATA
-            if (available < TextToSpeech.LANG_AVAILABLE) {
-                finishOnce()
-                return@TextToSpeech
-            }
-            tts?.language = locale
-            // نبرة دافئة وطبيعية جداً مثل التحدث البشري المباشر
-            tts?.setPitch(1.05f)
-            tts?.setSpeechRate(0.98f)
-
-            // دقة اختيار أعلى وأحدث صوت عصبي بشري (Neural / Wavenet / Studio / Natural)
-            val voices = tts?.voices
-            if (voices != null && voices.isNotEmpty()) {
-                val neuralVoice = voices.firstOrNull { v ->
-                    v.locale.language == "ar" && (
-                        v.name.contains("neural", ignoreCase = true) ||
-                        v.name.contains("wavenet", ignoreCase = true) ||
-                        v.name.contains("studio", ignoreCase = true) ||
-                        v.name.contains("natural", ignoreCase = true) ||
-                        v.name.contains("ar-x-", ignoreCase = true) ||
-                        v.name.contains("female", ignoreCase = true)
-                    )
-                }
-                if (neuralVoice != null) {
-                    tts?.voice = neuralVoice
-                }
-            }
-
-            tts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) {}
-                override fun onDone(utteranceId: String?) { finishOnce() }
-                @Deprecated("Deprecated in Java")
-                override fun onError(utteranceId: String?) { finishOnce() }
-            })
-            tts?.speak(naturalSpeechText, TextToSpeech.QUEUE_FLUSH, null, "zad_notifier")
-        }
-
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ finishOnce() }, 15_000)
     }
 }

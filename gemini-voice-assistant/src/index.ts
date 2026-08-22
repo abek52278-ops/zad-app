@@ -14,7 +14,7 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT) : 8080;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash-live-001';
 const GEMINI_VOICE = process.env.GEMINI_VOICE || 'Puck';
-const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || 'sk_53259a25a6218b4fbd842f504cc35100e51a7a9a3f95876a';
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '';
 const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || FEMALE_VOICES.ZADA_AI;
 
 const __filename = fileURLToPath(import.meta.url);

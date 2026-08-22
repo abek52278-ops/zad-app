@@ -13,59 +13,48 @@ import com.example.MainActivity
 import com.example.R
 import com.example.data.RealtimeChatRepo
 import com.example.data.SupabaseRepo
-import com.example.voice.ZadNaturalVoiceEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
+/**
+ * إشعارات المحادثة العائلية. مفيش أي صوت تلقائي هنا:
+ * - الترحيبات العشوائية اتشالت (كانت بتشتغل فوق صوت الوكيل وتخرب المحادثة).
+ * - رسالة عادية = إشعار صامت فقط. النطق الصوتي للرسائل العادية محتاج اشتراك
+ *   صريح من المستخدم في الإعدادات، ونداء الطوارئ (SOS) هو الاستثناء الوحيد
+ *   لأنه حالة أمان حقيقية.
+ */
 class ChatNotificationService : Service() {
 
     private val serviceJob = Job()
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob)
-    
-    // استخدام محرك الصوت الجديد (ElevenLabs + TTS Fallback) بدلاً من TTS فقط
-    private var voiceEngine: ZadNaturalVoiceEngine? = null
+    private var voiceEngine: com.example.voice.ZadNaturalVoiceEngine? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
-        voiceEngine = ZadNaturalVoiceEngine(applicationContext)
+        voiceEngine = com.example.voice.ZadNaturalVoiceEngine(applicationContext)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         createNotificationChannel()
         serviceScope.launch {
-            val myMember = SupabaseRepo.getMyFamilyMember()
-            if (myMember != null) {
-                // محاكاة إرسال فويس تفاعلي عشوائي (FOMO) بعد 15 ثانية من فتح التطبيق
-                launch {
-                    kotlinx.coroutines.delay(15000)
-                    val titles = listOf("رسالة من زاد 💌", "ألو! وحشتني 🎤", "خد بالك من ميزانيتك 💸")
-                    val msgs = listOf(
-                        "إيه الأخبار؟ أنا زاد.. بسأل عليك، إيه رأيك نراجع الميزانية سوا دلوقتي؟",
-                        "ألو! أنا هنا عشان أساعدك.. لو محتاج تسجل أي مصاريف أو تسأل عن أي حاجة، أنا جاهزة!",
-                        "خدت بالي إننا مسجلناش مصاريف النهاردة.. كل حاجة تمام؟"
-                    )
-                    val randomIdx = (0..2).random()
-                    showNotification(titles[randomIdx], msgs[randomIdx], false)
-                    voiceEngine?.speakHumanLike(msgs[randomIdx])
-                }
+            val myMember = SupabaseRepo.getMyFamilyMember() ?: return@launch
 
-                RealtimeChatRepo.subscribeToChat(myMember.familyId).collectLatest { newMsg ->
-                    if (newMsg.senderId != myMember.id) {
-                        val isSos = newMsg.messageType == "SOS"
-                        val title = if (isSos) "🚨 نداء طوارئ" else "💬 عائلة زاد"
-                        val message = if (isSos) "حالة طوارئ من أحد أفراد العائلة!" else newMsg.message
-                        
-                        showNotification(title, message, isSos)
-                        
-                        val spoken = if (isSos) "$title! $message" else "رسالة جديدة: $message"
-                        // نطق الإشعار باستخدام ElevenLabs
-                        voiceEngine?.speakHumanLike(spoken)
-                    }
+            RealtimeChatRepo.subscribeToChat(myMember.familyId).collectLatest { newMsg ->
+                if (newMsg.senderId == myMember.id) return@collectLatest
+                val isSos = newMsg.messageType == "SOS"
+                val title = if (isSos) "🚨 نداء طوارئ" else "💬 عائلة زاد"
+                val message = if (isSos) "حالة طوارئ من أحد أفراد العائلة!" else newMsg.message
+
+                showNotification(title, message, isSos)
+
+                // نطق صوتي لنداءات الطوارئ فقط — الرسائل العادية إشعار بس.
+                if (isSos) {
+                    voiceEngine?.speakHumanLike("$title! $message")
                 }
             }
         }
@@ -100,7 +89,7 @@ class ChatNotificationService : Service() {
                 "zad_chat_channel", "محادثة العائلة", NotificationManager.IMPORTANCE_HIGH
             ).apply { description = "رسائل المحادثة العائلية" }
             manager.createNotificationChannel(chatChannel)
-            
+
             val sosChannel = NotificationChannel(
                 "zad_sos_channel", "نداءات الطوارئ", NotificationManager.IMPORTANCE_MAX
             ).apply {

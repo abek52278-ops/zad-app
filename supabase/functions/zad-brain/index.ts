@@ -63,6 +63,8 @@ import { redactNotificationText } from "./redact.ts";
 import { classifyMessage, consume as consumeEntitlement, lockedReply } from "./entitlement.ts";
 import { hasConfiguredSecret, hasServiceRoleAuthorization, resolveAuthedUserId } from "./auth.ts";
 import { conversationProfile, voiceModeInstruction } from "./persona.ts";
+// المرحلة ٣ — الوكلاء المتخصصون: توجيه + هوية في البرومبت + trace في zad_brain_runs.
+import { recordSpecialistTrace, routeSpecialist, specialistPromptBlock } from "./specialists.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -2836,7 +2838,10 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
 
   const snap = await buildSnapshot(sb, userId);
   const ctx: RunContext = freshContext(userId);
-  const systemPrompt = buildChatSystemPrompt(snap, body.voice_mode === true);
+  // التوجيه للوكيل المتخصص: deterministic، قبل أي نداء موديل. general = برومبت زي ما هو.
+  const specialist = routeSpecialist(message);
+  const systemPrompt =
+    (specialistPromptBlock(specialist) ?? "") + "\n" + buildChatSystemPrompt(snap, body.voice_mode === true);
 
   // آخر ٨ رسائل زي ما شات التطبيق بيبعتها. أي عنصر مش user/assistant بيتجاهل بدل ما
   // يكسر النداء — الكلاينت مش مصدر موثوق لشكل الـ history.
@@ -2862,6 +2867,8 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
     .insert({ user_id: userId, trigger: "chat", status: "running" }).select("id").single();
   const runId = (runRow as { id: string } | null)?.id;
   const scope: AuditScope = { source: declaredSource, runId };
+  // trace: مين عالج الرسالة دي — مثبت في الداتابيز مش ادعاء في اللوج.
+  await recordSpecialistTrace(sb, runId, specialist);
 
   const finishRun = async (status: "success" | "failed", error?: string) => {
     // W4 — تسجيل الاستخدام مستقل عن runId (سقف الاستخدام مبني عليه، مش على
@@ -2976,6 +2983,8 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
     tool_attempted: anyToolAttempted,
     rejections: ctx.rejections,
     observations: ctx.observations,
+    // الوكيل اللي عالج الرسالة — الكلاينت بيعرضه ككارت تنفيذ حي.
+    specialist,
   }), { headers: CORS_HEADERS });
 }
 

@@ -709,7 +709,10 @@ object ZadAiRepository {
         /** لفة فشلت بعد ما نفّذت كتابات فعلاً. الوقوع على بروتوكول [[ACTION]] هنا بيكرر
          *  نفس الكتابة، فده لازم يتعرض ويترفض معاملته كفشل عادي — حقل صريح بدل ما نستنتجه
          *  من إن [executed]/[proposals] مش فاضيين. */
-        val partial: Boolean
+        val partial: Boolean,
+        /** الوكيل المتخصص اللي عالج الرسالة (finance/pantry/pharmacy/family/general) —
+         *  من السيرفر، مش استنتاج محلي. null = سيرفر قديم لسه مابيبعتش الحقل. */
+        val specialist: String? = null
     )
 
     /**
@@ -755,7 +758,8 @@ object ZadAiRepository {
                 executed = executed,
                 proposals = proposals,
                 toolAttempted = response["tool_attempted"] == true,
-                partial = response["partial"] == true
+                partial = response["partial"] == true,
+                specialist = response["specialist"] as? String
             )
         } catch (e: Exception) {
             Log.e(TAG_REPO, "agentTurn() FAILED: ${e.message}")
