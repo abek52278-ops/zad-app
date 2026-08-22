@@ -2,7 +2,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.6";
 import { redactForLog } from "./redact.ts";
 import { foodFallbackUrl, looksLikeFoodAlt, toFoodSearchTerm } from "./foodImageQuery.ts";
-import { bearerToken, requestGeminiVoice, validateVoicePayload } from "./voice.ts";
+import { bearerToken, requestGeminiVoice, validateVoicePayload, GEMINI_TTS_MODEL } from "./voice.ts";
 
 // ── Provider chain (2026-08-01): Gemini (5-key pool, native endpoint) primary, Groq
 // (2-key pool) secondary for TEXT/JSON only — vision never touches Groq ──────────────────
@@ -861,6 +861,38 @@ Deno.serve(async (req: Request) => {
   try {
     const { action, user_id, payload, dialect } = await req.json();
     console.log(`[CoreIntel] action=${action}, user=${user_id}`);
+
+    // فحص صحة مزود الصوت — بدون بيانات مستخدم، بدون صوت فعلي: نداء minimal
+    // للـ TTS ونرجع الحالة فقط. للتشخيص من اللوجات/الـ curl بدون JWT.
+    if (action === "voice_selftest") {
+      if (!GEMINI_API_KEY) return jsonResponse({ ok: false, reason: "no_api_key" }, 503);
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TTS_MODEL}:generateContent`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: "مرحبا" }] }],
+            generationConfig: {
+              responseModalities: ["AUDIO"],
+              speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } } },
+            },
+          }),
+        },
+      );
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error(`[CoreIntel] voice_selftest failed: HTTP ${res.status} ${errText.slice(0, 200)}`);
+        return jsonResponse({ ok: false, status: res.status }, 200);
+      }
+      const data = await res.json();
+      const hasAudio = !!data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      return jsonResponse({
+        ok: hasAudio,
+        model: GEMINI_TTS_MODEL,
+        audio_bytes: hasAudio ? data.candidates[0].content.parts[0].inlineData.data.length : 0,
+      }, 200);
+    }
 
     if (action === "voice_synthesize") {
       const token = bearerToken(req);
