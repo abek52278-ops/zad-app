@@ -620,6 +620,29 @@ fun CameraScreen(
                                 )
                             )
                             analysisStatus = "تم تسجيل فاتورة ${receipt.storeName} بقيمة ${com.example.data.CurrencyFormatter.format(context, receipt.total)}!"
+                        } else if (receipt.items.all { it.category in setOf("تنظيف", "أدوات منزلية", "صيانة") } && receipt.items.isNotEmpty()) {
+                            // فاتورة أدوات منزلية/تنظيف → الصيانة والمخزون العام معاً، ومعاملة واحدة
+                            viewModel.addTransaction(
+                                com.example.data.ZadTransaction(
+                                    title = receipt.storeName,
+                                    amount = receipt.total,
+                                    isExpense = true,
+                                    category = "أدوات منزلية"
+                                )
+                            )
+                            viewModel.injectScannedItems(
+                                receipt.items.map { item ->
+                                    ZadInventory(
+                                        itemName = item.name,
+                                        quantity = maxOf(1, item.quantity.toInt()),
+                                        unit = item.unit,
+                                        category = item.category
+                                    )
+                                }
+                            ) { summary ->
+                                analysisStatus = "فاتورة ${receipt.storeName}: $summary"
+                            }
+                            analysisStatus = "تم تسجيل فاتورة ${receipt.storeName} (${com.example.data.CurrencyFormatter.format(context, receipt.total)}) وتحديث المخزون!"
                         } else {
                             viewModel.addTransaction(
                                 com.example.data.ZadTransaction(

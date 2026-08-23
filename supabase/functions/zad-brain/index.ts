@@ -822,6 +822,43 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       ctx.insightCount++;
       return "تم — السؤال اتسجل";
     }
+    case "suggest_challenge": {
+      // تحدي توفير شخصي — بيتخزن كتحدي عائلي لو العميل في عيلة، وإلا memory فردية.
+      const cat = String(input.category ?? "").trim();
+      if (!cat) return "حدد الفئة اللي عايز تتحدى فيها الأول.";
+      const pct = Math.min(40, Math.max(15, Number(input.reduction_percent ?? 20)));
+      const since = new Date(Date.now() - 28 * 86400000).toISOString();
+      const { data: catTx } = await sb.from("zad_transactions")
+        .select("amount").eq("user_id", userId)
+        .eq("is_expense", true).ilike("category", `%${cat}%`)
+        .gte("created_at", since);
+      const weeklyAvg = (catTx ?? []).length > 0
+        ? (catTx ?? []).reduce((s2: number, t: any) => s2 + Number(t.amount), 0) / 4
+        : null;
+      if (weeklyAvg == null || weeklyAvg <= 0) {
+        return `مفيش مصاريف مسجلة في "${cat}" آخر شهر — سجل شوية مصاريف الأول عشان التحدي يبقى واقعي`;
+      }
+      const target = Math.round(weeklyAvg * (pct / 100));
+      const challengeText = `تحدي "${cat}": قلّل ${cat} ${pct}٪ الأسبوع ده — وفّر ~${target} خلال ٧ أيام`;
+      const { data: fam } = await sb.from("family_members").select("family_id").eq("user_id", userId).maybeSingle();
+      if (fam?.family_id) {
+        await sb.from("family_financial_challenges").insert({
+          family_id: fam.family_id,
+          challenge_type: "weekly",
+          title: challengeText,
+          description: `مبني على متوسط صرفك في ${cat}: ${Math.round(weeklyAvg)} أسبوعياً`,
+          target_amount: target,
+          start_date: new Date().toISOString(),
+          end_date: new Date(Date.now() + 7 * 86400000).toISOString(),
+        });
+      }
+      await sb.from("zad_memory").upsert({
+        user_id: userId, scope: "active_challenge",
+        note: challengeText, confidence: 0.9,
+      }, { onConflict: "user_id,scope" });
+      ctx.counts["suggest_challenge"] = (ctx.counts["suggest_challenge"] ?? 0) + 1;
+      return challengeText + " — التحدي اتسجل وهتابع التزامك تلقائياً";
+    }
     case "remember": {
       const scope = input.scope ?? "general";
 
@@ -2069,6 +2106,20 @@ const TOOLS: ToolDef[] = [
         surface: { type: "string", enum: ["home_card", "bell", "voice"] },
       },
       required: ["title", "body", "dedupe_key", "answer_type"],
+    },
+  },
+  {
+    name: "suggest_challenge",
+    description:
+      "اقترح تحدي توفير أسبوعي شخصي مبني على أكبر فئة صرف قابلة للتقليل (من بيانات العميل الحقيقية). " +
+      "التحدي بيتخزن ويتتابع تلقائياً. نادِها لما العميل يقول عوز تحدي أو بعد خطة التوفير عشان يتحول لتحدي عملي.",
+    input_schema: {
+      type: "object",
+      properties: {
+        category: { type: "string", description: "الفئة المستهدفة (مثلاً: مطاعم، مشروبات)" },
+        reduction_percent: { type: "number", description: "نسبة الخفض المقترحة (١٥-٤٠). افتراضي ٢٠" },
+      },
+      required: ["category"],
     },
   },
   {
