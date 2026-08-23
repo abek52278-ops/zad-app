@@ -138,7 +138,7 @@ fun LoginScreen(
 
         AppearOnEntry(delayMs = 160) {
             Column {
-                Text("البريد الإلكتروني", color = onSurfaceVariant, fontSize = 14.sp)
+                Text(stringResource(R.string.auto_login_61342), color = onSurfaceVariant, fontSize = 14.sp)
                 Spacer(modifier = Modifier.height(6.dp))
                 OutlinedTextField(
                     value = email,
@@ -158,7 +158,7 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                Text("كلمة المرور", color = onSurfaceVariant, fontSize = 14.sp)
+                Text(stringResource(R.string.auto_login_32753), color = onSurfaceVariant, fontSize = 14.sp)
                 Spacer(modifier = Modifier.height(6.dp))
                 OutlinedTextField(
                     value = password,
@@ -259,7 +259,7 @@ fun LoginScreen(
                 Button(onClick = {
                     viewModel.resetPassword(resetEmail)
                 }) {
-                    Text("إرسال رابط الاستعادة")
+                    Text(stringResource(R.string.auto_login_33197))
                 }
             },
             dismissButton = {

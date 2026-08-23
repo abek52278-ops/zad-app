@@ -17,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -30,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.R
 import com.example.data.ZadAiRepository
 import com.example.data.ZadInventory
 import com.example.ui.components.AppearOnEntry
@@ -304,7 +306,7 @@ fun RecipeDetailDialog(
                         OutlinedButton(onClick = { retryKey++ }, modifier = Modifier.pressableScale()) {
                             Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("إعادة المحاولة")
+                            Text(stringResource(R.string.auto_recipedetail_86274))
                         }
                     }
                 } else {

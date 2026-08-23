@@ -426,9 +426,9 @@ fun HomeScreen(
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
                             ) {
                                 Row(modifier = Modifier.fillMaxWidth()) {
-                                    Text("نبض الإنفاق الحي", style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface)
+                                    Text(stringResource(R.string.auto_home_21771), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface)
                                     Spacer(Modifier.weight(1f))
-                                    Text("آخر 7 أيام", style = Typography.labelSmall, color = onSurfaceVariant)
+                                    Text(stringResource(R.string.auto_home_95853), style = Typography.labelSmall, color = onSurfaceVariant)
                                 }
                                 Spacer(Modifier.height(8.dp))
                                 com.example.ui.components.SpendPulseSparkline(values = last7)
@@ -1779,7 +1779,7 @@ fun AutoSuggestionsCard(suggestions: List<com.example.data.ZadAiRepository.AutoS
                 Icon(Icons.Default.Lightbulb, contentDescription = null, tint = catEntertainIcon, modifier = Modifier.size(18.dp))
             }
             Spacer(Modifier.width(8.dp))
-            Text("اقتراحات سريعة", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+            Text(stringResource(R.string.auto_home_27381), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
         }
         Spacer(Modifier.height(12.dp))
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

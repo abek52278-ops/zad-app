@@ -547,7 +547,7 @@ internal fun DomainRing(
                     .border(2.dp, primaryFixed.copy(alpha = 0.6f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Text("زاد", style = Typography.titleMedium, fontFamily = kmMono, fontWeight = FontWeight.Black, color = Color.White)
+                Text(stringResource(R.string.auto_zadknowledgemap_65527), style = Typography.titleMedium, fontFamily = kmMono, fontWeight = FontWeight.Black, color = Color.White)
             }
 
             domains.forEach { d ->

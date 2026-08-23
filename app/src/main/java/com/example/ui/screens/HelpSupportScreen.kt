@@ -1,6 +1,8 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -8,6 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.SupportAgent
 import androidx.compose.material3.*
@@ -16,9 +19,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.ui.theme.*
 import kotlinx.coroutines.launch
 import com.example.data.ZadAiRepository
@@ -49,6 +54,7 @@ fun HelpSupportScreen(onBack: () -> Unit) {
     var input by remember { mutableStateOf("") }
     var isTyping by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    var showCrashLog by remember { mutableStateOf(false) }
 
     AppearOnEntry {
     Column(
@@ -79,8 +85,13 @@ fun HelpSupportScreen(onBack: () -> Unit) {
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column {
-                Text("مساعدة استخدام التطبيق", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                Text("أسئلة عامة — مش وصل لحسابك الشخصي", style = Typography.labelSmall, color = onSurfaceVariant)
+                Text(stringResource(R.string.auto_helpsupport_60278), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                Text(stringResource(R.string.auto_helpsupport_73903), style = Typography.labelSmall, color = onSurfaceVariant)
+            }
+            Spacer(Modifier.weight(1f))
+            // سجل الأعطال — تصدير يدوي (خصوصية زاد)
+            IconButton(onClick = { showCrashLog = true }) {
+                Icon(Icons.Default.BugReport, contentDescription = "سجل الأعطال", tint = onSurfaceVariant)
             }
         }
 
@@ -147,7 +158,7 @@ fun HelpSupportScreen(onBack: () -> Unit) {
                                 .background(surfaceContainerLow)
                                 .padding(12.dp)
                         ) {
-                            Text("جاري الكتابة...", style = Typography.labelMedium, color = onSurfaceVariant)
+                            Text(stringResource(R.string.auto_helpsupport_73784), style = Typography.labelMedium, color = onSurfaceVariant)
                         }
                     }
                 }
@@ -166,7 +177,7 @@ fun HelpSupportScreen(onBack: () -> Unit) {
                 value = input,
                 onValueChange = { input = it },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("اكتب رسالتك هنا...") },
+                placeholder = { Text(stringResource(R.string.auto_helpsupport_1620)) },
                 shape = RoundedCornerShape(24.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     unfocusedBorderColor = outlineVariant,
@@ -206,6 +217,43 @@ fun HelpSupportScreen(onBack: () -> Unit) {
                     .pressableScale()
             ) {
                 Icon(Icons.Default.Send, contentDescription = "Send", tint = Color.White)
+            }
+        }
+
+        // تصدير سجل الأعطال — العميل يبعت التقارير بنفسه (خصوصية زاد: مفيش إرسال تلقائي)
+        val ctx = androidx.compose.ui.platform.LocalContext.current
+        var crashLogText by remember { mutableStateOf<String?>(null) }
+        LaunchedEffect(showCrashLog) {
+            if (showCrashLog) crashLogText = com.example.data.ZadCrashLog.exportAll(ctx)
+        }
+        crashLogText?.let { log ->
+            androidx.compose.ui.window.Dialog(onDismissRequest = { crashLogText = null }) {
+                androidx.compose.material3.Surface(shape = RoundedCornerShape(16.dp)) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(stringResource(R.string.auto_helpsupport_91872), fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            log.take(1200),
+                            fontSize = 11.sp,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            modifier = Modifier.horizontalScroll(rememberScrollState())
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Row {
+                            androidx.compose.material3.TextButton(onClick = {
+                                val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(android.content.Intent.EXTRA_TEXT, log)
+                                }
+                                ctx.startActivity(android.content.Intent.createChooser(send, "مشاركة السجل"))
+                            }) { Text(stringResource(R.string.auto_helpsupport_95103)) }
+                            androidx.compose.material3.TextButton(onClick = {
+                                com.example.data.ZadCrashLog.clear(ctx); crashLogText = ""
+                            }) { Text(stringResource(R.string.auto_helpsupport_31425)) }
+                            androidx.compose.material3.TextButton(onClick = { crashLogText = null }) { Text(stringResource(R.string.auto_helpsupport_47668)) }
+                        }
+                    }
+                }
             }
         }
     }

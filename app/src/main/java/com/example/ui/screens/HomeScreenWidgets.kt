@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import com.example.R
 import com.example.data.TasbihaTree
 import com.example.data.ZadInventory
 import com.example.data.ZadShoppingItem
@@ -165,12 +167,12 @@ fun MiniInventoryWidget(inventory: List<ZadInventory>, onNavigateToInventory: ()
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("المخزون السريع", style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.auto_homescreenwidgets_66761), style = Typography.titleMedium, fontWeight = FontWeight.Bold)
                 Icon(Icons.Filled.ArrowForward, contentDescription = "View All", tint = primary)
             }
             Spacer(modifier = Modifier.height(16.dp))
             if (inventory.isEmpty()) {
-                Text("المخزون فارغ حالياً.", style = Typography.bodyMedium, color = Color.Gray)
+                Text(stringResource(R.string.auto_homescreenwidgets_70957), style = Typography.bodyMedium, color = Color.Gray)
             } else {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(inventory.take(5)) { item ->
@@ -197,12 +199,12 @@ fun MiniShoppingWidget(shoppingList: List<ZadShoppingItem>, onNavigateToShopping
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("طلبات عاجلة للتسوق", style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.auto_homescreenwidgets_59477), style = Typography.titleMedium, fontWeight = FontWeight.Bold)
                 Icon(Icons.Filled.ArrowForward, contentDescription = "View All", tint = primary)
             }
             Spacer(modifier = Modifier.height(16.dp))
             if (shoppingList.isEmpty()) {
-                Text("لا يوجد طلبات عاجلة.", style = Typography.bodyMedium, color = Color.Gray)
+                Text(stringResource(R.string.auto_homescreenwidgets_18310), style = Typography.bodyMedium, color = Color.Gray)
             } else {
                 // Duplicate names (e.g. "مياه صفا" added three separate times) merge into one
                 // row with a "(xN)" multiplier instead of repeating the same row three times.
@@ -244,12 +246,12 @@ fun MiniPharmacyWidget(pharmacyItems: List<com.example.data.ZadPharmacyItem>, on
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("الصيدلية — قريب من النفاد", style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.auto_homescreenwidgets_38951), style = Typography.titleMedium, fontWeight = FontWeight.Bold)
                 Icon(Icons.Filled.ArrowForward, contentDescription = "View All", tint = primary)
             }
             Spacer(modifier = Modifier.height(16.dp))
             if (lowStock.isEmpty()) {
-                Text("كل الأدوية رصيدها كفاية حالياً.", style = Typography.bodyMedium, color = Color.Gray)
+                Text(stringResource(R.string.auto_homescreenwidgets_76814), style = Typography.bodyMedium, color = Color.Gray)
             } else {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(lowStock.take(5)) { item ->
@@ -291,13 +293,13 @@ fun MiniSubscriptionsWidget(subscriptions: List<com.example.data.ZadSubscription
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.Subscriptions, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("اشتراكات هتتجدد قريب", style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.auto_homescreenwidgets_17406), style = Typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
                 Icon(Icons.Filled.ArrowForward, contentDescription = "View All", tint = primary, modifier = Modifier.size(18.dp))
             }
             Spacer(modifier = Modifier.height(16.dp))
             if (upcoming.isEmpty()) {
-                Text("لا يوجد تجديد اشتراكات خلال الأسبوع الجاي.", style = Typography.bodyMedium, color = Color.Gray)
+                Text(stringResource(R.string.auto_homescreenwidgets_19179), style = Typography.bodyMedium, color = Color.Gray)
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     upcoming.take(3).forEach { (sub, renewal) ->
@@ -394,7 +396,7 @@ fun TasbihaHomeWidget(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.Park, contentDescription = null, tint = secondaryDark, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("بستان التسبيح", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = textSecondary)
+                    Text(stringResource(R.string.auto_homescreenwidgets_20673), fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = textSecondary)
                 }
                 Spacer(Modifier.weight(1f))
                 Surface(
@@ -474,7 +476,7 @@ fun TasbihaHomeWidget(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("✨", fontSize = 12.sp)
                         Spacer(Modifier.width(4.dp))
-                        Text("سبحان الله", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(stringResource(R.string.auto_homescreenwidgets_18996), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
             }
@@ -535,7 +537,7 @@ fun MarketRadarLiveWidget(
                     Spacer(Modifier.width(10.dp))
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("رادار الأسعار الحية", style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.auto_homescreenwidgets_18317), style = Typography.titleMedium, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.width(6.dp))
                             Text(currentMarket.flagEmoji, fontSize = 14.sp)
                         }
@@ -551,7 +553,7 @@ fun MarketRadarLiveWidget(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(catSavingsIcon))
                         Spacer(Modifier.width(4.dp))
-                        Text("مباشر", style = Typography.labelSmall, color = catSavingsIcon, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                        Text(stringResource(R.string.auto_homescreenwidgets_98321), style = Typography.labelSmall, color = catSavingsIcon, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                     }
                 }
             }
@@ -705,7 +707,7 @@ fun MarketRadarLiveWidget(
             ) {
                 Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = primary, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("اسأل عقل زاد عن مؤشرات الأسعار والتوفير", style = Typography.labelSmall, color = primary, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.auto_homescreenwidgets_25400), style = Typography.labelSmall, color = primary, fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -824,7 +826,7 @@ fun ZadAutonomousIdeasWidget(
                     shape = RoundedCornerShape(12.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                 ) {
-                    Text("🔄 فكرة تانية", style = Typography.labelSmall)
+                    Text(stringResource(R.string.auto_homescreenwidgets_25768), style = Typography.labelSmall)
                 }
             }
         }
@@ -894,7 +896,7 @@ fun LiveSpendingLineGraphWidget(
                     }
                     Spacer(Modifier.width(10.dp))
                     Column {
-                        Text("مؤشر الإنفاق اليومي (7 أيام)", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                        Text(stringResource(R.string.auto_homescreenwidgets_31620), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
                         Text("متوسط الصرف: ${com.example.data.CurrencyFormatter.format(context, avgDaily)} $currency / يوم", style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
                     }
                 }
@@ -902,7 +904,7 @@ fun LiveSpendingLineGraphWidget(
                     onClick = onNavigateToBudget,
                     contentPadding = PaddingValues(0.dp)
                 ) {
-                    Text("التفاصيل", style = Typography.labelSmall, color = primary, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.auto_homescreenwidgets_87424), style = Typography.labelSmall, color = primary, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -1098,8 +1100,8 @@ fun ZadProHighlightWidget(
                     }
                     Spacer(Modifier.width(10.dp))
                     Column {
-                        Text("باقات زاد الذكية 👑", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
-                        Text("عقل ذكاء اصطناعي فوري بدون إعلانات", style = Typography.labelSmall, color = primaryFixed, fontSize = 10.sp)
+                        Text(stringResource(R.string.auto_homescreenwidgets_96665), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(stringResource(R.string.auto_homescreenwidgets_55260), style = Typography.labelSmall, color = primaryFixed, fontSize = 10.sp)
                     }
                 }
                 Box(
@@ -1120,8 +1122,7 @@ fun ZadProHighlightWidget(
 
             Spacer(Modifier.height(12.dp))
 
-            Text(
-                "استمتع باستشارات عميقة لميزانيتك، مسح فوري للفواتير عبر الكاميرا، وتنبؤ بالنواقص والمصاريف.",
+            Text(stringResource(R.string.auto_homescreenwidgets_39973),
                 style = Typography.bodySmall,
                 color = Color.White.copy(alpha = 0.9f),
                 lineHeight = 18.sp,
@@ -1138,10 +1139,10 @@ fun ZadProHighlightWidget(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.Verified, contentDescription = null, tint = primaryFixed, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("ضمان استرجاع 14 يوم", style = Typography.labelSmall, color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp)
+                    Text(stringResource(R.string.auto_homescreenwidgets_20825), style = Typography.labelSmall, color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("استعرض الباقات", style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = primaryFixed)
+                    Text(stringResource(R.string.auto_homescreenwidgets_7454), style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = primaryFixed)
                     Spacer(Modifier.width(4.dp))
                     Icon(Icons.Filled.ChevronLeft, contentDescription = null, tint = primaryFixed, modifier = Modifier.size(16.dp))
                 }
@@ -1191,16 +1192,14 @@ fun StitchQuickActionGrid(
                     )
                 }
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    "قولي مشترياتك",
+                Text(stringResource(R.string.auto_homescreenwidgets_55813),
                     style = Typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                     fontSize = 11.5.sp,
                     maxLines = 1
                 )
-                Text(
-                    "تسجيل صوتي",
+                Text(stringResource(R.string.auto_homescreenwidgets_10567),
                     style = Typography.labelSmall,
                     color = Color.White.copy(alpha = 0.8f),
                     fontSize = 9.5.sp,
@@ -1240,16 +1239,14 @@ fun StitchQuickActionGrid(
                     )
                 }
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    "مسح فاتورة",
+                Text(stringResource(R.string.auto_homescreenwidgets_13791),
                     style = Typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                     fontSize = 11.5.sp,
                     maxLines = 1
                 )
-                Text(
-                    "قراءة بالكاميرا",
+                Text(stringResource(R.string.auto_homescreenwidgets_49739),
                     style = Typography.labelSmall,
                     color = Color.White.copy(alpha = 0.8f),
                     fontSize = 9.5.sp,
@@ -1289,16 +1286,14 @@ fun StitchQuickActionGrid(
                     )
                 }
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    "إضافة للمخزون",
+                Text(stringResource(R.string.auto_homescreenwidgets_12649),
                     style = Typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                     fontSize = 11.5.sp,
                     maxLines = 1
                 )
-                Text(
-                    "تحديث النواقص",
+                Text(stringResource(R.string.auto_homescreenwidgets_95862),
                     style = Typography.labelSmall,
                     color = Color.White.copy(alpha = 0.8f),
                     fontSize = 9.5.sp,
@@ -1337,8 +1332,7 @@ fun ZadAdEnergyWidget(modifier: Modifier = Modifier) {
             ) {
                 Icon(Icons.Filled.PlayCircle, contentDescription = null, tint = primary, modifier = Modifier.size(24.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(
-                    "شحن رصيد الذكاء الاصطناعي مجاناً ⚡",
+                Text(stringResource(R.string.auto_homescreenwidgets_29197),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -1355,8 +1349,7 @@ fun ZadAdEnergyWidget(modifier: Modifier = Modifier) {
             
             if (isSessionUnlocked) {
                 Spacer(Modifier.height(6.dp))
-                Text(
-                    "🎉 رصيدك الحالي مشحون! شاهد المزيد لتمديد وقتك ورصيدك التراكمي.",
+                Text(stringResource(R.string.auto_homescreenwidgets_69631),
                     style = MaterialTheme.typography.labelSmall,
                     color = successColor,
                     fontSize = 10.sp,

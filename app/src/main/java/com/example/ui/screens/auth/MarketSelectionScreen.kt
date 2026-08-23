@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.clip
+import com.example.R
 import com.example.ui.components.zadCardShadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -48,16 +49,14 @@ fun MarketSelectionScreen(onContinue: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(Modifier.height(48.dp))
-            Text(
-                "وين موطنك؟",
+            Text(stringResource(R.string.auto_marketselection_32367),
                 style = Typography.headlineMedium.copy(fontSize = 28.sp),
                 fontWeight = FontWeight.Bold,
                 color = onSurface,
                 textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(8.dp))
-            Text(
-                "زاد بيتكلم بلهجتك وبيحسب مصروفك بعملة بلدك",
+            Text(stringResource(R.string.auto_marketselection_17720),
                 style = Typography.bodyLarge,
                 color = onSurfaceVariant,
                 textAlign = TextAlign.Center

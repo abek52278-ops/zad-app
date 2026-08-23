@@ -464,7 +464,7 @@ fun AssistantAlertsScreen(onBack: () -> Unit) {
 
             if (voiceSpokenAlerts) {
                 Spacer(Modifier.height(8.dp))
-                Text("نبرة صوت المساعد الصوتي", fontWeight = FontWeight.Bold, color = onSurface, fontSize = 13.sp)
+                Text(stringResource(R.string.auto_profilesubscreens_45124), fontWeight = FontWeight.Bold, color = onSurface, fontSize = 13.sp)
                 Spacer(Modifier.height(6.dp))
                 Row(
                     modifier = Modifier

@@ -97,14 +97,12 @@ fun SubscriptionPlansScreen(
             }
             Spacer(Modifier.width(8.dp))
             Column {
-                Text(
-                    "باقات زاد الشهرية والسنوية",
+                Text(stringResource(R.string.auto_subscriptionplans_1267),
                     style = Typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = onSurface
                 )
-                Text(
-                    "ذكاء اصطناعي فوري وبدون إعلانات",
+                Text(stringResource(R.string.auto_subscriptionplans_79062),
                     style = Typography.labelSmall,
                     color = onSurfaceVariant,
                     fontSize = 11.sp
@@ -142,16 +140,14 @@ fun SubscriptionPlansScreen(
                     )
                 }
                 Spacer(Modifier.height(12.dp))
-                Text(
-                    "أطلق كامل قدرات عقل زاد الخارق",
+                Text(stringResource(R.string.auto_subscriptionplans_2894),
                     style = Typography.headlineSmall,
                     fontWeight = FontWeight.Black,
                     color = Color.White,
                     textAlign = TextAlign.Center
                 )
                 Spacer(Modifier.height(6.dp))
-                Text(
-                    "تحليل استباقي لحظي، مسح فوري للفواتير بالكاميرا، شات عائلي صوتي، وبدون إعلانات نهائياً.",
+                Text(stringResource(R.string.auto_subscriptionplans_89574),
                     style = Typography.bodySmall,
                     color = Color.White.copy(alpha = 0.9f),
                     textAlign = TextAlign.Center,
@@ -168,8 +164,7 @@ fun SubscriptionPlansScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("⭐", fontSize = 12.sp)
                         Spacer(Modifier.width(6.dp))
-                        Text(
-                            "انضم لأكثر من 12,450 عائلة تدير منزلها بذكاء",
+                        Text(stringResource(R.string.auto_subscriptionplans_48788),
                             style = Typography.labelSmall,
                             color = primaryFixed,
                             fontWeight = FontWeight.Bold,
@@ -201,8 +196,7 @@ fun SubscriptionPlansScreen(
                     .padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    "فاتورة شهرية",
+                Text(stringResource(R.string.auto_subscriptionplans_89668),
                     style = Typography.labelMedium,
                     fontWeight = if (!isAnnualBilling) FontWeight.Bold else FontWeight.Medium,
                     color = if (!isAnnualBilling) primary else onSurfaceVariant
@@ -219,8 +213,7 @@ fun SubscriptionPlansScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "اشتراك سنوي",
+                    Text(stringResource(R.string.auto_subscriptionplans_64256),
                         style = Typography.labelMedium,
                         fontWeight = if (isAnnualBilling) FontWeight.Bold else FontWeight.Medium,
                         color = if (isAnnualBilling) primary else onSurfaceVariant
@@ -232,7 +225,7 @@ fun SubscriptionPlansScreen(
                             .background(successColor)
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
-                        Text("وفّر 20%", color = Color.White, style = Typography.labelSmall, fontWeight = FontWeight.Bold, fontSize = 9.sp)
+                        Text(stringResource(R.string.auto_subscriptionplans_37134), color = Color.White, style = Typography.labelSmall, fontWeight = FontWeight.Bold, fontSize = 9.sp)
                     }
                 }
             }
@@ -399,12 +392,11 @@ fun SubscriptionPlansScreen(
             if (isProcessing) {
                 CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 Spacer(Modifier.width(8.dp))
-                Text("جاري الاتصال بـ Google Play...", color = Color.White, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.auto_subscriptionplans_5819), color = Color.White, fontWeight = FontWeight.Bold)
             } else {
                 Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(
-                    "اشترك الآن عبر Google Play",
+                Text(stringResource(R.string.auto_subscriptionplans_57174),
                     style = Typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
@@ -421,8 +413,7 @@ fun SubscriptionPlansScreen(
         ) {
             Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = successColor, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(6.dp))
-            Text(
-                "دفع آمن ومدعوم 100% من Google Play — إلغاء الاشتراك متاح في أي وقت",
+            Text(stringResource(R.string.auto_subscriptionplans_15161),
                 style = Typography.labelSmall,
                 color = onSurfaceVariant,
                 fontSize = 11.sp
@@ -439,15 +430,13 @@ fun SubscriptionPlansScreen(
             contentPadding = 0.dp
         ) {
             Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    "⚡ لست مستعداً للاشتراك الآن؟",
+                Text(stringResource(R.string.auto_subscriptionplans_7318),
                     style = Typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = onSurface
                 )
                 Spacer(Modifier.height(4.dp))
-                Text(
-                    "يمكنك شحن بطارية الذكاء الاصطناعي مجاناً بمشاهدة 3 إعلانات قصيرة (+5 رسائل فورية).",
+                Text(stringResource(R.string.auto_subscriptionplans_41518),
                     style = Typography.bodySmall,
                     color = onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -495,7 +484,7 @@ fun SubscriptionPlansScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("🎉", fontSize = 24.sp)
                     Spacer(Modifier.width(8.dp))
-                    Text("مبروك! تم تفعيل اشتراكك بنجاح", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.auto_subscriptionplans_89295), fontWeight = FontWeight.Bold)
                 }
             },
             text = {
@@ -513,7 +502,7 @@ fun SubscriptionPlansScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = primary)
                 ) {
-                    Text("ابدأ استخدام باقة زاد", color = Color.White)
+                    Text(stringResource(R.string.auto_subscriptionplans_27776), color = Color.White)
                 }
             }
         )

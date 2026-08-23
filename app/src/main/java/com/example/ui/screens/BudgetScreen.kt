@@ -765,17 +765,17 @@ private fun CategoryInsightDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("تحليل ذكي: $category", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+        title = { Text(stringResource(R.string.auto_budget_47701), fontWeight = FontWeight.Bold, fontSize = 18.sp) },
         text = {
             if (isLoading) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    Text("جاري التحليل...", style = Typography.bodyMedium, color = onSurfaceVariant)
+                    Text(stringResource(R.string.auto_budget_21822), style = Typography.bodyMedium, color = onSurfaceVariant)
                 }
             } else {
                 val result = analysis
                 if (result == null || result.insight.isBlank()) {
-                    Text("مفيش بيانات كافية لتحليل الفئة دي حالياً.", style = Typography.bodyMedium, color = onSurfaceVariant)
+                    Text(stringResource(R.string.auto_budget_71478), style = Typography.bodyMedium, color = onSurfaceVariant)
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(result.insight, style = Typography.bodyMedium)

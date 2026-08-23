@@ -99,6 +99,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         
         Thread.setDefaultUncaughtExceptionHandler { _, throwable ->
+            // سجل محلي قبل أي حاجة — لو الكراش قفل التطبيق، السجل يفضل موجود
+            try { com.example.data.ZadCrashLog.record(this, throwable) } catch (_: Exception) {}
             val intent = Intent(this, CrashActivity::class.java).apply {
                 putExtra("crash", throwable.stackTraceToString())
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)

@@ -267,7 +267,7 @@ fun ZadIntelligenceScreen(
                                 )
                             }
                             TextButton(onClick = { showSubscriptionPaywall = true }) {
-                                Text("ترقية الباقة ⚡", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text(stringResource(R.string.auto_zadintelligence_74185), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             }
                         }
                     }
@@ -3220,7 +3220,7 @@ fun FamilyNeuralMeshCard(
                     }
                     Spacer(Modifier.width(10.dp))
                     Column {
-                        Text("شبكة عقل العائلة العصبية", style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.auto_zadintelligence_52264), style = Typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text("Multi-Agent Family Neural Mesh", style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
                     }
                 }
@@ -3230,7 +3230,7 @@ fun FamilyNeuralMeshCard(
                         .background(Color(0xFF9333EA).copy(alpha = 0.12f))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
-                    Text("$memberCount أفراد متصلين 🌐", style = Typography.labelSmall, color = Color(0xFF9333EA), fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                    Text(stringResource(R.string.auto_zadintelligence_37663), style = Typography.labelSmall, color = Color(0xFF9333EA), fontWeight = FontWeight.Bold, fontSize = 10.sp)
                 }
             }
 
@@ -3248,9 +3248,9 @@ fun FamilyNeuralMeshCard(
                         .padding(10.dp)
                 ) {
                     Column {
-                        Text("🎯 مهام الأبناء", style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
+                        Text(stringResource(R.string.auto_zadintelligence_61227), style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
                         Spacer(Modifier.height(2.dp))
-                        Text("$completedChores / $totalChores مكتملة", style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = primary)
+                        Text(stringResource(R.string.auto_zadintelligence_70890), style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = primary)
                     }
                 }
                 Box(
@@ -3261,9 +3261,9 @@ fun FamilyNeuralMeshCard(
                         .padding(10.dp)
                 ) {
                     Column {
-                        Text("🛒 مقاضي البيت", style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
+                        Text(stringResource(R.string.auto_zadintelligence_15566), style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
                         Spacer(Modifier.height(2.dp))
-                        Text("$pendingGroceries أصناف مطلوبة", style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = tertiary)
+                        Text(stringResource(R.string.auto_zadintelligence_95376), style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = tertiary)
                     }
                 }
             }
@@ -3283,7 +3283,7 @@ fun FamilyNeuralMeshCard(
                 ) {
                     Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("تقرير الذكاء العائلي الشامل", style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(stringResource(R.string.auto_zadintelligence_16928), style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = Color.White)
                 }
                 OutlinedButton(
                     onClick = onNavigateToFamily,
@@ -3291,7 +3291,7 @@ fun FamilyNeuralMeshCard(
                     shape = RoundedCornerShape(12.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                 ) {
-                    Text("إدارة العائلة", style = Typography.labelSmall)
+                    Text(stringResource(R.string.auto_zadintelligence_62225), style = Typography.labelSmall)
                 }
             }
         }
@@ -3339,8 +3339,8 @@ fun FamilyNeuralReportBottomSheet(
                     }
                     Spacer(Modifier.width(10.dp))
                     Column {
-                        Text("تقرير شبكة العائلة العصبية", style = Typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("تحليل الذكاء الاصطناعي المشترك لأفراد الأسرة", style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 11.sp)
+                        Text(stringResource(R.string.auto_zadintelligence_36332), style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.auto_zadintelligence_96391), style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 11.sp)
                     }
                 }
                 IconButton(onClick = onDismiss, modifier = Modifier.size(30.dp)) {
@@ -3362,22 +3362,22 @@ fun FamilyNeuralReportBottomSheet(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("👨‍👩‍👧‍👦", fontSize = 32.sp)
                         Spacer(Modifier.height(8.dp))
-                        Text("لم تنضم لعائلة بعد في زاد", style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.auto_zadintelligence_23852), style = Typography.titleMedium, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(4.dp))
-                        Text("أضف أفراد أسرتك (الزوجة، الأبناء) لربط شبكاتهم العصبية وتبادل الرؤى وتدبير المنزل معاً.", style = Typography.bodySmall, color = onSurfaceVariant, textAlign = TextAlign.Center)
+                        Text(stringResource(R.string.auto_zadintelligence_85865), style = Typography.bodySmall, color = onSurfaceVariant, textAlign = TextAlign.Center)
                         Spacer(Modifier.height(14.dp))
                         Button(onClick = { onDismiss(); onNavigateToFamily() }, colors = ButtonDefaults.buttonColors(containerColor = primary)) {
-                            Text("إنشاء / انضمام لعائلة", style = Typography.labelMedium, color = Color.White)
+                            Text(stringResource(R.string.auto_zadintelligence_82314), style = Typography.labelMedium, color = Color.White)
                         }
                     }
                 }
             } else {
                 val children = activeState.members.filter { it.role == "child" }
 
-                Text("🎯 رادار الأبناء والمهام والمصروف", style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = primary)
+                Text(stringResource(R.string.auto_zadintelligence_1763), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = primary)
                 Spacer(Modifier.height(8.dp))
                 if (children.isEmpty()) {
-                    Text("لا يوجد أبناء مضافين حالياً. يمكنك إضافة حسابات الأبناء لمتابعة مهامهم ومصروفهم بأمان.", style = Typography.bodySmall, color = onSurfaceVariant)
+                    Text(stringResource(R.string.auto_zadintelligence_65857), style = Typography.bodySmall, color = onSurfaceVariant)
                 } else {
                     children.forEach { child ->
                         val childChores = activeState.chores.filter { it.assignedTo == child.id }
@@ -3414,11 +3414,11 @@ fun FamilyNeuralReportBottomSheet(
                 }
 
                 // 2. تدبير مقاضي البيت
-                Text("🛒 تدبير مقاضي واحتياجات البيت المشتركة", style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = tertiary)
+                Text(stringResource(R.string.auto_zadintelligence_65720), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = tertiary)
                 Spacer(Modifier.height(8.dp))
                 val pendingGroceries = activeState.groceries.filter { !it.isPurchased }
                 if (pendingGroceries.isEmpty()) {
-                    Text("لا توجد نواقص معلقة في قائمة مقاضي العائلة المشتركة ✅", style = Typography.bodySmall, color = onSurfaceVariant)
+                    Text(stringResource(R.string.auto_zadintelligence_22228), style = Typography.bodySmall, color = onSurfaceVariant)
                 } else {
                     Text(
                         "نواقص العائلة المطلوبة: ${pendingGroceries.take(5).joinToString("، ") { it.itemName }}",
@@ -3430,7 +3430,7 @@ fun FamilyNeuralReportBottomSheet(
                 Spacer(Modifier.height(16.dp))
 
                 // 3. توصيات مبنية على البيانات الفعلية — لا نصوص ثابتة وهمية
-                Text("💡 ملاحظات عقل زاد لرب الأسرة", style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = Color(0xFF9333EA))
+                Text(stringResource(R.string.auto_zadintelligence_53103), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = Color(0xFF9333EA))
                 Spacer(Modifier.height(8.dp))
                 Box(
                     modifier = Modifier
@@ -3462,7 +3462,7 @@ fun FamilyNeuralReportBottomSheet(
                             }
                         }
                         if (notes.isEmpty()) {
-                            Text("أضف مهام وقائمة مشتريات عائلية ليبدأ زاد بملاحظات حقيقية على بياناتكم.", style = Typography.bodySmall, color = onSurfaceVariant)
+                            Text(stringResource(R.string.auto_zadintelligence_40342), style = Typography.bodySmall, color = onSurfaceVariant)
                         } else {
                             notes.forEach { Text("• $it", style = Typography.bodySmall, color = onSurface) }
                         }

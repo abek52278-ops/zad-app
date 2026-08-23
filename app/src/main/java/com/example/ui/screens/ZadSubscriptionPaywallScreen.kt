@@ -130,8 +130,7 @@ fun ZadSubscriptionPaywallScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        "باقات زاد الشهرية الذكية",
+                    Text(stringResource(R.string.auto_zadsubscriptionpaywall_23198),
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.titleMedium
                     )
@@ -176,16 +175,14 @@ fun ZadSubscriptionPaywallScreen(
                         modifier = Modifier.size(36.dp)
                     )
                     Spacer(Modifier.height(10.dp))
-                    Text(
-                        "ارتقِ بتجربتك المالية مع زاد",
+                    Text(stringResource(R.string.auto_zadsubscriptionpaywall_7174),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color.White,
                         textAlign = TextAlign.Center
                     )
                     Spacer(Modifier.height(6.dp))
-                    Text(
-                        "استشارات عقل زاد العميقة، مسح الفواتير بالصور، وبدون إعلانات نهائياً",
+                    Text(stringResource(R.string.auto_zadsubscriptionpaywall_93703),
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White.copy(alpha = 0.9f),
                         textAlign = TextAlign.Center,
@@ -255,8 +252,7 @@ fun ZadSubscriptionPaywallScreen(
                                     fontWeight = FontWeight.ExtraBold,
                                     color = primary
                                 )
-                                Text(
-                                    "/ شهرياً",
+                                Text(stringResource(R.string.auto_zadsubscriptionpaywall_78274),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -339,8 +335,7 @@ fun ZadSubscriptionPaywallScreen(
             }
 
             Spacer(Modifier.height(14.dp))
-            Text(
-                "يمكنك إلغاء الاشتراك في أي وقت. تجديد تلقائي شهري بدون التزامات.",
+            Text(stringResource(R.string.auto_zadsubscriptionpaywall_13807),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 textAlign = TextAlign.Center,
@@ -356,15 +351,13 @@ fun ZadSubscriptionPaywallScreen(
                 contentPadding = 0.dp
             ) {
                 Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        "⚡ لست مستعداً للاشتراك الآن؟",
+                    Text(stringResource(R.string.auto_zadsubscriptionpaywall_7318),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(Modifier.height(4.dp))
-                    Text(
-                        "يمكنك شحن بطارية الذكاء الاصطناعي مجاناً بمشاهدة 3 إعلانات قصيرة (+5 رسائل فورية).",
+                    Text(stringResource(R.string.auto_zadsubscriptionpaywall_41518),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,

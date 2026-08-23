@@ -190,7 +190,7 @@ fun OnboardingScreen(
                     Log.d("Onboarding", "Skip clicked")
                     onNavigateToLogin()
                 }) {
-                    Text("تخطي", color = onSurfaceVariant)
+                    Text(stringResource(R.string.auto_onboarding_43594), color = onSurfaceVariant)
                 }
             }
 
@@ -201,7 +201,7 @@ fun OnboardingScreen(
                 Log.d("Onboarding", "Create Account clicked")
                 onNavigateToSignUp()
             }) {
-                Text("ليس لديك حساب؟ أنشئ حساباً جديداً", color = primary, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.auto_onboarding_21316), color = primary, fontWeight = FontWeight.Bold)
             }
         }
     }

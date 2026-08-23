@@ -232,8 +232,7 @@ fun CameraScreen(
                     // the scanner runs on Gemini only now (ZadAiGeminiClient). Several keys
                     // can be pasted at once, separated by commas — they're tried in order
                     // when one hits its quota.
-                    Text(
-                        "أدخل مفتاح Gemini الخاص بك لتفعيل تحليل الصور (يمكن إدخال أكثر من مفتاح مفصولة بفاصلة):",
+                    Text(stringResource(R.string.auto_camera_14259),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -326,14 +325,12 @@ fun CameraScreen(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            "التقط صورة للمخزون أو الفاتورة",
+                        Text(stringResource(R.string.auto_camera_36966),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 14.sp
                         )
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            "سيقوم AI باستخراج المنتجات تلقائياً",
+                        Text(stringResource(R.string.auto_camera_21409),
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                             fontSize = 12.sp
                         )
@@ -510,8 +507,7 @@ fun CameraScreen(
             },
             text = {
                 Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
-                    Text(
-                        "تم استخراج المنتجات التالية. يمكنك مراجعتها قبل الحفظ:",
+                    Text(stringResource(R.string.auto_camera_11386),
                         style = MaterialTheme.typography.bodySmall
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -680,8 +676,7 @@ fun CameraScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        "راجع المنتجات قبل التسجيل في المصروفات والمخزون:",
+                    Text(stringResource(R.string.auto_camera_97981),
                         style = MaterialTheme.typography.bodySmall
                     )
                     Spacer(modifier = Modifier.height(12.dp))

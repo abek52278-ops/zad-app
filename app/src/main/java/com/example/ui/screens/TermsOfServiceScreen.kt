@@ -31,15 +31,13 @@ fun TermsOfServiceScreen(onBack: () -> Unit) {
         AppearOnEntry {
         Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
 
-            Text(
-                "شروط الاستخدام واتفاقية المستخدم",
+            Text(stringResource(R.string.auto_termsofservice_93174),
                 style = Typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = primary
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                "آخر تحديث: يوليو 2026\n\nمن فضلك اقرأ شروط الاستخدام دي بعناية قبل ما تستخدم تطبيق زاد.",
+            Text(stringResource(R.string.auto_termsofservice_95498),
                 style = Typography.bodyMedium,
                 color = onSurfaceVariant
             )

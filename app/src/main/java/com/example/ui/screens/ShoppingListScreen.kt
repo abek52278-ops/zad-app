@@ -170,7 +170,7 @@ fun ShoppingListScreen(
                         ) {
                             Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("تعبئة ذكية", fontSize = 13.sp)
+                            Text(stringResource(R.string.auto_shoppinglist_44524), fontSize = 13.sp)
                         }
 
                         Button(
@@ -181,7 +181,7 @@ fun ShoppingListScreen(
                         ) {
                             Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("واتساب", fontSize = 13.sp)
+                            Text(stringResource(R.string.auto_shoppinglist_16030), fontSize = 13.sp)
                         }
                     }
                 }
@@ -216,8 +216,7 @@ fun ShoppingListScreen(
 
                     if (filtered.isEmpty()) {
                         item {
-                            Text(
-                                "لا توجد عناصر بهذا التصنيف",
+                            Text(stringResource(R.string.auto_shoppinglist_97794),
                                 modifier = Modifier.fillMaxWidth().padding(20.dp),
                                 textAlign = TextAlign.Center,
                                 color = onSurfaceVariant
@@ -254,8 +253,7 @@ fun ShoppingListScreen(
                         } else if (matchedProduct != null) {
                             item {
                                 Column {
-                                    Text(
-                                        "اقتراح: بديل من أمازون",
+                                    Text(stringResource(R.string.auto_shoppinglist_76247),
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -360,9 +358,9 @@ private fun ShoppingBudgetHeader(totalPrice: Double, budgetRemaining: Double, bu
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("سلة زاد الذكية", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text(stringResource(R.string.auto_shoppinglist_20120), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Column(horizontalAlignment = Alignment.End) {
-                        Text("الميزانية المتبقية", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
+                        Text(stringResource(R.string.auto_shoppinglist_88227), color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
                         Text(
                             com.example.data.CurrencyFormatter.format(context, budgetRemaining),
                             color = MaterialTheme.colorScheme.onSurface,
@@ -385,13 +383,13 @@ private fun ShoppingBudgetHeader(totalPrice: Double, budgetRemaining: Double, bu
                                 .background(Color.White.copy(alpha = 0.25f))
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            Text("$budgetPct% من الميزانية", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text(stringResource(R.string.auto_shoppinglist_56750), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
                     }
                 }
                 if (isOverBudget) {
                     Spacer(Modifier.height(8.dp))
-                    Text("هذه القائمة تتجاوز الميزانية المتبقية!", color = Color.White.copy(alpha = 0.9f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.auto_shoppinglist_67138), color = Color.White.copy(alpha = 0.9f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -431,7 +429,7 @@ private fun GrocerySuggestionsCard(suggestions: List<GrocerySuggestion>, onAdd: 
                 Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = catEntertainIcon, modifier = Modifier.size(18.dp))
             }
             Spacer(Modifier.width(8.dp))
-            Text("قد تحتاج أيضاً", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+            Text(stringResource(R.string.auto_shoppinglist_49110), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
         }
         Spacer(Modifier.height(12.dp))
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -566,9 +564,9 @@ private fun SmartEmptyState() {
             contentDescription = "قائمة التسوق فارغة"
         )
         Spacer(Modifier.height(12.dp))
-        Text("قائمة التسوق فارغة", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = onSurface)
+        Text(stringResource(R.string.auto_shoppinglist_37686), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = onSurface)
         Spacer(Modifier.height(8.dp))
-        Text("زاد سيضيف النواقص تلقائياً!", fontSize = 14.sp, color = onSurfaceVariant)
+        Text(stringResource(R.string.auto_shoppinglist_53887), fontSize = 14.sp, color = onSurfaceVariant)
     }
 }
 
@@ -582,13 +580,13 @@ private fun AddShoppingItemDialog(onDismiss: () -> Unit, onConfirm: (name: Strin
     AlertDialog(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(20.dp),
-        title = { Text("إضافة منتج للقائمة", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = onSurface) },
+        title = { Text(stringResource(R.string.auto_shoppinglist_17012), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = onSurface) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("اسم المنتج") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
-                OutlinedTextField(value = qtyStr, onValueChange = { qtyStr = it }, label = { Text("الكمية") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
-                OutlinedTextField(value = priceStr, onValueChange = { priceStr = it }, label = { Text("السعر التقديري") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
-                OutlinedTextField(value = store, onValueChange = { store = it }, label = { Text("المتجر (اختياري)") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.auto_shoppinglist_73239)) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(value = qtyStr, onValueChange = { qtyStr = it }, label = { Text(stringResource(R.string.auto_shoppinglist_43371)) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(value = priceStr, onValueChange = { priceStr = it }, label = { Text(stringResource(R.string.auto_shoppinglist_66379)) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(value = store, onValueChange = { store = it }, label = { Text(stringResource(R.string.auto_shoppinglist_34022)) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
             }
         },
         confirmButton = {
@@ -601,9 +599,9 @@ private fun AddShoppingItemDialog(onDismiss: () -> Unit, onConfirm: (name: Strin
                 modifier = Modifier.pressableScale(),
                 shape = RoundedCornerShape(50),
                 colors = ButtonDefaults.buttonColors(containerColor = primary)
-            ) { Text("إضافة", color = onPrimary) }
+            ) { Text(stringResource(R.string.auto_shoppinglist_74746), color = onPrimary) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء", color = onSurfaceVariant) } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.auto_shoppinglist_91611), color = onSurfaceVariant) } }
     )
 }
 
