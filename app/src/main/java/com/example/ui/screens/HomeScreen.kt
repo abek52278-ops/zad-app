@@ -806,6 +806,54 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
+                // ── 10. Recent transactions (mockup: آخر المعاملات + عرض الكل) ──
+                if (budgetConfirmed && visibleTransactions.isNotEmpty()) {
+                    com.example.ui.components.AppearOnEntry(delayMs = 90) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(stringResource(R.string.recent_tx_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                                Text(
+                                    stringResource(R.string.see_all),
+                                    style = Typography.labelMedium, fontWeight = FontWeight.SemiBold,
+                                    color = primary,
+                                    modifier = Modifier.clickable { viewModel.showBudgetDialog() }
+                                )
+                            }
+                            visibleTransactions
+                                .sortedByDescending { it.createdAt ?: "" }
+                                .take(3)
+                                .forEach { tx ->
+                                    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(14.dp), contentPadding = 0.dp) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                Text(tx.merchantName ?: tx.category ?: "—", style = Typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = onSurface)
+                                                Text(
+                                                    tx.createdAt?.take(10) ?: "",
+                                                    style = Typography.labelSmall, color = onSurfaceVariant
+                                                )
+                                            }
+                                            val neg = tx.isExpense
+                                            Text(
+                                                (if (neg) "−" else "+") + com.example.data.CurrencyFormatter.format(context, tx.amount),
+                                                style = Typography.bodyMedium, fontWeight = FontWeight.Bold,
+                                                color = if (neg) dangerColor else primary
+                                            )
+                                        }
+                                    }
+                                }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(18.dp))
+                }
+
                 // ── Beyond the mockup ──────────────────────────────────────────────
                 // Cards Zad has and the mockup doesn't. They stay (each one is backed by
                 // real data the app computes), but they now sit below the mockup sequence

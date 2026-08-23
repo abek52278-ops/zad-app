@@ -1368,4 +1368,6 @@
     <string name="auto_comp_pinpromptdialog_16376">استنى ثانية وحاول تاني</string>
     <string name="auto_comp_pinpromptdialog_74400">تأكيد</string>
     <string name="auto_comp_pinpromptdialog_347">إلغاء</string>
+    <string name="recent_tx_title">آخر المعاملات</string>
+    <string name="see_all">عرض الكل</string>
 </resources>
