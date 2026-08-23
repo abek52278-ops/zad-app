@@ -507,7 +507,7 @@ fun SplashScreen(onTimeout: () -> Unit) {
             modifier = Modifier.alpha(alphaAnim.value),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            com.example.ui.components.ZadLogo()
+            com.example.ui.components.ZadAnimatedLogo(modifier = Modifier, size = 80.dp)
             Spacer(Modifier.height(20.dp))
             Text(
                 text = "زاد",

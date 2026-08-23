@@ -382,7 +382,38 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                // ── 2a. أزرار المهام السريعة بنمط Google Stitch (تسجيل صوتي، مسح فاتورة، إضافة للمخزون) ──
+                // ── 2b. نبض الإنفاق الحي — sparkline آخر ٧ أيام (من البروتوتايب) ──
+                if (budgetConfirmed && visibleTransactions.isNotEmpty()) {
+                    com.example.ui.components.AppearOnEntry(delayMs = 55) {
+                        val last7 = remember(visibleTransactions) {
+                            val dayMs = 86_400_000L
+                            // نجمع مصاريف كل يوم من آخر 7 أيام (الأقدم أولاً)
+                            val nowDay = java.time.LocalDate.now()
+                            (6 downTo 0).map { daysAgo ->
+                                val target = nowDay.minusDays(daysAgo.toLong()).toString() // yyyy-MM-dd
+                                visibleTransactions
+                                    .asSequence()
+                                    .filter { it.isExpense }
+                                    .filter { it.createdAt?.startsWith(target) == true }
+                                    .sumOf { it.amount }.toFloat()
+                            }
+                        }
+                        com.example.ui.components.ZadListCard(shape = RoundedCornerShape(18.dp)) {
+                            androidx.compose.foundation.layout.Column(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
+                            ) {
+                                Row(modifier = Modifier.fillMaxWidth()) {
+                                    Text("نبض الإنفاق الحي", style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface)
+                                    Spacer(Modifier.weight(1f))
+                                    Text("آخر 7 أيام", style = Typography.labelSmall, color = onSurfaceVariant)
+                                }
+                                Spacer(Modifier.height(8.dp))
+                                com.example.ui.components.SpendPulseSparkline(values = last7)
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(18.dp))
+                }
                 com.example.ui.components.AppearOnEntry(delayMs = 65) {
                     StitchQuickActionGrid(
                         onVoiceShopping = onOpenVoice,
