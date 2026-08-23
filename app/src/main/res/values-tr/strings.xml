@@ -1254,5 +1254,5 @@
     <string name="bank_proposal_failed">Karar uygulanamadı. Tekrar deneyin.</string>
     <string name="wake_service_title">Zad dinliyor</string>
     <string name="wake_service_body">Sesli asistanı açmak için "Hey Zad" deyin</string>
-    <string name="activation_done_hint">Her şey hazır! 🎉 Zad'a sesle veya Telegram botundan "50 lira market harcadım" de — onay isteyecek ve kaydedecek.</string>
+    <string name="activation_done_hint">Her şey hazır! 🎉 Zad\'a sesle veya Telegram botundan \"50 lira market harcadım\" deyin — onay isteyecek ve kaydedecek.</string>
 </resources>

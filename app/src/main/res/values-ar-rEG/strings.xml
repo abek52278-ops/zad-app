@@ -1235,5 +1235,5 @@
     <string name="bank_proposal_failed">القرار ماتنفذش. جرب تاني.</string>
     <string name="wake_service_title">زاد بيسمع</string>
     <string name="wake_service_body">قول "يا زاد" عشان تفتح المساعد الصوتي</string>
-    <string name="activation_done_hint">كله جاهز يا معلم! 🎉 جرب قول لزاد "صرفت ٥٠ بقالة" بالصوت أو من بوت تليجرام — هيسألك تأكيد ويسجلها.</string>
+    <string name="activation_done_hint">كله جاهز يا معلم! 🎉 جرب قول لزاد \"صرفت ٥٠ بقالة\" بالصوت أو من بوت تليجرام — هيسألك تأكيد ويسجلها.</string>
 </resources>

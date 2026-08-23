@@ -1257,5 +1257,5 @@
     <string name="bank_proposal_failed">Could not apply the decision. Try again.</string>
     <string name="wake_service_title">Zad is listening</string>
     <string name="wake_service_body">Say "Hey Zad" to open the voice assistant</string>
-    <string name="activation_done_hint">All set! 🎉 Try telling Zad "spent 50 on groceries" by voice or via the Telegram bot — it asks for confirmation then logs it.</string>
+    <string name="activation_done_hint">All set! 🎉 Try telling Zad \"spent 50 on groceries\" by voice or via the Telegram bot — it asks for confirmation then logs it.</string>
 </resources>
