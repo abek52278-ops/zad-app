@@ -4,6 +4,9 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
 
 /**
  * نطق التنبيهات بنفس صوت زاد البشري (ElevenLabs عبر سيرفرنا) — بدل TTS الروبوتي
@@ -43,6 +46,9 @@ object ZadAlertSpeaker {
     fun canSpeakNow(context: Context): Boolean {
         val am = context.applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         if (am.ringerMode == AudioManager.RINGER_MODE_SILENT) return false
+        // AudioFocusRequest متاح من API 26 — الأقدم بيتجاهل فحص الفوكس (سلوك مقبول:
+        // التنبيه هينطق برضه، بس من غير ما يطلب الأولوية)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return true
         val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
             .setAudioAttributes(
                 AudioAttributes.Builder()
