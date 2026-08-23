@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import com.example.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -85,7 +87,7 @@ fun CashCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.Payments, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("كاش معاك", color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.auto_comp_zadcashcard_28167), color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.labelMedium)
                 }
                 Text(
                     CurrencyFormatter.format(context, cashOnHand),
@@ -99,7 +101,7 @@ fun CashCard(
                 colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = secondaryDark),
                 shape = RoundedCornerShape(999.dp)
             ) {
-                Text("صرفت منهم", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.auto_comp_zadcashcard_89233), fontWeight = FontWeight.Bold)
             }
         }
 
@@ -137,20 +139,20 @@ private fun SpentFromCashDialog(onDismiss: () -> Unit, onSave: (Double, String, 
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("صرفت منهم كام؟", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(R.string.auto_comp_zadcashcard_27493), fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = amount,
                     onValueChange = { amount = it },
-                    label = { Text("المبلغ") },
+                    label = { Text(stringResource(R.string.auto_comp_zadcashcard_60221),) },
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("صرفتهم على إيه؟ (اختياري)") },
+                    label = { Text(stringResource(R.string.auto_comp_zadcashcard_83676),) },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -159,10 +161,10 @@ private fun SpentFromCashDialog(onDismiss: () -> Unit, onSave: (Double, String, 
             Button(onClick = {
                 val parsed = amount.toDoubleOrNull() ?: 0.0
                 if (parsed > 0.0) onSave(parsed, title.ifBlank { "صرف كاش" }, "أخرى")
-            }) { Text("تسجيل") }
+            }) { Text(stringResource(R.string.auto_comp_zadcashcard_9338),) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("إلغاء") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.auto_comp_zadcashcard_347),) }
         }
     )
 }
@@ -182,8 +184,7 @@ fun HabitChipsRow(
 ) {
     val context = LocalContext.current
     Column(modifier = Modifier.padding(vertical = 4.dp)) {
-        Text(
-            "عادات صرفك",
+        Text(stringResource(R.string.auto_comp_zadcashcard_83215),
             modifier = Modifier.padding(horizontal = horizontalPadding, vertical = 4.dp),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Bold,

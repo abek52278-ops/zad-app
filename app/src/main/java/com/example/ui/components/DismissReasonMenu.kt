@@ -1,9 +1,11 @@
 package com.example.ui.components
 
+import com.example.R
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
 import com.example.ui.theme.dangerColor
 import com.example.ui.theme.onSurfaceVariant
 
@@ -21,15 +23,15 @@ fun DismissReasonMenu(
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismissRequest) {
         DropdownMenuItem(
-            text = { Text("مش مهم") },
+            text = { Text(stringResource(R.string.auto_comp_dismissreasonmenu_4986),) },
             onClick = { onReasonSelected("not_relevant"); onDismissRequest() }
         )
         DropdownMenuItem(
-            text = { Text("الرقم غلط", color = dangerColor) },
+            text = { Text(stringResource(R.string.auto_comp_dismissreasonmenu_23264), color = dangerColor) },
             onClick = { onReasonSelected("wrong_data"); onDismissRequest() }
         )
         DropdownMenuItem(
-            text = { Text("عرفت خلاص", color = onSurfaceVariant) },
+            text = { Text(stringResource(R.string.auto_comp_dismissreasonmenu_40574), color = onSurfaceVariant) },
             onClick = { onReasonSelected("timing"); onDismissRequest() }
         )
     }

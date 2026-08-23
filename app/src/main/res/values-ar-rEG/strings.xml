@@ -1359,4 +1359,31 @@
     <string name="auto_marketselection_17720">زاد بيتكلم بلهجتك وبيحسب مصروفك بعملة بلدك</string>
     <string name="auto_onboarding_43594">تخطي</string>
     <string name="auto_onboarding_21316">ليس لديك حساب؟ أنشئ حساباً جديداً</string>
+
+    <string name="auto_comp_dismissreasonmenu_4986">مش مهم</string>
+    <string name="auto_comp_dismissreasonmenu_23264">الرقم غلط</string>
+    <string name="auto_comp_dismissreasonmenu_40574">عرفت خلاص</string>
+    <string name="auto_comp_whychangedsheet_38518">آخر التغييرات</string>
+    <string name="auto_comp_whychangedsheet_19473">تعديلات زاد الآلية على بياناتك — إيه اتغيّر، وإمتى</string>
+    <string name="auto_comp_whychangedsheet_94891">مفيش تعديلات آلية مسجلة لسه</string>
+    <string name="auto_comp_zadcashcard_28167">كاش معاك</string>
+    <string name="auto_comp_zadcashcard_89233">صرفت منهم</string>
+    <string name="auto_comp_zadcashcard_27493">صرفت منهم كام؟</string>
+    <string name="auto_comp_zadcashcard_60221">المبلغ</string>
+    <string name="auto_comp_zadcashcard_83676">صرفتهم على إيه؟ (اختياري)</string>
+    <string name="auto_comp_zadcashcard_9338">تسجيل</string>
+    <string name="auto_comp_zadcashcard_347">إلغاء</string>
+    <string name="auto_comp_zadcashcard_83215">عادات صرفك</string>
+    <string name="auto_comp_neuralmeshlivepanel_65281">شبكة وكلاء زاد — حية</string>
+    <string name="auto_comp_zadagentoverlay_83254">زاد</string>
+    <string name="auto_comp_zadagentoverlay_90994">زاد بيكتب...</string>
+    <string name="auto_comp_zadagentoverlay_88646">اسأل زاد...</string>
+    <string name="auto_comp_chefrecipecards_34776">ضيفهم لقائمة التسوق</string>
+    <string name="auto_comp_chefrecipecards_23405">اضغط للخطوات</string>
+    <string name="auto_comp_livemarketticker_80931">جاري جلب الأسعار...</string>
+    <string name="auto_comp_livemarketticker_69159">تعذر جلب الأسعار الحية الآن — جرب تاني</string>
+    <string name="auto_comp_pinpromptdialog_79917">هتحتاجه في كل مرة تحب تخرج من وضع الأطفال على الجهاز ده</string>
+    <string name="auto_comp_pinpromptdialog_16376">استنى ثانية وحاول تاني</string>
+    <string name="auto_comp_pinpromptdialog_74400">تأكيد</string>
+    <string name="auto_comp_pinpromptdialog_347">إلغاء</string>
 </resources>

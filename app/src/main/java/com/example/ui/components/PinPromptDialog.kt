@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import com.example.R
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -97,7 +99,7 @@ fun PinPromptDialog(onDismiss: () -> Unit, onUnlocked: () -> Unit) {
         text = {
             Column {
                 if (stage != "verify") {
-                    Text("هتحتاجه في كل مرة تحب تخرج من وضع الأطفال على الجهاز ده", style = androidx.compose.ui.text.TextStyle(color = onSurfaceVariant))
+                    Text(stringResource(R.string.auto_comp_pinpromptdialog_79917), style = androidx.compose.ui.text.TextStyle(color = onSurfaceVariant))
                     Spacer(Modifier.height(8.dp))
                 }
                 OutlinedTextField(
@@ -116,11 +118,11 @@ fun PinPromptDialog(onDismiss: () -> Unit, onUnlocked: () -> Unit) {
                 }
                 if (lockRemainingMs > 0) {
                     Spacer(Modifier.height(4.dp))
-                    Text("استنى ثانية وحاول تاني", style = androidx.compose.ui.text.TextStyle(color = onSurfaceVariant))
+                    Text(stringResource(R.string.auto_comp_pinpromptdialog_16376), style = androidx.compose.ui.text.TextStyle(color = onSurfaceVariant))
                 }
             }
         },
-        confirmButton = { Button(onClick = { submit() }, enabled = lockRemainingMs <= 0) { Text("تأكيد") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } }
+        confirmButton = { Button(onClick = { submit() }, enabled = lockRemainingMs <= 0) { Text(stringResource(R.string.auto_comp_pinpromptdialog_74400),) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.auto_comp_pinpromptdialog_347),) } }
     )
 }

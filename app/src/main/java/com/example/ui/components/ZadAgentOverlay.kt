@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import com.example.R
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -23,6 +24,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -128,7 +130,7 @@ private fun ZadAgentOverlaySheet(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.SmartToy, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("زاد", style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(stringResource(R.string.auto_comp_zadagentoverlay_83254), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onOpenFullChat, modifier = Modifier.size(28.dp)) {
@@ -155,7 +157,7 @@ private fun ZadAgentOverlaySheet(
                             .background(surfaceContainerLow)
                             .padding(10.dp)
                     ) {
-                        Text("زاد بيكتب...", style = Typography.labelSmall, color = onSurfaceVariant)
+                        Text(stringResource(R.string.auto_comp_zadagentoverlay_90994), style = Typography.labelSmall, color = onSurfaceVariant)
                     }
                 }
             }
@@ -171,7 +173,7 @@ private fun ZadAgentOverlaySheet(
                 value = input,
                 onValueChange = { input = it },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("اسأل زاد...", style = Typography.bodyMedium) },
+                placeholder = { Text(stringResource(R.string.auto_comp_zadagentoverlay_88646), style = Typography.bodyMedium) },
                 shape = RoundedCornerShape(20.dp),
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(

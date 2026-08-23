@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import com.example.R
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.LinearEasing
@@ -31,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.font.FontWeight
@@ -128,7 +130,7 @@ private fun LoadingRow() {
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = primary)
-        Text("جاري جلب الأسعار...", style = Typography.labelSmall, color = onSurfaceVariant)
+        Text(stringResource(R.string.auto_comp_livemarketticker_80931), style = Typography.labelSmall, color = onSurfaceVariant)
     }
 }
 
@@ -146,8 +148,7 @@ private fun RetryRow(onRetry: () -> Unit) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            "تعذر جلب الأسعار الحية الآن — جرب تاني",
+        Text(stringResource(R.string.auto_comp_livemarketticker_69159),
             style = Typography.labelSmall,
             color = onSurfaceVariant
         )

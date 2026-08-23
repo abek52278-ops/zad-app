@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import com.example.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -156,7 +158,7 @@ private fun ChefRecipeCard(
                 ) {
                     Icon(Icons.Default.AddShoppingCart, null, tint = primary, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("ضيفهم لقائمة التسوق", style = Typography.labelMedium, color = primary)
+                    Text(stringResource(R.string.auto_comp_chefrecipecards_34776), style = Typography.labelMedium, color = primary)
                 }
             }
 
@@ -173,7 +175,7 @@ private fun ChefRecipeCard(
                 }
             } else if (recipe.cookingInstructions.isNotEmpty()) {
                 Spacer(Modifier.height(6.dp))
-                Text("اضغط للخطوات", style = Typography.labelSmall, color = primary)
+                Text(stringResource(R.string.auto_comp_chefrecipecards_23405), style = Typography.labelSmall, color = primary)
             }
         }
     }
