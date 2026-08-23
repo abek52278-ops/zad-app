@@ -124,7 +124,8 @@ class HeyZadWakeService : Service() {
                             putExtra("open_voice", true)
                         }
                         startActivity(launch)
-                        com.example.ui.components.ZadChime.play(com.example.ui.components.ZadChime.Tone.Success)
+                        // مفيش صوت هنا — الشاشة نفسها بتفتح فورًا وده الإشعار البصري.
+                        // الـ chime كان بييجي معه صوت مزعج كل مرة الكلمة تتقال.
                     }
                 }
                 override fun onResults(results: android.os.Bundle?) { rearm() }
@@ -162,10 +163,10 @@ class HeyZadWakeService : Service() {
         const val ACTION_PAUSE = "com.example.voice.PAUSE_WAKE"
         const val ACTION_RESUME = "com.example.voice.RESUME_WAKE"
 
-        /** كل الصيغ المقبولة لكلمة التنبيه (مصري/عربي/إنجليزي). */
+        /** كل الصيغ المقبولة لكلمة التنبيه — كلمات مميزة بس، ممنوع كلمات قصيرة
+         *  تتشالف في الكلام العادي (كان "ازاد" بيتكتشف من أي حرف زاد في جملة). */
         val WAKE_PHRASES = listOf(
-            "hey zad", "hey زاد", "hi zad", "يا زاد", "ازيك يا زاد",
-            "أزاد", "ازاد", "هي زاد", "زاد؟"
+            "hey zad", "hey زاد", "hi zad", "يا زاد", "ازيك يا زاد", "هي زاد"
         )
 
         fun start(context: Context) {

@@ -383,9 +383,12 @@ object AlertPrefs {
     // الصوت عشان ZadNotifier ينشئ قناة جديدة (ID مختلف) بدل ما يحاول يعدّل قناة قديمة.
     private const val KEY_NOTIFICATION_SOUND_VERSION = "notification_sound_version"
 
+    // الافتراضي صامت — الصوت opt-in قرار مستخدم مش سلوك مفروض.
+    // ده كان مصدر "صوت عشوائي في الخلفية": الووركرز بينطقوا رؤى العقل
+    // بدون ما المستخدم يطلب، لأن default=true هنا.
     fun isEnabled(context: android.content.Context, key: String): Boolean =
         context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
-            .getBoolean(key, true)
+            .getBoolean(key, false)
 
     fun setEnabled(context: android.content.Context, key: String, enabled: Boolean) =
         context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
