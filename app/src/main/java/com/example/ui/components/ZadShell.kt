@@ -327,6 +327,8 @@ fun ZadBottomNavBar(
             Box(modifier = Modifier.matchParentSize().border(1.dp, Color.Black.copy(alpha = 0.06f), pillShape))
         }
 
+        // الخمس وجهات الثابتة — رحلة موحدة بدل التشتت:
+        // اليوم (الرئيسية) → البيت (المخزون) → زاد (العقل) → المال → العائلة
         val items = if (kidsMode) {
             listOf(
                 ZadNavItem(ZadRoutes.HOME, Icons.Default.Home, R.string.nav_tab_home),
@@ -335,8 +337,10 @@ fun ZadBottomNavBar(
         } else {
             listOf(
                 ZadNavItem(ZadRoutes.HOME, Icons.Default.Home, R.string.nav_tab_home),
-                ZadNavItem(ZadRoutes.ASSISTANT, Icons.Default.Psychology, R.string.screen_title_assistant),
                 ZadNavItem(ZadRoutes.INVENTORY, Icons.Default.Inventory2, R.string.nav_inventory),
+                ZadNavItem(ZadRoutes.ASSISTANT, Icons.Default.Psychology, R.string.screen_title_assistant),
+                ZadNavItem(ZadRoutes.BUDGET, Icons.Default.BarChart, R.string.nav_budget),
+                ZadNavItem(ZadRoutes.FAMILY, Icons.Default.FamilyRestroom, R.string.nav_family),
             )
         }
 
@@ -347,25 +351,20 @@ fun ZadBottomNavBar(
         ) {
             items.forEachIndexed { index, item ->
                 if (index == 2 && !kidsMode) {
+                    // زاد في النص — أطول ضغطة على الزر المركزي تفتح المايك مباشرة
                     ZadActionNavButton(
-                        onClick = onOpenCamera,
-                        onLongClick = onOpenVoice
+                        onClick = onOpenVoice,
+                        onLongClick = onOpenCamera
                     )
                 }
-                ZadNavTab(
-                    icon = item.icon,
-                    label = stringResource(item.labelRes),
-                    selected = currentRoute == item.route,
-                    onClick = { onNavigate(item.route) }
-                )
-            }
-            if (!kidsMode) {
-                ZadNavTab(
-                    icon = Icons.Default.MoreHoriz,
-                    label = stringResource(R.string.nav_more),
-                    selected = false,
-                    onClick = onOpenMore
-                )
+                if (index != 2 || kidsMode) {
+                    ZadNavTab(
+                        icon = item.icon,
+                        label = stringResource(item.labelRes),
+                        selected = currentRoute == item.route,
+                        onClick = { onNavigate(item.route) }
+                    )
+                }
             }
         }
     }

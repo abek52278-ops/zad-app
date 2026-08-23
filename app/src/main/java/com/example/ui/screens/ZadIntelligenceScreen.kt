@@ -82,6 +82,7 @@ fun ZadIntelligenceScreen(
     val insights by viewModel.insights.collectAsState()
     val messages by viewModel.aiChatMessages.collectAsState()
     val isTyping by viewModel.isAiTyping.collectAsState()
+    val lastSpecialist by viewModel.lastActiveSpecialist.collectAsState()
     val patterns by viewModel.behaviorPatterns.collectAsState()
     val serverBehaviorProfile by viewModel.behaviorProfile.collectAsState()
     val isRefreshingBehaviorProfile by viewModel.isRefreshingBehaviorProfile.collectAsState()
@@ -513,7 +514,8 @@ fun ZadIntelligenceScreen(
                     onUndoCommit = { viewModel.undoInventoryCommit(it) },
                     pendingAgentProposals = pendingAgentProposals,
                     onConfirmAgentProposals = { viewModel.confirmPendingAgentProposals() },
-                    onCancelAgentProposals = { viewModel.cancelPendingAgentProposals() }
+                    onCancelAgentProposals = { viewModel.cancelPendingAgentProposals() },
+                    lastSpecialist = lastSpecialist
                 )
             }
 
@@ -2230,7 +2232,8 @@ fun ChatSectionCard(
     onUndoCommit: (String) -> Unit,
     pendingAgentProposals: List<com.example.data.ZadAiRepository.AgentProposal> = emptyList(),
     onConfirmAgentProposals: () -> Unit = {},
-    onCancelAgentProposals: () -> Unit = {}
+    onCancelAgentProposals: () -> Unit = {},
+    lastSpecialist: String? = null
 ) {
     com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
         Column {
@@ -2265,7 +2268,8 @@ fun ChatSectionCard(
                         onUndoCommit = onUndoCommit,
                         pendingAgentProposals = pendingAgentProposals,
                         onConfirmAgentProposals = onConfirmAgentProposals,
-                        onCancelAgentProposals = onCancelAgentProposals
+                        onCancelAgentProposals = onCancelAgentProposals,
+                        lastSpecialist = lastSpecialist
                     )
                 }
             }
@@ -2287,7 +2291,8 @@ fun ChatTab(
     onUndoCommit: (String) -> Unit = {},
     pendingAgentProposals: List<com.example.data.ZadAiRepository.AgentProposal> = emptyList(),
     onConfirmAgentProposals: () -> Unit = {},
-    onCancelAgentProposals: () -> Unit = {}
+    onCancelAgentProposals: () -> Unit = {},
+    lastSpecialist: String? = null
 ) {
     val quickPrompts = listOf(
         Icons.Default.Restaurant to stringResource(R.string.quick_prompt_recipe),
@@ -2433,7 +2438,29 @@ fun ChatTab(
             }
 
             if (isTyping) {
-                item { ZadIntTypingIndicator() }
+                item {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        ZadIntTypingIndicator()
+                        com.example.ui.components.NeuralMeshBadge(
+                            status = com.example.ui.components.NeuralMeshStatus.THINKING,
+                            specialistId = lastSpecialist
+                        )
+                    }
+                }
+            } else {
+                // مؤشر الشبكة الحي — يظهر بعد كل رد مكتمل بالوكيل اللي عالجه فعلاً
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        com.example.ui.components.NeuralMeshBadge(
+                            status = if (lastSpecialist != null) com.example.ui.components.NeuralMeshStatus.ACTIVE
+                                     else com.example.ui.components.NeuralMeshStatus.IDLE,
+                            specialistId = lastSpecialist
+                        )
+                    }
+                }
             }
 
             item { Spacer(modifier = Modifier.height(8.dp)) }
