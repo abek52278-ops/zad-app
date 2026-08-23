@@ -64,7 +64,7 @@ import { classifyMessage, consume as consumeEntitlement, lockedReply } from "./e
 import { hasConfiguredSecret, hasServiceRoleAuthorization, resolveAuthedUserId } from "./auth.ts";
 import { conversationProfile, voiceModeInstruction } from "./persona.ts";
 // المرحلة ٣ — الوكلاء المتخصصون: توجيه + هوية في البرومبت + trace في zad_brain_runs.
-import { recordSpecialistTrace, routeSpecialist, specialistPromptBlock } from "./specialists.ts";
+import { recordSpecialistTrace, routeSpecialist, specialistPromptBlock, scopeToolsForSpecialist } from "./specialists.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -3085,10 +3085,13 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
   };
 
   let inputTokens = 0, outputTokens = 0;
+  // تقليل الأدوات المعروضة حسب الوكيل الموجّه — 39 أداة في كل طلب بتخلي الموديل
+  // يتردد ويبطّئ. الأداة العامة (web_search/remember/...) بتفضل متاحة دايمًا.
+  const scopedTools = scopeToolsForSpecialist(CHAT_TOOLS, specialist);
   for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
     let reply;
     try {
-      reply = await callModel({ model: MODEL_ROUTINE, system: systemPrompt, tools: CHAT_TOOLS, history, maxTokens: 1200 });
+      reply = await callModel({ model: MODEL_ROUTINE, system: systemPrompt, tools: scopedTools, history, maxTokens: 1200 });
     } catch (e) {
       console.error("agent_turn callModel failed:", e);
       await finishRun("failed", String(e));

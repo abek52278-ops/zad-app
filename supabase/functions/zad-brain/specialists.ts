@@ -147,3 +147,43 @@ export async function recordSpecialistTrace(
     console.error("specialist trace failed:", e);
   }
 }
+
+/**
+ * تقليل الأدوات المعروضة حسب الوكيل — سر سرعة الردود:
+ * 39 أداة في كل طلب بتخلي الموديل يقرا أوصاف ضخمة ويتردد بين بدائل كتير قبل
+ * ما يختار. لما نعرض بس أدوات نطاق الوكيل + الأدوات العامة، القرار بيبقى أسرع
+ * وأدق. لو الرسالة عامة (general)، كل الأدوات متاحة زي ما هي — مفيش تغيير سلوك.
+ */
+export function scopeToolsForSpecialist<T extends { name: string }>(
+  tools: T[],
+  specialist: SpecialistId,
+): T[] {
+  if (specialist === "general") return tools;
+  const scope: Record<Exclude<SpecialistId, "general">, string[]> = {
+    finance: [
+      "log_transaction", "allocate_income", "update_transaction", "delete_transaction",
+      "set_monthly_limit", "add_debt", "update_debt", "delete_debt",
+      "add_obligation", "update_obligation", "delete_obligation",
+      "add_subscription", "update_subscription", "delete_subscription",
+      "forward_ledger", "check_price_online", "query_family", "weekly_savings_plan",
+    ],
+    pantry: [
+      "add_inventory_item", "update_inventory_qty",
+      "add_shopping_item", "complete_shopping_item", "delete_shopping_item",
+      "suggest_product", "check_price_online", "find_nearby_stores", "web_search",
+    ],
+    pharmacy: [
+      "add_pharmacy_item", "update_pharmacy_item", "delete_pharmacy_item",
+      "log_pharmacy_dose", "find_nearby_stores", "web_search",
+    ],
+    family: ["schedule_task", "query_family", "family_digest"],
+  };
+  const allowed = new Set([
+    ...(scope[specialist as Exclude<SpecialistId, "general">] ?? []),
+    // الأدوات العابرة للنطاقات — متاحة دايمًا
+    "remember", "link_memory", "web_search", "set_market", "set_transaction_category",
+    "update_emergency_fund_balance", "add_maintenance_item", "update_maintenance_item",
+    "delete_maintenance_item",
+  ]);
+  return tools.filter((t) => allowed.has(t.name));
+}

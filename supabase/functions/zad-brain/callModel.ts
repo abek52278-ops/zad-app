@@ -285,6 +285,7 @@ async function sendAnthropic(o: {
       "x-api-key": key,
       "anthropic-version": "2023-06-01",
     },
+    signal: AbortSignal.timeout(20_000),
     body: JSON.stringify({
       model: o.model,
       max_tokens: o.maxTokens ?? 1500,
@@ -459,10 +460,14 @@ async function sendGemini(o: {
     const keyIndex = (start + i) % GEMINI_KEY_POOL.length;
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${o.model}` +
       `:generateContent?key=${encodeURIComponent(GEMINI_KEY_POOL[keyIndex])}`;
+    // timeout 20 ثانية لكل نداء موديل — من غيره موديل معلّق بيعلّق اللفة كلها
+    // (والعميل يشوف "بيفكر..." للأبد). 20s كافية لأطول رد أدوات، والفشل السريع
+    // بيخلي الـ failover chain (موديل تاني/Groq) تلحق تنقذ اللفة قبل ما الكلاينت ييأس.
     const attempt = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body,
+      signal: AbortSignal.timeout(20_000),
     });
     if (attempt.status === 429) {
       lastQuotaBody = await attempt.text();
@@ -603,6 +608,7 @@ async function sendOpenAICompatible(o: {
       "content-type": "application/json",
       "authorization": `Bearer ${key}`,
     },
+    signal: AbortSignal.timeout(20_000),
     body: JSON.stringify({
       model: o.model,
       max_tokens: o.maxTokens ?? 1500,
