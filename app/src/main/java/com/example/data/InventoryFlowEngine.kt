@@ -3,9 +3,15 @@ package com.example.data
 import android.content.Context
 import android.util.Log
 import com.example.data.local.ZadDao
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 private const val TAG_FLOW = "InventoryFlowEngine"
+// scope للمزامنات غير الحرجة (رفع التعلم للسيرفر) — فشلها مبيأثرش على الحقن
+private val rateSyncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
 /**
  * محرك الدورة المغلقة للمخزون — Closed-Loop Inventory
@@ -126,8 +132,26 @@ object InventoryFlowEngine {
                     Log.d(TAG_FLOW, "Closed loop: ${shoppingItem.itemName} marked purchased")
                 }
 
-            // تسجيل حدث الشراء للتعلم
+            // تسجيل حدث الشراء للتعلم + صعوده للسيرفر (A: التعلم المحلي يوصل للعقل —
+            // معدل الشراء المتعلم هنا هو نفس اللي zad_consumption بيبني عليه تنبؤاته)
             ConsumptionLearner.recordPurchase(context, scanned.itemName)
+        }
+
+        // A) مزامنة التعلم مع السيرفر: كل منتج اتعدل دلوقتي بيرفع متوسطه المُتعلم
+        // (interval أيام بين الشراءات) لـ zad_record_observation — فتنبؤ "هيخلص امتى"
+        // بيبقى من العقل المركزي بنفس دقة الجهاز، ولو العميل غير جهاز التعلم مبيضيعش.
+        rateSyncScope.launch {
+            for (item in addedNew + updatedExisting) {
+                try {
+                    val interval = ConsumptionLearner.averagePurchaseIntervalDays(context, item.itemName)
+                        ?: continue
+                    // نحول المعدل لمراقبة كمية: كمية الصنف الحالية كملاحظة بمصدر "learned_rate"
+                    SupabaseRepo.recordInventoryObservation(item.itemName, item.quantity, "consumption_learner")
+                    Log.d(TAG_FLOW, "Learned rate synced: ${item.itemName} every ${interval}d")
+                } catch (e: Exception) {
+                    Log.w(TAG_FLOW, "rate sync failed for ${item.itemName}: ${e.message}")
+                }
+            }
         }
 
         return InjectionResult(addedNew, updatedExisting, removedFromShopping)

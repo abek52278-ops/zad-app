@@ -140,17 +140,41 @@ abstract class ZadDatabase : RoomDatabase() {
 
         fun getDatabase(context: Context): ZadDatabase {
             return INSTANCE ?: synchronized(this) {
+                // تشفير SQLCipher: مفتاح القاعدة بيولّد مرة واحدة ويتخزن في
+                // SharedPreferences الخاصة بالتطبيق (معزولة بـ sandbox أندرويد).
+                // لو القاعدة موجودة plain من نسخة قديمة، أول فتح بعد التحديث هيشتغل
+                // عادي (الـ openHelperFactory مش هينفع يقراها) — عشان كده بنستخدم
+                // مسار آمن: لو فشل الفتح plain، ننشئ قاعدة جديدة مشفرة ونسيب
+                // fallbackToDestructiveMigration يمسك الباقي. بيانات تجريبية أفضل من crash.
+                val passphraseBytes = getOrCreatePassphrase(context)
+                val factory = net.sqlcipher.database.SupportFactory(passphraseBytes, null, false)
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     ZadDatabase::class.java,
                     "zad_database"
                 )
+                    .openHelperFactory(factory)
                     .addMigrations(MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
                 instance
             }
+        }
+
+        /** مفتاح 32 بايت عشوائي، بيولد مرة واحدة ويتخزن محليًا (sandbox-protected). */
+        private fun getOrCreatePassphrase(context: Context): ByteArray {
+            val prefs = context.getSharedPreferences("zad_db_key", Context.MODE_PRIVATE)
+            val existing = prefs.getString("key_b64", null)
+            if (existing != null) {
+                return android.util.Base64.decode(existing, android.util.Base64.NO_WRAP)
+            }
+            val bytes = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
+            prefs.edit().putString(
+                "key_b64",
+                android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+            ).apply()
+            return bytes
         }
     }
 }

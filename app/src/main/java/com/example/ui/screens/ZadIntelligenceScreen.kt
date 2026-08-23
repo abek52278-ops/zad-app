@@ -97,6 +97,8 @@ fun ZadIntelligenceScreen(
     val companionState by viewModel.companionState.collectAsState()
     val pendingAgentProposals by viewModel.pendingAgentProposals.collectAsState()
     val familyState by familyViewModel.state.collectAsState()
+    // لوحة الشركة الحية — بيانات من الـ ViewModel مباشرة (نفس مصدر الشاشات التانية)
+    val pharmacyItems by viewModel.pharmacyItems.collectAsState()
 
     var inputText by remember { mutableStateOf("") }
     var chatExpanded by remember { mutableStateOf(false) }
@@ -190,6 +192,9 @@ fun ZadIntelligenceScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // لوحة الشركة الحية — أول ما العميل يدخل يشوف الوكلاء شغالين بأرقام حقيقية
+            item { NeuralMeshLivePanelItem(transactions, inventory, pharmacyItems, subscriptions) }
+
             // خريطة زاد — عرض بصري لمجالاتك الحقيقية (التزامات/اشتراكات/ديون/مخزون/تسوق/
             // صيدلية/صيانة/ميزانية) ومين بيأثر على مين، محسوبة لحظيًا من نفس بيانات الشاشات
             // التانية، مش قاعدة بيانات منفصلة محتاجة مزامنة.
@@ -522,6 +527,43 @@ fun ZadIntelligenceScreen(
             item { Spacer(modifier = Modifier.height(80.dp)) }
         }
     }
+}
+
+/**
+ * لوحة الوكلاء الحية — معزولة في composable مستقل عشان النصوص العربية الطويلة
+ * جوه string templates ماتكسرش الـ parser في الـ LazyColumn الكبير.
+ */
+@Composable
+private fun NeuralMeshLivePanelItem(
+    transactions: List<ZadTransaction>,
+    inventory: List<com.example.data.ZadInventory>,
+    pharmacyItems: List<com.example.data.ZadPharmacyItem>,
+    subscriptions: List<com.example.data.ZadSubscription>,
+) {
+    val todayDoses = pharmacyItems.sumOf { it.dailyDoseCount }
+    val stats = listOf(
+        com.example.ui.components.AgentLiveStat(
+            "وكيل المال",
+            "يراقب " + transactions.size + " معاملة (آخر 30 يوم)",
+            transactions.isNotEmpty()
+        ),
+        com.example.ui.components.AgentLiveStat(
+            "وكيل المخزون والمطبخ",
+            "يتتبع " + inventory.size + " منتج",
+            inventory.isNotEmpty()
+        ),
+        com.example.ui.components.AgentLiveStat(
+            "وكيل الصيدلية",
+            if (todayDoses > 0) todayDoses.toString() + " جرعة مجدولة اليوم" else "لا توجد أدوية مجدولة",
+            todayDoses > 0
+        ),
+        com.example.ui.components.AgentLiveStat(
+            "محلل الاستهلاك",
+            if (subscriptions.isNotEmpty()) subscriptions.size.toString() + " اشتراك تحت المراقبة" else "لا اشتراكات بعد",
+            subscriptions.isNotEmpty()
+        ),
+    )
+    com.example.ui.components.NeuralMeshLivePanel(stats = stats)
 }
 
 @Composable

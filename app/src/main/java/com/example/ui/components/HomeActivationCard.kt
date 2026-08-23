@@ -47,7 +47,31 @@ fun HomeActivationCard(
     onAddInventoryItem: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (progress.isComplete) return
+    // الرحلة اكتملت؟ ماختفيش — نعرض تهنئة + تلميح أول تجربة (صوت/بوت تليجرام)
+    // عشان العميل يعرف إزاي يستخدم اللي فعّله، بدل الكارت يختفي وسيبه محتار.
+    if (progress.isComplete) {
+        com.example.ui.components.ZadListCard(shape = RoundedCornerShape(20.dp)) {
+            Column(modifier = Modifier.padding(18.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF00BFA6), modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = stringResource(R.string.home_activation_title),
+                        style = Typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = onSurface,
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.activation_done_hint),
+                    style = Typography.bodySmall,
+                    color = onSurfaceVariant,
+                )
+            }
+        }
+        return
+    }
 
     Surface(
         modifier = modifier.fillMaxWidth(),

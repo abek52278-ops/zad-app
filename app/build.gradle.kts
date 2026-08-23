@@ -35,7 +35,10 @@ android {
 
   buildTypes {
     release {
-      isMinifyEnabled = false
+      // R8: APK أصغر + كود مش مقروء. القواعد في proguard-rules.pro بتخلي
+      // Supabase/gson/Room/SQLCipher شغالين (reflection-heavy libraries).
+      isMinifyEnabled = true
+      isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
     }
@@ -85,6 +88,10 @@ secrets {
 dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
   implementation(platform(libs.androidx.compose.bom))
+
+  // تشفير قاعدة البيانات المحلية — بيانات مالية ماينفعش تنام plain
+  implementation("net.zetetic:android-database-sqlcipher:4.5.4")
+  implementation("androidx.sqlite:sqlite-ktx:2.4.0")
 
   // implementation(libs.accompanist.permissions)
   implementation(libs.androidx.activity.compose)
