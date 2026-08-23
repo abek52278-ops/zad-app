@@ -1890,6 +1890,88 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       if (!d?.in_family) return "العميل مش منضم لعيلة في التطبيق.";
       return JSON.stringify(d);
     }
+    case "weekly_savings_plan": {
+      // خطة توفير بأرقام حقيقية: تجميع مصاريف آخر ٢٨ يوم حسب الفئة، ترتيبها،
+      // اقتراح خفض ١٥٪ لأكبر ٣ فئات متكررة. الخطة بتتخزن في zad_memory (scope=savings_plan)
+      // عشان المتابعة الجاية تقيس الالتزام بالأرقام نفسها — مش كلام عام.
+      const followUp = input.follow_up === true;
+
+      if (followUp) {
+        const { data: planRows } = await sb.from("zad_memory")
+          .select("id,note,confidence,created_at")
+          .eq("user_id", userId)
+          .eq("scope", "savings_plan")
+          .order("created_at", { ascending: false })
+          .limit(1);
+        const plan = (planRows as Array<{ id: string; note: string; created_at: string }> | null)?.[0];
+        if (!plan) return JSON.stringify({ status: "no_previous_plan" });
+
+        // التزام الأسبوع الماضي: مجموع مصاريف الفئات المستهدفة بعد تاريخ الخطة
+        const targets = [...plan.note.matchAll(/([^:،]+):\s*خفض\s*(\d+)/g)];
+        let spentInTargets = 0;
+        for (const [, cat] of targets) {
+          const { data: txs } = await sb.from("zad_transactions")
+            .select("amount")
+            .eq("user_id", userId)
+            .eq("category", cat.trim())
+            .eq("is_expense", true)
+            .gte("created_at", plan.created_at);
+          spentInTargets += (txs ?? []).reduce((a, t) => a + Number((t as { amount: number }).amount), 0);
+        }
+        return JSON.stringify({
+          status: "follow_up",
+          plan_created_at: plan.created_at,
+          plan_summary: plan.note,
+          spent_in_target_categories_since_plan: Math.round(spentInTargets * 100) / 100,
+          guidance: "قارن المصروف ده بمستهدف الخطة. لو أقل = ملتزم، اشكره وثبّت الخطة. لو أكبر = اسأل عن السبب بدون لوم واقترح تعديل واقعي.",
+        });
+      }
+
+      // خطة جديدة: تجميع فعلي من المعاملات (٤ أسابيع)، استبعاد الفواتير الثابتة والالتزامات
+      const sinceIso = new Date(Date.now() - 28 * 86400000).toISOString();
+      const { data: txs, error } = await sb.from("zad_transactions")
+        .select("category,amount")
+        .eq("user_id", userId)
+        .eq("is_expense", true)
+        .gte("created_at", sinceIso);
+      if (error) return `مقدرتش أقرا مصاريفك: ${error.message}`;
+
+      const FIXED = new Set(["إيجار", "قسط", "فاتورة", "دين", "راتب", "دخل"]);
+      const byCategory = new Map<string, number>();
+      for (const t of (txs ?? []) as Array<{ category: string | null; amount: number }>) {
+        const cat = (t.category ?? "").trim();
+        if (!cat || FIXED.has(cat)) continue;
+        byCategory.set(cat, (byCategory.get(cat) ?? 0) + Number(t.amount));
+      }
+      const ranked = [...byCategory.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+      if (ranked.length === 0) {
+        return JSON.stringify({ status: "insufficient_data", message: "مفيش مصاريف كفاية في آخر ٤ أسابيع لبناء خطة." });
+      }
+
+      const currency = snap.currency ?? "";
+      const proposals = ranked.map(([cat, total4w]) => {
+        const weekly = total4w / 4;
+        const cut = Math.round(weekly * 0.15); // خفض ١٥٪ — واقعي مش مبالغ فيه
+        return `${cat}: خفض ${cut} ${currency} أسبوعياً (من ${Math.round(weekly)} إلى ${Math.round(weekly - cut)})`;
+      });
+      const totalWeeklyCut = ranked.reduce((a, [c, t]) => a + Math.round(t / 4 * 0.15), 0);
+
+      // تخزين الخطة عشان المتابعة الأسبوعية تقيس ضدها
+      const planNote = `خطة توفير: ${proposals.join("، ")}`;
+      await sb.rpc("zad_memory_upsert", {
+        p_user: userId, p_scope: "savings_plan", p_note: planNote, p_conf: 0.8,
+      });
+
+      return JSON.stringify({
+        status: "plan_created",
+        period: "آخر ٤ أسابيع",
+        top_categories: ranked.map(([cat, total]) => ({ category: cat, spent_4weeks: Math.round(total), weekly_avg: Math.round(total / 4) })),
+        proposals,
+        total_weekly_cut: totalWeeklyCut,
+        monthly_projection: totalWeeklyCut * 4,
+        guidance: "اعرض الخطة على العميل بالأرقام دي بالظبط واسأله موافق ولا عايز يعدل فئة. متقولش إنها اتسجلت كالتزام قبل ما يقول موافق.",
+      });
+    }
     case "forward_ledger": {
       // Deterministic: this is a SQL projection, not an estimate. The point of the tool is
       // that the model stops doing arithmetic on the snapshot in its head — every number
@@ -2638,6 +2720,19 @@ const CHAT_TOOLS: ToolDef[] = [
       "وسلسلة تسبيحه. نادِها لما العميل يسأل \"عيلتي عاملة إيه؟\" أو عن التزام حد بميزانيته. " +
       "بترجّع أرقام مجمّعة بس — مفيش معاملات فردية، فمتقولش إن حد اشترى حاجة بعينها.",
     input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "weekly_savings_plan",
+    description:
+      "خطة توفير أسبوعية محسوبة من مصاريف العميل الفعلية آخر ٤ أسابيع (مش نصائح عامة). " +
+      "بتحدد أكبر ٣ فئات قابلة للتقليل وتقترح مبلغ أسبوعي واقعي لكل واحدة، وبتتابع خطة الأسبوع الماضي " +
+      "لو كانت موجودة (التزم بيها ولا لأ). نادِها لما العميل يطلب توفير، أو في نهاية كل أسبوع للمتابعة.",
+    input_schema: {
+      type: "object",
+      properties: {
+        follow_up: { type: "boolean", description: "true = بتابع خطة الأسبوع اللي فات (مش بعمل خطة جديدة)" },
+      },
+    },
   },
   {
     name: "remember",
