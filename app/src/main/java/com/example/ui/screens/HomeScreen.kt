@@ -335,6 +335,29 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
+                // ── 0. Ticker الأسعار — أعلى فئات صرفك الشهرية ونسبتها من متوسطها
+                // (من بياناتك الحقيقية: فئة صرفها أعلى من المعتاد = أحمر، أقل = أخضر)
+                if (budgetConfirmed && visibleTransactions.isNotEmpty()) {
+                    val tickerData = remember(visibleTransactions) {
+                        val monthStart = java.time.LocalDate.now().withDayOfMonth(1).toString()
+                        visibleTransactions.asSequence()
+                            .filter { it.isExpense && it.createdAt?.startsWith(monthStart) == true }
+                            .groupBy { it.category ?: "أخرى" }
+                            .map { (cat, txns) ->
+                                com.example.ui.components.PriceTick(
+                                    name = cat,
+                                    deltaPercent = null // النسبة تحتاج مقارنة تاريخية — نعرض الاسم فقط لحد ما توفر
+                                )
+                            }
+                            .take(4)
+                            .toList()
+                    }
+                    com.example.ui.components.AppearOnEntry {
+                        com.example.ui.components.PriceTickerRow(ticks = tickerData)
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
                 // ── 1. الكارت الأخضر: رقم واحد، الرصيد اللي معاك دلوقتي ──
                 // Task 26 — daysLeft بقى بحدود دورة الراتب (ZadViewModel.daysLeftInCycle)
                 // مش الشهر التقويمي كان مؤجل من Task 25.

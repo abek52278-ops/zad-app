@@ -14,11 +14,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -138,8 +144,27 @@ fun HeroGradientCard(
     colors: List<Color> = ZadHeroGradient,
     shape: Shape = RoundedCornerShape(28.dp),
     contentPadding: Dp = 24.dp,
+    /** حركة التدرج المستمرة (zadMeshShift من البروتوتايب) — الكارت الأخضر "بيتنفس". */
+    animateMesh: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    // نفس أنيميشن background-position في الويب: 9 ثواني ease، بيتحرك بس لما مطلوب
+    val meshShift = if (animateMesh) {
+        val transition = rememberInfiniteTransition(label = "hero_mesh")
+        transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(9000, easing = LinearEasing)),
+            label = "mesh_offset"
+        ).value
+    } else 0.35f // موضع ثابت وسط التدرج
+
+    val brush = Brush.linearGradient(
+        colors = colors + colors.first(), // نغلق الحلقة عشان الانتقال يبقى سلس
+        start = Offset(x = meshShift * 900f - 300f, y = -250f),
+        end = Offset(x = sizeMaxX() - meshShift * 500f, y = 850f),
+    )
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -150,12 +175,15 @@ fun HeroGradientCard(
                 spotColor = primary.copy(alpha = 0.45f),
             )
             .clip(shape)
-            .background(Brush.linearGradient(colors))
+            .background(brush)
             .border(1.dp, Color.White.copy(alpha = 0.16f), shape)
             .padding(contentPadding),
         content = content,
     )
 }
+
+/** عرض مرجعي ثابت لمحور التدرج — قيمة كافية لتغطية أعرض شاشة */
+private fun sizeMaxX(): Float = 1400f
 
 /**
  * The mockup's plain list card: opaque white, 16dp radius, two-layer shadow. This is

@@ -84,7 +84,8 @@ fun ZadCardHero(
     com.example.ui.components.HeroGradientCard(
         colors = com.example.ui.components.ZadHeroGradient,
         shape = RoundedCornerShape(28.dp),
-        contentPadding = 0.dp
+        contentPadding = 0.dp,
+        animateMesh = true // zadMeshShift — الكارت الأخضر بيتنفس زي البروتوتايب
     ) {
         Box(
             modifier = Modifier
