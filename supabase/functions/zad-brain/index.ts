@@ -3867,6 +3867,7 @@ Deno.serve(async (req: Request) => {
       }
       const sbChat = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
       if (body.action === "agent_turn") return await handleAgentTurn(sbChat, authedUserId, body);
+      if (body.action === "agent_turn_stream") return await handleAgentTurnStream(sbChat, authedUserId, body);
       if (body.action === "agent_confirm") return await handleAgentConfirm(sbChat, authedUserId, body);
       if (body.action === "notification_ingest") return await handleNotificationIngest(sbChat, authedUserId, body);
       return await handleAgentExecute(sbChat, authedUserId, body);
@@ -4058,3 +4059,52 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({ error: String(e) }), { status: 500, headers: CORS_HEADERS });
   }
 });
+
+/**
+ * agent_turn_stream — رد متدفق حرف بحرف (تجربة ChatGPT).
+ *
+ * المسار الذكي: نفّذ نفس منطق agent_turn الكامل (توجيه، ذاكرة، أدوات، مراجعة).
+ * الفرق الوحيد: لفة الموديل الأخيرة لو طلعت نص خالص بدون functionCalls، نعيد
+ * النص كـ SSE chunks صغيرة بدل JSON واحد — فالكلاينت يعرض الكلام وهو بينزل.
+ * لو فيه أدوات، بنرجع JSON عادي زي أي وقت (الأدوات محتاجة تأكيد منظم).
+ */
+async function handleAgentTurnStream(sb: SupabaseClient, userId: string, body: any): Promise<Response> {
+  // نستخدم نفس المعالج العادي أولاً — هو اللي بيعمل كل المنطق الآمن
+  const normal = await handleAgentTurn(sb, userId, { ...body, message: body.message });
+  const clone = normal.clone();
+  let payload: any;
+  try {
+    payload = await normal.json();
+  } catch {
+    return clone;
+  }
+  if (!payload || payload.ok !== true || typeof payload.reply !== "string" || payload.reply.length < 40) {
+    // ردود قصيرة/أخطاء/تنفيذات → JSON عادي زي ما هو
+    return new Response(JSON.stringify(payload), { headers: { ...CORS_HEADERS, "content-type": "application/json" } });
+  }
+
+  // نص طويل نظيف → نكسره chunks ونبثه SSE
+  const text = payload.reply as string;
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      const CHUNK = 24; // ~كلمة ونص عربي
+      for (let i = 0; i < text.length; i += CHUNK) {
+        const piece = text.slice(i, i + CHUNK);
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ t: piece })}\n\n`));
+      }
+      // حدث نهائي فيه باقي الحقول (proposals، specialist...) عشان الكلاينت يكمل شغله
+      const meta = { ...payload };
+      delete meta.reply;
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ done: true, ...meta })}\n\n`));
+      controller.close();
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      ...CORS_HEADERS,
+      "content-type": "text/event-stream",
+      "cache-control": "no-cache",
+    },
+  });
+}

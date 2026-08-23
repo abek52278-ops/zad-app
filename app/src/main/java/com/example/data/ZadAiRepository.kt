@@ -768,6 +768,120 @@ object ZadAiRepository {
     }
 
     /**
+     * رد متدفق — نفس agentTurn بالظبط بس بيراقب الـ SSE لو السيرفر قرر يبث.
+     * onChunk بينادى كل ما يجي مقطع نص، فالـ UI بيعرض الكلام وهو بينزل.
+     * لو السيرفر رجّع JSON عادي (أدوات/أخطاء/رد قصير) بنرجعه كامل في onChunk
+     * واحدة — نفس النتيجة، مفيش فرق سلوكي.
+     */
+    suspend fun agentTurnStreaming(
+        message: String,
+        history: List<Pair<String, String>>,
+        voiceMode: Boolean = false,
+        onChunk: (String) -> Unit,
+    ): AgentTurnResult? {
+        return try {
+            val bodyJson = org.json.JSONObject().apply {
+                put("action", "agent_turn_stream")
+                put("message", message)
+                put("voice_mode", voiceMode)
+                put("history", org.json.JSONArray().apply {
+                    history.forEach { (role, text) ->
+                        put(org.json.JSONObject().apply {
+                            put("role", role); put("text", text)
+                        })
+                    }
+                })
+            }
+            val token = com.example.data.SupabaseRepo.client.auth.currentSessionOrNull()?.accessToken
+                ?: com.example.data.SupabaseRepo.client.supabaseKey
+            val url = java.net.URL(com.example.BuildConfig.SUPABASE_URL + "/functions/v1/" + BRAIN_FUNCTION)
+            val connection = url.openConnection() as java.net.HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Authorization", "Bearer $token")
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.setRequestProperty("Accept", "text/event-stream, application/json")
+            connection.readTimeout = AGENT_TURN_TIMEOUT_MS.toInt()
+            connection.connectTimeout = 15_000
+            connection.doOutput = true
+            connection.outputStream.use { os -> os.write(bodyJson.toString().toByteArray()) }
+
+            val contentType = connection.contentType ?: ""
+            if (contentType.contains("text/event-stream")) {
+                // مسار SSE — نقرا سطر سطر ونفك data: payloads
+                var fullText = StringBuilder()
+                var finalMeta: Map<String, Any?> = emptyMap()
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val reader = java.io.BufferedReader(java.io.InputStreamReader(connection.inputStream))
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) {
+                        if (!line!!.startsWith("data: ")) continue
+                        try {
+                            val obj = org.json.JSONObject(line!!.removePrefix("data: "))
+                            if (obj.has("t")) {
+                                val piece = obj.getString("t")
+                                fullText.append(piece)
+                                onChunk(piece)
+                            } else if (obj.optBoolean("done") == true) {
+                                finalMeta = obj.let { m ->
+                                    m.keys().asSequence().map { k -> k to m.get(k) }.toMap()
+                                }
+                            }
+                        } catch (_: Exception) { /* chunk تالف — تجاهل */ }
+                    }
+                    reader.close()
+                }
+                val executed = (finalMeta["executed"] as? List<Map<String, Any?>> ?: emptyList()).mapNotNull { row ->
+                    val summary = row["summary"] as? String ?: return@mapNotNull null
+                    AgentExecuted(tool = row["tool"] as? String ?: "", summary = summary)
+                }
+                val proposals = (finalMeta["proposals"] as? List<Map<String, Any?>> ?: emptyList()).mapNotNull { row ->
+                    val tool = row["tool"] as? String ?: return@mapNotNull null
+                    val input = row["input"] as? Map<String, Any?> ?: return@mapNotNull null
+                    AgentProposal(tool = tool, summary = row["summary"] as? String ?: tool, input = input)
+                }
+                AgentTurnResult(
+                    reply = fullText.toString().trim(),
+                    executed = executed,
+                    proposals = proposals,
+                    toolAttempted = false,
+                    partial = false,
+                    specialist = finalMeta["specialist"] as? String
+                )
+            } else {
+                // JSON عادي — fallback لنفس منطق agentTurn العادي
+                val stream = connection.inputStream
+                val raw = stream.bufferedReader().readText()
+                val response = org.json.JSONObject(raw).let { obj ->
+                    obj.keys().asSequence().map { k -> k to obj.get(k) }.toMap()
+                }
+                if (response["ok"] != true) return null
+                val executed = (response["executed"] as? List<Map<String, Any?>> ?: emptyList()).mapNotNull { row ->
+                    val summary = row["summary"] as? String ?: return@mapNotNull null
+                    AgentExecuted(tool = row["tool"] as? String ?: "", summary = summary)
+                }
+                val proposals = (response["proposals"] as? List<Map<String, Any?>> ?: emptyList()).mapNotNull { row ->
+                    val tool = row["tool"] as? String ?: return@mapNotNull null
+                    val input = row["input"] as? Map<String, Any?> ?: return@mapNotNull null
+                    AgentProposal(tool = tool, summary = row["summary"] as? String ?: tool, input = input)
+                }
+                val full = (response["reply"] as? String).orEmpty().trim()
+                onChunk(full)
+                AgentTurnResult(
+                    reply = full,
+                    executed = executed,
+                    proposals = proposals,
+                    toolAttempted = response["tool_attempted"] == true,
+                    partial = response["partial"] == true,
+                    specialist = response["specialist"] as? String
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG_REPO, "agentTurnStreaming() FAILED: ${e.message}")
+            null
+        }
+    }
+
+    /**
      * تنفيذ اقتراح بعد موافقة المستخدم. الكلاينت مبيكتبش في الداتابيز بنفسه — بيرجّع
      * الاقتراح للسيرفر اللي بيعيد التحقق منه وينفذه بنفس مسار أي أداة تانية.
      */

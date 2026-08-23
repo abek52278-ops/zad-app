@@ -1478,24 +1478,53 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         val history = _aiChatMessages.value.dropLast(1).takeLast(8)
             .map { (if (it.isUser) "user" else "assistant") to it.text }
 
-        val result = com.example.data.ZadAiRepository.agentTurn(
+        // رسالة فارغة بتتكتب حرف بحرف — تجربة ChatGPT
+        val streamMsg = AiChatMessage(text = "", isUser = false, replyToMessageId = replyToMessageId)
+        _aiChatMessages.value = _aiChatMessages.value + streamMsg
+
+        val result = com.example.data.ZadAiRepository.agentTurnStreaming(
             clientFactsPrefixForAgent() + userText,
             history,
             voiceMode = voiceMode
-        ) ?: return false
+        ) { chunk ->
+            // كل مقطع: حدّث آخر رسالة بالنص التراكمي — على الـ main thread
+            _aiChatMessages.value.let { list ->
+                if (list.isNotEmpty() && !list.last().isUser) {
+                    _aiChatMessages.value = list.dropLast(1) + list.last().copy(text = list.last().text + chunk)
+                }
+            }
+        }
+
+        if (result == null) {
+            // فشل — نشيل الرسالة الفارغة ونرجع false عشان الـ fallback القديم يشتغل
+            _aiChatMessages.value = _aiChatMessages.value.dropLast(1)
+            return false
+        }
 
         pendingAgentProposalsValue = result.proposals
-        // إيصال السيرفر للوكيل اللي عالج الرسالة — بيتحدث بعد اكتمال اللفة بس.
+        // إيصال السيرفر للوكيل اللي عالج الرسالة
         _lastActiveSpecialist.value = result.specialist?.takeIf { it != "general" }
-        val text = buildAgentTurnReply(result) ?: return false
 
-        val msg = AiChatMessage(text = text, isUser = false, replyToMessageId = replyToMessageId)
-        _aiChatMessages.value = _aiChatMessages.value + msg
-        persistChatMessage(msg)
-        _companionState.value = com.example.ui.components.companionStateForMessage(msg.text)
+        // نستبدل النص المتدفق بالرد النهائي المنظّم (مع إيصالات الأدوات لو فيه)
+        val finalText = buildAgentTurnReply(result)
+        if (finalText != null) {
+            _aiChatMessages.value.let { list ->
+                if (list.isNotEmpty() && !list.last().isUser) {
+                    _aiChatMessages.value = list.dropLast(1) + list.last().copy(text = finalText)
+                } else {
+                    val msg = AiChatMessage(text = finalText, isUser = false, replyToMessageId = replyToMessageId)
+                    _aiChatMessages.value = _aiChatMessages.value + msg
+                }
+            }
+        } else {
+            _aiChatMessages.value = _aiChatMessages.value.dropLast(1)
+            return false
+        }
+        val text = finalText
 
-        // الكتابات حصلت سيرفر-سايد، فالحالة المحلية بقت قديمة. بنعيد تحميل اللي اتغيّر
-        // بس، مش كل حاجة.
+        persistChatMessage(_aiChatMessages.value.last())
+        _companionState.value = com.example.ui.components.companionStateForMessage(text)
+
         if (result.executed.isNotEmpty()) refreshAfterAgentWrites(result.executed)
         return true
     }

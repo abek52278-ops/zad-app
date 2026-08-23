@@ -679,3 +679,52 @@ export async function smokeTestTools(model: string) {
     usage: reply.usage,
   };
 }
+
+/**
+ * نسخة streaming من نداء Gemini — بترجع ReadableStream من مقاطع النص.
+ *
+ * ليه؟ تجربة ChatGPT: العميل يشوف الكلام بيتكتب حرف حرف بدل ما يحدق في
+ * "بيفكر..." لمدة ٣ ثواني. نفس الـ body بتاع sendGemini بالظبط، بس
+ * :streamGenerateContent?alt=sse وكل سطر data: فيه chunk نصي.
+ * الأدوات (functionCall) مش مدعومة هنا — دي للردود النصية النهائية فقط،
+ * والـ caller بيعيد اللفة العادية لو الموديل طلب أداة.
+ */
+export async function callModelStreaming(opts: {
+  model: string;
+  system: string;
+  history: Turn[];
+  maxTokens?: number;
+}): Promise<ReadableStream<Uint8Array>> {
+  const { provider } = cfg();
+  // fallback: مزودين تانيين مش مسنتريمين — نرجع null والكالر يستخدم الطريق العادي
+  if (provider !== "gemini") throw new ProviderUnavailableError("streaming gemini-only", "provider");
+
+  const chain = modelChain(opts.model);
+  const contents = buildGeminiContents(opts.history);
+
+  for (const model of chain) {
+    const start = nextGeminiKeyIndex();
+    for (let i = 0; i < GEMINI_KEY_POOL.length; i++) {
+      const keyIndex = (start + i) % GEMINI_KEY_POOL.length;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}` +
+        `:streamGenerateContent?alt=sse&key=${encodeURIComponent(GEMINI_KEY_POOL[keyIndex])}`;
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          signal: AbortSignal.timeout(30_000),
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: opts.system }] },
+            contents,
+            generationConfig: { maxOutputTokens: opts.maxTokens ?? 1200, temperature: 0.4 },
+          }),
+        });
+        if (!res.ok || !res.body) continue; // جرب المفتاح/الموديل الجاي
+        return res.body; // SSE raw — الفانكشن الرئيسية بتفكه وتمره للكلاينت
+      } catch {
+        continue;
+      }
+    }
+  }
+  throw new ProviderUnavailableError("all models failed for streaming", "unavailable");
+}
