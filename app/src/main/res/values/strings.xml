@@ -1410,4 +1410,9 @@
     <string name="auto_comp_pinpromptdialog_347">إلغاء</string>
     <string name="recent_tx_title">Recent transactions</string>
     <string name="see_all">See all</string>
+    <string name="nav_deals">Nearby deals</string>
+    <string name="no_stores_found">No stores found nearby — check location permission.</string>
+    <string name="deals_supermarkets">Supermarkets</string>
+    <string name="deals_pharmacies">Pharmacies</string>
+    <string name="loading">Loading…</string>
 </resources>

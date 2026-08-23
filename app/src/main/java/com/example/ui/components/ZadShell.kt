@@ -69,6 +69,7 @@ object ZadRoutes {
     const val CAMERA = "camera"
     const val STATEMENT = "statement_import"
     const val KNOWLEDGE_MAP = "knowledge_map"
+    const val DEALS = "deals"
     const val PREMIUM_PLANS = "premium_plans"
 }
 
@@ -675,6 +676,7 @@ val zadDrawerEntries = listOf(
     ZadDrawerEntry(ZadRoutes.BUDGET, Icons.Default.BarChart, R.string.nav_budget),
     ZadDrawerEntry(ZadRoutes.PHARMACY, Icons.Default.LocalPharmacy, R.string.nav_pharmacy),
     ZadDrawerEntry(ZadRoutes.MAINTENANCE, Icons.Default.Build, R.string.nav_maintenance),
+    ZadDrawerEntry(ZadRoutes.DEALS, Icons.Default.LocationOn, R.string.nav_deals),
     ZadDrawerEntry(ZadRoutes.TASBIHA, Icons.Default.Park, R.string.tasbiha_short_label),
     ZadDrawerEntry(ZadRoutes.PROFILE, Icons.Default.Person, R.string.screen_title_profile),
     ZadDrawerEntry(ZadRoutes.NOTIFICATIONS, Icons.Default.Notifications, R.string.notifications_title),

@@ -1370,4 +1370,9 @@
     <string name="auto_comp_pinpromptdialog_347">إلغاء</string>
     <string name="recent_tx_title">آخر المعاملات</string>
     <string name="see_all">عرض الكل</string>
+    <string name="nav_deals">عروض قريبة</string>
+    <string name="no_stores_found">لا توجد متاجر قريبة — تأكد من صلاحية الموقع.</string>
+    <string name="deals_supermarkets">سوبرماركتات</string>
+    <string name="deals_pharmacies">صيدليات</string>
+    <string name="loading">جارٍ التحميل…</string>
 </resources>

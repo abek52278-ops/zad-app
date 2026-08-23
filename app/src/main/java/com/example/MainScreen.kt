@@ -426,6 +426,9 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                                 onNavigateToRoute = { route -> goGuarded(route) }
                             )
                         }
+                        composable(ZadRoutes.DEALS) {
+                            com.example.ui.screens.NearbyDealsScreen(onBack = { navController.popBackStack() })
+                        }
                         composable(ZadRoutes.ASSISTANT) {
                             ZadIntelligenceScreen(
                                 viewModel = viewModel,
