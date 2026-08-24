@@ -1255,4 +1255,158 @@
     <string name="wake_service_title">Zad dinliyor</string>
     <string name="wake_service_body">Sesli asistanı açmak için "Hey Zad" deyin</string>
     <string name="activation_done_hint">Her şey hazır! 🎉 Zad\'a sesle veya Telegram botundan \"50 lira market harcadım\" deyin — onay isteyecek ve kaydedecek.</string>
+
+    <string name="auto_helpsupport_1620" translatable="false">اكتب رسالتك هنا...</string>
+    <string name="auto_helpsupport_95103" translatable="false">📤 مشاركة</string>
+    <string name="auto_helpsupport_31425" translatable="false">🗑️ مسح</string>
+    <string name="auto_helpsupport_47668" translatable="false">إغلاق</string>
+    <string name="auto_recipedetail_86274" translatable="false">إعادة المحاولة</string>
+    <string name="auto_shoppinglist_73239" translatable="false">اسم المنتج</string>
+    <string name="auto_shoppinglist_43371" translatable="false">الكمية</string>
+    <string name="auto_shoppinglist_66379" translatable="false">السعر التقديري</string>
+    <string name="auto_shoppinglist_34022" translatable="false">المتجر (اختياري)</string>
+    <string name="auto_login_33197" translatable="false">إرسال رابط الاستعادة</string>
+    <string name="auto_zadsubscriptionpaywall_23198" translatable="false">باقات زاد الشهرية الذكية</string>
+    <string name="auto_zadsubscriptionpaywall_7174" translatable="false">ارتقِ بتجربتك المالية مع زاد</string>
+    <string name="auto_zadsubscriptionpaywall_93703" translatable="false">استشارات عقل زاد العميقة، مسح الفواتير بالصور، وبدون إعلانات نهائياً</string>
+    <string name="auto_zadsubscriptionpaywall_78274" translatable="false">/ شهرياً</string>
+    <string name="auto_zadsubscriptionpaywall_13807" translatable="false">يمكنك إلغاء الاشتراك في أي وقت. تجديد تلقائي شهري بدون التزامات.</string>
+    <string name="auto_zadsubscriptionpaywall_7318" translatable="false">⚡ لست مستعداً للاشتراك الآن؟</string>
+    <string name="auto_zadsubscriptionpaywall_41518" translatable="false">يمكنك شحن بطارية الذكاء الاصطناعي مجاناً بمشاهدة 3 إعلانات قصيرة (+5 رسائل فورية).</string>
+    <string name="auto_camera_14259" translatable="false">أدخل مفتاح Gemini الخاص بك لتفعيل تحليل الصور (يمكن إدخال أكثر من مفتاح مفصولة بفاصلة):</string>
+    <string name="auto_camera_36966" translatable="false">التقط صورة للمخزون أو الفاتورة</string>
+    <string name="auto_camera_21409" translatable="false">سيقوم AI باستخراج المنتجات تلقائياً</string>
+    <string name="auto_camera_11386" translatable="false">تم استخراج المنتجات التالية. يمكنك مراجعتها قبل الحفظ:</string>
+    <string name="auto_camera_97981" translatable="false">راجع المنتجات قبل التسجيل في المصروفات والمخزون:</string>
+    <string name="auto_zadknowledgemap_65527" translatable="false">زاد</string>
+    <string name="auto_zadintelligence_74185" translatable="false">ترقية الباقة ⚡</string>
+    <string name="auto_zadintelligence_52264" translatable="false">شبكة عقل العائلة العصبية</string>
+    <string name="auto_zadintelligence_37663" translatable="false">$memberCount أفراد متصلين 🌐</string>
+    <string name="auto_zadintelligence_61227" translatable="false">🎯 مهام الأبناء</string>
+    <string name="auto_zadintelligence_70890" translatable="false">$completedChores / $totalChores مكتملة</string>
+    <string name="auto_zadintelligence_15566" translatable="false">🛒 مقاضي البيت</string>
+    <string name="auto_zadintelligence_95376" translatable="false">$pendingGroceries أصناف مطلوبة</string>
+    <string name="auto_zadintelligence_16928" translatable="false">تقرير الذكاء العائلي الشامل</string>
+    <string name="auto_zadintelligence_62225" translatable="false">إدارة العائلة</string>
+    <string name="auto_zadintelligence_36332" translatable="false">تقرير شبكة العائلة العصبية</string>
+    <string name="auto_zadintelligence_96391" translatable="false">تحليل الذكاء الاصطناعي المشترك لأفراد الأسرة</string>
+    <string name="auto_zadintelligence_23852" translatable="false">لم تنضم لعائلة بعد في زاد</string>
+    <string name="auto_zadintelligence_85865" translatable="false">أضف أفراد أسرتك (الزوجة، الأبناء) لربط شبكاتهم العصبية وتبادل الرؤى وتدبير المنزل معاً.</string>
+    <string name="auto_zadintelligence_82314" translatable="false">إنشاء / انضمام لعائلة</string>
+    <string name="auto_zadintelligence_1763" translatable="false">🎯 رادار الأبناء والمهام والمصروف</string>
+    <string name="auto_zadintelligence_65857" translatable="false">لا يوجد أبناء مضافين حالياً. يمكنك إضافة حسابات الأبناء لمتابعة مهامهم ومصروفهم بأمان.</string>
+    <string name="auto_zadintelligence_65720" translatable="false">🛒 تدبير مقاضي واحتياجات البيت المشتركة</string>
+    <string name="auto_zadintelligence_22228" translatable="false">لا توجد نواقص معلقة في قائمة مقاضي العائلة المشتركة ✅</string>
+    <string name="auto_zadintelligence_53103" translatable="false">💡 ملاحظات عقل زاد لرب الأسرة</string>
+    <string name="auto_zadintelligence_40342" translatable="false">أضف مهام وقائمة مشتريات عائلية ليبدأ زاد بملاحظات حقيقية على بياناتكم.</string>
+    <string name="auto_home_21771" translatable="false">نبض الإنفاق الحي</string>
+    <string name="auto_home_95853" translatable="false">آخر 7 أيام</string>
+    <string name="auto_home_27381" translatable="false">اقتراحات سريعة</string>
+    <string name="auto_helpsupport_60278" translatable="false">مساعدة استخدام التطبيق</string>
+    <string name="auto_helpsupport_73903" translatable="false">أسئلة عامة — مش وصل لحسابك الشخصي</string>
+    <string name="auto_helpsupport_73784" translatable="false">جاري الكتابة...</string>
+    <string name="auto_helpsupport_91872" translatable="false">سجل الأعطال</string>
+    <string name="auto_profilesubscreens_45124" translatable="false">نبرة صوت المساعد الصوتي</string>
+    <string name="auto_subscriptionplans_1267" translatable="false">باقات زاد الشهرية والسنوية</string>
+    <string name="auto_subscriptionplans_79062" translatable="false">ذكاء اصطناعي فوري وبدون إعلانات</string>
+    <string name="auto_subscriptionplans_2894" translatable="false">أطلق كامل قدرات عقل زاد الخارق</string>
+    <string name="auto_subscriptionplans_89574" translatable="false">تحليل استباقي لحظي، مسح فوري للفواتير بالكاميرا، شات عائلي صوتي، وبدون إعلانات نهائياً.</string>
+    <string name="auto_subscriptionplans_48788" translatable="false">انضم لأكثر من 12,450 عائلة تدير منزلها بذكاء</string>
+    <string name="auto_subscriptionplans_89668" translatable="false">فاتورة شهرية</string>
+    <string name="auto_subscriptionplans_64256" translatable="false">اشتراك سنوي</string>
+    <string name="auto_subscriptionplans_37134" translatable="false">وفّر 20%</string>
+    <string name="auto_subscriptionplans_5819" translatable="false">جاري الاتصال بـ Google Play...</string>
+    <string name="auto_subscriptionplans_57174" translatable="false">اشترك الآن عبر Google Play</string>
+    <string name="auto_subscriptionplans_15161" translatable="false">دفع آمن ومدعوم 100% من Google Play — إلغاء الاشتراك متاح في أي وقت</string>
+    <string name="auto_subscriptionplans_7318" translatable="false">⚡ لست مستعداً للاشتراك الآن؟</string>
+    <string name="auto_subscriptionplans_41518" translatable="false">يمكنك شحن بطارية الذكاء الاصطناعي مجاناً بمشاهدة 3 إعلانات قصيرة (+5 رسائل فورية).</string>
+    <string name="auto_subscriptionplans_89295" translatable="false">مبروك! تم تفعيل اشتراكك بنجاح</string>
+    <string name="auto_subscriptionplans_27776" translatable="false">ابدأ استخدام باقة زاد</string>
+    <string name="auto_shoppinglist_44524" translatable="false">تعبئة ذكية</string>
+    <string name="auto_shoppinglist_16030" translatable="false">واتساب</string>
+    <string name="auto_shoppinglist_97794" translatable="false">لا توجد عناصر بهذا التصنيف</string>
+    <string name="auto_shoppinglist_76247" translatable="false">اقتراح: بديل من أمازون</string>
+    <string name="auto_shoppinglist_20120" translatable="false">سلة زاد الذكية</string>
+    <string name="auto_shoppinglist_88227" translatable="false">الميزانية المتبقية</string>
+    <string name="auto_shoppinglist_56750" translatable="false">$budgetPct% من الميزانية</string>
+    <string name="auto_shoppinglist_67138" translatable="false">هذه القائمة تتجاوز الميزانية المتبقية!</string>
+    <string name="auto_shoppinglist_49110" translatable="false">قد تحتاج أيضاً</string>
+    <string name="auto_shoppinglist_37686" translatable="false">قائمة التسوق فارغة</string>
+    <string name="auto_shoppinglist_53887" translatable="false">زاد سيضيف النواقص تلقائياً!</string>
+    <string name="auto_shoppinglist_17012" translatable="false">إضافة منتج للقائمة</string>
+    <string name="auto_shoppinglist_74746" translatable="false">إضافة</string>
+    <string name="auto_shoppinglist_91611" translatable="false">إلغاء</string>
+    <string name="auto_termsofservice_93174" translatable="false">شروط الاستخدام واتفاقية المستخدم</string>
+    <string name="auto_termsofservice_95498" translatable="false">آخر تحديث: يوليو 2026\n\nمن فضلك اقرأ شروط الاستخدام دي بعناية قبل ما تستخدم تطبيق زاد.</string>
+    <string name="auto_budget_47701" translatable="false">تحليل ذكي: $category</string>
+    <string name="auto_budget_21822" translatable="false">جاري التحليل...</string>
+    <string name="auto_budget_71478" translatable="false">مفيش بيانات كافية لتحليل الفئة دي حالياً.</string>
+    <string name="auto_homescreenwidgets_66761" translatable="false">المخزون السريع</string>
+    <string name="auto_homescreenwidgets_70957" translatable="false">المخزون فارغ حالياً.</string>
+    <string name="auto_homescreenwidgets_59477" translatable="false">طلبات عاجلة للتسوق</string>
+    <string name="auto_homescreenwidgets_18310" translatable="false">لا يوجد طلبات عاجلة.</string>
+    <string name="auto_homescreenwidgets_38951" translatable="false">الصيدلية — قريب من النفاد</string>
+    <string name="auto_homescreenwidgets_76814" translatable="false">كل الأدوية رصيدها كفاية حالياً.</string>
+    <string name="auto_homescreenwidgets_17406" translatable="false">اشتراكات هتتجدد قريب</string>
+    <string name="auto_homescreenwidgets_19179" translatable="false">لا يوجد تجديد اشتراكات خلال الأسبوع الجاي.</string>
+    <string name="auto_homescreenwidgets_20673" translatable="false">بستان التسبيح</string>
+    <string name="auto_homescreenwidgets_18996" translatable="false">سبحان الله</string>
+    <string name="auto_homescreenwidgets_18317" translatable="false">رادار الأسعار الحية</string>
+    <string name="auto_homescreenwidgets_98321" translatable="false">مباشر</string>
+    <string name="auto_homescreenwidgets_25400" translatable="false">اسأل عقل زاد عن مؤشرات الأسعار والتوفير</string>
+    <string name="auto_homescreenwidgets_25768" translatable="false">🔄 فكرة تانية</string>
+    <string name="auto_homescreenwidgets_31620" translatable="false">مؤشر الإنفاق اليومي (7 أيام)</string>
+    <string name="auto_homescreenwidgets_87424" translatable="false">التفاصيل</string>
+    <string name="auto_homescreenwidgets_96665" translatable="false">باقات زاد الذكية 👑</string>
+    <string name="auto_homescreenwidgets_55260" translatable="false">عقل ذكاء اصطناعي فوري بدون إعلانات</string>
+    <string name="auto_homescreenwidgets_39973" translatable="false">استمتع باستشارات عميقة لميزانيتك، مسح فوري للفواتير عبر الكاميرا، وتنبؤ بالنواقص والمصاريف.</string>
+    <string name="auto_homescreenwidgets_20825" translatable="false">ضمان استرجاع 14 يوم</string>
+    <string name="auto_homescreenwidgets_7454" translatable="false">استعرض الباقات</string>
+    <string name="auto_homescreenwidgets_55813" translatable="false">قولي مشترياتك</string>
+    <string name="auto_homescreenwidgets_10567" translatable="false">تسجيل صوتي</string>
+    <string name="auto_homescreenwidgets_13791" translatable="false">مسح فاتورة</string>
+    <string name="auto_homescreenwidgets_49739" translatable="false">قراءة بالكاميرا</string>
+    <string name="auto_homescreenwidgets_12649" translatable="false">إضافة للمخزون</string>
+    <string name="auto_homescreenwidgets_95862" translatable="false">تحديث النواقص</string>
+    <string name="auto_homescreenwidgets_29197" translatable="false">شحن رصيد الذكاء الاصطناعي مجاناً ⚡</string>
+    <string name="auto_homescreenwidgets_69631" translatable="false">🎉 رصيدك الحالي مشحون! شاهد المزيد لتمديد وقتك ورصيدك التراكمي.</string>
+    <string name="auto_login_61342" translatable="false">البريد الإلكتروني</string>
+    <string name="auto_login_32753" translatable="false">كلمة المرور</string>
+    <string name="auto_marketselection_32367" translatable="false">وين موطنك؟</string>
+    <string name="auto_marketselection_17720" translatable="false">زاد بيتكلم بلهجتك وبيحسب مصروفك بعملة بلدك</string>
+    <string name="auto_onboarding_43594" translatable="false">تخطي</string>
+    <string name="auto_onboarding_21316" translatable="false">ليس لديك حساب؟ أنشئ حساباً جديداً</string>
+    <string name="auto_comp_dismissreasonmenu_4986" translatable="false">مش مهم</string>
+    <string name="auto_comp_dismissreasonmenu_23264" translatable="false">الرقم غلط</string>
+    <string name="auto_comp_dismissreasonmenu_40574" translatable="false">عرفت خلاص</string>
+    <string name="auto_comp_whychangedsheet_38518" translatable="false">آخر التغييرات</string>
+    <string name="auto_comp_whychangedsheet_19473" translatable="false">تعديلات زاد الآلية على بياناتك — إيه اتغيّر، وإمتى</string>
+    <string name="auto_comp_whychangedsheet_94891" translatable="false">مفيش تعديلات آلية مسجلة لسه</string>
+    <string name="auto_comp_zadcashcard_28167" translatable="false">كاش معاك</string>
+    <string name="auto_comp_zadcashcard_89233" translatable="false">صرفت منهم</string>
+    <string name="auto_comp_zadcashcard_27493" translatable="false">صرفت منهم كام؟</string>
+    <string name="auto_comp_zadcashcard_60221" translatable="false">المبلغ</string>
+    <string name="auto_comp_zadcashcard_83676" translatable="false">صرفتهم على إيه؟ (اختياري)</string>
+    <string name="auto_comp_zadcashcard_9338" translatable="false">تسجيل</string>
+    <string name="auto_comp_zadcashcard_347" translatable="false">إلغاء</string>
+    <string name="auto_comp_zadcashcard_83215" translatable="false">عادات صرفك</string>
+    <string name="auto_comp_neuralmeshlivepanel_65281" translatable="false">شبكة وكلاء زاد — حية</string>
+    <string name="auto_comp_zadagentoverlay_83254" translatable="false">زاد</string>
+    <string name="auto_comp_zadagentoverlay_90994" translatable="false">زاد بيكتب...</string>
+    <string name="auto_comp_zadagentoverlay_88646" translatable="false">اسأل زاد...</string>
+    <string name="auto_comp_chefrecipecards_34776" translatable="false">ضيفهم لقائمة التسوق</string>
+    <string name="auto_comp_chefrecipecards_23405" translatable="false">اضغط للخطوات</string>
+    <string name="auto_comp_livemarketticker_80931" translatable="false">جاري جلب الأسعار...</string>
+    <string name="auto_comp_livemarketticker_69159" translatable="false">تعذر جلب الأسعار الحية الآن — جرب تاني</string>
+    <string name="auto_comp_pinpromptdialog_79917" translatable="false">هتحتاجه في كل مرة تحب تخرج من وضع الأطفال على الجهاز ده</string>
+    <string name="auto_comp_pinpromptdialog_16376" translatable="false">استنى ثانية وحاول تاني</string>
+    <string name="auto_comp_pinpromptdialog_74400" translatable="false">تأكيد</string>
+    <string name="auto_comp_pinpromptdialog_347" translatable="false">إلغاء</string>
+    <string name="recent_tx_title">Son işlemler</string>
+    <string name="see_all">Tümünü gör</string>
+    <string name="nav_deals">Yakın fırsatlar</string>
+    <string name="no_stores_found">Yakında mağaza bulunamadı — konum iznini kontrol edin.</string>
+    <string name="deals_supermarkets">Süpermarketler</string>
+    <string name="deals_pharmacies">Eczaneler</string>
+    <string name="loading">Yükleniyor…</string>
 </resources>

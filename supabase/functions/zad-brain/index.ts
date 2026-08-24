@@ -822,6 +822,153 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       ctx.insightCount++;
       return "تم — السؤال اتسجل";
     }
+    case "family_mediation": {
+      // وساطة عائلية — نكتشف ازدواج الصرف بين أفراد العيلة على نفس الفئة
+      const hint = String(input.category_hint ?? "").trim();
+      const since = new Date(Date.now() - 30 * 86400000).toISOString();
+      const { data: fam } = await sb.from("family_members")
+        .select("user_id, alias, family_id").eq("user_id", userId).maybeSingle();
+      if (!fam?.family_id) return "العميل مش منضم لعيلة — الوساطة للعائلات فقط.";
+      const { data: members } = await sb.from("family_members")
+        .select("user_id, alias").eq("family_id", fam.family_id);
+      if (!members || members.length < 2) return "العيلة فيها فرد واحد — مفيش حد يتوسّط معاه 😊";
+      const ids = members.map((m: any) => m.user_id);
+      let q = sb.from("zad_transactions").select("user_id, amount, category, created_at")
+        .eq("is_expense", true).gte("created_at", since).in("user_id", ids);
+      if (hint) q = q.ilike("category", `%${hint}%`);
+      const { data: tx } = await q;
+      if (!tx || tx.length === 0) return `مفيش مصاريف مطابقة آخر ٣٠ يوم${hint ? ` في "${hint}"` : ""}.`;
+      // تجميع: فئة → فرد → إجمالي
+      const byCatUser: Record<string, Record<string, number>> = {};
+      const aliasOf: Record<string, string> = {};
+      for (const m of members) aliasOf[m.user_id] = m.alias || "فرد";
+      for (const t of tx) {
+        const c = t.category ?? "أخرى";
+        byCatUser[c] = byCatUser[c] ?? {};
+        byCatUser[c][t.user_id] = (byCatUser[c][t.user_id] ?? 0) + Number(t.amount);
+      }
+      // فئات صرفها أكتر من فرد
+      const overlaps = Object.entries(byCatUser).filter(([, users]) => Object.keys(users).length >= 2);
+      if (overlaps.length === 0) {
+        return `مفيش ازدواج صرف على نفس الفئات بين أفراد العيلة آخر ٣٠ يوم — كل واحد في حتة ✅`;
+      }
+      const lines = ["🔍 اكتشفت ازدواج صرف على نفس الفئات:"];
+      let totalDup = 0;
+      for (const [cat, users] of overlaps.slice(0, 3)) {
+        const catTotal = Object.values(users).reduce((a2, b2) => a2 + b2, 0);
+        totalDup += catTotal;
+        const parts = Object.entries(users)
+          .sort((a2, b2) => b2[1] - a2[1])
+          .map(([uid, amt]) => `${aliasOf[uid]}: ${Math.round(amt)}`);
+        lines.push(`• ${cat} (${Math.round(catTotal)}): ${parts.join(" ↔ ")}`);
+      }
+      lines.push("");
+      lines.push(`💡 اقتراح التسوية: اتفقوا مين مسؤول عن الفئة دي، والتاني يرجّع نص مشترياته الأخيرة — أو قسموا الفئات بينكم مرة واحدة بدل الازدواج. الإجمالي المتكرر: ~${Math.round(totalDup)}`);
+      return lines.join("\n");
+    }
+
+    case "monthly_review": {
+      // جلسة المراجعة الشهرية — شخصية مالية بتتطور
+      const answers = (input.answers ?? {}) as Record<string, string>;
+      const now = new Date();
+      const monthKey = now.toISOString().slice(0, 7); // yyyy-MM
+
+      if (!answers.biggest_decision && !answers.next_month_goal) {
+        // أول نداء: رجّع الأسئلة الثلاثة + ملخص الأرقام عشان العميل يجاوب واعي
+        const since = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+        const { data: monthTx } = await sb.from("zad_transactions")
+          .select("amount, category, is_expense").eq("user_id", userId).gte("created_at", since);
+        const spent = (monthTx ?? []).filter((t: any) => t.is_expense).reduce((s2: number, t: any) => s2 + Number(t.amount), 0);
+        const byCat: Record<string, number> = {};
+        for (const t of monthTx ?? []) {
+          if (!t.is_expense) continue;
+          const c = t.category ?? "أخرى";
+          byCat[c] = (byCat[c] ?? 0) + Number(t.amount);
+        }
+        const topCat = Object.entries(byCat).sort((a, b) => b[1] - a[1])[0];
+        return JSON.stringify({
+          review_questions: [
+            "أكبر قرار مالي أخدته الشهر ده إيه؟",
+            `صرفت ${Math.round(spent)} الشهر ده — أكبر فئة كانت "${topCat?.[0] ?? "—"}". لو ترجع بالزمن، هتغيّر حاجة؟`,
+            "هدف واحد واقعي للشهر الجاي — إيه هو؟",
+          ],
+          month_spent: Math.round(spent),
+        });
+      }
+
+      // الإجابات وصلت → نبني الشخصية المالية
+      const traits: string[] = [];
+      const decision = String(answers.biggest_decision ?? "");
+      const regret = String(answers.biggest_regret ?? "");
+      const goal = String(answers.next_month_goal ?? "");
+      if (decision.length > 3) traits.push("حاسم");
+      if (regret.length > 3) traits.push("بيتعلم من أخطائه");
+      if (goal.length > 3) traits.push("له اتجاه واضح");
+
+      // ندم كبير على فئة معينة = "منفق عاطفي" على الفئة دي
+      let persona = "مدير متوازن";
+      if (regret.includes("طعام") || regret.includes("مطعم") || regret.includes("طلبات")) persona = "منفق عاطفي على الأكل";
+      else if (regret.includes("اشتراك")) persona = "ضحية الاشتراكات الصامتة";
+      else if (traits.includes("حاسم") && traits.includes("له اتجاه واضح")) persona = "مخطط واثق";
+
+      const personalityNote = `شخصية مالية (${monthKey}): ${persona}. صفات: ${traits.join(", ") || "لسه بنتعرف عليك"}. هدف الشهر الجاي: ${goal || "لسه محددش"}`;
+      await sb.from("zad_memory").upsert({
+        user_id: userId, scope: "financial_persona",
+        note: personalityNote, confidence: 0.9,
+      }, { onConflict: "user_id,scope" });
+
+      ctx.counts["monthly_review"] = (ctx.counts["monthly_review"] ?? 0) + 1;
+      return `تمت المراجعة ✅\n\nشخصيتك المالية: **${persona}**\n${personalityNote}\n\nهفتكر ده في كل كلامنا جاي — هقولك قبل ما توقع في نفس الفخ.`;
+    }
+    case "salary_plan": {
+      // وضع الراتب وصل — خطة ٣ نقاط من الأرقام الحقيقية:
+      // ١- الالتزامات الثابتة الجاية (غير مدفوعة) خلال دورة الراتب
+      // ٢- المعدل اليومي الآمن بعد حجزها
+      // ٣- أعلى فئة صرف الشهر اللي فات (نقطة انتباه)
+      const since = new Date(Date.now() - 35 * 86400000).toISOString();
+      const [{ data: obligations }, { data: monthTx }] = await Promise.all([
+        sb.from("zad_obligations").select("name,amount,due_date,is_paid")
+          .eq("user_id", userId).eq("is_paid", false),
+        sb.from("zad_transactions").select("amount,category,created_at,is_expense")
+          .eq("user_id", userId).gte("created_at", since),
+      ]);
+      const fixedTotal = (obligations ?? []).reduce((s2: number, o: any) => s2 + Number(o.amount), 0);
+
+      const expenses = (monthTx ?? []).filter((t: any) => t.is_expense);
+      const spentLastMonth = expenses.reduce((s2: number, t: any) => s2 + Number(t.amount), 0);
+      const byCat: Record<string, number> = {};
+      for (const t of expenses) {
+        const c = t.category ?? "أخرى";
+        byCat[c] = (byCat[c] ?? 0) + Number(t.amount);
+      }
+      const topCat = Object.entries(byCat).sort((a, b) => b[1] - a[1])[0];
+
+      // الرصيد الحالي من snapshot (متاح بعد الحجوزات)
+      const balance = snap.balance?.value ?? null;
+      const daysInCycle = 30;
+      const safeDaily = balance != null && balance > fixedTotal
+        ? Math.round((balance - fixedTotal) / daysInCycle)
+        : null;
+
+      const points: string[] = [];
+      points.push(`١- التزامات جاية: ${Math.round(fixedTotal)} (${(obligations ?? []).length} التزام غير مدفوع)`);
+      if (safeDaily != null && safeDaily > 0) {
+        points.push(`٢- بعد حجزهم، معدلك الآمن ${safeDaily}/يوم لباقي الشهر`);
+      } else {
+        points.push(`٢- ⚠️ الرصيد مش هيغطي الالتزامات — راجعهم قبل ما تصرف`);
+      }
+      if (topCat && topCat[1] > 0) {
+        points.push(`٣- انتبه لـ"${topCat[0]}": صرفت عليه ${Math.round(topCat[1])} آخر شهر — أكبر فئة عندك`);
+      }
+
+      const plan = points.join("\n");
+      await sb.from("zad_memory").upsert({
+        user_id: userId, scope: "salary_plan",
+        note: plan, confidence: 0.95,
+      }, { onConflict: "user_id,scope" });
+
+      return `💰 الراتب وصل — خطتك للشهر:\n${plan}`;
+    }
     case "suggest_challenge": {
       // تحدي توفير شخصي — بيتخزن كتحدي عائلي لو العميل في عيلة، وإلا memory فردية.
       const cat = String(input.category ?? "").trim();
@@ -2106,6 +2253,50 @@ const TOOLS: ToolDef[] = [
         surface: { type: "string", enum: ["home_card", "bell", "voice"] },
       },
       required: ["title", "body", "dedupe_key", "answer_type"],
+    },
+  },
+  {
+    "name": "family_mediation",
+    "description": "وساطة عائلية ذكية: لو اتنين في العيلة صرفوا على نفس الحاجة في نفس الفترة، اكتشف التكرار واقترح تسوية عادلة (مين يرجّع لإيه ومقدار إيه). نادِها لما العميل يشكك في ازدواج صرف أو يطلب مراجعة مشتريات العيلة المتكررة.",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "category_hint": { "type": "string", "description": "الفئة المشتبه فيها (اختياري — لو فاضي نفحص كل الفئات)" }
+      }
+    }
+  },
+  {
+    name: "monthly_review",
+    description:
+      "جلسة مراجعة شهرية — ٥ دقايق صوتية آخر كل شهر. بيسأل العميل ٣ أسئلة ذكية عن قراراته المالية " +
+      "(أكبر قرار، أكبر ندم، هدف الشهر الجاي)، وبيبني منها 'شخصية مالية' بتتحدث كل شهر " +
+      "(مثلاً: منفق عاطفي، موفر حذر، مخاطر محسوبة). نادِها آخر ٥ أيام من الشهر أو لما العميل يطلب مراجعة.",
+    input_schema: {
+      type: "object",
+      properties: {
+        answers: {
+          type: "object",
+          description: "إجابات العميل على الأسئلة الثلاثة (لو متاحة) — أول نداء سيبه فاضي عشان ترجع الأسئلة",
+          properties: {
+            biggest_decision: { type: "string" },
+            biggest_regret: { type: "string" },
+            next_month_goal: { type: "string" },
+          },
+        },
+      },
+    },
+  },
+  {
+    name: "salary_plan",
+    description:
+      "وضع الراتب وصل: أول ما يتسجل دخل كبير (راتب)، احسب خطة الشهر في ٣ نقاط: " +
+      "١- الالتزامات الثابتة اللي جاية، ٢- المعدل اليومي الآمن بعد حجزها، ٣- أعلى فئة صرف لازم ينتبه لها. " +
+      "نادِها تلقائياً لما تشوف معاملة income كبيرة (أكبر من متوسط الدخل) أو لما العميل يقول الراتب وصل.",
+    input_schema: {
+      type: "object",
+      properties: {
+        transaction_id: { type: "string", description: "معرف معاملة الراتب (لو متاح)" },
+      },
     },
   },
   {

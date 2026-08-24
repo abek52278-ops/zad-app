@@ -62,6 +62,46 @@ class PeriodicAnalysisWorker(
                 behaviorProfile = behaviorProfile
             )
 
+            // ═══ درع المصاريف — وقاية قبل ما تحصل، مش محاسبة بعدها ═══
+            // لو معدل صرف النهاردة عدى ٨٠٪ من المعدل الآمن → تنبيه فوري عالي الأولوية.
+            // ده الفرق بين زاد يقولك "صرفت كتير" بعد ما خسرت، وبينه يوقفك قبلها.
+            try {
+                // نفس معادلة SpendingPower: (الميزانية − المصروف حتى اليوم) / الأيام المتبقية
+                val today = java.time.LocalDate.now()
+                val todayKey = today.toString()
+                val monthStart = today.withDayOfMonth(1)
+                val daysElapsed = today.dayOfMonth.toLong()
+                val daysLeftInMonth = (today.lengthOfMonth() - today.dayOfMonth + 1).coerceAtLeast(1)
+                val spentThisMonth = transactions.asSequence()
+                    .filter { it.isExpense && it.createdAt?.startsWith(monthStart.toString()) == true }
+                    .sumOf { it.amount }
+                val remaining = budget - spentThisMonth
+                val safe = if (remaining > 0) remaining / daysLeftInMonth else null
+                if (safe != null && safe > 0) {
+                    val todayKey = java.time.LocalDate.now().toString()
+                    val todaySpent = transactions.asSequence()
+                        .filter { it.isExpense && it.createdAt?.startsWith(todayKey) == true }
+                        .sumOf { it.amount }
+                    val ratio = if (safe > 0) todaySpent / safe else 0.0
+                    val shieldKey = "shield_warned_$todayKey"
+                    val alreadyWarned = prefs.getBoolean(shieldKey, false)
+                    // تنبيه واحد بس في اليوم عند ٨٠٪ — إزعاج أقل، قيمة أكتر
+                    if (ratio >= 0.8 && !alreadyWarned) {
+                        val remaining = (safe - todaySpent).coerceAtLeast(0.0)
+                        showNotification(
+                            title = "🛡️ درع المصاريف",
+                            message = "وصلت ${"%.0f".format(ratio * 100)}٪ من حدك اليومي — باقي ${com.example.data.CurrencyFormatter.format(applicationContext, remaining)} لليوم. أي صرف كمان هيأثر على آخر الشهر.",
+                            priority = NotificationCompat.PRIORITY_HIGH,
+                            speak = false // صامت — التنبيه البصري كفاية، الصوت opt-in
+                        )
+                        prefs.edit().putBoolean(shieldKey, true).apply()
+                        Log.d("ZadWorker", "🛡️ Spend shield triggered: %.0f%% of daily safe".format(ratio * 100))
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("ZadWorker", "spend shield failed: ${e.message}")
+            }
+
             // Send smart notifications
             brainResult.smartNotifications.forEach { notif ->
                 showNotification(
