@@ -53,6 +53,7 @@ import {
   validateUpdateMaintenanceItem,
   validateDeleteMaintenanceItem,
   validateUpdateEmergencyFundBalance,
+  validatePayBill,
 } from "./validators.ts";
 import { callModelWithRetry } from "./retry.ts";
 import { decideOnBrainFailure, hasRecentMutatingRun } from "./shared.ts";
@@ -1058,4 +1059,32 @@ Deno.test("normalizeDoseTimes مخرجاته تعدي DOSE_TIME_RE", () => {
     const norm = normalizeDoseTimes(raw);
     for (const t of norm.split(",")) assertEquals(re.test(t.trim()), true, `${t} from ${raw}`);
   }
+});
+
+// === pay_bill — وكيل المنزل والدفع (SOUL) ===
+Deno.test("pay_bill بيقبل التزام موجود بمبلغ سليم", async () => {
+  const snap = { obligation_rows: [{ title: "كهرباء", kind: "utility", amount: 300 }] };
+  const v = await validatePayBill({ title: "كهرباء", amount: 300 }, snap, freshContext("u"));
+  assertEquals(v.ok, true);
+});
+
+Deno.test("pay_bill بيرفض عنوان مخترع قبل الشبكة", async () => {
+  const snap = { obligation_rows: [{ title: "كهرباء", kind: "utility" }] };
+  const v = await validatePayBill({ title: "اشتراك نتفلكس", amount: 200 }, snap, freshContext("u"));
+  assertEquals(v.ok, false);
+  if (!v.ok) assertEquals(v.reason.includes("مش في قايمة العميل"), true);
+});
+
+Deno.test("pay_bill بيرفض المبلغ السالب/غير المنطقي", async () => {
+  const snap = { obligation_rows: [{ title: "كهرباء", kind: "utility" }] };
+  const ctx = freshContext("u");
+  assertEquals((await validatePayBill({ title: "كهرباء", amount: -5 }, snap, ctx)).ok, false);
+  assertEquals((await validatePayBill({ title: "كهرباء", amount: 2_000_000 }, snap, ctx)).ok, false);
+  assertEquals((await validatePayBill({ title: "كهرباء" }, snap, ctx)).ok, false);
+});
+
+Deno.test("pay_bill مسجّلة في VALIDATORS وMUTATING وCONFIRM_REQUIRED", () => {
+  assertEquals(typeof VALIDATORS["pay_bill"], "function");
+  assertEquals(MUTATING_TOOLS.includes("pay_bill"), true);
+  assertEquals(CONFIRM_REQUIRED_TOOLS.includes("pay_bill"), true);
 });

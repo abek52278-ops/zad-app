@@ -65,6 +65,9 @@ import { hasConfiguredSecret, hasServiceRoleAuthorization, resolveAuthedUserId }
 import { conversationProfile, voiceModeInstruction } from "./persona.ts";
 // المرحلة ٣ — الوكلاء المتخصصون: توجيه + هوية في البرومبت + trace في zad_brain_runs.
 import { recordSpecialistTrace, routeSpecialist, specialistPromptBlock, scopeToolsForSpecialist } from "./specialists.ts";
+// SOUL — هوية مدير الحياة الكامل (نمط Hermes) + المهارات المتعلمة.
+import { soulBlock } from "./soul.ts";
+import { loadSkills, skillsBlock } from "./skills.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -679,6 +682,9 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     // قبل نهاية الدورة، فبيدي إحساس أمان كاذب.
     available, committed,
     obligations: obligationsCommitted,
+    // القايمة الكاملة للالتزامات النشطة (id/title/kind/amount) — لازم تكون في الـ snapshot
+    // عشان validatePayBill تقدر ترفض عنوان مخترع قبل الشبكة، وpay_bill تعرف kind بتاعه.
+    obligation_rows: obligationRows.map((o) => ({ id: o.id, title: o.title, kind: o.kind, amount: o.amount })),
     next_obligation: nextObligationDue,
     // اكتشاف التزام جديد لسه محتاج تأكيد — انظر تعليمات confirm_obligation تحت.
     obligation_detection: obligationDetection,
@@ -2002,6 +2008,37 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       });
       return `اتظبط رصيد صندوق الطوارئ على ${input.new_balance}`;
     }
+    case "pay_bill": {
+      // سداد فاتورة/التزام مسجّل = معاملة مصروف فعلية (بتاخد تأكيد قبل التنفيذ عبر
+      // CONFIRM_REQUIRED_TOOLS) + تحديث دورة الالتزام لو فيه renewal tracking.
+      // الفئة من نوع الالتزام قدر الإمكان عشان تقارير الشهر تفضل متماسكة.
+      const obligationRow = ((snap.obligation_rows ?? snap.obligations ?? []) as Array<{ title?: string; kind?: string }>)
+        .find((o) => o.title === input.title);
+      const kindCategory: Record<string, string> = {
+        rent: "إيجار", utility: "فواتير", installment: "أقساط", tuition: "مصاريف دراسية", other: "فواتير",
+      };
+      const category = kindCategory[obligationRow?.kind ?? ""] ?? "فواتير";
+      const { data: tx, error: txErr } = await sb.from("zad_transactions")
+        .insert({
+          user_id: userId,
+          amount: input.amount,
+          title: `سداد ${input.title}`,
+          category,
+          is_expense: true,
+          txn_kind: "expense",
+          wallet: input.wallet === "cash" ? "cash" : "card",
+        })
+        .select("id,amount,title")
+        .single();
+      if (txErr) return `مرفوض: ${txErr.message}`;
+      ctx.mutationCount++;
+      ctx.mutations.push({ tool: name, old: null, new: tx });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "zad_transactions", targetId: (tx as any)?.id,
+        previous: null, next: tx,
+      });
+      return `سجّلت سداد ${input.title} بمبلغ ${input.amount} كمعاملة مصروف (${category})`;
+    }
     case "schedule_task": {
       const w = await writeRows(
         sb.from("agent_tasks").insert({
@@ -2989,6 +3026,24 @@ const CHAT_TOOLS: ToolDef[] = [
       required: ["note"],
     },
   },
+  {
+    // وكيل المنزل والدفع — سداد فاتورة/التزام مسجّل. بتلمس فلوس حقيقية فبتعرض تأكيد
+    // زي log_transaction بالظبط (CONFIRM_REQUIRED_TOOLS).
+    name: "pay_bill",
+    description:
+      "سجّل سداد فاتورة أو التزام ثابت موجود عند العميل (كهرباء، مياه، إنترنت، إيجار، قسط). "
+      + "نادِها لما العميل يقول \"دفعت الكهرباء\" أو \"سددت الإيجار\". لازم title يكون من "
+      + "قايمة الالتزامات في الـ snapshot بالظبط. العميل هيشوف تأكيد قبل الكتابة.",
+    input_schema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "اسم الالتزام زي ما هو في قايمة الالتزامات في الـ snapshot" },
+        amount: { type: "number", description: "المبلغ المدفوع فعلاً" },
+        wallet: { type: "string", enum: ["card", "cash"], description: "cash لو دفع كاش" },
+      },
+      required: ["title", "amount"],
+    },
+  },
 ];
 
 /**
@@ -3048,6 +3103,8 @@ function describeProposal(tool: string, input: any, currency: string): string {
     }
     case "set_monthly_limit":
       return `سقف الصرف الشهري يبقى ${money(input.monthly_limit)}`;
+    case "pay_bill":
+      return `سداد ${input.title}: ${money(input.amount)}` + (input.wallet === "cash" ? " (كاش)" : "");
     default:
       return tool;
   }
@@ -3076,7 +3133,7 @@ async function processDueAgentTasks(sb: SupabaseClient): Promise<{ processed: nu
     await sb.from("agent_tasks").update({ status: "running", updated_at: new Date().toISOString() }).eq("id", task.id);
     try {
       const snap = await buildSnapshot(sb, task.user_id);
-      const systemPrompt = buildChatSystemPrompt(snap);
+      const systemPrompt = soulBlock() + buildChatSystemPrompt(snap);
       const ctx: RunContext = freshContext(task.user_id);
       const scope: AuditScope = { source: "event", runId: null };
       const history: Turn[] = [{ role: "user", text: task.task_description }];
@@ -3273,8 +3330,13 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
   const lessonsBlock = driftLessons.length > 0
     ? "\n=== دروس من أخطائك السابقة مع هذا العميل ===\n" + driftLessons.map((l) => "- " + l).join("\n") + "\n=== نهاية الدروس ===\n"
     : "";
+  // SOUL + المهارات المتعلمة — هوية مدير الحياة الكامل قبل برومبت الوكيل المتخصص.
+  const learnedSkills = await loadSkills(sb, userId);
   const systemPrompt =
-    (specialistPromptBlock(specialist) ?? "") + "\n" + lessonsBlock + buildChatSystemPrompt({ ...snap, memory: relevantMemory }, body.voice_mode === true);
+    soulBlock()
+    + (specialistPromptBlock(specialist) ?? "") + "\n" + lessonsBlock
+    + skillsBlock(learnedSkills)
+    + buildChatSystemPrompt({ ...snap, memory: relevantMemory }, body.voice_mode === true);
 
   // آخر ٨ رسائل زي ما شات التطبيق بيبعتها. أي عنصر مش user/assistant بيتجاهل بدل ما
   // يكسر النداء — الكلاينت مش مصدر موثوق لشكل الـ history.

@@ -22,6 +22,13 @@ Deno.test("مهمة/موعد بيتوجّه للعائلة", () => {
   assertEquals(routeSpecialist("فكرني بموعد دكتور الأسنان بكرة"), "family");
 });
 
+Deno.test("فاتورة/صيانة بتتوجه لوكيل المنزل والدفع", () => {
+  assertEquals(routeSpecialist("التكييف محتاج صيانة والضمان قرب يخلص"), "home");
+  assertEquals(routeSpecialist("سددت الفاتورة النهاردة"), "home");
+  // "دفعت + اسم الخدمة" فيه كلمتين للمال (دفعت/كهربا) فيكسب المال — ده مقصود: سداد فعلي
+  // هو شغلانة المال، والمنزل بياخد الصيانة والأعطال والتتبع.
+});
+
 Deno.test("كلام عام يفضل general", () => {
   assertEquals(routeSpecialist("ازيك عامل ايه"), "general");
   assertEquals(routeSpecialist("مين انت"), "general");
@@ -33,7 +40,7 @@ Deno.test("التطبيع: الهمزة والتاء المربوطة مبتغي
 });
 
 Deno.test("كل وكيل متخصص له اسم وسطر حالة", () => {
-  for (const id of ["finance", "pantry", "pharmacy", "family"] as const) {
+  for (const id of ["finance", "pantry", "pharmacy", "family", "home"] as const) {
     const s = SPECIALISTS[id];
     assertEquals(typeof s.nameAr, "string");
     assertEquals(s.nameAr.length > 0, true);
@@ -44,7 +51,7 @@ Deno.test("كل وكيل متخصص له اسم وسطر حالة", () => {
 
 Deno.test("general ملوش بلوك برومبت، والمتخصصين عندهم", () => {
   assertEquals(specialistPromptBlock("general"), null);
-  for (const id of ["finance", "pantry", "pharmacy", "family"] as const) {
+  for (const id of ["finance", "pantry", "pharmacy", "family", "home"] as const) {
     const block = specialistPromptBlock(id) ?? "";
     assertEquals(block.includes("الوكيل المتخصص"), true);
     assertEquals(block.includes(SPECIALISTS[id].nameAr), true);

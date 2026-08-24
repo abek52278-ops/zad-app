@@ -10,7 +10,7 @@
 
 import { SupabaseClient } from "jsr:@supabase/supabase-js@2";
 
-export type SpecialistId = "finance" | "pantry" | "pharmacy" | "family" | "general";
+export type SpecialistId = "finance" | "pantry" | "pharmacy" | "family" | "home" | "general";
 
 export interface SpecialistDef {
   id: SpecialistId;
@@ -68,6 +68,17 @@ export const SPECIALISTS: Record<SpecialistId, SpecialistDef> = {
       "مذاكرة", "تسبيحة", "tasbih", "task", "reminder", "appointment",
     ],
   },
+  home: {
+    id: "home",
+    nameAr: "وكيل المنزل والدفع",
+    activeLineAr: "وكيل المنزل بيراجع الفواتير والصيانة...",
+    keywords: [
+      "فاتورة", "فواتير", "كهربا", "مياه", "غاز", "انترنت", "سددت", "سداد", "دفعت الفاتورة",
+      "الضمان", "ضمان", "صيانة", "التكييف", "تكييف", "غسالة", "ثلاجة", "بوتاجاز", "سخان",
+      "بيت", "شقة", "إيجار البيت", "نظافة", "ترتيب", "عطل", "بايظ", "مكسور", "تصليح",
+      "bill", "warranty", "maintenance", "home", "repair",
+    ],
+  },
   general: {
     id: "general",
     nameAr: "زاد",
@@ -76,7 +87,7 @@ export const SPECIALISTS: Record<SpecialistId, SpecialistDef> = {
   },
 };
 
-const ORDER: SpecialistId[] = ["finance", "pantry", "pharmacy", "family"];
+const ORDER: SpecialistId[] = ["finance", "pantry", "pharmacy", "family", "home"];
 
 /** تطبيع خفيف: تشكيل، همزات، ألف مقصورة، تاء مربوطة. */
 function normalize(text: string): string {
@@ -123,6 +134,8 @@ export function specialistPromptBlock(id: SpecialistId): string | null {
       "- نطاقك: أدوات الصيدلية والجرعات. أوقات الجرعات لازم تكون ضمن ٢٤ ساعة وبصيغة HH:mm — دي قاعدة تحقق صارمة، لو الوقت مش مفهوم اسأل بدل ما تخمّن.",
     family:
       "- نطاقك: المهام والمواعيد والتذكيرات وأخبار العائلة. المهمة محتاجة عنوان واضح، ولو التاريخ/الوقت مش محدد اسأل.",
+    home:
+      "- نطاقك: فواتير البيت وسدادها (pay_bill)، الأجهزة والضمانات والصيانة الدورية، وأعطال المنزل. سداد الفاتورة بيتسجل كمعاملة فعلية بتاخد تأكيد العميل الأول.",
   };
   return `=== الوكيل المتخصص ===
 انت دلوقتي ${s.nameAr} داخل نظام زاد — الجزء المتخصص اللي العقل العام حوّل له الرسالة دي.
@@ -177,6 +190,12 @@ export function scopeToolsForSpecialist<T extends { name: string }>(
       "log_pharmacy_dose", "find_nearby_stores", "web_search",
     ],
     family: ["schedule_task", "query_family", "family_digest"],
+    home: [
+      "pay_bill", "log_transaction",
+      "add_maintenance_item", "update_maintenance_item", "delete_maintenance_item",
+      "add_obligation", "update_obligation", "delete_obligation",
+      "forward_ledger", "web_search",
+    ],
   };
   const allowed = new Set([
     ...(scope[specialist as Exclude<SpecialistId, "general">] ?? []),
