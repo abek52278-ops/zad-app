@@ -537,24 +537,32 @@ export const validateUpdateEmergencyFundBalance: Validator = (input, _snap, ctx)
 };
 
 // ═══════════════════════════════════════════════════════════
-// وكيل المنزل والدفع (SOUL) — سداد فاتورة/التزام مسجّل.
-// بتلمس فلوس حقيقية فبتروح في CONFIRM_REQUIRED_TOOLS زي log_transaction بالظبط:
-// بتتحقق هنا، وبتتنفذ من agent_confirm بعد تأكيد العميل الصريح.
+// أمر واجهة التطبيق — العقل يقدر يفتح شاشة أو يشغّل فعل معروف داخل التطبيق
+// (نمط "الإيجنت يدير كل زرار"). الأوامر من قايمة بيضاء صارمة — مفيش أي أمر حر،
+// ومفيش أي كتابة فلوس من هنا نهائياً (قرار أمني 2026-08-24).
 // ═══════════════════════════════════════════════════════════
-export const validatePayBill: Validator = (input, snap, ctx) => {
-  if ((ctx.counts["pay_bill"] ?? 0) >= 3) return { ok: false, reason: "وصلت لحد أقصى ٣ سداد في المرة" };
-  // الالتزام لازم يكون موجود فعلاً في snapshot العميل — عنوان مخترع بيرفض قبل الشبكة.
-  const obligations = ((snap.obligation_rows ?? snap.obligations ?? []) as Array<{ title?: string }>);
-  if (obligations.length > 0) {
-    const known = obligations.some((o) => o.title === input.title);
-    if (!known) {
-      return { ok: false, reason: `الالتزام ده مش في قايمة العميل. الموجود: ${obligations.map((o) => o.title).filter(Boolean).join("، ") || "—"}` };
-    }
+/** الشاشات والأفعال المسموح للأجل بطلبها من التطبيق. أي حاجة بره القايمة = رفض. */
+export const APP_COMMAND_SCREENS = [
+  "inventory", "shopping", "pharmacy", "budget", "tasks", "family",
+  "maintenance", "subscriptions", "debts", "obligations", "insights",
+] as const;
+export const APP_COMMAND_ACTIONS = [
+  "open",            // افتح الشاشة
+  "add_item",        // جهّز إضافة صنف/عنصر (التطبيق يعرض الفورم جاهزة)
+  "highlight",       // ظلّل عنصر بعينه على الشاشة
+] as const;
+
+export const validateAppCommand: Validator = (input, _snap, ctx) => {
+  if ((ctx.counts["app_command"] ?? 0) >= 3) return { ok: false, reason: "وصلت لحد أقصى ٣ أوامر تطبيق في المرة" };
+  if (!(APP_COMMAND_SCREENS as readonly string[]).includes(String(input.screen ?? ""))) {
+    return { ok: false, reason: `screen لازم يكون واحد من: ${APP_COMMAND_SCREENS.join(", ")}` };
   }
-  if (typeof input.amount !== "number" || !Number.isFinite(input.amount) || input.amount <= 0) {
-    return { ok: false, reason: "المبلغ المدفوع لازم يكون رقم موجب" };
+  if (!(APP_COMMAND_ACTIONS as readonly string[]).includes(String(input.action ?? ""))) {
+    return { ok: false, reason: `action لازم يكون واحد من: ${APP_COMMAND_ACTIONS.join(", ")}` };
   }
-  if (input.amount > MAX_TRANSACTION_AMOUNT) return { ok: false, reason: "المبلغ ده كبير بشكل غير منطقي — تأكد منه" };
+  if (input.highlight_name !== undefined && String(input.highlight_name).trim().length > 80) {
+    return { ok: false, reason: "اسم العنصر طويل أوي" };
+  }
   return { ok: true };
 };
 
@@ -681,7 +689,7 @@ export const VALIDATORS: Record<string, Validator> = {
   update_maintenance_item: validateUpdateMaintenanceItem,
   delete_maintenance_item: validateDeleteMaintenanceItem,
   update_emergency_fund_balance: validateUpdateEmergencyFundBalance,
-  pay_bill: validatePayBill,
+  app_command: validateAppCommand,
 };
 
 /**
@@ -704,8 +712,8 @@ export const MUTATING_TOOLS = [
   "add_obligation", "update_obligation", "delete_obligation",
   "add_maintenance_item", "update_maintenance_item", "delete_maintenance_item",
   "update_emergency_fund_balance",
-  // وكيل المنزل والدفع — سداد فاتورة بيلمس فلوس حقيقية.
-  "pay_bill",
+  // أمر واجهة — قراءة/تنقّل بس، مش كتابة بيانات. مش في CONFIRM_REQUIRED أبداً.
+  "app_command",
 ];
 
 /**
@@ -713,7 +721,7 @@ export const MUTATING_TOOLS = [
  * لاقتراح ينتظر ضغطة تأكيد صريحة من العميل، وبعدين بتتنفذ من agent_confirm بنفس مسار
  * التحقق والتنفيذ. حارس أمان، مش تفصيل تقني.
  */
-export const CONFIRM_REQUIRED_TOOLS = ["log_transaction", "update_transaction", "delete_transaction", "set_monthly_limit", "pay_bill"];
+export const CONFIRM_REQUIRED_TOOLS = ["log_transaction", "update_transaction", "delete_transaction", "set_monthly_limit"];
 
 /** بوابة الفحص العامة — الحدود المشتركة (mutation cap, 3-strikes abort) قبل ما توصل للـ validator المتخصص */
 export async function validateTool(name: string, input: any, snap: any, ctx: RunContext): Promise<Validation> {

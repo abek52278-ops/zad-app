@@ -53,7 +53,7 @@ import {
   validateUpdateMaintenanceItem,
   validateDeleteMaintenanceItem,
   validateUpdateEmergencyFundBalance,
-  validatePayBill,
+  validateAppCommand,
 } from "./validators.ts";
 import { callModelWithRetry } from "./retry.ts";
 import { decideOnBrainFailure, hasRecentMutatingRun } from "./shared.ts";
@@ -1061,30 +1061,22 @@ Deno.test("normalizeDoseTimes مخرجاته تعدي DOSE_TIME_RE", () => {
   }
 });
 
-// === pay_bill — وكيل المنزل والدفع (SOUL) ===
-Deno.test("pay_bill بيقبل التزام موجود بمبلغ سليم", async () => {
-  const snap = { obligation_rows: [{ title: "كهرباء", kind: "utility", amount: 300 }] };
-  const v = await validatePayBill({ title: "كهرباء", amount: 300 }, snap, freshContext("u"));
+// === app_command — الإيجنت يدير شاشات التطبيق (بدون كتابة فلوس) ===
+Deno.test("app_command بيقبل أمر من القايمة البيضاء", async () => {
+  const v = await validateAppCommand({ screen: "inventory", action: "open" }, {}, freshContext("u"));
   assertEquals(v.ok, true);
+  const v2 = await validateAppCommand({ screen: "shopping", action: "add_item", highlight_name: "أرز" }, {}, freshContext("u"));
+  assertEquals(v2.ok, true);
 });
 
-Deno.test("pay_bill بيرفض عنوان مخترع قبل الشبكة", async () => {
-  const snap = { obligation_rows: [{ title: "كهرباء", kind: "utility" }] };
-  const v = await validatePayBill({ title: "اشتراك نتفلكس", amount: 200 }, snap, freshContext("u"));
-  assertEquals(v.ok, false);
-  if (!v.ok) assertEquals(v.reason.includes("مش في قايمة العميل"), true);
-});
-
-Deno.test("pay_bill بيرفض المبلغ السالب/غير المنطقي", async () => {
-  const snap = { obligation_rows: [{ title: "كهرباء", kind: "utility" }] };
+Deno.test("app_command بيرفض أي شاشة أو فعل بره القايمة", async () => {
   const ctx = freshContext("u");
-  assertEquals((await validatePayBill({ title: "كهرباء", amount: -5 }, snap, ctx)).ok, false);
-  assertEquals((await validatePayBill({ title: "كهرباء", amount: 2_000_000 }, snap, ctx)).ok, false);
-  assertEquals((await validatePayBill({ title: "كهرباء" }, snap, ctx)).ok, false);
+  assertEquals((await validateAppCommand({ screen: "wallet", action: "open" }, {}, ctx)).ok, false);
+  assertEquals((await validateAppCommand({ screen: "budget", action: "pay_bill" }, {}, ctx)).ok, false);
+  assertEquals((await validateAppCommand({ screen: "budget", action: "delete_all" }, {}, ctx)).ok, false);
 });
 
-Deno.test("pay_bill مسجّلة في VALIDATORS وMUTATING وCONFIRM_REQUIRED", () => {
-  assertEquals(typeof VALIDATORS["pay_bill"], "function");
-  assertEquals(MUTATING_TOOLS.includes("pay_bill"), true);
-  assertEquals(CONFIRM_REQUIRED_TOOLS.includes("pay_bill"), true);
+Deno.test("app_command مسجّلة في VALIDATORS ومش في CONFIRM_REQUIRED (مش فلوس)", () => {
+  assertEquals(typeof VALIDATORS["app_command"], "function");
+  assertEquals(CONFIRM_REQUIRED_TOOLS.includes("app_command"), false);
 });

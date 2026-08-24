@@ -135,7 +135,7 @@ export function specialistPromptBlock(id: SpecialistId): string | null {
     family:
       "- نطاقك: المهام والمواعيد والتذكيرات وأخبار العائلة. المهمة محتاجة عنوان واضح، ولو التاريخ/الوقت مش محدد اسأل.",
     home:
-      "- نطاقك: فواتير البيت وسدادها (pay_bill)، الأجهزة والضمانات والصيانة الدورية، وأعطال المنزل. سداد الفاتورة بيتسجل كمعاملة فعلية بتاخد تأكيد العميل الأول.",
+      "- نطاقك: فواتير البيت ومتابعة سدادها (تنبيه واستفسار بس — مفيش تسجيل فلوس من هنا)، الأجهزة والضمانات والصيانة الدورية، وأعطال المنزل. تقدر تفتح شاشة الصيانة للعميل بـ app_command.",
   };
   return `=== الوكيل المتخصص ===
 انت دلوقتي ${s.nameAr} داخل نظام زاد — الجزء المتخصص اللي العقل العام حوّل له الرسالة دي.
@@ -191,7 +191,7 @@ export function scopeToolsForSpecialist<T extends { name: string }>(
     ],
     family: ["schedule_task", "query_family", "family_digest"],
     home: [
-      "pay_bill", "log_transaction",
+      "app_command",
       "add_maintenance_item", "update_maintenance_item", "delete_maintenance_item",
       "add_obligation", "update_obligation", "delete_obligation",
       "forward_ledger", "web_search",
