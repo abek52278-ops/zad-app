@@ -23,7 +23,7 @@ class BuildAgentTurnReplyTest {
         proposals: List<AgentProposal> = emptyList(),
         toolAttempted: Boolean = false,
         partial: Boolean = false,
-    ) = AgentTurnResult(reply, executed, proposals, toolAttempted, partial)
+    ) = AgentTurnResult(reply, executed, proposals, appCommands = emptyList(), toolAttempted = toolAttempted, partial = partial)
 
     @Test
     fun `plain reply with no tools renders as-is`() {
