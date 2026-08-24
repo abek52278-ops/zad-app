@@ -700,20 +700,41 @@ object ZadAiRepository {
     /** كتابة على فلوس حقيقية مستنية تأكيد صريح — لسه ماحصلتش. */
     data class AgentProposal(val tool: String, val summary: String, val input: Map<String, Any?>)
 
+    /**
+     * أمر واجهة من العقل — "افتح شاشة كذا / ظلّل العنصر الفلان" (app_command).
+     * قراءة/تنقّل بس، مفيش أي كتابة بيانات. ZadViewModel هو اللي بينفذه محلياً.
+     */
+    data class AgentAppCommand(
+        val screen: String,
+        val action: String,
+        val highlightName: String?
+    )
+
     data class AgentTurnResult(
         val reply: String,
         val executed: List<AgentExecuted>,
         val proposals: List<AgentProposal>,
+        /** أوامر واجهة التطبيق المطلوبة من العقل — فاضي في أغلب الردود. */
+        val appCommands: List<AgentAppCommand> = emptyList(),
         /** الموديل حاول ينادي أداة (حتى لو اترفضت) — بيفرق عن رد كلام عادي. */
         val toolAttempted: Boolean,
         /** لفة فشلت بعد ما نفّذت كتابات فعلاً. الوقوع على بروتوكول [[ACTION]] هنا بيكرر
          *  نفس الكتابة، فده لازم يتعرض ويترفض معاملته كفشل عادي — حقل صريح بدل ما نستنتجه
          *  من إن [executed]/[proposals] مش فاضيين. */
         val partial: Boolean,
-        /** الوكيل المتخصص اللي عالج الرسالة (finance/pantry/pharmacy/family/general) —
+        /** الوكيل المتخصص اللي عالج الرسالة (finance/pantry/pharmacy/family/home/general) —
          *  من السيرفر، مش استنتاج محلي. null = سيرفر قديم لسه مابيبعتش الحقل. */
         val specialist: String? = null
     )
+
+    companion object {
+        /** الشاشات المسموح للعقل يفتحها — نفس قايمة validators.ts بالظبط (حارس مزدوج). */
+        private val ALLOWED_APP_SCREENS = setOf(
+            "inventory", "shopping", "pharmacy", "budget", "tasks", "family",
+            "maintenance", "subscriptions", "debts", "obligations", "insights",
+        )
+        private val ALLOWED_APP_ACTIONS = setOf("open", "add_item", "highlight")
+    }
 
     /**
      * لفة محادثة كاملة. بترجع null لو النداء نفسه فشل، عشان الكولر يقدر يقع على مسار
@@ -753,10 +774,23 @@ object ZadAiRepository {
                 val input = row["input"] as? Map<String, Any?> ?: return@mapNotNull null
                 AgentProposal(tool = tool, summary = row["summary"] as? String ?: tool, input = input)
             }
+            // أوامر الواجهة — حارس مزدوج على السيرفر: نفس القايمة البيضاء هنا كمان، فأي
+            // أمر من سيرفر قديم/معدَّل بره القايمة بيتساقط بدل ما يوصل للـ UI.
+            val appCommands = (response["app_commands"] as? List<Map<String, Any?>> ?: emptyList()).mapNotNull { row ->
+                val screen = row["screen"] as? String ?: return@mapNotNull null
+                val action = row["action"] as? String ?: return@mapNotNull null
+                if (screen !in ALLOWED_APP_SCREENS || action !in ALLOWED_APP_ACTIONS) return@mapNotNull null
+                AgentAppCommand(
+                    screen = screen,
+                    action = action,
+                    highlightName = row["highlight_name"] as? String
+                )
+            }
             AgentTurnResult(
                 reply = (response["reply"] as? String).orEmpty().trim(),
                 executed = executed,
                 proposals = proposals,
+                appCommands = appCommands,
                 toolAttempted = response["tool_attempted"] == true,
                 partial = response["partial"] == true,
                 specialist = response["specialist"] as? String

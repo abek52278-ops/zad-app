@@ -1526,7 +1526,29 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         _companionState.value = com.example.ui.components.companionStateForMessage(text)
 
         if (result.executed.isNotEmpty()) refreshAfterAgentWrites(result.executed)
+        // أوامر الواجهة من العقل (app_command) — نطلقها بعد ما الرد يتبني، عشان التنقل
+        // يحصل والشات لسه ظاهر (المستخدم بيشوف الشاشة بتتفتح قدامه).
+        if (result.appCommands.isNotEmpty()) executeAppCommands(result.appCommands)
         return true
+    }
+
+    /**
+     * تنفيذ أوامر واجهة التطبيق اللي العقل طلبها (app_command tool).
+     *
+     * القرار المعماري: ViewModel ماعندوش navController، فالأمر بيتحطّم في [pendingAppCommand]
+     * وMainScreen هو اللي بيلاحظه (LaunchedEffect) وبينفذ التنقل فعلياً — نفس نمط
+     * wakeRequest/openVoiceRequest الموجود. القايمة البيضاء اتأكد منها مرتين (سيرفر + repo).
+     */
+    private val _pendingAppCommand = MutableStateFlow<com.example.data.ZadAiRepository.AgentAppCommand?>(null)
+    val pendingAppCommand: StateFlow<com.example.data.ZadAiRepository.AgentAppCommand?> = _pendingAppCommand.asStateFlow()
+
+    fun consumePendingAppCommand() {
+        _pendingAppCommand.value = null
+    }
+
+    private fun executeAppCommands(commands: List<com.example.data.ZadAiRepository.AgentAppCommand>) {
+        // أمر واحد بس في المرة — فتح شاشتين ورا بعض بيشتت. آخر أمر هو الأحدث.
+        _pendingAppCommand.value = commands.last()
     }
 
     /**

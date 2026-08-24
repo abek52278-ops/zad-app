@@ -25,8 +25,8 @@ Deno.test("skillsBlock فاضي لما مفيش مهارات", () => {
 
 Deno.test("skillsBlock بيضمّن المهارات وعدد التكرار", () => {
   const skills: LearnedSkill[] = [
-    { id: "s1", note: "بيذكّر بالفاتورة يوم ٥ قبل الاستحقاق بيومين", evidence_count: 3, last_used_at: null },
-    { id: "s2", note: "أسلوب الأسئلة القصيرة بيرد أسرع", evidence_count: 2, last_used_at: null },
+    { id: "s1", skill_key: "bill_nudge", note: "بيذكّر بالفاتورة يوم ٥ قبل الاستحقاق بيومين", evidence_count: 3, last_used_at: null },
+    { id: "s2", skill_key: "short_qs", note: "أسلوب الأسئلة القصيرة بيرد أسرع", evidence_count: 2, last_used_at: null },
   ];
   const block = skillsBlock(skills);
   assertEquals(block.includes("مهارات اتعلمتها"), true);

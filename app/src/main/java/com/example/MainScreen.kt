@@ -195,6 +195,28 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
         }
     }
 
+    // ── أوامر واجهة العقل (app_command) ─────────────────────────────────────────
+    // العقل يقدر يطلب فتح شاشة ("وريني المخزون"). ViewModel بيحطّ الأمر في
+    // pendingAppCommand، وهنا بنلاحظه وبنترجم screen → route محلياً.
+    // القايمة البيضاء هنا تالت حارس (سيرفر validators.ts + repo + هنا).
+    val pendingAppCommand by viewModel.pendingAppCommand.collectAsState()
+    LaunchedEffect(pendingAppCommand) {
+        val cmd = pendingAppCommand ?: return@LaunchedEffect
+        val route = when (cmd.screen) {
+            "inventory" -> ZadRoutes.INVENTORY
+            "shopping" -> ZadRoutes.SHOPPING
+            "pharmacy" -> ZadRoutes.PHARMACY
+            "budget" -> ZadRoutes.BUDGET
+            "family" -> ZadRoutes.FAMILY
+            "maintenance" -> ZadRoutes.MAINTENANCE
+            "subscriptions", "obligations", "debts" -> ZadRoutes.SUBS
+            "tasks", "insights" -> ZadRoutes.ASSISTANT
+            else -> null
+        }
+        if (route != null && !kidsModeEffective) go(route)
+        viewModel.consumePendingAppCommand()
+    }
+
     // A child-role account's PIN unlock is session-scoped, not permanent — re-lock once
     // they navigate back to the kids-safe zone, or after 3 idle minutes past a guarded
     // screen, so one correct PIN entry can't stay unlocked for the rest of the session.
