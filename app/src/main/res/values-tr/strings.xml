@@ -1409,4 +1409,5 @@
     <string name="deals_supermarkets">Süpermarketler</string>
     <string name="deals_pharmacies">Eczaneler</string>
     <string name="loading">Yükleniyor…</string>
+    <string name="splash_privacy">Verilerinizin gizliliği her zaman önceliklidir</string>
 </resources>

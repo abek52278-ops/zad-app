@@ -519,14 +519,14 @@ fun SplashScreen(onTimeout: () -> Unit) {
             )
             Spacer(Modifier.height(10.dp))
             Text(
-                text = "تدبير ذكي لبيت هادئ",
+                text = androidx.compose.ui.res.stringResource(com.example.R.string.slogan),
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = textSecondary
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                text = "خصوصية بياناتك أولوية، دائماً",
+                text = androidx.compose.ui.res.stringResource(com.example.R.string.splash_privacy),
                 fontSize = 12.5.sp,
                 fontWeight = FontWeight.Medium,
                 color = textTertiary

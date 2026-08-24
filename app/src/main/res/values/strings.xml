@@ -1415,4 +1415,5 @@
     <string name="deals_supermarkets">Supermarkets</string>
     <string name="deals_pharmacies">Pharmacies</string>
     <string name="loading">Loading…</string>
+    <string name="splash_privacy">خصوصية بياناتك أولوية، دائماً</string>
 </resources>
