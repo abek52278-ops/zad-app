@@ -668,6 +668,27 @@ fun BankReadingStatusSection() {
             Text(stringResource(R.string.test_bank_parser_button))
         }
 
+        Spacer(Modifier.height(16.dp))
+        // ── وضع الاختبار الحقيقي: إشعار فعلي يمشي على المسار كله ──
+        // زر المحلل فوق بيختبر SaBankParser بس؛ ده بيختبر السلسلة الكاملة:
+        // إشعار نظام ← UnifiedBankListener ← فلترة ← العقل على السيرفر.
+        var diagResult by remember { mutableStateOf(BankReadingStatus.diagnose(context)) }
+        Button(
+            onClick = {
+                BankReadingStatus.sendTestNotification(context)
+                diagResult = BankReadingStatus.diagnose(context)
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(stringResource(R.string.test_bank_parser_button) + " — إشعار حقيقي")
+        }
+        Text(
+            diagResult,
+            fontSize = 12.sp,
+            color = onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+
         testResult?.let { result ->
             AlertDialog(
                 onDismissRequest = { testResult = null },

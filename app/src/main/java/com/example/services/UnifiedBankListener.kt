@@ -175,13 +175,60 @@ class UnifiedBankListener : NotificationListenerService() {
 
             val (title, text) = extractContent(notification)
 
+            // إشعار الاختبار التشخيصي — بيتعلم فوراً عشان شاشة التشخيص تعرف إن السيرفس حي
+            if (title.contains("اختبار زاد") || text.contains("اختبار رصد")) {
+                BankReadingStatus.markTestReceived(applicationContext)
+                return
+            }
+
             if (isFinancialNotification(packageName, title, text)) {
                 Log.d("UnifiedBankListener", "Financial notification: $packageName - $title")
                 serviceScope.launch {
                     processAndTrackNotification(packageName, title, text)
                 }
+                return
+            }
+
+            // ── الالتقاط الشامل (2026-08-24): أي إشعار من تطبيق غير معروف فيه مبلغ نقدي
+            // بيتتبعت للعقل برضه. الفلترة المحلية الصارمة كانت ممكن ترمي عمليات حقيقية من
+            // بنوك/محافظ مش في القايمة — والعقل (Gemini) أحكم في التمييز بين عملية فعلية
+            // وإشعار عرض ترويجي. حد أقصى يومي عشان الكوتة ما تتحرقش على إشعارات زبالة.
+            if (hasUnparsedAmount(text) && dailyBroadCatchCount() < BROAD_CATCH_DAILY_CAP) {
+                serviceScope.launch {
+                    incrementBroadCatchCount()
+                    processAndTrackNotification(packageName, title, text)
+                }
             }
         }
+    }
+
+    /**
+     * رقم نقدي في نص الإشعار — أخف بكثير من [SaBankParser.extractAmount] المفصلية،
+     * دورها بس بوابة دخول للعقل مش تحليل. يستبعد الأرقام الصغيرة جدًا (أرقام مرجعية
+     * مقطوعة غالبًا) وأي رقم من 4-6 خانات متماثلة الشكل (OTP غالبًا).
+     */
+    private fun hasUnparsedAmount(text: String): Boolean {
+        val amounts = Regex("""\d[\d,\.]*""")
+            .findAll(text)
+            .mapNotNull { it.value.replace(",", "").replace(".", "").toDoubleOrNull() }
+        return amounts.any { it in 10.0..9_999_999.0 }
+    }
+
+    private fun dailyBroadCatchCount(): Int =
+        applicationContext.getSharedPreferences("zad_prefs", Context.MODE_PRIVATE)
+            .getInt("broad_catch_${dayKey()}", 0)
+
+    private fun incrementBroadCatchCount() {
+        applicationContext.getSharedPreferences("zad_prefs", Context.MODE_PRIVATE)
+            .edit().putInt("broad_catch_${dayKey()}", dailyBroadCatchCount() + 1).apply()
+    }
+
+    private fun dayKey(): String =
+        java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
+
+    companion object {
+        /** سقف الالتقاط الشامل اليومي — كوتة العقل مش مجانية والإشعارات الترويجية كتير. */
+        const val BROAD_CATCH_DAILY_CAP = 40
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {}

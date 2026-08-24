@@ -98,4 +98,60 @@ object BankReadingStatus {
             Log.e(TAG, "requestRebind() failed: ${e.message}")
         }
     }
+
+    // ── وضع الاختبار (2026-08-24): تشخيص فجوة الرصد في ثواني ──
+    private const val KEY_TEST_AT = "test_ping_at"
+    private const val KEY_TEST_RESULT = "test_ping_result"
+
+    /**
+     * ابعت إشعار تجريبي من التطبيق نفسه — بيمر على **نفس** مسار المستمع الحقيقي:
+     * UnifiedBankListener.onNotificationPosted → فلترة → العقل. النتيجة بتتحفظ
+     * و[BroadcastReceiver] اللي في الشاشة بيقراها.
+     *
+     * ده هو الفرق بين "الصلاحية شكلها تمام" و"الرصد شغال فعلاً": لو الإشعار التجريبي
+     * ماوصلش السيرفر خلال دقيقة، المشكلة في السيرفس/الإذن مش في التحليل.
+     */
+    fun sendTestNotification(context: Context) {
+        val builder = androidx.core.app.NotificationCompat.Builder(
+            context, "zad_test_channel"
+        )
+            .setSmallIcon(android.R.drawable.ic_menu_manage)
+            .setContentTitle("اختبار زاد — عملية تجريبية")
+            .setContentText("تم خصم 123.45 جنيه من حسابك — اختبار رصد")
+            .setAutoCancel(true)
+            .addPerson("test:zad-diagnostic")
+
+        val mgr = NotificationManagerCompat.from(context)
+        if (androidx.core.content.ContextCompat.checkSelfPermission(
+                context, android.Manifest.permission.POST_NOTIFICATIONS
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+        ) {
+            mgr.notify(99001, builder.build())
+        }
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putLong(KEY_TEST_AT, System.currentTimeMillis()).putString(KEY_TEST_RESULT, "sent").apply()
+    }
+
+    /** المستمع وصل للإشعار التجريبي (recordTestPing بيتنادى منه). */
+    fun markTestReceived(context: Context) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putString(KEY_TEST_RESULT, "received_by_listener").apply()
+    }
+
+    fun testSentAt(context: Context): Long? = read(context, KEY_TEST_AT)
+    fun testResult(context: Context): String? =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_TEST_RESULT, null)
+
+    /** نتيجة الاختبار كنص قابل للعرض: فين القطع بالظبط؟ */
+    fun diagnose(context: Context): String {
+        if (!isNotificationListenerEnabled(context)) return "❌ الصلاحية مش ممنوحة — فعّلها من إعدادات الوصول للإشعارات"
+        if (lastConnectedAt(context) == null) return "❌ السيرفس مش مربوط — اضغط زر إعادة الربط"
+        return when (testResult(context)) {
+            null, "sent" -> if (lastSawNotificationAt(context) == null) "❌ السيرفس مربوط بس مش بيوصلوش إشعارات — جرب requestRebind"
+                             else "⏳ مستني وصول الإشعار التجريبي للمستمع..."
+            "received_by_listener" -> if (lastParsedAt(context) != null) "✅ الرصد شغال بالكامل" else "✅ المستمع مسكه والفلترة شغالة"
+            else -> "❓ حالة غير معروفة — جرب تاني"
+        }
+    }
 }
