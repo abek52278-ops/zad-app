@@ -658,6 +658,12 @@ export const VALIDATORS: Record<string, Validator> = {
   link_memory: validateLinkMemory,
   // قراءة بس — مفيش كتابة ولا حد استدعاء، زي query_family بالظبط.
   family_digest: () => ({ ok: true }),
+  home_health_score: (_i, _s, ctx) =>
+    (ctx.counts["home_health_score"] ?? 0) >= 2
+      ? { ok: false, reason: "حسبت الدرجة خلاص في اللفة دي" } : { ok: true },
+  propose_next_month_budget: (_i, _s, ctx) =>
+    (ctx.counts["propose_next_month_budget"] ?? 0) >= 1
+      ? { ok: false, reason: "اقترحت ميزانية الشهر الجاي خلاص" } : { ok: true },
   // قراءة بس، بس بحد أقصى عشان ماتتنادش في لفة واحدة كذا مرة وتحرق كوتة على نداءات
   // شبكة خارجية (Overpass/LocationIQ) بدل ما الموديل يرد.
   // مرة واحدة في اللفة: ترشيح منتج مرتين في نفس الرد بيتحوّل من مساعدة لإعلان.

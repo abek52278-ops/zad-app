@@ -2189,6 +2189,51 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       if (!ledger) return "مفيش بيانات كفاية أحسب منها توقّع للأيام الجاية.";
       return JSON.stringify(ledger);
     }
+    case "home_health_score": {
+      // درجة صحة البيت 0-100 — deterministic من 4 محاور: مالية/مخزون/صيدلية/التزامات.
+      // الهدف: العميل يشوف "بيته صح قد إيه" كرقم واحد، والعقل يشرح أكبر نقطة ضعف.
+      let score = 100;
+      const issues: string[] = [];
+      // المالية: متاح سالب أو قريب من الصفر = أخطر
+      const available = Number(snap?.available ?? snap?.remaining ?? 0);
+      if (available <= 0) { score -= 40; issues.push("المتاح خلص أو بالسالب"); }
+      else if (available < (snap?.budget ?? 0) * 0.1) { score -= 20; issues.push("المتاح أقل من ١٠٪ من الميزانية"); }
+      // المخزون
+      const lowStock = (snap?.upcoming ?? []).filter((u: any) => u.type === "low_stock").length
+        ?? ((snap?.stock ?? []) as any[]).filter((s) => s.daysLeft <= 2).length;
+      if (lowStock >= 5) { score -= 15; issues.push(`${lowStock} أصناف هتخلص`); }
+      else if (lowStock >= 1) { score -= 7; issues.push(`${lowStock} أصناف قربت تخلص`); }
+      // الصيدلية
+      const medsLow = (snap?.upcoming ?? []).filter((u: any) => u.type === "medication_low").length;
+      if (medsLow >= 1) { score -= 15; issues.push(`${medsLow} أدوية قربت تخلص`); }
+      // التزامات متأخرة
+      const overdue = ((snap?.obligations ?? []) as any[]).filter((o) => o.next_due && new Date(o.next_due) < new Date()).length;
+      if (overdue >= 1) { score -= 10 * Math.min(overdue, 3); issues.push(`${overdue} التزامات متأخرة`); }
+      const grade = score >= 85 ? "ممتاز" : score >= 65 ? "كويس" : score >= 45 ? "محتاج انتباه" : "خطر";
+      return JSON.stringify({
+        score, grade,
+        issues,
+        message: `درجة صحة بيتك ${score} من ١٠٠ (${grade})${issues.length ? " — أهم حاجة: " + issues[0] : "، كل حاجة تمام"}`,
+      });
+    }
+    case "propose_next_month_budget": {
+      // اقتراح ميزانية الشهر الجاي مبنية على متوسط ٣ شهور فعلية + تعديل بالتزامات معروفة.
+      // مقترح بس زي suggest_budget_change — العميل هو اللي يأكد.
+      const { data: monthly, error } = await sb.rpc("zad_monthly_spend", { p_user: userId });
+      if (error || !Array.isArray(monthly) || monthly.length < 2) {
+        return "مفيش تاريخ صرف كفاية (محتاج شهرين على الأقل) — جرب بعد شوية.";
+      }
+      const spends = (monthly as Array<{ month: string; total: number }>).slice(0, 3).map((m) => m.total);
+      const avg = spends.reduce((a, b) => a + b, 0) / spends.length;
+      const committed = ((snap?.obligations ?? []) as Array<{ amount?: number }>)
+        .reduce((a, o) => a + (Number(o.amount) || 0), 0);
+      const suggested = Math.ceil((avg * 1.05 + committed) / 50) * 50; // هامش ٥٪ + تقريب لـ٥٠
+      return JSON.stringify({
+        suggested_budget: suggested,
+        basis: `متوسط آخر ${spends.length} شهور: ${Math.round(avg)} + التزامات ثابتة: ${committed}`,
+        guidance: "اعرضه للعميل كرقم مقترح وسببه، واسأله موافق. متسجلش حاجة غير بعد موافقته.",
+      });
+    }
     case "query_family": {
       const { data: membership } = await sb.from("family_members")
         .select("family_id").eq("user_id", userId).maybeSingle();
@@ -2900,6 +2945,20 @@ const CHAT_TOOLS: ToolDef[] = [
       },
       required: ["task_description", "run_at"],
     },
+  },
+  {
+    name: "home_health_score",
+    description:
+      "درجة صحة البيت من ١٠٠ — تجمع المالية والمخزون والصيدلية والالتزامات في رقم واحد مع أهم نقطة ضعف. "
+      + "نادِها لما العميل يسأل \"إحنا عاملين إيه؟\" أو \"الوضع كويس؟\"، أو في بداية الملخص الأسبوعي.",
+    input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "propose_next_month_budget",
+    description:
+      "اقتراح ميزانية الشهر الجاي محسوبة من متوسط صرف آخر ٣ شهور + الالتزامات الثابتة (مش رقم من خيالك). "
+      + "نادِها آخر الشهر أو لما العميل يفكر في ميزانية الشهر الجاي. دي اقتراح — العميل هو اللي يأكد.",
+    input_schema: { type: "object", properties: {} },
   },
   {
     name: "forward_ledger",
