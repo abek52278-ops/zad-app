@@ -175,8 +175,11 @@ class UnifiedBankListener : NotificationListenerService() {
 
             val (title, text) = extractContent(notification)
 
-            // إشعار الاختبار التشخيصي — بيتعلم فوراً عشان شاشة التشخيص تعرف إن السيرفس حي
-            if (title.contains("اختبار زاد") || text.contains("اختبار رصد")) {
+            // إشعار الاختبار التشخيصي — الكشف من marker person مستقل عن اللغة، مش من
+            // نص العنوان (اللي بيتغير حسب لغة التطبيق). بيتعلم فوراً عشان شاشة
+            // التشخيص تعرف إن السيرفس حي.
+            if (notification.extras.getStringArray(android.app.Notification.EXTRA_PEOPLE)
+                    ?.contains(com.example.data.BankReadingStatus.TEST_MARKER_PERSON) == true) {
                 BankReadingStatus.markTestReceived(applicationContext)
                 return
             }
@@ -204,14 +207,29 @@ class UnifiedBankListener : NotificationListenerService() {
 
     /**
      * رقم نقدي في نص الإشعار — أخف بكثير من [SaBankParser.extractAmount] المفصلية،
-     * دورها بس بوابة دخول للعقل مش تحليل. يستبعد الأرقام الصغيرة جدًا (أرقام مرجعية
-     * مقطوعة غالبًا) وأي رقم من 4-6 خانات متماثلة الشكل (OTP غالبًا).
+     * دورها بس بوابة دخول للعقل مش تحليل.
+     *
+     * الفلترة:
+     * - المبالغ الحقيقية عادة فيها فاصل عشري أو فاصلة آلاف ("125.50", "1,250") → تمرّ.
+     * - OTP/أكواد التحقق: 4-6 خانات متتالية من غير أي فواصل → تتجاهل.
+     * - أرقام مرجعية طويلة (8+ خانات متصلة، غالباً رقم عملية) → تتجاهل حتى لو عدّت
+     *   حد المبلغ؛ الرقم المرجعي مش مبلغ.
      */
+    private val plainNumberRegex = Regex("""\d[\d,]*(?:\.\d+)?""")
+    private val otpLikeRegex = Regex("""(?<![\d.,])\d{4,6}(?![\d.,])""")
+
     private fun hasUnparsedAmount(text: String): Boolean {
-        val amounts = Regex("""\d[\d,\.]*""")
-            .findAll(text)
-            .mapNotNull { it.value.replace(",", "").replace(".", "").toDoubleOrNull() }
-        return amounts.any { it in 10.0..9_999_999.0 }
+        return plainNumberRegex.findAll(text).any { m ->
+            val raw = m.value
+            // OTP/كود تحقق: 4-6 خانات معزولة بدون فواصل ولا كسر عشري — مش دليل على عملية.
+            if (raw.length in 4..6 && !raw.contains(',') && !raw.contains('.') &&
+                otpLikeRegex.find(raw) != null) return@any false
+            val amount = raw.replace(",", "").toDoubleOrNull() ?: return@any false
+            if (amount < 10.0 || amount > 9_999_999.0) return@any false
+            // رقم صحيح طويل متصل بدون فاصلة آلاف ولا كسر = مرجّح رقم مرجعي مش مبلغ
+            // (مثال: 20260824). المبالغ بتتكتب "12,500" أو "125.50" في إشعارات البنوك.
+            !(raw.length >= 8 && !raw.contains(',') && !raw.contains('.'))
+        }
     }
 
     private fun dailyBroadCatchCount(): Int =

@@ -104,6 +104,12 @@ object BankReadingStatus {
     private const val KEY_TEST_RESULT = "test_ping_result"
 
     /**
+     * marker اللغة-المستقلة للإشعار التجريبي — بيتحط في addPerson والكشف بيتم من
+     * notification.extras/person، مش من نص العنوان (اللي بيتغير مع لغة التطبيق).
+     */
+    const val TEST_MARKER_PERSON = "test:zad-diagnostic"
+
+    /**
      * ابعت إشعار تجريبي من التطبيق نفسه — بيمر على **نفس** مسار المستمع الحقيقي:
      * UnifiedBankListener.onNotificationPosted → فلترة → العقل. النتيجة بتتحفظ
      * و[BroadcastReceiver] اللي في الشاشة بيقراها.
@@ -111,15 +117,16 @@ object BankReadingStatus {
      * ده هو الفرق بين "الصلاحية شكلها تمام" و"الرصد شغال فعلاً": لو الإشعار التجريبي
      * ماوصلش السيرفر خلال دقيقة، المشكلة في السيرفس/الإذن مش في التحليل.
      */
-    fun sendTestNotification(context: Context) {
+    fun sendTestNotification(context: Context, titleText: String, bodyText: String) {
         val builder = androidx.core.app.NotificationCompat.Builder(
             context, "zad_test_channel"
         )
             .setSmallIcon(android.R.drawable.ic_menu_manage)
-            .setContentTitle("اختبار زاد — عملية تجريبية")
-            .setContentText("تم خصم 123.45 جنيه من حسابك — اختبار رصد")
-            .setAutoCancel(true)
-            .addPerson("test:zad-diagnostic")
+            .setContentTitle(titleText)
+            .setContentText(bodyText)
+            // marker مستقل عن اللغة — UnifiedBankListener بيكشفه من person بدل النص،
+            // فالكشف بيشتغل مهما كانت لغة التطبيق.
+            .addPerson(TEST_MARKER_PERSON)
 
         val mgr = NotificationManagerCompat.from(context)
         if (androidx.core.content.ContextCompat.checkSelfPermission(

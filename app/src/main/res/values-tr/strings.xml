@@ -1410,4 +1410,6 @@
     <string name="deals_pharmacies">Eczaneler</string>
     <string name="loading">Yükleniyor…</string>
     <string name="splash_privacy">Verilerinizin gizliliği her zaman önceliklidir</string>
+    <string name="test_notification_title">Zad testi — örnek işlem</string>
+    <string name="test_notification_body">Hesabınızdan 123,45 EGP ödeme yapıldı — dinleyici testi</string>
 </resources>

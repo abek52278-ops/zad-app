@@ -1376,4 +1376,6 @@
     <string name="deals_pharmacies">صيدليات</string>
     <string name="loading">جارٍ التحميل…</string>
     <string name="splash_privacy">خصوصية بياناتك أولوية، دائماً</string>
+    <string name="test_notification_title">اختبار زاد — عملية تجريبية</string>
+    <string name="test_notification_body">تم خصم 123.45 جنيه من حسابك — اختبار رصد</string>
 </resources>

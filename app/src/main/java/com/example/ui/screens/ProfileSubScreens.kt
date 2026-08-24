@@ -675,12 +675,16 @@ fun BankReadingStatusSection() {
         var diagResult by remember { mutableStateOf(BankReadingStatus.diagnose(context)) }
         Button(
             onClick = {
-                BankReadingStatus.sendTestNotification(context)
+                BankReadingStatus.sendTestNotification(
+                    context,
+                    context.getString(R.string.test_notification_title),
+                    context.getString(R.string.test_notification_body),
+                )
                 diagResult = BankReadingStatus.diagnose(context)
             },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text(stringResource(R.string.test_bank_parser_button) + " — إشعار حقيقي")
+            Text(stringResource(R.string.test_bank_parser_button) + " — " + stringResource(R.string.test_notification_title))
         }
         Text(
             diagResult,

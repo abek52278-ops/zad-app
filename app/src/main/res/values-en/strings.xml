@@ -1413,4 +1413,6 @@
     <string name="deals_pharmacies">Pharmacies</string>
     <string name="loading">Loading…</string>
     <string name="splash_privacy">Your data privacy comes first, always</string>
+    <string name="test_notification_title">Zad test — sample transaction</string>
+    <string name="test_notification_body">A payment of 123.45 EGP was made from your account — listener test</string>
 </resources>

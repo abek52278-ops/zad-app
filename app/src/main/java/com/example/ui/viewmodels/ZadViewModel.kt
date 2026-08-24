@@ -1547,8 +1547,15 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun executeAppCommands(commands: List<com.example.data.ZadAiRepository.AgentAppCommand>) {
-        // أمر واحد بس في المرة — فتح شاشتين ورا بعض بيشتت. آخر أمر هو الأحدث.
-        _pendingAppCommand.value = commands.last()
+        // أمر واحد بس في المرة — فتح شاشتين ورا بعض بيشتت. بنأخذ **الأول** مش الأخير:
+        // ترتيب استدعاءات الموديل بيتبع ترتيب جملته، فأول أمر هو اللي قصده الفعلي،
+        // والباقي غالباً تكرار من الموديل — بيتسجل في log تحليلي بدل ما ينفذ.
+        val chosen = commands.first()
+        if (commands.size > 1) {
+            Log.w("ZadViewModel", "agent sent ${commands.size} app_commands, executing first only: " +
+                commands.joinToString { "${it.screen}/${it.action}" })
+        }
+        _pendingAppCommand.value = chosen
     }
 
     /**

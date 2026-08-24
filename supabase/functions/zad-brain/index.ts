@@ -2220,6 +2220,16 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
     case "home_health_score": {
       // درجة صحة البيت 0-100 — deterministic من 4 محاور: مالية/مخزون/صيدلية/التزامات.
       // الهدف: العميل يشوف "بيته صح قد إيه" كرقم واحد، والعقل يشرح أكبر نقطة ضعف.
+      // مصدر الحقول: snap.obligations جاي من zad_budget_state.committed_items (RPC)
+      // — شكله { title, amount, kind, next_due }. لو الـ RPC غيّر shape، الـ guard
+      // تحت يخلي الدرجة ترجع unknown بدل 100 كاذبة بصمت.
+      const obligations = Array.isArray(snap?.obligations) ? snap.obligations as any[] : null;
+      if (obligations === null) {
+        return JSON.stringify({
+          score: null, grade: "مجهول", issues: [],
+          message: "مش قادر أحسب درجة البيت دلوقتي — بيانات الميزانية ناقصة. جرب تاني بعدين.",
+        });
+      }
       let score = 100;
       const issues: string[] = [];
       // المالية: متاح سالب أو قريب من الصفر = أخطر
@@ -2235,7 +2245,8 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       const medsLow = (snap?.upcoming ?? []).filter((u: any) => u.type === "medication_low").length;
       if (medsLow >= 1) { score -= 15; issues.push(`${medsLow} أدوية قربت تخلص`); }
       // التزامات متأخرة
-      const overdue = ((snap?.obligations ?? []) as any[]).filter((o) => o.next_due && new Date(o.next_due) < new Date()).length;
+      const nowMs = Date.now();
+      const overdue = obligations.filter((o) => o.next_due && new Date(o.next_due).getTime() < nowMs).length;
       if (overdue >= 1) { score -= 10 * Math.min(overdue, 3); issues.push(`${overdue} التزامات متأخرة`); }
       const grade = score >= 85 ? "ممتاز" : score >= 65 ? "كويس" : score >= 45 ? "محتاج انتباه" : "خطر";
       return JSON.stringify({

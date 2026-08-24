@@ -732,9 +732,26 @@ export async function callModelStreaming(opts: {
 // ============================================================
 // الذاكرة الدلالية — توليد embeddings (نفس pool مفاتيح Gemini)
 // fail-open: أي فشل يرجّع null والكتابة تكمل من غير embedding.
+//
+// Circuit breaker: لو الـ pool كله فشل 3 مرات متتالية، بنقفل التوليد لمدة
+// 5 دقايق — عشان رسالة كل عميل ماتدفعش latency محاولات فاشلة مؤكدة (quota
+// خلص مثلاً). بعد المهلة بنجرب تاني (half-open).
 // ============================================================
+const EMBED_BREAKER_THRESHOLD = 3;
+const EMBED_BREAKER_COOLDOWN_MS = 5 * 60_000;
+let embedConsecutiveFailures = 0;
+let embedBreakerOpenUntil = 0;
+
+export function embedBreakerState(): { open: boolean; failures: number } {
+  return {
+    open: Date.now() < embedBreakerOpenUntil,
+    failures: embedConsecutiveFailures,
+  };
+}
+
 export async function embedText(text: string): Promise<number[] | null> {
   if (!text.trim() || GEMINI_KEY_POOL.length === 0) return null;
+  if (Date.now() < embedBreakerOpenUntil) return null; // دائرة مقفولة — متحرقش وقت
   const start = nextGeminiKeyIndex();
   for (let i = 0; i < GEMINI_KEY_POOL.length; i++) {
     const keyIndex = (start + i) % GEMINI_KEY_POOL.length;
@@ -751,10 +768,20 @@ export async function embedText(text: string): Promise<number[] | null> {
       if (!res.ok) continue;
       const data = await res.json();
       const values = data?.embedding?.values;
-      return Array.isArray(values) && values.length > 0 ? values : null;
+      if (Array.isArray(values) && values.length > 0) {
+        embedConsecutiveFailures = 0; // نجاح → نفتح الدايرة تاني
+        embedBreakerOpenUntil = 0;
+        return values;
+      }
     } catch {
       continue;
     }
+  }
+  // الـ pool كله فشل في المحاولة دي
+  embedConsecutiveFailures++;
+  if (embedConsecutiveFailures >= EMBED_BREAKER_THRESHOLD) {
+    embedBreakerOpenUntil = Date.now() + EMBED_BREAKER_COOLDOWN_MS;
+    console.warn("embedText breaker OPEN for", EMBED_BREAKER_COOLDOWN_MS / 1000, "s after", embedConsecutiveFailures, "full-pool failures");
   }
   return null;
 }
