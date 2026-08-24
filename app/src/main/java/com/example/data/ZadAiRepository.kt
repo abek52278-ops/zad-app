@@ -727,14 +727,13 @@ object ZadAiRepository {
         val specialist: String? = null
     )
 
-    companion object {
-        /** الشاشات المسموح للعقل يفتحها — نفس قايمة validators.ts بالظبط (حارس مزدوج). */
-        private val ALLOWED_APP_SCREENS = setOf(
-            "inventory", "shopping", "pharmacy", "budget", "tasks", "family",
-            "maintenance", "subscriptions", "debts", "obligations", "insights",
-        )
-        private val ALLOWED_APP_ACTIONS = setOf("open", "add_item", "highlight")
-    }
+    // قايمة الشاشات المسموح للعقل يفتحها — نفس قايمة validators.ts بالظبط (حارس مزدوج).
+    // في object مستوى أعلى فمش محتاج companion.
+    private val ALLOWED_APP_SCREENS = setOf(
+        "inventory", "shopping", "pharmacy", "budget", "tasks", "family",
+        "maintenance", "subscriptions", "debts", "obligations", "insights",
+    )
+    private val ALLOWED_APP_ACTIONS = setOf("open", "add_item", "highlight")
 
     /**
      * لفة محادثة كاملة. بترجع null لو النداء نفسه فشل، عشان الكولر يقدر يقع على مسار
