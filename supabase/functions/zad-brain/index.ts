@@ -2020,6 +2020,25 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       return `اتنفّذ أمر التطبيق: ${input.action} على شاشة ${input.screen}` +
         (cmd.highlight_name ? ` (${cmd.highlight_name})` : "");
     }
+    case "learn_skill": {
+      // كتابة في zad_skills عبر الـ RPC — upsert بالمفتاح: موجودة تتقوّى بدل ما تتكرر.
+      const { data: outcome, error } = await sb.rpc("zad_skill_upsert", {
+        p_user: userId,
+        p_key: String(input.skill_key),
+        p_note: String(input.note).trim(),
+        p_conf: 0.6,
+      });
+      if (error) return `مرفوض: فشل حفظ المهارة — ${error.message}`;
+      ctx.mutationCount++;
+      ctx.mutations.push({ tool: name, old: null, new: { skill_key: input.skill_key, note: input.note } });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "zad_skills", targetId: null,
+        previous: null, next: { skill_key: input.skill_key },
+      });
+      return outcome === "strengthened"
+        ? "قوّيت مهارة موجودة بدل ما أكررها"
+        : "اتعلمت مهارة جديدة — هتفضل معايا في المحادثات الجاية";
+    }
     case "schedule_task": {
       const w = await writeRows(
         sb.from("agent_tasks").insert({
@@ -2959,6 +2978,26 @@ const CHAT_TOOLS: ToolDef[] = [
       "اقتراح ميزانية الشهر الجاي محسوبة من متوسط صرف آخر ٣ شهور + الالتزامات الثابتة (مش رقم من خيالك). "
       + "نادِها آخر الشهر أو لما العميل يفكر في ميزانية الشهر الجاي. دي اقتراح — العميل هو اللي يأكد.",
     input_schema: { type: "object", properties: {} },
+  },
+  {
+    // العقل يعلّم نفسه — إجراء نجح مرتين+ بيتسجل كمهارة دائمة في zad_skills.
+    name: "learn_skill",
+    description:
+      "سجّل إجراء اكتشفت إنه ناجح مع هذا العميل (مثال: أسلوب تذكير قصير بيرد أسرع من الطويل). "
+      + "نادِها لما تلاحظ نمط نجاح متكرر — مش لأي معلومة عن العميل (دي شغلانة remember). "
+      + "المهارة هتفضل معاك في كل المحادثات الجاية.",
+    input_schema: {
+      type: "object",
+      properties: {
+        skill_key: {
+          type: "string",
+          enum: ["reminder_style", "budget_talk", "shopping_nudge", "med_tone", "meal_suggest", "digest_style", "confirm_flow", "general_pattern"],
+          description: "أقرب تصنيف للإجراء",
+        },
+        note: { type: "string", description: "وصف الإجراء في جملة واحدة (١٠-٢٠٠ حرف) — إجراء مش حقيقة" },
+      },
+      required: ["skill_key", "note"],
+    },
   },
   {
     name: "forward_ledger",

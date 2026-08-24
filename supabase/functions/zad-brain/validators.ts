@@ -566,6 +566,31 @@ export const validateAppCommand: Validator = (input, _snap, ctx) => {
   return { ok: true };
 };
 
+// ═══════════════════════════════════════════════════════════
+// learn_skill — العقل يعلّم نفسه إجراء نجح مع العميل مرتين+.
+// skill_key من قايمة مغلقة عشان ميخترعش مفاتيح عشوائية تضيع في الجدول.
+// ═══════════════════════════════════════════════════════════
+export const SKILL_KEYS = [
+  "reminder_style", "budget_talk", "shopping_nudge", "med_tone",
+  "meal_suggest", "digest_style", "confirm_flow", "general_pattern",
+] as const;
+
+export const validateLearnSkill: Validator = (input, _snap, ctx) => {
+  if ((ctx.counts["learn_skill"] ?? 0) >= 2) return { ok: false, reason: "اتعلمت مهارتين خلاص في المرة" };
+  if (!(SKILL_KEYS as readonly string[]).includes(String(input.skill_key ?? ""))) {
+    return { ok: false, reason: `skill_key لازم يكون واحد من: ${SKILL_KEYS.join(", ")}` };
+  }
+  const note = String(input.note ?? "").trim();
+  // نفس حدود remember: جملة واحدة واضحة
+  if (note.length < 10) return { ok: false, reason: "المهارة قصيرة أوي — صِف الإجراء بالظبط" };
+  if (note.length > 200) return { ok: false, reason: "طويلة أوي، لخّصها في جملة" };
+  // المهارة إجراء مش حقيقة عن العميل
+  if (/^(العميل|هو|هي)\s+(بيحب|مش بيحب|عنده|معنده)/.test(note)) {
+    return { ok: false, reason: "دي حقيقة عن العميل مش مهارة — استخدم remember بدلها" };
+  }
+  return { ok: true };
+};
+
 export const validateLogPharmacyDose: Validator = (input, _snap, ctx) => {
   if ((ctx.counts["log_pharmacy_dose"] ?? 0) >= 5) return { ok: false, reason: "وصلت لحد أقصى ٥ جرعات في المرة" };
   if (String(input.name ?? "").trim().length < 2) return { ok: false, reason: "اسم الدواء قصير أوي" };
@@ -696,6 +721,7 @@ export const VALIDATORS: Record<string, Validator> = {
   delete_maintenance_item: validateDeleteMaintenanceItem,
   update_emergency_fund_balance: validateUpdateEmergencyFundBalance,
   app_command: validateAppCommand,
+  learn_skill: validateLearnSkill,
 };
 
 /**
@@ -720,6 +746,8 @@ export const MUTATING_TOOLS = [
   "update_emergency_fund_balance",
   // أمر واجهة — قراءة/تنقّل بس، مش كتابة بيانات. مش في CONFIRM_REQUIRED أبداً.
   "app_command",
+  // العقل بيتعلم — كتابة في zad_skills بس (مش بيانات عميل).
+  "learn_skill",
 ];
 
 /**

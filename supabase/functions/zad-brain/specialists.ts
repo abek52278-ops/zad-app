@@ -203,7 +203,7 @@ export function scopeToolsForSpecialist<T extends { name: string }>(
     // الأدوات العابرة للنطاقات — متاحة دايمًا
     "remember", "link_memory", "web_search", "set_market", "set_transaction_category",
     "update_emergency_fund_balance", "add_maintenance_item", "update_maintenance_item",
-    "delete_maintenance_item",
+    "delete_maintenance_item", "app_command", "learn_skill", "home_health_score",
   ]);
   return tools.filter((t) => allowed.has(t.name));
 }

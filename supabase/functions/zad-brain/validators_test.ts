@@ -54,6 +54,7 @@ import {
   validateDeleteMaintenanceItem,
   validateUpdateEmergencyFundBalance,
   validateAppCommand,
+  validateLearnSkill,
 } from "./validators.ts";
 import { callModelWithRetry } from "./retry.ts";
 import { decideOnBrainFailure, hasRecentMutatingRun } from "./shared.ts";
@@ -1079,4 +1080,25 @@ Deno.test("app_command بيرفض أي شاشة أو فعل بره القايم�
 Deno.test("app_command مسجّلة في VALIDATORS ومش في CONFIRM_REQUIRED (مش فلوس)", () => {
   assertEquals(typeof VALIDATORS["app_command"], "function");
   assertEquals(CONFIRM_REQUIRED_TOOLS.includes("app_command"), false);
+});
+
+// === learn_skill — العقل يعلّم نفسه ===
+Deno.test("learn_skill بيقبل مهارة سليمة بمفتاح من القايمة", async () => {
+  const v = await validateLearnSkill(
+    { skill_key: "reminder_style", note: "التذكير القصير بيرد أسرع من الطويل مع العميل ده" },
+    {}, freshContext("u"),
+  );
+  assertEquals(v.ok, true);
+});
+
+Deno.test("learn_skill بيرفض مفتاح مخترع وحقيقة عميل", async () => {
+  const ctx = freshContext("u");
+  assertEquals((await validateLearnSkill({ skill_key: "my_custom_key", note: "إجراء ما" }, {}, ctx)).ok, false);
+  assertEquals((await validateLearnSkill({ skill_key: "budget_talk", note: "العميل بيحب الرسائل القصيرة" }, {}, ctx)).ok, false);
+});
+
+Deno.test("learn_skill بتحافظ على حدود remember (طول الملاحظة)", async () => {
+  const ctx = freshContext("u");
+  assertEquals((await validateLearnSkill({ skill_key: "med_tone", note: "قصيرة" }, {}, ctx)).ok, false);
+  assertEquals((await validateLearnSkill({ skill_key: "med_tone", note: "ا".repeat(201) }, {}, ctx)).ok, false);
 });
