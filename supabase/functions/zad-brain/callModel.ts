@@ -728,3 +728,33 @@ export async function callModelStreaming(opts: {
   }
   throw new ProviderUnavailableError("all models failed for streaming", "unavailable");
 }
+
+// ============================================================
+// الذاكرة الدلالية — توليد embeddings (نفس pool مفاتيح Gemini)
+// fail-open: أي فشل يرجّع null والكتابة تكمل من غير embedding.
+// ============================================================
+export async function embedText(text: string): Promise<number[] | null> {
+  if (!text.trim() || GEMINI_KEY_POOL.length === 0) return null;
+  const start = nextGeminiKeyIndex();
+  for (let i = 0; i < GEMINI_KEY_POOL.length; i++) {
+    const keyIndex = (start + i) % GEMINI_KEY_POOL.length;
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${encodeURIComponent(GEMINI_KEY_POOL[keyIndex])}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          signal: AbortSignal.timeout(10_000),
+          body: JSON.stringify({ model: "models/text-embedding-004", content: { parts: [{ text }] } }),
+        },
+      );
+      if (!res.ok) continue;
+      const data = await res.json();
+      const values = data?.embedding?.values;
+      return Array.isArray(values) && values.length > 0 ? values : null;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}

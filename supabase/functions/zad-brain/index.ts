@@ -55,7 +55,7 @@
 
 import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { CONFIRM_REQUIRED_TOOLS, freshContext, looksLikeAnsweredQuestion, RunContext, validateTool } from "./validators.ts";
-import { callModel, smokeTestTools, Turn, ToolDef } from "./callModel.ts";
+import { callModel, embedText, smokeTestTools, Turn, ToolDef } from "./callModel.ts";
 import { decideOnBrainFailure, hasRecentMutatingRun, normalizeDoseTimes } from "./shared.ts";
 import { type FastIntent, formatBalanceReply, parseFastPath } from "./fastPath.ts";
 import { AgentSource, AuditScope, recordAction, writeRows } from "./audit.ts";
@@ -1031,6 +1031,15 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
         p_user: userId, p_scope: scope, p_note: input.note, p_conf: input.confidence ?? 0.5,
       });
       if (error) return `فشل الحفظ: ${error.message}`;
+
+      // الذاكرة الدلالية — نولّد embedding للملاحظة الجديدة. fail-open: فشل التوليد
+      // مالوش أي تأثير على نجاح الحفظ نفسه.
+      try {
+        const vec = await embedText(input.note);
+        if (vec) await sb.rpc("zad_memory_set_embedding", { p_user: userId, p_note: input.note, p_vec: vec });
+      } catch (e) {
+        console.warn("memory embedding skipped:", e);
+      }
 
       // zad_memory_upsert used to read a contradiction as agreement: a near-identical note
       // with the negation flipped cleared the 0.6 merge threshold, overwrote the stored
@@ -3406,7 +3415,29 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
   // استرجاع ذاكرة مرتبط بالرسالة الحالية: بدل ترتيب الثقة الثابت، الملاحظات اللي
   // فيها كلمات من رسالة العميل بتتقدم — «فاتك إني مش باكل تونة؟» بيرجّع ملاحظة
   // التونة حتى لو ثقتها أقل من ملاحظات تانية.
-  const relevantMemory = rankMemoryForMessage(snap.memory ?? [], message);
+  // طبقة دلالية فوقها: لو الرسائل اتولد لها embedding والملاحظات عندها embeddings،
+  // التشابه بالمعنى بيرتّب من جديد (يلتقط "قهوتنا الصبح" لرسالة "مش بشرب قهوة").
+  let relevantMemory = rankMemoryForMessage(snap.memory ?? [], message);
+  try {
+    const queryVec = await embedText(message);
+    if (queryVec) {
+      const { data: sem } = await sb.rpc("zad_memory_semantic_search", {
+        p_user: userId, p_query_embedding: queryVec, p_limit: 8,
+      });
+      const semanticRows = (sem ?? []) as Array<{ id: string; similarity: number }>;
+      if (semanticRows.length > 0) {
+        const semOrder = new Map(semanticRows.map((r, i) => [r.id, i]));
+        const semHit = new Set(semOrder.keys());
+        // الملاحظات الدلالية القريبة تتقدم (مرتبة بالتشابه)، والباقي keyword-order بعدها
+        const semanticFirst = relevantMemory.filter((m) => semHit.has(m.id))
+          .sort((a, b) => (semOrder.get(a.id) ?? 99) - (semOrder.get(b.id) ?? 99));
+        const rest = relevantMemory.filter((m) => !semHit.has(m.id));
+        relevantMemory = [...semanticFirst, ...rest].slice(0, 12);
+      }
+    }
+  } catch (e) {
+    console.warn("semantic memory search skipped:", e);
+  }
   // حلقة التعلم: دروس من انحرافات الوكيل السابقة مع نفس العميل
   const driftLessons = await buildDriftLessons(sb, userId);
   const lessonsBlock = driftLessons.length > 0
