@@ -69,6 +69,8 @@ import kotlinx.coroutines.delay
 @Composable
 fun ZadCardHero(
     balance: com.example.data.Figure,
+    spentThisMonth: Double? = null,
+    committedAmount: Double? = null,
     onBalanceLongPress: () -> Unit = {},
     onOpenDetail: () -> Unit = {}
 ) {
@@ -174,6 +176,29 @@ fun ZadCardHero(
                         text = { Text(balance.reason!!) }
                     )
                 }
+
+                // البروتوتايب: حبتان زجاجيتان داخل الكارت الأخضر — «مصروف» بنقطة كهرمانية
+                // و«محجوز للالتزامات» بنقطة مرجانية. أرقام حية من المعاملات والالتزامات،
+                // والحبة تختفي لو الرقم مش موجود (مفيش بيانات = مفيش ديكور).
+                if (spentThisMonth != null || committedAmount != null) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        spentThisMonth?.let { spent ->
+                            HeroGlassPill(
+                                dotColor = Color(0xFFF4A93B),
+                                label = stringResource(R.string.spent_label),
+                                amount = com.example.data.CurrencyFormatter.format(currencyContext, spent)
+                            )
+                        }
+                        committedAmount?.let { committed ->
+                            HeroGlassPill(
+                                dotColor = Color(0xFFFF8066),
+                                label = stringResource(R.string.committed_label),
+                                amount = com.example.data.CurrencyFormatter.format(currencyContext, committed)
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -236,6 +261,36 @@ fun BudgetSetupPromptCard(onSetBudget: () -> Unit) {
             }
         }
         }
+    }
+}
+
+/**
+ * حبة زجاجية داخل الكارت الأخضر — نفس شكل البروتوتايب: خلفية بيضاء 14% + blur،
+ * حدود بيضاء 14%، نقطة ملونة متوهجة، ونص 12.5sp أبيض.
+ */
+@Composable
+private fun HeroGlassPill(dotColor: Color, label: String, amount: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .zadGlassBlur(10.dp)
+            .background(Color.White.copy(alpha = 0.14f), RoundedCornerShape(999.dp))
+            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(999.dp))
+            .padding(horizontal = 13.dp, vertical = 7.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(7.dp)
+                .shadow(elevation = 6.dp, shape = CircleShape, spotColor = dotColor)
+                .background(dotColor, CircleShape)
+        )
+        Spacer(modifier = Modifier.width(7.dp))
+        Text(
+            "$label: $amount",
+            style = Typography.labelMedium.copy(fontSize = 12.5.sp),
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White
+        )
     }
 }
 

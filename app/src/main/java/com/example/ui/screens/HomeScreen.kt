@@ -383,6 +383,8 @@ fun HomeScreen(
                     com.example.ui.components.AppearOnEntry {
                         com.example.ui.components.ZadCardHero(
                             balance = balanceFigureValue,
+                            spentThisMonth = com.example.data.BudgetMath.spentThisMonth(visibleTransactions),
+                            committedAmount = committed,
                             onBalanceLongPress = { showWhySheet = true },
                             onOpenDetail = { viewModel.showBudgetDialog() }
                         )
@@ -449,10 +451,26 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
                 com.example.ui.components.AppearOnEntry(delayMs = 65) {
+                    // البروتوتايب: شبكة الـ6 اختصارات ظاهرة دايماً بعد صف الأيام —
+                    // كانت مخفية ورا زرار "أدوات إضافية" فالمستخدم مش بيكتشفها.
                     StitchQuickActionGrid(
                         onVoiceShopping = onOpenVoice,
                         onScanReceipt = onNavigateToCamera,
                         onAddToInventory = onNavigateToInventory
+                    )
+                }
+                Spacer(modifier = Modifier.height(18.dp))
+
+                com.example.ui.components.AppearOnEntry(delayMs = 68) {
+                    com.example.ui.components.ZadPageShortcutsGrid(
+                        items = listOf(
+                            com.example.ui.components.ZadShortcutItem(Icons.Default.Inventory2, stringResource(R.string.nav_inventory), primary, onNavigateToInventory),
+                            com.example.ui.components.ZadShortcutItem(Icons.Default.ShoppingCart, stringResource(R.string.nav_shopping), catDailyIcon, onNavigateToShopping),
+                            com.example.ui.components.ZadShortcutItem(Icons.Default.FamilyRestroom, stringResource(R.string.nav_family), kidsPrimary, onNavigateToFamily),
+                            com.example.ui.components.ZadShortcutItem(Icons.Default.Subscriptions, stringResource(R.string.quick_stat_subscriptions_title), tertiary, onNavigateToSubscriptions),
+                            com.example.ui.components.ZadShortcutItem(Icons.Default.LocalPharmacy, stringResource(R.string.nav_pharmacy), dangerColor, onNavigateToPharmacy),
+                            com.example.ui.components.ZadShortcutItem(Icons.Default.Park, stringResource(R.string.tasbiha_short_label), secondaryDark, onNavigateToTasbiha),
+                        ),
                     )
                 }
                 Spacer(modifier = Modifier.height(18.dp))
@@ -488,17 +506,6 @@ fun HomeScreen(
                         ZadProHighlightWidget(onNavigateToPlans = onNavigateToPlans)
                         Spacer(modifier = Modifier.height(18.dp))
                         ZadAdEnergyWidget()
-                        Spacer(modifier = Modifier.height(18.dp))
-                        com.example.ui.components.ZadPageShortcutsGrid(
-                            items = listOf(
-                                com.example.ui.components.ZadShortcutItem(Icons.Default.Inventory2, stringResource(R.string.nav_inventory), primary, onNavigateToInventory),
-                                com.example.ui.components.ZadShortcutItem(Icons.Default.ShoppingCart, stringResource(R.string.nav_shopping), catDailyIcon, onNavigateToShopping),
-                                com.example.ui.components.ZadShortcutItem(Icons.Default.FamilyRestroom, stringResource(R.string.nav_family), kidsPrimary, onNavigateToFamily),
-                                com.example.ui.components.ZadShortcutItem(Icons.Default.Subscriptions, stringResource(R.string.quick_stat_subscriptions_title), tertiary, onNavigateToSubscriptions),
-                                com.example.ui.components.ZadShortcutItem(Icons.Default.LocalPharmacy, stringResource(R.string.nav_pharmacy), dangerColor, onNavigateToPharmacy),
-                                com.example.ui.components.ZadShortcutItem(Icons.Default.Park, stringResource(R.string.tasbiha_short_label), secondaryDark, onNavigateToTasbiha),
-                            ),
-                        )
                         Spacer(modifier = Modifier.height(18.dp))
                         com.example.ui.components.TelegramBotCard(onClick = { showTelegramSheet = true })
                         Spacer(modifier = Modifier.height(18.dp))
