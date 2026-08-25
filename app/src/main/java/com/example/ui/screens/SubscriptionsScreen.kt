@@ -334,8 +334,17 @@ internal fun SubScreenSubscriptionCardFull(
     // باقي كروت الـ glass family. برند الخدمة (لو معروف) بيرجع أيقونة عائمة ملوّنة —
     // ده بالظبط اللي كان مبرر شيل الأيقونة قبل كده ("بتتكرر ومتفرقش")، دلوقتي الأيقونة
     // بتختلف فعلياً حسب الخدمة فرجعت لها لازمة.
-    val subCardShape = RoundedCornerShape(24.dp)
+    // ── صف الاشتراك بستايل المرجع (renderSubs): شريط لون جانبي 3px حسب إلحاح
+    // التجديد، الاسم + سطر التجديد رمادي، والسعر bold على اليمين. أزرار التحكم
+    // (إيقاف/حذف) بقت أيقونات رمادية هادية بدل تلات أزرار ملونة صارخة.
+    val subCardShape = RoundedCornerShape(16.dp)
     val brand = subscriptionBrandFor(sub.title, sub.provider)
+    val accent = when {
+        !sub.isActive -> outlineVariant
+        daysLeft != null && daysLeft <= 3 -> dangerColor
+        daysLeft != null && daysLeft <= 7 -> ZadV2.warn
+        else -> primary
+    }
     ZadListCard(
         modifier = Modifier.pressableScale(),
         shape = subCardShape,
@@ -343,82 +352,75 @@ internal fun SubScreenSubscriptionCardFull(
         contentPadding = 0.dp
     ) {
         Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-            // مؤشر لوني بحسب إلحاحية التجديد — نفس لغة التصميم اللي استخدمناها في مؤشر مخزون InventoryScreen
             Box(
                 modifier = Modifier
-                    .width(4.dp)
+                    .width(3.dp)
                     .fillMaxHeight()
-                    .background(if (sub.isActive) daysColor else outlineVariant)
+                    .background(accent)
             )
-            Row(modifier = Modifier.padding(16.dp).weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp).weight(1f), verticalAlignment = Alignment.CenterVertically) {
             if (brand != null) {
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
-                        .shadow(elevation = 5.dp, shape = CircleShape, spotColor = brand.color.copy(alpha = 0.5f))
+                        .size(38.dp)
+                        .shadow(elevation = 4.dp, shape = CircleShape, spotColor = brand.color.copy(alpha = 0.4f))
                         .clip(CircleShape)
-                        .background(brand.color.copy(alpha = if (sub.isActive) 0.14f else 0.06f)),
+                        .background(brand.color.copy(alpha = if (sub.isActive) 0.12f else 0.06f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(brand.icon, contentDescription = null, tint = brand.color.copy(alpha = if (sub.isActive) 1f else 0.5f), modifier = Modifier.size(20.dp))
+                    Icon(brand.icon, contentDescription = null, tint = brand.color.copy(alpha = if (sub.isActive) 1f else 0.5f), modifier = Modifier.size(18.dp))
                 }
                 Spacer(modifier = Modifier.width(12.dp))
             }
-            Column(modifier = Modifier.weight(1f)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(sub.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                    color = if (sub.isActive) textPrimary else onSurfaceVariant)
+                Text(
+                    when {
+                        daysLeft == null -> sub.provider ?: ""
+                        daysLeft == 0 -> stringResource(R.string.renews_today)
+                        daysLeft < 0 -> stringResource(R.string.expired_days_ago, -daysLeft)
+                        else -> stringResource(R.string.renews_in_days, daysLeft)
+                    },
+                    fontSize = 11.5.sp, color = textTertiary
+                )
+            }
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(com.example.data.CurrencyFormatter.format(context, sub.amount),
+                    fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                    color = if (sub.isActive) textPrimary else onSurfaceVariant)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(sub.title, style = Typography.titleMedium, fontWeight = FontWeight.Bold,
-                        color = if (sub.isActive) onSurface else onSurfaceVariant)
-                    if (!sub.isActive) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Box(modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(outlineVariant).padding(horizontal = 6.dp, vertical = 2.dp)) {
-                            Text(stringResource(R.string.cancelled_badge), style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
-                        }
-                    }
-                }
-                if (daysLeft != null) {
-                    Text(
-                        when {
-                            daysLeft == 0 -> stringResource(R.string.renews_today)
-                            daysLeft < 0 -> stringResource(R.string.expired_days_ago, -daysLeft)
-                            else -> stringResource(R.string.renews_in_days, daysLeft)
-                        },
-                        style = Typography.labelSmall, color = daysColor, fontWeight = FontWeight.SemiBold
+                    Icon(
+                        Icons.Default.Bolt,
+                        contentDescription = stringResource(R.string.auto_deduct_toggle_action),
+                        tint = if (sub.autoDeduct) primary else outline,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .clickable { onToggleAutoDeduct() }
+                            .padding(4.dp)
+                            .size(16.dp)
+                    )
+                    Icon(
+                        if (sub.isActive) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
+                        contentDescription = if (sub.isActive) stringResource(R.string.disable) else stringResource(R.string.enable),
+                        tint = textTertiary,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .clickable { onToggleActive() }
+                            .padding(4.dp)
+                            .size(16.dp)
+                    )
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.delete_action),
+                        tint = textTertiary,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .clickable { onDelete() }
+                            .padding(4.dp)
+                            .size(16.dp)
                     )
                 }
-                if (sub.provider != null) {
-                    Text(sub.provider, style = Typography.labelSmall, color = onSurfaceVariant)
-                }
-                if (sub.autoDeduct) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Bolt, contentDescription = null, tint = primary, modifier = Modifier.size(12.dp))
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text(stringResource(R.string.auto_deduct_badge), style = Typography.labelSmall, color = primary, fontSize = 10.sp)
-                    }
-                }
-            }
-            Text(com.example.data.CurrencyFormatter.format(context, sub.amount),
-                style = Typography.titleMedium, fontWeight = FontWeight.Bold,
-                color = if (sub.isActive) onSurface else onSurfaceVariant)
-            Spacer(modifier = Modifier.width(4.dp))
-            IconButton(onClick = onToggleAutoDeduct, modifier = Modifier.size(32.dp).pressableScale()) {
-                Icon(
-                    Icons.Default.Bolt,
-                    contentDescription = stringResource(R.string.auto_deduct_toggle_action),
-                    tint = if (sub.autoDeduct) primary else outline,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            IconButton(onClick = onToggleActive, modifier = Modifier.size(32.dp).pressableScale()) {
-                Icon(
-                    if (sub.isActive) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
-                    contentDescription = if (sub.isActive) stringResource(R.string.disable) else stringResource(R.string.enable),
-                    tint = if (sub.isActive) warningColor else successColor,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            IconButton(onClick = onDelete, modifier = Modifier.size(32.dp).pressableScale()) {
-                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_action), tint = dangerColor, modifier = Modifier.size(18.dp))
             }
             }
         }

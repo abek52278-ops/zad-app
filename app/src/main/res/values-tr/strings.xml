@@ -1414,4 +1414,5 @@
     <string name="test_notification_body">Hesabınızdan 123,45 EGP ödeme yapıldı — dinleyici testi</string>
     <string name="edit_balance_action">Bakiyeyi düzenle</string>
     <string name="category_breakdown_title">Kategoriye göre harcama</string>
+    <string name="warranty_expired_label">Garanti süresi doldu</string>
 </resources>

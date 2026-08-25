@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -188,62 +189,80 @@ private fun MaintenanceItemCard(
     // نفس كارت القائمة المشترك (ZadListCard) اللي باقي الشاشات بتستخدمه — بدل
     // Card + shadow يدوي بنصف قطر وارتفاع مختلفين في كل شاشة.
     val cardShape = RoundedCornerShape(16.dp)
+    // ── صف الصيانة بستايل المرجع (renderMaintenance): كارت أبيض 16dp، الاسم +
+    // سطر الضمان رمادي على الشمال، وchip الحالة الملون على اليمين. من غير
+    // الشريط الجانبي الملون ولا أيقونة الدايرة — المرجع بيشتغل بالكلمات والـ chip.
     ZadListCard(
         modifier = Modifier.pressableScale(),
         shape = cardShape,
         contentPadding = 0.dp
     ) {
-        Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-            Box(modifier = Modifier.width(4.dp).fillMaxHeight().background(statusColor))
-            Column(modifier = Modifier.padding(16.dp).weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(40.dp).clip(CircleShape).background(catTransportBg),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Default.Build, contentDescription = null, tint = catTransportIcon, modifier = Modifier.size(20.dp))
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(item.name, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                        Text(item.category, style = Typography.labelSmall, color = onSurfaceVariant)
-                    }
-                    IconButton(onClick = onDelete, modifier = Modifier.size(32.dp).pressableScale()) {
-                        Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete_action), tint = dangerColor, modifier = Modifier.size(18.dp))
-                    }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(item.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = textPrimary)
+                Text(
+                    when {
+                        daysUntilWarranty != null && daysUntilWarranty < 0 -> stringResource(R.string.warranty_expired_label)
+                        daysUntilWarranty != null -> stringResource(R.string.warranty_expires_in_days, daysUntilWarranty)
+                        else -> item.category
+                    },
+                    fontSize = 11.5.sp,
+                    color = textTertiary
+                )
+            }
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                val (pillBg, pillFg) = when {
+                    isOverdue -> dangerColor.copy(alpha = 0.12f) to dangerColor
+                    isDueSoon -> ZadV2.warn.copy(alpha = 0.10f) to ZadV2.warn
+                    else -> primary.copy(alpha = 0.06f) to primary
                 }
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (daysUntilService != null) {
-                        Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(statusColor.copy(alpha = 0.14f)).padding(horizontal = 8.dp, vertical = 3.dp)) {
-                            Text(
-                                when {
-                                    isOverdue -> stringResource(R.string.service_overdue_days, -daysUntilService)
-                                    else -> stringResource(R.string.service_due_in_days, daysUntilService)
-                                },
-                                style = Typography.labelSmall, color = statusColor, fontWeight = FontWeight.SemiBold, fontSize = 11.sp
-                            )
-                        }
-                    }
-                    if (daysUntilWarranty != null && daysUntilWarranty in 0..30) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(warningColor.copy(alpha = 0.14f)).padding(horizontal = 8.dp, vertical = 3.dp)) {
-                            Text(
-                                stringResource(R.string.warranty_expires_in_days, daysUntilWarranty),
-                                style = Typography.labelSmall, color = warningColor, fontSize = 11.sp
-                            )
-                        }
-                    }
+                Box(
+                    modifier = Modifier
+                        .clip(ZadV2.rPill)
+                        .background(pillBg)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        when {
+                            isOverdue -> stringResource(R.string.service_overdue_days, -(daysUntilService ?: 0))
+                            daysUntilService != null -> stringResource(R.string.service_due_in_days, daysUntilService)
+                            else -> stringResource(R.string.due_soon_label)
+                        },
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = pillFg
+                    )
                 }
-                if (item.serviceIntervalDays != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedButton(
-                        onClick = onMarkServiced,
-                        modifier = Modifier.height(30.dp).pressableScale(),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
-                    ) {
-                        Text(stringResource(R.string.mark_serviced_action), style = Typography.labelSmall)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (item.serviceIntervalDays != null) {
+                        Text(
+                            stringResource(R.string.mark_serviced_action),
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = primary,
+                            modifier = Modifier
+                                .clip(ZadV2.rPill)
+                                .clickable { onMarkServiced() }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
                     }
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.delete_action),
+                        tint = textTertiary,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .clickable { onDelete() }
+                            .padding(4.dp)
+                            .size(16.dp)
+                    )
                 }
             }
         }
