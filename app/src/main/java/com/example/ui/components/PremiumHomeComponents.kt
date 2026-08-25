@@ -120,11 +120,18 @@ fun ZadCardHero(
                         fontWeight = FontWeight.Bold,
                         color = Color.White.copy(alpha = 0.76f)
                     )
+                    // زر التعديل من مرجع "new ui ux" (الرندر): أيقونة قلم زجاجية أعلى
+                    // الكارت — بتفتح نفس تفاصيل الرصيد. الأيقونة كانت محفظة ديكورية؛
+                    // القلم بيقول "الرقم ده بتاعك — عدّله من هنا".
                     Icon(
-                        Icons.Filled.AccountBalanceWallet,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.6f),
-                        modifier = Modifier.size(18.dp)
+                        Icons.Filled.Edit,
+                        contentDescription = stringResource(R.string.edit_balance_action),
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .clickable { onOpenDetail() }
+                            .padding(4.dp)
+                            .size(16.dp)
                     )
                 }
 

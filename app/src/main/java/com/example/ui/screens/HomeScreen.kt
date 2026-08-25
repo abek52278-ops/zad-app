@@ -2106,73 +2106,129 @@ fun AiAlertBanner(title: String, description: String) {
     }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun AddTransactionDialog(
     onDismiss: () -> Unit,
     onSave: (Double, String, Boolean, String) -> Unit
 ) {
+    // ── Quick Expense Bottom Sheet (من مرجع "new ui ux" — الرندر) ──
+    // الرندر بيعرض الإضافة السريعة كـ bottom sheet مش dialog: عنوان + زر إغلاق،
+    // حقول Name/Query/Total بحقول رمادية فاتحة مدوّرة، وزرار Send أخضر غامق
+    // بعرض كامل تحت. نفس عقد onSave بالظبط — اتغير الشكل بس.
     var title by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
     var isExpense by remember { mutableStateOf(true) }
     var category by remember { mutableStateOf("عام") }
     val noDescriptionFallback = stringResource(R.string.no_description_fallback)
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text(if (isExpense) stringResource(R.string.add_expense_title) else stringResource(R.string.add_income_title), fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                // Type Toggle
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilterChip(
-                        selected = !isExpense,
-                        onClick = { isExpense = false },
-                        label = { Text(stringResource(R.string.income_deposit)) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = primary,
-                            selectedLabelColor = MaterialTheme.colorScheme.onSurface
-                        ),
-                        modifier = Modifier.weight(1f)
-                    )
-                    FilterChip(
-                        selected = isExpense,
-                        onClick = { isExpense = true },
-                        label = { Text(stringResource(R.string.expense_deduction)) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = dangerColor,
-                            selectedLabelColor = MaterialTheme.colorScheme.onSurface
-                        ),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { amount = it },
-                    label = { Text(stringResource(R.string.amount)) },
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
+        sheetState = sheetState,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 22.dp)
+                .padding(bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // العنوان + زر الإغلاق (الرندر: "Quick Expense" + X)
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    if (isExpense) stringResource(R.string.add_expense_title) else stringResource(R.string.add_income_title),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textPrimary,
+                    modifier = Modifier.align(Alignment.Center)
                 )
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text(stringResource(R.string.description_hint)) },
-                    modifier = Modifier.fillMaxWidth()
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = stringResource(R.string.cancel),
+                    tint = textTertiary,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .clip(CircleShape)
+                        .clickable { onDismiss() }
+                        .padding(4.dp)
+                        .size(20.dp)
                 )
-                if (isExpense) {
-                    OutlinedTextField(
-                        value = category,
-                        onValueChange = { category = it },
-                        label = { Text(stringResource(R.string.category_hint)) },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
             }
-        },
-        confirmButton = {
+
+            // نوع العملية — حببتين زي الفورم القديم، بس بألوان المرجع
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = isExpense,
+                    onClick = { isExpense = true },
+                    label = { Text(stringResource(R.string.expense_deduction)) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = ZadV2.green800,
+                        selectedLabelColor = Color.White
+                    ),
+                    modifier = Modifier.weight(1f)
+                )
+                FilterChip(
+                    selected = !isExpense,
+                    onClick = { isExpense = false },
+                    label = { Text(stringResource(R.string.income_deposit)) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = ZadV2.green800,
+                        selectedLabelColor = Color.White
+                    ),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            // الحقول — رمادية فاتحة مدوّرة زي الرندر (Name / Total / Query)
+            val fieldShape = RoundedCornerShape(14.dp)
+            val fieldBg = Color(0xFFF3F4F6)
+            OutlinedTextField(
+                value = title,
+                onValueChange = { title = it },
+                label = { Text(stringResource(R.string.description_hint)) },
+                shape = fieldShape,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = fieldBg,
+                    unfocusedContainerColor = fieldBg,
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = amount,
+                onValueChange = { amount = it },
+                label = { Text(stringResource(R.string.amount)) },
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                shape = fieldShape,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = fieldBg,
+                    unfocusedContainerColor = fieldBg,
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (isExpense) {
+                OutlinedTextField(
+                    value = category,
+                    onValueChange = { category = it },
+                    label = { Text(stringResource(R.string.category_hint)) },
+                    shape = fieldShape,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = fieldBg,
+                        unfocusedContainerColor = fieldBg,
+                        focusedBorderColor = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            // زرار Send الأخضر الغامق بعرض كامل (الرندر)
             Button(
                 onClick = {
                     val parsedAmount = amount.toDoubleOrNull() ?: 0.0
@@ -2181,19 +2237,18 @@ fun AddTransactionDialog(
                     Log.d(TAG_HOME, "AddTransactionDialog → confirm: amount=$parsedAmount, title=$finalTitle, isExpense=$isExpense, category=$finalCategory")
                     onSave(parsedAmount, finalTitle, isExpense, finalCategory)
                 },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isExpense) dangerColor else primary
-                )
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = ZadV2.green800),
+                modifier = Modifier.fillMaxWidth().height(52.dp).pressableScale()
             ) {
-                Text(if (isExpense) stringResource(R.string.deduct_amount) else stringResource(R.string.add_amount))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    if (isExpense) stringResource(R.string.deduct_amount) else stringResource(R.string.add_amount),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
-    )
+    }
 }
 
 data class MiniTableRow(val name: String, val detail: String, val color: Color)

@@ -1,0 +1,15 @@
+[
+  { ar:'تفاح', en:'Apples', cat:'fruit', days:6, low:false },
+  { ar:'موز', en:'Bananas', cat:'fruit', days:2, low:true },
+  { ar:'طماطم', en:'Tomatoes', cat:'veg', days:4, low:false },
+  { ar:'بروكلي', en:'Broccoli', cat:'veg', days:5, low:false },
+  { ar:'حليب', en:'Milk', cat:'dairy', days:1, low:true },
+  { ar:'جبنة', en:'Cheese', cat:'dairy', days:9, low:false },
+  { ar:'خبز', en:'Bread', cat:'bakery', days:2, low:true },
+  { ar:'كرواسون', en:'Croissants', cat:'bakery', days:3, low:false },
+  { ar:'مياه معدنية', en:'Mineral water', cat:'drinks', days:20, low:false },
+  { ar:'عصير برتقال', en:'Orange juice', cat:'drinks', days:4, low:false },
+  { ar:'شوكولاتة', en:'Chocolate', cat:'sweets', days:15, low:false },
+  { ar:'منظف أرضيات', en:'Floor cleaner', cat:'cleaning', days:18, low:false },
+  { ar:'صابون', en:'Soap', cat:'cleaning', days:5, low:false },
+]

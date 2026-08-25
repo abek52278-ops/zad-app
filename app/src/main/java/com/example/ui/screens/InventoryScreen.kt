@@ -696,48 +696,86 @@ private fun CategoryPills(
     selected: String,
     onSelect: (String) -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 6.dp, vertical = 2.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    // ── شبكة الأقسام المصوّرة (من مرجع "new ui ux" — IMG_20260703_231712.jpg) ──
+    // المرجع بيعرض الأقسام ككروت باستيل كبيرة في عمودين، كل كارت فيه صورة القسم
+    // والاسم تحتها — مش شريط حبوب صغير. بنستخدم إيموجي كبير بدل الصور الفوتوغرافية
+    // عشان تشتغل offline من غير أصول ثقيلة في الـ APK، وبنفس الباستيل بتاع المرجع.
+    val photoTiles = listOf(
+        CategoryTile("الخضار", "🧺", Color(0xFFE8F5E9)),
+        CategoryTile("البقالة", "🫒", Color(0xFFFFF8E7)),
+        CategoryTile("اللحوم", "🥩", Color(0xFFFFEBEE)),
+        CategoryTile("الفواكه", "🍎", Color(0xFFFCE4EC)),
+        CategoryTile("الألبان", "🥛", Color(0xFFFFF9E6)),
+        CategoryTile("المشروبات", "🥤", Color(0xFFE3F2FD)),
+    )
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(horizontal = 2.dp),
+        modifier = Modifier.height(((photoTiles.size + 1) / 2 * 132).dp)
     ) {
-        categoryDefs.forEach { def ->
-            val isSelected = selected == def.key
-            val shape = RoundedCornerShape(50)
-            Row(
-                modifier = Modifier
-                    .then(if (isSelected) Modifier else Modifier.zadCardShadow(shape, elevation = 3.dp))
-                    .clip(shape)
-                    .background(if (isSelected) primary else Color.White)
-                    .clickable { onSelect(def.key) }
-                    .padding(start = 4.dp, end = 8.dp, top = 3.dp, bottom = 3.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(3.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(16.dp)
-                        .clip(CircleShape)
-                        .background(if (isSelected) Color.White.copy(alpha = 0.2f) else def.bg),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        def.icon,
-                        contentDescription = null,
-                        tint = if (isSelected) Color.White else def.fg,
-                        modifier = Modifier.size(10.dp)
-                    )
-                }
-                Text(
-                    def.label,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (isSelected) Color.White else textSecondary
-                )
-            }
+        // كارت "الكل" الأول — بيضاء محايدة زي المرجع
+        item {
+            CategoryPhotoTile(
+                label = "الكل",
+                emoji = "🏠",
+                bg = Color(0xFFF5F5F5),
+                isSelected = selected == "الكل",
+                onClick = { onSelect("الكل") }
+            )
         }
+        items(photoTiles.size) { idx ->
+            val tile = photoTiles[idx]
+            CategoryPhotoTile(
+                label = tile.label,
+                emoji = tile.emoji,
+                bg = tile.bg,
+                isSelected = selected == tile.label,
+                onClick = { onSelect(tile.label) }
+            )
+        }
+    }
+}
+
+private data class CategoryTile(val label: String, val emoji: String, val bg: Color)
+
+@Composable
+private fun CategoryPhotoTile(
+    label: String,
+    emoji: String,
+    bg: Color,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    // كارت المرجع: باستيل فاتح، radius كبير، الصورة فوق والاسم تحتها في النص.
+    // المحدد بياخد حدود خضراء 2dp — نفس لغة التحديد في باقي التطبيق.
+    val shape = RoundedCornerShape(20.dp)
+    Column(
+        modifier = Modifier
+            .aspectRatio(1.35f)
+            .zadCardShadow(shape, elevation = if (isSelected) 6.dp else 3.dp)
+            .clip(shape)
+            .background(bg)
+            .border(
+                width = if (isSelected) 2.dp else 0.dp,
+                color = if (isSelected) primary else Color.Transparent,
+                shape = shape
+            )
+            .clickable { onClick() }
+            .pressableScale(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(emoji, fontSize = 44.sp)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            label,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = textPrimary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
     }
 }
 
