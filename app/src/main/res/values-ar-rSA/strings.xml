@@ -1381,4 +1381,14 @@
     <string name="edit_balance_action">تعديل الرصيد</string>
     <string name="category_breakdown_title">التوزيع حسب الفئة</string>
     <string name="warranty_expired_label">الضمان منتهي</string>
+
+
+    <!-- V2 home -->
+    <string name="v2_available">المتاح للصرف</string>
+    <string name="v2_spent">المصروف</string>
+    <string name="v2_committed">محجوز</string>
+    <string name="v2_daily_safe">أمان الصرف اليومي</string>
+    <string name="v2_days_left">يوم متبقي</string>
+    <string name="v2_spend_trend">اتجاه الصرف — آخر ٧ أيام</string>
+    <string name="v2_recent_tx">آخر الحركات</string>
 </resources>

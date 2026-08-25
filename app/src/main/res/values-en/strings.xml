@@ -1418,4 +1418,14 @@
     <string name="edit_balance_action">Edit balance</string>
     <string name="category_breakdown_title">Spending by category</string>
     <string name="warranty_expired_label">Warranty expired</string>
+
+
+    <!-- V2 home -->
+    <string name="v2_available">Available to spend</string>
+    <string name="v2_spent">Spent</string>
+    <string name="v2_committed">Committed</string>
+    <string name="v2_daily_safe">Daily safe spend</string>
+    <string name="v2_days_left">days left</string>
+    <string name="v2_spend_trend">Spend trend — last 7 days</string>
+    <string name="v2_recent_tx">Recent activity</string>
 </resources>

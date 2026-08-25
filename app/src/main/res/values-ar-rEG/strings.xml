@@ -1394,4 +1394,14 @@
     <string name="deals_pharmacies">صيدليات</string>
     <string name="loading">جاري التحميل…</string>
     <string name="splash_privacy">خصوصية بياناتك أولوية، دايماً</string>
+
+
+    <!-- V2 home -->
+    <string name="v2_available">المتاح للصرف</string>
+    <string name="v2_spent">المصروف</string>
+    <string name="v2_committed">محجوز</string>
+    <string name="v2_daily_safe">أمان الصرف اليومي</string>
+    <string name="v2_days_left">يوم متبقي</string>
+    <string name="v2_spend_trend">اتجاه الصرف — آخر ٧ أيام</string>
+    <string name="v2_recent_tx">آخر الحركات</string>
 </resources>
