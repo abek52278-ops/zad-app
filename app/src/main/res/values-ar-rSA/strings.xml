@@ -1422,4 +1422,11 @@
     <string name="v2_talk_to_zad">اتكلم مع زاد</string>
     <string name="v2_insights">رؤى ذكية</string>
     <string name="v2_no_insights">مفيش رؤى جديدة دلوقتي</string>
+
+
+    <!-- V2 lists -->
+    <string name="v2_to_buy">تُشترى</string>
+    <string name="v2_purchased">اتمشى</string>
+    <string name="v2_warranty_until">%1$s الضمان لحد</string>
+    <string name="v2_pharmacy_empty">الصيدلية فاضية</string>
 </resources>

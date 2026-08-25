@@ -1459,4 +1459,11 @@
     <string name="v2_talk_to_zad">Talk to Zad</string>
     <string name="v2_insights">Smart insights</string>
     <string name="v2_no_insights">No new insights right now</string>
+
+
+    <!-- V2 lists -->
+    <string name="v2_to_buy">To buy</string>
+    <string name="v2_purchased">Purchased</string>
+    <string name="v2_warranty_until">Warranty until %1$s</string>
+    <string name="v2_pharmacy_empty">Pharmacy is empty</string>
 </resources>

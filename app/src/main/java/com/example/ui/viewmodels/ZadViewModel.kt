@@ -1779,6 +1779,13 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 // read as a hang rather than as a slow reply. Past the bound the chat
                 // goes ahead with whatever context it already has; the report lands on
                 // its own and the next message gets it.
+                // Voice latency: in voice mode the user is literally standing there
+                // waiting to hear the reply — the two sequential warmup windows below
+                // (up to 3s each) were exactly the ~2s dead air they felt. The brain
+                // report and debts load lazily on their own next turn instead; the
+                // server (buildSnapshot) already carries the raw financial context,
+                // so a first-turn voice reply loses nothing but the local prefix.
+                if (!voiceMode) {
                 if (_brainReport.value == null) {
                     try {
                         kotlinx.coroutines.withTimeoutOrNull(WARMUP_TIMEOUT_MS) {
@@ -1798,6 +1805,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                             _debts.value = SupabaseRepo.getDebts()
                         }
                     } catch (_: Exception) {}
+                }
                 }
 
                 // المرحلة ٢-ج — المسار الأساسي: zad-brain باستدعاء أدوات حقيقي. السيرفر

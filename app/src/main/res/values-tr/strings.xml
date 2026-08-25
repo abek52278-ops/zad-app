@@ -1456,4 +1456,11 @@
     <string name="v2_talk_to_zad">Zad ile konuş</string>
     <string name="v2_insights">Akıllı içgörüler</string>
     <string name="v2_no_insights">Şu an yeni içgörü yok</string>
+
+
+    <!-- V2 lists -->
+    <string name="v2_to_buy">Alınacak</string>
+    <string name="v2_purchased">Satın alındı</string>
+    <string name="v2_warranty_until">Garanti: %1$s</string>
+    <string name="v2_pharmacy_empty">Eczane boş</string>
 </resources>

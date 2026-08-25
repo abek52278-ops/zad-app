@@ -105,6 +105,18 @@ fun V2MainScreen(
             composable(ZadRoutes.INVENTORY) {
                 V2InventoryScreen(viewModel = viewModel)
             }
+            composable(ZadRoutes.PHARMACY) {
+                V2PharmacyScreen(viewModel = viewModel)
+            }
+            composable(ZadRoutes.SHOPPING) {
+                V2ShoppingScreen(viewModel = viewModel)
+            }
+            composable(ZadRoutes.SUBS) {
+                V2SubscriptionsScreen(viewModel = viewModel)
+            }
+            composable(ZadRoutes.MAINTENANCE) {
+                V2MaintenanceScreen(viewModel = viewModel)
+            }
             composable(ZadRoutes.PROFILE) {
                 ProfileScreen(
                     viewModel = viewModel,
