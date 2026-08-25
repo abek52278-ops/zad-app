@@ -77,6 +77,7 @@ fun ZadIntelligenceScreen(
     val otherCategoryLabel = stringResource(R.string.other_category)
 
     val transactions by viewModel.transactions.collectAsState()
+    val budgetState by viewModel.budgetState.collectAsState()
     val inventory by viewModel.inventory.collectAsState()
     val subscriptions by viewModel.subscriptions.collectAsState()
     val insights by viewModel.insights.collectAsState()
@@ -418,6 +419,11 @@ fun ZadIntelligenceScreen(
                 }
             }
             item { MonthlyBarChartCard(monthlyData = monthlyData, forecast = forecast) }
+            // توزيع الصرف حسب الفئة (من مرجع "new ui ux" — renderAssistant):
+            // كارت أبيض بعنوان "التوزيع حسب الفئة" وبارات ملوّنة لكل فئة.
+            budgetState?.byCategory?.takeIf { it.isNotEmpty() }?.let { byCategory ->
+                item { CategoryBreakdownCard(byCategory) }
+            }
             item {
                 FinancialStressTestCard(
                     transactions,
@@ -3471,6 +3477,76 @@ fun FamilyNeuralReportBottomSheet(
             }
 
             Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+
+/**
+ * توزيع الصرف حسب الفئة — من مرجع "new ui ux" (renderAssistant / CATEGORY_SPEND):
+ * كارت أبيض 18dp، عنوان 13sp bold، وبارات أفقية 7dp مدوّرة لكل فئة بنسبة إنفاقها
+ * من أعلى فئة. الألوان بتلف على palette المرجع (أخضر/أزرق/عنبري/مرجاني/بنفسجي).
+ */
+@Composable
+fun CategoryBreakdownCard(byCategory: Map<String, Double>) {
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)
+    val sorted = byCategory.entries.sortedByDescending { it.value }
+    val max = sorted.firstOrNull()?.value?.takeIf { it > 0 } ?: return
+    val palette = listOf(
+        com.example.ui.theme.ZadV2.green600,
+        com.example.ui.theme.ZadV2.info,
+        com.example.ui.theme.ZadV2.warn,
+        com.example.ui.theme.ZadV2.danger,
+        com.example.ui.theme.ZadV2.violet,
+    )
+    val context = androidx.compose.ui.platform.LocalContext.current
+    com.example.ui.components.ZadListCard(shape = shape, contentPadding = 0.dp) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                stringResource(R.string.category_breakdown_title),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = textPrimary
+            )
+            sorted.forEachIndexed { idx, (category, amount) ->
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            category,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = ZadV2.slate,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            com.example.data.CurrencyFormatter.format(context, amount),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = textPrimary
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(7.dp)
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(99.dp))
+                            .background(Color(0xFFF1F4F3))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth((amount / max).toFloat())
+                                .height(7.dp)
+                                .clip(androidx.compose.foundation.shape.RoundedCornerShape(99.dp))
+                                .background(palette[idx % palette.size])
+                        )
+                    }
+                }
+            }
         }
     }
 }
