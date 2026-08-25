@@ -1428,4 +1428,35 @@
     <string name="v2_days_left">days left</string>
     <string name="v2_spend_trend">Spend trend — last 7 days</string>
     <string name="v2_recent_tx">Recent activity</string>
+
+
+    <!-- V2 inventory -->
+    <string name="cat_fruits_veg">Fruits &amp; Vegetables</string>
+    <string name="cat_oils">Oils&amp;Ghee</string>
+    <string name="cat_meat_fish">Meat&amp;Fish</string>
+    <string name="cat_bakery">Bakery&amp;Snacks</string>
+    <string name="cat_dairy">Dairy&amp;Eggs</string>
+    <string name="cat_beverages">Beverages</string>
+    <string name="v2_running_out">Running out</string>
+    <string name="v2_categories">Categories</string>
+    <string name="v2_all_items">All items</string>
+    <string name="v2_empty_section">Nothing here yet</string>
+
+
+    <!-- V2 budget -->
+    <string name="v2_quick_expense">Quick Expense</string>
+    <string name="v2_expense_name">Name</string>
+    <string name="v2_expense_total">Total</string>
+    <string name="v2_send">Send</string>
+    <string name="v2_spent_colon">Spent: %1$s</string>
+    <string name="v2_committed_colon">Committed: %1$s</string>
+    <string name="v2_days_value">%1$d days</string>
+
+
+    <!-- V2 mind -->
+    <string name="v2_mind_title">Zad Mind</string>
+    <string name="v2_mind_subtitle">Your smart home assistant</string>
+    <string name="v2_talk_to_zad">Talk to Zad</string>
+    <string name="v2_insights">Smart insights</string>
+    <string name="v2_no_insights">No new insights right now</string>
 </resources>

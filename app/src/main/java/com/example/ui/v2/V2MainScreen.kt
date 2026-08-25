@@ -90,23 +90,20 @@ fun V2MainScreen(
                 )
             }
             composable(ZadRoutes.ASSISTANT) {
-                ZadIntelligenceScreen(
+                V2AssistantScreen(
                     viewModel = viewModel,
                     familyViewModel = familyViewModel,
-                    onNavigateToFamily = { },
-                    onNavigateToStatementImport = { },
-                    onNavigateToKnowledgeMap = { },
+                    onOpenVoice = { showVoiceSheet = true },
                 )
             }
             composable(ZadRoutes.BUDGET) {
-                BudgetScreen(
+                V2BudgetScreen(
                     viewModel = viewModel,
-                    onNavigateToAssistant = { go(V2Routes.ASSISTANT) },
-                    onNavigateToCamera = { },
+                    onOpenVoice = { showVoiceSheet = true },
                 )
             }
             composable(ZadRoutes.INVENTORY) {
-                InventoryScreen(viewModel = viewModel, onNavigateToAssistant = { go(V2Routes.ASSISTANT) }, onNavigateToCamera = { })
+                V2InventoryScreen(viewModel = viewModel)
             }
             composable(ZadRoutes.PROFILE) {
                 ProfileScreen(

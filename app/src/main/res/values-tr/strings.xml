@@ -1425,4 +1425,35 @@
     <string name="v2_days_left">gün kaldı</string>
     <string name="v2_spend_trend">Harcama eğilimi — son 7 gün</string>
     <string name="v2_recent_tx">Son hareketler</string>
+
+
+    <!-- V2 inventory -->
+    <string name="cat_fruits_veg">Meyve&amp;Sebze</string>
+    <string name="cat_oils">Yağlar</string>
+    <string name="cat_meat_fish">Et&amp;Balık</string>
+    <string name="cat_bakery">Fırın&amp;Atıştırmalık</string>
+    <string name="cat_dairy">Süt&amp;Yumurta</string>
+    <string name="cat_beverages">İçecekler</string>
+    <string name="v2_running_out">Tükenmek üzere</string>
+    <string name="v2_categories">Kategoriler</string>
+    <string name="v2_all_items">Tüm ürünler</string>
+    <string name="v2_empty_section">Bu bölüm boş</string>
+
+
+    <!-- V2 budget -->
+    <string name="v2_quick_expense">Hızlı Gider</string>
+    <string name="v2_expense_name">Ad</string>
+    <string name="v2_expense_total">Toplam</string>
+    <string name="v2_send">Gönder</string>
+    <string name="v2_spent_colon">Harcanan: %1$s</string>
+    <string name="v2_committed_colon">Ayrılan: %1$s</string>
+    <string name="v2_days_value">%1$d gün</string>
+
+
+    <!-- V2 mind -->
+    <string name="v2_mind_title">Zad Zeka</string>
+    <string name="v2_mind_subtitle">Akıllı ev asistanın</string>
+    <string name="v2_talk_to_zad">Zad ile konuş</string>
+    <string name="v2_insights">Akıllı içgörüler</string>
+    <string name="v2_no_insights">Şu an yeni içgörü yok</string>
 </resources>

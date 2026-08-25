@@ -1404,4 +1404,35 @@
     <string name="v2_days_left">يوم متبقي</string>
     <string name="v2_spend_trend">اتجاه الصرف — آخر ٧ أيام</string>
     <string name="v2_recent_tx">آخر الحركات</string>
+
+
+    <!-- V2 inventory -->
+    <string name="cat_fruits_veg">فواكه وخضار</string>
+    <string name="cat_oils">زيوت وسمن</string>
+    <string name="cat_meat_fish">لحوم وأسماك</string>
+    <string name="cat_bakery">مخبوزات وسناكس</string>
+    <string name="cat_dairy">ألبان وبيض</string>
+    <string name="cat_beverages">مشروبات</string>
+    <string name="v2_running_out">عناصر على وشك النفاد</string>
+    <string name="v2_categories">التصنيفات</string>
+    <string name="v2_all_items">كل العناصر</string>
+    <string name="v2_empty_section">القسم فاضي</string>
+
+
+    <!-- V2 budget -->
+    <string name="v2_quick_expense">مصروف سريع</string>
+    <string name="v2_expense_name">الاسم</string>
+    <string name="v2_expense_total">الإجمالي</string>
+    <string name="v2_send">إرسال</string>
+    <string name="v2_spent_colon">المصروف: %1$s</string>
+    <string name="v2_committed_colon">محجوز: %1$s</string>
+    <string name="v2_days_value">%1$d يوم</string>
+
+
+    <!-- V2 mind -->
+    <string name="v2_mind_title">عقل زاد</string>
+    <string name="v2_mind_subtitle">مساعدك الذكي لإدارة البيت</string>
+    <string name="v2_talk_to_zad">اتكلم مع زاد</string>
+    <string name="v2_insights">رؤى ذكية</string>
+    <string name="v2_no_insights">مفيش رؤى جديدة دلوقتي</string>
 </resources>

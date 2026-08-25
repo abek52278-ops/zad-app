@@ -417,7 +417,7 @@ fun AppNavigation(pendingInviteCode: String? = null) {
             val useV2Ui = remember {
                 mutableStateOf(
                     ctx.getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
-                        .getBoolean("use_v2_ui", false)
+                        .getBoolean("use_v2_ui", true)
                 )
             }
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
