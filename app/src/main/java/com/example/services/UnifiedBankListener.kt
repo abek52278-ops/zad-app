@@ -178,7 +178,7 @@ class UnifiedBankListener : NotificationListenerService() {
             // إشعار الاختبار التشخيصي — الكشف من marker person مستقل عن اللغة، مش من
             // نص العنوان (اللي بيتغير حسب لغة التطبيق). بيتعلم فوراً عشان شاشة
             // التشخيص تعرف إن السيرفس حي.
-            if (notification.extras.getStringArray(android.app.Notification.EXTRA_PEOPLE)
+            if (notification.notification.extras.getStringArray(android.app.Notification.EXTRA_PEOPLE)
                     ?.contains(com.example.data.BankReadingStatus.TEST_MARKER_PERSON) == true) {
                 BankReadingStatus.markTestReceived(applicationContext)
                 return
