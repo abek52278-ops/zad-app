@@ -197,7 +197,10 @@ fun ConfettiOverlay(modifier: Modifier = Modifier, isTriggered: Boolean) {
     val progress by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
-        animationSpec = tween(2000, easing = FastOutSlowInEasing),
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Restart
+        ),
         label = "confetti_progress"
     )
 
