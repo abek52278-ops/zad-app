@@ -411,37 +411,16 @@ fun AppNavigation(pendingInviteCode: String? = null) {
             )
         }
         composable("main") {
-            // UI v2 toggle — Settings > "الواجهة الجديدة" flips the whole app onto the
-            // rebuilt v2 skin. Default OFF until every screen migrates.
-            val ctx = androidx.compose.ui.platform.LocalContext.current
-            val useV2Ui = remember {
-                mutableStateOf(
-                    ctx.getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
-                        .getBoolean("use_v2_ui", true)
-                )
-            }
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                if (useV2Ui.value) {
-                    com.example.ui.v2.V2MainScreen(
-                        viewModel = viewModel(),
-                        familyViewModel = viewModel(),
-                        onLogout = {
-                            navController.navigate("login") {
-                                popUpTo(0) { inclusive = true }
-                            }
-                        },
-                    )
-                } else {
-                MainScreen(
+                com.example.ui.v2.V2MainScreen(
+                    viewModel = viewModel(),
+                    familyViewModel = viewModel(),
                     onLogout = {
                         navController.navigate("login") {
                             popUpTo(0) { inclusive = true }
                         }
                     },
-                    pendingInviteCode = pendingInviteCode,
-                    openVoiceOnStart = MainActivity.openVoiceRequest.value
                 )
-                }
             }
         }
     }
