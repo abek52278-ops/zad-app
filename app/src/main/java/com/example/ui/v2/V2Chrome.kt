@@ -31,36 +31,28 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.ui.theme.ZadV2
+import com.example.ui.theme.glassBlur
 
-/**
- * Zad v2 navigation model + chrome, rebuilt from the prototype's exact CSS:
- * - header: renderHeader.js — glass `rgba(249,250,251,.92)` bar, hamburger tile
- *   32dp r10 bg rgba(6,78,59,.08), logo tile 32dp r9 #E6F4EC,
- *   app name 19sp #064E3B, screen title 26sp #0F172A.
- * - bottom pill: renderFullNav.js — floating capsule 64dp tall, r999,
- *   `rgba(255,255,255,.72)`, shadow 0 8px 24px rgba(15,23,42,.14),
- *   center camera FAB #064E3B 46dp circle raised -16dp.
- */
-
-/** v2 route ids mirror ZadRoutes so both UIs share one ViewModel/nav contract. */
+/** v2 route ids */
 object V2Routes {
-    const val HOME = com.example.ui.components.ZadRoutes.HOME
-    const val INVENTORY = com.example.ui.components.ZadRoutes.INVENTORY
-    const val ASSISTANT = com.example.ui.components.ZadRoutes.ASSISTANT
-    const val SUBS = com.example.ui.components.ZadRoutes.SUBS
-    const val SHOPPING = com.example.ui.components.ZadRoutes.SHOPPING
-    const val FAMILY = com.example.ui.components.ZadRoutes.FAMILY
-    const val BUDGET = com.example.ui.components.ZadRoutes.BUDGET
-    const val PHARMACY = com.example.ui.components.ZadRoutes.PHARMACY
-    const val MAINTENANCE = com.example.ui.components.ZadRoutes.MAINTENANCE
-    const val DEALS = com.example.ui.components.ZadRoutes.DEALS
-    const val PROFILE = com.example.ui.components.ZadRoutes.PROFILE
-    const val NOTIFICATIONS = com.example.ui.components.ZadRoutes.NOTIFICATIONS
+    const val HOME = "home"
+    const val INVENTORY = "inventory"
+    const val ASSISTANT = "assistant"
+    const val SUBS = "subs"
+    const val SHOPPING = "shopping"
+    const val FAMILY = "family"
+    const val BUDGET = "budget"
+    const val PHARMACY = "pharmacy"
+    const val MAINTENANCE = "maintenance"
+    const val DEALS = "deals"
+    const val PROFILE = "profile"
+    const val NOTIFICATIONS = "notifications"
+    const val TASBIHA = "tasbiha"
+    const val KNOWLEDGE = "knowledge"
 }
 
 data class V2DrawerEntry(val route: String, val labelRes: Int)
 
-/** DRAWER_ITEMS.js order, verbatim (label resources already exist in the app). */
 val v2DrawerEntries = listOf(
     V2DrawerEntry(V2Routes.HOME, R.string.screen_title_home),
     V2DrawerEntry(V2Routes.INVENTORY, R.string.nav_inventory),
@@ -87,6 +79,7 @@ fun V2Header(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .glassBlur(14f)
             .background(Color(0xF2F9FAFB)) // prototype rgba(249,250,251,.92)
             .statusBarsPadding()
             .padding(horizontal = 20.dp, vertical = 14.dp),
@@ -101,7 +94,7 @@ fun V2Header(
                     .size(32.dp)
                     .clip(RoundedCornerShape(10.dp))
                     .background(Color(0x14064E3B))
-                    .clickable(onClick = onOpenDrawer),
+                    .pressableScale(onClick = onOpenDrawer),
                 contentAlignment = Alignment.Center,
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -140,6 +133,7 @@ fun V2Header(
             fontWeight = FontWeight.Bold,
             color = ZadV2.ink,
             letterSpacing = (-0.3).sp,
+            modifier = Modifier.fadeUpOnAppear(50)
         )
     }
 }
@@ -153,7 +147,7 @@ private fun TabItem(route: String, emoji: String, labelRes: Int, selected: Boole
         verticalArrangement = Arrangement.spacedBy(3.dp),
         modifier = Modifier
             .clip(RoundedCornerShape(12.dp))
-            .clickable { onNavigate(route) }
+            .pressableScale { onNavigate(route) }
             .padding(horizontal = 6.dp, vertical = 4.dp),
     ) {
         Text(emoji, fontSize = 17.sp)
@@ -173,21 +167,23 @@ fun V2BottomBar(
     onOpenVoice: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Gemini render "Structured Navigation": Home / Brain / [mic FAB] / Vault / Settings.
-    // Central mic = Zad SmartBot voice — tap opens the AI Voice Sheet.
     Row(
         modifier = modifier
             .padding(horizontal = 16.dp, vertical = 22.dp)
             .fillMaxWidth()
             .height(64.dp)
-            .clip(RoundedCornerShape(999.dp))
+            .shadow(elevation = 16.dp, shape = ZadV2.rPill, spotColor = Color(0x240F172A))
+            .clip(ZadV2.rPill)
+            .glassBlur(16f)
             .background(Color.White.copy(alpha = 0.72f))
-            .border(0.5.dp, Color.Black.copy(alpha = 0.06f), RoundedCornerShape(999.dp)),
+            .border(0.5.dp, Color.Black.copy(alpha = 0.06f), ZadV2.rPill),
         horizontalArrangement = Arrangement.SpaceAround,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         TabItem(V2Routes.HOME, "🏠", R.string.nav_tab_home, currentRoute == V2Routes.HOME, onNavigate)
         TabItem(V2Routes.ASSISTANT, "🧠", R.string.nav_assistant, currentRoute == V2Routes.ASSISTANT, onNavigate)
+        
+        // Central mic FAB
         Box(
             modifier = Modifier
                 .size(46.dp)
@@ -195,11 +191,12 @@ fun V2BottomBar(
                 .shadow(elevation = 16.dp, shape = CircleShape, spotColor = Color(0x59064E3B))
                 .clip(CircleShape)
                 .background(ZadV2.green800)
-                .clickable(onClick = onOpenVoice),
+                .pressableScale(onClick = onOpenVoice),
             contentAlignment = Alignment.Center,
         ) {
             Text("🎙️", fontSize = 18.sp)
         }
+        
         TabItem(V2Routes.BUDGET, "🏦", R.string.nav_budget, currentRoute == V2Routes.BUDGET, onNavigate)
         TabItem(V2Routes.PROFILE, "⚙️", R.string.screen_title_profile, currentRoute == V2Routes.PROFILE, onNavigate)
     }

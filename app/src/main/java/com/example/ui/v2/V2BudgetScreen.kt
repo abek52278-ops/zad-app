@@ -12,9 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -46,13 +44,6 @@ import com.example.ui.theme.ZadV2
 import com.example.ui.viewmodels.ZadViewModel
 import java.time.LocalDate
 
-/**
- * V2 Budget — the "Home Dashboard" panel from the Gemini render:
- * Apple-Wallet balance card (#0A382C emerald), minimal widgets (daily safe
- * spend + days left), high-fidelity smooth Bezier spend curve, quick expense
- * bottom sheet (Name / Total / Send). Real ZadViewModel data only.
- */
-
 @Composable
 fun V2BudgetScreen(
     viewModel: ZadViewModel,
@@ -72,34 +63,41 @@ fun V2BudgetScreen(
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        // Apple-Wallet card
+        // Apple-Wallet card with Animated Mesh
         item {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(ZadV2.rHero)
-                    .background(Brush.linearGradient(listOf(Color(0xFF0A382C), Color(0xFF064E3B))))
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(
-                    stringResource(R.string.v2_available),
-                    fontSize = 11.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp,
-                    color = Color.White.copy(alpha = 0.72f),
+                AnimatedMeshGradient(
+                    modifier = Modifier.matchParentSize(),
+                    colors = listOf(Color(0xFF0A382C), Color(0xFF064E3B), ZadV2.green700)
                 )
-                Text(
-                    CurrencyFormatter.format(context, remaining ?: 0.0),
-                    fontSize = 38.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1).sp,
-                    style = androidx.compose.ui.text.TextStyle(brush = ZadV2.heroAmountBrush),
-                )
-                Text(
-                    stringResource(R.string.v2_spent_colon, CurrencyFormatter.format(context, spent))
-                        + " · " + stringResource(R.string.v2_committed_colon, CurrencyFormatter.format(context, committed)),
-                    fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-                    color = Color.White.copy(alpha = 0.85f),
-                )
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        stringResource(R.string.v2_available),
+                        fontSize = 11.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp,
+                        color = Color.White.copy(alpha = 0.72f),
+                    )
+                    Text(
+                        CurrencyFormatter.format(context, remaining ?: 0.0),
+                        fontSize = 38.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1).sp,
+                        style = androidx.compose.ui.text.TextStyle(brush = ZadV2.heroAmountBrush),
+                    )
+                    Text(
+                        stringResource(R.string.v2_spent_colon, CurrencyFormatter.format(context, spent))
+                            + " · " + stringResource(R.string.v2_committed_colon, CurrencyFormatter.format(context, committed)),
+                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        color = Color.White.copy(alpha = 0.85f),
+                    )
+                }
             }
         }
+        
         // Minimal widgets row
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -116,11 +114,13 @@ fun V2BudgetScreen(
                 )
             }
         }
+        
         // Bezier smooth curve
         item {
             V2BezierChart(transactions = transactions)
         }
-        // Quick expense button (opens the sheet)
+        
+        // Quick expense button
         item {
             Box(
                 modifier = Modifier
@@ -128,7 +128,7 @@ fun V2BudgetScreen(
                     .height(52.dp)
                     .clip(RoundedCornerShape(999.dp))
                     .background(ZadV2.green800)
-                    .clickable { showQuickExpense = true },
+                    .pressableScale { showQuickExpense = true },
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -137,6 +137,7 @@ fun V2BudgetScreen(
                 )
             }
         }
+        
         // Recent transactions
         item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -169,7 +170,6 @@ fun V2BudgetScreen(
     }
 }
 
-/** Quick Expense bottom sheet — Name / Total / Send (Gemini render pattern). */
 @Composable
 private fun V2QuickExpenseSheet(
     onDismiss: () -> Unit,
@@ -185,53 +185,54 @@ private fun V2QuickExpenseSheet(
             .background(Color.Black.copy(alpha = 0.4f))
             .clickable(onClick = onDismiss),
     )
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(ZadV2.rSheet)
-            .background(Color.White)
-            .padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.BottomCenter
     ) {
-        Text(stringResource(R.string.v2_quick_expense), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = ZadV2.ink)
-        OutlinedTextField(
-            value = name,
-            onValueChange = { name = it },
-            label = { Text(stringResource(R.string.v2_expense_name)) },
-            singleLine = true,
-            shape = RoundedCornerShape(14.dp),
-            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = ZadV2.green800),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        OutlinedTextField(
-            value = total,
-            onValueChange = { total = it },
-            label = { Text(stringResource(R.string.v2_expense_total)) },
-            singleLine = true,
-            shape = RoundedCornerShape(14.dp),
-            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = ZadV2.green800),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Button(
-            onClick = {
-                val n = name.trim()
-                if (n.isNotEmpty() && totalValue != null && totalValue > 0) onSend(n, totalValue)
-            },
-            enabled = name.trim().isNotEmpty() && totalValue != null && totalValue > 0,
-            shape = RoundedCornerShape(999.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = ZadV2.green800),
-            modifier = Modifier.fillMaxWidth().height(52.dp),
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(ZadV2.rSheet)
+                .background(Color.White)
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text(stringResource(R.string.v2_send), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.v2_quick_expense), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = ZadV2.ink)
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text(stringResource(R.string.v2_expense_name)) },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = ZadV2.green800),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = total,
+                onValueChange = { total = it },
+                label = { Text(stringResource(R.string.v2_expense_total)) },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = ZadV2.green800),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Button(
+                onClick = {
+                    val n = name.trim()
+                    if (n.isNotEmpty() && totalValue != null && totalValue > 0) onSend(n, totalValue)
+                },
+                enabled = name.trim().isNotEmpty() && totalValue != null && totalValue > 0,
+                shape = RoundedCornerShape(999.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = ZadV2.green800),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+            ) {
+                Text(stringResource(R.string.v2_send), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(8.dp))
         }
-        Spacer(Modifier.height(8.dp))
     }
 }
 
-/**
- * Smooth cubic-Bezier spend curve (last 14 days), prototype's
- * "High-fidelity Bezier Smooth Curve Chart": emerald line + soft gradient fill.
- */
 @Composable
 fun V2BezierChart(transactions: List<ZadTransaction>) {
     val perDay = HashMap<LocalDate, Double>()
@@ -243,7 +244,7 @@ fun V2BezierChart(transactions: List<ZadTransaction>) {
     val days = (13 downTo 0).map { today.minusDays(it.toLong()) }
     val values = days.map { perDay[it] ?: 0.0 }
     val max = values.maxOrNull() ?: 0.0
-    if (max <= 0.0) return // مفيش مصروف في آخر أسبوعين — القسم يتخفي بدل رسم وهمي
+    if (max <= 0.0) return
 
     Column(
         modifier = Modifier
@@ -272,7 +273,6 @@ fun V2BezierChart(transactions: List<ZadTransaction>) {
                 }
             }
             val line = Path().also { bez(it, points) }
-            // gradient fill under the curve
             val fill = Path().also {
                 bez(it, points)
                 it.lineTo(points.last().x, h); it.lineTo(points.first().x, h); it.close()

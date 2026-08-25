@@ -8,17 +8,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -39,14 +35,7 @@ import com.example.data.ZadPharmacyItem
 import com.example.data.ZadShoppingItem
 import com.example.data.ZadSubscription
 import com.example.ui.theme.ZadV2
-import com.example.ui.viewmodels.FamilyViewModel
 import com.example.ui.viewmodels.ZadViewModel
-
-/**
- * V2 secondary screens (Pharmacy / Shopping / Subscriptions / Maintenance),
- * all on the 'new ui ux' identity: white cards, pastel icon tiles, bold ink
- * titles, gray captions, emerald accents. Real ViewModel data only.
- */
 
 // ── Pharmacy ─────────────────────────────────────────────────────────────────
 
@@ -66,13 +55,11 @@ fun V2PharmacyScreen(
             item { V2EmptyHint() }
         }
         items(items.size) { i ->
-            val med = items[i]
-            V2MedRow(med)
+            V2MedRow(items[i])
         }
     }
 }
 
-/** Medicine card: pink tile + name/dosage + remaining count chip. */
 @Composable
 private fun V2MedRow(med: ZadPharmacyItem) {
     val low = med.remainingQuantity <= 1
@@ -81,6 +68,7 @@ private fun V2MedRow(med: ZadPharmacyItem) {
             .fillMaxWidth()
             .clip(ZadV2.rCard)
             .background(if (low) Color(0xFFFCE8ED) else Color.White)
+            .pressableScale { }
             .padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -153,7 +141,7 @@ private fun V2ShopRow(item: ZadShoppingItem, context: android.content.Context, o
             .fillMaxWidth()
             .clip(ZadV2.rCard)
             .background(Color.White)
-            .clickable(onClick = onToggle)
+            .pressableScale(onClick = onToggle)
             .padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -251,8 +239,7 @@ fun V2MaintenanceScreen(
             item { V2EmptyHint() }
         }
         items(items.size) { i ->
-            val m = items[i]
-            V2MaintenanceRow(m, context)
+            V2MaintenanceRow(items[i], context)
         }
     }
 }

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,7 +17,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -27,13 +27,6 @@ import com.example.R
 import com.example.ui.theme.ZadGlassChip
 import com.example.ui.theme.ZadStatCell
 import com.example.ui.theme.ZadV2
-
-/**
- * Hero balance card + home building blocks, prototype renderHome.js values:
- * - gradient 120deg #0B6B4E → #0F9B76 → #064E3B → #0B6B4E, r28,
- *   border rgba(255,255,255,.16), shadow 0 20px 44px rgba(6,78,59,.35).
- * - amount: linear-gradient(180deg,#fff,#D9F2E6), 44sp w800.
- */
 
 @Composable
 fun V2HeroCard(
@@ -47,47 +40,52 @@ fun V2HeroCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(ZadV2.rHero)
-            .background(
-                Brush.linearGradient(
-                    listOf(ZadV2.green700, ZadV2.green600, ZadV2.green800, ZadV2.green700)
-                )
-            )
-            .border(1.dp, Color.White.copy(alpha = 0.16f), ZadV2.rHero)
-            .clickable(onClick = onOpen)
-            .padding(start = 24.dp, end = 24.dp, top = 26.dp, bottom = 22.dp),
+            .pressableScale(onClick = onOpen)
+            .border(1.dp, Color.White.copy(alpha = 0.16f), ZadV2.rHero),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text(
-            stringResource(R.string.v2_available),
-            fontSize = 11.5.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 0.4.sp,
-            color = Color.White.copy(alpha = 0.72f),
-        )
-        Text(
-            availableText,
-            fontSize = 44.sp,
-            fontWeight = FontWeight.ExtraBold,
-            letterSpacing = (-1.2).sp,
-            style = TextStyle(brush = ZadV2.heroAmountBrush),
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            // glow dots per prototype: amber #F4A93B / coral #FF8066
-            ZadGlassChip(
-                label = stringResource(R.string.v2_spent),
-                value = spentText,
-                dotColor = ZadV2.amberDot,
+        Box {
+            // New animated mesh background instead of static brush
+            AnimatedMeshGradient(
+                modifier = Modifier.matchParentSize(),
+                colors = listOf(ZadV2.green700, ZadV2.green600, ZadV2.green800)
             )
-            ZadGlassChip(
-                label = stringResource(R.string.v2_committed),
-                value = committedText,
-                dotColor = ZadV2.coralDot,
-            )
+            
+            Column(
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 26.dp, bottom = 22.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    stringResource(R.string.v2_available),
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.4.sp,
+                    color = Color.White.copy(alpha = 0.72f),
+                )
+                Text(
+                    availableText,
+                    fontSize = 44.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = (-1.2).sp,
+                    style = TextStyle(brush = ZadV2.heroAmountBrush),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ZadGlassChip(
+                        label = stringResource(R.string.v2_spent),
+                        value = spentText,
+                        dotColor = ZadV2.amberDot,
+                    )
+                    ZadGlassChip(
+                        label = stringResource(R.string.v2_committed),
+                        value = committedText,
+                        dotColor = ZadV2.coralDot,
+                    )
+                }
+            }
         }
     }
 }
 
-/** Stat cell pair row (daysLeft / safeSpend) — HOME_STATS pattern. */
 @Composable
 fun V2StatRow(
     cells: List<Pair<String, String>>,
@@ -105,7 +103,6 @@ fun V2StatRow(
     }
 }
 
-/** Shortcut tile: 46dp r15 tinted bg + glyph, caption 10sp gray (SHORTCUTS.js). */
 @Composable
 fun V2ShortcutTile(
     emoji: String,
@@ -119,7 +116,7 @@ fun V2ShortcutTile(
         verticalArrangement = Arrangement.spacedBy(6.dp),
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
+            .pressableScale(onClick = onClick)
             .padding(4.dp),
     ) {
         Box(
@@ -139,7 +136,6 @@ fun V2ShortcutTile(
     }
 }
 
-/** AI summary dark plate (#052E16, r20) with mint title + white body + chips. */
 @Composable
 fun V2AiSummaryCard(
     title: String,
@@ -168,7 +164,8 @@ fun V2AiSummaryCard(
                         modifier = Modifier
                             .clip(RoundedCornerShape(999.dp))
                             .background(Color.White.copy(alpha = 0.1f))
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .clickable { /* action */ },
                     )
                 }
             }
@@ -176,7 +173,6 @@ fun V2AiSummaryCard(
     }
 }
 
-/** Transaction list row — HOME_TX pattern (title+date one side, colored amount). */
 @Composable
 fun V2TxRow(title: String, date: String, amount: String, negative: Boolean) {
     Row(

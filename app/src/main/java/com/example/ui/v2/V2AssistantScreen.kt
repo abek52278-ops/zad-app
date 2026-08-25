@@ -21,9 +21,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,17 +36,12 @@ import com.example.ui.theme.ZadV2
 import com.example.ui.viewmodels.FamilyViewModel
 import com.example.ui.viewmodels.ZadViewModel
 
-/**
- * V2 Zad Mind — the "Zad SmartBot Agent" panel from the Gemini render:
- * premium glassmorphic gradient ring around the emerald orb, then the real
- * insights feed (kindDot info/warn/danger from the prototype INSIGHTS.js).
- */
-
 @Composable
 fun V2AssistantScreen(
     viewModel: ZadViewModel,
     familyViewModel: FamilyViewModel,
     onOpenVoice: () -> Unit,
+    onNavigateToKnowledge: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val zadInsights by viewModel.zadInsights.collectAsState()
@@ -70,6 +62,7 @@ fun V2AssistantScreen(
                 Box(
                     modifier = Modifier
                         .size(150.dp)
+                        .floatingIdle(2500)
                         .clip(CircleShape)
                         .background(
                             Brush.radialGradient(
@@ -79,7 +72,15 @@ fun V2AssistantScreen(
                         .border(6.dp, Color.White.copy(alpha = 0.35f), CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
-                    // the orb's two eyes (Gemini render)
+                    // Rotating Ring behind eyes
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .ringSpin(12000)
+                            .border(2.dp, Color.White.copy(alpha = 0.15f), CircleShape)
+                    )
+                    
+                    // Eyes
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         repeat(2) {
                             Box(
@@ -101,6 +102,7 @@ fun V2AssistantScreen(
                 )
             }
         }
+        
         // Tap-to-talk pill
         item {
             Box(
@@ -109,7 +111,7 @@ fun V2AssistantScreen(
                     .height(52.dp)
                     .clip(RoundedCornerShape(999.dp))
                     .background(ZadV2.green800)
-                    .clickable(onClick = onOpenVoice),
+                    .pressableScale(onClick = onOpenVoice),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -118,6 +120,32 @@ fun V2AssistantScreen(
                 )
             }
         }
+        
+        // Knowledge map preview tile
+        item {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(ZadV2.rCard)
+                    .background(ZadV2.mint50)
+                    .clickable(onClick = onNavigateToKnowledge)
+                    .padding(16.dp),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(Modifier.size(40.dp).clip(CircleShape).background(Color.White), contentAlignment = Alignment.Center) {
+                        Text("🗺️", fontSize = 20.sp)
+                    }
+                    Column {
+                        Text(stringResource(R.string.nav_assistant) + " Map", fontWeight = FontWeight.Bold, color = ZadV2.green800)
+                        Text("View semantic relations and facts", fontSize = 12.sp, color = ZadV2.green700)
+                    }
+                }
+            }
+        }
+        
         // Real insights feed
         item {
             Text(stringResource(R.string.v2_insights), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = ZadV2.ink)
@@ -136,7 +164,6 @@ fun V2AssistantScreen(
     }
 }
 
-/** INSIGHTS.js row: kind dot + title + subtitle + kind tag pill. */
 @Composable
 private fun V2InsightRow(insight: ZadInsight) {
     val (dot, tagBg, tagColor) = when (insight.surface) {

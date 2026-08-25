@@ -4,8 +4,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -16,31 +14,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.example.ui.components.ZadRoutes
-import com.example.ui.screens.BudgetScreen
-import com.example.ui.screens.InventoryScreen
 import com.example.ui.screens.ProfileScreen
-import com.example.ui.screens.ZadIntelligenceScreen
-import com.example.ui.theme.background
-import com.example.ui.theme.primary
 import com.example.ui.viewmodels.FamilyViewModel
 import com.example.ui.viewmodels.ZadViewModel
 
-/**
- * V2 root: the new UI's own NavHost wrapped in the v2 chrome (glass header +
- * floating capsule bottom bar with the central mic FAB). Reuses the exact same
- * ViewModels as the legacy UI — one data layer, two skins. Screens not yet
- * rebuilt in v2 temporarily render their legacy composables inside the v2 shell,
- * so nothing is unreachable while migration proceeds screen by screen.
- */
-
-private val v2FullScreenRoutes = setOf(ZadRoutes.PROFILE)
+private val v2FullScreenRoutes = setOf(V2Routes.PROFILE)
 
 @Composable
 fun V2MainScreen(
@@ -63,7 +46,6 @@ fun V2MainScreen(
         }
     }
 
-    // app_command whitelist — نفس ترجمة MainScreen القديمة عشان العقل يفتح الشاشات.
     val pendingAppCommand by viewModel.pendingAppCommand.collectAsState()
     LaunchedEffect(pendingAppCommand) {
         val cmd = pendingAppCommand ?: return@LaunchedEffect
@@ -71,7 +53,14 @@ fun V2MainScreen(
             "budget" -> go(V2Routes.BUDGET)
             "assistant", "tasks", "insights" -> go(V2Routes.ASSISTANT)
             "profile" -> go(V2Routes.PROFILE)
-            else -> { /* بقية الشاشات لسه بتتحول — تتجاهل مؤقتًا */ }
+            "family" -> go(V2Routes.FAMILY)
+            "inventory" -> go(V2Routes.INVENTORY)
+            "shopping" -> go(V2Routes.SHOPPING)
+            "pharmacy" -> go(V2Routes.PHARMACY)
+            "maintenance" -> go(V2Routes.MAINTENANCE)
+            "deals" -> go(V2Routes.DEALS)
+            "notifications" -> go(V2Routes.NOTIFICATIONS)
+            else -> { }
         }
         viewModel.consumePendingAppCommand()
     }
@@ -79,45 +68,47 @@ fun V2MainScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         NavHost(
             navController = navController,
-            startDestination = ZadRoutes.HOME,
+            startDestination = V2Routes.HOME,
             modifier = Modifier.fillMaxSize(),
         ) {
-            composable(ZadRoutes.HOME) {
+            composable(V2Routes.HOME) {
                 V2HomeScreen(
                     viewModel = viewModel,
                     onNavigateToBudget = { go(V2Routes.BUDGET) },
                     onOpenVoice = { showVoiceSheet = true },
+                    onNavigate = { go(it) }
                 )
             }
-            composable(ZadRoutes.ASSISTANT) {
+            composable(V2Routes.ASSISTANT) {
                 V2AssistantScreen(
                     viewModel = viewModel,
                     familyViewModel = familyViewModel,
                     onOpenVoice = { showVoiceSheet = true },
+                    onNavigateToKnowledge = { go(V2Routes.KNOWLEDGE) }
                 )
             }
-            composable(ZadRoutes.BUDGET) {
+            composable(V2Routes.BUDGET) {
                 V2BudgetScreen(
                     viewModel = viewModel,
                     onOpenVoice = { showVoiceSheet = true },
                 )
             }
-            composable(ZadRoutes.INVENTORY) {
+            composable(V2Routes.INVENTORY) {
                 V2InventoryScreen(viewModel = viewModel)
             }
-            composable(ZadRoutes.PHARMACY) {
+            composable(V2Routes.PHARMACY) {
                 V2PharmacyScreen(viewModel = viewModel)
             }
-            composable(ZadRoutes.SHOPPING) {
+            composable(V2Routes.SHOPPING) {
                 V2ShoppingScreen(viewModel = viewModel)
             }
-            composable(ZadRoutes.SUBS) {
+            composable(V2Routes.SUBS) {
                 V2SubscriptionsScreen(viewModel = viewModel)
             }
-            composable(ZadRoutes.MAINTENANCE) {
+            composable(V2Routes.MAINTENANCE) {
                 V2MaintenanceScreen(viewModel = viewModel)
             }
-            composable(ZadRoutes.PROFILE) {
+            composable(V2Routes.PROFILE) {
                 ProfileScreen(
                     viewModel = viewModel,
                     familyViewModel = familyViewModel,
@@ -126,17 +117,31 @@ fun V2MainScreen(
                     onSwitchToKidsMode = { },
                 )
             }
+            composable(V2Routes.FAMILY) {
+                V2FamilyScreen()
+            }
+            composable(V2Routes.DEALS) {
+                V2DealsScreen()
+            }
+            composable(V2Routes.NOTIFICATIONS) {
+                V2NotificationsScreen()
+            }
+            composable(V2Routes.TASBIHA) {
+                V2TasbihaScreen()
+            }
+            composable(V2Routes.KNOWLEDGE) {
+                V2KnowledgeMapScreen()
+            }
         }
 
         if (chromeVisible) {
             Column(modifier = Modifier.fillMaxSize()) {
                 V2Header(
                     title = v2ScreenTitle(currentRoute),
-                    onOpenDrawer = { },
+                    onOpenDrawer = { /* Will implement drawer state soon */ },
                 )
                 Spacer(Modifier.weight(1f))
             }
-            // Bottom capsule overlays content (floating), like the prototype.
             Box(modifier = Modifier.align(Alignment.BottomCenter)) {
                 V2BottomBar(
                     currentRoute = currentRoute,
@@ -148,6 +153,7 @@ fun V2MainScreen(
     }
 
     if (showVoiceSheet) {
+        // Siri-style Voice Sheet overlay
         com.example.ui.components.ZadVoiceBottomSheet(viewModel = viewModel, onDismiss = { showVoiceSheet = false })
     }
 }
@@ -155,10 +161,19 @@ fun V2MainScreen(
 @Composable
 private fun v2ScreenTitle(route: String?): String = androidx.compose.ui.res.stringResource(
     when (route) {
-        ZadRoutes.ASSISTANT -> com.example.R.string.nav_assistant
-        ZadRoutes.BUDGET -> com.example.R.string.screen_title_budget
-        ZadRoutes.INVENTORY -> com.example.R.string.nav_inventory
-        ZadRoutes.PROFILE -> com.example.R.string.screen_title_profile
+        V2Routes.ASSISTANT -> com.example.R.string.nav_assistant
+        V2Routes.BUDGET -> com.example.R.string.screen_title_budget
+        V2Routes.INVENTORY -> com.example.R.string.nav_inventory
+        V2Routes.PROFILE -> com.example.R.string.screen_title_profile
+        V2Routes.SHOPPING -> com.example.R.string.nav_shopping
+        V2Routes.PHARMACY -> com.example.R.string.nav_pharmacy
+        V2Routes.SUBS -> com.example.R.string.subscriptions_title
+        V2Routes.MAINTENANCE -> com.example.R.string.nav_maintenance
+        V2Routes.FAMILY -> com.example.R.string.nav_family
+        V2Routes.DEALS -> com.example.R.string.nav_deals
+        V2Routes.NOTIFICATIONS -> com.example.R.string.notifications_title
+        V2Routes.TASBIHA -> com.example.R.string.app_name
+        V2Routes.KNOWLEDGE -> com.example.R.string.nav_assistant
         else -> com.example.R.string.screen_title_home
     }
 )

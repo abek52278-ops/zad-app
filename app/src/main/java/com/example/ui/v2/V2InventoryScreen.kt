@@ -1,21 +1,16 @@
 package com.example.ui.v2
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -39,13 +34,6 @@ import com.example.R
 import com.example.data.ZadInventory
 import com.example.ui.theme.ZadV2
 
-/**
- * V2 Inventory — the pastel category grid from IMG_20260703_231712.jpg:
- * 2-column cards, soft tinted backgrounds (mint/peach/pink/lavender/cream/blue),
- * rounded 24dp, emoji tile + bold label, product rows below ("Exclusive Offer"
- * pattern from IMG_20260703_231742.jpg). Real ZadInventory data only.
- */
-
 data class V2Category(
     val key: String?,
     val labelRes: Int,
@@ -62,7 +50,6 @@ private val v2InventoryCategories = listOf(
     V2Category("beverages", R.string.cat_beverages, "🥤", Color(0xFFE8F1FC)),
 )
 
-/** Maps an item's stored category onto a v2 tile; null bucket = "all". */
 private fun matchCategory(raw: String?, key: String?): Boolean {
     if (key == null) return true
     val c = (raw ?: return false).lowercase()
@@ -115,7 +102,6 @@ fun V2InventoryScreen(
             )
         }
         item {
-            // 2-column pastel grid (fixed height rows so it nests inside LazyColumn)
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 v2InventoryCategories.chunked(2).forEach { rowCats ->
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -129,7 +115,7 @@ fun V2InventoryScreen(
                                     .weight(1f)
                                     .clip(RoundedCornerShape(24.dp))
                                     .background(selectedBg)
-                                    .clickable { selected = if (selected == cat.key) null else cat.key }
+                                    .pressableScale { selected = if (selected == cat.key) null else cat.key }
                                     .padding(vertical = 20.dp),
                             ) {
                                 Box(
@@ -179,7 +165,6 @@ fun V2InventoryScreen(
     }
 }
 
-/** White product card: name bold, qty/category caption — "Exclusive Offer" pattern. */
 @Composable
 private fun V2ProductRow(item: ZadInventory, highlight: Boolean) {
     Row(
