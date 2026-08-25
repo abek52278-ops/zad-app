@@ -1412,6 +1412,6 @@
     <string name="splash_privacy">Verilerinizin gizliliği her zaman önceliklidir</string>
     <string name="test_notification_title">Zad testi — örnek işlem</string>
     <string name="test_notification_body">Hesabınızdan 123,45 EGP ödeme yapıldı — dinleyici testi</string>
-    <string name="edit_balance_action">('Bakiyeyi düzenle',)</string>
+    <string name="edit_balance_action">Bakiyeyi düzenle</string>
     <string name="category_breakdown_title">Kategoriye göre harcama</string>
 </resources>
