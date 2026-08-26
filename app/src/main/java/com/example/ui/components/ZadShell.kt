@@ -17,8 +17,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.animation.core.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -282,12 +285,16 @@ fun ZadTopHeader(
 private data class ZadNavItem(val route: String, val icon: ImageVector, val labelRes: Int)
 
 /**
- * Mockup bottom bar: a 64dp floating pill (`rgba(255,255,255,.72)` + blur,
- * hairline border, 24dp lift) holding Home · Inventory · [camera] · Zad Mind ·
- * More, with the camera button raised 16dp above the pill's top edge.
+ * Bottom nav redesign — شيفو's vision (new ui ux/Gemini_Generated_Image):
  *
- * Kids mode collapses it to Home + Family, matching `renderKidsNav` — no camera
- * (receipt/inventory scanning is an adult surface) and no "more" grid.
+ * Floating glass capsule pill with 4 tabs: Home · Brain · Vault · Settings
+ * + a raised central Mic/Voice orb with emerald pulse glow ring.
+ *
+ * Selected tab: spring-scale 1.12f + ExtraBold label + primary dot indicator.
+ * All secondary screens (Inventory, Shopping, Family, Pharmacy…) are still
+ * reachable from the existing "More" bottom sheet — nothing is removed.
+ *
+ * Kids mode collapses to Home + Family tabs only (no mic, no more button).
  */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -301,137 +308,246 @@ fun ZadBottomNavBar(
     modifier: Modifier = Modifier,
 ) {
     val pillShape = RoundedCornerShape(32.dp)
+
+    // 4 primary tabs (adult mode)
+    val adultItems = listOf(
+        ZadNavItem(ZadRoutes.HOME,      Icons.Default.Home,       R.string.nav_tab_home),
+        ZadNavItem(ZadRoutes.ASSISTANT, Icons.Default.Psychology,  R.string.screen_title_assistant),
+        ZadNavItem(ZadRoutes.INVENTORY, Icons.Default.Inventory2,  R.string.nav_inventory),
+        ZadNavItem(ZadRoutes.PROFILE,   Icons.Default.Settings,    R.string.screen_title_profile),
+    )
+    val kidsItems = listOf(
+        ZadNavItem(ZadRoutes.HOME,   Icons.Default.Home,          R.string.nav_tab_home),
+        ZadNavItem(ZadRoutes.FAMILY, Icons.Default.FamilyRestroom, R.string.nav_family),
+    )
+    val items = if (kidsMode) kidsItems else adultItems
+
     Box(
         modifier = modifier
             .padding(horizontal = 16.dp)
             .padding(bottom = 22.dp)
             .fillMaxWidth()
-            .height(66.dp)
+            .height(74.dp),          // slightly taller to accommodate raised mic
+        contentAlignment = Alignment.BottomCenter
     ) {
+        // ── Glass pill ────────────────────────────────────────────────────────
         Box(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
+                .height(64.dp)
+                .align(Alignment.BottomCenter)
                 .shadow(
-                    elevation = 24.dp,
+                    elevation = 28.dp,
                     shape = pillShape,
                     ambientColor = Color(0xFF0F172A).copy(alpha = 0.10f),
-                    spotColor = Color(0xFF0F172A).copy(alpha = 0.16f)
+                    spotColor  = Color(0xFF064E3B).copy(alpha = 0.18f)
                 )
                 .clip(pillShape)
         ) {
+            // Backdrop blur layer
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .zadGlassBlur(16.dp)
-                    .background(Color.White.copy(alpha = 0.76f))
+                    .zadGlassBlur(20.dp)
+                    .background(Color.White.copy(alpha = 0.80f))
             )
-            Box(modifier = Modifier.matchParentSize().border(1.dp, Color.Black.copy(alpha = 0.06f), pillShape))
-        }
+            // Hairline border
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .border(1.dp, Color.Black.copy(alpha = 0.06f), pillShape)
+            )
 
-        // الخمس وجهات الثابتة — رحلة موحدة بدل التشتت:
-        // اليوم (الرئيسية) → البيت (المخزون) → زاد (العقل) → المال → العائلة
-        val items = if (kidsMode) {
-            listOf(
-                ZadNavItem(ZadRoutes.HOME, Icons.Default.Home, R.string.nav_tab_home),
-                ZadNavItem(ZadRoutes.FAMILY, Icons.Default.FamilyRestroom, R.string.nav_family),
-            )
-        } else {
-            listOf(
-                ZadNavItem(ZadRoutes.HOME, Icons.Default.Home, R.string.nav_tab_home),
-                ZadNavItem(ZadRoutes.INVENTORY, Icons.Default.Inventory2, R.string.nav_inventory),
-                ZadNavItem(ZadRoutes.ASSISTANT, Icons.Default.Psychology, R.string.screen_title_assistant),
-                ZadNavItem(ZadRoutes.BUDGET, Icons.Default.BarChart, R.string.nav_budget),
-                ZadNavItem(ZadRoutes.FAMILY, Icons.Default.FamilyRestroom, R.string.nav_family),
-            )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            items.forEachIndexed { index, item ->
-                if (index == 2 && !kidsMode) {
-                    // زاد في النص — أطول ضغطة على الزر المركزي تفتح المايك مباشرة
-                    ZadActionNavButton(
-                        onClick = onOpenVoice,
-                        onLongClick = onOpenCamera
-                    )
-                }
-                if (index != 2 || kidsMode) {
-                    ZadNavTab(
-                        icon = item.icon,
-                        label = stringResource(item.labelRes),
-                        selected = currentRoute == item.route,
-                        onClick = { onNavigate(item.route) }
-                    )
+            // Tab row — splits evenly around the central mic slot
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (kidsMode) {
+                    items.forEach { item ->
+                        ZadNavTab(
+                            icon = item.icon,
+                            label = stringResource(item.labelRes),
+                            selected = currentRoute == item.route,
+                            onClick = { onNavigate(item.route) }
+                        )
+                    }
+                } else {
+                    // Left 2 tabs
+                    items.take(2).forEach { item ->
+                        ZadNavTab(
+                            icon = item.icon,
+                            label = stringResource(item.labelRes),
+                            selected = currentRoute == item.route,
+                            onClick = { onNavigate(item.route) }
+                        )
+                    }
+                    // Central mic placeholder (actual button floats above)
+                    Spacer(Modifier.width(56.dp))
+                    // Right 2 tabs
+                    items.drop(2).forEach { item ->
+                        ZadNavTab(
+                            icon = item.icon,
+                            label = stringResource(item.labelRes),
+                            selected = currentRoute == item.route,
+                            onClick = { onNavigate(item.route) }
+                        )
+                    }
                 }
             }
         }
+
+        // ── Central raised Mic orb (adult only) ───────────────────────────────
+        if (!kidsMode) {
+            ZadMicOrbButton(
+                onClick = onOpenVoice,
+                onLongClick = onOpenCamera,
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
+        }
     }
 }
 
+/** Pulsing emerald mic orb — raised above the pill by ~10dp. */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun ZadActionNavButton(
+private fun ZadMicOrbButton(
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
+    val pulseTransition = rememberInfiniteTransition(label = "micPulse")
+    val pulseAlpha by pulseTransition.animateFloat(
+        initialValue = 0.25f, targetValue = 0.55f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "micGlowAlpha"
+    )
+    val pulseRadius by pulseTransition.animateFloat(
+        initialValue = 28f, targetValue = 34f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "micGlowRadius"
+    )
+
     Box(
-        modifier = Modifier
-            .offset(y = (-16).dp)
-            .size(52.dp)
-            .shadow(
-                elevation = 18.dp,
-                shape = CircleShape,
-                ambientColor = primary.copy(alpha = 0.35f),
-                spotColor = primary.copy(alpha = 0.50f)
-            )
-            .clip(CircleShape)
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(primary, Color(0xFF0F766E), Color(0xFF1E3A8A))
-                )
-            )
-            .pressableScale()
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            ),
+        modifier = modifier.size(68.dp),
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            Icons.Default.AutoAwesome,
-            contentDescription = "Zad Action & Voice Hub",
-            tint = Color.White,
-            modifier = Modifier.size(24.dp)
+        // Outer pulsing glow ring
+        Box(
+            modifier = Modifier
+                .size(68.dp)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            primary.copy(alpha = pulseAlpha),
+                            Color.Transparent
+                        ),
+                        radius = pulseRadius * 2f
+                    ),
+                    CircleShape
+                )
         )
+        // Orb button
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .shadow(
+                    elevation = 20.dp,
+                    shape = CircleShape,
+                    ambientColor = primary.copy(alpha = 0.40f),
+                    spotColor   = primary.copy(alpha = 0.55f)
+                )
+                .clip(CircleShape)
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            Color(0xFF0B6B4E),  // green700
+                            Color(0xFF064E3B),  // green800
+                            Color(0xFF052E16)   // green900
+                        )
+                    )
+                )
+                .pressableScale()
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onLongClick
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.Mic,
+                contentDescription = "زاد — المساعد الصوتي",
+                tint = Color.White,
+                modifier = Modifier.size(26.dp)
+            )
+        }
     }
 }
 
+/** Single nav tab — spring-scales on selection, shows dot indicator + ExtraBold label. */
 @Composable
-private fun ZadNavTab(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
-    val tint = if (selected) primary else textTertiary
+private fun ZadNavTab(
+    icon: ImageVector,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val scale by animateFloatAsState(
+        targetValue = if (selected) 1.12f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness    = Spring.StiffnessMedium
+        ),
+        label = "tabScale"
+    )
+    val tint   = if (selected) primary else textTertiary
+    val weight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold
+
     Column(
         modifier = Modifier
+            .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(RoundedCornerShape(16.dp))
             .clickable { onClick() }
-            .padding(horizontal = 6.dp, vertical = 4.dp),
+            .padding(horizontal = 10.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
-        Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(20.dp))
+        Icon(
+            icon,
+            contentDescription = label,
+            tint = tint,
+            modifier = Modifier.size(22.dp)
+        )
         Text(
             label,
-            fontSize = 10.5.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+            fontSize = 10.sp,
+            fontWeight = weight,
             color = tint,
             maxLines = 1
+        )
+        // Selection dot indicator
+        Box(
+            modifier = Modifier
+                .size(width = 16.dp, height = 3.dp)
+                .clip(RoundedCornerShape(99.dp))
+                .background(if (selected) primary else Color.Transparent)
         )
     }
 }
 
+
+
 // ── segmented tabs ───────────────────────────────────────────────────────────
+
 
 /**
  * The mockup's segmented control (`segBtn`): a white pill track with a
