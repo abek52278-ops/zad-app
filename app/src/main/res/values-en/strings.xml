@@ -1428,6 +1428,8 @@
     <string name="v2_days_left">days left</string>
     <string name="v2_spend_trend">Spend trend — last 7 days</string>
     <string name="v2_recent_tx">Recent activity</string>
+    <string name="v2_see_all">See all</string>
+    <string name="v2_exclusive_offers">Exclusive offers</string>
 
 
     <!-- V2 inventory -->

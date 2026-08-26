@@ -29,181 +29,101 @@ import kotlinx.coroutines.delay
 import kotlin.random.Random
 
 /**
- * V2 Animations:
- * - pressableScale: Spring physics press down to 0.94x
- * - fadeUpOnAppear: Fade + translate Y entrance (staggered)
- * - floatingIdle: Gentle 6px up/down float for mascots/orbs
- * - AnimatedMeshGradient: Canvas-based 9s infinite mesh shift
- * - ConfettiOverlay: Rising particles for Tasbiha garden
+ * V3 Animations — iOS 18 premium feel
+ * - pressableScale: Spring press (0.94x)
+ * - fadeUpOnAppear: Staggered fade + translate Y
+ * - floatingIdle: Gentle 6px float
+ * - ringSpin: Orbital rotation
+ * - AnimatedMeshGradient: Canvas-based 9s mesh gradient
+ * - ConfettiOverlay: Rising particles
  */
 
 /** iOS-style spring press effect */
-fun Modifier.pressableScale(
-    onClick: () -> Unit
-): Modifier = composed {
+fun Modifier.pressableScale(onClick: () -> Unit = {}): Modifier = composed {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    
+
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.94f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "pressable_scale"
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "pressable_scale",
     )
 
     this
-        .graphicsLayer {
-            scaleX = scale
-            scaleY = scale
-        }
-        .clickable(
-            interactionSource = interactionSource,
-            indication = null,
-            onClick = onClick
-        )
+        .graphicsLayer { scaleX = scale; scaleY = scale }
+        .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
 }
 
-/** Staggered fade and translate up entrance */
+/** Staggered fade + translate Y entrance */
 fun Modifier.fadeUpOnAppear(delayMs: Long = 0): Modifier = composed {
     var visible by remember { mutableStateOf(false) }
-    
-    LaunchedEffect(Unit) {
-        if (delayMs > 0) delay(delayMs)
-        visible = true
-    }
+    LaunchedEffect(Unit) { if (delayMs > 0) delay(delayMs); visible = true }
 
-    val alpha by animateFloatAsState(
-        targetValue = if (visible) 1f else 0f,
-        animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing),
-        label = "fadeUp_alpha"
-    )
+    val alpha by animateFloatAsState(targetValue = if (visible) 1f else 0f, animationSpec = tween(600, easing = FastOutSlowInEasing), label = "fadeUp_alpha")
+    val offsetY by animateFloatAsState(targetValue = if (visible) 0f else 30f, animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow), label = "fadeUp_offset")
 
-    val offsetY by animateFloatAsState(
-        targetValue = if (visible) 0f else 30f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "fadeUp_offset"
-    )
-
-    this.graphicsLayer {
-        this.alpha = alpha
-        this.translationY = offsetY
-    }
+    this.graphicsLayer { this.alpha = alpha; this.translationY = offsetY }
 }
 
-/** Gentle idle floating animation (6px) */
+/** Gentle idle floating (6px) */
 fun Modifier.floatingIdle(duration: Int = 2000): Modifier = composed {
     val infiniteTransition = rememberInfiniteTransition(label = "floating")
     val offsetY by infiniteTransition.animateFloat(
-        initialValue = -6f,
-        targetValue = 6f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(duration, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "floating_offset"
+        initialValue = -6f, targetValue = 6f,
+        animationSpec = infiniteRepeatable(tween(duration, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Reverse),
+        label = "floating_offset",
     )
-
-    this.graphicsLayer {
-        translationY = offsetY
-    }
+    this.graphicsLayer { translationY = offsetY }
 }
 
-/** Infinite spinning for the Brain Orb ring */
+/** Infinite spinning ring */
 fun Modifier.ringSpin(duration: Int = 8000): Modifier = composed {
     val infiniteTransition = rememberInfiniteTransition(label = "spin")
     val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(duration, easing = androidx.compose.animation.core.LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "spin_rotation"
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(duration, easing = androidx.compose.animation.core.LinearEasing), repeatMode = RepeatMode.Restart),
+        label = "spin_rotation",
     )
-
-    this.graphicsLayer {
-        rotationZ = rotation
-    }
+    this.graphicsLayer { rotationZ = rotation }
 }
 
-/** Mesh Gradient background that shifts continuously. */
+/** Animated mesh gradient background */
 @Composable
-fun AnimatedMeshGradient(
-    modifier: Modifier = Modifier,
-    colors: List<Color>
-) {
+fun AnimatedMeshGradient(modifier: Modifier = Modifier, colors: List<Color>) {
     val infiniteTransition = rememberInfiniteTransition(label = "mesh")
     val shift by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(9000, easing = androidx.compose.animation.core.LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "mesh_shift"
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(9000, easing = androidx.compose.animation.core.LinearEasing), repeatMode = RepeatMode.Reverse),
+        label = "mesh_shift",
     )
 
     Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-        
-        val x1 = w * (0.2f + 0.6f * shift)
-        val y1 = h * (0.2f + 0.3f * (1f - shift))
-        
-        val x2 = w * (0.8f - 0.4f * shift)
-        val y2 = h * (0.8f - 0.2f * shift)
+        val w = size.width; val h = size.height
+        val x1 = w * (0.2f + 0.6f * shift); val y1 = h * (0.2f + 0.3f * (1f - shift))
+        val x2 = w * (0.8f - 0.4f * shift); val y2 = h * (0.8f - 0.2f * shift)
 
-        drawRect(
-            brush = Brush.linearGradient(
-                colors = colors,
-                start = Offset(0f, 0f),
-                end = Offset(w, h)
-            )
-        )
-        
+        drawRect(brush = Brush.linearGradient(colors = colors, start = Offset(0f, 0f), end = Offset(w, h)))
         drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(colors.getOrElse(1) { colors.first() }.copy(alpha = 0.6f), Color.Transparent),
-                center = Offset(x1, y1),
-                radius = w * 0.8f
-            ),
-            center = Offset(x1, y1),
-            radius = w * 0.8f
+            brush = Brush.radialGradient(colors = listOf(colors.getOrElse(1) { colors.first() }.copy(alpha = 0.6f), Color.Transparent), center = Offset(x1, y1), radius = w * 0.8f),
+            center = Offset(x1, y1), radius = w * 0.8f,
         )
-        
         drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(colors.getOrElse(2) { colors.last() }.copy(alpha = 0.5f), Color.Transparent),
-                center = Offset(x2, y2),
-                radius = w * 0.7f
-            ),
-            center = Offset(x2, y2),
-            radius = w * 0.7f
+            brush = Brush.radialGradient(colors = listOf(colors.getOrElse(2) { colors.last() }.copy(alpha = 0.5f), Color.Transparent), center = Offset(x2, y2), radius = w * 0.7f),
+            center = Offset(x2, y2), radius = w * 0.7f,
         )
     }
 }
 
-/** Confetti particles for Tasbiha / Success states. */
+/** Confetti particles */
 @Composable
 fun ConfettiOverlay(modifier: Modifier = Modifier, isTriggered: Boolean) {
     if (!isTriggered) return
-    
     val infiniteTransition = rememberInfiniteTransition(label = "confetti")
     val progress by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "confetti_progress"
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2000, easing = FastOutSlowInEasing), repeatMode = RepeatMode.Restart),
+        label = "confetti_progress",
     )
-
     val particles = remember {
         List(20) {
             object {
@@ -215,24 +135,14 @@ fun ConfettiOverlay(modifier: Modifier = Modifier, isTriggered: Boolean) {
             }
         }
     }
-
     Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-
+        val w = size.width; val h = size.height
         particles.forEach { p ->
             val pProgress = ((progress - p.delay) / (1f - p.delay)).coerceIn(0f, 1f)
             if (pProgress > 0f) {
                 val currentY = h + (p.targetYOffset * pProgress)
-                val alpha = (1f - pProgress).coerceIn(0f, 1f)
-                
-                drawCircle(
-                    color = p.color.copy(alpha = alpha),
-                    radius = p.radius,
-                    center = Offset(w * p.startX, currentY)
-                )
+                drawCircle(color = p.color.copy(alpha = (1f - pProgress).coerceIn(0f, 1f)), radius = p.radius, center = Offset(w * p.startX, currentY))
             }
         }
     }
 }
-

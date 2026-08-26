@@ -1431,6 +1431,8 @@
     <string name="v2_days_left">يوم متبقي</string>
     <string name="v2_spend_trend">اتجاه الصرف — آخر ٧ أيام</string>
     <string name="v2_recent_tx">آخر الحركات</string>
+    <string name="v2_see_all">عرض الكل</string>
+    <string name="v2_exclusive_offers">عروض حصرية</string>
 
 
     <!-- V2 inventory -->

@@ -1425,6 +1425,8 @@
     <string name="v2_days_left">gün kaldı</string>
     <string name="v2_spend_trend">Harcama eğilimi — son 7 gün</string>
     <string name="v2_recent_tx">Son hareketler</string>
+    <string name="v2_see_all">Tümünü gör</string>
+    <string name="v2_exclusive_offers">Özel fırsatlar</string>
 
 
     <!-- V2 inventory -->

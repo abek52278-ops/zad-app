@@ -10,7 +10,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,19 +22,18 @@ import com.example.ui.screens.ProfileScreen
 import com.example.ui.viewmodels.FamilyViewModel
 import com.example.ui.viewmodels.ZadViewModel
 
-private val v2FullScreenRoutes = setOf(V2Routes.PROFILE)
+private val v3FullScreenRoutes = setOf(V3Routes.PROFILE)
 
 @Composable
-fun V2MainScreen(
+fun V3MainScreen(
     viewModel: ZadViewModel,
     familyViewModel: FamilyViewModel,
     onLogout: () -> Unit,
 ) {
     val navController = rememberNavController()
-    val scope = rememberCoroutineScope()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    val chromeVisible = currentRoute !in v2FullScreenRoutes
+    val chromeVisible = currentRoute !in v3FullScreenRoutes
     var showVoiceSheet by remember { mutableStateOf(false) }
 
     fun go(route: String) {
@@ -46,21 +44,23 @@ fun V2MainScreen(
         }
     }
 
+    // Listen for AI-driven navigation commands
     val pendingAppCommand by viewModel.pendingAppCommand.collectAsState()
     LaunchedEffect(pendingAppCommand) {
         val cmd = pendingAppCommand ?: return@LaunchedEffect
-        when (cmd.screen) {
-            "budget" -> go(V2Routes.BUDGET)
-            "assistant", "tasks", "insights" -> go(V2Routes.ASSISTANT)
-            "profile" -> go(V2Routes.PROFILE)
-            "family" -> go(V2Routes.FAMILY)
-            "inventory" -> go(V2Routes.INVENTORY)
-            "shopping" -> go(V2Routes.SHOPPING)
-            "pharmacy" -> go(V2Routes.PHARMACY)
-            "maintenance" -> go(V2Routes.MAINTENANCE)
-            "deals" -> go(V2Routes.DEALS)
-            "notifications" -> go(V2Routes.NOTIFICATIONS)
-            else -> { }
+        val mapped = V3_TO_V2_ROUTE.entries.firstOrNull { it.value == cmd.screen }?.key
+        when (mapped) {
+            V3Routes.BUDGET -> go(V3Routes.BUDGET)
+            V3Routes.ASSISTANT -> go(V3Routes.ASSISTANT)
+            V3Routes.PROFILE -> go(V3Routes.PROFILE)
+            V3Routes.FAMILY -> go(V3Routes.FAMILY)
+            V3Routes.INVENTORY -> go(V3Routes.INVENTORY)
+            V3Routes.SHOPPING -> go(V3Routes.SHOPPING)
+            V3Routes.PHARMACY -> go(V3Routes.PHARMACY)
+            V3Routes.MAINTENANCE -> go(V3Routes.MAINTENANCE)
+            V3Routes.DEALS -> go(V3Routes.DEALS)
+            V3Routes.NOTIFICATIONS -> go(V3Routes.NOTIFICATIONS)
+            else -> {}
         }
         viewModel.consumePendingAppCommand()
     }
@@ -68,47 +68,49 @@ fun V2MainScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         NavHost(
             navController = navController,
-            startDestination = V2Routes.HOME,
+            startDestination = V3Routes.HOME,
             modifier = Modifier.fillMaxSize(),
         ) {
-            composable(V2Routes.HOME) {
-                V2HomeScreen(
+            composable(V3Routes.HOME) {
+                V3HomeScreen(
                     viewModel = viewModel,
-                    onNavigateToBudget = { go(V2Routes.BUDGET) },
+                    onNavigateToBudget = { go(V3Routes.BUDGET) },
                     onOpenVoice = { showVoiceSheet = true },
-                    onNavigate = { go(it) }
+                    onNavigate = { go(it) },
+                    onOpenNotifications = { go(V3Routes.NOTIFICATIONS) },
+                    onOpenProfile = { go(V3Routes.PROFILE) },
                 )
             }
-            composable(V2Routes.ASSISTANT) {
-                V2AssistantScreen(
+            composable(V3Routes.ASSISTANT) {
+                V3AssistantScreen(
                     viewModel = viewModel,
                     familyViewModel = familyViewModel,
                     onOpenVoice = { showVoiceSheet = true },
-                    onNavigateToKnowledge = { go(V2Routes.KNOWLEDGE) }
+                    onNavigateToKnowledge = { go(V3Routes.KNOWLEDGE) },
                 )
             }
-            composable(V2Routes.BUDGET) {
-                V2BudgetScreen(
+            composable(V3Routes.BUDGET) {
+                V3BudgetScreen(
                     viewModel = viewModel,
                     onOpenVoice = { showVoiceSheet = true },
                 )
             }
-            composable(V2Routes.INVENTORY) {
-                V2InventoryScreen(viewModel = viewModel)
+            composable(V3Routes.INVENTORY) {
+                V3InventoryScreen(viewModel = viewModel)
             }
-            composable(V2Routes.PHARMACY) {
-                V2PharmacyScreen(viewModel = viewModel)
+            composable(V3Routes.PHARMACY) {
+                V3PharmacyScreen(viewModel = viewModel)
             }
-            composable(V2Routes.SHOPPING) {
-                V2ShoppingScreen(viewModel = viewModel)
+            composable(V3Routes.SHOPPING) {
+                V3ShoppingScreen(viewModel = viewModel)
             }
-            composable(V2Routes.SUBS) {
-                V2SubscriptionsScreen(viewModel = viewModel)
+            composable(V3Routes.SUBS) {
+                V3SubscriptionsScreen(viewModel = viewModel)
             }
-            composable(V2Routes.MAINTENANCE) {
-                V2MaintenanceScreen(viewModel = viewModel)
+            composable(V3Routes.MAINTENANCE) {
+                V3MaintenanceScreen(viewModel = viewModel)
             }
-            composable(V2Routes.PROFILE) {
+            composable(V3Routes.PROFILE) {
                 ProfileScreen(
                     viewModel = viewModel,
                     familyViewModel = familyViewModel,
@@ -117,33 +119,35 @@ fun V2MainScreen(
                     onSwitchToKidsMode = { },
                 )
             }
-            composable(V2Routes.FAMILY) {
-                V2FamilyScreen()
+            composable(V3Routes.FAMILY) {
+                V3FamilyScreen()
             }
-            composable(V2Routes.DEALS) {
-                V2DealsScreen()
+            composable(V3Routes.DEALS) {
+                V3DealsScreen()
             }
-            composable(V2Routes.NOTIFICATIONS) {
-                V2NotificationsScreen()
+            composable(V3Routes.NOTIFICATIONS) {
+                V3NotificationsScreen()
             }
-            composable(V2Routes.TASBIHA) {
-                V2TasbihaScreen()
+            composable(V3Routes.TASBIHA) {
+                V3TasbihaScreen()
             }
-            composable(V2Routes.KNOWLEDGE) {
-                V2KnowledgeMapScreen()
+            composable(V3Routes.KNOWLEDGE) {
+                V3KnowledgeMapScreen()
             }
         }
 
+        // Chrome overlay (header + bottom bar)
         if (chromeVisible) {
             Column(modifier = Modifier.fillMaxSize()) {
-                V2Header(
-                    title = v2ScreenTitle(currentRoute),
-                    onOpenDrawer = { /* Will implement drawer state soon */ },
+                V3Header(
+                    title = v3ScreenTitle(currentRoute),
+                    onOpenProfile = { go(V3Routes.PROFILE) },
+                    onOpenNotifications = { go(V3Routes.NOTIFICATIONS) },
                 )
                 Spacer(Modifier.weight(1f))
             }
             Box(modifier = Modifier.align(Alignment.BottomCenter)) {
-                V2BottomBar(
+                V3BottomBar(
                     currentRoute = currentRoute,
                     onNavigate = { go(it) },
                     onOpenVoice = { showVoiceSheet = true },
@@ -152,28 +156,31 @@ fun V2MainScreen(
         }
     }
 
+    // Voice sheet overlay
     if (showVoiceSheet) {
-        // Siri-style Voice Sheet overlay
-        com.example.ui.components.ZadVoiceBottomSheet(viewModel = viewModel, onDismiss = { showVoiceSheet = false })
+        com.example.ui.components.ZadVoiceBottomSheet(
+            viewModel = viewModel,
+            onDismiss = { showVoiceSheet = false },
+        )
     }
 }
 
 @Composable
-private fun v2ScreenTitle(route: String?): String = androidx.compose.ui.res.stringResource(
+private fun v3ScreenTitle(route: String?): String = androidx.compose.ui.res.stringResource(
     when (route) {
-        V2Routes.ASSISTANT -> com.example.R.string.nav_assistant
-        V2Routes.BUDGET -> com.example.R.string.screen_title_budget
-        V2Routes.INVENTORY -> com.example.R.string.nav_inventory
-        V2Routes.PROFILE -> com.example.R.string.screen_title_profile
-        V2Routes.SHOPPING -> com.example.R.string.nav_shopping
-        V2Routes.PHARMACY -> com.example.R.string.nav_pharmacy
-        V2Routes.SUBS -> com.example.R.string.subscriptions_title
-        V2Routes.MAINTENANCE -> com.example.R.string.nav_maintenance
-        V2Routes.FAMILY -> com.example.R.string.nav_family
-        V2Routes.DEALS -> com.example.R.string.nav_deals
-        V2Routes.NOTIFICATIONS -> com.example.R.string.notifications_title
-        V2Routes.TASBIHA -> com.example.R.string.app_name
-        V2Routes.KNOWLEDGE -> com.example.R.string.nav_assistant
+        V3Routes.ASSISTANT -> com.example.R.string.nav_assistant
+        V3Routes.BUDGET -> com.example.R.string.screen_title_budget
+        V3Routes.INVENTORY -> com.example.R.string.nav_inventory
+        V3Routes.PROFILE -> com.example.R.string.screen_title_profile
+        V3Routes.SHOPPING -> com.example.R.string.nav_shopping
+        V3Routes.PHARMACY -> com.example.R.string.nav_pharmacy
+        V3Routes.SUBS -> com.example.R.string.subscriptions_title
+        V3Routes.MAINTENANCE -> com.example.R.string.nav_maintenance
+        V3Routes.FAMILY -> com.example.R.string.nav_family
+        V3Routes.DEALS -> com.example.R.string.nav_deals
+        V3Routes.NOTIFICATIONS -> com.example.R.string.notifications_title
+        V3Routes.TASBIHA -> com.example.R.string.app_name
+        V3Routes.KNOWLEDGE -> com.example.R.string.nav_assistant
         else -> com.example.R.string.screen_title_home
     }
 )

@@ -3,16 +3,24 @@ package com.example.ui.theme
 import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,32 +36,36 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * ZadTheme v2 — the iOS-style design language rebuilt from "new ui ux/"
+ * ZadTheme v3 — Apple Wallet / iOS-inspired design system rebuilt from "new ui ux/" vision
+ *
+ * Color palette: Emerald Deep Green (#064E3B, #0A382C) as primary,
+ * warm neutrals (#F2F2F7) as canvas, crisp white cards, glassmorphism.
  */
 
-object ZadV2 {
-    // Brand greens
+object ZadV3 {
+    // ── Brand Emerald Deep Greens ──────────────────────────────────────────
     val green900 = Color(0xFF052E16)
-    val green800 = Color(0xFF064E3B)
+    val green800 = Color(0xFF064E3B)       // Primary brand color
     val green700 = Color(0xFF0B6B4E)
     val green600 = Color(0xFF0F9B76)
+    val green500 = Color(0xFF1BB383)
+    val green400 = Color(0xFF34D399)
     val mint100 = Color(0xFFD9F2E6)
-    val mint50 = Color(0xFFE6F4EC)
-    val mintGlow = Color(0xFF6EE7B7)
+    val mint50  = Color(0xFFE6F4EC)
+    val mintGlow = Color(0xFF6EE7B7)       // AI accent glow
 
-    // Neutrals
-    val ink = Color(0xFF0F172A)
+    // ── Canvas & Neutrals (iOS-inspired: #F2F2F7 warm gray) ──────────────
+    val canvas = Color(0xFFF2F2F7)          // iOS system background
+    val canvasWarm = Color(0xFFFBFAF8)      // Splash/auth canvas
+    val surface = Color(0xFFFFFFFF)         // White card surface
+    val ink = Color(0xFF0F172A)             // Near-black text
     val slate = Color(0xFF374151)
     val gray500 = Color(0xFF6B7280)
     val gray400 = Color(0xFF9CA3AF)
+    val gray300 = Color(0xFFD1D5DB)
     val hairline = Color(0x0D000000)
 
-    // Canvases
-    val canvasWarm = Color(0xFFFBFAF8)
-    val canvasCoolTop = Color(0xFFF4F5F7)
-    val canvasCoolBottom = Color(0xFFE9ECEF)
-
-    // Semantic
+    // ── Semantic ──────────────────────────────────────────────────────────
     val warn = Color(0xFFB45309)
     val danger = Color(0xFFDC5B4B)
     val info = Color(0xFF2563EB)
@@ -61,7 +73,7 @@ object ZadV2 {
     val amberDot = Color(0xFFF4A93B)
     val coralDot = Color(0xFFFF8066)
 
-    // Category tile fills
+    // ── Category Tile Fills (pastel, matching the vision) ────────────────
     val tileInvBg = Color(0xFFE3F5EC);  val tileInvFg = Color(0xFF0B6B4E)
     val tileShopBg = Color(0xFFFCEEE3); val tileShopFg = Color(0xFFC2703D)
     val tileFamilyBg = Color(0xFFF1EAFB); val tileFamilyFg = Color(0xFF7C3AED)
@@ -70,19 +82,31 @@ object ZadV2 {
     val tileMaintBg = Color(0xFFFDF3E1); val tileMaintFg = Color(0xFFB45309)
     val tileTasbihaBg = Color(0xFFF3E8FF); val tileTasbihaFg = Color(0xFF9333EA)
 
+    // AI Plate — dark emerald for AI-generated content
     val aiPlate = Color(0xFF052E16)
+    val aiCardBg = Color(0xFF0A382C)
 
-    // Radii
+    // ── Radii ─────────────────────────────────────────────────────────────
     val rCard = RoundedCornerShape(16.dp)
-    val rCardLg = RoundedCornerShape(18.dp)
+    val rCardLg = RoundedCornerShape(20.dp)
     val rSheet = RoundedCornerShape(24.dp)
-    val rHero = RoundedCornerShape(28.dp)
+    val rHero = RoundedCornerShape(28.dp)   // Apple Wallet card
     val rPill = RoundedCornerShape(999.dp)
 
+    // ── Gradients ─────────────────────────────────────────────────────────
     val heroAmountBrush = Brush.verticalGradient(listOf(Color.White, mint100))
+    val heroGradient = listOf(green800, green700)
+    val heroGradientDeep = listOf(Color(0xFF0A382C), green800, green700)
+
+    // ── Shadows ───────────────────────────────────────────────────────────
+    val cardShadowAmbient = Color(0x0A0F172A)
+    val cardShadowSpot = Color(0x120F172A)
 }
 
-/** Glassmorphic blur support for Android 12+ */
+/** Backward-compatible alias for old screens still referencing ZadV2 */
+val ZadV2 = ZadV3
+
+/** Glassmorphic blur for Android 12+ */
 fun Modifier.glassBlur(radius: Float = 16f): Modifier = this.graphicsLayer {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         renderEffect = android.graphics.RenderEffect.createBlurEffect(
@@ -91,16 +115,24 @@ fun Modifier.glassBlur(radius: Float = 16f): Modifier = this.graphicsLayer {
     }
 }
 
-fun Modifier.zadV2Card(shape: Shape = ZadV2.rCard): Modifier = this
-    .shadow(
-        elevation = 12.dp,
+/** Apple-style card shadow: elevated white surface with soft diffuse shadow */
+fun Modifier.zadCardShadow(shape: Shape, elevation: androidx.compose.ui.unit.Dp = 8.dp): Modifier =
+    this.shadow(
+        elevation = elevation,
         shape = shape,
-        ambientColor = Color(0x0A0F172A),
-        spotColor = Color(0x120F172A),
+        ambientColor = Color(0xFF0F172A).copy(alpha = 0.08f),
+        spotColor = Color(0xFF0F172A).copy(alpha = 0.12f),
     )
+
+/** V2-compatible card style (white, shadow, clip) */
+fun Modifier.zadV2Card(shape: Shape = ZadV3.rCard): Modifier = this
+    .shadow(elevation = 12.dp, shape = shape, ambientColor = ZadV3.cardShadowAmbient, spotColor = ZadV3.cardShadowSpot)
     .clip(shape)
     .background(Color.White)
 
+// ── Reusable composables ──────────────────────────────────────────────────────
+
+/** Glass pill chip (spent/committed indicators) */
 @Composable
 fun ZadGlassChip(
     label: String,
@@ -110,38 +142,228 @@ fun ZadGlassChip(
 ) {
     Row(
         modifier = modifier
-            .clip(ZadV2.rPill)
+            .clip(ZadV3.rPill)
             .background(Color.White.copy(alpha = 0.14f))
-            .border(1.dp, Color.White.copy(alpha = 0.14f), ZadV2.rPill)
+            .border(1.dp, Color.White.copy(alpha = 0.14f), ZadV3.rPill)
             .padding(horizontal = 13.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        Box(
-            Modifier
-                .size(7.dp)
-                .clip(CircleShape)
-                .background(dotColor)
-        )
+        Box(Modifier.size(7.dp).clip(CircleShape).background(dotColor))
         Text(
             "$label: $value",
-            fontSize = 12.5.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Color.White,
-            maxLines = 1,
+            fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1,
         )
     }
 }
 
 @Composable
 fun ZadSectionTitle(text: String, modifier: Modifier = Modifier) {
-    Text(text, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = ZadV2.ink, modifier = modifier)
+    Text(text, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = ZadV3.ink, modifier = modifier)
 }
 
 @Composable
 fun ZadStatCell(caption: String, value: String, modifier: Modifier = Modifier, valueSize: TextUnit = 24.sp) {
     Column(modifier.zadV2Card().padding(horizontal = 14.dp, vertical = 14.dp)) {
-        Text(caption, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = ZadV2.gray500)
-        Text(value, fontSize = valueSize, fontWeight = FontWeight.Bold, color = ZadV2.ink)
+        Text(caption, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = ZadV3.gray500)
+        Text(value, fontSize = valueSize, fontWeight = FontWeight.Bold, color = ZadV3.ink)
+    }
+}
+
+/** Page padding for non-home screens */
+val V3ScreenPadding = androidx.compose.foundation.layout.PaddingValues(
+    start = 20.dp, end = 20.dp, top = 6.dp, bottom = 130.dp
+)
+val V3ScreenGap = 14.dp
+
+/** Meter bar (progress) */
+@Composable
+fun ZadMeterBar(
+    progress: Float,
+    color: Color,
+    modifier: Modifier = Modifier,
+    height: androidx.compose.ui.unit.Dp = 6.dp,
+    trackColor: Color = Color(0xFFF1F4F3),
+) {
+    val target = progress.coerceIn(0f, 1f)
+    val width: Float by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = target,
+        animationSpec = androidx.compose.animation.core.tween(600, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+        label = "meter",
+    )
+    Box(
+        modifier = modifier.fillMaxWidth().height(height).clip(RoundedCornerShape(50)).background(trackColor)
+    ) {
+        Box(Modifier.fillMaxWidth(width).fillMaxHeight().clip(RoundedCornerShape(50)).background(color))
+    }
+}
+
+/** Status pill (faint bg, colored text) */
+@Composable
+fun ZadStatusPill(
+    text: String,
+    color: Color,
+    modifier: Modifier = Modifier,
+    containerColor: Color = ZadV3.green800.copy(alpha = 0.06f),
+) {
+    Text(
+        text, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1,
+        modifier = modifier.clip(RoundedCornerShape(50)).background(containerColor).padding(horizontal = 10.dp, vertical = 4.dp),
+    )
+}
+
+/** Dark AI panel */
+@Composable
+fun ZadDarkPanel(
+    title: String,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth().clip(ZadV3.rCardLg).background(ZadV3.aiPlate).padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = ZadV3.mintGlow)
+        content()
+    }
+}
+
+/** Universal row card for list screens */
+@Composable
+fun ZadRowCard(
+    title: String,
+    subtitle: String?,
+    modifier: Modifier = Modifier,
+    leadingAccent: Color? = null,
+    onClick: (() -> Unit)? = null,
+    trailing: @Composable (() -> Unit)? = null,
+) {
+    val shape = RoundedCornerShape(16.dp)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .zadCardShadow(shape)
+            .clip(shape)
+            .background(Color.White)
+            .then(if (onClick != null) Modifier.clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ) else Modifier)
+            .height(androidx.compose.foundation.layout.IntrinsicSize.Min),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (leadingAccent != null) {
+            Box(Modifier.width(3.dp).fillMaxHeight().background(leadingAccent))
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            androidx.compose.foundation.layout.Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ZadV3.ink, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                if (!subtitle.isNullOrBlank()) {
+                    Text(subtitle, fontSize = 11.5.sp, color = ZadV3.gray400, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+            }
+            if (trailing != null) {
+                androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp))
+                trailing()
+            }
+        }
+    }
+}
+
+/** Row amount display */
+@Composable
+fun ZadRowAmount(text: String, color: Color = ZadV3.ink) {
+    Text(text, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
+}
+
+/** Settings-style menu group */
+@Composable
+fun ZadMenuGroup(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val shape = RoundedCornerShape(24.dp)
+    Column(
+        modifier = modifier.fillMaxWidth().zadCardShadow(shape).clip(shape).background(Color.White),
+        content = content,
+    )
+}
+
+/** Settings-style menu row */
+@Composable
+fun ZadMenuRow(
+    title: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    titleColor: Color = ZadV3.ink,
+    showDivider: Boolean = true,
+    trailing: @Composable (() -> Unit)? = null,
+) {
+    androidx.compose.foundation.layout.Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClick,
+                )
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            androidx.compose.foundation.layout.Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = titleColor)
+                if (!subtitle.isNullOrBlank()) {
+                    Text(subtitle, fontSize = 11.5.sp, color = ZadV3.gray400, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+            }
+            if (trailing != null) {
+                androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp))
+                trailing()
+            }
+        }
+        if (showDivider) {
+            Box(Modifier.fillMaxWidth().height(1.dp).background(Color.Black.copy(alpha = 0.05f)))
+        }
+    }
+}
+
+/** Primary CTA button */
+@Composable
+fun ZadPrimaryButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    loading: Boolean = false,
+) {
+    androidx.compose.material3.Button(
+        onClick = onClick,
+        enabled = enabled && !loading,
+        modifier = modifier.height(56.dp).let { it }, // pressableScale is applied inline
+        shape = RoundedCornerShape(50),
+        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+            containerColor = ZadV3.green800,
+            contentColor = Color.White,
+            disabledContainerColor = ZadV3.green800.copy(alpha = 0.35f),
+            disabledContentColor = Color.White.copy(alpha = 0.7f),
+        ),
+        elevation = androidx.compose.material3.ButtonDefaults.buttonElevation(
+            defaultElevation = 10.dp, pressedElevation = 4.dp,
+        ),
+    ) {
+        if (loading) {
+            androidx.compose.material3.CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+        } else {
+            Text(text, fontSize = 15.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        }
     }
 }
