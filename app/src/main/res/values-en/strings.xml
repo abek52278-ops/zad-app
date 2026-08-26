@@ -1509,4 +1509,16 @@
     <string name="v3x_nearby_store">Nearby store</string>
     <string name="v3x_tasbiha_title">Tasbiha Garden</string>
     <string name="v3x_tasbiha_tap">Tap to count</string>
+    <string name="v3x_kids_balance">Your balance</string>
+    <string name="v3x_kids_goal">Savings goal</string>
+    <string name="v3x_kids_ask">✋ Ask for money</string>
+    <string name="v3x_kids_tasks">My tasks</string>
+    <string name="v3x_kids_no_tasks">No tasks right now — ask mom or dad for new ones!</string>
+    <string name="v3x_kids_badge_streak">Streak</string>
+    <string name="v3x_kids_badge_saver">Saver</string>
+    <string name="v3x_kids_badge_star">Star</string>
+    <string name="v3x_camera_title">Zad AI camera</string>
+    <string name="v3x_camera_preview">Camera preview</string>
+    <string name="v3x_camera_scan_inventory">Scan inventory</string>
+    <string name="v3x_camera_scan_receipt">Scan receipt</string>
 </resources>

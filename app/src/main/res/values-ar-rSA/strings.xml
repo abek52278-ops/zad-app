@@ -1472,4 +1472,16 @@
     <string name="v3x_nearby_store">متجر قريب</string>
     <string name="v3x_tasbiha_title">بستان التسبيح</string>
     <string name="v3x_tasbiha_tap">سبحان الله</string>
+    <string name="v3x_kids_balance">رصيدك</string>
+    <string name="v3x_kids_goal">هدف التوفير</string>
+    <string name="v3x_kids_ask">✋ محتاج مصروف</string>
+    <string name="v3x_kids_tasks">مهامي</string>
+    <string name="v3x_kids_no_tasks">مفيش مهام دلوقتي — اسأل بابا أو ماما عن مهام جديدة!</string>
+    <string name="v3x_kids_badge_streak">مثابرة</string>
+    <string name="v3x_kids_badge_saver">موفر</string>
+    <string name="v3x_kids_badge_star">نجم</string>
+    <string name="v3x_camera_title">زاد الذكي بالكاميرا</string>
+    <string name="v3x_camera_preview">معاينة الكاميرا</string>
+    <string name="v3x_camera_scan_inventory">مسح مخزون</string>
+    <string name="v3x_camera_scan_receipt">مسح فاتورة</string>
 </resources>

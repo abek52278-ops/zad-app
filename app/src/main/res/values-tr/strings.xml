@@ -1506,4 +1506,16 @@
     <string name="v3x_nearby_store">متجر قريب</string>
     <string name="v3x_tasbiha_title">بستان التسبيح</string>
     <string name="v3x_tasbiha_tap">سبحان الله</string>
+    <string name="v3x_kids_balance">Bakiyen</string>
+    <string name="v3x_kids_goal">Birikim hedefi</string>
+    <string name="v3x_kids_ask">✋ Harçlık iste</string>
+    <string name="v3x_kids_tasks">Görevlerim</string>
+    <string name="v3x_kids_no_tasks">Şu an görev yok — annenden ya da babandan yeni görev iste!</string>
+    <string name="v3x_kids_badge_streak">Seri</string>
+    <string name="v3x_kids_badge_saver">Tasarrufçu</string>
+    <string name="v3x_kids_badge_star">Yıldız</string>
+    <string name="v3x_camera_title">Zad AI kamera</string>
+    <string name="v3x_camera_preview">Kamera önizleme</string>
+    <string name="v3x_camera_scan_inventory">Envanter tara</string>
+    <string name="v3x_camera_scan_receipt">Fiş tara</string>
 </resources>

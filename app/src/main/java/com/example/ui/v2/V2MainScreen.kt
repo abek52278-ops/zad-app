@@ -88,6 +88,10 @@ fun V3MainScreen(
             }
         },
     ) { innerPadding ->
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val kidsMode = remember { V3KidsMode.isEnabled(context) }
+    var kidsModeActive by remember { mutableStateOf(kidsMode) }
+
         NavHost(
             navController = navController,
             startDestination = V3Routes.HOME,
@@ -98,6 +102,12 @@ fun V3MainScreen(
                 .padding(top = innerPadding.calculateTopPadding()),
         ) {
             composable(V3Routes.HOME) {
+                if (kidsModeActive) {
+                    V3KidsHomeScreen(
+                        viewModel = viewModel,
+                        onAskForMoney = { go(V3Routes.FAMILY) },
+                    )
+                } else {
                 V3HomeScreen(
                     viewModel = viewModel,
                     onNavigateToBudget = { go(V3Routes.BUDGET) },
@@ -106,6 +116,7 @@ fun V3MainScreen(
                     onOpenNotifications = { go(V3Routes.NOTIFICATIONS) },
                     onOpenProfile = { go(V3Routes.PROFILE) },
                 )
+                }
             }
             composable(V3Routes.ASSISTANT) {
                 V3AssistantScreen(
@@ -142,7 +153,11 @@ fun V3MainScreen(
                     familyViewModel = familyViewModel,
                     onLogout = onLogout,
                     navController = navController,
-                    onSwitchToKidsMode = { },
+                    onSwitchToKidsMode = {
+                        V3KidsMode.setEnabled(context, true)
+                        kidsModeActive = true
+                        go(V3Routes.HOME)
+                    },
                 )
             }
             composable(V3Routes.FAMILY) {
