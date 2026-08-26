@@ -207,6 +207,8 @@ fun V3CameraSheet(
                     stringResource(R.string.v3x_camera_preview),
                     fontSize = 13.sp, color = Color.White.copy(alpha = 0.4f),
                 )
+                // V4 — live laser sweep from assets/scan_line.json timing
+                ScanSweep(modifier = Modifier.matchParentSize())
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Box(

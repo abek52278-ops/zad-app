@@ -55,6 +55,13 @@ fun ZadVoiceOrb(
         modifier = modifier.size(size),
         contentAlignment = Alignment.Center
     ) {
+        // V4 — ripple rings behind the orb while listening (ai_orb.json port)
+        if (state == OrbState.Listening) {
+            com.example.ui.v2.AiRippleRings(
+                modifier = Modifier.size(size * 1.9f),
+                ringColor = haloColor,
+            )
+        }
         // الهالة الدوارة (قوسان بزاوية) — بتلف ببطء
         Canvas(
             modifier = Modifier

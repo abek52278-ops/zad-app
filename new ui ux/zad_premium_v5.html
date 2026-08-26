@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZAD — Premium iPhone UI v5</title>
+<script src="assets/lottie-web.min.js"></script>
+<style>
+/* ═══════════════ ZAD PREMIUM — iPhone-grade Design System ═══════════════ */
+:root{
+  --g900:#052E16; --g800:#064E3B; --g700:#0B6B4E; --g600:#0F9B76; --g500:#1BB383; --g400:#34D399;
+  --mint:#6EE7B7; --mint100:#D9F2E6; --mint50:#E6F4EC;
+  --canvas:#F2F2F7; --ink:#0F172A; --slate:#374151; --gray500:#6B7280; --gray400:#9CA3AF;
+  --warn:#B45309; --danger:#DC5B4B; --info:#2563EB; --violet:#7C3AED; --pink:#EC4899;
+  --amberDot:#F4A93B; --coralDot:#FF8066;
+  --card-r:20px; --hero-r:28px; --pill-r:9999px;
+  --shadow-card:0 1px 2px rgba(15,23,42,.04),0 8px 24px rgba(15,23,42,.08);
+  --shadow-float:0 20px 44px rgba(6,78,59,.35);
+  --ease-ios:cubic-bezier(.32,.72,0,1);
+  --ease-premium:cubic-bezier(.22,1,.36,1);
+  --ease-spring:cubic-bezier(.34,1.56,.64,1);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
+html,body{height:100%;background:#101318;font-family:-apple-system,'SF Pro Display','Cairo',system-ui,sans-serif;overflow:hidden}
+button{font-family:inherit;border:none;background:none;cursor:pointer}
+::-webkit-scrollbar{display:none}
+
+/* ─── Stage ─── */
+#stage{height:100vh;display:flex;align-items:center;justify-content:center;gap:60px;padding:24px;
+  background:radial-gradient(1200px 800px at 20% 10%,#1a2230 0%,#101318 60%);}
+.brand{color:#fff;display:flex;flex-direction:column;gap:14px;max-width:300px}
+.brand h1{font-size:44px;font-weight:800;letter-spacing:-1px;
+  background:linear-gradient(120deg,#fff,#6EE7B7,#0F9B76);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  animation:shimmer 6s ease infinite;background-size:200% 200%}
+.brand p{color:#9CA3AF;font-size:14px;line-height:1.7}
+.brand .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.brand .chips span{font-size:11px;font-weight:700;color:#6EE7B7;background:rgba(110,231,183,.08);
+  border:1px solid rgba(110,231,183,.15);border-radius:99px;padding:5px 12px}
+@keyframes shimmer{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+
+/* ─── Phone frame ─── */
+#phone{width:402px;height:874px;border-radius:55px;position:relative;flex-shrink:0;
+  background:#000;padding:8px;
+  box-shadow:0 0 0 2px #3a3f47,0 0 0 5px #1a1d22,0 50px 100px rgba(0,0,0,.7),0 20px 60px rgba(6,78,59,.25);
+  transform-style:preserve-3d;transition:transform .8s var(--ease-premium);}
+#phone:hover{transform:rotateX(2deg) rotateY(-2deg)}
+#screen{width:100%;height:100%;border-radius:47px;overflow:hidden;position:relative;background:var(--canvas)}
+#notch{position:absolute;top:18px;left:50%;transform:translateX(-50%);width:120px;height:34px;border-radius:20px;background:#000;z-index:100}
+#screen::before{content:'';position:absolute;inset:0;z-index:90;pointer-events:none;border-radius:47px;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);}
+
+/* ─── Keyframes ─── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes meshShift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+@keyframes floatY{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulseGlow{0%,100%{box-shadow:0 0 0 0 rgba(110,231,183,.4)}50%{box-shadow:0 0 0 14px rgba(110,231,183,0)}}
+@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+@keyframes wave{0%,100%{transform:scaleY(.4)}50%{transform:scaleY(1)}}
+@keyframes rise{0%{transform:translateY(0);opacity:0}15%{opacity:1}85%{opacity:.6}100%{transform:translateY(-140px);opacity:0}}
+@keyframes tickerMove{0%{transform:translateX(0)}100%{transform:translateX(50%)}}
+@keyframes drawCheck{to{stroke-dashoffset:0}}
+@keyframes orbRotate{to{transform:rotate(360deg)}}
+@keyframes card3d{0%,100%{transform:perspective(800px) rotateX(0) rotateY(0)}50%{transform:perspective(800px) rotateX(2deg) rotateY(-2deg) translateY(-4px)}}
+@keyframes dotPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.3);opacity:.7}}
+
+/* ─── Canvas bg ─── */
+#bg{position:absolute;inset:0;background:linear-gradient(165deg,#F4F5F7 0%,#ECEEF1 45%,#E9ECEF 100%)}
+
+/* ─── Splash ─── */
+#splash{position:absolute;inset:0;z-index:80;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:radial-gradient(120% 100% at 15% 10%,rgba(252,211,199,.5) 0%,transparent 55%),
+             radial-gradient(120% 100% at 85% 90%,rgba(191,227,209,.55) 0%,transparent 55%),#FBFAF8;
+  transition:opacity .6s var(--ease-ios),transform .6s var(--ease-ios)}
+#splash.hide{opacity:0;transform:scale(1.08);pointer-events:none}
+.carrot{width:84px;height:84px;animation:carrotIn .8s var(--ease-premium) both,floatY 3s ease-in-out .8s infinite;
+  filter:drop-shadow(0 14px 28px rgba(240,112,61,.35))}
+@keyframes carrotIn{0%{opacity:0;transform:scale(.6) rotate(-10deg)}60%{opacity:1;transform:scale(1.08) rotate(3deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
+#splash .logo{font-size:40px;font-weight:800;color:var(--g600);letter-spacing:-1px;animation:fadeUp .7s ease .3s both}
+#splash .slogan{font-size:16px;font-weight:600;color:var(--slate);animation:fadeUp .7s ease .45s both}
+#splash .sub{font-size:13px;color:var(--gray400);animation:fadeUp .7s ease .55s both}
+#enterBtn{position:absolute;bottom:70px;background:var(--g800);color:#fff;font-size:16px;font-weight:700;
+  border-radius:99px;padding:17px 56px;box-shadow:0 14px 34px rgba(6,78,59,.35);
+  animation:fadeUp .7s ease .7s both;transition:transform .15s var(--ease-spring)}
+#enterBtn:active{transform:scale(.94)}
+
+/* ─── Header ─── */
+#header{position:sticky;top:0;z-index:20;background:rgba(249,250,251,.85);backdrop-filter:blur(20px) saturate(180%);
+  -webkit-backdrop-filter:blur(20px) saturate(180%);
+  padding:58px 20px 14px;display:flex;flex-direction:column;gap:12px;
+  border-bottom:1px solid rgba(6,78,59,.07);animation:fadeUp .4s ease both}
+.hdr-row{display:flex;align-items:center;justify-content:space-between}
+.hdr-left{display:flex;align-items:center;gap:10px}
+.icon-btn{width:34px;height:34px;border-radius:11px;background:rgba(6,78,59,.08);
+  display:flex;align-items:center;justify-content:center;transition:transform .15s var(--ease-spring),background .2s}
+.icon-btn:active{transform:scale(.88);background:rgba(6,78,59,.15)}
+.icon-btn svg{width:17px;height:17px;stroke:var(--g800)}
+.carrot-tile{width:34px;height:34px;border-radius:10px;background:var(--mint50);display:flex;align-items:center;justify-content:center}
+.wordmark{font-weight:800;font-size:20px;color:var(--g800);letter-spacing:-.3px}
+.badge-kids{font-size:11px;font-weight:700;color:var(--violet);background:rgba(124,58,237,.1);border-radius:99px;padding:4px 10px}
+#screenTitle{font-size:27px;font-weight:800;color:var(--ink);letter-spacing:-.4px}
+.bell-wrap{position:relative}
+.bell-dot{position:absolute;top:6px;inset-inline-end:6px;width:8px;height:8px;border-radius:50%;
+  background:var(--danger);animation:dotPulse 2s ease infinite}
+.avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--g800),var(--g600));
+  display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px;
+  box-shadow:0 4px 12px rgba(6,78,59,.25)}
+
+/* ─── Body / screens ─── */
+#scroll{position:absolute;inset:0;overflow-y:auto;overscroll-behavior:contain}
+.page{padding:16px 20px 140px;display:flex;flex-direction:column;gap:16px}
+.page>*{animation:fadeUp .5s var(--ease-premium) both}
+.stagger>*{animation:fadeUp .5s var(--ease-premium) both}
+.stagger>*:nth-child(1){animation-delay:.03s}.stagger>*:nth-child(2){animation-delay:.08s}
+.stagger>*:nth-child(3){animation-delay:.13s}.stagger>*:nth-child(4){animation-delay:.18s}
+.stagger>*:nth-child(5){animation-delay:.23s}.stagger>*:nth-child(6){animation-delay:.28s}
+.stagger>*:nth-child(7){animation-delay:.33s}.stagger>*:nth-child(8){animation-delay:.38s}
+.stagger>*:nth-child(9){animation-delay:.43s}.stagger>*:nth-child(10){animation-delay:.48s}
+.stagger>*:nth-child(11){animation-delay:.53s}.stagger>*:nth-child(12){animation-delay:.58s}
+
+/* ─── Cards ─── */
+.card{background:#fff;border-radius:var(--card-r);padding:15px;box-shadow:var(--shadow-card)}
+.card-lg{border-radius:18px;padding:16px}
+.press{transition:transform .18s var(--ease-spring)}
+.press:active{transform:scale(.955)}
+.sect-title{font-size:15.5px;font-weight:800;color:var(--ink)}
+.sect-head{display:flex;justify-content:space-between;align-items:center}
+.see-all{font-size:13px;font-weight:700;color:var(--g800)}
+
+/* ─── Hero wallet card ─── */
+.hero{border-radius:var(--hero-r);padding:26px 24px 22px;color:#fff;position:relative;overflow:hidden;cursor:pointer;
+  background:linear-gradient(120deg,#0B6B4E,#0F9B76,#064E3B,#0B6B4E);background-size:300% 300%;
+  animation:meshShift 9s ease infinite,fadeUp .55s var(--ease-premium) both;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.2),var(--shadow-float);
+  transition:transform .3s var(--ease-premium)}
+.hero:active{transform:scale(.97)}
+.hero::after{content:'';position:absolute;top:-60%;inset-inline-start:-20%;width:70%;height:120%;
+  background:radial-gradient(closest-side,rgba(255,255,255,.14),transparent);pointer-events:none}
+.hero .lbl{font-size:12px;font-weight:700;letter-spacing:.5px;color:rgba(255,255,255,.72)}
+.hero .amt{font-size:46px;font-weight:800;letter-spacing:-1.5px;margin:6px 0 14px;
+  background:linear-gradient(180deg,#fff,#D9F2E6);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.chip-row{display:flex;gap:10px;flex-wrap:wrap}
+.gchip{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.14);backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,.15);border-radius:99px;padding:8px 14px;font-size:12.5px;font-weight:600}
+.gdot{width:8px;height:8px;border-radius:50%}
+.gdot.amber{background:var(--amberDot);box-shadow:0 0 10px 2px rgba(244,169,59,.7)}
+.gdot.coral{background:var(--coralDot);box-shadow:0 0 10px 2px rgba(255,128,102,.7)}
+.wallet-stripes{position:absolute;bottom:0;left:0;right:0;height:5px;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.25) 0 10px,transparent 10px 20px)}
+
+/* ─── Stat duo ─── */
+.duo{display:flex;gap:12px}
+.duo .card{flex:1;display:flex;flex-direction:column;gap:4px}
+.duo .k{font-size:11.5px;font-weight:600;color:var(--gray500)}
+.duo .v{font-size:24px;font-weight:800;color:var(--ink);letter-spacing:-.5px}
+.duo .v small{font-size:13px;font-weight:600;color:var(--gray400)}
+
+/* ─── Shortcut tiles ─── */
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.tile{display:flex;flex-direction:column;align-items:center;gap:7px;cursor:pointer}
+.tile .tile-ic{width:52px;height:52px;border-radius:17px;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 4px rgba(15,23,42,.05),0 10px 20px rgba(15,23,42,.07);
+  transition:transform .2s var(--ease-spring)}
+.tile:active .tile-ic{transform:scale(.86)}
+.tile span{font-size:10.5px;font-weight:700;color:var(--gray500);text-align:center}
+.tile svg{width:22px;height:22px}
+
+/* ─── Ticker ─── */
+.ticker{display:flex;gap:8px;overflow:hidden;position:relative;
+  mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}
+.ticker-track{display:flex;gap:8px;animation:tickerMove 22s linear infinite;width:max-content;padding-inline-end:8px}
+.tick{flex-shrink:0;display:flex;align-items:center;gap:6px;background:#fff;border-radius:99px;padding:8px 13px;
+  box-shadow:var(--shadow-card);font-size:12.5px}
+.tick b{font-weight:800;color:var(--ink)}
+.tick .d{font-size:11px;font-weight:800}
+.up{color:var(--g800)}.down{color:var(--danger)}.flat{color:var(--gray400)}
+
+/* ─── Insights ─── */
+.insight{display:flex;gap:12px;align-items:flex-start;background:rgba(255,255,255,.85);backdrop-filter:blur(14px);
+  border:1px solid rgba(0,0,0,.05);border-radius:var(--card-r);padding:15px 16px;box-shadow:var(--shadow-card);cursor:pointer}
+.insight .dot{width:10px;height:10px;border-radius:50%;margin-top:6px;flex-shrink:0;animation:dotPulse 2.4s ease infinite}
+.insight .t{font-size:14.5px;font-weight:700;color:var(--ink)}
+.insight .s{font-size:13px;color:var(--gray500);line-height:1.45;margin-top:3px}
+.pill{font-size:11px;font-weight:800;border-radius:99px;padding:5px 11px;flex-shrink:0;white-space:nowrap}
+
+/* ─── AI dark panel ─── */
+.ai-panel{background:linear-gradient(135deg,#052E16,#0A382C);border-radius:var(--card-r);padding:18px;
+  display:flex;flex-direction:column;gap:10px;position:relative;overflow:hidden;
+  box-shadow:0 16px 36px rgba(5,46,22,.3)}
+.ai-panel::before{content:'';position:absolute;top:-40px;inset-inline-end:-40px;width:140px;height:140px;border-radius:50%;
+  background:radial-gradient(closest-side,rgba(110,231,183,.22),transparent);animation:breathe 4s ease infinite}
+.ai-panel .t{font-size:12.5px;font-weight:800;color:var(--mint);display:flex;align-items:center;gap:7px}
+.ai-panel .b{font-size:14px;color:#fff;line-height:1.6;position:relative}
+.ai-chips{display:flex;gap:8px;flex-wrap:wrap;position:relative}
+.ai-chips span{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.08);color:#fff;
+  font-size:11.5px;font-weight:700;border-radius:99px;padding:7px 13px;transition:background .2s}
+.ai-chips span:active{background:rgba(255,255,255,.22)}
+
+/* ─── Progress bars ─── */
+.meter{height:8px;border-radius:99px;background:rgba(15,23,42,.07);overflow:hidden}
+.meter>i{display:block;height:100%;border-radius:99px;transform-origin:right;
+  animation:growBar 1s var(--ease-premium) both}
+@keyframes growBar{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+
+/* ─── Tasbiha garden ─── */
+.garden{background:rgba(255,255,255,.7);backdrop-filter:blur(14px);border:1px solid rgba(0,0,0,.05);
+  border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:10px;box-shadow:var(--shadow-card)}
+.garden .emoji-zone{display:flex;align-items:center;justify-content:center;padding:8px 0;position:relative;min-height:70px}
+.garden .tree{font-size:56px;line-height:1;cursor:pointer;user-select:none;transition:transform .15s var(--ease-spring);
+  filter:drop-shadow(0 10px 18px rgba(15,23,42,.18));animation:floatY 3.4s ease-in-out infinite}
+.garden .tree:active{transform:scale(.82)}
+.petal{position:absolute;font-size:17px;pointer-events:none;animation:rise 1.4s ease-out forwards}
+.tap-btn{background:var(--violet);color:#fff;font-size:13px;font-weight:800;border-radius:99px;padding:10px 22px;
+  box-shadow:0 8px 18px rgba(124,58,237,.32);transition:transform .15s var(--ease-spring)}
+.tap-btn:active{transform:scale(.92)}
+
+/* ─── Tx rows ─── */
+.tx{background:#fff;border-radius:14px;padding:13px 15px;display:flex;justify-content:space-between;align-items:center;
+  box-shadow:var(--shadow-card)}
+.tx .t{font-size:13.5px;font-weight:700;color:var(--ink)}
+.tx .d{font-size:11.5px;color:var(--gray400);margin-top:2px}
+.tx .a{font-size:14px;font-weight:800}
+.neg{color:var(--danger)}.pos{color:var(--g800)}
+
+/* ─── Section grid 2col ─── */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid2 .card{display:flex;flex-direction:column;gap:5px}
+.stat-k{font-size:11px;font-weight:700;color:var(--gray400)}
+.stat-v{font-size:19px;font-weight:800;color:var(--ink)}
+
+/* ─── Chef / feature rows ─── */
+.feat{background:#fff;border-radius:18px;padding:16px;display:flex;gap:14px;align-items:center;box-shadow:var(--shadow-card)}
+.feat .fic{width:54px;height:54px;border-radius:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.feat .t{font-size:14px;font-weight:800;color:var(--ink)}
+.feat .s{font-size:12.5px;color:var(--gray500);line-height:1.45;margin-top:3px}
+
+/* ─── Amazon horizontal ─── */
+.hscroll{display:flex;gap:12px;overflow-x:auto;padding-bottom:4px;scroll-snap-type:x mandatory}
+.hscroll>*{scroll-snap-align:start;flex-shrink:0}
+.amz{width:146px;background:#fff;border-radius:16px;padding:11px;display:flex;flex-direction:column;gap:8px;box-shadow:var(--shadow-card)}
+.amz .img{height:84px;border-radius:11px;background:linear-gradient(135deg,#F1F4F3,#E6F4EC);
+  display:flex;align-items:center;justify-content:center;font-size:34px}
+.amz .t{font-size:12px;font-weight:700;color:var(--ink);line-height:1.35}
+.amz .p{display:flex;justify-content:space-between;align-items:center}
+.amz .price{font-size:13px;font-weight:800;color:var(--warn)}
+.amz .badge{font-size:9.5px;font-weight:800;color:var(--gray400)}
+
+/* ─── Inventory ─── */
+.warn-strip{background:rgba(220,91,75,.08);border-radius:14px;padding:13px 15px;font-size:12.5px;font-weight:700;color:var(--danger);
+  display:flex;align-items:center;gap:9px}
+.chips-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
+.fchip{flex-shrink:0;display:flex;align-items:center;gap:6px;border-radius:99px;padding:6px 13px 6px 7px;
+  font-size:12.5px;font-weight:800;background:#fff;color:var(--slate);box-shadow:var(--shadow-card);transition:all .25s var(--ease-premium)}
+.fchip .cic{width:21px;height:21px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px}
+.fchip.on{background:var(--g800);color:#fff;transform:scale(1.05)}
+.inv-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.inv-card{background:#fff;border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:8px;box-shadow:var(--shadow-card)}
+.inv-top{display:flex;justify-content:space-between;align-items:flex-start}
+.inv-name{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:var(--ink)}
+.inv-emoji{width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.inv-cat{font-size:12px;color:var(--gray400)}
+.inv-days{font-size:11.5px;font-weight:700;color:var(--gray500)}
+.confirm-btn{background:rgba(228,87,46,.12);color:var(--danger);font-size:10.5px;font-weight:800;border-radius:99px;padding:4px 9px}
+
+/* ─── Segmented tabs ─── */
+.seg{display:flex;gap:5px;background:#fff;border-radius:99px;padding:4px;box-shadow:var(--shadow-card)}
+.seg button{flex:1;border-radius:99px;padding:10px 4px;font-size:12.5px;font-weight:800;color:var(--gray500);
+  transition:all .3s var(--ease-premium);position:relative}
+.seg button.on{background:var(--g800);color:#fff;box-shadow:0 4px 12px rgba(6,78,59,.3)}
+
+/* ─── List rows with accent ─── */
+.lrow{background:#fff;border-radius:16px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;
+  box-shadow:var(--shadow-card);position:relative;overflow:hidden}
+.lrow::before{content:'';position:absolute;inset-inline-start:0;top:0;bottom:0;width:3.5px;background:var(--accent,var(--g800))}
+.lrow .t{font-size:14px;font-weight:700;color:var(--ink)}
+.lrow .s{font-size:11.5px;color:var(--gray400);margin-top:3px}
+.lrow .end{font-size:14px;font-weight:800;color:var(--ink)}
+
+/* ─── Chat ─── */
+.chat{display:flex;flex-direction:column;gap:12px}
+.msg{max-width:80%;padding:12px 15px;border-radius:18px;font-size:14px;line-height:1.5;animation:fadeUp .4s var(--ease-premium) both}
+.msg.ai{background:#fff;color:var(--ink);box-shadow:var(--shadow-card);border-start-start-radius:6px}
+.msg.me{background:var(--g800);color:#fff;align-self:flex-end;border-start-end-radius:6px;box-shadow:0 6px 16px rgba(6,78,59,.25)}
+.typing{display:flex;gap:4px;padding:14px 16px;background:#fff;border-radius:18px;border-start-start-radius:6px;width:fit-content;box-shadow:var(--shadow-card)}
+.typing i{width:7px;height:7px;border-radius:50%;background:var(--gray400);animation:wave 1.2s ease infinite}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+.chat-input{display:flex;gap:9px;align-items:center;background:#fff;border-radius:99px;padding:7px 7px 7px 16px;box-shadow:var(--shadow-card)}
+.chat-input input{flex:1;border:none;outline:none;font-size:14px;font-family:inherit;background:transparent}
+.send-btn{width:40px;height:40px;border-radius:50%;background:var(--g800);display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  box-shadow:0 6px 14px rgba(6,78,59,.3);transition:transform .15s var(--ease-spring)}
+.send-btn:active{transform:scale(.85)}
+.send-btn svg{width:17px;height:17px;fill:#fff}
+
+/* ─── Lottie surfaces ─── */
+.lottie-box{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.orb-lottie{position:absolute;inset:-40px;opacity:.9}
+.scan-lottie{position:absolute;inset:0;pointer-events:none}
+
+/* ─── Voice orb overlay ─── */
+#voiceOverlay{position:absolute;inset:0;z-index:70;display:none;align-items:center;justify-content:center;flex-direction:column;gap:26px;
+  background:rgba(5,46,22,.55);backdrop-filter:blur(24px);animation:fadeIn .35s ease both}
+#voiceOverlay.show{display:flex}
+.orb-wrap{position:relative;width:150px;height:150px;display:flex;align-items:center;justify-content:center}
+.orb{width:110px;height:110px;border-radius:50%;
+  background:radial-gradient(circle at 32% 28%,#34D399 0%,#0F9B76 40%,#052E16 100%);
+  box-shadow:0 0 60px rgba(110,231,183,.5),inset 0 -8px 24px rgba(0,0,0,.35),inset 0 6px 14px rgba(255,255,255,.3);
+  animation:breathe 2.6s ease infinite;position:relative;overflow:hidden}
+.orb::before,.orb::after{content:'';position:absolute;border-radius:50%}
+.orb::before{width:22px;height:34px;background:rgba(255,255,255,.85);top:32%;left:22%;filter:blur(1px)}
+.orb::after{width:22px;height:34px;background:rgba(255,255,255,.85);top:32%;right:22%;filter:blur(1px)}
+.orb-ring{position:absolute;inset:-14px;border-radius:50%;border:2px solid rgba(110,231,183,.35);
+  border-top-color:transparent;border-bottom-color:transparent;animation:orbRotate 3s linear infinite}
+.orb-ring.r2{inset:-28px;border-color:rgba(110,231,183,.15);border-left-color:transparent;border-right-color:transparent;animation-duration:5s;animation-direction:reverse}
+.wavebars{display:flex;gap:5px;align-items:center;height:44px}
+.wavebars i{width:5px;border-radius:99px;background:var(--mint);height:100%;animation:wave 1s ease infinite}
+.wavebars i:nth-child(odd){animation-delay:.2s}.wavebars i:nth-child(3){animation-delay:.35s}.wavebars i:nth-child(5){animation-delay:.5s}
+#voiceOverlay .hint{color:#D9F2E6;font-size:15px;font-weight:700}
+#voiceOverlay .cancel{color:rgba(255,255,255,.6);font-size:13.5px;font-weight:600;padding:10px 22px;
+  border:1px solid rgba(255,255,255,.2);border-radius:99px}
+
+/* ─── Bottom nav ─── */
+#nav{position:absolute;inset-inline:16px;bottom:24px;height:68px;border-radius:99px;z-index:30;
+  background:rgba(255,255,255,.72);backdrop-filter:blur(18px) saturate(180%);-webkit-backdrop-filter:blur(18px) saturate(180%);
+  box-shadow:0 10px 30px rgba(15,23,42,.16),inset 0 1px 0 rgba(255,255,255,.5);
+  border:.5px solid rgba(0,0,0,.06);
+  display:flex;align-items:center;justify-content:space-around;padding:0 8px;
+  animation:fadeUp .5s var(--ease-premium) both}
+.nav-item{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 8px;cursor:pointer;
+  transition:transform .15s var(--ease-spring)}
+.nav-item:active{transform:scale(.85)}
+.nav-item svg{width:21px;height:19px;stroke:var(--gray400);transition:stroke .25s}
+.nav-item span{font-size:10.5px;font-weight:700;color:var(--gray400);transition:color .25s}
+.nav-item.on svg{stroke:var(--g800)}
+.nav-item.on span{color:var(--g800)}
+.nav-item.on{position:relative}
+.nav-item.on::before{content:'';position:absolute;top:-9px;width:20px;height:3.5px;border-radius:99px;background:var(--g800);animation:fadeIn .3s ease}
+.cam-btn{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--g800),var(--g600));
+  display:flex;align-items:center;justify-content:center;margin-top:-26px;flex-shrink:0;
+  box-shadow:0 10px 24px rgba(6,78,59,.4),inset 0 1px 0 rgba(255,255,255,.25);
+  transition:transform .2s var(--ease-spring);animation:pulseGlow 3s ease infinite}
+.cam-btn:active{transform:scale(.85)}
+.cam-btn svg{width:22px;height:22px;stroke:#fff}
+
+/* ─── Sheets (more / camera / why) ─── */
+.scrim{position:absolute;inset:0;background:rgba(15,23,42,.45);z-index:40;opacity:0;pointer-events:none;transition:opacity .3s}
+.scrim.show{opacity:1;pointer-events:auto}
+.sheet{position:absolute;inset-inline:0;bottom:0;background:#fff;border-radius:26px 26px 0 0;z-index:45;
+  box-shadow:0 -14px 40px rgba(15,23,42,.2);transform:translateY(110%);transition:transform .4s var(--ease-ios);max-height:75%;overflow-y:auto}
+.sheet.show{transform:translateY(0)}
+.grabber{width:38px;height:5px;border-radius:99px;background:rgba(0,0,0,.15);margin:11px auto 6px}
+.more-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;padding:8px 14px 30px}
+.more-item{background:#F9FAFB;border-radius:15px;padding:17px 13px;display:flex;flex-direction:column;gap:10px;cursor:pointer;
+  transition:transform .15s var(--ease-spring);animation:fadeUp .4s var(--ease-premium) both}
+.more-item:active{transform:scale(.94)}
+.more-item .mi{width:40px;height:40px;border-radius:13px;display:flex;align-items:center;justify-content:center}
+.more-item span{font-size:12.5px;font-weight:700;color:var(--ink)}
+.more-item svg{width:19px;height:19px}
+.camera-body{padding:12px 22px 34px;display:flex;flex-direction:column;gap:14px}
+.camera-preview{height:170px;border-radius:18px;position:relative;overflow:hidden;
+  background:linear-gradient(160deg,#1a2937,#0F172A);display:flex;align-items:center;justify-content:center}
+.scan-frame{width:120px;height:120px;border-radius:16px;position:relative}
+.scan-frame i{position:absolute;width:26px;height:26px;border:3px solid var(--mint);border-radius:6px}
+.scan-frame i:nth-child(1){top:0;left:0;border-right:none;border-bottom:none}
+.scan-frame i:nth-child(2){top:0;right:0;border-left:none;border-bottom:none}
+.scan-frame i:nth-child(3){bottom:0;left:0;border-right:none;border-top:none}
+.scan-frame i:nth-child(4){bottom:0;right:0;border-left:none;border-top:none}
+.scan-line{position:absolute;left:8%;right:8%;height:2.5px;border-radius:99px;
+  background:linear-gradient(90deg,transparent,var(--mint),transparent);animation:scanMove 2.2s ease-in-out infinite}
+@keyframes scanMove{0%,100%{top:12%}50%{top:86%}}
+.camera-preview .hint{position:absolute;bottom:12px;color:rgba(255,255,255,.45);font-size:12px;font-weight:600}
+.sheet-title{font-size:18.5px;font-weight:800;color:var(--ink)}
+.btn-primary{background:var(--g800);color:#fff;font-size:15px;font-weight:700;border-radius:15px;padding:15px;width:100%;
+  box-shadow:0 10px 24px rgba(6,78,59,.3);transition:transform .15s var(--ease-spring)}
+.btn-primary:active{transform:scale(.97)}
+.btn-ghost{background:#F1F4F3;color:var(--ink);font-size:15px;font-weight:700;border-radius:15px;padding:15px;width:100%}
+.why-row{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--slate)}
+.why-row b{color:var(--ink);font-weight:700}
+.why-dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-inline-end:8px}
+
+/* ─── Drawer ─── */
+.drawer{position:absolute;top:0;bottom:0;inset-inline-start:0;width:80%;max-width:300px;background:#fff;z-index:46;
+  box-shadow:8px 0 34px rgba(15,23,42,.2);transform:translateX(105%);transition:transform .38s var(--ease-ios);
+  display:flex;flex-direction:column;border-start-end-radius:22px;border-end-end-radius:22px}
+[dir=ltr] .drawer{transform:translateX(-105%);border-radius:22px 0 0 22px}
+.drawer.show{transform:translateX(0)}
+.drawer-hdr{padding:60px 20px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(0,0,0,.06)}
+.drawer-list{padding:10px;overflow-y:auto;flex:1}
+.d-item{display:flex;align-items:center;gap:14px;padding:13px 14px;border-radius:13px;cursor:pointer;
+  transition:background .2s;margin-bottom:2px}
+.d-item:active{background:rgba(6,78,59,.06)}
+.d-item.on{background:rgba(6,78,59,.08)}
+.d-item svg{width:19px;height:19px;stroke:var(--gray500);flex-shrink:0}
+.d-item.on svg{stroke:var(--g800)}
+.d-item span{font-size:14.5px;font-weight:700;color:var(--slate)}
+.d-item.on span{color:var(--g800)}
+.d-item .count{margin-inline-start:auto;font-size:10.5px;font-weight:800;background:var(--danger);color:#fff;
+  border-radius:99px;padding:2px 7px}
+
+/* ─── Kids mode ─── */
+body.kids #bg{background:linear-gradient(165deg,#1a0b3d 0%,#2d1155 50%,#3b1258 100%)}
+body.kids .page,body.kids #header{color:#fff}
+body.kids #screenTitle,body.kids .sect-title{color:#fff}
+body.kids #header{background:rgba(20,8,50,.7);border-bottom-color:rgba(255,255,255,.08)}
+body.kids .hdr-row svg{stroke:#fff}
+body.kids .wordmark{color:#fff}
+.kids-hero{background:linear-gradient(135deg,#7C3AED,#EC4899);border-radius:26px;padding:24px;color:#fff;
+  display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 44px rgba(124,58,237,.4);
+  animation:meshShift 8s ease infinite;background-size:200% 200%}
+.kids-hero .amt{font-size:40px;font-weight:800}
+.kids-hero .meter{background:rgba(255,255,255,.25)}
+.kids-hero .meter>i{background:#fff}
+.ask-btn{background:#fff;color:var(--violet);font-weight:800;font-size:14px;border-radius:99px;padding:12px;
+  box-shadow:0 8px 18px rgba(0,0,0,.2);transition:transform .15s var(--ease-spring)}
+.ask-btn:active{transform:scale(.94)}
+.badges{display:flex;gap:10px}
+.badges>div{flex:1;background:rgba(255,255,255,.1);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.12);
+  border-radius:16px;padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:6px;color:#fff}
+.badges .be{font-size:23px}
+.badges .bl{font-size:10.5px;font-weight:700;opacity:.85}
+body.kids .task-row{background:rgba(255,255,255,.95)}
+.coin-pill{background:rgba(245,158,11,.14);color:var(--warn);font-size:12px;font-weight:800;border-radius:99px;padding:5px 11px}
+
+/* ─── Toast ─── */
+#toast{position:absolute;bottom:110px;left:50%;transform:translate(-50%,20px);z-index:95;
+  background:rgba(15,23,42,.92);color:#fff;font-size:13px;font-weight:700;border-radius:99px;padding:11px 20px;
+  opacity:0;pointer-events:none;transition:all .35s var(--ease-spring);backdrop-filter:blur(10px)}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+
+.hidden{display:none!important}
+@media (max-width:1100px){.brand{display:none}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="brand">
+    <h1>ZAD · زاد</h1>
+    <p>إعادة تصميم Premium بمعايير iPhone — glassmorphism، حركة ثلاثية الأبعاد، وتغطية كاملة لكل ميزات التقرير: مخزون، تسوق، ميزانية، عقل زاد، عائلة، صيدلية، صيانة، اشتراكات، تسبيح، وضع أطفال.</p>
+    <div class="chips">
+      <span>🎨 Emerald Glass</span><span>🧲 3D Motion</span><span>🧒 Kids Mode</span><span>🎙️ Voice Orb</span><span>🧠 AI Panels</span>
+    </div>
+  </div>
+
+  <div id="phone">
+    <div id="screen">
+      <div id="bg"></div>
+      <div id="notch"></div>
+      <div id="scroll"></div>
+
+      <!-- Voice overlay -->
+      <div id="voiceOverlay">
+        <div class="lottie-box"><div class="orb-lottie" id="orbLottie"></div></div>
+        <div class="orb-wrap">
+          <div class="orb-ring"></div><div class="orb-ring r2"></div>
+          <div class="orb"></div>
+        </div>
+        <div class="wavebars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="hint">أنا أسمعك… تكلّم مع زاد</div>
+        <button class="cancel" onclick="UI.closeVoice()">إلغاء</button>
+      </div>
+
+      <!-- Toast -->
+      <div id="toast"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════ DATA (نفس بيانات البروتوتايب — بدون اختراع بيانات وهمية جديدة) ═══════════ */
+const S = {
+  ar:{
+    appName:'ZAD', available:'المتاح', spent:'مصروف', committed:'محجوز للالتزامات',
+    daysLeft:'الأيام المتبقية', safeSpend:'معدل الصرف اليومي الآمن',
+    tabHome:'الرئيسية', tabInventory:'المخزون', tabAssistant:'عقل زاد', tabMore:'المزيد',
+    titles:{home:'لوحة الميزانية',inventory:'المخزون',shopping:'قائمة التسوق',budget:'الميزانية والالتزامات',assistant:'عقل زاد',family:'العائلة',pharmacy:'الصيدلية',maintenance:'الصيانة',deals:'عروض قريبة',profile:'حسابي',notifications:'الإشعارات',subs:'الاشتراكات'},
+    slogan:'تدبير ذكي لبيت هادئ', ctaEnter:'ابدأ مع زاد',
+    aiSummary:'ملخص زاد الذكي', recentTx:'آخر المعاملات', seeAll:'عرض الكل',
+    insightsTitle:'زاد الذكي', tasbihaTitle:'بستان التسبيح', tapTasbih:'سبّح',
+    chefTitle:'شيف زاد', chefSub:'اقتراح اليوم: طبق سريع بمكونات مخزونك الحالي.',
+    amazonTitle:'ترشيحات أمازون', spendingPower:'قوة الإنفاق', adherence:'الالتزام بالجرعات', monthlyCost:'التكلفة الشهرية',
+    totalObligations:'إجمالي الالتزامات', quickChip:'لماذا تغيّر الرقم؟',
+    sheetWhy:'لماذا تغيّر الرقم', sheetBody:'انخفض المتاح بسبب مصروفات جديدة رُصدت، وحجز جزء من الراتب للالتزامات القادمة خلال هذه الدورة.',
+    sheetClose:'تمام، فهمت', cameraTitle:'زاد الذكي بالكاميرا', scanInventory:'مسح مخزون', scanReceipt:'مسح فاتورة', cancel:'إلغاء',
+    voiceHint:'أنا أسمعك… تكلّم مع زاد',
+    kidsBadge:'وضع الأطفال', kidsBalance:'رصيدك', kidsGoal:'هدف التوفير', kidsAsk:'✋ محتاج مصروف', kidsTasks:'مهامي',
+    kidsToggle:'وضع الأطفال', kidsToggleSub:'شاشة مبسطة وآمنة للصغار', exitKids:'🔒 الوضع الكامل',
+    lowStockWarn:'٣ عناصر منخفضة: موز، حليب، خبز', confirm:'تأكيد',
+    days_word:'يوم', left:'متبقي', paid:'مدفوع', pending:'مستحق', scheduled:'مجدول',
+    toastAdded:'أُضيف للمخزون ✓', toastNav:'انتقال…', sent:'تم الإرسال ✓'
+  }
+};
+const INSIGHTS=[
+  {t:'تم رصد دورة راتب جديدة',s:'استلمنا راتب هذا الشهر وأعدنا حساب الميزانية تلقائياً.',k:'info',tag:'معلومة'},
+  {t:'تحقق من مطابقة النقد',s:'هناك فرق صغير بين المصروف الفعلي والمسجل.',k:'warn',tag:'مطلوب'},
+  {t:'تنبيه نفاد مخزون: حليب',s:'الكمية المتبقية تكفي ليوم واحد فقط.',k:'danger',tag:'تحذير'}];
+const OBLIGATIONS=[
+  {n:'الإيجار',due:'يستحق بعد 4 أيام',a:'2,400 ر.س',p:4,st:'pending'},
+  {n:'الإنترنت والاتصالات',due:'مدفوع',a:'260 ر.س',p:100,st:'paid'},
+  {n:'قسط السيارة',due:'يستحق بعد 11 يوم',a:'980 ر.س',p:30,st:'scheduled'},
+  {n:'عضوية النادي',due:'مدفوع',a:'150 ر.س',p:100,st:'paid'}];
+const CATS=[
+  {id:'fruit',e:'🍎',ar:'فاكهة',bg:'#FCEAEA',fg:'#DC5B4B'},
+  {id:'veg',e:'🥦',ar:'خضار',bg:'#E9F5E9',fg:'#3CA06E'},
+  {id:'dairy',e:'🥛',ar:'ألبان',bg:'#EAF2FB',fg:'#2563EB'},
+  {id:'bakery',e:'🥖',ar:'مخبوزات',bg:'#FBF1E3',fg:'#B45309'},
+  {id:'drinks',e:'💧',ar:'مشروبات',bg:'#E7F5F8',fg:'#0891B2'},
+  {id:'sweets',e:'🍫',ar:'حلويات',bg:'#F1E9E3',fg:'#C2703D'},
+  {id:'clean',e:'🧼',ar:'تنظيف',bg:'#EEF0F3',fg:'#374151'}];
+const INVENTORY=[
+  {n:'تفاح',e:'🍎',cat:'fruit',d:6,low:0},{n:'موز',e:'🍌',cat:'fruit',d:2,low:1},
+  {n:'طماطم',e:'🍅',cat:'veg',d:4,low:0},{n:'بروكلي',e:'🥦',cat:'veg',d:5,low:0},
+  {n:'حليب',e:'🥛',cat:'dairy',d:1,low:1},{n:'جبنة',e:'🧀',cat:'dairy',d:9,low:0},
+  {n:'خبز',e:'🍞',cat:'bakery',d:2,low:1},{n:'كرواسون',e:'🥐',cat:'bakery',d:3,low:0},
+  {n:'مياه',e:'💧',cat:'drinks',d:20,low:0},{n:'عصير',e:'🧃',cat:'drinks',d:4,low:0},
+  {n:'شوكولاتة',e:'🍫',cat:'sweets',d:15,low:0},{n:'منظف أرضيات',e:'🧴',cat:'clean',d:18,low:0}];
+const CHATS=[
+  {m:'مرحباً، لاحظت أنك أنفقت أكثر من المعتاد هذا الأسبوع في التسوق.',me:0},
+  {m:'لماذا تغيّر الرقم المتاح؟',me:1},
+  {m:'انخفض المتاح 320 ر.س بسبب مصروف جديد وحجز جزء من الراتب لالتزام قادم.',me:0},
+  {m:'تمام، شكراً لك',me:1}];
+const TICKER=[{n:'أرز',d:'+2%',u:1},{n:'دجاج',d:'-1%',u:0},{n:'بنزين',d:'0%',u:null},{n:'سكر',d:'+1%',u:1},{n:'زيت',d:'-2%',u:0}];
+const SHORTCUTS=[
+  {e:'📦',bg:'#E3F5EC',fg:'#0B6B4E',n:'المخزون',go:'inventory'},
+  {e:'🛒',bg:'#FCEEE3',fg:'#C2703D',n:'التسوق',go:'shopping'},
+  {e:'👨‍👩‍👧',bg:'#F1EAFB',fg:'#7C3AED',n:'العائلة',go:'family'},
+  {e:'💳',bg:'#E8F1FC',fg:'#2563EB',n:'الاشتراكات',go:'subs'},
+  {e:'💊',bg:'#FCE8ED',fg:'#DC5B4B',n:'الصيدلية',go:'pharmacy'},
+  {e:'🔧',bg:'#FDF3E1',fg:'#B45309',n:'الصيانة',go:'maintenance'}];
+const STATS=[{k:'قوة الإنفاق',v:'82%'},{k:'الصحة المالية',v:'74/100'},{k:'صرف الشهر',v:'4,120 ر.س'},{k:'اتجاه 7 أيام',v:'↓ 6%'}];
+const HOME_TX=[
+  {t:'سوبرماركت العائلة',d:'اليوم',a:'-240 ر.س',neg:1},
+  {t:'راتب يوليو',d:'قبل يومين',a:'+9,000 ر.س',neg:0},
+  {t:'اشتراك نتفليكس',d:'قبل 3 أيام',a:'-45 ر.س',neg:1}];
+const SHOP=[{n:'حليب',r:'8–10 ر.س',p:'high'},{n:'خبز',r:'4–6 ر.س',p:'med'},{n:'فيتامين د',r:'35–45 ر.س',p:'high'},{n:'منظف أطباق',r:'12–15 ر.س',p:'low'}];
+const OVERVIEW=[{k:'أيام حتى النفاد',v:'19'},{k:'التنبؤ الشهر القادم',v:'4,600 ر.س'},{k:'أعلى فئة صرف',v:'بقالة'},{k:'اشتراكات نشطة',v:'5'}];
+const BEHAVIOR=[
+  {t:'ذروة إنفاق يوم الخميس',b:'تنفق أكثر بـ 30% كل خميس مقارنة بباقي الأسبوع.'},
+  {t:'رادار التضخم الشخصي',b:'متوسط أسعار البقالة عندك ارتفع 4% هذا الشهر.'},
+  {t:'توقيت شراء ذكي',b:'الأفضل شراء الإلكترونيات بعد 5 أيام من الآن.'}];
+const SUBS=[
+  {n:'نتفليكس',a:'45 ر.س',r:'يتجدد بعد 6 أيام',c:'#B45309'},
+  {n:'STC TV',a:'99 ر.س',r:'يتجدد بعد 12 يوم',c:'#064E3B'},
+  {n:'اشتراك الجيم',a:'150 ر.س',r:'يتجدد بعد يومين',c:'#DC5B4B'}];
+const FAMILY=[{n:'سارة',r:'أم · مشرف',s:'3 مهام'},{n:'أحمد',r:'أب · مشرف',s:'5 مهام'},{n:'يوسف',r:'ابن',s:'هدف 60%'}];
+const FTASKS=[{n:'ترتيب الغرفة',w:'يوسف',done:0},{n:'سقاية النبات',w:'سارة',done:1},{n:'شراء بقالة',w:'أحمد',done:0}];
+const PHARM=[
+  {n:'باراسيتامول',m:'يوسف · 3 مرات يومياً',k:'ok'},
+  {n:'فيتامين د',m:'سارة · مرة يومياً',k:'low'},
+  {n:'أنسولين',m:'أحمد · مرتين يومياً',k:'confirm'}];
+const MAINT=[
+  {n:'مكيف الصالة',w:'الضمان حتى 2027',k:'soon'},
+  {n:'الثلاجة',w:'الضمان منتهي',k:'over'},
+  {n:'غسالة الملابس',w:'الضمان حتى 2026',k:'ok'}];
+const DEALS=[{n:'صيدلية النهدي',t:'صيدلية',d:'650م'},{n:'بنده',t:'سوبرماركت',d:'1.1كم'},{n:'أسواق التميمي',t:'سوبرماركت',d:'1.8كم'}];
+const NOTIFS=[
+  {t:'تم رصد دورة راتب جديدة',b:'أعدنا حساب ميزانيتك تلقائياً.',k:'info'},
+  {t:'نفاد مخزون قريب',b:'الحليب يكفي ليوم واحد.',k:'danger'},
+  {t:'اشتراك يتجدد',b:'نتفليكس يتجدد بعد 6 أيام.',k:'warn'}];
+const KIDS_TASKS=[{n:'ترتيب الغرفة',c:10},{n:'حفظ سورة',c:20},{n:'مساعدة في المطبخ',c:15}];
+const KIDS_BADGES=[{e:'🔥',l:'مثابرة'},{e:'💰',l:'موفر'},{e:'⭐',l:'نجم'}];
+const AMAZON=[{n:'قدر ضغط كهربائي',p:'189 ر.س',e:'🍳'},{n:'فيتامينات عائلية',p:'85 ر.س',e:'💊'},{n:'منظم مخزون مطبخ',p:'49 ر.س',e:'🧺'}];
+const TREND=[320,410,260,480,390,520,300];
+const CATSPEND=[
+  {n:'بقالة',a:1240,max:1600,c:'#0F9B76'},{n:'مواصلات',a:480,max:1600,c:'#2563EB'},
+  {n:'فواتير',a:690,max:1600,c:'#B45309'},{n:'صحة',a:210,max:1600,c:'#DC5B4B'},
+  {n:'ترفيه',a:150,max:1600,c:'#7C3AED'}];
+const MORE=[
+  {e:'🛒',bg:'#FCEEE3',n:'التسوق',go:'shopping'},{e:'👨‍👩‍👧',bg:'#F1EAFB',n:'العائلة',go:'family'},
+  {e:'💰',bg:'#E8F1FC',n:'الميزانية',go:'budget'},{e:'💳',bg:'#E8F1FC',n:'الاشتراكات',go:'subs'},
+  {e:'💊',bg:'#FCE8ED',n:'الصيدلية',go:'pharmacy'},{e:'🔧',bg:'#FDF3E1',n:'الصيانة',go:'maintenance'},
+  {e:'📍',bg:'#E3F5EC',n:'عروض قريبة',go:'deals'},{e:'📿',bg:'#F3E8FF',n:'بستان التسبيح',go:'tasbiha'},
+  {e:'🧠',bg:'#E3F5EC',n:'عقل زاد',go:'assistant'},{e:'👤',bg:'#EEF0F3',n:'حسابي',go:'profile'}];
+const DRAWER=[
+  {e:'🏠',n:'الرئيسية',go:'home'},{e:'📦',n:'المخزون',go:'inventory'},{e:'🧠',n:'عقل زاد',go:'assistant'},
+  {e:'💰',n:'الميزانية',go:'budget'},{e:'🛒',n:'التسوق',go:'shopping'},{e:'💳',n:'الاشتراكات',go:'subs'},
+  {e:'👨‍👩‍👧',n:'العائلة',go:'family'},{e:'💊',n:'الصيدلية',go:'pharmacy'},{e:'🔧',n:'الصيانة',go:'maintenance'},
+  {e:'📿',n:'بستان التسبيح',go:'tasbiha'},{e:'📍',n:'عروض قريبة',go:'deals'},{e:'🔔',n:'الإشعارات',go:'notifications',badge:3},
+  {e:'👤',n:'حسابي',go:'profile'}];
+const KIND={info:{c:'#064E3B',bg:'rgba(6,78,59,.1)'},warn:{c:'#B45309',bg:'rgba(180,83,9,.1)'},danger:{c:'#DC5B4B',bg:'rgba(220,91,75,.12)'}};
+
+/* ═══════════ STATE ═══════════ */
+const st={screen:'home',splash:true,kids:false,drawer:false,more:false,camera:false,why:false,
+  invCat:'all',assistTab:'overview',familyTab:'chat',tasbiha:34,confirmed:{},typing:false};
+
+/* ═══════════ RENDER HELPERS ═══════════ */
+const $=q=>document.querySelector(q);
+const T=S.ar;
+const meter=(pct,color,delay=0)=>`<div class="meter"><i style="width:${Math.min(100,pct)}%;background:${color};animation-delay:${delay}s"></i></div>`;
+const card=(inner,extra='')=>`<div class="card" style="${extra}">${inner}</div>`;
+
+function header(){
+  const kidsBtn = st.kids?`<span class="badge-kids">${T.kidsBadge}</span>
+    <button class="icon-btn" style="background:rgba(124,58,237,.1);border-radius:99px;width:auto;padding:7px 13px;font-size:11.5px;font-weight:800;color:var(--violet)" onclick="UI.exitKids()">${T.exitKids}</button>`:'';
+  $('#scroll').querySelector('#hdr')?.remove();
+  const hdr=document.createElement('div');
+  hdr.id='hdr';
+  hdr.innerHTML=`
+  <div id="header">
+    <div class="hdr-row">
+      <div class="hdr-left">
+        <button class="icon-btn" onclick="UI.openDrawer()"><svg viewBox="0 0 16 12" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M0 1h16M0 6h16M0 11h16"/></svg></button>
+        <div class="carrot-tile"><svg width="17" height="17" viewBox="0 0 64 64"><path d="M31 16C36 20 42 30 40 44C39 51 34 58 29 57C24 56 21 50 22 43C24 30 27 21 31 16Z" fill="#F0703D"/><path d="M25.5 30.5L34.5 33.5M24 38L33 41M25.5 45.5L31.5 47.5" stroke="#FBFAF8" stroke-width="2" stroke-linecap="round"/><path d="M29 17C27 13 28 9 26 6M32 15C32 11 34 8 33 4M35 17C37 14 40 12 40 8" stroke="#3CA06E" stroke-width="3.2" stroke-linecap="round"/></svg></div>
+        <span class="wordmark">ZAD</span>${kidsBtn}
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="avatar press" onclick="UI.go('profile')">س</div>
+        <button class="icon-btn bell-wrap" style="border-radius:99px;width:auto;padding:8px 12px" onclick="UI.go('notifications')">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" style="stroke:#064E3B"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9zM13.7 21a2 2 0 01-3.4 0"/></svg>
+          <span class="bell-dot"></span>
+        </button>
+      </div>
+    </div>
+    <div id="screenTitle">${st.kids&&st.screen!=='family'?'وضع الأطفال':(T.titles[st.screen]||T.titles.home)}</div>
+  </div>`;
+  $('#scroll').prepend(hdr);
+}
+
+function sparkline(){
+  const max=Math.max(...TREND),min=Math.min(...TREND),w=280,h=64;
+  const pts=TREND.map((v,i)=>`${(i/(TREND.length-1)*w).toFixed(1)},${(h-((v-min)/((max-min)||1))*(h-10)-5).toFixed(1)}`).join(' ');
+  return `<svg width="100%" height="64" viewBox="0 0 280 64" preserveAspectRatio="none" style="overflow:visible">
+    <defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0F9B76" stop-opacity=".35"/><stop offset="1" stop-color="#0F9B76" stop-opacity="0"/></linearGradient></defs>
+    <polygon points="0,${h} ${pts} ${w},${h}" fill="url(#sg)"/>
+    <polyline points="${pts}" fill="none" stroke="#0F9B76" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="600" stroke-dashoffset="600" style="animation:drawLine 1.4s var(--ease-premium) forwards"/>
+    <style>@keyframes drawLine{to{stroke-dashoffset:0}}</style>
+  </svg>`;
+}
+
+/* ═══════════ SCREENS ═══════════ */
+function pHome(){
+  const gardenEmoji=st.tasbiha>=100?'🌳':st.tasbiha>=75?'🌿🌿':st.tasbiha>=50?'🦋':st.tasbiha>=25?'🌿':'🌱';
+  const petals=['🍃','🌸','🍃','🌸'];
+  return `<div class="page stagger">
+    <div class="ticker"><div class="ticker-track">${[...TICKER,...TICKER].map(t=>`<div class="tick"><b>${t.n}</b><span class="d ${t.u===1?'up':t.u===0?'down':'flat'}">${t.d}</span></div>`).join('')}</div></div>
+
+    <div class="hero" onclick="UI.openWhy()">
+      <span class="lbl">${T.available}</span>
+      <div class="amt">≈ 3,240 ر.س</div>
+      <div class="chip-row">
+        <div class="gchip"><span class="gdot amber"></span>${T.spent}: 1,120 ر.س</div>
+        <div class="gchip"><span class="gdot coral"></span>${T.committed}: 640 ر.س</div>
+      </div>
+      <div class="wallet-stripes"></div>
+    </div>
+
+    <div class="duo">
+      <div class="card"><span class="k">${T.daysLeft}</span><span class="v">9 <small>أيام</small></span></div>
+      <div class="card"><span class="k">${T.safeSpend}</span><span class="v">128 <small>ر.س</small></span></div>
+    </div>
+
+    <div class="tiles">${SHORTCUTS.map(s=>`
+      <div class="tile" onclick="UI.go('${s.go}')">
+        <div class="tile-ic" style="background:${s.bg}"><span style="font-size:22px">${s.e}</span></div>
+        <span>${s.n}</span>
+      </div>`).join('')}
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <span class="sect-title">${T.insightsTitle}</span>
+      ${INSIGHTS.map(i=>`
+      <div class="insight press" onclick="UI.go('notifications')">
+        <span class="dot" style="background:${KIND[i.k].c}"></span>
+        <div style="flex:1"><div class="t">${i.t}</div><div class="s">${i.s}</div></div>
+        <span class="pill" style="color:${KIND[i.k].c};background:${KIND[i.k].bg}">${i.tag}</span>
+      </div>`).join('')}
+    </div>
+
+    <div class="grid2">${STATS.map(s=>card(`<span class="stat-k">${s.k}</span><span class="stat-v">${s.v}</span>`)).join('')}</div>
+
+    <div class="ai-panel">
+      <span class="t"><svg width="14" height="14" viewBox="0 0 24 24" fill="#6EE7B7"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z"/></svg>${T.aiSummary}</span>
+      <span class="b">صرفك هذا الأسبوع أعلى من المعتاد بـ 12%، لكن مخزونك ودورة راتبك تحت السيطرة.</span>
+      <div class="ai-chips"><span onclick="UI.toast('فتح المساعد…')">أوقف اشتراك؟</span><span onclick="UI.toast('فتح المساعد…')">زوّد الميزانية</span><span onclick="UI.toast('فتح المساعد…')">شوف التفاصيل</span></div>
+    </div>
+
+    <div class="garden">
+      <div class="sect-head"><span style="font-size:13.5px;font-weight:800;color:var(--slate)">${T.tasbihaTitle}</span><span style="font-size:12px;font-weight:800;color:var(--g600)">${st.tasbiha}%</span></div>
+      <div class="emoji-zone" id="gardenZone" style="position:relative">
+        <div class="scan-lottie" id="burstLottie" style="position:absolute;inset:-30px;z-index:2"></div>
+        <span class="tree press" style="position:relative;z-index:3" onclick="UI.tapTasbih(event)">${gardenEmoji}</span>
+      </div>
+      ${meter(st.tasbiha,'linear-gradient(90deg,#7C3AED,#0F9B76)')}
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:12px;color:var(--gray500);font-weight:600">${st.tasbiha} / 100</span>
+        <button class="tap-btn" onclick="UI.tapTasbih(event)">${T.tapTasbih}</button>
+      </div>
+    </div>
+
+    <div class="feat">
+      <div class="fic" style="background:#FDF3E1"><span style="font-size:26px">👨‍🍳</span></div>
+      <div><div class="t">${T.chefTitle}</div><div class="s">${T.chefSub}</div></div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <span class="sect-title">${T.amazonTitle}</span>
+      <div class="hscroll">${AMAZON.map(a=>`
+        <div class="amz press"><div class="img">${a.e}</div><span class="t">${a.n}</span>
+        <div class="p"><span class="price">${a.p}</span><span class="badge">أمازون</span></div></div>`).join('')}
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="sect-head"><span class="sect-title">${T.recentTx}</span><span class="see-all press" onclick="UI.go('budget')">${T.seeAll}</span></div>
+      ${HOME_TX.map(x=>`<div class="tx"><div><div class="t">${x.t}</div><div class="d">${x.d}</div></div><span class="a ${x.neg?'neg':'pos'}">${x.a}</span></div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function pInventory(){
+  const cats=[{id:'all',e:'☰',ar:'الكل',bg:'#EDEEF0',fg:'#374151'},...CATS];
+  const filtered=INVENTORY.filter(i=>st.invCat==='all'||i.cat===st.invCat);
+  return `<div class="page stagger">
+    <div class="warn-strip">⚠️ ${T.lowStockWarn}</div>
+    <div class="chips-scroll">${cats.map(c=>`
+      <button class="fchip ${st.invCat===c.id?'on':''}" onclick="UI.setCat('${c.id}')">
+        <span class="cic" style="background:${st.invCat===c.id?'rgba(255,255,255,.2)':c.bg}">${c.e}</span>${c.ar}
+      </button>`).join('')}
+    </div>
+    <div class="inv-grid">${filtered.map((it,idx)=>{
+      const cat=CATS.find(c=>c.id===it.cat);
+      const pct=Math.min(100,(it.d/20)*100);
+      const col=it.d<=2?'#DC5B4B':it.d<=6?'#B45309':'#064E3B';
+      const showBtn=it.low&&!st.confirmed[it.n];
+      return `<div class="inv-card" style="animation:fadeUp .45s var(--ease-premium) ${idx*0.05}s both">
+        <div class="inv-top">
+          <div class="inv-name"><span class="inv-emoji" style="background:${cat.bg}">${it.e}</span>${it.n}</div>
+          ${showBtn?`<button class="confirm-btn" onclick="UI.confirmItem('${it.n}')">${T.confirm}</button>`:''}
+        </div>
+        <span class="inv-cat">${cat.ar}</span>
+        ${meter(pct,col,idx*0.05)}
+        <span class="inv-days">${T.left} ${it.d} ${T.days_word}</span>
+      </div>`}).join('')}
+    </div>
+  </div>`;
+}
+
+function pShopping(){
+  const pl={high:['حرج','rgba(220,91,75,.12)','#DC5B4B'],med:['متوسط','rgba(180,83,9,.1)','#B45309'],low:['منخفض','rgba(6,78,59,.08)','#064E3B']};
+  return `<div class="page stagger">
+    <div class="card-lg" style="background:linear-gradient(135deg,#064E3B,#0B6B4E);color:#fff;border-radius:18px;box-shadow:0 14px 30px rgba(6,78,59,.3)">
+      <span style="font-size:12.5px;opacity:.8;font-weight:600">إجمالي القائمة</span>
+      <div style="font-size:27px;font-weight:800;margin:6px 0 10px">210 ر.س من أصل 300 ر.س</div>
+      ${meter(70,'rgba(255,255,255,.9)')}
+      <button class="press" style="margin-top:12px;background:rgba(255,255,255,.16);color:#fff;font-size:12.5px;font-weight:800;border-radius:99px;padding:8px 15px" onclick="UI.toast('تعبئة ذكية من المخزون…')">✨ تعبئة ذكية</button>
+    </div>
+    ${SHOP.map(s=>{const[l,bg,c]=pl[s.p];return `
+      <div class="lrow" style="--accent:${c}"><div><div class="t">${s.n}</div><div class="s">${s.r}</div></div>
+      <span class="pill" style="color:${c};background:${bg}">${l}</span></div>`}).join('')}
+  </div>`;
+}
+
+function pBudget(){
+  const sl={paid:['مدفوع','#064E3B'],pending:['مستحق','#DC5B4B'],scheduled:['مجدول','#B45309']};
+  return `<div class="page stagger">
+    <div class="hero" style="background:linear-gradient(120deg,#064E3B,#0B6B4E);animation:fadeUp .55s var(--ease-premium) both" onclick="UI.openWhy()">
+      <span class="lbl">${T.available}</span>
+      <div style="font-size:36px;font-weight:800;letter-spacing:-1px">≈ 3,240 ر.س</div>
+    </div>
+    <div class="card-lg" style="display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:13px;font-weight:700;color:var(--gray500)">${T.totalObligations}</span>
+      <span style="font-size:19px;font-weight:800;color:var(--warn)">3,790 ر.س</span>
+    </div>
+    ${OBLIGATIONS.map(o=>{const[l,c]=sl[o.st];return `
+      <div class="card card-lg" style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:15px;font-weight:700;color:var(--ink)">${o.n}</span>
+          <span style="font-size:15px;font-weight:800;color:var(--ink)">${o.a}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:12.5px;color:var(--gray400)">${o.due}</span>
+          <span class="pill" style="color:${c};background:rgba(6,78,59,.06)">${l}</span>
+        </div>
+        ${meter(o.p,c)}
+      </div>`}).join('')}
+  </div>`;
+}
+
+function pAssistant(){
+  const tabs=[['overview','نظرة عامة'],['behavior','السلوك'],['chat','المحادثة']];
+  let body='';
+  if(st.assistTab==='overview'){
+    body=`<div style="display:flex;flex-direction:column;gap:12px">
+      <div class="ai-panel"><span class="t">${T.spendingPower}</span><span style="font-size:31px;font-weight:800;color:#fff">82%</span>
+        ${meter(82,'#6EE7B7')}</div>
+      <div class="card card-lg" style="display:flex;flex-direction:column;gap:10px">
+        <div class="sect-head"><span style="font-size:13.5px;font-weight:800;color:var(--ink)">نبض الإنفاق الحي</span><span style="font-size:11px;font-weight:700;color:var(--gray400)">آخر 7 أيام</span></div>
+        ${sparkline()}
+      </div>
+      <div class="card card-lg" style="display:flex;flex-direction:column;gap:12px">
+        <span style="font-size:13.5px;font-weight:800;color:var(--ink)">التوزيع حسب الفئة</span>
+        ${CATSPEND.map((c,i)=>`<div style="display:flex;flex-direction:column;gap:5px">
+          <div style="display:flex;justify-content:space-between"><span style="font-size:12.5px;font-weight:700;color:var(--slate)">${c.n}</span><span style="font-size:12px;font-weight:800;color:var(--ink)">${c.a} ر.س</span></div>
+          ${meter(c.a/c.max*100,c.c,i*0.08)}</div>`).join('')}
+      </div>
+      <div class="grid2">${OVERVIEW.map(o=>card(`<span class="stat-k">${o.k}</span><span class="stat-v">${o.v}</span>`)).join('')}</div>
+    </div>`;
+  }else if(st.assistTab==='behavior'){
+    body=`<div style="display:flex;flex-direction:column;gap:10px">${BEHAVIOR.map(b=>`
+      <div class="card card-lg" style="display:flex;flex-direction:column;gap:4px">
+        <span style="font-size:14px;font-weight:800;color:var(--ink)">${b.t}</span>
+        <span style="font-size:12.5px;color:var(--gray500);line-height:1.5">${b.b}</span></div>`).join('')}</div>`;
+  }else{
+    body=`<div style="display:flex;flex-direction:column;gap:12px">
+      <div class="chat">${CHATS.map(m=>`<div class="msg ${m.me?'me':'ai'}">${m.m}</div>`).join('')}
+      ${st.typing?'<div class="typing"><i></i><i></i><i></i></div>':''}</div>
+      <div class="chat-input">
+        <input placeholder="اسأل زاد عن أي شيء…" id="chatField" onkeydown="if(event.key==='Enter')UI.send()">
+        <button class="send-btn" onclick="UI.send()"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
+      </div></div>`;
+  }
+  return `<div class="page stagger" style="padding-top:14px">
+    <div class="seg">${tabs.map(t=>`<button class="${st.assistTab===t[0]?'on':''}" onclick="UI.setAssist('${t[0]}')">${t[1]}</button>`).join('')}</div>
+    ${body}</div>`;
+}
+
+function pSubs(){
+  return `<div class="page stagger">
+    <div class="card-lg" style="background:linear-gradient(135deg,#064E3B,#0B6B4E);color:#fff;border-radius:16px;font-size:13.5px;font-weight:700;box-shadow:0 12px 26px rgba(6,78,59,.28)">
+      إجمالي الاشتراكات الشهرية: 294 ر.س
+    </div>
+    ${SUBS.map(s=>`<div class="lrow" style="--accent:${s.c}"><div><div class="t">${s.n}</div><div class="s">${s.r}</div></div><span class="end">${s.a}</span></div>`).join('')}
+  </div>`;
+}
+
+function pFamily(){
+  const tabs=[['chat','المحادثة'],['tasks','المهام'],['members','الأعضاء']];
+  let body='';
+  if(st.familyTab==='chat'){
+    body=`<div class="chat">${CHATS.map(m=>`<div class="msg ${m.me?'me':'ai'}">${m.m}</div>`).join('')}
+      <div class="chat-input"><input placeholder="رسالة للعائلة…"><button class="send-btn" onclick="UI.toast('تم الإرسال ✓')"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button></div>`;
+  }else if(st.familyTab==='members'){
+    body=FAMILY.map(m=>`<div class="lrow"><div><div class="t">${m.n}</div><div class="s">${m.r}</div></div>
+      <span class="pill" style="color:var(--g800);background:rgba(6,78,59,.08)">${m.s}</span></div>`).join('');
+  }else{
+    body=FTASKS.map(f=>`<div class="lrow" style="--accent:${f.done?'#064E3B':'#B45309'}">
+      <div><div class="t">${f.n}</div><div class="s">${f.w}</div></div>
+      <span class="pill" style="color:${f.done?'#064E3B':'#B45309'};background:${f.done?'rgba(6,78,59,.08)':'rgba(180,83,9,.1)'}">${f.done?'تم':'قيد التنفيذ'}</span></div>`).join('');
+  }
+  return `<div class="page stagger" style="padding-top:14px">
+    <div class="seg">${tabs.map(t=>`<button class="${st.familyTab===t[0]?'on':''}" onclick="UI.setFam('${t[0]}')">${t[1]}</button>`).join('')}</div>
+    <div style="display:flex;flex-direction:column;gap:11px">${body}</div></div>`;
+}
+
+function pPharmacy(){
+  const kl={ok:['منتظم','#064E3B'],low:['كمية منخفضة','#B45309'],confirm:['يحتاج تأكيد','#DC5B4B']};
+  return `<div class="page stagger">
+    <div class="duo">
+      <div class="card"><span class="k">${T.adherence}</span><span class="v" style="color:var(--g800)">91%</span>${meter(91,'#0F9B76')}</div>
+      <div class="card"><span class="k">${T.monthlyCost}</span><span class="v">180 <small>ر.س</small></span></div>
+    </div>
+    ${PHARM.map(p=>{const[l,c]=kl[p.k];return `
+      <div class="lrow"><div><div class="t">${p.n}</div><div class="s">${p.m}</div></div>
+      <span class="pill" style="color:${c};background:rgba(6,78,59,.06)">${l}</span></div>`}).join('')}
+    <button class="btn-primary press" style="border-radius:16px" onclick="UI.openCamera()">💬 أضف دواء بالكلام العادي</button>
+  </div>`;
+}
+
+function pMaint(){
+  const kl={ok:['على الموعد','#064E3B'],soon:['مستحق قريباً','#B45309'],over:['متأخر','#DC5B4B']};
+  return `<div class="page stagger">${MAINT.map(m=>{const[l,c]=kl[m.k];return `
+    <div class="lrow"><div><div class="t">${m.n}</div><div class="s">${m.w}</div></div>
+    <span class="pill" style="color:${c};background:rgba(6,78,59,.06)">${l}</span></div>`}).join('')}</div>`;
+}
+
+function pDeals(){
+  return `<div class="page stagger">
+    <div class="warn-strip" style="background:rgba(6,78,59,.06);color:var(--g800)">📍 المسافات من خرائط مفتوحة — ليست أسعاراً فعلية.</div>
+    ${DEALS.map(d=>`<div class="lrow"><div><div class="t">${d.n}</div><div class="s">${d.t}</div></div>
+    <span style="font-size:13px;font-weight:800;color:var(--g800)">${d.d}</span></div>`).join('')}</div>`;
+}
+
+function pNotifs(){
+  return `<div class="page stagger">${NOTIFS.map(n=>`
+    <div class="insight"><span class="dot" style="background:${KIND[n.k].c}"></span>
+    <div style="flex:1"><div class="t">${n.t}</div><div class="s">${n.b}</div></div></div>`).join('')}</div>`;
+}
+
+function pProfile(){
+  return `<div class="page stagger">
+    <div style="background:linear-gradient(135deg,#064E3B,#0B6B4E);border-radius:24px;padding:22px;color:#fff;display:flex;flex-direction:column;align-items:center;gap:9px;box-shadow:0 18px 40px rgba(6,78,59,.32);animation:meshShift 8s ease infinite;background-size:200% 200%">
+      <div style="width:70px;height:70px;border-radius:50%;background:rgba(255,255,255,.15);border:2.5px solid rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800">س</div>
+      <span style="font-size:17px;font-weight:800">سارة العتيبي</span>
+      <span style="font-size:11.5px;opacity:.7">#ZAD-2481</span>
+    </div>
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;padding:15px 16px">
+      <div><div style="font-size:14px;font-weight:800;color:var(--ink)">${T.kidsToggle}</div>
+      <div style="font-size:11.5px;color:var(--gray400);margin-top:2px">${T.kidsToggleSub}</div></div>
+      <div class="press" onclick="UI.toggleKids()" style="width:48px;height:28px;border-radius:99px;background:${st.kids?'#7C3AED':'#E5E7EB'};position:relative;transition:background .3s">
+        <span style="position:absolute;top:3px;inset-inline-start:${st.kids?23:3}px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25);transition:all .3s var(--ease-spring)"></span>
+      </div>
+    </div>
+    <div class="card" style="padding:4px;overflow:hidden">
+      ${['تعديل الملف الشخصي','إدارة العائلة','استيراد كشف حساب بنكي','الدعم والمساعدة','تسجيل الخروج'].map(m=>`
+      <div class="press" style="padding:15px 16px;font-size:14px;font-weight:700;color:var(--ink);border-bottom:1px solid rgba(0,0,0,.05)" onclick="UI.toast('${m}')">${m}</div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function pTasbiha(){
+  return `<div class="page stagger" style="align-items:center;text-align:center;padding-top:40px">
+    <div style="width:200px;height:200px;border-radius:50%;position:relative;display:flex;align-items:center;justify-content:center;
+      background:radial-gradient(circle,rgba(124,58,237,.15),transparent 70%);animation:breathe 3s ease infinite">
+      <div class="orb-ring" style="inset:0"></div><div class="orb-ring r2" style="inset:-20px"></div>
+      <span class="tree" style="font-size:92px" onclick="UI.tapTasbih(event)">🌱</span>
+    </div>
+    <span class="sect-title" style="font-size:19px">بستان التسبيح</span>
+    <span style="font-size:13.5px;color:var(--gray500)">اضغط الشجرة للتسبّح — تنمو مع كل تسبيحة 🌳</span>
+    <div style="width:100%;max-width:280px">${meter(st.tasbiha,'linear-gradient(90deg,#7C3AED,#0F9B76)')}</div>
+    <span style="font-size:13px;font-weight:800;color:var(--g600)">${st.tasbiha} / 100</span>
+    <button class="tap-btn" style="padding:13px 36px;font-size:14px" onclick="UI.tapTasbih(event)">سبّحان الله</button>
+  </div>`;
+}
+
+function pKidsHome(){
+  return `<div class="page stagger">
+    <div class="kids-hero">
+      <span style="font-size:13px;font-weight:700;opacity:.85">${T.kidsBalance}</span>
+      <span class="amt">85 ر.س</span>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;justify-content:space-between;font-size:11.5px;font-weight:700"><span>${T.kidsGoal}</span><span>60%</span></div>
+        ${meter(60,'#fff')}
+      </div>
+      <button class="ask-btn" onclick="UI.openWhy()">${T.kidsAsk}</button>
+    </div>
+    <span class="sect-title">${T.kidsTasks}</span>
+    ${KIDS_TASKS.map(k=>`<div class="lrow task-row" style="--accent:#7C3AED">
+      <div class="t">${k.n}</div><span class="coin-pill">🪙 ${k.c}</span></div>`).join('')}
+    <div class="badges">${KIDS_BADGES.map(b=>`<div><span class="be">${b.e}</span><span class="bl">${b.l}</span></div>`).join('')}</div>
+  </div>`;
+}
+
+/* ═══════════ NAV / SHELL ═══════════ */
+function navHTML(){
+  if(st.kids){
+    return `<div id="nav">
+      <div class="nav-item on"><span style="color:#fff">🏠 ${T.tabHome}</span></div>
+      <div class="nav-item" onclick="UI.kidsFamily()"><span style="color:rgba(255,255,255,.7)">👨‍👩‍👧 العائلة</span></div>
+      <button class="cam-btn" onclick="UI.openVoice()"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round"><path d="M12 2a3 3 0 013 3v6a3 3 0 01-6 0V5a3 3 0 013-3zM19 10v1a7 7 0 01-14 0v-1M12 18v4"/></svg></button>
+    </div>`;
+  }
+  const items=[['home','tabHome','M2 9L11 2l9 7v9a1 1 0 01-1 1h-5v-6H8v6H3a1 1 0 01-1-1V9z'],
+    ['inventory','tabInventory','M3 9l1-5h16l1 5M4 9h16v10a1 1 0 01-1 1H5a1 1 0 01-1-1V9zM9 13h6']];
+  return `<div id="nav">
+    ${items.map(i=>`<div class="nav-item ${st.screen===i[0]?'on':''}" onclick="UI.go('${i[0]}')">
+      <svg viewBox="0 0 22 20" fill="none" stroke-width="1.8" stroke-linejoin="round"><path d="${i[2]}"/></svg><span>${T[i[1]]}</span></div>`).join('')}
+    <button class="cam-btn" onclick="UI.openCamera()"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="7" width="18" height="13" rx="2"/><circle cx="12" cy="13.5" r="3.5"/><path d="M8 7l1.5-2.5h5L16 7"/></svg></button>
+    <div class="nav-item ${st.screen==='assistant'?'on':''}" onclick="UI.go('assistant')">
+      <svg viewBox="0 0 22 20" fill="none" stroke-width="1.8" stroke-linejoin="round"><path d="M1 3.5A2 2 0 013 1.5h15a2 2 0 012 2V13a2 2 0 01-2 2H8l-5 4v-4H3a2 2 0 01-2-2V3.5z"/></svg><span>${T.tabAssistant}</span></div>
+    <div class="nav-item" onclick="UI.openMore()">
+      <svg viewBox="0 0 20 20" fill="none"><circle cx="4" cy="10" r="1.7" fill="#9CA3AF"/><circle cx="10" cy="10" r="1.7" fill="#9CA3AF"/><circle cx="16" cy="10" r="1.7" fill="#9CA3AF"/></svg>
+      <span>${T.tabMore}</span></div>
+  </div>`;
+}
+
+function drawerHTML(){
+  return `<div class="scrim ${st.drawer?'show':''}" style="z-index:44" onclick="UI.closeDrawer()"></div>
+  <div class="drawer ${st.drawer?'show':''}">
+    <div class="drawer-hdr">
+      <div class="carrot-tile"><svg width="18" height="18" viewBox="0 0 64 64"><path d="M31 16C36 20 42 30 40 44C39 51 34 58 29 57C24 56 21 50 22 43C24 30 27 21 31 16Z" fill="#F0703D"/><path d="M29 17C27 13 28 9 26 6M32 15C32 11 34 8 33 4M35 17C37 14 40 12 40 8" stroke="#3CA06E" stroke-width="3.2" stroke-linecap="round"/></svg></div>
+      <span class="wordmark">ZAD</span>
+    </div>
+    <div class="drawer-list">
+      ${DRAWER.map(d=>`<div class="d-item ${st.screen===d.go?'on':''}" onclick="UI.goFromDrawer('${d.go}')">
+        <span style="font-size:17px">${d.e}</span><span>${d.n}</span>
+        ${d.badge?`<span class="count">${d.badge}</span>`:''}</div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function sheetsHTML(){
+  return `
+  <div class="scrim ${st.more?'show':''}" onclick="UI.closeMore()"></div>
+  <div class="sheet ${st.more?'show':''}">
+    <div class="grabber"></div>
+    <div class="more-grid">${MORE.map((m,i)=>`
+      <div class="more-item" style="animation-delay:${i*0.04}s" onclick="UI.goFromMore('${m.go}')">
+        <div class="mi" style="background:${m.bg}"><span style="font-size:19px">${m.e}</span></div><span>${m.n}</span></div>`).join('')}
+    </div>
+  </div>
+
+  <div class="scrim ${st.camera?'show':''}" style="z-index:48" onclick="UI.closeCamera()"></div>
+  <div class="sheet ${st.camera?'show':''}" style="z-index:49">
+    <div class="grabber"></div>
+    <div class="camera-body">
+      <span class="sheet-title">${T.cameraTitle}</span>
+      <div class="camera-preview">
+        <div class="scan-frame"><i></i><i></i><i></i><i></i></div><div class="scan-line"></div><div class="scan-lottie" id="scanLottie"></div>
+        <span class="hint">وجّه الكاميرا نحو الفاتورة أو الرف</span>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn-primary press" style="border-radius:14px" onclick="UI.toast('بدء مسح المخزون…')">${T.scanInventory}</button>
+        <button class="btn-ghost press" style="border-radius:14px" onclick="UI.toast('بدء مسح الفاتورة…')">${T.scanReceipt}</button>
+      </div>
+      <button style="color:var(--gray500);font-size:13.5px;font-weight:700" onclick="UI.closeCamera()">${T.cancel}</button>
+    </div>
+  </div>
+
+  <div class="scrim ${st.why?'show':''}" style="z-index:50" onclick="UI.closeWhy()"></div>
+  <div class="sheet ${st.why?'show':''}" style="z-index:51">
+    <div class="grabber"></div>
+    <div style="padding:12px 22px 32px;display:flex;flex-direction:column;gap:16px">
+      <span class="sheet-title">${T.sheetWhy}</span>
+      <div style="display:flex;flex-direction:column;gap:13px">
+        <div class="why-row"><span><span class="why-dot" style="background:var(--amberDot)"></span>${T.spent}</span><b>1,120 ر.س</b></div>
+        <div class="why-row"><span><span class="why-dot" style="background:var(--coralDot)"></span>${T.committed}</span><b>640 ر.س</b></div>
+        <div style="height:1px;background:rgba(0,0,0,.06)"></div>
+        <span style="font-size:13px;color:var(--gray500);line-height:1.6">${T.sheetBody}</span>
+      </div>
+      <button class="btn-primary" onclick="UI.closeWhy()">${T.sheetClose}</button>
+    </div>
+  </div>
+
+  ${drawerHTML()}`;
+}
+
+/* ═══════════ MAIN RENDER ═══════════ */
+function render(){
+  const scr=$('#scroll');
+  const keep=scr.scrollTop;
+  const body= st.splash?''
+    : st.kids&&st.screen!=='family' ? pKidsHome()
+    : {home:pHome,inventory:pInventory,shopping:pShopping,budget:pBudget,assistant:pAssistant,
+       subs:pSubs,family:pFamily,pharmacy:pPharmacy,maintenance:pMaint,deals:pDeals,
+       profile:pProfile,notifications:pNotifs,tasbiha:pTasbiha}[st.screen]?.()||pHome();
+  scr.innerHTML=(st.splash?'':`<div id="pageWrap">${body}</div>`)+sheetsHTML()+navHTML();
+  scr.scrollTop=keep;
+  if(!st.splash) header();
+  document.body.classList.toggle('kids',st.kids);
+}
+
+/* ═══════════ ACTIONS ═══════════ */
+const UI={
+  enter(){st.splash=false;const sp=$('#splash');if(sp){sp.classList.add('hide');setTimeout(()=>sp.remove(),650);}render();},
+  go(s){if(st.kids&&s!=='home'&&s!=='family'){UI.toast('محتاج PIN لفتح ده 🔒');return;}
+    st.screen=s;st.more=false;st.drawer=false;render();$('#scroll').scrollTo({top:0,behavior:'smooth'});},
+  goFromDrawer(s){st.drawer=false;setTimeout(()=>UI.go(s),180);render();},
+  goFromMore(s){st.more=false;setTimeout(()=>UI.go(s),200);render();},
+  kidsFamily(){st.screen='family';render();},
+  openDrawer(){st.drawer=true;render();}, closeDrawer(){st.drawer=false;render();},
+  openMore(){st.more=true;render();}, closeMore(){st.more=false;render();},
+  openCamera(){st.camera=true;render();}, closeCamera(){st.camera=false;render();},
+  openWhy(){st.why=true;render();}, closeWhy(){st.why=false;render();},
+  openVoice(){$('#voiceOverlay').classList.add('show');},
+  closeVoice(){$('#voiceOverlay').classList.remove('show');},
+  setCat(c){st.invCat=c;render();},
+  setAssist(t){st.assistTab=t;render();},
+  setFam(t){st.familyTab=t;render();},
+  confirmItem(n){st.confirmed[n]=true;render();UI.toast(T.toastAdded);},
+  toggleKids(){st.kids=!st.kids;if(st.kids)st.screen='home';render();
+    UI.toast(st.kids?'وضع الأطفال مفعّل 🧒':'الوضع الكامل 🔓');},
+  exitKids(){st.kids=false;st.screen='profile';render();UI.toast('الوضع الكامل 🔓');},
+  send(){const f=$('#chatField');if(!f||!f.value.trim())return;
+    st.typing=true;render();
+    setTimeout(()=>{st.typing=false;render();UI.toast(T.sent);},1400);},
+  tapTasbih(e){
+    st.tasbiha=Math.min(100,st.tasbiha+1);
+    const zone=$('#gardenZone');
+    if(e&&zone){
+      const p=document.createElement('span');p.className='petal';
+      p.textContent=Math.random()>.5?'🍃':'🌸';
+      p.style.left=(40+Math.random()*20)+'%';p.style.top='55%';
+      p.style.animationDuration=(1.1+Math.random()*.5)+'s';
+      zone.appendChild(p);setTimeout(()=>p.remove(),1500);
+    }
+    if(navigator.vibrate)navigator.vibrate(12);
+    if(st.tasbiha===100)UI.toast('🌳 شجرتك أثمرت! مبروك');
+    render();
+  },
+  toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');
+    clearTimeout(UI._tt);UI._tt=setTimeout(()=>t.classList.remove('show'),1900);}
+};
+window.UI=UI;
+
+/* splash boot */
+function boot(){
+  render(); // render() renders app body only when !st.splash
+  // Paint splash on top (outside #scroll so re-renders never wipe it)
+  const sp=document.createElement('div');
+  sp.id='splash';
+  sp.innerHTML=`
+    <svg class="carrot" viewBox="0 0 64 64"><path d="M31 16C36 20 42 30 40 44C39 51 34 58 29 57C24 56 21 50 22 43C24 30 27 21 31 16Z" fill="#F0703D"/><path d="M25.5 30.5L34.5 33.5M24 38L33 41M25.5 45.5L31.5 47.5" stroke="#FBFAF8" stroke-width="2" stroke-linecap="round"/><path d="M29 17C27 13 28 9 26 6M32 15C32 11 34 8 33 4M35 17C37 14 40 12 40 8" stroke="#3CA06E" stroke-width="3.2" stroke-linecap="round"/></svg>
+    <div class="logo" style="margin-top:18px">ZAD</div>
+    <div class="slogan" style="margin-top:8px">${T.slogan}</div>
+    <div class="sub">Smart care for your home</div>
+    <div style="margin-top:56px;width:38px;height:4px;border-radius:99px;background:rgba(15,23,42,.12);animation:fadeUp .6s ease .5s both"></div>
+    <button id="enterBtn" onclick="UI.enter()">${T.ctaEnter}</button>`;
+  $('#screen').appendChild(sp);
+}
+boot();
+
+/* ═══════════ LOTTIE BOOT + 3D TILT ═══════════ */
+const ASSETS={'ai_orb':null,'scan_line':null,'garden_burst':null};
+async function loadLotties(){
+  if(typeof lottie==='undefined')return;
+  const files=['ai_orb','scan_line','garden_burst'];
+  let loaded=0;
+  await Promise.all(files.map(n=>fetch('assets/'+n+'.json').then(r=>r.json()).then(d=>{ASSETS[n]=d;loaded++;})));
+  mountLotties();
+}
+function mountLotties(){
+  if(typeof lottie==='undefined')return;
+  const orbEl=document.getElementById('orbLottie');
+  if(orbEl&&ASSETS.ai_orb&&!orbEl.dataset.done){
+    orbEl.dataset.done='1';
+    lottie.loadAnimation({container:orbEl,renderer:'svg',loop:true,autoplay:true,animationData:ASSETS.ai_orb});
+  }
+  const scanEl=document.getElementById('scanLottie');
+  if(scanEl&&ASSETS.scan_line&&!scanEl.dataset.done){
+    scanEl.dataset.done='1';
+    lottie.loadAnimation({container:scanEl,renderer:'svg',loop:true,autoplay:true,animationData:ASSETS.scan_line});
+  }
+}
+let burstAnim=null;
+function playBurst(){
+  if(typeof lottie==='undefined'||!ASSETS.garden_burst)return;
+  const el=document.getElementById('burstLottie');
+  if(!el)return;
+  if(burstAnim){burstAnim.destroy();burstAnim=null;}
+  burstAnim=lottie.loadAnimation({container:el,renderer:'svg',loop:false,autoplay:true,animationData:JSON.parse(JSON.stringify(ASSETS.garden_burst))});
+}
+// patch tapTasbih to fire real confetti at milestone taps
+const _origTap=UI.tapTasbih;
+UI.tapTasbih=function(e){
+  const before=st.tasbiha;
+  _origTap(e);
+  if(st.tasbiha>before&&(st.tasbiha%25===0||st.tasbiha===100))playBurst();
+};
+// re-mount scan/orb lotties whenever overlays open (elements persist but guard via dataset)
+const _openVoice=UI.openVoice;
+UI.openVoice=function(){_openVoice();setTimeout(mountLotties,50);};
+const _openCamera=UI.openCamera;
+UI.openCamera=function(){_openCamera();setTimeout(mountLotties,80);};
+// subtle 3D tilt following pointer
+document.addEventListener('mousemove',ev=>{
+  const ph=document.getElementById('phone');if(!ph)return;
+  const cx=window.innerWidth/2, cy=window.innerHeight/2;
+  if(ev.target.closest('#phone')){
+    const dx=(ev.clientX-cx)/cx, dy=(ev.clientY-cy)/cy;
+    ph.style.transform=`perspective(1200px) rotateX(${-dy*3}deg) rotateY(${dx*4}deg)`;
+  } else {
+    ph.style.transform='';
+  }
+},{passive:true});
+loadLotties();
+</script>
+</body>
+</html>

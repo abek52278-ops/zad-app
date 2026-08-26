@@ -43,12 +43,9 @@ fun V3HeroCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .heroTilt()
             .clip(ZadV3.rHero)
-            .pressableScale(onClick = onOpen)
-            .let {
-                // Border is applied via the outer Box below
-                it
-            },
+            .deepPress(onClick = onOpen),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Box {
@@ -68,7 +65,10 @@ fun V3HeroCard(
                 Text(
                     availableText,
                     fontSize = 44.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1.2).sp,
-                    style = androidx.compose.ui.text.TextStyle(brush = ZadV3.heroAmountBrush),
+                    // V4 — travelling specular shimmer over the hero amount
+                    style = androidx.compose.ui.text.TextStyle(
+                        brush = rememberShimmerBrush(Color.White, Color(0xFFD9F2E6)),
+                    ),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     com.example.ui.theme.ZadGlassChip(
