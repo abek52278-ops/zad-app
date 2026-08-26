@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<font-family xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- Cairo variable font (Google Fonts, OFL) — Arabic + Latin UI face.
+         Design system weights actually used: 600 / 700 / 800 only. -->
+    <font android:font="@font/cairo_variable"
+        app:font="@font/cairo_variable"
+        android:fontVariationSettings="'wght' 600"
+        app:fontVariationSettings="'wght' 600"
+        android:fontWeight="600" />
+    <font android:font="@font/cairo_variable"
+        app:font="@font/cairo_variable"
+        android:fontVariationSettings="'wght' 700"
+        app:fontVariationSettings="'wght' 700"
+        android:fontWeight="700" />
+    <font android:font="@font/cairo_variable"
+        app:font="@font/cairo_variable"
+        android:fontVariationSettings="'wght' 800"
+        app:fontVariationSettings="'wght' 800"
+        android:fontWeight="800" />
+</font-family>

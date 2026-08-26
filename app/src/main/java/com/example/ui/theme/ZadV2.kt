@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -101,6 +102,53 @@ object ZadV3 {
     // ── Shadows ───────────────────────────────────────────────────────────
     val cardShadowAmbient = Color(0x0A0F172A)
     val cardShadowSpot = Color(0x120F172A)
+
+    // ═══ Design-contract literal tokens ("new ui ux" spec — no rounding) ═══
+
+    // Missing palette entries from the contract table
+    val coralLight = Color(0xFFFF8066)      // #FF8066
+    val neutralBg = Color(0xFFF1F4F3)       // #F1F4F3
+    val greenDeepest = Color(0xFF052E16)    // #052E16 (== aiPlate, aliased for clarity)
+
+    // Screen canvas: linear-gradient(165deg,#F4F5F7 0%,#ECEEF1 45%,#E9ECEF 100%)
+    val canvasGradient = Brush.linearGradient(
+        colors = listOf(Color(0xFFF4F5F7), Color(0xFFECEEF1), Color(0xFFE9ECEF)),
+        start = Offset(0f, 0f),
+        end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
+    )
+
+    // Primary button/header gradient: linear-gradient(135deg,#064E3B,#0B6B4E)
+    val primaryGradient = Brush.linearGradient(listOf(green800, green700))
+
+    // Animated ring / hero mesh: linear-gradient(120deg,#0B6B4E,#0F9B76,#064E3B,#0B6B4E)
+    val meshGradientStops = listOf(green700, green600, green800, green700)
+
+    // White card → mint: linear-gradient(180deg,#fff,#D9F2E6)
+    val whiteToMint = Brush.verticalGradient(listOf(Color.White, mint100))
+
+    // Violet→green progress bar: linear-gradient(90deg,#7C3AED,#0F9B76)
+    val violetGreenBar = Brush.horizontalGradient(listOf(violet, green600))
+
+    // Family/Kids accent: linear-gradient(135deg,#7C3AED,#EC4899)
+    val kidsGradient = Brush.linearGradient(listOf(violet, Color(0xFFEC4899)))
+
+    /** Card shadow — contract literal:
+     *  box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 8px 20px rgba(15,23,42,.07) */
+    fun Modifier.contractCardShadow(shape: Shape): Modifier = this.shadow(
+        elevation = 8.dp,
+        shape = shape,
+        ambientColor = Color(0x0A0F172A),
+        spotColor = Color(0x120F172A),
+    )
+
+    /** Floating element shadow — contract literal:
+     *  box-shadow: 0 8px 24px rgba(15,23,42,.14) */
+    fun Modifier.floatingShadow(shape: Shape): Modifier = this.shadow(
+        elevation = 24.dp,
+        shape = shape,
+        ambientColor = Color(0x240F172A),
+        spotColor = Color(0x240F172A),
+    )
 }
 
 /** Backward-compatible alias for old screens still referencing ZadV2 */

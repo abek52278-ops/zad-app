@@ -1,5 +1,7 @@
 package com.example.ui.v2
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -19,6 +21,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.ui.screens.ProfileScreen
+import com.example.ui.theme.ZadV3
 import com.example.ui.viewmodels.FamilyViewModel
 import com.example.ui.viewmodels.ZadViewModel
 
@@ -65,6 +68,7 @@ fun V3MainScreen(
         viewModel.consumePendingAppCommand()
     }
 
+    Box(Modifier.fillMaxSize().background(ZadV3.canvasGradient)) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent,
@@ -184,6 +188,7 @@ fun V3MainScreen(
             viewModel = viewModel,
             onDismiss = { showVoiceSheet = false },
         )
+    }
     }
 }
 

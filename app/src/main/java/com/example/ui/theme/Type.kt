@@ -7,27 +7,26 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.example.R
 
-// ZAD Typography System
-//
-// IBM Plex Sans Arabic (the Zad DESIGN.md's actual typeface) needs real
-// bundled .ttf files or a verified Google-Fonts-provider certificate — neither
-// is safely producible in this environment (no network, no binary asset
-// generation), so this uses Android's built-in system font families instead.
-// NOTE: Arabic script glyph *shapes* always render through Android's system
-// Arabic-fallback font regardless of the requested Latin family name — this
-// swap changes weight/silhouette (and any Latin/numeric text) but will not
-// change Arabic letterforms the way a real IBM Plex Sans Arabic asset would.
-// Swap `displayFont`/`headlineFont` for a real FontFamily once .ttf files are
-// added to res/font/.
-private val displayFont = FontFamily(
-    Font(familyName = DeviceFontFamilyName("sans-serif-black"), weight = FontWeight.Black),
-    Font(familyName = DeviceFontFamilyName("sans-serif-black"), weight = FontWeight.Bold),
+// ZAD Typography System — per "new ui ux" design contract:
+//   Cairo (Arabic UI face) + Inter (SF Pro substitute for numbers/English).
+// Variable fonts registered at the three weights the system uses (600/700/800);
+// wght axis instances come from res/font/cairo.xml & inter.xml fontWeight entries.
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+val CairoFamily = FontFamily(
+    Font(R.font.cairo_variable, weight = FontWeight.SemiBold),
+    Font(R.font.cairo_variable, weight = FontWeight.Bold),
+    Font(R.font.cairo_variable, weight = FontWeight.ExtraBold),
 )
-private val headlineFont = FontFamily(
-    Font(familyName = DeviceFontFamilyName("sans-serif-medium"), weight = FontWeight.SemiBold),
-    Font(familyName = DeviceFontFamilyName("sans-serif-medium"), weight = FontWeight.Bold),
+val InterFamily = FontFamily(
+    Font(R.font.inter_variable, weight = FontWeight.SemiBold),
+    Font(R.font.inter_variable, weight = FontWeight.Bold),
+    Font(R.font.inter_variable, weight = FontWeight.ExtraBold),
 )
+
+private val displayFont = CairoFamily
+private val headlineFont = CairoFamily
 
 val Typography = Typography(
     displayLarge = TextStyle(
