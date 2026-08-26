@@ -1482,7 +1482,7 @@
     <string name="v3_tasbiha_tap_en">Tap to grow</string>
     <string name="v3_tasbiha_count_of_goal">%1$d / %2$d</string>
     <string name="v3_chef_title">Zad Chef</string>
-    <string name="v3_chef_subtitle">Today's pick: a quick recipe from what's already in your stock.</string>
+    <string name="v3_chef_subtitle">Today\'s pick: a quick recipe from what\'s already in your stock.</string>
     <string name="v3x_low_banner">%1$d items low: %2$s</string>
     <string name="v3x_all">All</string>
     <string name="v3x_confirm">Confirm</string>
