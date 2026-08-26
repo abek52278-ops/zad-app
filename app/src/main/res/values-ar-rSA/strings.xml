@@ -1484,4 +1484,14 @@
     <string name="v3x_camera_preview">معاينة الكاميرا</string>
     <string name="v3x_camera_scan_inventory">مسح مخزون</string>
     <string name="v3x_camera_scan_receipt">مسح فاتورة</string>
+    <string name="shopping_list_total_label">إجمالي القائمة</string>
+    <string name="out_of_budget_format">من أصل %1$s</string>
+    <string name="smart_fill_action">تعبئة ذكية</string>
+    <string name="add_medication_voice_action">أضف دواء بالكلام العادي</string>
+    <string name="low_quantity">كمية منخفضة</string>
+    <string name="regular_dose">منتظم</string>
+    <string name="purchased_badge">تم شراؤه</string>
+    <string name="quantity_piece_format">%1$d قطعة</string>
+    <string name="monthly_pharma_cost_title">التكلفة الشهرية</string>
+    <string name="left_days_format">متبقي %1$d يوم</string>
 </resources>

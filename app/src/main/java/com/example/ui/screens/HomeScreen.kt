@@ -38,6 +38,9 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalContext
 import android.content.Intent
@@ -92,6 +95,7 @@ fun HomeScreen(
      * (زاد-برين بيكتب "غير معروف" ويطلب من العميل يحدده في الإعدادات)، بدل ما نسيب
      * المستخدم يدوّر بنفسه على الشاشة الصح. */
     onNavigateToCurrencySettings: () -> Unit = {},
+    onNavigateToMaintenance: () -> Unit = {},
     onNavigateToPlans: () -> Unit = {},
     onOpenVoice: () -> Unit = {},
     /** تفعيل يدوي من الأب/الأم (Switch to Kids Mode) — بيفرض واجهة الأطفال حتى لو role الحساب "admin" */
@@ -129,6 +133,8 @@ fun HomeScreen(
     val seasonalForecasts by viewModel.seasonalForecasts.collectAsState()
     val expensePrediction by viewModel.expensePrediction.collectAsState()
     val outingSuggestion by viewModel.outingSuggestion.collectAsState()
+    val weeklyAdherence by viewModel.weeklyAdherencePercent.collectAsState()
+    val nextObligationDue by viewModel.nextObligationDue.collectAsState()
     val agentSummary by viewModel.agentSummary.collectAsState()
     val isAgentLoading by viewModel.isAgentLoading.collectAsState()
     val autoSuggestions by viewModel.autoSuggestions.collectAsState()
@@ -303,6 +309,41 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
+                // ── 0b. كورة زاد الحية — CompanionOrb بنبض وتتبع عين حقيقي ──
+                // كانت "دائرة خضراء ثابتة" في رأس الشاشة؛ دلوقتي بنادي المكوّن الحي
+                // مباشرة بنفس حالة companionState اللي FloatingMascotCompanion بيغذّيها
+                // (بيفكر وقت الشات، تنبيه من ملخص الأجنت، سعيد/هادئ من الصحة المالية).
+                com.example.ui.components.AppearOnEntry {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val orbState by viewModel.companionState.collectAsState()
+                        Box(modifier = Modifier.size(64.dp)) {
+                            com.example.ui.components.CompanionOrb(
+                                state = orbState,
+                                size = 64.dp,
+                                animated = true
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                stringResource(R.string.greeting_hi_name, userName),
+                                style = Typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = onSurface
+                            )
+                            Text(
+                                com.example.ui.components.companionStateDescription(orbState),
+                                style = Typography.labelMedium,
+                                color = onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+
                 val activationProgress = buildHomeActivationProgress(
                     hasConfirmedBalance = budgetConfirmed && balanceFigure != null,
                     bankReadingEnabled = isNotificationAccessGranted && bankReaderConnectedAt != null,
@@ -418,6 +459,37 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
+                // ── 2a. بيانات حية من أقسام تانية — أدوية/التزام قادم/خروجة ──
+                // من تدقيق الـViewModel: ٣ مصادر بيانات بتتحسب فعلاً ومكانش ليها صدى
+                // على الرئيسية. عمودان وفق منطق "grid2" في البروتوتايب.
+                if (weeklyAdherence != null || nextObligationDue != null) {
+                    com.example.ui.components.AppearOnEntry(delayMs = 62) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            weeklyAdherence?.let { pct ->
+                                com.example.ui.components.ZadStatTile(
+                                    modifier = Modifier.weight(1f).clickable { onNavigateToPharmacy() },
+                                    label = stringResource(R.string.dose_adherence_label),
+                                    value = "$pct%"
+                                )
+                            }
+                            nextObligationDue?.let { (obligation, dueDate) ->
+                                val daysTo = java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), dueDate)
+                                com.example.ui.components.ZadStatTile(
+                                    modifier = Modifier.weight(1f).clickable { onNavigateToBudget() },
+                                    label = stringResource(R.string.obligations_domain_label),
+                                    value = if (daysTo <= 0) obligation.title.take(12)
+                                            else stringResource(R.string.obligation_due_in_days, obligation.title.take(8), daysTo)
+                                )
+                            }
+                            // تعبئة الصف لو فيه عنصر واحد بس
+                            if ((if (weeklyAdherence != null) 1 else 0) + (if (nextObligationDue != null) 1 else 0) == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(18.dp))
+                }
+
                 // ── 2b. نبض الإنفاق الحي — sparkline آخر ٧ أيام (من البروتوتايب) ──
                 if (budgetConfirmed && visibleTransactions.isNotEmpty()) {
                     com.example.ui.components.AppearOnEntry(delayMs = 55) {
@@ -469,6 +541,9 @@ fun HomeScreen(
                             com.example.ui.components.ZadShortcutItem(Icons.Default.FamilyRestroom, stringResource(R.string.nav_family), kidsPrimary, onNavigateToFamily),
                             com.example.ui.components.ZadShortcutItem(Icons.Default.Subscriptions, stringResource(R.string.quick_stat_subscriptions_title), tertiary, onNavigateToSubscriptions),
                             com.example.ui.components.ZadShortcutItem(Icons.Default.LocalPharmacy, stringResource(R.string.nav_pharmacy), dangerColor, onNavigateToPharmacy),
+                            // tile الصيانة رجع من البروتوتايب (🔧 SHORTCUTS[6]) — البستان موجود
+                            // أصلاً ككارت كبير تحت، فمكان الشبكة ده كان بيبقى تكرار ليه
+                            com.example.ui.components.ZadShortcutItem(Icons.Default.Build, stringResource(R.string.nav_maintenance), Color(0xFFB45309), onNavigateToMaintenance),
                             com.example.ui.components.ZadShortcutItem(Icons.Default.Park, stringResource(R.string.tasbiha_short_label), secondaryDark, onNavigateToTasbiha),
                         ),
                     )
@@ -601,7 +676,8 @@ fun HomeScreen(
                             com.example.ui.components.GlassCard(
                                 shape = RoundedCornerShape(16.dp),
                                 containerColor = Color.White.copy(alpha = 0.85f),
-                                contentPadding = 0.dp
+                                contentPadding = 0.dp,
+                                modifier = Modifier.clickable { onNavigateToNotifications() }
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
@@ -613,6 +689,7 @@ fun HomeScreen(
                                             .size(10.dp)
                                             .clip(CircleShape)
                                             .background(accent)
+                                            .zadDotPulse()
                                     )
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -702,14 +779,14 @@ fun HomeScreen(
                             )
                             com.example.ui.components.ZadStatTile(
                                 modifier = Modifier.weight(1f).clickable { onNavigateToAssistant() },
-                                label = "الصحة المالية",
+                                label = stringResource(R.string.financial_health_label),
                                 value = if (facts.report.hasEnoughData) "${facts.report.healthScore}/100" else "—"
                             )
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             com.example.ui.components.ZadStatTile(
                                 modifier = Modifier.weight(1f).clickable { onNavigateToAssistant() },
-                                label = "الإنفاق الشهري",
+                                label = stringResource(R.string.monthly_spending),
                                 value = com.example.data.CurrencyFormatter.format(context, facts.report.totalSpent)
                             )
                             // "اتجاه ٧ أيام" في الmockup نسبة تغيّر (↓ 6%)، مش مبلغ.
@@ -812,54 +889,9 @@ fun HomeScreen(
                     }
                     Spacer(modifier = Modifier.height(18.dp))
                 }
-
-                // ── 10. Recent transactions (mockup: آخر المعاملات + عرض الكل) ──
-                if (budgetConfirmed && visibleTransactions.isNotEmpty()) {
-                    com.example.ui.components.AppearOnEntry(delayMs = 90) {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(stringResource(R.string.recent_tx_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                                Text(
-                                    stringResource(R.string.see_all),
-                                    style = Typography.labelMedium, fontWeight = FontWeight.SemiBold,
-                                    color = primary,
-                                    modifier = Modifier.clickable { viewModel.showBudgetDialog() }
-                                )
-                            }
-                            visibleTransactions
-                                .sortedByDescending { it.createdAt ?: "" }
-                                .take(3)
-                                .forEach { tx ->
-                                    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(14.dp), contentPadding = 0.dp) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                                Text(tx.merchantName ?: tx.category ?: "—", style = Typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = onSurface)
-                                                Text(
-                                                    tx.createdAt?.take(10) ?: "",
-                                                    style = Typography.labelSmall, color = onSurfaceVariant
-                                                )
-                                            }
-                                            val neg = tx.isExpense
-                                            Text(
-                                                (if (neg) "−" else "+") + com.example.data.CurrencyFormatter.format(context, tx.amount),
-                                                style = Typography.bodyMedium, fontWeight = FontWeight.Bold,
-                                                color = if (neg) dangerColor else primary
-                                            )
-                                        }
-                                    }
-                                }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(18.dp))
-                }
+                // ── 10. Recent transactions — اتشالت النسخة المكررة. PremiumTransactionsRow
+                // فوق (بعد insights) هو العرض الرسمي: تواريخ نسبية بالعربي (اليوم/قبل يومين)
+                // مش ISO خام، وهو اللي بيطابق البروتوتايب `.tx` حرفياً.
 
                 // ── Beyond the mockup ──────────────────────────────────────────────
                 // Cards Zad has and the mockup doesn't. They stay (each one is backed by
@@ -1736,11 +1768,36 @@ fun AgentSummaryCard(
     // 12.5sp, the summary at 14sp/1.55, and the actions as translucent chips. The
     // 36dp robot-avatar circle and the 16sp white heading that used to sit on top
     // are gone — the mockup gives this card one small label, then the sentence.
+    // Mockup fidelity (zad_premium_v5 .ai-panel): gradient 135deg #052E16→#0A382C,
+    // mint sparkle before the title, and the 140px radial "breathe" glow orb.
+    // breathe 4s ease infinite — القيمة 0.93→1.07 (±7% زي scale(1.05) في CSS تقريباً)
+    val breatheGlow = rememberInfiniteTransition(label = "aiBreathe").animateFloat(
+        initialValue = 0.93f,
+        targetValue = 1.07f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "aiBreatheScale"
+    )
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(primaryContainer)
+            .background(Brush.linearGradient(listOf(Color(0xFF052E16), Color(0xFF0A382C))))
+            // ::before بتاع البروتوتايب: دائرة ضوء mint نصف قطرها 140px أعلى اليمين
+            // بتنفس breathe 4s (scale 1→1.05)
+            .drawBehind {
+                val breatheVal = breatheGlow.value
+                val radius = size.width * 0.35f * breatheVal
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(Color(0xFF6EE7B7).copy(alpha = 0.22f), Color.Transparent)
+                    ),
+                    radius = radius,
+                    center = Offset(size.width + 40f, -40f)
+                )
+            }
             .padding(18.dp)
     ) {
             Row(
@@ -1748,12 +1805,21 @@ fun AgentSummaryCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    stringResource(R.string.zad_agent),
-                    color = primaryFixed,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.5.sp
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    // Sparkle SVG من البروتوتايب (نجمة رباعية mint 14px)
+                    Icon(
+                        painter = androidx.compose.ui.res.painterResource(R.drawable.ic_zad_sparkle),
+                        contentDescription = null,
+                        tint = Color(0xFF6EE7B7),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        stringResource(R.string.zad_agent),
+                        color = Color(0xFF6EE7B7),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.5.sp
+                    )
+                }
                 IconButton(onClick = onRefresh, modifier = Modifier.size(24.dp)) {
                     Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.refresh_cd), tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(16.dp))
                 }
@@ -1803,7 +1869,7 @@ fun AgentSummaryCard(
                                     when (suggestion.action) {
                                         "add_to_shopping" -> onNavigateToShopping()
                                         "cook_meal" -> onNavigateToAssistant()
-                                        else -> onNavigateToInventory()
+                                        else -> onNavigateToAssistant()
                                     }
                                 }.padding(horizontal = 12.dp, vertical = 6.dp)
                             ) { Text(suggestion.reason, color = Color.White, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) }

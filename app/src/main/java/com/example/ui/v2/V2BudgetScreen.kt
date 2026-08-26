@@ -77,24 +77,34 @@ fun V3BudgetScreen(
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 130.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        // Available hero card (dark green)
+        // Available hero card (linear-gradient 120deg #064E3B→#0B6B4E مطابقة لـ pBudget)
         item {
             Box(
-                modifier = Modifier.fillMaxWidth().fadeUpOnAppear().clip(RoundedCornerShape(22.dp))
-                    .background(ZadV3.green800).pressableScale { showQuickExpense = true }
-                    .padding(20.dp),
+                modifier = Modifier.fillMaxWidth().fadeUpOnAppear(0L).clip(RoundedCornerShape(22.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xFF064E3B), Color(0xFF0B6B4E))))
+                    .pressableScale { showQuickExpense = true }
+                    .padding(22.dp),
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(stringResource(R.string.v2_available), fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.7f))
+                    Text(stringResource(R.string.v2_available), fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.72f))
                     Text(
-                        CurrencyFormatter.format(context, remaining ?: 0.0),
-                        fontSize = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.8).sp, color = Color.White,
+                        "≈ " + CurrencyFormatter.format(context, remaining ?: 0.0),
+                        fontSize = 36.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1.0).sp, color = Color.White,
                     )
-                    Text(
-                        stringResource(R.string.v2_spent_colon, CurrencyFormatter.format(context, spent))
-                            + " · " + stringResource(R.string.v2_committed_colon, CurrencyFormatter.format(context, committed)),
-                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.85f),
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+                        Box(
+                            Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.14f))
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Text(stringResource(R.string.v2_spent_colon, CurrencyFormatter.format(context, spent)), fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                        Box(
+                            Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.14f))
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Text(stringResource(R.string.v2_committed_colon, CurrencyFormatter.format(context, committed)), fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    }
                 }
             }
         }

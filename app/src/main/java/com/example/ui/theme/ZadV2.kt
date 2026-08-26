@@ -18,6 +18,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -171,6 +175,38 @@ fun Modifier.zadCardShadow(shape: Shape, elevation: androidx.compose.ui.unit.Dp 
         ambientColor = Color(0xFF0F172A).copy(alpha = 0.08f),
         spotColor = Color(0xFF0F172A).copy(alpha = 0.12f),
     )
+
+/**
+ * dotPulse من البروتوتايب (`@keyframes dotPulse`): scale 1→1.3 وopacity 1→0.7
+ * على لوب 2.4s. للنقط الملونة في صفوف insights وأجراس الإشعارات.
+ */
+@Composable
+fun Modifier.zadDotPulse(periodMs: Int = 2400): Modifier {
+    val transition = rememberInfiniteTransition(label = "dotPulse")
+    val pulse by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(periodMs, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "dotPulseScale"
+    )
+    val alpha by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.7f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(periodMs, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "dotPulseAlpha"
+    )
+    return this.graphicsLayer {
+        scaleX = pulse
+        scaleY = pulse
+        this.alpha = alpha
+    }
+}
 
 /** V2-compatible card style (white, shadow, clip) */
 fun Modifier.zadV2Card(shape: Shape = ZadV3.rCard): Modifier = this

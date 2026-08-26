@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -35,6 +36,7 @@ import com.example.data.ZadTransaction
 import com.example.data.SupabaseRepo
 import com.example.ui.components.pressableScale
 import com.example.ui.components.ZadListCard
+import com.example.ui.components.ZadLottieAsset
 import com.example.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -365,9 +367,30 @@ fun TasbihaHomeWidget(
     )
     val tapScale = remember { Animatable(1f) }
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     var lastLevel by remember(tree?.id) { mutableStateOf(tree?.level ?: 1) }
     var showConfetti by remember { mutableStateOf(false) }
+    // floatY من البروتوتايب: 8px صعود وهبوط على لوب 3.4s ease-in-out
+    val treeFloat = rememberInfiniteTransition(label = "treeFloat").animateFloat(
+        initialValue = 0f,
+        targetValue = 8f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1700, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "treeFloatY"
+    )
+    // بتلات التسبيح — كل ضغطة على "سبّح" بتطلق دفعة بتلات (rise 1.4s من البروتوتايب)
+    var petalBurstKey by remember { mutableStateOf(0) }
+    var petalsVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(petalBurstKey) {
+        if (petalBurstKey > 0) {
+            petalsVisible = true
+            kotlinx.coroutines.delay(1400)
+            petalsVisible = false
+        }
+    }
     LaunchedEffect(tree?.level) {
         val level = tree?.level ?: 1
         if (level > lastLevel) {
@@ -419,15 +442,55 @@ fun TasbihaHomeWidget(
                     .padding(vertical = 8.dp),
                 contentAlignment = Alignment.Center
             ) {
+                // البستان الحي — أنيميشن Lottie حقيقي من res/raw بدل الإيموجي الثابت.
+                // garden burst (بتلات متطايرة) بتشتغل loop دائم خلف الشجرة، وconfetti
+                // بيطلع مرة واحدة لحظة ترقية المستوى فوقها.
+                ZadLottieAsset(
+                    resId = R.raw.zad_v4_garden_burst,
+                    iterations = com.airbnb.lottie.compose.LottieConstants.IterateForever,
+                    modifier = Modifier.size(96.dp),
+                    contentDescription = null
+                )
                 Text(
                     tree?.stageEmoji() ?: "🌰",
                     fontSize = 50.sp,
-                    modifier = Modifier.scale(tapScale.value)
+                    // floatY من البروتوتايب: صعود وهبوط لطيف خلف اللوتي
+                    modifier = Modifier
+                        .graphicsLayer { translationY = -treeFloat.value }
+                        .scale(tapScale.value)
                 )
+                if (petalsVisible) {
+                    // rise 1.4s: البتلات بتطلع من الشجرة لفوق 140px وتتلاشى (أنيميشن حقيقي)
+                    val petalRise = remember(petalBurstKey) {
+                        androidx.compose.animation.core.Animatable(0f)
+                    }
+                    LaunchedEffect(petalBurstKey) {
+                        petalRise.snapTo(0f)
+                        petalRise.animateTo(
+                            1f,
+                            animationSpec = tween(1400, easing = androidx.compose.animation.core.LinearOutSlowInEasing)
+                        )
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.graphicsLayer {
+                            translationY = -140f * petalRise.value
+                            alpha = 1f - petalRise.value
+                        }
+                    ) {
+                        listOf("🍃", "🌸", "🍃", "🌸").forEach { Text(it, fontSize = 16.sp) }
+                    }
+                }
                 if (showConfetti) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         listOf("🌸", "🍃", "🌸", "🍃", "🌸").forEach { Text(it, fontSize = 16.sp) }
                     }
+                    ZadLottieAsset(
+                        resId = R.raw.lottie_confetti_burst,
+                        iterations = 1,
+                        modifier = Modifier.size(140.dp),
+                        contentDescription = null
+                    )
                 }
             }
 
@@ -465,6 +528,17 @@ fun TasbihaHomeWidget(
                         )
                         .pressableScale()
                         .clickable {
+                            // UI.tapTasbih من البروتوتايب: هزة خفيفة (vibrate 12) + بتلات
+                            // متطايرة 🍃🌸 فوق الشجرة مع كل ضغطة
+                            try {
+                                val vib = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+                                if (android.os.Build.VERSION.SDK_INT >= 26) {
+                                    vib?.vibrate(android.os.VibrationEffect.createOneShot(12, 140))
+                                } else {
+                                    @Suppress("DEPRECATION") vib?.vibrate(12)
+                                }
+                            } catch (_: Exception) {}
+                            petalBurstKey++
                             scope.launch {
                                 tapScale.animateTo(1.22f, animationSpec = com.example.ui.components.ZadSprings.Celebrate)
                                 tapScale.animateTo(1f, animationSpec = com.example.ui.components.ZadSprings.Press)
@@ -474,8 +548,6 @@ fun TasbihaHomeWidget(
                         .padding(horizontal = 22.dp, vertical = 10.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("✨", fontSize = 12.sp)
-                        Spacer(Modifier.width(4.dp))
                         Text(stringResource(R.string.auto_homescreenwidgets_18996), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
@@ -728,12 +800,12 @@ fun ZadAutonomousIdeasWidget(
 
     val ideas = remember(inventory) {
         val list = mutableListOf<Triple<String, String, String>>()
-        // 1. فكرة توفير
+        // 1. فكرة توفير — نص نظيف بلا إيموجي (الأيقونة ملصوقة بالرأس بتشوّه التايبوغرافي)
         list.add(
             Triple(
-                "💡 حيلة توفير اليوم",
+                "حيلة توفير اليوم",
                 "شراء الأساسيات كـ (أرز، زيت، منظفات) في العروض الأسبوعية بالحجم العائلي يوفّر ~18% من فاتورة مشتريات الشهر.",
-                "🛒 ضيف للمشتريات"
+                "ضيف للمشتريات"
             )
         )
         // 2. فكرة وجبة من المخزون
@@ -741,18 +813,18 @@ fun ZadAutonomousIdeasWidget(
         if (availableNames.isNotEmpty()) {
             list.add(
                 Triple(
-                    "🍳 وجبة ذكية من مخزونك",
+                    "وجبة ذكية من مخزونك",
                     "عندك في المخزون (${availableNames.joinToString("، ")}). تقدر تعمل وجبة غداء سريعة واقتصادية من غير ما تطلب دليفري!",
-                    "✨ وريني الوصفة"
+                    "وريني الوصفة"
                 )
             )
         }
         // 3. رادار المناسبات
         list.add(
             Triple(
-                "🌙 رادار مواسم زاد",
+                "رادار مواسم زاد",
                 "الاستعداد المبكر لمناسبات الشهر بيحميك من الطوارئ. عقل زاد حجز لك جزءاً من الميزانية تلقائياً لتفادي أي عجز.",
-                "📊 استعرض الميزانية"
+                "استعرض الميزانية"
             )
         )
         list

@@ -39,6 +39,8 @@ import com.example.ui.theme.ZadMeterBar
 import com.example.ui.theme.ZadStatusPill
 import com.example.ui.theme.ZadV3
 import com.example.ui.theme.zadCardShadow
+import com.example.ui.viewmodels.FamilyState
+import com.example.ui.viewmodels.FamilyViewModel
 import com.example.ui.viewmodels.ZadViewModel
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -66,15 +68,14 @@ object V3KidsMode {
 @Composable
 fun V3KidsHomeScreen(
     viewModel: ZadViewModel,
+    familyViewModel: FamilyViewModel? = null,
     onAskForMoney: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val remaining by viewModel.remainingBalance.collectAsState()
-    // Chores live in FamilyViewModel (not exposed here without changing the call
-    // contract in V2MainScreen); tasks section shows a localized empty state until
-    // chore data is threaded through. No fake data per localization/data invariants.
-    val chores: List<com.example.data.Chore> = emptyList()
+    val familyState = familyViewModel?.state?.collectAsState()?.value as? FamilyState.Active
+    val chores: List<com.example.data.Chore> = familyState?.chores ?: emptyList()
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),

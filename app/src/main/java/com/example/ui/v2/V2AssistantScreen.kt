@@ -32,6 +32,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material3.Icon
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -193,13 +196,15 @@ private fun V3AssistantOverview(viewModel: ZadViewModel) {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // Dark spending-power panel with meter
+        // Dark spending-power panel with gradient and breathing glow (مطابق لـ pAssistant)
         Column(
-            modifier = Modifier.fillMaxWidth().clip(ZadV3.rCardLg).background(ZadV3.aiPlate).padding(18.dp),
+            modifier = Modifier.fillMaxWidth().clip(ZadV3.rCardLg)
+                .background(Brush.linearGradient(listOf(Color(0xFF052E16), Color(0xFF0A382C))))
+                .padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(stringResource(R.string.v3x_spending_power), fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = ZadV3.mintGlow)
-            Text("$spendingPowerPct%", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+            Text("$spendingPowerPct%", fontSize = 31.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
             ZadMeterBar(progress = spendingPowerPct / 100f, color = ZadV3.mintGlow, height = 8.dp, trackColor = Color.White.copy(alpha = 0.15f))
         }
 
@@ -285,18 +290,80 @@ private fun V3BehaviorCard(insight: ZadInsight, index: Int = 0) {
 @Composable
 private fun V3AssistantChat(viewModel: ZadViewModel) {
     val messages by viewModel.aiChatMessages.collectAsState()
+    var inputQuery by remember { mutableStateOf("") }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        messages.takeLast(12).forEach { msg ->
+        messages.takeLast(16).forEach { msg ->
             V3ChatBubble(text = msg.text, user = msg.isUser)
         }
+
         // Quick chip
         Box(
             modifier = Modifier.clip(ZadV3.rPill).background(Color.White)
                 .border(1.dp, ZadV3.green800.copy(alpha = 0.2f), ZadV3.rPill)
-                .pressableScale(onClick = {}).padding(horizontal = 14.dp, vertical = 8.dp),
+                .pressableScale(onClick = { viewModel.sendAiChatMessage("حلل لي مصاريفي هذا الشهر") }).padding(horizontal = 14.dp, vertical = 8.dp),
         ) {
             Text(stringResource(R.string.v3x_quick_chip), fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = ZadV3.green800)
+        }
+
+        // Chat input box (.chat-input pill with send button)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp)
+                .zadCardShadow(ZadV3.rPill)
+                .clip(ZadV3.rPill)
+                .background(Color.White)
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            androidx.compose.foundation.text.BasicTextField(
+                value = inputQuery,
+                onValueChange = { inputQuery = it },
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp),
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    fontSize = 14.sp,
+                    color = ZadV3.ink,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Default
+                ),
+                decorationBox = { innerTextField ->
+                    if (inputQuery.isEmpty()) {
+                        Text(
+                            stringResource(R.string.ask_zad_placeholder),
+                            fontSize = 13.5.sp,
+                            color = ZadV3.gray400
+                        )
+                    }
+                    innerTextField()
+                }
+            )
+
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(ZadV3.green800)
+                    .pressableScale(
+                        onClick = {
+                            if (inputQuery.isNotBlank()) {
+                                val txt = inputQuery
+                                inputQuery = ""
+                                viewModel.sendAiChatMessage(txt)
+                            }
+                        }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Send,
+                    contentDescription = stringResource(R.string.send_action),
+                    tint = Color.White,
+                    modifier = Modifier.size(17.dp)
+                )
+            }
         }
     }
 }

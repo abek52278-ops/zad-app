@@ -1,5 +1,11 @@
 package com.example.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -20,8 +26,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.StrokeCap
@@ -103,6 +111,26 @@ fun ZadCardHero(
                     .zadGlassBlur(36.dp)
                     .background(Color.White.copy(alpha = 0.18f), CircleShape)
             )
+            // wallet-stripes من البروتوتايب: repeating-linear-gradient 10px/20px ارتفاع 5px
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(5.dp)
+                    .align(Alignment.BottomCenter)
+                    .drawBehind {
+                        val stripe = 20.dp.toPx()
+                        val half = stripe / 2f
+                        var x = 0f
+                        while (x < size.width) {
+                            drawRect(
+                                color = Color.White.copy(alpha = 0.25f),
+                                topLeft = Offset(x, 0f),
+                                size = Size(half, size.height)
+                            )
+                            x += stripe
+                        }
+                    }
+            )
 
             Column(
                 modifier = Modifier
@@ -150,18 +178,31 @@ fun ZadCardHero(
                 Row(
                     verticalAlignment = Alignment.Bottom,
                     modifier = Modifier.combinedClickable(
-                        onClick = { if (!balance.confident) showBalanceReason = true },
+                        // البروتوتايب: UI.openWhy() على ضغطة الكارت نفسه. هنا: التفسير
+                        // الوظيفي للرقم متاح بضغطة عادية (≈) أو لونج-بريس دايماً.
+                        onClick = { if (!balance.confident || balance.reason != null) showBalanceReason = true else onOpenDetail() },
                         onLongClick = onBalanceLongPress
                     )
                 ) {
-                    Text(
-                        (if (!balance.confident) "≈ " else "") +
+                    // العداد المالي الحي — AnimatedContent بدل Text ثابت: كل تغيير في الرصيد
+                    // بيعمل انتقال انزلاقي/تلاشي بين القيمة القديمة والجديدة فوق أنيميشن العدّاد.
+                    AnimatedContent(
+                        targetState = (if (!balance.confident) "≈ " else "") +
                             com.example.data.CurrencyFormatter.formatNumber(currencyContext, animatedBalance.value.toDouble()),
-                        style = figureStyle,
-                        maxLines = 1,
-                        color = if (balance.value < 0) coralLight else Color.White,
-                        modifier = Modifier.alignByBaseline()
-                    )
+                        transitionSpec = {
+                            (slideInVertically { it / 3 } + fadeIn(tween(220))) togetherWith
+                                (slideOutVertically { -it / 3 } + fadeOut(tween(160)))
+                        },
+                        label = "heroBalanceText"
+                    ) { balanceText ->
+                        Text(
+                            balanceText,
+                            style = figureStyle,
+                            maxLines = 1,
+                            color = if (balance.value < 0) coralLight else Color.White,
+                            modifier = Modifier.alignByBaseline()
+                        )
+                    }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         com.example.data.CurrencyFormatter.symbol(currencyContext),
@@ -315,49 +356,59 @@ data class ZadShortcutItem(
  * Was a nine-item `LazyRow`: on a 402dp-wide phone that left three-and-a-bit items
  * on screen and the rest behind a scroll nobody discovers, which is what made the
  * row read as an arbitrary bar of icons rather than as a launcher. A fixed
- * six-column grid is also why the badge shrank 52dp → 46dp and the label to
- * `labelSmall` at 10sp: that's what fits six columns inside 20dp page padding.
+ * Mockup fidelity (zad_premium_v5 `.tiles`): شبكة 3 أعمدة × صفين، gap 14px، بادج
+ * 52×52 r17 بخلفية صلبة (مش alpha)، إيموجي-بديل أيقونة Material 22dp، تسمية
+ * 10.5px gray500. Items order dictates row layout; callers pass 6 items.
  */
 @Composable
 fun ZadPageShortcutsGrid(items: List<ZadShortcutItem>) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        items.forEachIndexed { index, item ->
-            AppearOnEntry(
-                delayMs = (index * 50).coerceAtMost(400),
-                modifier = Modifier.weight(1f)
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        items.chunked(3).forEachIndexed { rowIndex, rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    val badgeShape = RoundedCornerShape(15.dp)
-                    Box(
-                        modifier = Modifier
-                            .size(46.dp)
-                            .zadCardShadow(badgeShape, elevation = 6.dp)
-                            .clip(badgeShape)
-                            .background(item.color.copy(alpha = 0.12f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = item.onClick
-                            )
-                            .pressableScale(),
-                        contentAlignment = Alignment.Center
+                rowItems.forEachIndexed { colIndex, item ->
+                    val index = rowIndex * 3 + colIndex
+                    AppearOnEntry(
+                        delayMs = (index * 50).coerceAtMost(400),
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Icon(item.icon, contentDescription = item.label, tint = item.color, modifier = Modifier.size(20.dp))
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            val badgeShape = RoundedCornerShape(17.dp)
+                            Box(
+                                modifier = Modifier
+                                    .size(52.dp)
+                                    .zadCardShadow(badgeShape, elevation = 6.dp)
+                                    .clip(badgeShape)
+                                    .background(item.color.copy(alpha = 0.14f))
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = item.onClick
+                                    )
+                                    .pressableScale(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(item.icon, contentDescription = item.label, tint = item.color, modifier = Modifier.size(22.dp))
+                            }
+                            Spacer(modifier = Modifier.height(7.dp))
+                            Text(
+                                item.label,
+                                style = Typography.labelSmall.copy(fontSize = 10.5.sp, lineHeight = 12.5.sp),
+                                color = textSecondary,
+                                maxLines = 2,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
                     }
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        item.label,
-                        style = Typography.labelSmall.copy(fontSize = 10.sp, lineHeight = 12.sp),
-                        color = textSecondary,
-                        maxLines = 2,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
+                }
+                // تعبئة الخانة الفاضية لو الصف الأخير ناقص — عشان الـweight يفضل مظبوط
+                repeat(3 - rowItems.size) {
+                    Spacer(modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -386,7 +437,17 @@ fun ZadStatTile(
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text(label, style = Typography.labelSmall, color = textTertiary, maxLines = 1)
-        Text(value, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = textPrimary, maxLines = 1)
+        // قيمة حية — AnimatedContent بيسطّر تغيّر الرقم بحركة انزلاق بدل القفزة الجافة.
+        AnimatedContent(
+            targetState = value,
+            transitionSpec = {
+                (slideInVertically { it / 3 } + fadeIn(tween(220))) togetherWith
+                    (slideOutVertically { -it / 3 } + fadeOut(tween(160)))
+            },
+            label = "statTileValue"
+        ) { animatedValue ->
+            Text(animatedValue, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = textPrimary, maxLines = 1)
+        }
     }
 }
 
@@ -431,12 +492,22 @@ fun ZadDaysAndSafeSpendRow(daysLeft: Int, available: Double) {
                     modifier = Modifier.size(16.dp)
                 )
             }
-            Text(
-                stringResource(R.string.days_left_value, daysLeft),
-                style = Typography.headlineSmall,
-                fontWeight = FontWeight.ExtraBold,
-                color = textPrimary
-            )
+            // العدّاد الحي — AnimatedContent بدل رقم جامد (نفس معالجة الهيرو والـtiles)
+            AnimatedContent(
+                targetState = daysLeft,
+                transitionSpec = {
+                    (slideInVertically { it / 3 } + fadeIn(tween(220))) togetherWith
+                        (slideOutVertically { -it / 3 } + fadeOut(tween(160)))
+                },
+                label = "daysLeftCounter"
+            ) { animatedDays ->
+                Text(
+                    stringResource(R.string.days_left_value, animatedDays),
+                    style = Typography.headlineSmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = textPrimary
+                )
+            }
         }
         Column(
             modifier = Modifier
@@ -461,14 +532,34 @@ fun ZadDaysAndSafeSpendRow(daysLeft: Int, available: Double) {
                     modifier = Modifier.size(16.dp)
                 )
             }
-            Text(
-                safeSpend?.let { com.example.data.CurrencyFormatter.format(context, it) } ?: "—",
-                style = Typography.headlineSmall.copy(fontSize = 17.sp),
-                fontWeight = FontWeight.ExtraBold,
-                color = if (safeSpend != null) primary else textSecondary,
-                maxLines = 1
+            AnimatedSafeSpendValue(
+                value = safeSpend?.let { com.example.data.CurrencyFormatter.format(context, it) } ?: "—",
+                color = if (safeSpend != null) primary else textSecondary
             )
         }
+    }
+}
+
+/**
+ * العدّاد الحي لقيمة الصرف الآمن — نفس transitionSpec الموحد في الشاشة.
+ */
+@Composable
+private fun AnimatedSafeSpendValue(value: String, color: Color) {
+    AnimatedContent(
+        targetState = value,
+        transitionSpec = {
+            (slideInVertically { it / 3 } + fadeIn(tween(220))) togetherWith
+                (slideOutVertically { -it / 3 } + fadeOut(tween(160)))
+        },
+        label = "safeSpendCounter"
+    ) { animatedValue ->
+        Text(
+            animatedValue,
+            style = Typography.headlineSmall.copy(fontSize = 17.sp),
+            fontWeight = FontWeight.ExtraBold,
+            color = color,
+            maxLines = 1
+        )
     }
 }
 

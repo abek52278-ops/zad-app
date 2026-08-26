@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
@@ -500,14 +501,14 @@ fun V3BottomBar(
                 onClick = { onNavigate(V3Routes.INVENTORY) },
             )
 
-            // Central raised dark-green camera/AI FAB → voice
+            // Central raised dark-green camera/AI FAB → voice (مطابقة للبروتوتايب 52dp مع pulseGlow)
             Box(
                 modifier = Modifier
-                    .size(46.dp)
-                    .offset(y = (-16).dp)
-                    .shadow(elevation = 16.dp, shape = CircleShape, spotColor = Color(0x59064E3B))
+                    .size(52.dp)
+                    .offset(y = (-20).dp)
+                    .shadow(elevation = 18.dp, shape = CircleShape, spotColor = Color(0x66064E3B))
                     .clip(CircleShape)
-                    .background(ZadV3.green800)
+                    .background(Brush.linearGradient(listOf(ZadV3.green800, Color(0xFF0F9B76))))
                     .pressableScale(onClick = onOpenVoice),
                 contentAlignment = Alignment.Center,
             ) { CameraFABIcon() }

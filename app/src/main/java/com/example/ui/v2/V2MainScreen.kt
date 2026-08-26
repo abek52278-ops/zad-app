@@ -109,6 +109,7 @@ fun V3MainScreen(
                 if (kidsModeActive) {
                     V3KidsHomeScreen(
                         viewModel = viewModel,
+                        familyViewModel = familyViewModel,
                         onAskForMoney = { go(V3Routes.FAMILY) },
                     )
                 } else {

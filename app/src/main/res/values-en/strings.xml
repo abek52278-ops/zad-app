@@ -1521,4 +1521,14 @@
     <string name="v3x_camera_preview">Camera preview</string>
     <string name="v3x_camera_scan_inventory">Scan inventory</string>
     <string name="v3x_camera_scan_receipt">Scan receipt</string>
+    <string name="shopping_list_total_label">List Total</string>
+    <string name="out_of_budget_format">out of %1$s</string>
+    <string name="smart_fill_action">Smart Fill</string>
+    <string name="add_medication_voice_action">Add Medicine with Voice</string>
+    <string name="low_quantity">Low Quantity</string>
+    <string name="regular_dose">Regular</string>
+    <string name="purchased_badge">Purchased</string>
+    <string name="quantity_piece_format">%1$d pcs</string>
+    <string name="monthly_pharma_cost_title">Monthly Cost</string>
+    <string name="left_days_format">%1$d days left</string>
 </resources>

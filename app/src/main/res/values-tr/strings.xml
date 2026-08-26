@@ -1518,4 +1518,14 @@
     <string name="v3x_camera_preview">Kamera önizleme</string>
     <string name="v3x_camera_scan_inventory">Envanter tara</string>
     <string name="v3x_camera_scan_receipt">Fiş tara</string>
+    <string name="shopping_list_total_label">Liste Toplamı</string>
+    <string name="out_of_budget_format">toplam %1$s içinden</string>
+    <string name="smart_fill_action">Akıllı Doldurma</string>
+    <string name="add_medication_voice_action">Sesle İlaç Ekle</string>
+    <string name="low_quantity">Düşük Miktar</string>
+    <string name="regular_dose">Düzenli</string>
+    <string name="purchased_badge">Satın Alındı</string>
+    <string name="quantity_piece_format">%1$d adet</string>
+    <string name="monthly_pharma_cost_title">Aylık Maliyet</string>
+    <string name="left_days_format">%1$d gün kaldı</string>
 </resources>

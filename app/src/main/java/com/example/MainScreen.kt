@@ -414,6 +414,7 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                                 onNavigateToPharmacy = { go(ZadRoutes.PHARMACY) },
                                 onNavigateToNotifications = { go(ZadRoutes.NOTIFICATIONS) },
                                 onNavigateToCurrencySettings = { go(ZadNav.PAYMENT_BUDGET) },
+                                onNavigateToMaintenance = { go(ZadRoutes.MAINTENANCE) },
                                 onNavigateToPlans = { go(ZadRoutes.PREMIUM_PLANS) },
                                 onOpenVoice = { showVoiceSheet = true }
                             )

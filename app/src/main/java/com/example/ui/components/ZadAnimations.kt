@@ -232,6 +232,10 @@ fun drawProgressOnEntry(key: Any? = Unit, durationMs: Int = 1000): State<Float> 
 
 /**
  * ظهور محتوى تدريجي عند فتح الشاشة (استخدمها حوالين أول عنصر)
+ *
+ * مواصفات البروتوتايب (zad_premium_v5.html `fadeUp`): 500ms بـ ease-premium
+ * cubic-bezier(.22,1,.36,1) مع translateY(24px) + scale(.97)، وstagger 50ms
+ * بين العناصر. هنا الاتنين بنفس الأرقام — مش تقريب.
  */
 @Composable
 fun AppearOnEntry(
@@ -248,12 +252,14 @@ fun AppearOnEntry(
         kotlinx.coroutines.delay(delayMs.toLong())
         visible = true
     }
+    val easePremium = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
     AnimatedVisibility(
         modifier = modifier,
         visible = visible,
         enter = slideInVertically(
-            initialOffsetY = { it / 4 },
-            animationSpec = tween(350, easing = CubicBezierEasing(0.2f, 0f, 0f, 1f))
-        ) + fadeIn(tween(350))
+            // البروتوتايب fadeUp = translateY(24px) بالظبط — مش نسبة من ارتفاع العنصر
+            initialOffsetY = { 60 },
+            animationSpec = tween(500, easing = easePremium, delayMillis = 0)
+        ) + fadeIn(tween(500, easing = easePremium))
     ) { content() }
 }

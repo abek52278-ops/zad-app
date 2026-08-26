@@ -33,6 +33,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material3.Icon
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -83,14 +87,133 @@ fun V3FamilyScreen(
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 130.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            when (tab) {
-                "chat" -> {
+        when (tab) {
+            "chat" -> {
+                item {
+                    val active = state as? FamilyState.Active
                     val msgs = active?.messages.orEmpty()
-                    if (msgs.isEmpty()) item { V3EmptyStateHint(emoji = "💬") }
-                    msgs.takeLast(20).forEach { m ->
-                        item { V3ChatBubble(text = m.message, user = true) } // family messages shown as own feed; sender resolution kept simple
+                    val myMemberId = active?.myMemberInfo?.id
+                    var messageText by remember { mutableStateOf("") }
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (msgs.isEmpty()) {
+                            V3EmptyStateHint(emoji = "💬")
+                        } else {
+                            msgs.takeLast(25).forEach { m ->
+                                val isMe = m.senderId == myMemberId
+                                val senderName = active?.members?.firstOrNull { it.id == m.senderId }?.alias ?: ""
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .widthIn(max = 280.dp)
+                                            .zadCardShadow(
+                                                shape = RoundedCornerShape(
+                                                    topStart = 18.dp,
+                                                    topEnd = 18.dp,
+                                                    bottomStart = if (isMe) 18.dp else 4.dp,
+                                                    bottomEnd = if (isMe) 4.dp else 18.dp
+                                                ),
+                                                elevation = if (isMe) 8.dp else 3.dp
+                                            )
+                                            .clip(
+                                                RoundedCornerShape(
+                                                    topStart = 18.dp,
+                                                    topEnd = 18.dp,
+                                                    bottomStart = if (isMe) 18.dp else 4.dp,
+                                                    bottomEnd = if (isMe) 4.dp else 18.dp
+                                                )
+                                            )
+                                            .background(if (isMe) ZadV3.green800 else Color.White)
+                                            .padding(horizontal = 14.dp, vertical = 11.dp)
+                                    ) {
+                                        if (!isMe && senderName.isNotBlank()) {
+                                            Text(
+                                                senderName,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = ZadV3.green800,
+                                                modifier = Modifier.padding(bottom = 2.dp)
+                                            )
+                                        }
+                                        Text(
+                                            m.message,
+                                            fontSize = 13.5.sp,
+                                            lineHeight = 19.sp,
+                                            color = if (isMe) Color.White else ZadV3.ink
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Chat input box (.chat-input pill with send button)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp)
+                                .zadCardShadow(ZadV3.rPill)
+                                .clip(ZadV3.rPill)
+                                .background(Color.White)
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            androidx.compose.foundation.text.BasicTextField(
+                                value = messageText,
+                                onValueChange = { messageText = it },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(horizontal = 12.dp),
+                                textStyle = androidx.compose.ui.text.TextStyle(
+                                    fontSize = 14.sp,
+                                    color = ZadV3.ink,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Default
+                                ),
+                                decorationBox = { innerTextField ->
+                                    if (messageText.isEmpty()) {
+                                        Text(
+                                            stringResource(R.string.v2_send),
+                                            fontSize = 13.5.sp,
+                                            color = ZadV3.gray400
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            )
+
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(ZadV3.green800)
+                                    .pressableScale(
+                                        onClick = {
+                                            if (messageText.isNotBlank() && familyViewModel != null) {
+                                                val txt = messageText
+                                                messageText = ""
+                                                familyViewModel.sendMessage(txt, "TEXT")
+                                            }
+                                        }
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.Send,
+                                    contentDescription = stringResource(R.string.send_action),
+                                    tint = Color.White,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
+                        }
                     }
                 }
+            }
                 "tasks" -> {
                     val chores = active?.chores.orEmpty()
                     if (chores.isEmpty()) item { V3EmptyStateHint(emoji = "✅") }
