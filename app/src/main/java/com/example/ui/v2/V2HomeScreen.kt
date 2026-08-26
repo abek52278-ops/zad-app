@@ -6,15 +6,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -77,13 +76,15 @@ fun V3HomeScreen(
         return
     }
 
-    LazyColumn(
-        modifier = modifier.fillMaxSize().padding(top = 80.dp),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 140.dp),
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(3),
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 24.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         // ── Apple Wallet Hero Card ──────────────────────────────────────────────
-        item {
+        item(span = { GridItemSpan(maxLineSpan) }) {
             V3HeroCard(
                 availableText = CurrencyFormatter.format(context, remaining ?: 0.0),
                 spentText = CurrencyFormatter.format(context, spent),
@@ -93,7 +94,7 @@ fun V3HomeScreen(
         }
 
         // ── Widget Row ──────────────────────────────────────────────────────────
-        item {
+        item(span = { GridItemSpan(maxLineSpan) }) {
             val dailySafe = if (daysLeft > 0) (remaining ?: 0.0) / daysLeft else null
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 V3WidgetCell(
@@ -110,12 +111,12 @@ fun V3HomeScreen(
         }
 
         // ── Bezier Spend Chart ──────────────────────────────────────────────────
-        item {
+        item(span = { GridItemSpan(maxLineSpan) }) {
             V2BezierChart(transactions = transactions)
         }
 
         // ── AI Summary (Brain insight) ──────────────────────────────────────────
-        item {
+        item(span = { GridItemSpan(maxLineSpan) }) {
             V3AiSummaryCard(
                 title = stringResource(R.string.v2_mind_title),
                 body = "Your spending is on track! You have enough for the weekend grocery trip.",
@@ -123,51 +124,40 @@ fun V3HomeScreen(
             )
         }
 
-        // ── Category Grid (pastel Apple-style) ──────────────────────────────────
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        stringResource(R.string.v2_categories),
-                        fontSize = 15.sp, fontWeight = FontWeight.Bold, color = ZadV3.ink,
-                    )
-                    Text(
-                        stringResource(R.string.v2_see_all),
-                        fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = ZadV3.green800,
-                        modifier = Modifier.pressableScale { onOpenProfile() },
-                    )
-                }
-                // Grid: 4 items per row
-                val chunks = homeCategories.chunked(4)
-                chunks.forEach { row ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        row.forEach { cat ->
-                            V3CategoryCard(
-                                emoji = cat.emoji,
-                                name = stringResource(cat.nameRes),
-                                itemCount = "",
-                                bgColor = cat.bg,
-                                onClick = { onNavigate(cat.route) },
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                        // Fill remaining slots if row is incomplete
-                        repeat(4 - row.size) {
-                            Spacer(Modifier.weight(1f))
-                        }
-                    }
-                }
+        // ── Category Grid header ────────────────────────────────────────────────
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    stringResource(R.string.v2_categories),
+                    fontSize = 15.sp, fontWeight = FontWeight.Bold, color = ZadV3.ink,
+                )
+                Text(
+                    stringResource(R.string.v2_see_all),
+                    fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = ZadV3.green800,
+                    modifier = Modifier.pressableScale { onOpenProfile() },
+                )
             }
         }
+
+        // ── Category cells (true grid: 3 per row, square, fixed size) ───────────
+        homeCategories.forEach { cat ->
+            item(key = cat.route) {
+                V3CategoryCard(
+                    emoji = cat.emoji,
+                    name = stringResource(cat.nameRes),
+                    itemCount = "",
+                    bgColor = cat.bg,
+                    onClick = { onNavigate(cat.route) },
+                )
+            }
+        }
+
         // ── Exclusive Offers (from the vision) ─────────────────────────────────
-        item {
+        item(span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     stringResource(R.string.v2_exclusive_offers),
@@ -206,7 +196,7 @@ fun V3HomeScreen(
         }
 
         // ── Recent Transactions ─────────────────────────────────────────────────
-        item {
+        item(span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     stringResource(R.string.v2_recent_tx),
@@ -223,8 +213,8 @@ fun V3HomeScreen(
             }
         }
 
-        // Voice trigger button
-        item {
+        // ── Voice trigger button ────────────────────────────────────────────────
+        item(span = { GridItemSpan(maxLineSpan) }) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

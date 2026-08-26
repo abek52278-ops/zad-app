@@ -1,9 +1,9 @@
 package com.example.ui.v2
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -11,8 +11,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -65,11 +65,37 @@ fun V3MainScreen(
         viewModel.consumePendingAppCommand()
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        containerColor = Color.Transparent,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        topBar = {
+            if (chromeVisible) {
+                V3Header(
+                    title = v3ScreenTitle(currentRoute),
+                    onOpenProfile = { go(V3Routes.PROFILE) },
+                    onOpenNotifications = { go(V3Routes.NOTIFICATIONS) },
+                )
+            }
+        },
+        bottomBar = {
+            if (chromeVisible) {
+                V3BottomBar(
+                    currentRoute = currentRoute,
+                    onNavigate = { go(it) },
+                    onOpenVoice = { showVoiceSheet = true },
+                )
+            }
+        },
+    ) { innerPadding ->
         NavHost(
             navController = navController,
             startDestination = V3Routes.HOME,
-            modifier = Modifier.fillMaxSize(),
+            // Screens offset below the header via Scaffold innerPadding; they keep
+            // their own generous bottom contentPadding to clear the floating bar.
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = innerPadding.calculateTopPadding()),
         ) {
             composable(V3Routes.HOME) {
                 V3HomeScreen(
@@ -133,25 +159,6 @@ fun V3MainScreen(
             }
             composable(V3Routes.KNOWLEDGE) {
                 V3KnowledgeMapScreen()
-            }
-        }
-
-        // Chrome overlay (header + bottom bar)
-        if (chromeVisible) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                V3Header(
-                    title = v3ScreenTitle(currentRoute),
-                    onOpenProfile = { go(V3Routes.PROFILE) },
-                    onOpenNotifications = { go(V3Routes.NOTIFICATIONS) },
-                )
-                Spacer(Modifier.weight(1f))
-            }
-            Box(modifier = Modifier.align(Alignment.BottomCenter)) {
-                V3BottomBar(
-                    currentRoute = currentRoute,
-                    onNavigate = { go(it) },
-                    onOpenVoice = { showVoiceSheet = true },
-                )
             }
         }
     }
