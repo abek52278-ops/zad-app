@@ -42,13 +42,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.CurrencyFormatter
+import com.example.data.ZadObligation
 import com.example.data.ZadTransaction
+import com.example.ui.theme.ZadMeterBar
+import com.example.ui.theme.ZadStatusPill
 import com.example.ui.theme.ZadV3
+import com.example.ui.theme.zadCardShadow
 import com.example.ui.viewmodels.ZadViewModel
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 /**
- * V3 Budget Screen — Apple Wallet card + Bezier chart + Quick expense
+ * V3 Budget Screen — dark-green available card + total-obligations row +
+ * obligation cards (paid/pending/scheduled pills + progress bars),
+ * per the prototype renderBudget. Quick-expense sheet preserved.
  */
 @Composable
 fun V3BudgetScreen(
@@ -62,26 +69,26 @@ fun V3BudgetScreen(
     val committed by viewModel.committed.collectAsState()
     val daysLeft by viewModel.daysLeftInCycle.collectAsState()
     val transactions by viewModel.transactions.collectAsState()
+    val obligations by viewModel.obligations.collectAsState()
     var showQuickExpense by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 120.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 130.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        // Apple Wallet card
+        // Available hero card (dark green)
         item {
-            Box(modifier = Modifier.fillMaxWidth().clip(ZadV3.rHero)) {
-                AnimatedMeshGradient(
-                    modifier = Modifier.matchParentSize(),
-                    colors = listOf(Color(0xFF0A382C), ZadV3.green800, ZadV3.green700),
-                )
-                Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(stringResource(R.string.v2_available), fontSize = 11.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp, color = Color.White.copy(alpha = 0.72f))
+            Box(
+                modifier = Modifier.fillMaxWidth().fadeUpOnAppear().clip(RoundedCornerShape(22.dp))
+                    .background(ZadV3.green800).pressableScale { showQuickExpense = true }
+                    .padding(20.dp),
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(stringResource(R.string.v2_available), fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.7f))
                     Text(
                         CurrencyFormatter.format(context, remaining ?: 0.0),
-                        fontSize = 38.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1).sp,
-                        style = androidx.compose.ui.text.TextStyle(brush = ZadV3.heroAmountBrush),
+                        fontSize = 34.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.8).sp, color = Color.White,
                     )
                     Text(
                         stringResource(R.string.v2_spent_colon, CurrencyFormatter.format(context, spent))
@@ -92,7 +99,36 @@ fun V3BudgetScreen(
             }
         }
 
-        // Widgets row
+        // Total obligations row
+        item {
+            val totalObligations = obligations.sumOf { it.amount } + committed
+            Row(
+                modifier = Modifier.fillMaxWidth().zadCardShadow(ZadV3.rCardLg).clip(ZadV3.rCardLg)
+                    .background(Color.White).padding(horizontal = 18.dp, vertical = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(stringResource(R.string.v3x_total_obligations), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = ZadV3.gray500)
+                Text(CurrencyFormatter.format(context, totalObligations), fontSize = 19.sp, fontWeight = FontWeight.Bold, color = ZadV3.warn)
+            }
+        }
+
+        // Obligation cards
+        if (obligations.isEmpty()) {
+            item {
+                Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
+                    Text(stringResource(R.string.v2_empty_section), fontSize = 13.sp, color = ZadV3.gray400)
+                }
+            }
+        } else {
+            items(obligations.size) { i ->
+                V3ObligationCard(obligations[i], context, index = i)
+            }
+        }
+
+        // Bezier chart (reuse from V2) + widgets + quick expense
+        item { V2BezierChart(transactions = transactions) }
+
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 val dailySafe = if (daysLeft > 0) (remaining ?: 0.0) / daysLeft else null
@@ -109,10 +145,6 @@ fun V3BudgetScreen(
             }
         }
 
-        // Bezier chart (reuse from V2)
-        item { V2BezierChart(transactions = transactions) }
-
-        // Quick expense button
         item {
             Box(
                 modifier = Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(999.dp)).background(ZadV3.green800).pressableScale { showQuickExpense = true },
@@ -122,7 +154,6 @@ fun V3BudgetScreen(
             }
         }
 
-        // Recent transactions
         item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(stringResource(R.string.v2_recent_tx), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = ZadV3.ink)
@@ -144,6 +175,46 @@ fun V3BudgetScreen(
                 showQuickExpense = false
             },
         )
+    }
+}
+
+private fun obligationStatus(o: ZadObligation, dueDate: LocalDate?): Triple<String, Color, Float> {
+    // returns (status key kind, color, progress pct)
+    return if (dueDate != null && dueDate.isBefore(LocalDate.now())) {
+        Triple("pending", ZadV3.danger, 0.15f)
+    } else if (dueDate != null && dueDate <= LocalDate.now().plusDays(4)) {
+        Triple("scheduled", ZadV3.warn, 0.45f)
+    } else {
+        Triple("scheduled", ZadV3.warn, 0.3f)
+    }
+}
+
+@Composable
+private fun V3ObligationCard(o: ZadObligation, context: android.content.Context, index: Int = 0) {
+    val dueDate = o.dueDate?.take(10)?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+    val (kind, color, pct) = obligationStatus(o, dueDate)
+    val statusLabel = when (kind) {
+        "paid" -> stringResource(R.string.v3x_status_paid)
+        "pending" -> stringResource(R.string.v3x_status_pending)
+        else -> stringResource(R.string.v3x_status_scheduled)
+    }
+    Column(
+        modifier = Modifier.fillMaxWidth().zadCardShadow(ZadV3.rCardLg).clip(ZadV3.rCardLg)
+            .background(Color.White).fadeUpOnAppear(index * 70L).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text(o.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = ZadV3.ink, modifier = Modifier.weight(1f))
+            Text(CurrencyFormatter.format(context, o.amount), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = ZadV3.ink)
+        }
+        Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                dueDate?.format(DateTimeFormatter.ofPattern("yyyy/MM/dd")) ?: "",
+                fontSize = 12.5.sp, color = ZadV3.gray400,
+            )
+            ZadStatusPill(text = statusLabel, color = color)
+        }
+        ZadMeterBar(progress = pct, color = color, height = 6.dp)
     }
 }
 
@@ -198,7 +269,7 @@ fun V2BezierChart(transactions: List<ZadTransaction>) {
     if (max <= 0.0) return
 
     Column(
-        modifier = Modifier.fillMaxWidth().clip(ZadV3.rCardLg).background(Color.White).padding(16.dp),
+        modifier = Modifier.fillMaxWidth().zadCardShadow(ZadV3.rCardLg).clip(ZadV3.rCardLg).background(Color.White).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text(stringResource(R.string.v2_spend_trend), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = ZadV3.slate)

@@ -1468,4 +1468,45 @@
     <string name="v2_purchased">Purchased</string>
     <string name="v2_warranty_until">Warranty until %1$s</string>
     <string name="v2_pharmacy_empty">Pharmacy is empty</string>
+
+    <!-- V3 Home screen (Phase 1 port) -->
+    <string name="v3_insights_title">Zad Intelligence</string>
+    <string name="v3_insight_tag_info">Info</string>
+    <string name="v3_insight_tag_action">Action</string>
+    <string name="v3_insight_tag_alert">Alert</string>
+    <string name="v3_ai_summary_title">Zad AI summary</string>
+    <string name="v3_chip_cancel_sub">Cancel a sub?</string>
+    <string name="v3_chip_increase_budget">Increase budget</string>
+    <string name="v3_tasbiha_title">Tasbiha Garden</string>
+    <string name="v3_tasbiha_tap_ar">Subhan Allah</string>
+    <string name="v3_tasbiha_tap_en">Tap to grow</string>
+    <string name="v3_tasbiha_count_of_goal">%1$d / %2$d</string>
+    <string name="v3_chef_title">Zad Chef</string>
+    <string name="v3_chef_subtitle">Today's pick: a quick recipe from what's already in your stock.</string>
+    <string name="v3x_low_banner">%1$d items low: %2$s</string>
+    <string name="v3x_all">All</string>
+    <string name="v3x_confirm">Confirm</string>
+    <string name="v3x_days_remaining">%1$d days left</string>
+    <string name="v3x_total_obligations">Total obligations</string>
+    <string name="v3x_status_paid">Paid</string>
+    <string name="v3x_status_pending">Due</string>
+    <string name="v3x_status_scheduled">Scheduled</string>
+    <string name="v3x_tab_overview">Overview</string>
+    <string name="v3x_tab_behavior">Behavior</string>
+    <string name="v3x_tab_chat">Chat</string>
+    <string name="v3x_tab_tasks">Tasks</string>
+    <string name="v3x_tab_members">Members</string>
+    <string name="v3x_spending_power">Spending power</string>
+    <string name="v3x_live_spend">Live spend pulse</string>
+    <string name="v3x_last_7_days">Last 7 days</string>
+    <string name="v3x_category_breakdown">Category breakdown</string>
+    <string name="v3x_active_subs">Active subs</string>
+    <string name="v3x_quick_chip">Why did this change?</string>
+    <string name="v3x_task_done">Done</string>
+    <string name="v3x_task_pending">Pending</string>
+    <string name="v3x_goal_pct">Goal %1$d%%</string>
+    <string name="v3x_deals_disclaimer">Distances from open map data — not live prices or deals.</string>
+    <string name="v3x_nearby_store">Nearby store</string>
+    <string name="v3x_tasbiha_title">Tasbiha Garden</string>
+    <string name="v3x_tasbiha_tap">Tap to count</string>
 </resources>

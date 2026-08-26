@@ -1431,4 +1431,45 @@
     <string name="v2_purchased">اتمشى</string>
     <string name="v2_warranty_until">%1$s الضمان لحد</string>
     <string name="v2_pharmacy_empty">الصيدلية فاضية</string>
+
+    <!-- V3 Home screen (Phase 1 port) -->
+    <string name="v3_insights_title">زاد الذكي</string>
+    <string name="v3_insight_tag_info">معلومة</string>
+    <string name="v3_insight_tag_action">مطلوب</string>
+    <string name="v3_insight_tag_alert">تحذير</string>
+    <string name="v3_ai_summary_title">ملخص زاد الذكي</string>
+    <string name="v3_chip_cancel_sub">أوقف اشتراك؟</string>
+    <string name="v3_chip_increase_budget">زوّد الميزانية</string>
+    <string name="v3_tasbiha_title">بستان التسبيح</string>
+    <string name="v3_tasbiha_tap_ar">سبحان الله</string>
+    <string name="v3_tasbiha_tap_en">سبّح الآن</string>
+    <string name="v3_tasbiha_count_of_goal">%1$d / %2$d</string>
+    <string name="v3_chef_title">شيف زاد</string>
+    <string name="v3_chef_subtitle">اقتراح اليوم: طبق سريع بمكونات مخزونك الحالي.</string>
+    <string name="v3x_low_banner">عنصران/عناصر منخفضة: %1$d — %2$s</string>
+    <string name="v3x_all">الكل</string>
+    <string name="v3x_confirm">تأكيد</string>
+    <string name="v3x_days_remaining">متبقي %1$d يوم</string>
+    <string name="v3x_total_obligations">إجمالي الالتزامات</string>
+    <string name="v3x_status_paid">مدفوع</string>
+    <string name="v3x_status_pending">مستحق</string>
+    <string name="v3x_status_scheduled">مجدول</string>
+    <string name="v3x_tab_overview">نظرة عامة</string>
+    <string name="v3x_tab_behavior">السلوك</string>
+    <string name="v3x_tab_chat">المحادثة</string>
+    <string name="v3x_tab_tasks">المهام</string>
+    <string name="v3x_tab_members">الأعضاء</string>
+    <string name="v3x_spending_power">قوة الإنفاق</string>
+    <string name="v3x_live_spend">نبض الإنفاق الحي</string>
+    <string name="v3x_last_7_days">آخر 7 أيام</string>
+    <string name="v3x_category_breakdown">التوزيع حسب الفئة</string>
+    <string name="v3x_active_subs">اشتراكات نشطة</string>
+    <string name="v3x_quick_chip">لماذا تغير الرقم؟</string>
+    <string name="v3x_task_done">تم</string>
+    <string name="v3x_task_pending">قيد التنفيذ</string>
+    <string name="v3x_goal_pct">هدف %1$d%%</string>
+    <string name="v3x_deals_disclaimer">المسافات من خرائط مفتوحة — ليست أسعاراً أو عروضاً فعلية.</string>
+    <string name="v3x_nearby_store">متجر قريب</string>
+    <string name="v3x_tasbiha_title">بستان التسبيح</string>
+    <string name="v3x_tasbiha_tap">سبحان الله</string>
 </resources>
