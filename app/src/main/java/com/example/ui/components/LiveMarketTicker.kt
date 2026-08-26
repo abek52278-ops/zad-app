@@ -30,8 +30,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
@@ -40,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.MarketPriceItem
 import com.example.ui.theme.Typography
+import com.example.ui.v2.rememberMarqueeFraction
 import com.example.ui.theme.dangerColor
 import com.example.ui.theme.onSurfaceVariant
 import com.example.ui.theme.primary
@@ -77,18 +84,36 @@ fun LiveMarketTicker(
     // so the live-fetch retry stays reachable without that band coming back.
     Column(modifier = modifier.fillMaxWidth()) {
         if (prices.isNotEmpty()) {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // V4 marquee — seamless auto-scroll loop (zad_premium_v5.html .ticker-track):
+            // the pill row (with the refresh pill riding at its end) is laid out twice
+            // inside a clipped Box and translated by one copy-width on a 22s linear
+            // loop, so prices glide continuously like the prototype. Item count is
+            // tiny (2–4 live results), so a plain Row beats LazyRow here.
+            val marqueeFraction by rememberMarqueeFraction()
+            var copyWidthPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clipToBounds(),
             ) {
-                items(prices) { item -> MarketTickerCard(item) }
-                item { RefreshButton(loading = fetchState == ZadViewModel.LiveFetchState.Loading, onClick = onRetry) }
+                Row(
+                    modifier = Modifier
+                        .graphicsLayer {
+                            // translate negative→0..-copyWidth; in RTL Compose mirrors X for us
+                            translationX = -marqueeFraction * copyWidthPx
+                        }
+                        .padding(vertical = 2.dp)
+                        .onSizeChanged { copyWidthPx = it.width.toFloat() / 2f },
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    prices.forEach { item -> MarketTickerCard(item) }
+                    RefreshButton(loading = fetchState == ZadViewModel.LiveFetchState.Loading, onClick = onRetry)
+                    prices.forEach { item -> MarketTickerCard(item) }
+                }
             }
         } else if (fetchState == ZadViewModel.LiveFetchState.Loading) {
             LoadingRow()
         } else {
-            // Error أو Fetched-لكن-فاضي (بحث حي رجع بلا نتائج حقيقية هالمرة) — نفس المعاملة:
-            // إحنا مش عارفين نفرّق من هنا، والمستخدم مش محتاج يعرف الفرق، بس يقدر يعيد المحاولة.
             RetryRow(onRetry = onRetry)
         }
     }

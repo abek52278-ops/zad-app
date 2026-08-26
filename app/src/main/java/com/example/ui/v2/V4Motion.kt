@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import com.example.R
 
 /**
  * V4 Motion — the "iPhone-grade" layer ported from new ui ux/zad_premium_v5.html.
@@ -166,15 +167,14 @@ fun rememberShimmerBrush(base: Color, highlight: Color): Brush {
 
 /** Seamless looping marquee phase in 0..1 for the LiveMarketTicker row to consume. */
 @Composable
-fun rememberMarqueeFraction(periodMs: Int = 22000): Float {
+fun rememberMarqueeFraction(periodMs: Int = 22000): androidx.compose.runtime.State<Float> {
     val transition = rememberInfiniteTransition(label = "marquee")
-    val f by transition.animateFloat(
+    return transition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(tween(periodMs, easing = LinearEasing), RepeatMode.Restart),
         label = "marquee_fraction",
     )
-    return f
 }
 
 // ── aiRippleRings ────────────────────────────────────────────────────────────
@@ -245,6 +245,49 @@ fun ScanSweep(modifier: Modifier = Modifier, lineColor: Color = Color(0xFF6EE7B7
             start = Offset(size.width * 0.06f, yPx),
             end = Offset(size.width * 0.94f, yPx),
             strokeWidth = 2.5f,
+        )
+    }
+}
+
+// ── Lottie asset surfaces (real JSON in res/raw, via the ZadLottieAsset wrapper) ──
+
+/**
+ * Expanding-ring halo behind any "AI is alive" surface. Plays zad_v4_ai_orb.json
+ * (3 staggered ripple rings + breathing core from the HTML prototype's voice orb).
+ */
+@Composable
+fun AiOrbLottie(modifier: Modifier = Modifier) {
+    com.example.ui.components.ZadLottieAsset(
+        resId = R.raw.zad_v4_ai_orb,
+        modifier = modifier,
+        contentDescription = null,
+    )
+}
+
+/**
+ * One-shot garden petal burst overlay (zad_v4_garden_burst.json — 12 petals on
+ * radial arcs). Auto-restarts whenever [playKey] changes; idles invisible at rest.
+ */
+@Composable
+fun GardenBurstLottie(playKey: Int, modifier: Modifier = Modifier) {
+    if (playKey <= 0) return
+    var visible by remember { mutableStateOf(true) }
+    LaunchedEffect(playKey) { visible = true }
+    if (!visible) return
+    val composition by com.airbnb.lottie.compose.rememberLottieComposition(
+        com.airbnb.lottie.compose.LottieCompositionSpec.RawRes(R.raw.zad_v4_garden_burst),
+    )
+    val progress by com.airbnb.lottie.compose.animateLottieCompositionAsState(
+        composition = composition,
+        iterations = 1,
+    )
+    LaunchedEffect(progress) {
+        if (progress >= 1f) visible = false
+    }
+    androidx.compose.foundation.layout.Box(modifier) {
+        com.airbnb.lottie.compose.LottieAnimation(
+            composition = composition,
+            progress = { progress },
         )
     }
 }

@@ -358,6 +358,9 @@ private fun V3TasbihaGardenCard(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var count by remember { mutableIntStateOf(loadTasbihaCount(context)) }
     var showConfetti by remember { mutableStateOf(false) }
+    // V4 — one-shot Lottie petal burst (zad_v4_garden_burst.json); increments on
+    // every 25% milestone so each burst is a fresh restart of the animation.
+    var burstKey by remember { mutableIntStateOf(0) }
 
     val pct = ((count.toFloat() / TASBIHA_GOAL) * 100).toInt()
     val gardenEmoji = when {
@@ -395,11 +398,21 @@ private fun V3TasbihaGardenCard(modifier: Modifier = Modifier) {
                     .pressableScale(onClick = {
                         val next = (count + 1).coerceAtMost(TASBIHA_GOAL)
                         saveTasbihaCount(context, next)
+                        // V4 — burst at every 25% milestone (v5 prototype's petal rises),
+                        // not just completion, so the garden celebrates progress too.
+                        val crossedMilestone = (next % 25 == 0 && count < next)
                         val justCompleted = next == TASBIHA_GOAL && count < TASBIHA_GOAL
                         count = next
-                        if (justCompleted) showConfetti = true
+                        if (crossedMilestone || justCompleted) {
+                            showConfetti = true
+                            burstKey++
+                        }
                     })
                     .floatingIdle(3000),
+            )
+            GardenBurstLottie(
+                playKey = burstKey,
+                modifier = Modifier.matchParentSize(),
             )
             ConfettiOverlay(
                 isTriggered = showConfetti,

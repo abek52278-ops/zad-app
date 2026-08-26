@@ -286,6 +286,17 @@ fun ZadVoiceBottomSheet(
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
 
+            // V4 — real Lottie ripple rings (zad_v4_ai_orb.json) layered behind the
+            // orb while listening; Canvas rings live inside ZadVoiceOrb itself.
+            if (orbState == OrbState.Listening) {
+                com.example.ui.v2.AiOrbLottie(
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .offset(y = (-92).dp)
+                        .size(220.dp),
+                )
+            }
+
             Spacer(Modifier.height(10.dp))
 
             // حالة الوكيل الحالية (من trace السيرفر) أو الحالة العامة
