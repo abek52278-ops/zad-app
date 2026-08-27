@@ -87,7 +87,7 @@ fun ZadTasbihaMiniGarden(
                     indication = null
                 ) {
                     isPressed = true
-                    ZadCutePetSoundFx.play(ZadCutePetSoundFx.PetSoundType.ChimeUp)
+                    ZadCutePetSoundFx.play(ZadCutePetSoundFx.PetSound.HappyChirp)
                     onTap()
                 },
             contentAlignment = Alignment.Center
@@ -131,7 +131,7 @@ fun ZadTasbihaMiniGarden(
                     )
                     .clickable {
                         isPressed = true
-                        ZadCutePetSoundFx.play(ZadCutePetSoundFx.PetSoundType.ChimeUp)
+                        ZadCutePetSoundFx.play(ZadCutePetSoundFx.PetSound.HappyChirp)
                         onTap()
                     }
                     .padding(horizontal = 20.dp, vertical = 8.dp)

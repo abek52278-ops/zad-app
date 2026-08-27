@@ -224,7 +224,8 @@ fun HomeScreen(
     var showAllTransactionsDialog by remember { mutableStateOf(false) }
     var showAddTransactionDialog by remember { mutableStateOf(false) }
     var showQuickDeductDialog by remember { mutableStateOf(false) }
-    var showWhySheet by remember { mutableStateOf(false) } // Task 27.2 — طول الضغط على "متاح"
+    var showWhySheet by remember { mutableStateOf(false) }
+    var showQuickExpenseSheet by remember { mutableStateOf(false) } // Task 27.2 — طول الضغط على "متاح"
     var showTelegramSheet by remember { mutableStateOf(false) } // بوت تليجرام — اتنقل من البروفايل للرئيسية
     var selectedRecipeTitle by remember { mutableStateOf<String?>(null) }
     var showRecipeDialog by remember { mutableStateOf(false) }
@@ -1055,6 +1056,14 @@ fun HomeScreen(
 
     if (showTelegramSheet) {
         com.example.ui.components.TelegramBotSheet(onDismiss = { showTelegramSheet = false })
+    }
+
+    
+    if (showQuickExpenseSheet) {
+        com.example.ui.components.ZadQuickExpenseSheet(
+            viewModel = viewModel,
+            onDismiss = { showQuickExpenseSheet = false }
+        )
     }
 
     if (showWhySheet) {

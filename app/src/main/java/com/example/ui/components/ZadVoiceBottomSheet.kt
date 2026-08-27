@@ -29,7 +29,7 @@ import com.example.voice.ZadCutePetSoundFx
 /**
  * Siri-style AI Voice Sheet (Matching Image 5 & zad_premium_v5.html overlay).
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ZadVoiceBottomSheet(
     isListening: Boolean,
@@ -138,7 +138,7 @@ fun ZadVoiceBottomSheet(
                             .clip(RoundedCornerShape(9999.dp))
                             .background(Color.White.copy(alpha = 0.12f))
                             .clickable {
-                                ZadCutePetSoundFx.play(ZadCutePetSoundFx.PetSoundType.HappyChirp)
+                                ZadCutePetSoundFx.play(ZadCutePetSoundFx.PetSound.HappyChirp)
                                 onSendPrompt(chip)
                             }
                             .padding(horizontal = 14.dp, vertical = 8.dp)
@@ -217,7 +217,7 @@ fun ZadVoiceBottomSheet(
         recognizedText = recognizedText,
         onDismiss = onDismiss,
         onSendPrompt = { prompt ->
-            viewModel.sendMessage(prompt)
+            viewModel.sendAiChatMessage(prompt, voiceMode = true)
             onDismiss()
         }
     )

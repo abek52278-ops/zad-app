@@ -123,7 +123,7 @@ fun ZadSmartBotAgent(
                 indication = null
             ) {
                 isPressed = true
-                ZadCutePetSoundFx.play(ZadCutePetSoundFx.PetSoundType.HappyChirp)
+                ZadCutePetSoundFx.play(ZadCutePetSoundFx.PetSound.HappyChirp)
                 onClick?.invoke()
             },
         contentAlignment = Alignment.Center

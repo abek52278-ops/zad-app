@@ -29,13 +29,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.CurrencyFormatter
-import com.example.ui.theme.ZadSprings
 import kotlinx.coroutines.delay
 
 /**
  * Re-imagined Apple Wallet-style dynamic balance card.
  * Matches Image 5 specification.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ZadWalletHeroCard(
     availableBalance: Double,
@@ -183,7 +183,7 @@ fun ZadWalletHeroCard(
                         .background(Color(0xFFF59E0B))
                 )
                 Text(
-                    text = "${stringResource(R.string.spent_colon_label)} ${CurrencyFormatter.format(context, spentThisCycle)}",
+                    text = "${stringResource(R.string.spent_label)} ${CurrencyFormatter.format(context, spentThisCycle)}",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color.White.copy(alpha = 0.95f)
@@ -206,7 +206,7 @@ fun ZadWalletHeroCard(
                         .background(Color(0xFFFF8066))
                 )
                 Text(
-                    text = "${stringResource(R.string.committed_colon_label)} ${CurrencyFormatter.format(context, committedThisCycle)}",
+                    text = "${stringResource(R.string.committed_label)} ${CurrencyFormatter.format(context, committedThisCycle)}",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color.White.copy(alpha = 0.95f)
