@@ -166,7 +166,7 @@ fun ZadVoiceBottomSheet(
                 emotion = when (voiceState) {
                     is VoiceState.Listening -> ZadBotEmotion.LISTENING
                     is VoiceState.Thinking -> ZadBotEmotion.THINKING
-                    is VoiceState.Speaking -> ZadBotEmotion.EXCITED
+                    is VoiceState.Speaking -> ZadBotEmotion.SPEAKING
                     else -> ZadBotEmotion.IDLE
                 }
             )
