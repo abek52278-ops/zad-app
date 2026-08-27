@@ -1,5 +1,14 @@
 package com.example.ui.screens
 
+import com.example.ui.components.ZadCategoryCard
+import com.example.ui.components.ZadCategoryType
+import com.example.ui.components.ZadSmartBotAgent
+import com.example.ui.components.ZadBotEmotion
+import com.example.ui.components.ZadWalletHeroCard
+import com.example.ui.components.ZadMinimalMetricsDuo
+import com.example.ui.components.ZadBezierSpendChart
+import com.example.ui.components.ZadQuickExpenseSheet
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -309,40 +318,38 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // ── 0b. كورة زاد الحية — CompanionOrb بنبض وتتبع عين حقيقي ──
-                // بالضغط عليها تفتح محادثة الصوت الحية كـ ChatGPT Voice فورا مع تأثير صوتي لطيف
+                // ── 0b. مساعد زاد الذكي الحية — ZadSmartBotAgent بمشاعر وعيون مضيئة 3D ──
                 com.example.ui.components.AppearOnEntry {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(20.dp))
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(Color(0xFFF1F5F9))
                             .clickable {
                                 com.example.voice.ZadCutePetSoundFx.play(com.example.voice.ZadCutePetSoundFx.PetSound.HappyChirp)
                                 onOpenVoice()
                             }
-                            .padding(vertical = 4.dp),
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val orbState by viewModel.companionState.collectAsState()
-                        Box(modifier = Modifier.size(64.dp)) {
-                            com.example.ui.components.CompanionOrb(
-                                state = orbState,
-                                size = 64.dp,
-                                animated = true
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
+                        ZadSmartBotAgent(
+                            sizeDp = 60.dp,
+                            emotion = ZadBotEmotion.IDLE,
+                            onClick = onOpenVoice
+                        )
+                        Spacer(modifier = Modifier.width(14.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 stringResource(R.string.greeting_hi_name, userName),
-                                style = Typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = onSurface
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF0F172A)
                             )
                             Text(
-                                com.example.ui.components.companionStateDescription(orbState) + " • اضغط للتحدث 🎙️",
-                                style = Typography.labelMedium,
-                                color = primary
+                                "مساعدك الذكي جاهز • اضغط للتحدث 🎙️",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF0F9B76)
                             )
                         }
                     }
@@ -415,110 +422,126 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // ── 1. الكارت الأخضر: رقم واحد، الرصيد اللي معاك دلوقتي ──
-                // Task 26 — daysLeft بقى بحدود دورة الراتب (ZadViewModel.daysLeftInCycle)
-                // مش الشهر التقويمي كان مؤجل من Task 25.
-                val daysLeft = daysLeftInCycle
-
-                // budgetConfirmed لوحدها مش كفاية: بتبقى true قبل ما recalculate (جوّه
-                // coroutine) يملا الرقم، فبتلحق فراغ لحظي. الرقم نفسه لازم يبقى موجود
-                // كمان قبل ما نعرض كارت بيقول رقم.
-                val availableFigureValue = availableFigure
-                val balanceFigureValue = balanceFigure
-                if (budgetConfirmed && balanceFigureValue != null) {
-                    com.example.ui.components.AppearOnEntry {
-                        com.example.ui.components.ZadCardHero(
-                            balance = balanceFigureValue,
-                            spentThisMonth = com.example.data.BudgetMath.spentThisMonth(visibleTransactions),
-                            committedAmount = committed,
-                            onBalanceLongPress = { showWhySheet = true },
-                            onOpenDetail = { viewModel.showBudgetDialog() }
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    // مؤشر الاستماع الحي — سطر صغير تحت الكارت الأخضر مباشرة:
-                    // أخضر «بسمع رسايل البنك» أو برتقالي «الاستماع وقف، اضغط للإصلاح».
-                    // بيشتغل بس لو العميل فعّل الميزة قبل كده (متزعّلش اللي مش عايزها).
-                    if (isNotificationAccessGranted) {
-                        val alive = com.example.data.BankReadingStatus.isListenerAlive(context)
-                        BankListeningPill(
-                            alive = alive,
-                            lastSeenAt = bankReaderConnectedAt,
-                            onClick = {
-                                com.example.data.BankReadingStatus.requestRebindIfPermitted(context)
-                            }
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
+                // ── 1. كارت المحفظة الفاخر بنمط Apple Wallet (ZadWalletHeroCard) ──
+                val availableBal = availableFigure?.value ?: balanceFigure?.value ?: 0.0
+                val spentMonth = com.example.data.BudgetMath.spentThisMonth(visibleTransactions)
+                val safeDailySpendVal = remember(availableBal, daysLeftInCycle) {
+                    if (daysLeftInCycle > 0) availableBal / daysLeftInCycle else availableBal
                 }
 
-                // ── 2. Days left / daily safe spend pair (mockup: two 18dp white cards) ──
-                if (budgetConfirmed && (balanceFigureValue != null || availableFigureValue != null)) {
-                    val currentBal = balanceFigureValue?.value ?: availableFigureValue?.value ?: 0.0
-                    com.example.ui.components.AppearOnEntry(delayMs = 60) {
-                        com.example.ui.components.ZadDaysAndSafeSpendRow(
-                            daysLeft = daysLeft,
-                            available = currentBal
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(18.dp))
+                com.example.ui.components.AppearOnEntry {
+                    ZadWalletHeroCard(
+                        availableBalance = availableBal,
+                        spentThisCycle = spentMonth,
+                        committedThisCycle = committed,
+                        isConfident = availableFigure?.confident ?: true,
+                        onEditBudget = { viewModel.showBudgetDialog() },
+                        onWhyChanged = { showWhySheet = true },
+                        onQuickExpense = { showQuickExpenseSheet = true }
+                    )
                 }
+                Spacer(modifier = Modifier.height(14.dp))
 
-                // ── 2a. بيانات حية من أقسام تانية — أدوية/التزام قادم/خروجة ──
-                // من تدقيق الـViewModel: ٣ مصادر بيانات بتتحسب فعلاً ومكانش ليها صدى
-                // على الرئيسية. عمودان وفق منطق "grid2" في البروتوتايب.
-                if (weeklyAdherence != null || nextObligationDue != null) {
-                    com.example.ui.components.AppearOnEntry(delayMs = 62) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            weeklyAdherence?.let { pct ->
-                                com.example.ui.components.ZadStatTile(
-                                    modifier = Modifier.weight(1f).clickable { onNavigateToPharmacy() },
-                                    label = stringResource(R.string.dose_adherence_label),
-                                    value = "$pct%"
-                                )
-                            }
-                            nextObligationDue?.let { (obligation, dueDate) ->
-                                val daysTo = java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), dueDate)
-                                com.example.ui.components.ZadStatTile(
-                                    modifier = Modifier.weight(1f).clickable { onNavigateToBudget() },
-                                    label = stringResource(R.string.obligations_domain_label),
-                                    value = if (daysTo <= 0) obligation.title.take(12)
-                                            else stringResource(R.string.obligation_due_in_days, obligation.title.take(8), daysTo)
-                                )
-                            }
-                            // تعبئة الصف لو فيه عنصر واحد بس
-                            if ((if (weeklyAdherence != null) 1 else 0) + (if (nextObligationDue != null) 1 else 0) == 1) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
+                // ── 2. مؤشرات الأيام المتبقية والصرف اليومي الآمن (ZadMinimalMetricsDuo) ──
+                com.example.ui.components.AppearOnEntry(delayMs = 40) {
+                    ZadMinimalMetricsDuo(
+                        safeDailySpend = safeDailySpendVal,
+                        daysLeft = daysLeftInCycle
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // ── 3. منحنى الصرف الأسبوعي الانسيابي (ZadBezierSpendChart) ──
+                com.example.ui.components.AppearOnEntry(delayMs = 60) {
+                    val weeklySpendData = remember(visibleTransactions) {
+                        val arabicDays = listOf("أحد", "إثن", "ثلا", "أرب", "خمس", "جمع", "سبت")
+                        val nowDay = java.time.LocalDate.now()
+                        (6 downTo 0).map { daysAgo ->
+                            val date = nowDay.minusDays(daysAgo.toLong())
+                            val datePrefix = date.toString()
+                            val dayOfWeekIndex = (date.dayOfWeek.value % 7)
+                            val dayLabel = arabicDays.getOrElse(dayOfWeekIndex) { "يوم" }
+                            val sum = visibleTransactions
+                                .asSequence()
+                                .filter { it.isExpense && it.createdAt?.startsWith(datePrefix) == true }
+                                .sumOf { it.amount }
+                            dayLabel to sum
                         }
                     }
-                    Spacer(modifier = Modifier.height(18.dp))
+                    ZadBezierSpendChart(
+                        weeklySpend = weeklySpendData
+                    )
                 }
+                Spacer(modifier = Modifier.height(20.dp))
 
-                // ── 2b. منحنى المصروف الأسبوعي الحي — ZadBezierSpendChart (شيفو UX) ──
-                if (budgetConfirmed && visibleTransactions.isNotEmpty()) {
-                    com.example.ui.components.AppearOnEntry(delayMs = 55) {
-                        val weeklySpendData = remember(visibleTransactions) {
-                            val arabicDays = listOf("أحد", "إثن", "ثلا", "أرب", "خمس", "جمع", "سبت")
-                            val nowDay = java.time.LocalDate.now()
-                            (6 downTo 0).map { daysAgo ->
-                                val date = nowDay.minusDays(daysAgo.toLong())
-                                val datePrefix = date.toString()
-                                val dayOfWeekIndex = (date.dayOfWeek.value % 7) // Sunday is 0
-                                val dayLabel = arabicDays.getOrElse(dayOfWeekIndex) { "يوم" }
-                                val sum = visibleTransactions
-                                    .asSequence()
-                                    .filter { it.isExpense && it.createdAt?.startsWith(datePrefix) == true }
-                                    .sumOf { it.amount }
-                                dayLabel to sum
-                            }
+                // ── 4. شبكة تصنيفات استوديو ثلاثية الأبعاد (ZadCategoryCard - بدون إيموجي) ──
+                com.example.ui.components.AppearOnEntry(delayMs = 80) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "تصنيفات المخزون والمشتريات",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF0F172A)
+                            )
+                            Text(
+                                text = "عرض الكل",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0F9B76),
+                                modifier = Modifier.clickable { onNavigateToInventory() }
+                            )
                         }
-                        com.example.ui.components.ZadBezierSpendChart(
-                            weeklySpend = weeklySpendData
-                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            ZadCategoryCard(
+                                category = ZadCategoryType.PRODUCE,
+                                modifier = Modifier.weight(1f),
+                                onClick = onNavigateToInventory
+                            )
+                            ZadCategoryCard(
+                                category = ZadCategoryType.COOKING_OIL,
+                                modifier = Modifier.weight(1f),
+                                onClick = onNavigateToInventory
+                            )
+                            ZadCategoryCard(
+                                category = ZadCategoryType.MEAT_FISH,
+                                modifier = Modifier.weight(1f),
+                                onClick = onNavigateToShopping
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            ZadCategoryCard(
+                                category = ZadCategoryType.BAKERY,
+                                modifier = Modifier.weight(1f),
+                                onClick = onNavigateToInventory
+                            )
+                            ZadCategoryCard(
+                                category = ZadCategoryType.DAIRY_EGGS,
+                                modifier = Modifier.weight(1f),
+                                onClick = onNavigateToInventory
+                            )
+                            ZadCategoryCard(
+                                category = ZadCategoryType.BEVERAGES,
+                                modifier = Modifier.weight(1f),
+                                onClick = onNavigateToShopping
+                            )
+                        }
                     }
-                    Spacer(modifier = Modifier.height(18.dp))
                 }
+                Spacer(modifier = Modifier.height(20.dp))
+
                 com.example.ui.components.AppearOnEntry(delayMs = 65) {
                     // البروتوتايب: شبكة الـ6 اختصارات ظاهرة دايماً بعد صف الأيام —
                     // كانت مخفية ورا زرار "أدوات إضافية" فالمستخدم مش بيكتشفها.

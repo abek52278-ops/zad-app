@@ -38,7 +38,7 @@ import kotlin.random.Random
  * أزرق: عادي/هادئ. بنفسجي: مركّز/بيحلل. أخضر: سعيد/إنجاز. أحمر: تنبيه. دهبي: احتفال.
  */
 enum class CompanionState(val skyColor: Color, val deepColor: Color) {
-    Idle(Color(0xFF6CC3FF), Color(0xFF1C6FE0)),
+    Idle(Color(0xFF34D399), Color(0xFF064E3B)),
     Focused(Color(0xFFB388FF), Color(0xFF4A148C)),
     Happy(Color(0xFF7CFFB2), Color(0xFF00B26A)),
     Alert(Color(0xFFFF8A80), Color(0xFFD32F2F)),
