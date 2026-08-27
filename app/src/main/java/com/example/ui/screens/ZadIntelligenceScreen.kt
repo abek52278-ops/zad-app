@@ -111,6 +111,7 @@ fun ZadIntelligenceScreen(
     var chatExpanded by remember { mutableStateOf(false) }
     var showSubscriptionPaywall by remember { mutableStateOf(false) }
     var showFamilyNeuralSheet by remember { mutableStateOf(false) }
+    var showExecutiveDossier by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     if (showSubscriptionPaywall) {
@@ -130,6 +131,18 @@ fun ZadIntelligenceScreen(
             familyState = familyState,
             onDismiss = { showFamilyNeuralSheet = false },
             onNavigateToFamily = onNavigateToFamily
+        )
+    }
+
+    if (showExecutiveDossier) {
+        com.example.ui.components.ZadExecutiveDossierSheet(
+            onDismiss = { showExecutiveDossier = false },
+            totalSpent = totalExpense,
+            safeDailySpend = resilienceAvailableFigure?.value?.let { if (resilienceRemainingBalance != null) it / 14 else 120.0 } ?: 120.0,
+            forecastNextMonth = forecast?.predictedTotal ?: (totalExpense * 1.08),
+            familyMembersCount = familyState.members.size.coerceAtLeast(1),
+            pharmacyAdherencePct = 91,
+            pantryDaysLeft = inventory.size.coerceAtLeast(12)
         )
     }
 
@@ -362,11 +375,12 @@ fun ZadIntelligenceScreen(
             // لوحة الشركة الحية — أول ما العميل يدخل يشوف الوكلاء شغالين بأرقام حقيقية
             item { NeuralMeshLivePanelItem(transactions, inventory, pharmacyItems, subscriptions) }
 
-            // خريطة المعرفة وشجرة العلاقات البصرية التفاعلية (Illustrated Knowledge Graph)
+            // ── العقل الثاني: الكرة العصبية المجسمة ثلاثية الأبعاد (3D Holographic Neural Sphere) ──
             item {
-                com.example.ui.components.ZadInteractiveKnowledgeGraphWidget(
+                com.example.ui.components.Zad3DNeuralSphereWidget(
                     onNodeClick = { onNavigateToKnowledgeMap() },
-                    onViewFullMapClick = { onNavigateToKnowledgeMap() }
+                    onViewFullMapClick = { onNavigateToKnowledgeMap() },
+                    onOpenDossierClick = { showExecutiveDossier = true }
                 )
             }
 
