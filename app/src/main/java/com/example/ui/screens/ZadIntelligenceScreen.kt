@@ -54,6 +54,9 @@ import com.example.data.ZadSubscription
 import com.example.data.AiInsight
 import com.example.data.ZadAiRepository
 import com.example.ads.RewardedBrainAdManager
+import com.example.ui.components.ZadSmartBotAgent
+import com.example.ui.components.ZadBotEmotion
+import com.example.voice.ZadCutePetSoundFx
 import kotlinx.coroutines.launch
 
 // ════════════════════════════════════════════════════════════════
@@ -193,6 +196,88 @@ fun ZadIntelligenceScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // ── 0. بطل عقل زاد ثلاثي الأبعاد والعيون الحية (3D SmartBot Living Orb) ──
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(26.dp))
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color(0xFF0A382C),
+                                    Color(0xFF052E16)
+                                )
+                            )
+                        )
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    // 3D Living Orb with Interactive Tap
+                    ZadSmartBotAgent(
+                        sizeDp = 96.dp,
+                        emotion = if (isTyping) ZadBotEmotion.THINKING else ZadBotEmotion.IDLE,
+                        onClick = {
+                            chatExpanded = true
+                        }
+                    )
+
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "عقل زاد الذكي",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (isTyping) "زاد يحلل بياناتك الآن 🧠✨" else "متصل ومستعد لمساعدتك في إدارتك المالية والمنزلية ⚡",
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF6EE7B7),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+
+                    // Quick contextual suggestion chips
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val quickPrompts = listOf(
+                            "حلل مصاريفي 📊",
+                            "توقع مصاريف الشهر القادم 🔮",
+                            "اقترح وجبة للغداء 🍲",
+                            "هل وضعي المالي آمن؟ 💰"
+                        )
+                        quickPrompts.forEach { prompt ->
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(9999.dp))
+                                    .background(Color.White.copy(alpha = 0.12f))
+                                    .clickable {
+                                        ZadCutePetSoundFx.play(ZadCutePetSoundFx.PetSound.HappyChirp)
+                                        inputText = prompt
+                                        chatExpanded = true
+                                        viewModel.sendAiChatMessage(prompt)
+                                    }
+                                    .padding(horizontal = 13.dp, vertical = 7.dp)
+                            ) {
+                                Text(
+                                    text = prompt,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFD9F2E6)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // لوحة الشركة الحية — أول ما العميل يدخل يشوف الوكلاء شغالين بأرقام حقيقية
             item { NeuralMeshLivePanelItem(transactions, inventory, pharmacyItems, subscriptions) }
 

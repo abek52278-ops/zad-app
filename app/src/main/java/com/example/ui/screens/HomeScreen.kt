@@ -325,7 +325,9 @@ fun HomeScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(24.dp))
-                            .background(Color(0xFFF1F5F9))
+                            .background(Color.White)
+                            .shadow(elevation = 4.dp, shape = RoundedCornerShape(24.dp), spotColor = Color(0xFF064E3B).copy(alpha = 0.08f))
+                            .border(1.dp, Color(0xFF0F9B76).copy(alpha = 0.15f), RoundedCornerShape(24.dp))
                             .clickable {
                                 com.example.voice.ZadCutePetSoundFx.play(com.example.voice.ZadCutePetSoundFx.PetSound.HappyChirp)
                                 onOpenVoice()

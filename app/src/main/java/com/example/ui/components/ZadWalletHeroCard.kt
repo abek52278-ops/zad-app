@@ -213,6 +213,30 @@ fun ZadWalletHeroCard(
                 )
             }
         }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Bottom Wallet Footer: Emerald Hex Tag & Quick Edit Indicator
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "#0A382C • ZAD WALLET",
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White.copy(alpha = 0.5f),
+                letterSpacing = 0.5.sp
+            )
+            Text(
+                text = "تعديل الميزانية ✎",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF6EE7B7),
+                modifier = Modifier.clickable { onEditBudget() }
+            )
+        }
     }
 
     LaunchedEffect(isPressed) {
