@@ -134,18 +134,6 @@ fun ZadIntelligenceScreen(
         )
     }
 
-    if (showExecutiveDossier) {
-        com.example.ui.components.ZadExecutiveDossierSheet(
-            onDismiss = { showExecutiveDossier = false },
-            totalSpent = totalExpense,
-            safeDailySpend = resilienceAvailableFigure?.value?.let { if (resilienceRemainingBalance != null) it / 14 else 120.0 } ?: 120.0,
-            forecastNextMonth = forecast?.predictedTotal ?: (totalExpense * 1.08),
-            familyMembersCount = familyState.members.size.coerceAtLeast(1),
-            pharmacyAdherencePct = 91,
-            pantryDaysLeft = inventory.size.coerceAtLeast(12)
-        )
-    }
-
     // نص جاهز جاي من شاشة تانية (مثلاً زر "إضافة ذكية بالشات 💬" في الصيدلية) — يتقرا
     // مرة واحدة بس ويتحط في صندوق الشات، ومفتوح مباشرة عشان المستخدم يشوفه ويبعته.
     LaunchedEffect(Unit) {
@@ -200,6 +188,19 @@ fun ZadIntelligenceScreen(
         AiInsight(title = "ملاحظة من عقل زاد", description = note, type = "Tip")
     }
     val allInsights = brainNotes + insights
+
+    if (showExecutiveDossier) {
+        val activeFamily = familyState as? com.example.ui.viewmodels.FamilyState.Active
+        com.example.ui.components.ZadExecutiveDossierSheet(
+            onDismiss = { showExecutiveDossier = false },
+            totalSpent = totalExpense,
+            safeDailySpend = resilienceAvailableFigure?.value?.let { if (resilienceRemainingBalance != null) it / 14 else 120.0 } ?: 120.0,
+            forecastNextMonth = forecast?.predictedTotal ?: (totalExpense * 1.08),
+            familyMembersCount = activeFamily?.members?.size?.coerceAtLeast(1) ?: 1,
+            pharmacyAdherencePct = 91,
+            pantryDaysLeft = inventory.size.coerceAtLeast(12)
+        )
+    }
 
     // Transparent, not `background`: MainScreen paints the mockup's canvas gradient
     // behind every screen. A white fill here is what made this screen's white cards
