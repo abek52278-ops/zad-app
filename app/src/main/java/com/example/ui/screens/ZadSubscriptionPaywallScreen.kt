@@ -321,20 +321,51 @@ fun ZadSubscriptionPaywallScreen(
                     .pressableScale(),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = primary,
+                    containerColor = Color(0xFF0F9B76),
                     contentColor = Color.White
                 )
             ) {
-                Icon(Icons.Default.ElectricBolt, contentDescription = null, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.ElectricBolt, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color(0xFF6EE7B7))
                 Spacer(Modifier.width(8.dp))
                 Text(
                     "تفعيل ${selectedTier.titleAr} الآن",
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.ExtraBold,
                     fontSize = 15.sp
                 )
             }
 
             Spacer(Modifier.height(14.dp))
+
+            // Payment Gateways & Trust Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                listOf(
+                    "Google Play" to "💳",
+                    "Mada / مدى" to "🇸🇦",
+                    "Apple Pay" to "🍏",
+                    "Moyasar / Tap" to "⚡"
+                ).forEach { (method, icon) ->
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 4.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFF1F5F9))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "$icon $method",
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF475569)
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
             Text(stringResource(R.string.auto_zadsubscriptionpaywall_13807),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),

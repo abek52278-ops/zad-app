@@ -314,7 +314,7 @@ fun ZadBottomNavBar(
         ZadNavItem(ZadRoutes.HOME,      Icons.Default.Home,       R.string.nav_tab_home),
         ZadNavItem(ZadRoutes.ASSISTANT, Icons.Default.Psychology,  R.string.screen_title_assistant),
         ZadNavItem(ZadRoutes.INVENTORY, Icons.Default.Inventory2,  R.string.nav_inventory),
-        ZadNavItem(ZadRoutes.PROFILE,   Icons.Default.Settings,    R.string.screen_title_profile),
+        ZadNavItem("more",              Icons.Default.GridView,    R.string.nav_more),
     )
     val kidsItems = listOf(
         ZadNavItem(ZadRoutes.HOME,   Icons.Default.Home,          R.string.nav_tab_home),
@@ -389,11 +389,22 @@ fun ZadBottomNavBar(
                     Spacer(Modifier.width(56.dp))
                     // Right 2 tabs
                     items.drop(2).forEach { item ->
+                        val isSelected = if (item.route == "more") {
+                            currentRoute !in listOf(ZadRoutes.HOME, ZadRoutes.ASSISTANT, ZadRoutes.INVENTORY)
+                        } else {
+                            currentRoute == item.route
+                        }
                         ZadNavTab(
                             icon = item.icon,
                             label = stringResource(item.labelRes),
-                            selected = currentRoute == item.route,
-                            onClick = { onNavigate(item.route) }
+                            selected = isSelected,
+                            onClick = {
+                                if (item.route == "more") {
+                                    onOpenMore()
+                                } else {
+                                    onNavigate(item.route)
+                                }
+                            }
                         )
                     }
                 }
@@ -632,6 +643,9 @@ fun ZadMoreSheet(onDismiss: () -> Unit, onNavigate: (String) -> Unit) {
         ZadMoreEntry(ZadRoutes.SUBS, Icons.Default.CreditCard, R.string.subscriptions_title, Color(0xFFE8F1FC), tertiary),
         ZadMoreEntry(ZadRoutes.PHARMACY, Icons.Default.LocalPharmacy, R.string.nav_pharmacy, Color(0xFFFCE8ED), dangerColor),
         ZadMoreEntry(ZadRoutes.MAINTENANCE, Icons.Default.Build, R.string.nav_maintenance, Color(0xFFFDF3E1), secondaryDark),
+        ZadMoreEntry(ZadRoutes.TASBIHA, Icons.Default.Yard, R.string.tasbiha_short_label, Color(0xFFE6F4EC), primary),
+        ZadMoreEntry(ZadRoutes.KNOWLEDGE_MAP, Icons.Default.Hub, R.string.knowledge_map_title, Color(0xFFEAF2FB), Color(0xFF2563EB)),
+        ZadMoreEntry(ZadRoutes.PREMIUM_PLANS, Icons.Default.Star, R.string.premium_plans_title, Color(0xFFFFF7ED), Color(0xFFD97706)),
         ZadMoreEntry(ZadRoutes.PROFILE, Icons.Default.Person, R.string.screen_title_profile, Color(0xFFEEF0F3), Color(0xFF374151)),
     )
     ModalBottomSheet(
@@ -643,26 +657,39 @@ fun ZadMoreSheet(onDismiss: () -> Unit, onNavigate: (String) -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 12.dp, end = 12.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(start = 16.dp, end = 16.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            Text(
+                text = stringResource(R.string.nav_more),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = textPrimary,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+            )
+
             entries.chunked(2).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     row.forEach { entry ->
-                        Column(
+                        Row(
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Color(0xFFF9FAFB))
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color(0xFFF8FAFC))
+                                .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(16.dp))
                                 .pressableScale()
-                                .clickable { onNavigate(entry.route) }
-                                .padding(horizontal = 12.dp, vertical = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                                .clickable {
+                                    onDismiss()
+                                    onNavigate(entry.route)
+                                }
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(10.dp))
                                     .background(entry.bg),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -670,9 +697,10 @@ fun ZadMoreSheet(onDismiss: () -> Unit, onNavigate: (String) -> Unit) {
                             }
                             Text(
                                 stringResource(entry.labelRes),
-                                fontSize = 12.5.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = textPrimary
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = textPrimary,
+                                maxLines = 1
                             )
                         }
                     }

@@ -323,19 +323,25 @@ fun ZadIntelligenceScreen(
                         ZadStatTile(
                             modifier = Modifier.weight(1f),
                             label = "قوة الإنفاق",
-                            value = brainReport?.spendingPower?.powerPct?.let { "$it%" } ?: "82%"
+                            value = brainReport?.spendingPower?.powerPct?.let { "$it%" } ?: "82%",
+                            emoji = "⚡",
+                            iconBg = Color(0xFFFEF3C7)
                         )
                         ZadStatTile(
                             modifier = Modifier.weight(1f),
                             label = "الصحة المالية",
-                            value = brainReport?.healthScore?.let { "$it/100" } ?: "74/100"
+                            value = brainReport?.healthScore?.let { "$it/100" } ?: "74/100",
+                            emoji = "🛡️",
+                            iconBg = Color(0xFFE0F2FE)
                         )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         ZadStatTile(
                             modifier = Modifier.weight(1f),
                             label = "صرف الشهر",
-                            value = com.example.data.CurrencyFormatter.format(context, totalExpense)
+                            value = com.example.data.CurrencyFormatter.format(context, totalExpense),
+                            emoji = "💳",
+                            iconBg = Color(0xFFE6F4EC)
                         )
                         ZadStatTile(
                             modifier = Modifier.weight(1f),
@@ -345,7 +351,9 @@ fun ZadIntelligenceScreen(
                                 deltaPct > 0 -> "↑ $deltaPct%"
                                 deltaPct < 0 -> "↓ ${-deltaPct}%"
                                 else -> "0%"
-                            }
+                            },
+                            emoji = "📈",
+                            iconBg = Color(0xFFF3E8FF)
                         )
                     }
                 }
@@ -354,24 +362,12 @@ fun ZadIntelligenceScreen(
             // لوحة الشركة الحية — أول ما العميل يدخل يشوف الوكلاء شغالين بأرقام حقيقية
             item { NeuralMeshLivePanelItem(transactions, inventory, pharmacyItems, subscriptions) }
 
-            // خريطة زاد — عرض بصري لمجالاتك الحقيقية (التزامات/اشتراكات/ديون/مخزون/تسوق/
-            // صيدلية/صيانة/ميزانية) ومين بيأثر على مين، محسوبة لحظيًا من نفس بيانات الشاشات
-            // التانية، مش قاعدة بيانات منفصلة محتاجة مزامنة.
+            // خريطة المعرفة وشجرة العلاقات البصرية التفاعلية (Illustrated Knowledge Graph)
             item {
-                com.example.ui.components.ZadListCard(shape = RoundedCornerShape(20.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable { onNavigateToKnowledgeMap() },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Hub, contentDescription = null, tint = primary, modifier = Modifier.size(26.dp))
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(stringResource(R.string.knowledge_map_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                            Text(stringResource(R.string.knowledge_map_subtitle), style = Typography.bodySmall, color = onSurfaceVariant)
-                        }
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = onSurfaceVariant)
-                    }
-                }
+                com.example.ui.components.ZadInteractiveKnowledgeGraphWidget(
+                    onNodeClick = { onNavigateToKnowledgeMap() },
+                    onViewFullMapClick = { onNavigateToKnowledgeMap() }
+                )
             }
 
             item {

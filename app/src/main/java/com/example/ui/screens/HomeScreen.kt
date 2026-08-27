@@ -541,7 +541,15 @@ fun HomeScreen(
                 }
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // ── 4. إيدج صحة المخزون والنواقص الحية (Food Health & Shortages) ──
+                // ── 4. إيدج زاد بريميوم الجذاب بدون إعلانات (Zad Premium Promo Hero Card) ──
+                com.example.ui.components.AppearOnEntry(delayMs = 58) {
+                    com.example.ui.components.ZadPremiumPromoCard(
+                        onUpgradeClick = onNavigateToPlans
+                    )
+                }
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // ── 5. إيدج صحة المخزون والنواقص الحية (Food Health & Shortages) ──
                 com.example.ui.components.AppearOnEntry(delayMs = 65) {
                     ZadFoodShortagesGlanceCard(
                         inventory = inventory,

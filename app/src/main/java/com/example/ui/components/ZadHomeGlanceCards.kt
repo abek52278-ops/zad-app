@@ -517,3 +517,346 @@ fun ZadPharmacyGlanceCard(
         }
     }
 }
+
+/**
+ * ── 5. إيدج زاد بريميوم الجذاب بدون إعلانات (Zad Premium Promo Hero Card) ──
+ * مصمم لجذب العميل لترقية حسابه بدون إعلانات + ذكاء اصطناعي غير محدود + دفع مباشر
+ */
+@Composable
+fun ZadPremiumPromoCard(
+    onUpgradeClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "premiumGlow")
+    val shimmerAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.85f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1600, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "shimmer"
+    )
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        Color(0xFF052E16),
+                        Color(0xFF0B6B4E),
+                        Color(0xFF064E3B)
+                    )
+                )
+            )
+            .border(1.5.dp, Color(0xFF34D399).copy(alpha = shimmerAlpha), RoundedCornerShape(24.dp))
+            .clickable { onUpgradeClick() }
+            .padding(18.dp)
+            .pressableScale()
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFF4A93B).copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("👑", fontSize = 20.sp)
+                    }
+                    Column {
+                        Text(
+                            text = "زاد بريميوم (بدون إعلانات)",
+                            fontSize = 15.5.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "ذكاء اصطناعي فوري + مزامنة عائلية كاملة",
+                            fontSize = 11.5.sp,
+                            color = Color(0xFF6EE7B7)
+                        )
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(9999.dp))
+                        .background(Color(0xFFF4A93B))
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "ترقية VIP",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF052E16)
+                    )
+                }
+            }
+
+            // Bullet points
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                listOf(
+                    "🚫 بلا إعلانات",
+                    "🧠 شات AI بلا حدود",
+                    "⚡ رصد بنكي لحظي"
+                ).forEach { perk ->
+                    Text(
+                        text = perk,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFD9F2E6)
+                    )
+                }
+            }
+
+            // CTA Button
+            Button(
+                onClick = onUpgradeClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF34D399),
+                    contentColor = Color(0xFF052E16)
+                )
+            ) {
+                Text(
+                    text = "اشترك الآن واستمتع بتجربة بلا إعلانات ←",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+            }
+        }
+    }
+}
+
+data class GraphNodeItem(
+    val id: String,
+    val title: String,
+    val emoji: String,
+    val color: Color,
+    val angleDeg: Double
+)
+
+/**
+ * ── 6. خريطة المعرفة وشجرة العلاقات البصرية التفاعلية (Illustrated Knowledge Graph Widget) ──
+ * تترجم شجرة علاقات عقل زاد من المخطط التصميمي إلى ودجت تفاعلية حية
+ */
+@Composable
+fun ZadInteractiveKnowledgeGraphWidget(
+    onNodeClick: (String) -> Unit = {},
+    onViewFullMapClick: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "graphPulse")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 0.94f,
+        targetValue = 1.06f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "centerPulse"
+    )
+    val glowAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.15f,
+        targetValue = 0.45f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "glowAlpha"
+    )
+
+    var selectedNodeId by remember { mutableStateOf<String?>(null) }
+
+    val nodes = remember {
+        listOf(
+            GraphNodeItem("budget", "المصاريف", "💳", Color(0xFF0F9B76), 270.0),
+            GraphNodeItem("family", "العائلة", "👨‍👩‍👧‍👦", Color(0xFF2563EB), 320.0),
+            GraphNodeItem("inventory", "المخزون", "📦", Color(0xFFF59E0B), 25.0),
+            GraphNodeItem("pharmacy", "الصيدلية", "💊", Color(0xFFDC2626), 90.0),
+            GraphNodeItem("subs", "الاشتراكات", "⚡", Color(0xFF8B5CF6), 145.0),
+            GraphNodeItem("chef", "شيف زاد", "🍲", Color(0xFF10B981), 195.0),
+            GraphNodeItem("maintenance", "الصيانة", "🔧", Color(0xFF64748B), 235.0)
+        )
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(Color.White)
+            .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(24.dp))
+            .shadow(elevation = 2.dp, shape = RoundedCornerShape(24.dp), spotColor = Color.Black.copy(alpha = 0.04f))
+            .padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFE6F4EC)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Hub, contentDescription = null, tint = Color(0xFF0F9B76), modifier = Modifier.size(18.dp))
+                }
+                Column {
+                    Text(
+                        text = "خريطة المعرفة وشجرة العلاقات",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF0F172A)
+                    )
+                    Text(
+                        text = "الترابط العصبي الحي بين مجالات منزلك وميزانيتك",
+                        fontSize = 11.5.sp,
+                        color = Color(0xFF64748B)
+                    )
+                }
+            }
+
+            TextButton(
+                onClick = onViewFullMapClick,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "فتح الخريطة ←",
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF0F9B76)
+                )
+            }
+        }
+
+        // Graph Illustrated Visual Tree
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(230.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            // Connecting Lines Canvas
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val center = Offset(size.width / 2, size.height / 2)
+                val baseRadius = (size.minDimension / 2) * 0.72f
+
+                nodes.forEach { node ->
+                    val rad = Math.toRadians(node.angleDeg)
+                    val nodePos = Offset(
+                        x = center.x + (baseRadius * kotlin.math.cos(rad)).toFloat(),
+                        y = center.y + (baseRadius * kotlin.math.sin(rad)).toFloat()
+                    )
+
+                    val isSelected = selectedNodeId == node.id
+
+                    // Connecting Line from Center to Node
+                    drawLine(
+                        color = if (isSelected) node.color else Color(0xFFCBD5E1),
+                        start = center,
+                        end = nodePos,
+                        strokeWidth = if (isSelected) 2.5.dp.toPx() else 1.2.dp.toPx(),
+                        pathEffect = if (isSelected) null else PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f),
+                        cap = androidx.compose.ui.graphics.StrokeCap.Round
+                    )
+                }
+
+                // Central Glow Ring
+                drawCircle(
+                    color = Color(0xFF0F9B76).copy(alpha = glowAlpha),
+                    radius = 36.dp.toPx() * pulseScale,
+                    center = center
+                )
+            }
+
+            // Central Zad Node
+            Box(
+                modifier = Modifier
+                    .size(54.dp)
+                    .clip(CircleShape)
+                    .background(
+                        brush = Brush.radialGradient(
+                            colors = listOf(Color(0xFF0F9B76), Color(0xFF052E16))
+                        )
+                    )
+                    .border(2.dp, Color(0xFF6EE7B7), CircleShape)
+                    .clickable { selectedNodeId = null }
+                    .pressableScale(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("🧠", fontSize = 16.sp)
+                    Text("عقل زاد", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+
+            // Orbiting Domain Nodes
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val centerXPx = maxWidth.value / 2
+                val centerYPx = maxHeight.value / 2
+                val radius = (maxWidth.value.coerceAtMost(maxHeight.value) / 2) * 0.72f
+
+                nodes.forEach { node ->
+                    val rad = Math.toRadians(node.angleDeg)
+                    val offsetX = centerXPx + (radius * kotlin.math.cos(rad)).toFloat() - 24
+                    val offsetY = centerYPx + (radius * kotlin.math.sin(rad)).toFloat() - 24
+                    val isSelected = selectedNodeId == node.id
+
+                    Box(
+                        modifier = Modifier
+                            .offset(x = offsetX.dp, y = offsetY.dp)
+                            .size(48.dp)
+                            .shadow(if (isSelected) 6.dp else 2.dp, CircleShape, spotColor = node.color.copy(alpha = 0.4f))
+                            .clip(CircleShape)
+                            .background(if (isSelected) node.color.copy(alpha = 0.15f) else Color.White)
+                            .border(
+                                width = if (isSelected) 2.dp else 1.dp,
+                                color = if (isSelected) node.color else Color(0xFFE2E8F0),
+                                shape = CircleShape
+                            )
+                            .clickable {
+                                selectedNodeId = node.id
+                                onNodeClick(node.id)
+                            }
+                            .pressableScale(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(node.emoji, fontSize = 14.sp)
+                            Text(
+                                text = node.title,
+                                fontSize = 8.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) node.color else Color(0xFF334155),
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

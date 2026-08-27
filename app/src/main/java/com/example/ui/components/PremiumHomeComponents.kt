@@ -426,27 +426,63 @@ fun ZadStatTile(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
+    emoji: String? = null,
+    icon: ImageVector? = null,
+    iconBg: Color? = null,
+    iconTint: Color? = null
 ) {
-    val shape = RoundedCornerShape(16.dp)
-    Column(
+    val shape = RoundedCornerShape(18.dp)
+    Box(
         modifier = modifier
             .zadCardShadow(shape)
             .clip(shape)
             .background(surface)
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+            .border(1.dp, Color(0xFFE2E8F0), shape)
+            .padding(14.dp)
     ) {
-        Text(label, style = Typography.labelSmall, color = textTertiary, maxLines = 1)
-        // قيمة حية — AnimatedContent بيسطّر تغيّر الرقم بحركة انزلاق بدل القفزة الجافة.
-        AnimatedContent(
-            targetState = value,
-            transitionSpec = {
-                (slideInVertically { it / 3 } + fadeIn(tween(220))) togetherWith
-                    (slideOutVertically { -it / 3 } + fadeOut(tween(160)))
-            },
-            label = "statTileValue"
-        ) { animatedValue ->
-            Text(animatedValue, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = textPrimary, maxLines = 1)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(label, style = Typography.labelSmall, color = textTertiary, maxLines = 1)
+                AnimatedContent(
+                    targetState = value,
+                    transitionSpec = {
+                        (slideInVertically { it / 3 } + fadeIn(tween(220))) togetherWith
+                            (slideOutVertically { -it / 3 } + fadeOut(tween(160)))
+                    },
+                    label = "statTileValue"
+                ) { animatedValue ->
+                    Text(animatedValue, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = textPrimary, maxLines = 1)
+                }
+            }
+
+            if (emoji != null) {
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(iconBg ?: Color(0xFFF1F5F9)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(emoji, fontSize = 16.sp)
+                }
+            } else if (icon != null) {
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(iconBg ?: Color(0xFFE6F4EC)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, contentDescription = null, tint = iconTint ?: primary, modifier = Modifier.size(18.dp))
+                }
+            }
         }
     }
 }
