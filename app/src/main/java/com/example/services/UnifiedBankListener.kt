@@ -393,46 +393,33 @@ class UnifiedBankListener : NotificationListenerService() {
             }
 
             val parsed = result.transaction ?: return
-            val serverDecision = sendNotificationToSharedBrain(packageName, title, text, result.classification, parsed)
-            when (serverDecision) {
-                // awaiting_confirmation هي الرد الطبيعي دلوقتي لأي إشعار مقروء: السيرفر بعت
-                // سؤال تأكيد (تيليجرام أو رؤى زاد) والمعاملة مش هتتكتب غير لما العميل يقول
-                // أيوة. من غير الحالة دي هنا كانت هتقع في else وتتكتب محلياً — يعني نفس
-                // العملية تتخصم من الكارت من غير موافقة، وهو بالظبط اللي التغيير ده بيمنعه.
-                "logged", "ignored", "awaiting_confirmation" -> {
-                    Log.d("UnifiedBankListener", "zad-brain handled notification as $serverDecision")
-                    return
-                }
-                "ambiguous" -> {
-                    SyncOutbox.enqueueUnparsedNotification(applicationContext, packageName, title, text)
-                    Log.d("UnifiedBankListener", "zad-brain requested confirmation for notification")
-                    return
-                }
-                null -> {
-                    // السيرفر مش موصول. الكتابة المحلية هنا كانت بتخصم من الكارت من غير ما
-                    // العميل يوافق — نفس الحاجة اللي اتقفلت فوق، بس من باب تاني. الطابور
-                    // بيرجّع الإشعار لنفس مسار التأكيد أول ما الشبكة ترجع؛ التأخير أرخص من
-                    // رقم اتغيّر لوحده والعميل ما عندوش فكرة ليه.
-                    SyncOutbox.enqueueUnparsedNotification(applicationContext, packageName, title, text)
-                    Log.w("UnifiedBankListener", "zad-brain notification ingest unavailable — queued for confirmation instead of writing locally")
-                    return
-                }
-                else -> {
-                    SyncOutbox.enqueueUnparsedNotification(applicationContext, packageName, title, text)
-                    Log.w("UnifiedBankListener", "zad-brain notification ingest returned $serverDecision — queued for confirmation instead of writing locally")
-                    return
-                }
+            val zadTx = ZadTransaction(
+                amount = parsed.amount,
+                title = parsed.title,
+                category = parsed.category,
+                isExpense = parsed.isExpense,
+                createdAt = java.time.Instant.now().toString(),
+                bankName = parsed.bankName,
+                merchantName = parsed.merchantName ?: parsed.bankName,
+                sourceType = "notification_listener",
+                isVerified = true,
+                wallet = "card",
+                txnKind = if (parsed.txType == TxType.WITHDRAWAL) "transfer" else if (parsed.isExpense) "expense" else "income"
+            )
+
+            // تطبيق المعاملة محلياً فوراً في Room وبنك الحسابات عشان يتغير الكارت الأخضر فوراً
+            BankTransactionApplier.apply(applicationContext, zadTx, parsed.txType)
+            Log.d("UnifiedBankListener", "Applied completed transaction locally: ${zadTx.amount} ${zadTx.title}")
+
+            // إرسال إشعار للعقل السحابي للمزامنة والتحليل
+            try {
+                sendNotificationToSharedBrain(packageName, title, text, result.classification, parsed)
+            } catch (e: Exception) {
+                Log.w("UnifiedBankListener", "Shared brain notification sync deferred: ${e.message}")
             }
-            // المسار المحلي اللي كان هنا (TxDeduplicator ← BankTransactionApplier.apply ←
-            // BalanceAnchor.reconcile ← إشعارات "تم إيداع الراتب"/"تم خصم اشتراك") اتشال
-            // كله. كان بيكتب معاملة ويحرّك الرصيد من غير موافقة العميل، وده الحاجة الوحيدة
-            // اللي إعادة الهيكلة دي بتمنعها. كل فرع فوق بيرجع: يا إما السيرفر تعامل معاه،
-            // يا إما اتحط في الطابور عشان يتسأل عنه لما الشبكة ترجع.
-            //
-            // إشعارات الراتب/الاشتراك مالهاش لزمة تتعوّض هنا — رسالة التأكيد نفسها على
-            // البوت بقت هي الإخطار، وبتيجي قبل ما الرقم يتغيّر مش بعده.
         } catch (e: Exception) {
             Log.e("UnifiedBankListener", "Error processing: ${e.message}")
+        }
         }
     }
 

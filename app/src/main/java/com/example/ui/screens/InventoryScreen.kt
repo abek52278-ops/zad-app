@@ -345,25 +345,65 @@ fun InventoryScreen(
                     }
                 }
             } else {
-                CategoryPills(
-                    selected = selectedCategory,
-                    onSelect = { selectedCategory = it }
-                )
+                // شريط فلترة الأقسام السريع والأنيق
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) {
+                    items(categoryDefs) { cat ->
+                        val isSel = selectedCategory == cat.key
+                        FilterChip(
+                            selected = isSel,
+                            onClick = { selectedCategory = cat.key },
+                            label = {
+                                Text(
+                                    cat.label,
+                                    fontSize = 12.5.sp,
+                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium
+                                )
+                            },
+                            leadingIcon = {
+                                Text(
+                                    when (cat.key) {
+                                        "الكل" -> "🏠"
+                                        "البقالة" -> "🥫"
+                                        "الخضار" -> "🥦"
+                                        "الفواكه" -> "🍎"
+                                        "اللحوم" -> "🥩"
+                                        "الألبان" -> "🥛"
+                                        "المشروبات" -> "🧃"
+                                        "العناية" -> "🧴"
+                                        else -> "📦"
+                                    },
+                                    fontSize = 14.sp
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = primaryContainer,
+                                selectedLabelColor = primary,
+                                containerColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+                }
 
                 if (allItems.isEmpty() && searchQuery.isBlank()) {
                     EmptyInventoryState(onNavigateToCamera = onNavigateToCamera)
                 } else if (filteredItems.isEmpty()) {
                     EmptySearchState()
                 } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        contentPadding = PaddingValues(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 80.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.fillMaxSize()
+                    // قائمة المنتجات مباشرة في صفوف رأسية متتالية وأنيقة
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(start = 10.dp, end = 10.dp, top = 4.dp, bottom = 90.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         itemsIndexed(filteredItems, key = { _, item -> item.id }) { index, item ->
-                            com.example.ui.components.AppearOnEntry(delayMs = (index * 30).coerceAtMost(300)) {
+                            com.example.ui.components.AppearOnEntry(delayMs = (index * 20).coerceAtMost(250)) {
                                 InventoryItemCard(
                                     item = item,
                                     onDelete = { viewModel.deleteInventory(item.id) },
@@ -692,92 +732,6 @@ private fun ExpiringSoonSection(
 }
 
 @Composable
-private fun CategoryPills(
-    selected: String,
-    onSelect: (String) -> Unit
-) {
-    // ── شبكة الأقسام المصوّرة (من مرجع "new ui ux" — IMG_20260703_231712.jpg) ──
-    // المرجع بيعرض الأقسام ككروت باستيل كبيرة في عمودين، كل كارت فيه صورة القسم
-    // والاسم تحتها — مش شريط حبوب صغير. بنستخدم إيموجي كبير بدل الصور الفوتوغرافية
-    // عشان تشتغل offline من غير أصول ثقيلة في الـ APK، وبنفس الباستيل بتاع المرجع.
-    val photoTiles = listOf(
-        CategoryTile("الخضار", "🧺", Color(0xFFE8F5E9)),
-        CategoryTile("البقالة", "🫒", Color(0xFFFFF8E7)),
-        CategoryTile("اللحوم", "🥩", Color(0xFFFFEBEE)),
-        CategoryTile("الفواكه", "🍎", Color(0xFFFCE4EC)),
-        CategoryTile("الألبان", "🥛", Color(0xFFFFF9E6)),
-        CategoryTile("المشروبات", "🥤", Color(0xFFE3F2FD)),
-    )
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-        contentPadding = PaddingValues(horizontal = 2.dp),
-        modifier = Modifier.height(((photoTiles.size + 1) / 2 * 132).dp)
-    ) {
-        // كارت "الكل" الأول — بيضاء محايدة زي المرجع
-        item {
-            CategoryPhotoTile(
-                label = "الكل",
-                emoji = "🏠",
-                bg = Color(0xFFF5F5F5),
-                isSelected = selected == "الكل",
-                onClick = { onSelect("الكل") }
-            )
-        }
-        items(photoTiles.size) { idx ->
-            val tile = photoTiles[idx]
-            CategoryPhotoTile(
-                label = tile.label,
-                emoji = tile.emoji,
-                bg = tile.bg,
-                isSelected = selected == tile.label,
-                onClick = { onSelect(tile.label) }
-            )
-        }
-    }
-}
-
-private data class CategoryTile(val label: String, val emoji: String, val bg: Color)
-
-@Composable
-private fun CategoryPhotoTile(
-    label: String,
-    emoji: String,
-    bg: Color,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    // كارت المرجع: باستيل فاتح، radius كبير، الصورة فوق والاسم تحتها في النص.
-    // المحدد بياخد حدود خضراء 2dp — نفس لغة التحديد في باقي التطبيق.
-    val shape = RoundedCornerShape(20.dp)
-    Column(
-        modifier = Modifier
-            .aspectRatio(1.35f)
-            .zadCardShadow(shape, elevation = if (isSelected) 6.dp else 3.dp)
-            .clip(shape)
-            .background(bg)
-            .border(
-                width = if (isSelected) 2.dp else 0.dp,
-                color = if (isSelected) primary else Color.Transparent,
-                shape = shape
-            )
-            .clickable { onClick() }
-            .pressableScale(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(emoji, fontSize = 44.sp)
-        Spacer(Modifier.height(8.dp))
-        Text(
-            label,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            color = textPrimary,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-        )
-    }
-}
 
 @Composable
 private fun EmptyInventoryState(onNavigateToCamera: () -> Unit) {
@@ -825,180 +779,159 @@ private fun InventoryItemCard(
     val days = daysUntilExpiry(item.expiryDate)
     val catDef = categoryDefFor(item.category, item.itemName)
     val isLowStock = item.quantity <= (item.lowStockThreshold ?: 2)
-    val cardShape = RoundedCornerShape(12.dp)
+    val cardShape = RoundedCornerShape(18.dp)
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .zadCardShadow(cardShape, elevation = 4.dp)
+            .zadCardShadow(cardShape, elevation = 2.dp)
             .clip(cardShape)
-            .background(
-                Brush.verticalGradient(listOf(catDef.bg.copy(alpha = 0.35f), surface))
-            )
-            .border(1.dp, catDef.bg.copy(alpha = 0.7f), cardShape)
+            .background(Color.White)
+            .border(1.dp, Color(0xFFE2E8F0), cardShape)
             .pressableScale()
     ) {
-        Column(
-            modifier = Modifier.padding(6.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+            // أيقونة التصنيف
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(catDef.bg),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(catDef.bg),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = getEmojiForItem(item.itemName, item.category),
-                        fontSize = 16.sp,
-                        modifier = Modifier.floatingIdle(amplitude = 1.5f)
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .size(7.dp)
-                        .clip(CircleShape)
-                        .background(expiryColor(days))
+                Text(
+                    text = resolveFoodEmoji(item.itemName),
+                    fontSize = 22.sp,
+                    modifier = Modifier.floatingIdle(amplitude = 1.2f)
                 )
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
-            Text(
-                item.itemName,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                color = onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                fontSize = 13.sp,
-                lineHeight = 16.sp
-            )
+            // تفاصيل المنتج
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = item.itemName,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (isLowStock) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(99.dp))
+                                .background(Color(0xFFFEE2E2))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                stringResource(R.string.low_stock_badge),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFDC2626)
+                            )
+                        }
+                    }
+                }
 
-            Spacer(modifier = Modifier.height(3.dp))
+                Spacer(modifier = Modifier.height(3.dp))
 
-            // تحكم بالكمية: − استهلاك (يغذي التعلم والنواقص) / + إعادة تعبئة
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (days != null) {
+                        Text(
+                            text = if (days <= 0) stringResource(R.string.expired_short) else stringResource(R.string.days_count, days),
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = expiryColor(days)
+                        )
+                        Text("•", fontSize = 10.sp, color = Color(0xFF94A3B8))
+                    }
+                    Text(
+                        text = catDef.label,
+                        fontSize = 11.5.sp,
+                        color = Color(0xFF64748B)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                val animatedStock by androidx.compose.animation.core.animateFloatAsState(
+                    targetValue = stockRatio(item),
+                    animationSpec = com.example.ui.components.ZadSprings.Screen,
+                    label = "stockRatio"
+                )
+                LinearProgressIndicator(
+                    progress = { animatedStock },
+                    modifier = Modifier
+                        .fillMaxWidth(0.85f)
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(2.dp)),
+                    color = stockColor(item),
+                    trackColor = Color(0xFFF1F5F9)
+                )
+            }
+
+            // أزرار التحكم بالكمية
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(surfaceContainerLow)
-                    .padding(horizontal = 2.dp),
+                    .background(Color(0xFFF1F5F9))
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
                     onClick = onConsume,
                     enabled = item.quantity > 0,
-                    modifier = Modifier.size(22.dp).pressableScale()
+                    modifier = Modifier.size(26.dp).pressableScale()
                 ) {
                     Icon(
                         Icons.Default.RemoveCircleOutline,
                         contentDescription = stringResource(R.string.consume_one_cd),
                         tint = if (item.quantity > 0) dangerColor else outline,
-                        modifier = Modifier.size(15.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
                 Text(
-                    "${item.quantity} ${item.unit ?: ""}",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = onSurface,
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(horizontal = 2.dp)
+                    text = "${item.quantity} ${item.unit ?: ""}",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFF0F172A),
+                    modifier = Modifier.padding(horizontal = 4.dp)
                 )
                 IconButton(
                     onClick = onRestock,
-                    modifier = Modifier.size(22.dp).pressableScale()
+                    modifier = Modifier.size(26.dp).pressableScale()
                 ) {
                     Icon(
                         Icons.Default.AddCircleOutline,
                         contentDescription = stringResource(R.string.restock_one_cd),
                         tint = primary,
-                        modifier = Modifier.size(15.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
-            val animatedStock by androidx.compose.animation.core.animateFloatAsState(
-                targetValue = stockRatio(item),
-                animationSpec = com.example.ui.components.ZadSprings.Screen,
-                label = "stockRatio"
-            )
-            LinearProgressIndicator(
-                progress = { animatedStock },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(3.dp)
-                    .clip(RoundedCornerShape(2.dp)),
-                color = stockColor(item),
-                trackColor = outlineVariant
-            )
+            Spacer(modifier = Modifier.width(4.dp))
 
-            if (days != null) {
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    if (days <= 0) stringResource(R.string.expired_short) else stringResource(R.string.days_count, days),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Medium,
-                    color = expiryColor(days),
-                    fontSize = 9.5.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // تعديل وحذف
+            IconButton(
+                onClick = onEdit,
+                modifier = Modifier.size(26.dp).pressableScale()
             ) {
-                if (isLowStock) {
-                    Surface(
-                        shape = RoundedCornerShape(50),
-                        color = dangerColor.copy(alpha = 0.1f)
-                    ) {
-                        Text(
-                            stringResource(R.string.low_stock_badge),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = dangerColor,
-                            fontSize = 9.5.sp,
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                        )
-                    }
-                } else {
-                    Spacer(modifier = Modifier.width(1.dp))
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(1.dp)) {
-                    IconButton(
-                        onClick = onEdit,
-                        modifier = Modifier.size(22.dp).pressableScale()
-                    ) {
-                        Icon(
-                            Icons.Default.Edit,
-                            contentDescription = stringResource(R.string.inventory_edit_title),
-                            tint = outline,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-                    IconButton(
-                        onClick = onDelete,
-                        modifier = Modifier.size(22.dp).pressableScale()
-                    ) {
-                        Icon(
-                            Icons.Default.DeleteOutline,
-                            contentDescription = stringResource(R.string.delete_cd),
-                            tint = outline,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-                }
+                Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.inventory_edit_title), tint = Color(0xFF94A3B8), modifier = Modifier.size(15.dp))
+            }
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier.size(26.dp).pressableScale()
+            ) {
+                Icon(Icons.Default.DeleteOutline, contentDescription = stringResource(R.string.delete_cd), tint = Color(0xFF94A3B8), modifier = Modifier.size(15.dp))
             }
         }
     }

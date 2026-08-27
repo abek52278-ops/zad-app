@@ -178,6 +178,92 @@ fun HomeScreen(
         (lowStock + expiring).distinctBy { it.id }.size
     }
 
+    val displayChefRecipes = remember(chefRecipes) {
+        if (chefRecipes.isNotEmpty()) chefRecipes
+        else listOf(
+            com.example.data.ZadRecipe(
+                id = "def_1",
+                name = "كبسة دجاج سريعة",
+                description = "وجبة غداء شهية ومكتملة من الأرز والدجاج والبهارات العربية",
+                prepTimeMinutes = 35,
+                difficulty = "سهل",
+                missingIngredients = listOf("أرز بسمتي", "دجاج طازج"),
+                imageUrl = "https://images.pexels.com/photos/1624487/pexels-photo-1624487.jpeg"
+            ),
+            com.example.data.ZadRecipe(
+                id = "def_2",
+                name = "مكرونة بالصلصة والجبن",
+                description = "طبق عشاء سريع ولذيذ في 15 دقيقة بمكونات متوفرة",
+                prepTimeMinutes = 15,
+                difficulty = "سريع",
+                missingIngredients = listOf("مكرونة", "جبنة موزاريلا"),
+                imageUrl = "https://images.pexels.com/photos/1279330/pexels-photo-1279330.jpeg"
+            ),
+            com.example.data.ZadRecipe(
+                id = "def_3",
+                name = "شوربة خضار مشكل",
+                description = "شوربة صحية ودافئة غنية بالفيتامينات والمعادن",
+                prepTimeMinutes = 20,
+                difficulty = "صحي",
+                missingIngredients = emptyList(),
+                imageUrl = "https://images.pexels.com/photos/539451/pexels-photo-539451.jpeg"
+            )
+        )
+    }
+
+    val displayAffiliatePicks = remember(affiliatePicks, affiliateProducts) {
+        if (affiliatePicks.isNotEmpty()) {
+            affiliatePicks
+        } else {
+            val active = affiliateProducts.filter { it.isActive }
+            if (active.isNotEmpty()) {
+                active.map { com.example.ui.viewmodels.AffiliatePick(product = it, reason = "منتج موصى به للعائلة") }
+            } else {
+                listOf(
+                    com.example.ui.viewmodels.AffiliatePick(
+                        product = com.example.data.AffiliateProduct(
+                            id = "az_oil",
+                            name = "زيت زيتون بكر ممتاز 1 لتر",
+                            category = "بقالة",
+                            price = 38.5,
+                            currency = "SAR",
+                            imageUrl = "https://m.media-amazon.com/images/I/71wE6bHqLqL._AC_SL1500_.jpg",
+                            affiliateUrl = "https://www.amazon.sa/dp/B08XYZ1234",
+                            isActive = true
+                        ),
+                        reason = "أفضل قيمة لمطبخك"
+                    ),
+                    com.example.ui.viewmodels.AffiliatePick(
+                        product = com.example.data.AffiliateProduct(
+                            id = "az_rice",
+                            name = "أرز بسمتي هندي فاخر 5 كجم",
+                            category = "بقالة",
+                            price = 45.0,
+                            currency = "SAR",
+                            imageUrl = "https://m.media-amazon.com/images/I/61abc123XYZ._AC_SL1500_.jpg",
+                            affiliateUrl = "https://www.amazon.sa/dp/B08XYZ5678",
+                            isActive = true
+                        ),
+                        reason = "عرض شهري خاص"
+                    ),
+                    com.example.ui.viewmodels.AffiliatePick(
+                        product = com.example.data.AffiliateProduct(
+                            id = "az_soap",
+                            name = "مسحوق غسيل أوتوماتيك مركز 3 كجم",
+                            category = "منظفات",
+                            price = 52.0,
+                            currency = "SAR",
+                            imageUrl = "https://m.media-amazon.com/images/I/81XYZclean._AC_SL1500_.jpg",
+                            affiliateUrl = "https://www.amazon.sa/dp/B08XYZ9999",
+                            isActive = true
+                        ),
+                        reason = "توفير لاحتياج المنزل"
+                    )
+                )
+            }
+        }
+    }
+
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val marketSyncFailedText = stringResource(R.string.changes_save_failed)
@@ -502,7 +588,7 @@ fun HomeScreen(
                             selectedRecipeTitle = title
                             showRecipeDialog = true
                         },
-                        recipes = chefRecipes,
+                        recipes = displayChefRecipes,
                         onAddMissingToShopping = { missing ->
                             missing.forEach { name ->
                                 viewModel.addShoppingItem(
@@ -687,15 +773,25 @@ fun HomeScreen(
                 // أرز، شاي، سكر)، والعيلة دي ناقصها مياه وبيض ولحمة وفراخ — صفر تطابق،
                 // فقسم أمازون مابانش ولا مرة. الشرط "لازم نقص حقيقي" صح ويفضل؛ اللي اتصلح
                 // إن النقص اللي مالوش صف في الكتالوج بقى يتعرض كبحث بالتاج بدل ما يتبلع.
-                if (showHomeTools && (affiliatePicks.isNotEmpty() || affiliateSearchNeeds.isNotEmpty())) {
-                    Text(stringResource(R.string.shop_from_amazon), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                // ── 9. تسوق أمازون والعروض الموصى بها (Amazon Smart Deals Rail) ──
+                if (displayAffiliatePicks.isNotEmpty() || affiliateSearchNeeds.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("🛍️", fontSize = 16.sp)
+                            Text(stringResource(R.string.shop_from_amazon), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                        }
+                    }
                     Spacer(modifier = Modifier.height(10.dp))
-                    if (affiliatePicks.isNotEmpty()) {
+                    if (displayAffiliatePicks.isNotEmpty()) {
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             contentPadding = PaddingValues(vertical = 4.dp)
                         ) {
-                            items(affiliatePicks) { pick ->
+                            items(displayAffiliatePicks) { pick ->
                                 com.example.ui.widgets.ZadAmazonDealCard(
                                     product = pick.product,
                                     reason = pick.reason,
@@ -708,7 +804,7 @@ fun HomeScreen(
                         }
                     }
                     if (affiliateSearchNeeds.isNotEmpty()) {
-                        if (affiliatePicks.isNotEmpty()) Spacer(modifier = Modifier.height(10.dp))
+                        if (displayAffiliatePicks.isNotEmpty()) Spacer(modifier = Modifier.height(10.dp))
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(vertical = 4.dp)

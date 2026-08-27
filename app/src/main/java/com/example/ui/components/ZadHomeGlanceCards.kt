@@ -108,8 +108,61 @@ fun ZadHorizontalShortcutsRail(
 }
 
 /**
+ * ── قاموس إيموجي الأغذية الغني والشامل لجميع أصناف المطبخ والمخزون العربي والخليجي ──
+ */
+fun resolveFoodEmoji(name: String): String {
+    val n = name.trim().lowercase()
+    return when {
+        n.contains("موز") || n.contains("banana") -> "🍌"
+        n.contains("تفاح") || n.contains("apple") -> "🍎"
+        n.contains("برتقال") || n.contains("يوسفي") || n.contains("orange") -> "🍊"
+        n.contains("فراول") || n.contains("strawberr") -> "🍓"
+        n.contains("عنب") || n.contains("grape") -> "🍇"
+        n.contains("بطيخ") || n.contains("شمام") || n.contains("melon") -> "🍉"
+        n.contains("تمر") || n.contains("بلح") || n.contains("رطب") || n.contains("date") -> "🌴"
+        n.contains("ليمون") || n.contains("lemon") -> "🍋"
+        n.contains("طماطم") || n.contains("بندورة") || n.contains("tomato") -> "🍅"
+        n.contains("بطاطس") || n.contains("بطاطا") || n.contains("potato") -> "🥔"
+        n.contains("بصل") || n.contains("onion") -> "🧅"
+        n.contains("ثوم") || n.contains("garlic") -> "🧄"
+        n.contains("خيار") || n.contains("cucumber") -> "🥒"
+        n.contains("جزر") || n.contains("carrot") -> "🥕"
+        n.contains("خس") || n.contains("سلطة") || n.contains("جرجير") || n.contains("salad") -> "🥬"
+        n.contains("فلفل") || n.contains("شطة") || n.contains("pepper") -> "🫑"
+        n.contains("أرز") || n.contains("رز") || n.contains("عيش") || n.contains("rice") -> "🍚"
+        n.contains("دجاج") || n.contains("فراخ") || n.contains("شاورما") || n.contains("chicken") -> "🍗"
+        n.contains("لحم") || n.contains("كفتة") || n.contains("برجر") || n.contains("ستيك") || n.contains("meat") || n.contains("beef") -> "🥩"
+        n.contains("سمك") || n.contains("تونة") || n.contains("جمبري") || n.contains("سالمون") || n.contains("fish") || n.contains("tuna") -> "🐟"
+        n.contains("بيض") || n.contains("egg") -> "🥚"
+        n.contains("حليب") || n.contains("لبن") || n.contains("milk") -> "🥛"
+        n.contains("زبادي") || n.contains("لبنة") || n.contains("روب") || n.contains("yogurt") -> "🥣"
+        n.contains("جبن") || n.contains("جبنة") || n.contains("قشطة") || n.contains("cheese") -> "🧀"
+        n.contains("زبدة") || n.contains("سمن") || n.contains("butter") -> "🧈"
+        n.contains("خبز") || n.contains("توست") || n.contains("صامولي") || n.contains("فينو") || n.contains("فطير") || n.contains("bread") -> "🍞"
+        n.contains("مكرونة") || n.contains("معكرونة") || n.contains("باستا") || n.contains("نودلز") || n.contains("اندومي") || n.contains("pasta") || n.contains("noodle") -> "🍝"
+        n.contains("زيت") || n.contains("زيتون") || n.contains("oil") || n.contains("olive") -> "🫒"
+        n.contains("سكر") || n.contains("sugar") -> "🧂"
+        n.contains("ملح") || n.contains("بهار") || n.contains("salt") -> "🧂"
+        n.contains("شاي") || n.contains("كرك") || n.contains("tea") -> "🫖"
+        n.contains("قهوة") || n.contains("بن") || n.contains("نسكافيه") || n.contains("اسبريسو") || n.contains("coffee") -> "☕"
+        n.contains("عصير") || n.contains("juice") -> "🧃"
+        n.contains("ماء") || n.contains("مياه") || n.contains("water") -> "💧"
+        n.contains("مايونيز") || n.contains("mayo") -> "🥫"
+        n.contains("كاتشب") || n.contains("صلصة") || n.contains("طحينة") || n.contains("sauce") -> "🥫"
+        n.contains("شيبس") || n.contains("شيبسي") || n.contains("chips") -> "🍟"
+        n.contains("شوكولات") || n.contains("نوتيلا") || n.contains("كيك") || n.contains("chocolate") -> "🍫"
+        n.contains("بسكويت") || n.contains("كوكيز") || n.contains("cookie") -> "🍪"
+        n.contains("صابون") || n.contains("مسحوق") || n.contains("شامبو") || n.contains("كلور") || n.contains("تايد") || n.contains("soap") -> "🧼"
+        n.contains("مناديل") || n.contains("فاين") || n.contains("tissue") -> "🧻"
+        n.contains("بنزين") || n.contains("وقود") || n.contains("fuel") -> "⛽"
+        n.contains("دواء") || n.contains("علاج") || n.contains("مسكن") || n.contains("بنادول") || n.contains("panadol") -> "💊"
+        else -> "🍽️"
+    }
+}
+
+/**
  * ── 2. إيدج صحة المخزون والنواقص (Food Inventory Health & Shortages) ──
- * كروت بيضاء بزوايا 18dp وأيقونات الأغذية الحية ومؤشر الأيام المتبقية
+ * شريط تمرير أفقي كروت بيضاء بزوايا 18dp وأيقونات الأغذية الحية ومؤشر الأيام
  */
 data class FoodItemSample(
     val name: String,
@@ -130,26 +183,19 @@ fun ZadFoodShortagesGlanceCard(
 ) {
     val sampleItems = remember(inventory) {
         if (inventory.isNotEmpty()) {
-            inventory.take(4).map {
+            inventory.map {
                 val catBg = when (it.category) {
                     "فاكهة" -> Color(0xFFFCEAEA)
                     "خضار" -> Color(0xFFE9F5E9)
                     "ألبان" -> Color(0xFFEAF2FB)
                     "مخبوزات" -> Color(0xFFFBF1E3)
+                    "لحوم" -> Color(0xFFFFEBEE)
+                    "مشروبات" -> Color(0xFFE3F2FD)
                     else -> Color(0xFFF1F5F9)
                 }
                 FoodItemSample(
                     name = it.itemName,
-                    emoji = when {
-                        it.itemName.contains("موز") -> "🍌"
-                        it.itemName.contains("تفاح") -> "🍎"
-                        it.itemName.contains("حليب") -> "🥛"
-                        it.itemName.contains("طماطم") -> "🍅"
-                        it.itemName.contains("خبز") -> "🍞"
-                        it.itemName.contains("جبن") -> "🧀"
-                        it.itemName.contains("عصير") -> "🧃"
-                        else -> "🥑"
-                    },
+                    emoji = resolveFoodEmoji(it.itemName),
                     category = it.category ?: "عام",
                     daysLeft = it.quantity.toInt().coerceAtLeast(1),
                     isLow = it.quantity <= 2,
@@ -162,7 +208,10 @@ fun ZadFoodShortagesGlanceCard(
                 FoodItemSample("موز طازج", "🍌", "فاكهة", 2, true, Color(0xFFFCEAEA)),
                 FoodItemSample("تفاح أحمر", "🍎", "فاكهة", 6, false, Color(0xFFFCEAEA)),
                 FoodItemSample("حليب كامل", "🥛", "ألبان", 1, true, Color(0xFFEAF2FB)),
-                FoodItemSample("خبز بلدي", "🍞", "مخبوزات", 3, false, Color(0xFFFBF1E3))
+                FoodItemSample("خبز بلدي", "🍞", "مخبوزات", 3, false, Color(0xFFFBF1E3)),
+                FoodItemSample("دجاج طازج", "🍗", "لحوم", 2, true, Color(0xFFFFEBEE)),
+                FoodItemSample("أرز بسمتي", "🍚", "بقالة", 8, false, Color(0xFFFFF8E7)),
+                FoodItemSample("زيت زيتون", "🫒", "بقالة", 12, false, Color(0xFFE8F5E9))
             )
         }
     }
@@ -201,17 +250,18 @@ fun ZadFoodShortagesGlanceCard(
             }
         }
 
-        // 2x2 Grid of Food Items
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            sampleItems.take(2).forEach { item ->
-                FoodGlanceTile(item = item, modifier = Modifier.weight(1f), onConfirm = { item.rawItem?.let { onConfirmItem(it) } })
-            }
-        }
-        if (sampleItems.size > 2) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                sampleItems.drop(2).take(2).forEach { item ->
-                    FoodGlanceTile(item = item, modifier = Modifier.weight(1f), onConfirm = { item.rawItem?.let { onConfirmItem(it) } })
-                }
+        // شريط تمرير أفقي انسيابي للنواقص والأصناف (Horizontal Scrollable Rail)
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(horizontal = 2.dp)
+        ) {
+            items(sampleItems) { item ->
+                FoodGlanceTile(
+                    item = item,
+                    modifier = Modifier.width(155.dp),
+                    onConfirm = { item.rawItem?.let { onConfirmItem(it) } }
+                )
             }
         }
     }
