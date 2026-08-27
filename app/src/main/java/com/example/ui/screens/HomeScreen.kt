@@ -182,31 +182,19 @@ fun HomeScreen(
         if (chefRecipes.isNotEmpty()) chefRecipes
         else listOf(
             com.example.data.ZadRecipe(
-                id = "def_1",
-                name = "كبسة دجاج سريعة",
-                description = "وجبة غداء شهية ومكتملة من الأرز والدجاج والبهارات العربية",
-                prepTimeMinutes = 35,
-                difficulty = "سهل",
-                missingIngredients = listOf("أرز بسمتي", "دجاج طازج"),
-                imageUrl = "https://images.pexels.com/photos/1624487/pexels-photo-1624487.jpeg"
+                recipeName = "كبسة دجاج سريعة",
+                imageUrl = "https://images.pexels.com/photos/1624487/pexels-photo-1624487.jpeg",
+                prepTimeMinutes = 35
             ),
             com.example.data.ZadRecipe(
-                id = "def_2",
-                name = "مكرونة بالصلصة والجبن",
-                description = "طبق عشاء سريع ولذيذ في 15 دقيقة بمكونات متوفرة",
-                prepTimeMinutes = 15,
-                difficulty = "سريع",
-                missingIngredients = listOf("مكرونة", "جبنة موزاريلا"),
-                imageUrl = "https://images.pexels.com/photos/1279330/pexels-photo-1279330.jpeg"
+                recipeName = "مكرونة بالصلصة والجبن",
+                imageUrl = "https://images.pexels.com/photos/1279330/pexels-photo-1279330.jpeg",
+                prepTimeMinutes = 15
             ),
             com.example.data.ZadRecipe(
-                id = "def_3",
-                name = "شوربة خضار مشكل",
-                description = "شوربة صحية ودافئة غنية بالفيتامينات والمعادن",
-                prepTimeMinutes = 20,
-                difficulty = "صحي",
-                missingIngredients = emptyList(),
-                imageUrl = "https://images.pexels.com/photos/539451/pexels-photo-539451.jpeg"
+                recipeName = "شوربة خضار مشكل",
+                imageUrl = "https://images.pexels.com/photos/539451/pexels-photo-539451.jpeg",
+                prepTimeMinutes = 20
             )
         )
     }
@@ -217,47 +205,44 @@ fun HomeScreen(
         } else {
             val active = affiliateProducts.filter { it.isActive }
             if (active.isNotEmpty()) {
-                active.map { com.example.ui.viewmodels.AffiliatePick(product = it, reason = "منتج موصى به للعائلة") }
+                active.map { com.example.ui.viewmodels.ZadViewModel.AffiliatePick(product = it, reason = "منتج موصى به للعائلة", score = 1) }
             } else {
                 listOf(
-                    com.example.ui.viewmodels.AffiliatePick(
+                    com.example.ui.viewmodels.ZadViewModel.AffiliatePick(
                         product = com.example.data.AffiliateProduct(
                             id = "az_oil",
-                            name = "زيت زيتون بكر ممتاز 1 لتر",
+                            productNameAr = "زيت زيتون بكر ممتاز 1 لتر",
                             category = "بقالة",
-                            price = 38.5,
-                            currency = "SAR",
+                            averagePriceSar = 38.5,
                             imageUrl = "https://m.media-amazon.com/images/I/71wE6bHqLqL._AC_SL1500_.jpg",
-                            affiliateUrl = "https://www.amazon.sa/dp/B08XYZ1234",
                             isActive = true
                         ),
-                        reason = "أفضل قيمة لمطبخك"
+                        reason = "أفضل قيمة لمطبخك",
+                        score = 1
                     ),
-                    com.example.ui.viewmodels.AffiliatePick(
+                    com.example.ui.viewmodels.ZadViewModel.AffiliatePick(
                         product = com.example.data.AffiliateProduct(
                             id = "az_rice",
-                            name = "أرز بسمتي هندي فاخر 5 كجم",
+                            productNameAr = "أرز بسمتي هندي فاخر 5 كجم",
                             category = "بقالة",
-                            price = 45.0,
-                            currency = "SAR",
+                            averagePriceSar = 45.0,
                             imageUrl = "https://m.media-amazon.com/images/I/61abc123XYZ._AC_SL1500_.jpg",
-                            affiliateUrl = "https://www.amazon.sa/dp/B08XYZ5678",
                             isActive = true
                         ),
-                        reason = "عرض شهري خاص"
+                        reason = "عرض شهري خاص",
+                        score = 1
                     ),
-                    com.example.ui.viewmodels.AffiliatePick(
+                    com.example.ui.viewmodels.ZadViewModel.AffiliatePick(
                         product = com.example.data.AffiliateProduct(
                             id = "az_soap",
-                            name = "مسحوق غسيل أوتوماتيك مركز 3 كجم",
+                            productNameAr = "مسحوق غسيل أوتوماتيك مركز 3 كجم",
                             category = "منظفات",
-                            price = 52.0,
-                            currency = "SAR",
+                            averagePriceSar = 52.0,
                             imageUrl = "https://m.media-amazon.com/images/I/81XYZclean._AC_SL1500_.jpg",
-                            affiliateUrl = "https://www.amazon.sa/dp/B08XYZ9999",
                             isActive = true
                         ),
-                        reason = "توفير لاحتياج المنزل"
+                        reason = "توفير لاحتياج المنزل",
+                        score = 1
                     )
                 )
             }

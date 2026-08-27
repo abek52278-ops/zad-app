@@ -805,18 +805,11 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // تهيئة Google Play Billing لترقية الباقات وتأكيد الاشتراكات
+        // تهيئة Google Play Billing لترقية الباقات وتأكيد الاشتراكات.
+        // المانجر الجديد singleton (getInstance) — والتحقق بيحصل server-side جوه
+        // verifyWithServerWebhook → verify-purchase Edge Function، فمفيش callback من هنا.
         try {
-            com.example.billing.GooglePlayBillingManager.initialize(application)
-            com.example.billing.GooglePlayBillingManager.setVerificationCallback { tier, isAnnual, token, orderId ->
-                val success = SupabaseRepo.verifyGooglePlayPurchase(tier, isAnnual, token, orderId)
-                if (success) {
-                    val prefs = getApplication<Application>().getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
-                    prefs.edit().putString("user_tier", tier).apply()
-                    maybeAutoRefreshAgentSummary(force = true)
-                }
-                success
-            }
+            com.example.billing.GooglePlayBillingManager.getInstance(application)
         } catch (e: Exception) {
             Log.e(TAG, "GooglePlayBillingManager init error: ${e.message}")
         }

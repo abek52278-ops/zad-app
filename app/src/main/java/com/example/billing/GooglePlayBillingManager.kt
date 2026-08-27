@@ -256,13 +256,14 @@ class GooglePlayBillingManager private constructor(private val context: Context)
     private suspend fun verifyWithServerWebhook(purchase: Purchase) {
         try {
             val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
-            val payload = mapOf(
+            @Suppress("UNCHECKED_CAST")
+            val payload = mapOf<String, Any>(
                 "action" to "verify_google_play_purchase",
-                "user_id" to userId,
-                "order_id" to purchase.orderId,
+                "user_id" to (userId ?: ""),
+                "order_id" to (purchase.orderId ?: ""),
                 "purchase_token" to purchase.purchaseToken,
                 "package_name" to context.packageName,
-                "products" to purchase.products,
+                "products" to (purchase.products as List<Any>),
                 "purchase_time" to purchase.purchaseTime
             )
             SupabaseRepo.callEdgeFunction("zad-billing-webhook", payload)

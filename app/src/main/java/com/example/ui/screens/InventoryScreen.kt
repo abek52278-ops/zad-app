@@ -6,7 +6,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -732,8 +734,6 @@ private fun ExpiringSoonSection(
 }
 
 @Composable
-
-@Composable
 private fun EmptyInventoryState(onNavigateToCamera: () -> Unit) {
     com.example.ui.components.ZadEmptyState(
         icon = Icons.Default.Inventory2,
@@ -805,7 +805,7 @@ private fun InventoryItemCard(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = resolveFoodEmoji(item.itemName),
+                    text = com.example.ui.components.resolveFoodEmoji(item.itemName),
                     fontSize = 22.sp,
                     modifier = Modifier.floatingIdle(amplitude = 1.2f)
                 )
