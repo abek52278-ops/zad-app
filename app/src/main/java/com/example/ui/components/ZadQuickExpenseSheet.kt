@@ -114,7 +114,7 @@ fun ZadQuickExpenseSheet(
                 }
             }
 
-            Divider(color = Color(0xFFF3F4F6))
+            HorizontalDivider(color = Color(0xFFF3F4F6))
 
             // Name field
             QuickExpenseField(
@@ -213,9 +213,7 @@ private fun QuickExpenseField(
                 unfocusedBorderColor = Color(0xFFE5E7EB),
                 focusedContainerColor = Color.White,
                 unfocusedContainerColor = Color(0xFFF9FAFB),
-                cursorColor = primary,
-                focusedTextColor = textPrimary,
-                unfocusedTextColor = textPrimary
+                cursorColor = primary
             ),
             keyboardOptions = KeyboardOptions(imeAction = imeAction, keyboardType = keyboardType),
             keyboardActions = KeyboardActions(

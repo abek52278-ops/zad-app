@@ -42,7 +42,10 @@ fun ZadBezierSpendChart(
         animationSpec = tween(durationMillis = 900, easing = FastOutSlowInEasing),
         label = "chartDraw"
     )
-    LaunchedEffect(weeklySpend) { triggered = false; triggered = true }
+    LaunchedEffect(weeklySpend) {
+        triggered = false
+        triggered = true
+    }
 
     val days = listOf("أحد", "إثن", "ثلا", "أرب", "خمس", "جمع", "سبت")
     val data: List<Pair<String, Double>> = when {
@@ -75,11 +78,18 @@ fun ZadBezierSpendChart(
             if (weeklySpend.isEmpty()) {
                 ShimmerChartPlaceholder()
             } else {
-                Canvas(modifier = Modifier.fillMaxWidth().height(120.dp)) {
-                    val w = size.width; val h = size.height
-                    val topPad = 24.dp.toPx(); val botPad = 20.dp.toPx()
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                ) {
+                    val w = size.width
+                    val h = size.height
+                    val topPad = 24.dp.toPx()
+                    val botPad = 20.dp.toPx()
                     val chartH = h - topPad - botPad
-                    val n = data.size; val stepX = w / (n - 1).toFloat()
+                    val n = data.size
+                    val stepX = w / (n - 1).toFloat()
 
                     fun xAt(i: Int) = i * stepX
                     fun yAt(i: Int) = topPad + chartH * (1f - (data[i].second / maxVal).toFloat())
@@ -89,7 +99,8 @@ fun ZadBezierSpendChart(
                         moveTo(pts[0].x, pts[0].y)
                         for (i in 0 until n - 1) {
                             val p0 = if (i == 0) pts[0] else pts[i - 1]
-                            val p1 = pts[i]; val p2 = pts[i + 1]
+                            val p1 = pts[i]
+                            val p2 = pts[i + 1]
                             val p3 = if (i + 2 < n) pts[i + 2] else pts[n - 1]
                             cubicTo(
                                 p1.x + (p2.x - p0.x) / 6f, p1.y + (p2.y - p0.y) / 6f,
@@ -101,7 +112,12 @@ fun ZadBezierSpendChart(
 
                     for (g in 1..3) {
                         val gy = topPad + chartH * (g / 4f)
-                        drawLine(Color(0x0F000000), Offset(0f, gy), Offset(w, gy), 1.dp.toPx())
+                        drawLine(
+                            color = Color(0x0F000000),
+                            start = Offset(0f, gy),
+                            end = Offset(w, gy),
+                            strokeWidth = 1.dp.toPx()
+                        )
                     }
 
                     val fillPath = Path().apply {
@@ -110,35 +126,72 @@ fun ZadBezierSpendChart(
                         lineTo(0f, h - botPad)
                         close()
                     }
-                    drawPath(fillPath, Brush.verticalGradient(
-                        listOf(primary.copy(alpha = 0.18f), Color.Transparent), topPad, h - botPad))
+                    drawPath(
+                        path = fillPath,
+                        brush = Brush.verticalGradient(
+                            colors = listOf(primary.copy(alpha = 0.18f), Color.Transparent),
+                            startY = topPad,
+                            endY = h - botPad
+                        )
+                    )
 
                     drawContext.canvas.save()
                     drawContext.canvas.clipRect(Rect(0f, 0f, w * drawProgress, h))
-                    drawPath(curvePath, primary, style = Stroke(2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+                    drawPath(
+                        path = curvePath,
+                        color = primary,
+                        style = Stroke(
+                            width = 2.5.dp.toPx(),
+                            cap = StrokeCap.Round,
+                            join = StrokeJoin.Round
+                        )
+                    )
                     drawContext.canvas.restore()
 
                     if (drawProgress > 0.85f && peakIdx >= 0 && data[peakIdx].second > 0) {
-                        val px = pts[peakIdx].x; val py = pts[peakIdx].y
-                        drawCircle(primary.copy(alpha = 0.15f), 14.dp.toPx(), Offset(px, py))
-                        drawCircle(Color.White, 8.dp.toPx(), Offset(px, py))
-                        drawCircle(primary, 6.dp.toPx(), Offset(px, py))
+                        val px = pts[peakIdx].x
+                        val py = pts[peakIdx].y
+                        drawCircle(
+                            color = primary.copy(alpha = 0.15f),
+                            radius = 14.dp.toPx(),
+                            center = Offset(px, py)
+                        )
+                        drawCircle(
+                            color = Color.White,
+                            radius = 8.dp.toPx(),
+                            center = Offset(px, py)
+                        )
+                        drawCircle(
+                            color = primary,
+                            radius = 6.dp.toPx(),
+                            center = Offset(px, py)
+                        )
                     }
                 }
 
-                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     data.forEachIndexed { i, (day, _) ->
-                        Text(day, fontSize = 10.sp,
+                        Text(
+                            text = day,
+                            fontSize = 10.sp,
                             fontWeight = if (i == peakIdx) FontWeight.Bold else FontWeight.Normal,
-                            color = if (i == peakIdx) primary else textTertiary)
+                            color = if (i == peakIdx) primary else textTertiary
+                        )
                     }
                 }
 
                 if (peakIdx >= 0 && data[peakIdx].second > 0) {
                     Spacer(Modifier.height(4.dp))
-                    Text("ذروة: " + CurrencyFormatter.format(ctx, data[peakIdx].second),
-                        fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = primary,
-                        modifier = Modifier.align(Alignment.End))
+                    Text(
+                        text = "ذروة: " + CurrencyFormatter.format(ctx, data[peakIdx].second),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = primary,
+                        modifier = Modifier.align(Alignment.End)
+                    )
                 }
             }
         }
@@ -148,15 +201,28 @@ fun ZadBezierSpendChart(
 @Composable
 private fun ShimmerChartPlaceholder() {
     val shimmer by rememberInfiniteTransition(label = "shimmer").animateFloat(
-        0.3f, 0.7f, infiniteRepeatable(tween(900), RepeatMode.Reverse), "shimmerAlpha"
+        initialValue = 0.3f,
+        targetValue = 0.7f,
+        animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
+        label = "shimmerAlpha"
     )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf(0.4f, 0.6f, 0.8f).forEach { frac ->
-            Box(Modifier.fillMaxWidth(frac).height(8.dp)
-                .clip(RoundedCornerShape(4.dp)).background(primary.copy(alpha = shimmer)))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(frac)
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(primary.copy(alpha = shimmer))
+            )
         }
         Spacer(Modifier.height(8.dp))
-        Box(Modifier.fillMaxWidth().height(80.dp)
-            .clip(RoundedCornerShape(8.dp)).background(primary.copy(alpha = shimmer * 0.5f)))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(80.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(primary.copy(alpha = shimmer * 0.5f))
+        )
     }
 }
