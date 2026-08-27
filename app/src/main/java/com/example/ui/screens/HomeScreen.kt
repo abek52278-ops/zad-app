@@ -161,7 +161,7 @@ fun HomeScreen(
     val marketFetchState by viewModel.marketPricesFetchState.collectAsState()
 
     LaunchedEffect(Unit) {
-        viewModel.fetchLiveMarketPrices()
+        viewModel.refreshLiveMarketPrices()
     }
 
     // "مصروف" في كارت الميزانية لازم يكون مصروف نفس الدورة اللي "متاح" اتحسب عليها.
@@ -407,7 +407,7 @@ fun HomeScreen(
                     LiveMarketTicker(
                         prices = liveMarketPrices,
                         fetchState = marketFetchState,
-                        onRetry = { viewModel.fetchLiveMarketPrices() }
+                        onRetry = { viewModel.refreshLiveMarketPrices() }
                     )
                 }
                 Spacer(modifier = Modifier.height(14.dp))
@@ -460,7 +460,7 @@ fun HomeScreen(
                     ZadFoodShortagesGlanceCard(
                         inventory = inventory,
                         onViewAllClick = onNavigateToInventory,
-                        onConfirmItem = { viewModel.confirmInventoryShortage(it) }
+                        onConfirmItem = { viewModel.answerCheckInDecrement(it) }
                     )
                 }
                 Spacer(modifier = Modifier.height(18.dp))

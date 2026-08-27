@@ -308,7 +308,7 @@ fun ZadSubscriptionsGlanceCard(
     val displayList = remember(activeSubs) {
         if (activeSubs.isNotEmpty()) {
             activeSubs.take(3).map {
-                Triple(it.name, "${it.amount.toInt()} ر.س", when (it.name) {
+                Triple(it.title, "${it.amount.toInt()} ر.س", when (it.title) {
                     "نتفليكس", "Netflix" -> Color(0xFFB45309)
                     "الجيم", "Gym" -> Color(0xFFDC5B4B)
                     else -> Color(0xFF0F9B76)
@@ -433,7 +433,7 @@ fun ZadPharmacyGlanceCard(
         val meds = remember(pharmacyItems) {
             if (pharmacyItems.isNotEmpty()) {
                 pharmacyItems.take(3).map {
-                    Triple(it.itemName, "جرعة منتظمة", if (it.isLowStock()) Color(0xFFB45309) else Color(0xFF0F9B76))
+                    Triple(it.name, "جرعة منتظمة", if (it.isLowStock()) Color(0xFFB45309) else Color(0xFF0F9B76))
                 }
             } else {
                 listOf(
