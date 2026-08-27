@@ -224,16 +224,16 @@ fun FloatingMascotCompanion(
                         },
                         onClick = {
                             scope.launch {
-                                tapScale.animateTo(1.18f, animationSpec = ZadSprings.Celebrate)
+                                tapScale.animateTo(1.22f, animationSpec = ZadSprings.Celebrate)
                                 tapScale.animateTo(1f, animationSpec = ZadSprings.Press)
                             }
-                            fireHaptic(35, 200)
+                            fireHaptic(35, 220)
                             fireChime(displayMood)
                             val now = System.currentTimeMillis()
                             blinkTrigger = now
                             glowTrigger = now
-                            showBubble = true
-                            scope.launch { delay(2600); showBubble = false }
+                            showBubble = false
+                            showVoiceAssistant = true
                         }
                     )
             ) {

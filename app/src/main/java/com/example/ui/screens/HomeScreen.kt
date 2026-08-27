@@ -310,12 +310,17 @@ fun HomeScreen(
                 }
 
                 // ── 0b. كورة زاد الحية — CompanionOrb بنبض وتتبع عين حقيقي ──
-                // كانت "دائرة خضراء ثابتة" في رأس الشاشة؛ دلوقتي بنادي المكوّن الحي
-                // مباشرة بنفس حالة companionState اللي FloatingMascotCompanion بيغذّيها
-                // (بيفكر وقت الشات، تنبيه من ملخص الأجنت، سعيد/هادئ من الصحة المالية).
+                // بالضغط عليها تفتح محادثة الصوت الحية كـ ChatGPT Voice فورا مع تأثير صوتي لطيف
                 com.example.ui.components.AppearOnEntry {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .clickable {
+                                com.example.voice.ZadCutePetSoundFx.play(com.example.voice.ZadCutePetSoundFx.PetSound.HappyChirp)
+                                onOpenVoice()
+                            }
+                            .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         val orbState by viewModel.companionState.collectAsState()
@@ -327,7 +332,7 @@ fun HomeScreen(
                             )
                         }
                         Spacer(modifier = Modifier.width(12.dp))
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 stringResource(R.string.greeting_hi_name, userName),
                                 style = Typography.titleLarge,
@@ -335,9 +340,9 @@ fun HomeScreen(
                                 color = onSurface
                             )
                             Text(
-                                com.example.ui.components.companionStateDescription(orbState),
+                                com.example.ui.components.companionStateDescription(orbState) + " • اضغط للتحدث 🎙️",
                                 style = Typography.labelMedium,
-                                color = onSurfaceVariant
+                                color = primary
                             )
                         }
                     }
@@ -378,36 +383,14 @@ fun HomeScreen(
 
                 // ── 0. Ticker الأسعار — أعلى فئات صرفك الشهرية ونسبتها من متوسطها
                 // (من بياناتك الحقيقية: فئة صرفها أعلى من المعتاد = أحمر، أقل = أخضر)
-                if (budgetConfirmed && visibleTransactions.isNotEmpty()) {
-                    val tickerData = remember(visibleTransactions) {
-                        val now = java.time.LocalDate.now()
-                        val monthStart = now.withDayOfMonth(1).toString()
-                        val prevMonthStart = now.minusMonths(1).withDayOfMonth(1).toString()
-                        val prevMonthEnd = now.withDayOfMonth(1).minusDays(1).toString()
-                        // مصاريف الشهر الحالي واللي فات، مجمعة بالفئة
-                        val thisMonth = visibleTransactions.asSequence()
-                            .filter { it.isExpense && it.createdAt?.startsWith(monthStart) == true }
-                            .groupBy({ it.category ?: "أخرى" }) { it.amount }
-                        val lastMonth = visibleTransactions.asSequence()
-                            .filter { it.isExpense && it.createdAt != null && it.createdAt >= prevMonthStart && it.createdAt <= prevMonthEnd }
-                            .groupBy({ it.category ?: "أخرى" }) { it.amount }
-                        // أعلى 4 فئات صرفاً هذا الشهر، بنسبة التغير مقابل الشهر الفايت
-                        thisMonth.entries
-                            .sortedByDescending { e -> e.value.sum() }
-                            .take(4)
-                            .map { (cat, amounts) ->
-                                val cur = amounts.sum()
-                                val prev = lastMonth[cat]?.sum()
-                                val delta = if (prev != null && prev > 0.0) {
-                                    ((cur - prev) / prev * 100)
-                                } else null
-                                com.example.ui.components.PriceTick(name = cat, deltaPercent = delta)
-                            }
+                if (visibleTransactions.isNotEmpty()) {
+                    val priceMoves = remember(visibleTransactions) {
+                        com.example.data.SpendingCategoryAnalytics.topMovedCategories(visibleTransactions)
                     }
-                    com.example.ui.components.AppearOnEntry {
-                        com.example.ui.components.PriceTickerRow(ticks = tickerData)
+                    if (priceMoves.isNotEmpty()) {
+                        com.example.ui.components.SpendingTicker(moves = priceMoves)
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
                 }
 
                 // ── 1. الكارت الأخضر: رقم واحد، الرصيد اللي معاك دلوقتي ──
@@ -490,35 +473,27 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                // ── 2b. نبض الإنفاق الحي — sparkline آخر ٧ أيام (من البروتوتايب) ──
+                // ── 2b. منحنى المصروف الأسبوعي الحي — ZadBezierSpendChart (شيفو UX) ──
                 if (budgetConfirmed && visibleTransactions.isNotEmpty()) {
                     com.example.ui.components.AppearOnEntry(delayMs = 55) {
-                        val last7 = remember(visibleTransactions) {
-                            val dayMs = 86_400_000L
-                            // نجمع مصاريف كل يوم من آخر 7 أيام (الأقدم أولاً)
+                        val weeklySpendData = remember(visibleTransactions) {
+                            val arabicDays = listOf("أحد", "إثن", "ثلا", "أرب", "خمس", "جمع", "سبت")
                             val nowDay = java.time.LocalDate.now()
                             (6 downTo 0).map { daysAgo ->
-                                val target = nowDay.minusDays(daysAgo.toLong()).toString() // yyyy-MM-dd
-                                visibleTransactions
+                                val date = nowDay.minusDays(daysAgo.toLong())
+                                val datePrefix = date.toString()
+                                val dayOfWeekIndex = (date.dayOfWeek.value % 7) // Sunday is 0
+                                val dayLabel = arabicDays.getOrElse(dayOfWeekIndex) { "يوم" }
+                                val sum = visibleTransactions
                                     .asSequence()
-                                    .filter { it.isExpense }
-                                    .filter { it.createdAt?.startsWith(target) == true }
-                                    .sumOf { it.amount }.toFloat()
+                                    .filter { it.isExpense && it.createdAt?.startsWith(datePrefix) == true }
+                                    .sumOf { it.amount }
+                                dayLabel to sum
                             }
                         }
-                        com.example.ui.components.ZadListCard(shape = RoundedCornerShape(18.dp)) {
-                            androidx.compose.foundation.layout.Column(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
-                            ) {
-                                Row(modifier = Modifier.fillMaxWidth()) {
-                                    Text(stringResource(R.string.auto_home_21771), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface)
-                                    Spacer(Modifier.weight(1f))
-                                    Text(stringResource(R.string.auto_home_95853), style = Typography.labelSmall, color = onSurfaceVariant)
-                                }
-                                Spacer(Modifier.height(8.dp))
-                                com.example.ui.components.SpendPulseSparkline(values = last7)
-                            }
-                        }
+                        com.example.ui.components.ZadBezierSpendChart(
+                            weeklySpend = weeklySpendData
+                        )
                     }
                     Spacer(modifier = Modifier.height(18.dp))
                 }
