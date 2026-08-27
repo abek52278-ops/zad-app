@@ -225,3 +225,26 @@ private fun QuickExpenseField(
         )
     }
 }
+
+
+/**
+ * Convenience overload accepting ZadViewModel.
+ */
+@Composable
+fun ZadQuickExpenseSheet(
+    viewModel: com.example.ui.viewmodels.ZadViewModel,
+    onDismiss: () -> Unit
+) {
+    ZadQuickExpenseSheet(
+        onDismiss = onDismiss,
+        onSend = { name, query, amount ->
+            viewModel.addTransaction(
+                amount = amount,
+                title = name,
+                isExpense = true,
+                category = if (query.isNotBlank()) query else "Other"
+            )
+            onDismiss()
+        }
+    )
+}

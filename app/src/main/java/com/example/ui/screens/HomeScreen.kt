@@ -1061,8 +1061,16 @@ fun HomeScreen(
     
     if (showQuickExpenseSheet) {
         com.example.ui.components.ZadQuickExpenseSheet(
-            viewModel = viewModel,
-            onDismiss = { showQuickExpenseSheet = false }
+            onDismiss = { showQuickExpenseSheet = false },
+            onSend = { name, query, amount ->
+                viewModel.addTransaction(
+                    amount = amount,
+                    title = name,
+                    isExpense = true,
+                    category = if (query.isNotBlank()) query else "Other"
+                )
+                showQuickExpenseSheet = false
+            }
         )
     }
 
