@@ -412,14 +412,14 @@ fun AppNavigation(pendingInviteCode: String? = null) {
         }
         composable("main") {
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                com.example.ui.v2.V3MainScreen(
-                    viewModel = viewModel(),
-                    familyViewModel = viewModel(),
+                com.example.MainScreen(
                     onLogout = {
                         navController.navigate("login") {
                             popUpTo(0) { inclusive = true }
                         }
                     },
+                    pendingInviteCode = pendingInviteCode,
+                    openVoiceOnStart = openVoiceRequest.value
                 )
             }
         }
