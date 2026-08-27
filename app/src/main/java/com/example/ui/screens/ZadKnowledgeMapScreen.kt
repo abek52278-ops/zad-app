@@ -222,11 +222,26 @@ fun ZadKnowledgeMapScreen(
         edges.filter { e -> insightDomainSets.any { it.contains(e.from) && it.contains(e.to) } }.toSet()
     }
 
+    // شيفو's design: إزالة الـ nodes الفاضية — بس بيانات حقيقية.
+    // الميزانية (hub مركزي) بتظهر دايماً؛ باقي المجالات بتتشال لو count == 0 والمبلغ 0 أو null.
+    val visibleDomains = remember(domains) {
+        domains.filter { d ->
+            d.key == "budget" || d.count > 0 || (d.amount != null && d.amount > 0.0)
+        }
+    }
+    // الـ edges بتشال كمان لو أحد طرفيها اتشال
+    val visibleEdgeSet = remember(edges, visibleDomains) {
+        val visibleKeys = visibleDomains.map { it.key }.toSet()
+        edges.filter { e -> e.from in visibleKeys && e.to in visibleKeys }
+    }
+
+
     Box(modifier = Modifier.fillMaxSize().background(kmBg)) {
         Canvas(modifier = Modifier.fillMaxSize()) { drawKmGrid() }
 
         Column(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)) {
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { if (selectedDomain != null) selectedDomain = null else onBack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = kmTextSecondary)
@@ -263,7 +278,7 @@ fun ZadKnowledgeMapScreen(
 
             AnimatedContent(targetState = selectedDomain, label = "map") { key ->
                 if (key == null) {
-                    DomainRing(domains = domains, edges = edges, activeDomains = activeDomains, activeEdges = activeEdges, onSelect = { selectedDomain = it })
+                    DomainRing(domains = visibleDomains, edges = visibleEdgeSet, activeDomains = activeDomains, activeEdges = activeEdges, onSelect = { selectedDomain = it })
                 } else if (key == "budget") {
                     BudgetDomainPanel(
                         budget = budget,
