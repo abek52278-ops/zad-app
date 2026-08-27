@@ -1447,6 +1447,15 @@
 
     <!-- V2 budget -->
     <string name="v2_quick_expense">Quick Expense</string>
+    <!-- ZadQuickExpenseSheet strings -->
+    <string name="quick_expense_title">Quick Expense</string>
+    <string name="quick_expense_subtitle">Record your expense in seconds</string>
+    <string name="quick_expense_name">Name</string>
+    <string name="quick_expense_name_hint">e.g. Barber, Groceries</string>
+    <string name="quick_expense_query">Category</string>
+    <string name="quick_expense_query_hint">e.g. My expenses, Dinner</string>
+    <string name="quick_expense_total">Amount</string>
+    <string name="quick_expense_send">Send</string>
     <string name="v2_expense_name">Name</string>
     <string name="v2_expense_total">Total</string>
     <string name="v2_send">Send</string>
