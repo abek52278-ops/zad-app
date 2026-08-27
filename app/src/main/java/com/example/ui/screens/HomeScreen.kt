@@ -987,7 +987,7 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(84.dp))
             } // closes inner Column
         } // closes else block (line 125)
     } // closes outer Column (line 103)
