@@ -383,14 +383,36 @@ fun HomeScreen(
 
                 // ── 0. Ticker الأسعار — أعلى فئات صرفك الشهرية ونسبتها من متوسطها
                 // (من بياناتك الحقيقية: فئة صرفها أعلى من المعتاد = أحمر، أقل = أخضر)
-                if (visibleTransactions.isNotEmpty()) {
-                    val priceMoves = remember(visibleTransactions) {
-                        com.example.data.SpendingCategoryAnalytics.topMovedCategories(visibleTransactions)
+                if (budgetConfirmed && visibleTransactions.isNotEmpty()) {
+                    val tickerData = remember(visibleTransactions) {
+                        val now = java.time.LocalDate.now()
+                        val monthStart = now.withDayOfMonth(1).toString()
+                        val prevMonthStart = now.minusMonths(1).withDayOfMonth(1).toString()
+                        val prevMonthEnd = now.withDayOfMonth(1).minusDays(1).toString()
+                        // مصاريف الشهر الحالي واللي فات، مجمعة بالفئة
+                        val thisMonth = visibleTransactions.asSequence()
+                            .filter { it.isExpense && it.createdAt?.startsWith(monthStart) == true }
+                            .groupBy({ it.category ?: "أخرى" }) { it.amount }
+                        val lastMonth = visibleTransactions.asSequence()
+                            .filter { it.isExpense && it.createdAt != null && it.createdAt >= prevMonthStart && it.createdAt <= prevMonthEnd }
+                            .groupBy({ it.category ?: "أخرى" }) { it.amount }
+                        // أعلى 4 فئات صرفاً هذا الشهر، بنسبة التغير مقابل الشهر الفايت
+                        thisMonth.entries
+                            .sortedByDescending { e -> e.value.sum() }
+                            .take(4)
+                            .map { (cat, amounts) ->
+                                val cur = amounts.sum()
+                                val prev = lastMonth[cat]?.sum()
+                                val delta = if (prev != null && prev > 0.0) {
+                                    ((cur - prev) / prev * 100)
+                                } else null
+                                com.example.ui.components.PriceTick(name = cat, deltaPercent = delta)
+                            }
                     }
-                    if (priceMoves.isNotEmpty()) {
-                        com.example.ui.components.SpendingTicker(moves = priceMoves)
-                        Spacer(modifier = Modifier.height(16.dp))
+                    com.example.ui.components.AppearOnEntry {
+                        com.example.ui.components.PriceTickerRow(ticks = tickerData)
                     }
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
 
                 // ── 1. الكارت الأخضر: رقم واحد، الرصيد اللي معاك دلوقتي ──
