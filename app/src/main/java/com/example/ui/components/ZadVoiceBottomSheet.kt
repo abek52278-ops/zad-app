@@ -222,3 +222,15 @@ fun ZadVoiceBottomSheet(
         }
     )
 }
+
+
+/**
+ * Helper to match an AI reply to an active voice turn.
+ */
+fun voiceReplyForTurn(
+    messages: List<com.example.ui.viewmodels.AiChatMessage>,
+    activeTurnMessageId: String?
+): com.example.ui.viewmodels.AiChatMessage? {
+    if (activeTurnMessageId.isNullOrBlank()) return null
+    return messages.lastOrNull { !it.isUser && it.replyToMessageId == activeTurnMessageId }
+}
