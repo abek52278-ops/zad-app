@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.app.Activity
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
@@ -26,86 +27,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.billing.BillingState
+import com.example.billing.GooglePlayBillingManager
+import com.example.billing.ZadSubscriptionPlan
 import com.example.data.MarketPrefs
 import com.example.ui.components.pressableScale
 import com.example.ui.components.zadCardShadow
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
-
-enum class ZadPlanTier(
-    val id: String,
-    val titleAr: String,
-    val subtitleAr: String,
-    val priceUsd: Double,
-    val priceSar: Double,
-    val priceEgp: Double,
-    val brainConsultations: Int,
-    val visionScans: Int,
-    val chatMessages: String,
-    val badge: String? = null,
-    val isPopular: Boolean = false,
-    val features: List<String>
-) {
-    STARTER(
-        id = "starter",
-        titleAr = "الباقة الأساسية",
-        subtitleAr = "المدخل الاقتصادي بدون إعلانات",
-        priceUsd = 4.99,
-        priceSar = 25.0,
-        priceEgp = 250.0,
-        brainConsultations = 15,
-        visionScans = 30,
-        chatMessages = "150 رسالة شهرياً",
-        features = listOf(
-            "15 استشارة عميقة من عقل زاد",
-            "30 مسح وتصوير للفواتير بالذكاء الاصطناعي",
-            "150 رسالة شات واستفسارات سريعة",
-            "🚫 بدون إعلانات تماماً",
-            "حفظ وتقارير PDF قياسية"
-        )
-    ),
-    PLUS(
-        id = "plus",
-        titleAr = "باقة النمو (Plus)",
-        subtitleAr = "الخيار الذكي — 3 أضعاف المزايا",
-        priceUsd = 9.99,
-        priceSar = 49.0,
-        priceEgp = 500.0,
-        brainConsultations = 50,
-        visionScans = 100,
-        chatMessages = "500 رسالة شهرياً",
-        badge = "🔥 الأكثر طلباً",
-        isPopular = true,
-        features = listOf(
-            "50 استشارة عميقة من عقل زاد",
-            "100 مسح وتصوير للفواتير (Vision)",
-            "500 رسالة شات واستفسارات ذكية",
-            "🚫 بدون إعلانات تماماً",
-            "تصدير Excel + تنبؤ شهري بالميزانية",
-            "تسجيل فويس ومسح فواتير عبر تليجرام"
-        )
-    ),
-    PRO(
-        id = "pro",
-        titleAr = "باقة المحترفين (Pro)",
-        subtitleAr = "لأصحاب الأعمال والمصاريف الكثيفة",
-        priceUsd = 19.99,
-        priceSar = 99.0,
-        priceEgp = 990.0,
-        brainConsultations = 150,
-        visionScans = 300,
-        chatMessages = "غير محدود (Groq السريع)",
-        badge = "👑 للأعمال والعائلات",
-        features = listOf(
-            "150 استشارة عميقة من عقل زاد",
-            "300 مسح وتصوير للفواتير",
-            "رسائل واستفسارات شات غير محدودة",
-            "🚫 بدون إعلانات تماماً",
-            "شات صوتي تفاعلي كامل + دعم فني مخصص",
-            "تحليلات مالية متقدمة للمتاجر والعائلات"
-        )
-    )
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -114,8 +43,14 @@ fun ZadSubscriptionPaywallScreen(
     onBack: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val activity = context as? Activity
     val currentMarket = remember { MarketPrefs.getMarket(context) }
-    var selectedTier by remember { mutableStateOf(ZadPlanTier.PLUS) }
+    val billingManager = remember { GooglePlayBillingManager.getInstance(context) }
+
+    val billingState by billingManager.billingState.collectAsState()
+    val activePlan by billingManager.activePlan.collectAsState()
+
+    var selectedPlan by remember { mutableStateOf(ZadSubscriptionPlan.PLUS) }
     var adWatchCount by remember { mutableStateOf(com.example.ads.RewardedBrainAdManager.getAdWatchCount(context)) }
     var isSessionUnlocked by remember { mutableStateOf(com.example.ads.RewardedBrainAdManager.isSessionUnlocked(context)) }
 
@@ -130,7 +65,8 @@ fun ZadSubscriptionPaywallScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(stringResource(R.string.auto_zadsubscriptionpaywall_23198),
+                    Text(
+                        text = "اشتراكات زاد بريميوم (Zad VIP)",
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.titleMedium
                     )
@@ -162,7 +98,7 @@ fun ZadSubscriptionPaywallScreen(
                     .clip(RoundedCornerShape(24.dp))
                     .background(
                         Brush.linearGradient(
-                            colors = listOf(primary, secondary)
+                            colors = listOf(Color(0xFF064E3B), Color(0xFF0F9B76), Color(0xFF047857))
                         )
                     )
                     .padding(22.dp)
@@ -171,18 +107,20 @@ fun ZadSubscriptionPaywallScreen(
                     Icon(
                         Icons.Default.AutoAwesome,
                         contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(36.dp)
+                        tint = Color(0xFFFDE047),
+                        modifier = Modifier.size(40.dp)
                     )
                     Spacer(Modifier.height(10.dp))
-                    Text(stringResource(R.string.auto_zadsubscriptionpaywall_7174),
+                    Text(
+                        text = "اختر خطة زاد المناسبة لعائلتك",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color.White,
                         textAlign = TextAlign.Center
                     )
                     Spacer(Modifier.height(6.dp))
-                    Text(stringResource(R.string.auto_zadsubscriptionpaywall_93703),
+                    Text(
+                        text = "تجربة فورية بلا إعلانات، ذكاء اصطناعي فوري، ومزامنة عائلية ذكية عبر متجر Google Play الرسمي.",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White.copy(alpha = 0.9f),
                         textAlign = TextAlign.Center,
@@ -191,19 +129,52 @@ fun ZadSubscriptionPaywallScreen(
                 }
             }
 
+            if (activePlan != null) {
+                Spacer(Modifier.height(16.dp))
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFF0F9B76).copy(alpha = 0.15f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF34D399)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("👑", fontSize = 22.sp)
+                        Column {
+                            Text("أنت مشترك حالياً في باقة: ${activePlan?.titleAr}", fontWeight = FontWeight.Bold, color = Color(0xFF0F9B76), fontSize = 13.5.sp)
+                            Text("جميع المزايا مفعلة ونشطة في حسابك", fontSize = 11.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+
             Spacer(Modifier.height(20.dp))
 
-            // Plan Cards
-            ZadPlanTier.values().forEach { tier ->
-                val isSelected = selectedTier == tier
-                val cardShape = RoundedCornerShape(20.dp)
+            // 3 Subscription Plans (Basic, Plus, Ultra)
+            ZadSubscriptionPlan.values().forEach { plan ->
+                val isSelected = selectedPlan == plan
+                val cardShape = RoundedCornerShape(22.dp)
 
                 val formattedPrice = when (currentMarket.countryCode) {
-                    "EG" -> "${tier.priceEgp.toInt()} ج.م"
-                    "SA" -> "${tier.priceSar.toInt()} ر.س"
-                    "AE" -> "${(tier.priceUsd * 3.67).toInt()} د.إ"
-                    "KW" -> "${(tier.priceUsd * 0.31).toInt()} د.ك"
-                    else -> "$${tier.priceUsd}"
+                    "EG" -> when (plan) {
+                        ZadSubscriptionPlan.BASIC -> "490 ج.م"
+                        ZadSubscriptionPlan.PLUS -> "980 ج.م"
+                        ZadSubscriptionPlan.ULTRA -> "2,450 ج.م"
+                    }
+                    "SA" -> when (plan) {
+                        ZadSubscriptionPlan.BASIC -> "37.5 ر.س"
+                        ZadSubscriptionPlan.PLUS -> "75.0 ر.س"
+                        ZadSubscriptionPlan.ULTRA -> "187.5 ر.س"
+                    }
+                    "AE" -> when (plan) {
+                        ZadSubscriptionPlan.BASIC -> "36.5 د.إ"
+                        ZadSubscriptionPlan.PLUS -> "73.5 د.إ"
+                        ZadSubscriptionPlan.ULTRA -> "183.5 د.إ"
+                    }
+                    else -> "${plan.priceUsd} / شهر"
                 }
 
                 Box(
@@ -218,10 +189,10 @@ fun ZadSubscriptionPaywallScreen(
                         )
                         .border(
                             width = if (isSelected) 2.dp else 1.dp,
-                            color = if (isSelected) primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                            color = if (isSelected) Color(0xFF0F9B76) else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
                             shape = cardShape
                         )
-                        .clickable { selectedTier = tier }
+                        .clickable { selectedPlan = plan }
                         .padding(18.dp)
                 ) {
                     Column {
@@ -232,13 +203,13 @@ fun ZadSubscriptionPaywallScreen(
                         ) {
                             Column {
                                 Text(
-                                    tier.titleAr,
+                                    plan.titleAr,
                                     style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isSelected) primary else MaterialTheme.colorScheme.onSurface
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (isSelected) Color(0xFF0F9B76) else MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    tier.subtitleAr,
+                                    if (plan.monthlyAiQuota == -1) "ذكاء اصطناعي غير محدود" else "${plan.monthlyAiQuota} طلب ذكي شهرياً",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 11.5.sp
@@ -250,37 +221,45 @@ fun ZadSubscriptionPaywallScreen(
                                     formattedPrice,
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = primary
+                                    color = Color(0xFF0F9B76)
                                 )
-                                Text(stringResource(R.string.auto_zadsubscriptionpaywall_78274),
+                                Text(
+                                    "اشتراك شهري تجديد تلقائي",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 9.sp
                                 )
                             }
                         }
 
-                        if (tier.badge != null) {
-                            Spacer(Modifier.height(8.dp))
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (tier.isPopular) Color(0xFFFF9900).copy(alpha = 0.15f) else primaryContainer,
-                                modifier = Modifier.wrapContentSize()
-                            ) {
-                                Text(
-                                    tier.badge,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (tier.isPopular) Color(0xFFD97706) else primary
-                                )
-                            }
+                        Spacer(Modifier.height(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = when (plan) {
+                                ZadSubscriptionPlan.ULTRA -> Color(0xFF8B5CF6).copy(alpha = 0.15f)
+                                ZadSubscriptionPlan.PLUS -> Color(0xFFD97706).copy(alpha = 0.15f)
+                                ZadSubscriptionPlan.BASIC -> Color(0xFF0F9B76).copy(alpha = 0.15f)
+                            },
+                            modifier = Modifier.wrapContentSize()
+                        ) {
+                            Text(
+                                plan.badgeAr,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = when (plan) {
+                                    ZadSubscriptionPlan.ULTRA -> Color(0xFF7C3AED)
+                                    ZadSubscriptionPlan.PLUS -> Color(0xFFD97706)
+                                    ZadSubscriptionPlan.BASIC -> Color(0xFF0F9B76)
+                                }
+                            )
                         }
 
                         Spacer(Modifier.height(14.dp))
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f))
                         Spacer(Modifier.height(12.dp))
 
-                        tier.features.forEach { feat ->
+                        plan.perks.forEach { feat ->
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(vertical = 3.dp)
@@ -288,7 +267,7 @@ fun ZadSubscriptionPaywallScreen(
                                 Icon(
                                     Icons.Default.CheckCircle,
                                     contentDescription = null,
-                                    tint = primary,
+                                    tint = Color(0xFF0F9B76),
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(Modifier.width(8.dp))
@@ -306,14 +285,18 @@ fun ZadSubscriptionPaywallScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // Subscribe Button
+            // Subscribe Button via Google Play
             Button(
                 onClick = {
-                    Toast.makeText(
-                        context,
-                        "جاري تحويلك لبوابة الاشتراك في ${selectedTier.titleAr}...",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    if (activity != null) {
+                        billingManager.launchSubscription(activity, selectedPlan) { success, msg ->
+                            if (!success && msg != null) {
+                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    } else {
+                        Toast.makeText(context, "تعذر تشغيل نافذة الدفع، يرجى إعادة فتح التطبيق", Toast.LENGTH_SHORT).show()
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -325,12 +308,12 @@ fun ZadSubscriptionPaywallScreen(
                     contentColor = Color.White
                 )
             ) {
-                Icon(Icons.Default.ElectricBolt, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color(0xFF6EE7B7))
+                Icon(Icons.Default.ShoppingBag, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color(0xFF6EE7B7))
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "تفعيل ${selectedTier.titleAr} الآن",
+                    text = "اشترك في ${selectedPlan.titleAr} عبر Google Play",
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = 15.sp
+                    fontSize = 14.5.sp
                 )
             }
 
@@ -346,7 +329,7 @@ fun ZadSubscriptionPaywallScreen(
                     "Google Play" to "💳",
                     "Mada / مدى" to "🇸🇦",
                     "Apple Pay" to "🍏",
-                    "Moyasar / Tap" to "⚡"
+                    "دفع آمن ومحمي" to "🔒"
                 ).forEach { (method, icon) ->
                     Box(
                         modifier = Modifier
@@ -366,7 +349,8 @@ fun ZadSubscriptionPaywallScreen(
             }
 
             Spacer(Modifier.height(10.dp))
-            Text(stringResource(R.string.auto_zadsubscriptionpaywall_13807),
+            Text(
+                text = "يتم الدفع وتجديد الاشتراك الشهري بأمان عبر حساب Google Play الخاص بك، مع إمكانية الإلغاء في أي وقت من متجر التطبيقات.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 textAlign = TextAlign.Center,
@@ -382,13 +366,15 @@ fun ZadSubscriptionPaywallScreen(
                 contentPadding = 0.dp
             ) {
                 Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(stringResource(R.string.auto_zadsubscriptionpaywall_7318),
+                    Text(
+                        text = "أو اشحن بطارية الذكاء الاصطناعي مجاناً ⚡",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(Modifier.height(4.dp))
-                    Text(stringResource(R.string.auto_zadsubscriptionpaywall_41518),
+                    Text(
+                        text = "شاهد 3 إعلانات للحصول على 5 رسائل ذكاء اصطناعي وجلسة نشطة لمدة 12 ساعة.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,

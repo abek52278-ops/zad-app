@@ -4,6 +4,8 @@ import android.app.Activity
 import android.content.Context
 import android.util.Log
 import com.android.billingclient.api.*
+import com.example.data.SupabaseRepo
+import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -14,317 +16,273 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Google Play Billing Manager (v6/v7) for Zad in-app subscriptions.
- * Manages BillingClient lifecycle, product queries, purchase flows, and token verification.
+ * باقات الاشتراك الشهرية في زاد
  */
-object GooglePlayBillingManager {
-    private const val TAG = "ZadBillingManager"
+enum class ZadSubscriptionPlan(
+    val productId: String,
+    val titleAr: String,
+    val titleEn: String,
+    val priceUsd: String,
+    val monthlyAiQuota: Int, // -1 means unlimited
+    val hasNoAds: Boolean,
+    val familyLimit: Int,
+    val badgeAr: String,
+    val perks: List<String>
+) {
+    BASIC(
+        productId = "zad_sub_basic_monthly",
+        titleAr = "الأساسية (Basic)",
+        titleEn = "Basic",
+        priceUsd = "$9.99",
+        monthlyAiQuota = 50,
+        hasNoAds = true,
+        familyLimit = 1,
+        badgeAr = "الأكثر اقتصاداً",
+        perks = listOf(
+            "تجربة خالية من الإعلانات 100%",
+            "50 استشارة وطلب ذكي شهرياً",
+            "مسح وتفكيك الفواتير الأساسي",
+            "رصد الإشعارات البنكية اللحظي"
+        )
+    ),
+    PLUS(
+        productId = "zad_sub_plus_monthly",
+        titleAr = "المتقدمة (Plus)",
+        titleEn = "Plus",
+        priceUsd = "$19.99",
+        monthlyAiQuota = 250,
+        hasNoAds = true,
+        familyLimit = 2,
+        badgeAr = "الأكثر شعبية ⭐",
+        perks = listOf(
+            "كل مزايا الباقة الأساسية",
+            "250 استشارة وطلب ذكي شهرياً",
+            "تحليلات عقل زاد الاستراتيجية والتنبؤات",
+            "مقارنة الأسعار وتنبيهات العروض اللحظية",
+            "شجرة المعرفة العصبية التفاعلية 3D"
+        )
+    ),
+    ULTRA(
+        productId = "zad_sub_ultra_monthly",
+        titleAr = "الفائقة (Ultra)",
+        titleEn = "Ultra",
+        priceUsd = "$49.99",
+        monthlyAiQuota = -1,
+        hasNoAds = true,
+        familyLimit = 5,
+        badgeAr = "VIP العائلة 👑",
+        perks = listOf(
+            "طلبات ذكاء اصطناعي غير محدودة بالكامل (Unlimited AI)",
+            "مشاركة عائلية متزامنة لـ 5 حسابات",
+            "تقرير عقل زاد الاستراتيجي المطبوع بختم زاد",
+            "المساعد الصوتي البشري المفتوح بلا سقف",
+            "دعم فني مباشر VIP ذو أولوية قصوى"
+        )
+    )
+}
+
+sealed class BillingState {
+    object Idle : BillingState()
+    object Connecting : BillingState()
+    object Ready : BillingState()
+    data class Purchasing(val productId: String) : BillingState()
+    data class Success(val plan: ZadSubscriptionPlan) : BillingState()
+    data class Error(val message: String) : BillingState()
+}
+
+/**
+ * مدير مشتريات Google Play الرسمي لزاد
+ */
+class GooglePlayBillingManager private constructor(private val context: Context) : PurchasesUpdatedListener {
+
+    private val tag = "GooglePlayBilling"
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    const val PRODUCT_STARTER = "zad_starter_sub"
-    const val PRODUCT_PLUS = "zad_plus_sub"
-    const val PRODUCT_PRO = "zad_pro_sub"
+    private val _billingState = MutableStateFlow<BillingState>(BillingState.Idle)
+    val billingState: StateFlow<BillingState> = _billingState.asStateFlow()
 
-    val ALL_SUBSCRIPTION_PRODUCTS = listOf(
-        PRODUCT_STARTER,
-        PRODUCT_PLUS,
-        PRODUCT_PRO
-    )
+    private val _activePlan = MutableStateFlow<ZadSubscriptionPlan?>(null)
+    val activePlan: StateFlow<ZadSubscriptionPlan?> = _activePlan.asStateFlow()
 
-    sealed class PurchaseState {
-        object Idle : PurchaseState()
-        object Processing : PurchaseState()
-        data class Success(val tier: String, val orderId: String, val purchaseToken: String) : PurchaseState()
-        data class Error(val message: String) : PurchaseState()
-    }
+    private val productDetailsMap = mutableMapOf<String, ProductDetails>()
 
-    private var billingClient: BillingClient? = null
-    private var isConnecting = false
+    private val pendingPurchasesParams = PendingPurchasesParams.newBuilder()
+        .enableOneTimeProducts()
+        .build()
 
-    private val _isConnected = MutableStateFlow(false)
-    val isConnected: StateFlow<Boolean> = _isConnected.asStateFlow()
+    private val billingClient = BillingClient.newBuilder(context)
+        .setListener(this)
+        .enablePendingPurchases(pendingPurchasesParams)
+        .build()
 
-    private val _productDetailsMap = MutableStateFlow<Map<String, ProductDetails>>(emptyMap())
-    val productDetailsMap: StateFlow<Map<String, ProductDetails>> = _productDetailsMap.asStateFlow()
+    companion object {
+        @Volatile
+        private var instance: GooglePlayBillingManager? = null
 
-    private val _purchaseState = MutableStateFlow<PurchaseState>(PurchaseState.Idle)
-    val purchaseState: StateFlow<PurchaseState> = _purchaseState.asStateFlow()
-
-    private var purchaseVerificationCallback: (suspend (tier: String, isAnnual: Boolean, token: String, orderId: String) -> Boolean)? = null
-
-    fun setVerificationCallback(callback: suspend (tier: String, isAnnual: Boolean, token: String, orderId: String) -> Boolean) {
-        purchaseVerificationCallback = callback
-    }
-
-    fun initialize(context: Context) {
-        if (billingClient != null) return
-
-        val purchasesUpdatedListener = PurchasesUpdatedListener { billingResult, purchases ->
-            handlePurchasesUpdated(billingResult, purchases)
+        fun getInstance(context: Context): GooglePlayBillingManager {
+            return instance ?: synchronized(this) {
+                instance ?: GooglePlayBillingManager(context.applicationContext).also { instance = it }
+            }
         }
+    }
 
-        val pendingPurchasesParams = PendingPurchasesParams.newBuilder()
-            .enableOneTimeProducts()
-            .build()
-
-        billingClient = BillingClient.newBuilder(context.applicationContext)
-            .setListener(purchasesUpdatedListener)
-            .enablePendingPurchases(pendingPurchasesParams)
-            .build()
-
+    init {
         startConnection()
     }
 
-    fun startConnection(onReady: (() -> Unit)? = null) {
-        val client = billingClient ?: return
-        if (client.isReady) {
-            _isConnected.value = true
-            onReady?.invoke()
-            queryProductDetails()
-            return
-        }
-
-        if (isConnecting) return
-        isConnecting = true
-
-        client.startConnection(object : BillingClientStateListener {
+    fun startConnection() {
+        _billingState.value = BillingState.Connecting
+        billingClient.startConnection(object : BillingClientStateListener {
             override fun onBillingSetupFinished(billingResult: BillingResult) {
-                isConnecting = false
                 if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                    Log.d(TAG, "Google Play BillingClient setup finished successfully")
-                    _isConnected.value = true
-                    queryProductDetails()
-                    onReady?.invoke()
+                    Log.d(tag, "Google Play Billing setup successful")
+                    _billingState.value = BillingState.Ready
+                    queryAvailableProducts()
+                    queryActivePurchases()
                 } else {
-                    Log.w(TAG, "Billing setup failed with response code: ${billingResult.responseCode}, msg: ${billingResult.debugMessage}")
-                    _isConnected.value = false
+                    Log.w(tag, "Billing setup failed: ${billingResult.debugMessage}")
+                    _billingState.value = BillingState.Error("فشل الاتصال بـ Google Play: ${billingResult.debugMessage}")
                 }
             }
 
             override fun onBillingServiceDisconnected() {
-                isConnecting = false
-                _isConnected.value = false
-                Log.w(TAG, "Google Play Billing service disconnected. Will retry on next request.")
+                Log.w(tag, "Billing service disconnected, retrying...")
+                _billingState.value = BillingState.Connecting
             }
         })
     }
 
-    fun queryProductDetails() {
-        val client = billingClient ?: return
-        if (!client.isReady) {
-            startConnection { queryProductDetails() }
-            return
+    private fun queryAvailableProducts() {
+        val productList = ZadSubscriptionPlan.values().map { plan ->
+            QueryProductDetailsParams.Product.newBuilder()
+                .setProductId(plan.productId)
+                .setProductType(BillingClient.ProductType.SUBS)
+                .build()
         }
 
-        scope.launch {
-            try {
-                val productList = ALL_SUBSCRIPTION_PRODUCTS.map { productId ->
-                    QueryProductDetailsParams.Product.newBuilder()
-                        .setProductId(productId)
-                        .setProductType(BillingClient.ProductType.SUBS)
-                        .build()
-                }
+        val params = QueryProductDetailsParams.newBuilder()
+            .setProductList(productList)
+            .build()
 
-                val params = QueryProductDetailsParams.newBuilder()
-                    .setProductList(productList)
-                    .build()
-
-                val productDetailsResult = client.queryProductDetails(params)
-                if (productDetailsResult.billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                    val detailsList = productDetailsResult.productDetailsList ?: emptyList()
-                    val map = detailsList.associateBy { it.productId }
-                    _productDetailsMap.value = map
-                    Log.d(TAG, "Queried ${detailsList.size} subscription products from Google Play")
-                } else {
-                    Log.w(TAG, "queryProductDetails failed: ${productDetailsResult.billingResult.debugMessage}")
+        billingClient.queryProductDetailsAsync(params) { billingResult, productDetailsList ->
+            if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                productDetailsList.forEach { details ->
+                    productDetailsMap[details.productId] = details
+                    Log.d(tag, "Loaded product: ${details.productId} - ${details.name}")
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error querying product details: ${e.message}", e)
+            } else {
+                Log.w(tag, "Failed to query product details: ${billingResult.debugMessage}")
             }
         }
     }
 
-    fun launchBillingFlow(
-        activity: Activity,
-        tierId: String,
-        isAnnual: Boolean,
-        onFlowLaunched: (Boolean) -> Unit = {}
-    ) {
-        val client = billingClient
-        if (client == null || !client.isReady) {
-            Log.w(TAG, "BillingClient not ready. Reconnecting...")
-            startConnection {
-                launchBillingFlow(activity, tierId, isAnnual, onFlowLaunched)
-            }
-            return
-        }
-
-        val productId = when (tierId.lowercase()) {
-            "starter" -> PRODUCT_STARTER
-            "pro" -> PRODUCT_PRO
-            else -> PRODUCT_PLUS
-        }
-
-        val details = _productDetailsMap.value[productId]
+    fun launchSubscription(activity: Activity, plan: ZadSubscriptionPlan, onComplete: (Boolean, String?) -> Unit) {
+        val details = productDetailsMap[plan.productId]
         if (details == null) {
-            Log.w(TAG, "ProductDetails for $productId not found in Google Play cache. Triggering fallback flow.")
-            _purchaseState.value = PurchaseState.Processing
-            scope.launch {
-                val success = purchaseVerificationCallback?.invoke(
-                    tierId,
-                    isAnnual,
-                    "mock_token_${System.currentTimeMillis()}",
-                    "GPA.mock-${System.currentTimeMillis()}"
-                ) ?: false
-                if (success) {
-                    _purchaseState.value = PurchaseState.Success(tierId, "GPA.mock", "mock_token")
-                } else {
-                    _purchaseState.value = PurchaseState.Error("تعذر تفعيل الاشتراك، يرجى المحاولة لاحقاً")
-                }
-            }
-            onFlowLaunched(true)
+            queryAvailableProducts()
+            onComplete(false, "جاري تحضير الباقة من متجر Google Play، يرجى المحاولة بعد لحظات")
             return
         }
 
-        val offerList = details.subscriptionOfferDetails ?: emptyList()
-        val selectedOffer = offerList.firstOrNull { offer ->
-            if (isAnnual) offer.offerTags.contains("annual") || offer.basePlanId.contains("annual")
-            else offer.offerTags.contains("monthly") || offer.basePlanId.contains("monthly")
-        } ?: offerList.firstOrNull()
-
-        if (selectedOffer == null) {
-            Log.e(TAG, "No valid subscription offer found for $productId")
-            _purchaseState.value = PurchaseState.Error("لم يتم العثور على خطة أسعار صالحة في متجر Google Play")
-            onFlowLaunched(false)
+        val offerToken = details.subscriptionOfferDetails?.firstOrNull()?.offerToken
+        if (offerToken == null) {
+            onComplete(false, "لا يوجد عرض متاح لهذه الباقة حالياً")
             return
         }
 
         val productDetailsParamsList = listOf(
             BillingFlowParams.ProductDetailsParams.newBuilder()
                 .setProductDetails(details)
-                .setOfferToken(selectedOffer.offerToken)
+                .setOfferToken(offerToken)
                 .build()
         )
 
-        val flowParams = BillingFlowParams.newBuilder()
+        val billingFlowParams = BillingFlowParams.newBuilder()
             .setProductDetailsParamsList(productDetailsParamsList)
             .build()
 
-        val result = client.launchBillingFlow(activity, flowParams)
-        if (result.responseCode == BillingClient.BillingResponseCode.OK) {
-            _purchaseState.value = PurchaseState.Processing
-            onFlowLaunched(true)
-        } else {
-            Log.e(TAG, "launchBillingFlow failed: ${result.debugMessage} (code: ${result.responseCode})")
-            _purchaseState.value = PurchaseState.Error(result.debugMessage)
-            onFlowLaunched(false)
+        _billingState.value = BillingState.Purchasing(plan.productId)
+        val result = billingClient.launchBillingFlow(activity, billingFlowParams)
+        if (result.responseCode != BillingClient.BillingResponseCode.OK) {
+            _billingState.value = BillingState.Error("تعذر فتح نافذة الدفع: ${result.debugMessage}")
+            onComplete(false, result.debugMessage)
         }
     }
 
-    private fun handlePurchasesUpdated(billingResult: BillingResult, purchases: List<Purchase>?) {
+    override fun onPurchasesUpdated(billingResult: BillingResult, purchases: List<Purchase>?) {
         when (billingResult.responseCode) {
             BillingClient.BillingResponseCode.OK -> {
-                if (purchases.isNullOrEmpty()) {
-                    Log.d(TAG, "Purchases updated with empty list")
-                    return
-                }
-                for (purchase in purchases) {
+                purchases?.forEach { purchase ->
                     handlePurchase(purchase)
                 }
             }
             BillingClient.BillingResponseCode.USER_CANCELED -> {
-                Log.d(TAG, "User canceled Google Play purchase flow")
-                _purchaseState.value = PurchaseState.Idle
-            }
-            BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED -> {
-                Log.d(TAG, "User already owns this subscription")
-                queryPurchases()
+                Log.i(tag, "User canceled Google Play purchase flow")
+                _billingState.value = BillingState.Ready
             }
             else -> {
-                Log.e(TAG, "Purchases updated error: ${billingResult.debugMessage} (code: ${billingResult.responseCode})")
-                _purchaseState.value = PurchaseState.Error(billingResult.debugMessage ?: "حدث خطأ أثناء معالجة الدفع")
+                Log.e(tag, "Purchase flow failed: ${billingResult.debugMessage}")
+                _billingState.value = BillingState.Error(billingResult.debugMessage)
             }
         }
     }
 
     private fun handlePurchase(purchase: Purchase) {
-        if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) {
-            Log.d(TAG, "Purchase is in state: ${purchase.purchaseState}, waiting for completion")
-            return
-        }
-
-        scope.launch {
-            try {
-                // 1. Acknowledge purchase if needed
+        if (purchase.purchaseState == Purchase.PurchaseState.PURCHASED) {
+            scope.launch {
                 if (!purchase.isAcknowledged) {
-                    val client = billingClient
-                    if (client != null && client.isReady) {
-                        val acknowledgeParams = AcknowledgePurchaseParams.newBuilder()
-                            .setPurchaseToken(purchase.purchaseToken)
-                            .build()
-                        val ackResult = client.acknowledgePurchase(acknowledgeParams)
-                        Log.d(TAG, "Purchase acknowledged result: ${ackResult.responseCode}")
+                    val ackParams = AcknowledgePurchaseParams.newBuilder()
+                        .setPurchaseToken(purchase.purchaseToken)
+                        .build()
+                    val ackResult = billingClient.acknowledgePurchase(ackParams)
+                    if (ackResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                        Log.d(tag, "Purchase acknowledged successfully: ${purchase.orderId}")
                     }
                 }
 
-                // 2. Identify tier
                 val productId = purchase.products.firstOrNull() ?: ""
-                val tier = when {
-                    productId.contains("pro", ignoreCase = true) -> "pro"
-                    productId.contains("starter", ignoreCase = true) -> "starter"
-                    else -> "plus"
-                }
+                val matchedPlan = ZadSubscriptionPlan.values().find { it.productId == productId }
+                _activePlan.value = matchedPlan
 
-                val isAnnual = productId.contains("annual", ignoreCase = true) || productId.contains("yearly", ignoreCase = true)
-
-                // 3. Verify on Supabase backend
-                val verified = purchaseVerificationCallback?.invoke(
-                    tier,
-                    isAnnual,
-                    purchase.purchaseToken,
-                    purchase.orderId ?: "GPA.null"
-                ) ?: false
+                verifyWithServerWebhook(purchase)
 
                 withContext(Dispatchers.Main) {
-                    if (verified) {
-                        _purchaseState.value = PurchaseState.Success(
-                            tier = tier,
-                            orderId = purchase.orderId ?: "",
-                            purchaseToken = purchase.purchaseToken
-                        )
-                    } else {
-                        _purchaseState.value = PurchaseState.Error("تم الدفع بنجاح ولكن تعذر ربط الباقة بالحساب، يرجى التواصل مع الدعم")
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to handle purchase: ${e.message}", e)
-                withContext(Dispatchers.Main) {
-                    _purchaseState.value = PurchaseState.Error(e.message ?: "فشل التحقق من صحة الاشتراك")
+                    matchedPlan?.let { _billingState.value = BillingState.Success(it) }
                 }
             }
         }
     }
 
-    fun queryPurchases() {
-        val client = billingClient ?: return
-        if (!client.isReady) return
+    private suspend fun verifyWithServerWebhook(purchase: Purchase) {
+        try {
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
+            val payload = mapOf(
+                "action" to "verify_google_play_purchase",
+                "user_id" to userId,
+                "order_id" to purchase.orderId,
+                "purchase_token" to purchase.purchaseToken,
+                "package_name" to context.packageName,
+                "products" to purchase.products,
+                "purchase_time" to purchase.purchaseTime
+            )
+            SupabaseRepo.callEdgeFunction("zad-billing-webhook", payload)
+            Log.d(tag, "Server verification webhook completed successfully for ${purchase.orderId}")
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to verify purchase with server webhook: ${e.message}")
+        }
+    }
 
+    fun queryActivePurchases() {
         val params = QueryPurchasesParams.newBuilder()
             .setProductType(BillingClient.ProductType.SUBS)
             .build()
 
-        client.queryPurchasesAsync(params) { billingResult, purchases ->
+        billingClient.queryPurchasesAsync(params) { billingResult, purchasesList ->
             if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                purchases.forEach { purchase ->
-                    if (purchase.purchaseState == Purchase.PurchaseState.PURCHASED) {
-                        handlePurchase(purchase)
-                    }
-                }
+                val active = purchasesList.firstOrNull { it.purchaseState == Purchase.PurchaseState.PURCHASED }
+                val productId = active?.products?.firstOrNull()
+                _activePlan.value = ZadSubscriptionPlan.values().find { it.productId == productId }
             }
         }
-    }
-
-    fun resetState() {
-        _purchaseState.value = PurchaseState.Idle
     }
 }

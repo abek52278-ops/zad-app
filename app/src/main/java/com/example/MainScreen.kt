@@ -504,7 +504,7 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                             )
                         }
                         composable(ZadRoutes.PREMIUM_PLANS) {
-                            com.example.ui.screens.SubscriptionPlansScreen(
+                            com.example.ui.screens.ZadSubscriptionPaywallScreen(
                                 viewModel = viewModel,
                                 onBack = { navController.popBackStack() }
                             )
