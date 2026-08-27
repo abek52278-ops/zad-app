@@ -1516,4 +1516,35 @@
     <string name="quantity_piece_format">%1$d قطعة</string>
     <string name="monthly_pharma_cost_title">التكلفة الشهرية</string>
     <string name="left_days_format">متبقي %1$d يوم</string>
+
+<string name="budget_goals_tab">الأهداف</string>
+<string name="category_breakdown_title">المصروفات حسب التصنيف</string>
+<string name="edit_balance_action">تعديل الرصيد</string>
+<string name="event_back_to_school">العودة للمدرسة</string>
+<string name="event_eid_al_adha">عيد الأضحى</string>
+<string name="event_eid_al_fitr">عيد الفطر</string>
+<string name="event_ramadan">رمضان</string>
+<string name="events_radar_days_until">باقي %1$d يوم</string>
+<string name="events_radar_title">رادار المناسبات</string>
+<string name="live_search_error_state">مش قادرين نبحث دلوقتي — جرّب التحديث بعد شوية</string>
+<string name="sinking_fund_amount_hint">المبلغ</string>
+<string name="sinking_fund_contribute_action">إضافة مبلغ</string>
+<string name="sinking_fund_create_action">صندوق جديد</string>
+<string name="sinking_fund_empty_state">مفيش صناديق توفير لسه</string>
+<string name="sinking_fund_link_event_hint">اربطه بمناسبة (اختياري)</string>
+<string name="sinking_fund_name_hint">اسم الصندوق</string>
+<string name="sinking_fund_target_hint">المبلغ المستهدف</string>
+<string name="sinking_funds_title">صناديق التوفير</string>
+<string name="switch_to_kids_mode">التحويل لوضع الأطفال</string>
+<string name="switch_to_kids_mode_subtitle">لما تسلّم الجهاز لطفلك مؤقتاً — الخروج محتاج رمز PIN</string>
+<string name="test_notification_body">تم دفع 123.45 جنيه من حسابك — اختبار المستمع</string>
+<string name="test_notification_title">زاد اختبار — معاملة تجريبية</string>
+<string name="warranty_expired_label">الضمان انتهى</string>
+    <string name="zad_welcome_message">أهلاً بيك! أنا زاد 🤖، مساعدك العائلي الذكي. أقدر أساعدك إزاي النهاردة؟\nاسألني عن الوصفات، أو راجع ثلاجتك، أو ضيف النواقص لقائمة التسوق!</string>
+    <string name="zad_undo_inventory">↩️ اترجعنا عن الإضافة — المخزون زي ما كان.</string>
+    <string name="zad_cancel_reply">تمام، ملغيتهاش.</string>
+    <string name="zad_inventory_added">📦 اتضاف للمخزون: %1$s</string>
+    <string name="zad_pharmacy_added">✅ تم، ضفنا %1$s لجدول الأدوية%2$s.</string>
+    <string name="zad_ai_busy">الذكاء الاصطناعي مشغول شوية دلوقتي 🙏 جرب تاني بعد لحظات.</string>
+    <string name="zad_unexpected_error">حصل خطأ غير متوقع.</string>
 </resources>

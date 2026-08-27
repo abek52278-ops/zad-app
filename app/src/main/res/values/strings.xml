@@ -1543,4 +1543,11 @@
     <string name="quantity_piece_format">%1$d قطعة</string>
     <string name="monthly_pharma_cost_title">التكلفة الشهرية</string>
     <string name="left_days_format">متبقي %1$d يوم</string>
+    <string name="zad_welcome_message">Welcome! I\'m Zad 🤖, your smart family assistant. How can I help you today?\nYou can ask me about recipes, check your fridge, or add missing items to your shopping list!</string>
+    <string name="zad_undo_inventory">↩️ Undone — your inventory is back to how it was.</string>
+    <string name="zad_cancel_reply">Okay, cancelled.</string>
+    <string name="zad_inventory_added">📦 Added to inventory: %1$s</string>
+    <string name="zad_pharmacy_added">✅ Done, added %1$s to your medicine schedule%2$s.</string>
+    <string name="zad_ai_busy">AI is a bit busy right now 🙏 try again in a moment.</string>
+    <string name="zad_unexpected_error">An unexpected error occurred.</string>
 </resources>

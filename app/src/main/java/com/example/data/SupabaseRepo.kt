@@ -745,57 +745,32 @@ object SupabaseRepo {
         purchaseToken: String,
         orderId: String
     ): Boolean {
-        val userId = client.auth.currentUserOrNull()?.id ?: return false
+        // التحقق server-side عبر Edge Function verify-purchase — العميل مبيرفعش tier
+        // بنفسه (كانت ثغرة: أي جهاز معدّل يقدر يفتح Pro ببلاش). السيرفر هو اللي
+        // بيتحقق من Google Play Developer API وبكتب tier لو الاشتراك فعلاً صالح.
         return try {
-            val now = java.time.Instant.now()
-            val expiry = if (isAnnual) now.plus(365, java.time.temporal.ChronoUnit.DAYS)
-                         else now.plus(30, java.time.temporal.ChronoUnit.DAYS)
-
-            try {
-                client.postgrest.rpc(
-                    "zad_set_tier",
-                    buildJsonObject {
-                        put("p_user", userId)
-                        put("p_tier", tier.lowercase())
-                        put("p_expires", expiry.toString())
-                    }
-                )
-            } catch (rpcErr: Exception) {
-                Log.w(TAG, "zad_set_tier RPC fallback: ${rpcErr.message}")
+            val productId = when (tier.lowercase()) {
+                "pro" -> if (isAnnual) "zad_pro_sub_annual" else "zad_pro_sub"
+                "starter" -> "zad_starter_sub"
+                else -> "zad_plus_sub"
             }
-
-            client.postgrest["zad_users"].update(
+            val res = callEdgeFunction(
+                "verify-purchase",
                 mapOf(
                     "tier" to tier.lowercase(),
-                    "subscription_status" to "active",
-                    "subscription_expires_at" to expiry.toString()
+                    "isAnnual" to isAnnual,
+                    "purchaseToken" to purchaseToken,
+                    "orderId" to orderId,
+                    "productId" to productId,
                 )
-            ) {
-                filter { eq("id", userId) }
-            }
-
-            client.postgrest["zad_entitlements"].update(
-                mapOf(
-                    "tier" to tier.lowercase(),
-                    "tier_expires_at" to expiry.toString()
-                )
-            ) {
-                filter { eq("user_id", userId) }
-            }
-
-            val subRow = mapOf(
-                "user_id" to userId,
-                "tier" to tier.lowercase(),
-                "provider" to "google_play",
-                "status" to "active",
-                "current_period_start" to now.toString(),
-                "current_period_end" to expiry.toString(),
-                "external_id" to orderId,
-                "notes" to purchaseToken.take(32)
             )
-            client.postgrest["subscriptions"].insert(subRow)
-            Log.d(TAG, "verifyGooglePlayPurchase SUCCESS -> user=$userId upgraded to $tier via Google Play")
-            true
+            val valid = res["valid"] == true
+            if (valid) {
+                Log.d(TAG, "verifyGooglePlayPurchase SUCCESS (server-verified) -> tier=$tier")
+            } else {
+                Log.w(TAG, "verifyGooglePlayPurchase REJECTED by server: $res")
+            }
+            valid
         } catch (e: Exception) {
             Log.e(TAG, "verifyGooglePlayPurchase FAILED: ${e.message}")
             false

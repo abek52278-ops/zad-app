@@ -492,7 +492,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
     // AI Chat
     private val _aiChatMessages = MutableStateFlow<List<AiChatMessage>>(
-        listOf(AiChatMessage(id = "init", text = "أهلاً بك! أنا زاد 🤖، مساعدك العائلي الذكي. كيف يمكنني مساعدتك اليوم؟\nيمكنك سؤالي عن الوصفات، أو مراجعة ثلاجتك، أو إضافة نواقص للتسوق!", isUser = false))
+        listOf(AiChatMessage(id = "init", text = getApplication<Application>().getString(R.string.zad_welcome_message), isUser = false))
     )
     val aiChatMessages: StateFlow<List<AiChatMessage>> = _aiChatMessages.asStateFlow()
 
@@ -838,7 +838,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 dao.clearChatMessages()
                 _aiChatMessages.value = listOf(
-                    AiChatMessage(id = "init", text = "أهلاً بك! أنا زاد 🤖، مساعدك العائلي الذكي. كيف يمكنني مساعدتك اليوم؟\nيمكنك سؤالي عن الوصفات، أو مراجعة ثلاجتك، أو إضافة نواقص للتسوق!", isUser = false)
+                    AiChatMessage(id = "init", text = getApplication<Application>().getString(R.string.zad_welcome_message), isUser = false)
                 )
                 _aiChatMessages.value.forEach { persistChatMessage(it) }
             } catch (e: Exception) {
@@ -1393,7 +1393,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             // اتضافت واترجعت، مش تختفي كإنها معملتش.
             _aiChatMessages.value = _aiChatMessages.value.map {
                 if (it.undoableCommitId == commitId) {
-                    it.copy(text = "↩️ اترجعنا عن الإضافة دي — المخزون زي ما كان.", undoableCommitId = null)
+                    it.copy(text = getApplication<Application>().getString(R.string.zad_undo_inventory), undoableCommitId = null)
                 } else it
             }
         }
@@ -1652,7 +1652,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         if (pendingAgentProposalsValue.isEmpty()) return
         pendingAgentProposalsValue = emptyList()
         val cancelMsg = AiChatMessage(
-            text = "تمام، ملغيتهاش.",
+            text = getApplication<Application>().getString(R.string.zad_cancel_reply),
             isUser = false,
             replyToMessageId = replyToMessageId
         )
@@ -1682,7 +1682,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 injectScannedItems(pending)
                 val added = pending.joinToString("، ") { "${it.itemName} (${it.quantity})" }
                 val confirmMsg = AiChatMessage(
-                    text = "📦 اتضاف للمخزون: $added",
+                    text = getApplication<Application>().getString(R.string.zad_inventory_added, added),
                     isUser = false,
                     undoableCommitId = commitId,
                     replyToMessageId = userMsg.id
@@ -1692,7 +1692,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 return userMsg.id
             } else if (negativeReplyRegex.containsMatchIn(userText)) {
                 val cancelMsg = AiChatMessage(
-                    text = "تمام، ملغيتهاش.",
+                    text = getApplication<Application>().getString(R.string.zad_cancel_reply),
                     isUser = false,
                     replyToMessageId = userMsg.id
                 )
@@ -1710,7 +1710,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 addPharmacyItem(pendingPharmacy)
                 val timesText = pendingPharmacy.doseTimes?.let { " (المواعيد: $it)" } ?: ""
                 val confirmMsg = AiChatMessage(
-                    text = "✅ تم، ضفنا ${pendingPharmacy.name} لجدول الأدوية$timesText.",
+                    text = getApplication<Application>().getString(R.string.zad_pharmacy_added, pendingPharmacy.name, timesText),
                     isUser = false,
                     replyToMessageId = userMsg.id
                 )
@@ -1719,7 +1719,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 return userMsg.id
             } else if (negativeReplyRegex.containsMatchIn(userText)) {
                 val cancelMsg = AiChatMessage(
-                    text = "تمام، ملغيتهاش.",
+                    text = getApplication<Application>().getString(R.string.zad_cancel_reply),
                     isUser = false,
                     replyToMessageId = userMsg.id
                 )
@@ -1868,7 +1868,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 } else {
                     AiChatMessage(
-                        text = "الذكاء الاصطناعي مشغول شوي دلوقتي 🙏 جرب تاني بعد لحظات.",
+                        text = getApplication<Application>().getString(R.string.zad_ai_busy),
                         isUser = false,
                         replyToMessageId = replyToMessageId
                     )
@@ -1886,7 +1886,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch(e: Exception) {
                 val errMsg = AiChatMessage(
-                    text = "حدث خطأ غير متوقع.",
+                    text = getApplication<Application>().getString(R.string.zad_unexpected_error),
                     isUser = false,
                     replyToMessageId = replyToMessageId
                 )

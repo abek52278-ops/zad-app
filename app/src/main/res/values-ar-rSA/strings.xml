@@ -1503,4 +1503,37 @@
     <string name="quantity_piece_format">%1$d قطعة</string>
     <string name="monthly_pharma_cost_title">التكلفة الشهرية</string>
     <string name="left_days_format">متبقي %1$d يوم</string>
+
+<string name="added_quantity_hint">الكمية المضافة (%1$s)</string>
+<string name="budget_suggestion_text">زاد يقترح تعديل ميزانيتك إلى %1$s بناءً على متوسط آخر شهرين</string>
+<string name="category_will_be_remembered_hint">هذا التصنيف هيتم تذكّره لجميع معاملات \"%1$s\" القادمة</string>
+<string name="days_supply_left">يكفي %1$d يوم</string>
+<string name="dose_times_empty_hint">مافي أوقات مضافة بعد — مقترح: %1$s</string>
+<string name="events_radar_days_until">باقي %1$d يوم</string>
+<string name="expired_medicine_warning">%1$d دواء منتهي الصلاحية — تخلص منه بأمان</string>
+<string name="expires_in_days">ينتهي خلال %1$d يوم</string>
+<string name="import_selected_rows_action">استيراد %1$d معاملة</string>
+<string name="live_search_error_state">تعذّر البحث الآن — جرّب التحديث بعد قليل</string>
+<string name="low_stock_reminder_hint">الكمية قاربت على النهاية: %1$s</string>
+<string name="monthly_pharma_cost_label">تكلفة الأدوية الشهرية: %1$s</string>
+<string name="overdue_maintenance_warning">%1$d جهاز متأخر عن موعد الصيانة</string>
+<string name="pharmacy_reminder_body">حان وقت جرعة %1$s</string>
+<string name="pharmacy_reminder_voice_text">حان وقت جرعة %1$s</string>
+<string name="preview_rows_count_hint">%1$d صف — %2$d مُحدد للاستيراد</string>
+<string name="refill_needed_reminder_hint">الدواء قارب على النهاية: %1$s</string>
+<string name="remaining_quantity_label">باقي %1$d %2$s</string>
+<string name="renew_order_dialog_title">تجديد طلب %1$s</string>
+<string name="rescan_done_toast">تم استيراد %d معاملة جديدة</string>
+<string name="service_due_in_days">الصيانة بعد %1$d يوم</string>
+<string name="service_overdue_days">متأخر %1$d يوم</string>
+<string name="statement_import_done_toast">تم استيراد %1$d معاملة، وتخطي %2$d مكررة</string>
+<string name="warranty_expires_in_days">الضمان ينتهي خلال %1$d يوم</string>
+<string name="weekly_adherence_label">التزمت بـ %1$d%% من جرعاتك هذا الأسبوع</string>
+    <string name="zad_welcome_message">أهلاً بك! أنا زاد 🤖، مساعدك العائلي الذكي. كيف أقدر أساعدك اليوم؟\nاسألني عن الوصفات، أو راجع ثلاجتك، أو أضف الناقص لقائمة التسوق!</string>
+    <string name="zad_undo_inventory">↩️ تم التراجع — المخزون كما كان.</string>
+    <string name="zad_cancel_reply">تم، تم الإلغاء.</string>
+    <string name="zad_inventory_added">📦 أُضيف للمخزون: %1$s</string>
+    <string name="zad_pharmacy_added">✅ تم، أضفنا %1$s لجدول الأدوية%2$s.</string>
+    <string name="zad_ai_busy">الذكاء الاصطناعي مشغول قليلاً الآن 🙏 جرّب مرة أخرى بعد قليل.</string>
+    <string name="zad_unexpected_error">حدث خطأ غير متوقع.</string>
 </resources>

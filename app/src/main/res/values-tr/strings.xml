@@ -1537,4 +1537,11 @@
     <string name="quantity_piece_format">%1$d adet</string>
     <string name="monthly_pharma_cost_title">Aylık Maliyet</string>
     <string name="left_days_format">%1$d gün kaldı</string>
+    <string name="zad_welcome_message">Merhaba! Ben Zad 🤖, akıllı aile asistanın. Bugün sana nasıl yardımcı olabilirim?\nTarifler hakkında bana sorabilir, buzdolabını kontrol edebilir veya eksikleri alışveriş listesine ekleyebilirsin!</string>
+    <string name="zad_undo_inventory">↩️ Geri alındı — envanter eski haline döndü.</string>
+    <string name="zad_cancel_reply">Tamam, iptal edildi.</string>
+    <string name="zad_inventory_added">📦 Envantere eklendi: %1$s</string>
+    <string name="zad_pharmacy_added">✅ Tamam, %1$s ilaç takvimine eklendi%2$s.</string>
+    <string name="zad_ai_busy">Yapay zeka şu anda biraz meşgul 🙏 birazdan tekrar dene.</string>
+    <string name="zad_unexpected_error">Beklenmeyen bir hata oluştu.</string>
 </resources>
