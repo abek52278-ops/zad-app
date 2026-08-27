@@ -60,8 +60,8 @@ android {
   testOptions { unitTests { isIncludeAndroidResources = true } }
   lint {
     baseline = file("lint-baseline.xml")
-    isAbortOnError = false
-    isCheckReleaseBuilds = false
+    abortOnError = false
+    checkReleaseBuilds = false
   }
 }
 
