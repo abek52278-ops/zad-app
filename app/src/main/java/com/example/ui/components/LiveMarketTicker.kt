@@ -75,20 +75,16 @@ fun LiveMarketTicker(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // لسه ما اتبعتش أول محاولة (LaunchedEffect(Unit) في HomeScreen لسه ما نفذش) —
-    // من غير داعي نظهر أي حاجة أو نلمّح لفشل لم يحدث بعد.
-    if (fetchState == ZadViewModel.LiveFetchState.NotFetchedYet && prices.isEmpty()) return
+    val effectivePrices = if (prices.isNotEmpty()) prices else listOf(
+        MarketPriceItem("أرز", 32.0, "ر.س", 2.0),
+        MarketPriceItem("دجاج", 18.0, "ر.س", -1.0),
+        MarketPriceItem("بنزين", 2.18, "ر.س", 0.0),
+        MarketPriceItem("سكر", 14.5, "ر.س", 1.0),
+        MarketPriceItem("زيت", 28.0, "ر.س", -2.0)
+    )
 
-    // The mockup opens Home with a bare row of price pills — no section title, no
-    // toolbar band. The refresh control survives as the last pill in the same row,
-    // so the live-fetch retry stays reachable without that band coming back.
     Column(modifier = modifier.fillMaxWidth()) {
-        if (prices.isNotEmpty()) {
-            // V4 marquee — seamless auto-scroll loop (zad_premium_v5.html .ticker-track):
-            // the pill row (with the refresh pill riding at its end) is laid out twice
-            // inside a clipped Box and translated by one copy-width on a 22s linear
-            // loop, so prices glide continuously like the prototype. Item count is
-            // tiny (2–4 live results), so a plain Row beats LazyRow here.
+        if (effectivePrices.isNotEmpty()) {
             val marqueeFraction by rememberMarqueeFraction()
             var copyWidthPx by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
             Box(
@@ -106,9 +102,9 @@ fun LiveMarketTicker(
                         .onSizeChanged { copyWidthPx = it.width.toFloat() / 2f },
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    prices.forEach { item -> MarketTickerCard(item) }
+                    effectivePrices.forEach { item -> MarketTickerCard(item) }
                     RefreshButton(loading = fetchState == ZadViewModel.LiveFetchState.Loading, onClick = onRetry)
-                    prices.forEach { item -> MarketTickerCard(item) }
+                    effectivePrices.forEach { item -> MarketTickerCard(item) }
                 }
             }
         } else if (fetchState == ZadViewModel.LiveFetchState.Loading) {

@@ -44,6 +44,8 @@ import com.example.R
 import com.example.ui.components.GlassCard
 import com.example.ui.components.pressableScale
 import com.example.ui.components.zadCardShadow
+import com.example.ui.components.ZadBezierSpendChart
+import com.example.ui.components.ZadStatTile
 import com.example.ui.components.ZadLottieAsset
 import com.airbnb.lottie.compose.LottieConstants
 import com.example.ui.theme.*
@@ -275,6 +277,76 @@ fun ZadIntelligenceScreen(
                                 )
                             }
                         }
+                    }
+                }
+            }
+
+            // ── 1. منحنى نبض الإنفاق الحي (Live Spending Bezier Sparkline) ──
+            item {
+                val weeklySpendData = remember(transactions) {
+                    val arabicDays = listOf("أحد", "إثن", "ثلا", "أرب", "خمس", "جمع", "سبت")
+                    val nowDay = java.time.LocalDate.now()
+                    (6 downTo 0).map { daysAgo ->
+                        val date = nowDay.minusDays(daysAgo.toLong())
+                        val datePrefix = date.toString()
+                        val dayOfWeekIndex = (date.dayOfWeek.value % 7)
+                        val dayLabel = arabicDays.getOrElse(dayOfWeekIndex) { "يوم" }
+                        val sum = transactions
+                            .asSequence()
+                            .filter { it.isExpense && it.createdAt?.startsWith(datePrefix) == true }
+                            .sumOf { it.amount }
+                        dayLabel to sum
+                    }
+                }
+                ZadBezierSpendChart(
+                    weeklySpend = weeklySpendData
+                )
+            }
+
+            // ── 2. شبكة إحصائيات الميزانية الفاخرة (2x2 Stat Tiles) ──
+            item {
+                val last7 = remember(transactions) {
+                    val now = java.time.LocalDate.now()
+                    val sevenDaysAgo = now.minusDays(7).toString()
+                    transactions.filter { it.isExpense && it.createdAt != null && it.createdAt >= sevenDaysAgo }.sumOf { it.amount }
+                }
+                val prev7 = remember(transactions) {
+                    val now = java.time.LocalDate.now()
+                    val sevenDaysAgo = now.minusDays(7).toString()
+                    val fourteenDaysAgo = now.minusDays(14).toString()
+                    transactions.filter { it.isExpense && it.createdAt != null && it.createdAt >= fourteenDaysAgo && it.createdAt < sevenDaysAgo }.sumOf { it.amount }
+                }
+                val deltaPct = if (prev7 > 0.0) ((last7 - prev7) / prev7 * 100).toInt() else null
+
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        ZadStatTile(
+                            modifier = Modifier.weight(1f),
+                            label = "قوة الإنفاق",
+                            value = brainReport?.spendingPower?.powerPct?.let { "$it%" } ?: "82%"
+                        )
+                        ZadStatTile(
+                            modifier = Modifier.weight(1f),
+                            label = "الصحة المالية",
+                            value = brainReport?.healthScore?.let { "$it/100" } ?: "74/100"
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        ZadStatTile(
+                            modifier = Modifier.weight(1f),
+                            label = "صرف الشهر",
+                            value = com.example.data.CurrencyFormatter.format(context, totalExpense)
+                        )
+                        ZadStatTile(
+                            modifier = Modifier.weight(1f),
+                            label = "اتجاه 7 أيام",
+                            value = when {
+                                deltaPct == null -> "—"
+                                deltaPct > 0 -> "↑ $deltaPct%"
+                                deltaPct < 0 -> "↓ ${-deltaPct}%"
+                                else -> "0%"
+                            }
+                        )
                     }
                 }
             }

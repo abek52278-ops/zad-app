@@ -8,6 +8,11 @@ import com.example.ui.components.ZadWalletHeroCard
 import com.example.ui.components.ZadMinimalMetricsDuo
 import com.example.ui.components.ZadBezierSpendChart
 import com.example.ui.components.ZadQuickExpenseSheet
+import com.example.ui.components.LiveMarketTicker
+import com.example.ui.components.ZadHorizontalShortcutsRail
+import com.example.ui.components.ZadFoodShortagesGlanceCard
+import com.example.ui.components.ZadSubscriptionsGlanceCard
+import com.example.ui.components.ZadPharmacyGlanceCard
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -152,6 +157,12 @@ fun HomeScreen(
     val transactionProposals by viewModel.transactionProposals.collectAsState()
     val resolvingTransactionProposals by viewModel.resolvingTransactionProposals.collectAsState()
     val failedTransactionProposals by viewModel.failedTransactionProposals.collectAsState()
+    val liveMarketPrices by viewModel.livePrices.collectAsState()
+    val marketFetchState by viewModel.marketPricesFetchState.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.fetchLiveMarketPrices()
+    }
 
     // "مصروف" في كارت الميزانية لازم يكون مصروف نفس الدورة اللي "متاح" اتحسب عليها.
     // كان BudgetMath.totalExpense — إجمالي كل المعاملات من أول يوم في التطبيق — جنب
@@ -391,39 +402,15 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // ── 0. Ticker الأسعار — أعلى فئات صرفك الشهرية ونسبتها من متوسطها
-                // (من بياناتك الحقيقية: فئة صرفها أعلى من المعتاد = أحمر، أقل = أخضر)
-                if (budgetConfirmed && visibleTransactions.isNotEmpty()) {
-                    val tickerData = remember(visibleTransactions) {
-                        val now = java.time.LocalDate.now()
-                        val monthStart = now.withDayOfMonth(1).toString()
-                        val prevMonthStart = now.minusMonths(1).withDayOfMonth(1).toString()
-                        val prevMonthEnd = now.withDayOfMonth(1).minusDays(1).toString()
-                        // مصاريف الشهر الحالي واللي فات، مجمعة بالفئة
-                        val thisMonth = visibleTransactions.asSequence()
-                            .filter { it.isExpense && it.createdAt?.startsWith(monthStart) == true }
-                            .groupBy({ it.category ?: "أخرى" }) { it.amount }
-                        val lastMonth = visibleTransactions.asSequence()
-                            .filter { it.isExpense && it.createdAt != null && it.createdAt >= prevMonthStart && it.createdAt <= prevMonthEnd }
-                            .groupBy({ it.category ?: "أخرى" }) { it.amount }
-                        // أعلى 4 فئات صرفاً هذا الشهر، بنسبة التغير مقابل الشهر الفايت
-                        thisMonth.entries
-                            .sortedByDescending { e -> e.value.sum() }
-                            .take(4)
-                            .map { (cat, amounts) ->
-                                val cur = amounts.sum()
-                                val prev = lastMonth[cat]?.sum()
-                                val delta = if (prev != null && prev > 0.0) {
-                                    ((cur - prev) / prev * 100)
-                                } else null
-                                com.example.ui.components.PriceTick(name = cat, deltaPercent = delta)
-                            }
-                    }
-                    com.example.ui.components.AppearOnEntry {
-                        com.example.ui.components.PriceTickerRow(ticks = tickerData)
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
+                // ── 0. شريط الأسعار الحي التلقائي (Live Market Ticker) ──
+                com.example.ui.components.AppearOnEntry {
+                    LiveMarketTicker(
+                        prices = liveMarketPrices,
+                        fetchState = marketFetchState,
+                        onRetry = { viewModel.fetchLiveMarketPrices() }
+                    )
                 }
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // ── 1. كارت المحفظة الفاخر بنمط Apple Wallet (ZadWalletHeroCard) ──
                 val availableBal = availableFigure?.value ?: balanceFigure?.value ?: 0.0
@@ -454,195 +441,78 @@ fun HomeScreen(
                 }
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // ── 3. منحنى الصرف الأسبوعي الانسيابي (ZadBezierSpendChart) ──
-                com.example.ui.components.AppearOnEntry(delayMs = 60) {
-                    val weeklySpendData = remember(visibleTransactions) {
-                        val arabicDays = listOf("أحد", "إثن", "ثلا", "أرب", "خمس", "جمع", "سبت")
-                        val nowDay = java.time.LocalDate.now()
-                        (6 downTo 0).map { daysAgo ->
-                            val date = nowDay.minusDays(daysAgo.toLong())
-                            val datePrefix = date.toString()
-                            val dayOfWeekIndex = (date.dayOfWeek.value % 7)
-                            val dayLabel = arabicDays.getOrElse(dayOfWeekIndex) { "يوم" }
-                            val sum = visibleTransactions
-                                .asSequence()
-                                .filter { it.isExpense && it.createdAt?.startsWith(datePrefix) == true }
-                                .sumOf { it.amount }
-                            dayLabel to sum
-                        }
-                    }
-                    ZadBezierSpendChart(
-                        weeklySpend = weeklySpendData
+                // ── 3. شريط الاختصارات السريعة الأفقي (Horizontal Shortcuts Rail) ──
+                com.example.ui.components.AppearOnEntry(delayMs = 50) {
+                    ZadHorizontalShortcutsRail(
+                        onNavigateToInventory = onNavigateToInventory,
+                        onNavigateToShopping = onNavigateToShopping,
+                        onNavigateToFamily = onNavigateToFamily,
+                        onNavigateToSubscriptions = onNavigateToSubscriptions,
+                        onNavigateToPharmacy = onNavigateToPharmacy,
+                        onNavigateToMaintenance = onNavigateToMaintenance,
+                        onNavigateToTasbiha = onNavigateToTasbiha
                     )
                 }
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
-                // ── 4. شبكة تصنيفات استوديو ثلاثية الأبعاد (ZadCategoryCard - بدون إيموجي) ──
-                com.example.ui.components.AppearOnEntry(delayMs = 80) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "تصنيفات المخزون والمشتريات",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFF0F172A)
-                            )
-                            Text(
-                                text = "عرض الكل",
-                                fontSize = 12.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF0F9B76),
-                                modifier = Modifier.clickable { onNavigateToInventory() }
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            ZadCategoryCard(
-                                category = ZadCategoryType.PRODUCE,
-                                modifier = Modifier.weight(1f),
-                                onClick = onNavigateToInventory
-                            )
-                            ZadCategoryCard(
-                                category = ZadCategoryType.COOKING_OIL,
-                                modifier = Modifier.weight(1f),
-                                onClick = onNavigateToInventory
-                            )
-                            ZadCategoryCard(
-                                category = ZadCategoryType.MEAT_FISH,
-                                modifier = Modifier.weight(1f),
-                                onClick = onNavigateToShopping
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            ZadCategoryCard(
-                                category = ZadCategoryType.BAKERY,
-                                modifier = Modifier.weight(1f),
-                                onClick = onNavigateToInventory
-                            )
-                            ZadCategoryCard(
-                                category = ZadCategoryType.DAIRY_EGGS,
-                                modifier = Modifier.weight(1f),
-                                onClick = onNavigateToInventory
-                            )
-                            ZadCategoryCard(
-                                category = ZadCategoryType.BEVERAGES,
-                                modifier = Modifier.weight(1f),
-                                onClick = onNavigateToShopping
-                            )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(20.dp))
-
+                // ── 4. إيدج صحة المخزون والنواقص الحية (Food Health & Shortages) ──
                 com.example.ui.components.AppearOnEntry(delayMs = 65) {
-                    // البروتوتايب: شبكة الـ6 اختصارات ظاهرة دايماً بعد صف الأيام —
-                    // كانت مخفية ورا زرار "أدوات إضافية" فالمستخدم مش بيكتشفها.
-                    StitchQuickActionGrid(
-                        onVoiceShopping = onOpenVoice,
-                        onScanReceipt = onNavigateToCamera,
-                        onAddToInventory = onNavigateToInventory
+                    ZadFoodShortagesGlanceCard(
+                        inventory = inventory,
+                        onViewAllClick = onNavigateToInventory,
+                        onConfirmItem = { viewModel.confirmInventoryShortage(it) }
                     )
                 }
                 Spacer(modifier = Modifier.height(18.dp))
 
-                com.example.ui.components.AppearOnEntry(delayMs = 68) {
-                    com.example.ui.components.ZadPageShortcutsGrid(
-                        items = listOf(
-                            com.example.ui.components.ZadShortcutItem(Icons.Default.Inventory2, stringResource(R.string.nav_inventory), primary, onNavigateToInventory),
-                            com.example.ui.components.ZadShortcutItem(Icons.Default.ShoppingCart, stringResource(R.string.nav_shopping), catDailyIcon, onNavigateToShopping),
-                            com.example.ui.components.ZadShortcutItem(Icons.Default.FamilyRestroom, stringResource(R.string.nav_family), kidsPrimary, onNavigateToFamily),
-                            com.example.ui.components.ZadShortcutItem(Icons.Default.Subscriptions, stringResource(R.string.quick_stat_subscriptions_title), tertiary, onNavigateToSubscriptions),
-                            com.example.ui.components.ZadShortcutItem(Icons.Default.LocalPharmacy, stringResource(R.string.nav_pharmacy), dangerColor, onNavigateToPharmacy),
-                            // tile الصيانة رجع من البروتوتايب (🔧 SHORTCUTS[6]) — البستان موجود
-                            // أصلاً ككارت كبير تحت، فمكان الشبكة ده كان بيبقى تكرار ليه
-                            com.example.ui.components.ZadShortcutItem(Icons.Default.Build, stringResource(R.string.nav_maintenance), Color(0xFFB45309), onNavigateToMaintenance),
-                            com.example.ui.components.ZadShortcutItem(Icons.Default.Park, stringResource(R.string.tasbiha_short_label), secondaryDark, onNavigateToTasbiha),
-                        ),
+                // ── 5. إيدج الاشتراكات الشهرية والتجديدات (Subscriptions Glance) ──
+                com.example.ui.components.AppearOnEntry(delayMs = 75) {
+                    ZadSubscriptionsGlanceCard(
+                        subscriptions = subscriptions,
+                        onViewAllClick = onNavigateToSubscriptions
                     )
                 }
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // ── 2b. جراف الإنفاق اليومي المباشر (مؤشر الصرف التفاعلي لآخر 7 أيام) ──
-                com.example.ui.components.AppearOnEntry(delayMs = 70) {
-                    LiveSpendingLineGraphWidget(
-                        transactions = transactions,
-                        onNavigateToBudget = onNavigateToBudget
+                // ── 6. إيدج الصيدلية والجرعات المنتظمة (Pharmacy & Doses Glance) ──
+                com.example.ui.components.AppearOnEntry(delayMs = 85) {
+                    ZadPharmacyGlanceCard(
+                        pharmacyItems = pharmacyItems,
+                        onViewAllClick = onNavigateToPharmacy
                     )
                 }
                 Spacer(modifier = Modifier.height(18.dp))
 
-                if (shortageCount > 0) {
-                    com.example.ui.components.ShortagesSummaryCard(
-                        shortageCount = shortageCount,
-                        onViewShortagesClick = {
-                            InventoryNavState.openShortagesTab = true
-                            onNavigateToInventory()
-                        }
+                // ── 7. بستان التسبيح التفاعلي (Tasbiha Garden) ──
+                com.example.ui.components.AppearOnEntry(delayMs = 95) {
+                    TasbihaHomeWidget(
+                        tree = myTasbiha,
+                        onTasbih = { familyViewModel.tasbihaClick() },
+                        onNavigateToTasbiha = onNavigateToTasbiha,
                     )
-                    Spacer(modifier = Modifier.height(18.dp))
                 }
-
-                com.example.ui.components.HomeToolsToggle(
-                    expanded = showHomeTools,
-                    onToggle = { showHomeTools = !showHomeTools },
-                )
                 Spacer(modifier = Modifier.height(18.dp))
 
-                AnimatedVisibility(visible = showHomeTools) {
-                    Column {
-                        ZadProHighlightWidget(onNavigateToPlans = onNavigateToPlans)
-                        Spacer(modifier = Modifier.height(18.dp))
-                        ZadAdEnergyWidget()
-                        Spacer(modifier = Modifier.height(18.dp))
-                        com.example.ui.components.TelegramBotCard(onClick = { showTelegramSheet = true })
-                        Spacer(modifier = Modifier.height(18.dp))
-                        ZadAutonomousIdeasWidget(
-                            inventory = inventory,
-                            onAskAi = { onNavigateToAssistant() },
-                            onAddToShopping = { onNavigateToShopping() },
-                        )
-                        Spacer(modifier = Modifier.height(18.dp))
-                        MiniInventoryWidget(inventory = inventory, onNavigateToInventory = onNavigateToInventory)
-                        Spacer(modifier = Modifier.height(18.dp))
-                        TasbihaHomeWidget(
-                            tree = myTasbiha,
-                            onTasbih = { familyViewModel.tasbihaClick() },
-                            onNavigateToTasbiha = onNavigateToTasbiha,
-                        )
-                        Spacer(modifier = Modifier.height(18.dp))
-                        SmartChefSection(
-                            suggestions = mealSuggestions,
-                            onViewAll = onNavigateToAssistant,
-                            onOpenRecipe = { title ->
-                                selectedRecipeTitle = title
-                                showRecipeDialog = true
-                            },
-                            recipes = chefRecipes,
-                            onAddMissingToShopping = { missing ->
-                                missing.forEach { name ->
-                                    viewModel.addShoppingItem(
-                                        com.example.data.ZadShoppingItem(itemName = name, quantity = 1),
-                                    )
-                                }
-                            },
-                        )
-                        Spacer(modifier = Modifier.height(18.dp))
-                        MiniPharmacyWidget(pharmacyItems = pharmacyItems, onNavigateToPharmacy = onNavigateToPharmacy)
-                        Spacer(modifier = Modifier.height(18.dp))
-                        MiniSubscriptionsWidget(subscriptions = subscriptions, onNavigateToSubscriptions = onNavigateToSubscriptions)
-                    }
+                // ── 8. شيف زاد الذكي للوجبات السريعة (Smart Chef Section) ──
+                com.example.ui.components.AppearOnEntry(delayMs = 105) {
+                    SmartChefSection(
+                        suggestions = mealSuggestions,
+                        onViewAll = onNavigateToAssistant,
+                        onOpenRecipe = { title ->
+                            selectedRecipeTitle = title
+                            showRecipeDialog = true
+                        },
+                        recipes = chefRecipes,
+                        onAddMissingToShopping = { missing ->
+                            missing.forEach { name ->
+                                viewModel.addShoppingItem(
+                                    com.example.data.ZadShoppingItem(itemName = name, quantity = 1),
+                                )
+                            }
+                        },
+                    )
                 }
+                Spacer(modifier = Modifier.height(18.dp))
 
                 if (transactionProposals.isNotEmpty()) {
                     Text(
@@ -783,57 +653,7 @@ fun HomeScreen(
                 )
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // ── 5. Stat grid — the mockup's 2×2 of plain white label/value tiles.
-                // Task 9 wired these ZadFacts numbers onto Home (they used to exist only
-                // inside ZadIntelligenceScreen's report). Trimmed from six colored
-                // icon-chip cards to the mockup's four: spending power, health score,
-                // monthly spend, 7-day trend. Stress-test days and top-category still
-                // live on the Zad Intelligence screen, which is where the mockup puts them.
-                zadFacts?.let { facts ->
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            // المockup بيحط نسبة مئوية هنا ("82%")، والحالة النصية
-                            // ("قوي 💪") بتفضل على شاشة عقل زاد جنب العداد نفسه.
-                            // powerPct = null يعني مفيش سقف ميزانية، فمفيش نسبة تتعرض.
-                            com.example.ui.components.ZadStatTile(
-                                modifier = Modifier.weight(1f).clickable { onNavigateToAssistant() },
-                                label = stringResource(R.string.spending_power),
-                                value = facts.report.spendingPower.powerPct?.let { "$it%" } ?: "—"
-                            )
-                            com.example.ui.components.ZadStatTile(
-                                modifier = Modifier.weight(1f).clickable { onNavigateToAssistant() },
-                                label = stringResource(R.string.financial_health_label),
-                                value = if (facts.report.hasEnoughData) "${facts.report.healthScore}/100" else "—"
-                            )
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            com.example.ui.components.ZadStatTile(
-                                modifier = Modifier.weight(1f).clickable { onNavigateToAssistant() },
-                                label = stringResource(R.string.monthly_spending),
-                                value = com.example.data.CurrencyFormatter.format(context, facts.report.totalSpent)
-                            )
-                            // "اتجاه ٧ أيام" في الmockup نسبة تغيّر (↓ 6%)، مش مبلغ.
-                            // اللي كان هنا مجموع آخر ٧ أيام بالريال تحت عنوان "اتجاه" —
-                            // رقم صح باسم غلط، وما بيقولش اتجاه إيه مقارنة بإيه.
-                            // dailyTrend فيها ١٤ يوم، فالأسبوع اللي فات هو خط الأساس.
-                            val trend = facts.report.dailyTrend
-                            val last7 = trend.takeLast(7).sumOf { it.amount }
-                            val prev7 = trend.dropLast(7).takeLast(7).sumOf { it.amount }
-                            val deltaPct = if (prev7 > 0.0) ((last7 - prev7) / prev7 * 100).toInt() else null
-                            com.example.ui.components.ZadStatTile(
-                                modifier = Modifier.weight(1f).clickable { onNavigateToAssistant() },
-                                label = stringResource(R.string.seven_day_trend_label),
-                                value = when {
-                                    deltaPct == null -> "—"
-                                    deltaPct > 0 -> "↑ $deltaPct%"
-                                    deltaPct < 0 -> "↓ ${-deltaPct}%"
-                                    else -> "0%"
-                                }
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(18.dp))
-                }
+
 
                 // ── 6. Dark AI summary card (mockup: #052E16, mint title, chips) ──
                 agentSummary?.let { summary ->
