@@ -419,7 +419,7 @@ fun AppNavigation(pendingInviteCode: String? = null) {
                         }
                     },
                     pendingInviteCode = pendingInviteCode,
-                    openVoiceOnStart = openVoiceRequest.value
+                    openVoiceOnStart = MainActivity.openVoiceRequest.value
                 )
             }
         }
