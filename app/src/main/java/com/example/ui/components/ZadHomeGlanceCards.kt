@@ -117,14 +117,15 @@ data class FoodItemSample(
     val category: String,
     val daysLeft: Int,
     val isLow: Boolean,
-    val catBg: Color
+    val catBg: Color,
+    val rawItem: ZadInventory? = null
 )
 
 @Composable
 fun ZadFoodShortagesGlanceCard(
     inventory: List<ZadInventory>,
     onViewAllClick: () -> Unit,
-    onConfirmItem: (String) -> Unit = {},
+    onConfirmItem: (ZadInventory) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val sampleItems = remember(inventory) {
@@ -152,7 +153,8 @@ fun ZadFoodShortagesGlanceCard(
                     category = it.category ?: "عام",
                     daysLeft = it.quantity.toInt().coerceAtLeast(1),
                     isLow = it.quantity <= 2,
-                    catBg = catBg
+                    catBg = catBg,
+                    rawItem = it
                 )
             }
         } else {
@@ -202,13 +204,13 @@ fun ZadFoodShortagesGlanceCard(
         // 2x2 Grid of Food Items
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             sampleItems.take(2).forEach { item ->
-                FoodGlanceTile(item = item, modifier = Modifier.weight(1f), onConfirm = { onConfirmItem(item.name) })
+                FoodGlanceTile(item = item, modifier = Modifier.weight(1f), onConfirm = { item.rawItem?.let { onConfirmItem(it) } })
             }
         }
         if (sampleItems.size > 2) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 sampleItems.drop(2).take(2).forEach { item ->
-                    FoodGlanceTile(item = item, modifier = Modifier.weight(1f), onConfirm = { onConfirmItem(item.name) })
+                    FoodGlanceTile(item = item, modifier = Modifier.weight(1f), onConfirm = { item.rawItem?.let { onConfirmItem(it) } })
                 }
             }
         }
