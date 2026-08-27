@@ -33,17 +33,16 @@ import com.example.data.ZadSubscription
 import com.example.data.ZadTransaction
 
 /**
- * ── 1. شريط الاختصارات الأفقي السلس (Horizontal Shortcuts Rail) ──
- * مستوحى من zad_premium_v5.html: أزرار الاختصارات قابلة للتمرير يميناً ويساراً
- * بخلفيات باستيل ناعمة وفيزياء ضغط نابضية.
+ * ── 1. شريط الاختصارات ثلاثي الأبعاد المضيء (Luxury 3D Glassmorphic Shortcuts Rail) ──
+ * تصميم فندقي ثلاثي الأبعاد مع طبقات إضاءة زجاجية وفيزياء حركة عائمة ولمعان ديناميكي (بدون إيموجيز رخيصة)
  */
-data class QuickShortcut(
+data class LuxuryShortcut3D(
     val id: String,
     val title: String,
-    val emoji: String,
+    val subtitle: String,
     val icon: ImageVector,
-    val bg: Color,
-    val fg: Color,
+    val gradientColors: List<Color>,
+    val glowColor: Color,
     val onClick: () -> Unit
 )
 
@@ -60,20 +59,97 @@ fun ZadHorizontalShortcutsRail(
 ) {
     val shortcuts = remember {
         listOf(
-            QuickShortcut("inventory", "المخزون", "📦", Icons.Default.Inventory2, Color(0xFFE3F5EC), Color(0xFF0B6B4E), onNavigateToInventory),
-            QuickShortcut("shopping", "التسوق", "🛒", Icons.Default.ShoppingCart, Color(0xFFFCEEE3), Color(0xFFC2703D), onNavigateToShopping),
-            QuickShortcut("family", "العائلة", "👨‍👩‍👧", Icons.Default.FamilyRestroom, Color(0xFFF1EAFB), Color(0xFF7C3AED), onNavigateToFamily),
-            QuickShortcut("subs", "الاشتراكات", "💳", Icons.Default.Subscriptions, Color(0xFFE8F1FC), Color(0xFF2563EB), onNavigateToSubscriptions),
-            QuickShortcut("pharmacy", "الصيدلية", "💊", Icons.Default.LocalPharmacy, Color(0xFFFCE8ED), Color(0xFFDC5B4B), onNavigateToPharmacy),
-            QuickShortcut("maint", "الصيانة", "🔧", Icons.Default.Build, Color(0xFFFDF3E1), Color(0xFFB45309), onNavigateToMaintenance),
-            QuickShortcut("tasbiha", "التسبيح", "🌿", Icons.Default.Park, Color(0xFFF3E8FF), Color(0xFF6B21A8), onNavigateToTasbiha)
+            LuxuryShortcut3D(
+                id = "inventory",
+                title = "المخزون",
+                subtitle = "تأمين الغذاء",
+                icon = Icons.Default.Inventory2,
+                gradientColors = listOf(Color(0xFF065F46), Color(0xFF059669), Color(0xFF34D399)),
+                glowColor = Color(0xFF10B981),
+                onClick = onNavigateToInventory
+            ),
+            LuxuryShortcut3D(
+                id = "shopping",
+                title = "التسوق",
+                subtitle = "قائمة ذكية",
+                icon = Icons.Default.ShoppingCart,
+                gradientColors = listOf(Color(0xFF9A3412), Color(0xFFEA580C), Color(0xFFFDBA74)),
+                glowColor = Color(0xFFF97316),
+                onClick = onNavigateToShopping
+            ),
+            LuxuryShortcut3D(
+                id = "family",
+                title = "العائلة",
+                subtitle = "عقل مشترك",
+                icon = Icons.Default.FamilyRestroom,
+                gradientColors = listOf(Color(0xFF1E40AF), Color(0xFF3B82F6), Color(0xFF93C5FD)),
+                glowColor = Color(0xFF2563EB),
+                onClick = onNavigateToFamily
+            ),
+            LuxuryShortcut3D(
+                id = "subs",
+                title = "الاشتراكات",
+                subtitle = "VIP وفواتير",
+                icon = Icons.Default.CreditCard,
+                gradientColors = listOf(Color(0xFF5B21B6), Color(0xFF8B5CF6), Color(0xFFDDD6FE)),
+                glowColor = Color(0xFF7C3AED),
+                onClick = onNavigateToSubscriptions
+            ),
+            LuxuryShortcut3D(
+                id = "pharmacy",
+                title = "الصيدلية",
+                subtitle = "جرعات الأسرة",
+                icon = Icons.Default.LocalPharmacy,
+                gradientColors = listOf(Color(0xFF991B1B), Color(0xFFEF4444), Color(0xFFFCA5A5)),
+                glowColor = Color(0xFFDC2626),
+                onClick = onNavigateToPharmacy
+            ),
+            LuxuryShortcut3D(
+                id = "maint",
+                title = "الصيانة",
+                subtitle = "الضمان والمنزل",
+                icon = Icons.Default.Build,
+                gradientColors = listOf(Color(0xFF334155), Color(0xFF64748B), Color(0xFFCBD5E1)),
+                glowColor = Color(0xFF475569),
+                onClick = onNavigateToMaintenance
+            ),
+            LuxuryShortcut3D(
+                id = "tasbiha",
+                title = "التسبيح",
+                subtitle = "شجرة البركة",
+                icon = Icons.Default.Park,
+                gradientColors = listOf(Color(0xFF064E3B), Color(0xFF10B981), Color(0xFF6EE7B7)),
+                glowColor = Color(0xFF059669),
+                onClick = onNavigateToTasbiha
+            )
         )
     }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "shortcuts3DFloat")
+    val floatOffset by infiniteTransition.animateFloat(
+        initialValue = -2.5f,
+        targetValue = 2.5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "bobbing"
+    )
+
+    val shimmerProgress by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmer"
+    )
 
     LazyRow(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
     ) {
         items(shortcuts, key = { it.id }) { item ->
             Column(
@@ -82,23 +158,80 @@ fun ZadHorizontalShortcutsRail(
                 modifier = Modifier
                     .pressableScale()
                     .clickable { item.onClick() }
-                    .width(66.dp)
+                    .width(72.dp)
             ) {
+                // 3D Metallic Glass Capsule with ambient lighting & specular sheen
                 Box(
                     modifier = Modifier
-                        .size(54.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(item.bg)
-                        .shadow(elevation = 2.dp, shape = RoundedCornerShape(18.dp), spotColor = item.fg.copy(alpha = 0.15f)),
+                        .offset(y = (floatOffset * 0.7f).dp)
+                        .size(58.dp)
+                        .shadow(
+                            elevation = 10.dp,
+                            shape = RoundedCornerShape(20.dp),
+                            spotColor = item.glowColor.copy(alpha = 0.55f),
+                            ambientColor = item.glowColor.copy(alpha = 0.25f)
+                        )
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = item.gradientColors
+                            )
+                        )
+                        .border(
+                            width = 1.2.dp,
+                            brush = Brush.linearGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.65f),
+                                    Color.White.copy(alpha = 0.12f),
+                                    item.glowColor.copy(alpha = 0.3f)
+                                )
+                            ),
+                            shape = RoundedCornerShape(20.dp)
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(item.emoji, fontSize = 24.sp)
+                    // Specular light reflection on top edge
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(26.dp)
+                            .align(Alignment.TopCenter)
+                            .background(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.White.copy(alpha = 0.28f),
+                                        Color.Transparent
+                                    )
+                                )
+                            )
+                    )
+
+                    // 3D Vector Icon with drop shadow
+                    Icon(
+                        imageVector = item.icon,
+                        contentDescription = item.title,
+                        tint = Color.White,
+                        modifier = Modifier
+                            .size(26.dp)
+                            .shadow(elevation = 3.dp, shape = CircleShape, spotColor = Color.Black.copy(alpha = 0.4f))
+                    )
                 }
+
+                // Title Label
                 Text(
                     text = item.title,
-                    fontSize = 11.5.sp,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFF1E293B),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                // Subtitle Badge
+                Text(
+                    text = item.subtitle,
+                    fontSize = 9.5.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF475569),
+                    color = Color(0xFF64748B),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -235,7 +368,7 @@ fun ZadFoodShortagesGlanceCard(
                     modifier = Modifier.size(32.dp).clip(CircleShape).background(Color(0xFFE3F5EC)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("🍏", fontSize = 16.sp)
+                    Icon(Icons.Default.Inventory2, contentDescription = null, tint = Color(0xFF0F9B76), modifier = Modifier.size(16.dp))
                 }
                 Column {
                     Text("صحة المخزون والنواقص", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
