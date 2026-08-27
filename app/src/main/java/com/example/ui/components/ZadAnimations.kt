@@ -263,3 +263,15 @@ fun AppearOnEntry(
         ) + fadeIn(tween(500, easing = easePremium))
     ) { content() }
 }
+
+/** Seamless looping marquee phase in 0..1 for ticker rows. */
+@Composable
+fun rememberMarqueeFraction(periodMs: Int = 22000): State<Float> {
+    val transition = rememberInfiniteTransition(label = "marquee")
+    return transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(periodMs, easing = LinearEasing), RepeatMode.Restart),
+        label = "marquee_fraction",
+    )
+}

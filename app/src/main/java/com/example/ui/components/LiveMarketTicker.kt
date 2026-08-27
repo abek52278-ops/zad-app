@@ -46,7 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.MarketPriceItem
 import com.example.ui.theme.Typography
-import com.example.ui.v2.rememberMarqueeFraction
+import com.example.ui.components.rememberMarqueeFraction
 import com.example.ui.theme.dangerColor
 import com.example.ui.theme.onSurfaceVariant
 import com.example.ui.theme.primary

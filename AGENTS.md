@@ -57,3 +57,5 @@ cd supabase/functions/zad-telegram-bot && deno test --allow-all
    - Rewarded Ad Battery (3 Ads): 3 rewarded video ads grant +5 instant AI messages and a 12-hour Zad Brain session.
    - AdMob IDs: App ID `ca-app-pub-4433736715872551~7866252380` | Rewarded Unit `ca-app-pub-4433736715872551/5974535887`.
 5. **Git Push Invariant**: Always commit and push directly to the main branch unless explicitly asked to create a feature branch.
+6. **Native Compose Architecture & Entry Point Lock**: The application is 100% Native Android Jetpack Compose (NO WebViews, NO isolated HTML files). The single definitive entry point for all UI and screen navigation is `com.example.MainScreen` (drawn by `ZadShell`) hosted in `MainActivity.kt`. All 17 feature screens are registered through `ZadRoutes` inside `MainScreen.kt`. Never create temporary HTML prototype directories or point `MainActivity.kt` to deprecated legacy screens.
+
