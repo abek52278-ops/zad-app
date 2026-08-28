@@ -178,26 +178,11 @@ fun HomeScreen(
         (lowStock + expiring).distinctBy { it.id }.size
     }
 
-    val displayChefRecipes = remember(chefRecipes) {
-        if (chefRecipes.isNotEmpty()) chefRecipes
-        else listOf(
-            com.example.data.ZadRecipe(
-                recipeName = "كبسة دجاج سريعة",
-                imageUrl = "https://images.pexels.com/photos/1624487/pexels-photo-1624487.jpeg",
-                prepTimeMinutes = 35
-            ),
-            com.example.data.ZadRecipe(
-                recipeName = "مكرونة بالصلصة والجبن",
-                imageUrl = "https://images.pexels.com/photos/1279330/pexels-photo-1279330.jpeg",
-                prepTimeMinutes = 15
-            ),
-            com.example.data.ZadRecipe(
-                recipeName = "شوربة خضار مشكل",
-                imageUrl = "https://images.pexels.com/photos/539451/pexels-photo-539451.jpeg",
-                prepTimeMinutes = 20
-            )
-        )
-    }
+    // شيف زاد لازم يرشح من المخزون الفعلي بس. كان فيه fallback بيقص على 3 وصفات
+    // ثابتة (كبسة/مكرونة/شوربة) لما الـ AI يرجع فاضي — وده بالظبط "شيف زاد مش بيرشح
+    // صح": وصفات وهمية مالهاش علاقة بالمخزون. دلوقتي: القائمة الفاضية = القسم بياخد
+    // شكل صادق (الكارت النصي بيهنّد لوحده بمساحة فاضية محترمة بلا كروت مزيفة).
+    val displayChefRecipes = chefRecipes
 
     val displayAffiliatePicks = remember(affiliatePicks, affiliateProducts) {
         if (affiliatePicks.isNotEmpty()) {

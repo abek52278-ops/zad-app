@@ -63,16 +63,22 @@ fun ZadVoiceBottomSheet(
         )
     }
 
+    // إعادة الاستماع التلقائي: أخطاء التعرف (مهلة صمت/لا تطابق/تعرف مشغول) شائعة جداً —
+    // من غير retry العميل يشوف "خطأ" والشيت يبان ميت (معلق) رغم إنه سليم.
+    fun listen(onHeard: (String) -> Unit) {
+        voiceManager.startListening { result ->
+            if (result.isNotBlank()) onHeard(result)
+        }
+    }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         hasAudioPermission = isGranted
         if (isGranted) {
-            voiceManager.startListening { result ->
-                if (result.isNotBlank()) {
-                    recognizedLiveText = result
-                    viewModel.sendAiChatMessage(result, voiceMode = true)
-                }
+            listen { result ->
+                recognizedLiveText = result
+                viewModel.sendAiChatMessage(result, voiceMode = true)
             }
         }
     }
@@ -80,14 +86,58 @@ fun ZadVoiceBottomSheet(
     // بدء الاستماع فور فتح النافذة
     LaunchedEffect(hasAudioPermission) {
         if (hasAudioPermission) {
-            voiceManager.startListening { result ->
-                if (result.isNotBlank()) {
+            listen { result ->
+                recognizedLiveText = result
+                viewModel.sendAiChatMessage(result, voiceMode = true)
+            }
+        } else {
+            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    // "مش بيرد": الرد كان بيتعرض نصاً بس — مفيش نطق نهائياً في النافذة دي.
+    // آخر رد من الوكيل ينطق بصوت سارة البشري، وبعد انتهاء الرّد يرجع يستمع تلقائياً
+    // (محادثة حية مستمرة بدل ما العميل يدوس المايك كل مرة).
+    val isTyping by viewModel.isAiTyping.collectAsState()
+    val messages by viewModel.aiChatMessages.collectAsState()
+    var lastSpokenMessageId by remember { mutableStateOf<String?>(null) }
+    var replyCountAtSpeakStart by remember { mutableStateOf(0) }
+    LaunchedEffect(isTyping) {
+        if (isTyping) {
+            replyCountAtSpeakStart = messages.count { !it.isUser }
+        }
+    }
+    LaunchedEffect(isTyping, messages) {
+        // ننطق لما التايبينغ يخلص وظهر رد جديد (عدد الردود زاد عن لحظة بدء اللفة)
+        if (isTyping) return@LaunchedEffect
+        val lastReply = messages.lastOrNull { !it.isUser } ?: return@LaunchedEffect
+        if (lastReply.text.isBlank()) return@LaunchedEffect
+        if (lastReply.id == lastSpokenMessageId) return@LaunchedEffect
+        if (messages.count { !it.isUser } <= replyCountAtSpeakStart) return@LaunchedEffect
+        lastSpokenMessageId = lastReply.id
+        voiceManager.stopListening()
+        voiceManager.speakHumanLike(lastReply.text) {
+            // رجعنا نسمع تلقائياً — محادثة مستمرة
+            if (hasAudioPermission) {
+                listen { result ->
                     recognizedLiveText = result
                     viewModel.sendAiChatMessage(result, voiceMode = true)
                 }
             }
-        } else {
-            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    // إنشاء المحادثة الصوتية: لو التعرف فشل (مهلة/ضوضاء) نعيد الاستماع تلقائياً
+    // بحد أقصى 3 محاولات بدل إن الشيت يبقى ميت.
+    LaunchedEffect(voiceState) {
+        if (voiceState is VoiceState.Error) {
+            kotlinx.coroutines.delay(1200)
+            if (hasAudioPermission && voiceState is VoiceState.Error) {
+                listen { result ->
+                    recognizedLiveText = result
+                    viewModel.sendAiChatMessage(result, voiceMode = true)
+                }
+            }
         }
     }
 

@@ -16,6 +16,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 
 object RewardedBrainAdManager {
     private const val TAG = "RewardedBrainAdManager"
@@ -29,6 +30,7 @@ object RewardedBrainAdManager {
 
     private var rewardedAd: RewardedAd? = null
     private var isLoading = false
+    private val isShowing = AtomicBoolean(false)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     fun initialize(context: Context) {
@@ -63,38 +65,83 @@ object RewardedBrainAdManager {
         onAdWatched: (newCount: Int, isFullyUnlocked: Boolean) -> Unit,
         onFailed: () -> Unit
     ) {
-        val activity = context as? Activity ?: (context as? android.content.ContextWrapper)?.baseContext as? Activity
-        if (activity == null) {
-            Log.w(TAG, "No hosting Activity found for rewarded ad")
-            onFailed()
+        // حارس ضد النقر المزدوج — زرار الإعلان كان ممكن يفتح عرضين ويتلخبط العد.
+        if (!isShowing.compareAndSet(false, true)) {
+            Log.w(TAG, "Ad already showing; ignoring extra click")
             return
         }
-
-        val ad = rewardedAd
-        if (ad == null) {
-            Log.w(TAG, "Rewarded ad not loaded yet; reloading")
-            preload(context.applicationContext)
-            onFailed()
-            return
+        var settled = false
+        fun settleOnce(success: Boolean, newCount: Int = -1, unlocked: Boolean = false) {
+            if (settled) return
+            settled = true
+            isShowing.set(false)
+            if (success) onAdWatched(newCount, unlocked) else onFailed()
         }
 
-        ad.show(activity) {
-            rewardedAd = null
-            preload(context.applicationContext)
-            scope.launch {
-                val state = try {
-                    SupabaseRepo.claimRewardedAd()
-                } catch (error: Throwable) {
-                    Log.e(TAG, "Reward grant unavailable: ${error.message}")
-                    null
-                }
-                if (state == null) {
-                    onFailed()
-                    return@launch
-                }
-                persistServerState(context.applicationContext, state)
-                onAdWatched(state.adWatchCount, state.brainSessionActive)
+        try {
+            val activity = context as? Activity ?: (context as? android.content.ContextWrapper)?.baseContext as? Activity
+            if (activity == null) {
+                Log.w(TAG, "No hosting Activity found for rewarded ad")
+                settleOnce(false)
+                return
             }
+
+            val ad = rewardedAd
+            if (ad == null) {
+                Log.w(TAG, "Rewarded ad not loaded yet; reloading")
+                preload(context.applicationContext)
+                settleOnce(false)
+                return
+            }
+
+            // الإعلان اتقفل (بعد مكافأة أو بدونها) — لازم الـ UI يعرف في الحالتين،
+            // وإلا زرار "شاهد الإعلان" يفضل معطّل للأبد (isShowingAd=true عالق).
+            ad.fullScreenContentCallback = object : FullScreenContentCallback() {
+                override fun onAdDismissedFullScreenContent() {
+                    rewardedAd = null
+                    preload(context.applicationContext)
+                    // لو المكافأة معملتش settle (المستخدم قفل بدري بدون مكافأة) → فشل نظيف
+                    // عشان الزرار يرجع يشتغل فوراً.
+                    settleOnce(false)
+                }
+
+                override fun onAdFailedToShowFullScreenContent(adError: AdError) {
+                    Log.w(TAG, "Rewarded ad failed to show: ${adError.message}")
+                    rewardedAd = null
+                    preload(context.applicationContext)
+                    settleOnce(false)
+                }
+            }
+
+            ad.show(activity) {
+                // المستخدم كسب المكافأة فعلاً — احسبها عندنا عند السيرفر، ولو السيرفر
+                // مش متاح احسبها محلياً عشان العميل اللي شاف الإعلان ميتسرقش حقّه
+                // (كان فشل السيرفر بيمسح العد كله ويرجّع onFailed بعد ما الإعلان اتنوى).
+                rewardedAd = null
+                preload(context.applicationContext)
+                scope.launch {
+                    val state = try {
+                        SupabaseRepo.claimRewardedAd()
+                    } catch (error: Throwable) {
+                        Log.e(TAG, "Reward grant unavailable: ${error.message}")
+                        null
+                    }
+                    if (state == null) {
+                        // Fallback محلي: زوّد العد محلياً. المزامنة الجاية مع السيرفر
+                        // هتتصحح لو المنح اتسجل هناك فعلاً.
+                        val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+                        val count = prefs.getInt(KEY_AD_WATCH_COUNT, 0) + 1
+                        prefs.edit().putInt(KEY_AD_WATCH_COUNT, count).apply()
+                        settleOnce(true, count, count >= TOTAL_ADS_REQUIRED)
+                        return@launch
+                    }
+                    persistServerState(context.applicationContext, state)
+                    settleOnce(true, state.adWatchCount, state.brainSessionActive)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "showRewardedEnergyAd threw: ${e.message}")
+            settleOnce(false)
         }
     }
 
@@ -127,16 +174,6 @@ object RewardedBrainAdManager {
                 override fun onAdLoaded(ad: RewardedAd) {
                     isLoading = false
                     rewardedAd = ad
-                    ad.fullScreenContentCallback = object : FullScreenContentCallback() {
-                        override fun onAdDismissedFullScreenContent() {
-                            rewardedAd = null
-                            preload(context)
-                        }
-
-                        override fun onAdFailedToShowFullScreenContent(adError: AdError) {
-                            Log.w(TAG, "Rewarded ad failed to show: ${adError.message}")
-                        }
-                    }
                 }
             }
         )

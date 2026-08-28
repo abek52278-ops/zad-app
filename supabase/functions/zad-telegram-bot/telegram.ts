@@ -126,8 +126,34 @@ export function notificationReviewMessage(event: {
     "إشعار بنكي محتاج مراجعتك",
     `المصدر: ${event.packageName}`,
     details,
-    "المبلغ أو الاتجاه مش واضح. رد عليا بجملة زي: ده سحب 250 من البطاقة، أو ده إيداع 1000. هعرضه عليك للتأكيد قبل ما أغيّر الرصيد.",
+    "المبلغ أو الاتجاه مش واضح. اختار من الأزرار، أو رد عليا بجملة زي: ده سحب 250 من البطاقة، أو ده إيداع 1000. هعرضه عليك للتأكيد قبل ما أغيّر الرصيد.",
   ].filter(Boolean).join("\n");
+}
+
+/**
+ * أزرار الرد السريع على الإشعار الغامض — قبل كده السؤال كان نص بس وبتطلب من العميل
+ * يكتب جملة، فمعظم الناس بيتجاهلوا. الأزرار بترسل نص جاهز يتعالج بنفس مسار agent_turn.
+ * callback_data: nrev:<eventId>:<expense|income|skip> — يتفك في parseNotificationReviewCallback.
+ */
+export function notificationReviewKeyboard(eventId: string): InlineKeyboardButton[][] {
+  return [
+    [
+      { text: "💳 مصروف/سحب", callback_data: `nrev:${eventId}:expense` },
+      { text: "💰 إيداع", callback_data: `nrev:${eventId}:income` },
+    ],
+    [{ text: "تجاهل", callback_data: `nrev:${eventId}:skip` }],
+  ];
+}
+
+export function parseNotificationReviewCallback(
+  data: string,
+): { eventId: string; direction: "expense" | "income" | "skip" } | null {
+  const parts = data.split(":");
+  if (parts.length !== 3 || parts[0] !== "nrev") return null;
+  if (!/^[0-9a-fA-F-]{36}$/.test(parts[1])) return null;
+  const direction = parts[2];
+  if (direction !== "expense" && direction !== "income" && direction !== "skip") return null;
+  return { eventId: parts[1], direction };
 }
 
 /**

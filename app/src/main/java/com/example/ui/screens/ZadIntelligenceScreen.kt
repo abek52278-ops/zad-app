@@ -3751,8 +3751,17 @@ private fun ZadBrainAdGate(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var adsWatched by remember { mutableStateOf(0) }
+    // العد بيتزامن من التخزين المحلي + السيرفر عند الفتح — كان بيبدأ صفر دايماً
+    // فالبطارية بتظهر فاضية حتى لو العميل شاف إعلانين قبل كده.
+    var adsWatched by remember { mutableStateOf(com.example.ads.RewardedBrainAdManager.getAdWatchCount(context)) }
     var isShowingAd by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        scope.launch {
+            com.example.ads.RewardedBrainAdManager.syncServerState(context)?.let {
+                adsWatched = it.adWatchCount
+            }
+        }
+    }
     val adsRequired = com.example.ads.RewardedBrainAdManager.TOTAL_ADS_REQUIRED
 
     Box(
@@ -3801,11 +3810,10 @@ private fun ZadBrainAdGate(
                     com.example.ads.RewardedBrainAdManager.showRewardedEnergyAd(
                         context = context,
                         onAdWatched = { newCount, fullyUnlocked ->
-                            isShowingAd = false
                             adsWatched = newCount
                             if (fullyUnlocked) onUnlocked()
                         },
-                        onFailed = { isShowingAd = false }
+                        onFailed = { /* زرار بيرجع يشتغل فوراً — المحرّك بيعالج الحالة */ }
                     )
                 },
                 enabled = !isShowingAd,

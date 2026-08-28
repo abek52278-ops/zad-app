@@ -25,6 +25,8 @@ import {
   confirmSpendKeyboard, parseSpendCallback,
   transactionProposalKeyboard, parseTransactionProposalCallback,
   notificationReviewMessage,
+  notificationReviewKeyboard,
+  parseNotificationReviewCallback,
   confirmMedicationKeyboard, parseMedicationCallback,
   checkInKeyboard, parseCheckInCallback, checkInPromptMessage,
   confirmToolKeyboard, parseToolCallback,
@@ -1233,6 +1235,35 @@ bot.on("callback_query:data", async (ctx) => {
 
   const data = ctx.callbackQuery.data;
 
+  // رد سريع على الإشعار البنكي الغامض (أزرار مصروف/إيداع/تجاهل) — بيبعت نص جاهز
+  // لنفس مسار agent_turn، فبياخد تأكيد وaudit زي أي رسالة عادية.
+  const reviewCallback = parseNotificationReviewCallback(data);
+  if (reviewCallback) {
+    if (reviewCallback.direction === "skip") {
+      await ctx.reply("تمام، الإشعار ده هيتتجاهل ومش هيتسجل.");
+      return;
+    }
+    const event = await sb.from("zad_notification_ingest_events")
+      .select("id,package_name,title,body")
+      .eq("id", reviewCallback.eventId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    const ev = event.data as { package_name: string; title: string | null; body: string } | null;
+    if (!ev) {
+      await ctx.reply("الإشعار ده مش موجود أو اتقفل — جرّب ابعتلي المبلغ بنفسك.");
+      return;
+    }
+    const snippet = `${ev.title ?? ""} ${ev.body}`.trim().slice(0, 200);
+    const directionText = reviewCallback.direction === "expense" ? "ده مصروف/سحب" : "ده إيداع";
+    const turn = await agentTurn(userId, `${directionText}. الإشعار: ${snippet}`);
+    if (turn.result?.reply) {
+      await ctx.reply(turn.result.reply);
+    } else {
+      await ctx.reply("استلمت ردك — هسألك تفاصيل لو احتجت أرقام أدق.");
+    }
+    return;
+  }
+
   // Bank notifications use one durable proposal shared with Android. The RPC locks the
   // row and posts at most one transaction, so two quick taps or an app + Telegram race
   // both return the same terminal result without duplicating money.
@@ -1759,7 +1790,7 @@ Deno.serve(async (req: Request) => {
         packageName: sanitizeName(row.package_name),
         title: row.title ? sanitizeName(row.title) : null,
         body: sanitizeName(row.body),
-      })));
+      })), notificationReviewKeyboard(ingest_event_id));
       return new Response(JSON.stringify({ ok: true, delivered: true }), {
         headers: { "Content-Type": "application/json" },
       });
