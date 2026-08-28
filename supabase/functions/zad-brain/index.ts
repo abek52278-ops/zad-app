@@ -65,6 +65,8 @@ import { hasConfiguredSecret, hasServiceRoleAuthorization, resolveAuthedUserId }
 import { conversationProfile, voiceModeInstruction } from "./persona.ts";
 // المرحلة ٣ — الوكلاء المتخصصون: توجيه + هوية في البرومبت + trace في zad_brain_runs.
 import { recordSpecialistTrace, routeSpecialist, specialistPromptBlock, scopeToolsForSpecialist } from "./specialists.ts";
+// Phase 3 — صندوق بريد الأيدجنتس: تقرير كل تنفيذ ناجح يوصل للعقل، والعقل بيقرا غير المقروء.
+import { agentMailBlock, fetchUnreadAgentMail, sendAgentReport, type AgentSender } from "./agentMail.ts";
 // SOUL — هوية مدير الحياة الكامل (نمط Hermes) + المهارات المتعلمة.
 import { soulBlock } from "./soul.ts";
 import { loadSkills, skillsBlock } from "./skills.ts";
@@ -3456,9 +3458,12 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
     : "";
   // SOUL + المهارات المتعلمة — هوية مدير الحياة الكامل قبل برومبت الوكيل المتخصص.
   const learnedSkills = await loadSkills(sb, userId);
+  // تقارير الأيدجنتس غير المقروءة — العقل بيبقى واعي بشغل أيدجنتته بين رسالتين (Phase 3).
+  const agentMail = await fetchUnreadAgentMail(sb, userId);
   const systemPrompt =
     soulBlock()
     + (specialistPromptBlock(specialist) ?? "") + "\n" + lessonsBlock
+    + agentMailBlock(agentMail)
     + skillsBlock(learnedSkills)
     + buildChatSystemPrompt({ ...snap, memory: relevantMemory }, body.voice_mode === true);
 
@@ -3578,7 +3583,16 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
       }
 
       const result = await runTool(sb, userId, call.name, call.input, snap, ctx, scope);
-      if (!result.startsWith("مرفوض:")) executed.push({ tool: call.name, ok: true, summary: result });
+      if (!result.startsWith("مرفوض:")) {
+        executed.push({ tool: call.name, ok: true, summary: result });
+        // تقرير عمل للصندوق: العقل في الرد الجاي (أو من cron) هيعرف إن الأيدجنت اشتغل.
+        // fire-and-forget — فشل التسجيل مش بيكسر الرد.
+        await sendAgentReport(
+          sb, userId, specialist as AgentSender,
+          `نفّذ ${call.name}`,
+          result.slice(0, 300),
+        );
+      }
       if (call.name === "app_command" && !result.startsWith("مرفوض:")) {
         appCommands.push({
           screen: String(call.input.screen),
@@ -3932,6 +3946,21 @@ async function handleNotificationIngest(sb: SupabaseClient, userId: string, body
   const needsClassification = clientClassification !== "completed" || confidence < 0.9;
   const txnKind = needsClassification ? null : parsedKind;
   const sourceLabel = String(parsed.merchant_name ?? parsed.bank_name ?? packageName).trim().slice(0, 80);
+
+  // تصنيف مقصد الخصم (اشتراك/قسط/فاتورة/إيجار) — العميل بيسأل "الخصم ده ليه؟"
+  // فلما الإشعار فيه إشارة دورية، بنحوّل العنوان للنوع ونسأل بس لو مش متأكدين.
+  const deductionKind = (() => {
+    const t = rawText;
+    if (/تجديد\s*اشتراك|اشتراك|subscription|netflix|spotify|shahid|jawwy|anghami|stc|mobily|zain/i.test(t)) return "اشتراك";
+    if (/قسط|أقساط|تقسيط|installment|تمويل|أمر خصم/i.test(t)) return "قسط";
+    if (/إيجار|ايجار|rent/i.test(t)) return "إيجار";
+    if (/فاتورة|كهربا|كهرباء|مياه|نت|إنترنت|جوال|bill|electric|water/i.test(t)) return "فاتورة";
+    return null;
+  })();
+  const suggestedTitle = deductionKind
+    ? `${deductionKind} — ${sourceLabel}`.slice(0, 80)
+    : null;
+
   const proposalRow = {
     user_id: userId,
     source_event_id: ingestEventId,
@@ -3940,7 +3969,7 @@ async function handleNotificationIngest(sb: SupabaseClient, userId: string, body
     status: needsClassification ? "needs_classification" : "awaiting_confirmation",
     txn_kind: txnKind,
     amount: Math.round(amount * 100) / 100,
-    title: String(parsed.title ?? title).trim().slice(0, 80) || packageName,
+    title: suggestedTitle ?? (String(parsed.title ?? title).trim().slice(0, 80) || packageName),
     category: String(parsed.category ?? (txnKind === "income" ? "دخل" : txnKind === "transfer" ? "تحويل" : "أخرى")).trim().slice(0, 40),
     currency: String(parsed.currency ?? "").trim() || null,
     wallet: "card",
