@@ -932,8 +932,9 @@ Deno.serve(async (req: Request) => {
       );
       if (!res.ok) {
         const errText = await res.text();
-        console.error(`[CoreIntel] voice_selftest failed: HTTP ${res.status} ${errText.slice(0, 200)}`);
-        return jsonResponse({ ok: false, status: res.status }, 200);
+        console.error(`[CoreIntel] voice_selftest failed: HTTP ${res.status} ${errText.slice(0, 400)}`);
+        // نرجّع أول سطر من رسالة جوجل — من غيره التشخيص أعمى (مفتاح باطل؟ موديل مش موجود؟)
+        return jsonResponse({ ok: false, status: res.status, error: errText.slice(0, 300) }, 200);
       }
       const data = await res.json();
       const hasAudio = !!data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
