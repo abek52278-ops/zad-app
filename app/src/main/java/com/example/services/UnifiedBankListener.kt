@@ -29,22 +29,31 @@ class UnifiedBankListener : NotificationListenerService() {
      * regional package variants without listing each one.
      */
     private val trackedPackages = listOf(
-        // ── السعودية: بنوك ──
+        // ── السعودية: بنوك (تغطية شاملة — السوق الأساسي) ──
         "com.alrajhi.bank", "com.snb", "com.riyadbank",
         "com.sabb", "com.alinma.bank",
         "alrajhi", "snb", "riyad", "sabb", "alinma",
         "albilad", "aljazira", "anb", "saib", "gib", "emiratesnbd",
+        // بنوك سعودية إضافية — التطبيق بيتصنف كأداة إدارة مالية سعودية أولاً
+        "bsf", "sab", // بنك الرياض (BSF) والبنك السعودي الأول (SAB — الاسم الجديد لـ SABB)
+        "alahli", "ncb", // الأهلي/NCB (داخل SNB دلوقتي لكن التطبيق القديم لسه شغال)
+        "bankaljazeera", "jazeera", // بنك الجزيرة
         // ── السعودية: محافظ ومدفوعات ──
         "com.stcpay", "stcpay", "urpay", "barq", "tweeq", "d360",
+        "lemo", "hala", "neoleap",
         "mada", "sarie", "geidea", "moyasar", "hyperpay", "paytabs",
-        // ── اشترِ الآن وادفع لاحقاً ──
+        // ── اشترِ الآن وادفع لاحقاً (السعودية أولاً — سوق BNPL ضخم) ──
         "com.tabby", "com.tamara", "tabby", "tamara", "madfu", "spotii",
+        "mispay", "postpay",
+        // ── اشتراكات وفواتير سعودية شائعة (إشعار الخصم بيوصل من التطبيق نفسه) ──
+        "netflix", "spotify", "stc", "mobily", "zainksa", "jawwy", "shahid", "anghami", "salam",
         // ── محافظ عالمية ──
         "com.google.android.apps.walletnfcrel", "com.paypal", "paypal",
         "com.samsung.android.spay", "wise", "revolut", "payoneer",
         // ── تجارة وتوصيل (إيصالات الدفع بتوصل كإشعار) ──
         "noon", "amazon", "aliexpress", "shein", "jahez", "hungerstation",
         "talabat", "careem", "uber", "ninja", "mrsool", "chefz",
+        "toyou", "nana", "floward",
         // ── تركيا ──
         "isbank", "garanti", "akbank", "yapikredi", "ziraat",
         "halkbank", "vakifbank", "qnbfinansbank", "denizbank", "teb", "papara",
@@ -301,6 +310,14 @@ class UnifiedBankListener : NotificationListenerService() {
         "ر.س", "رس", "ريال", "SAR", "خصم", "شراء", "دفع", "تم الدفع",
         "رصيد", "إيداع", "تحويل", "مبلغ", "بطاقة", "مشتريات", "سحب",
         "راتب", "مرتب", "مدين", "دائن", "قسط", "فاتورة", "اشتراك",
+        // خصومات الاشتراكات والأقساط والفواتير — العميل بيسأل "الخصم ده ليه؟"
+        // فالكلمات دي هي اللي تخلّي الإشعار يوصل للعقل يصنفه (اشتراك/قسط/فاتورة)
+        "تم الخصم", "خصم دوري", "تجديد تلقائي", "التزام شهري", "قسط شهري",
+        "سداد", "تم السداد", "استحقاق", "مستحق", "دفعة", "أقساط",
+        "تجديد اشتراك", "إشعار خصم", "auto debit", "recurring",
+        "إيجار", "قسط إيجار", "تم التحويل من", "أمر خصم",
+        "فاتورة كهربا", "فاتورة مياه", "فاتورة نت", "فاتورة الجوال",
+        "الكهرباء", "المياه", "الاتصالات", "الإنترنت",
         // عربي — محافظ وتجارة
         "محفظة", "تم استلام", "تم إرسال", "تم تحويل", "عملية", "معاملة",
         "طلبك", "استرجاع", "استرداد", "كاش باك", "نقاط", "تم الشراء",

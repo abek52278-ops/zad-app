@@ -1536,4 +1536,11 @@
     <string name="zad_pharmacy_added">✅ تم، أضفنا %1$s لجدول الأدوية%2$s.</string>
     <string name="zad_ai_busy">الذكاء الاصطناعي مشغول قليلاً الآن 🙏 جرّب مرة أخرى بعد قليل.</string>
     <string name="zad_unexpected_error">حدث خطأ غير متوقع.</string>
+    <string name="brain_gate_title">افتح عقل زاد</string>
+    <string name="brain_gate_subtitle">شاهد إعلانات قصيرة لفتح العقل الذكي — تنبؤات وتقارير ومحادثة لمدة 24 ساعة. أو اشترك للوصول غير المحدود.</string>
+    <string name="brain_gate_loading">جارٍ تحميل الإعلان…</string>
+    <string name="brain_gate_watch_ad">▶ شاهد إعلاناً وافتح</string>
+    <string name="brain_gate_subscribe">أو اشترك في زاد بريميوم</string>
+    <string name="media_pass_unlock_title">افتح الصوت والصور</string>
+    <string name="media_pass_unlock_button">🎬 افتح بإعلان واحد — 24 ساعة</string>
 </resources>

@@ -1544,4 +1544,11 @@
     <string name="zad_pharmacy_added">✅ Tamam, %1$s ilaç takvimine eklendi%2$s.</string>
     <string name="zad_ai_busy">Yapay zeka şu anda biraz meşgul 🙏 birazdan tekrar dene.</string>
     <string name="zad_unexpected_error">Beklenmeyen bir hata oluştu.</string>
+    <string name="brain_gate_title">Zad Zekasını Aç</string>
+    <string name="brain_gate_subtitle">Kısa reklamları izleyerek akıllı beyni aç — 24 saat boyunca tahminler, raporlar ve sohbet. Ya da sınırsız için abone ol.</string>
+    <string name="brain_gate_loading">Reklam yükleniyor…</string>
+    <string name="brain_gate_watch_ad">▶ Reklam izle ve aç</string>
+    <string name="brain_gate_subscribe">Ya da Zad Premium\'a abone ol</string>
+    <string name="media_pass_unlock_title">Ses ve fotoğrafları aç</string>
+    <string name="media_pass_unlock_button">🎬 1 reklamla aç — 24 saat</string>
 </resources>

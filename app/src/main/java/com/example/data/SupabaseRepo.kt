@@ -2077,6 +2077,13 @@ object SupabaseRepo {
         val reason: String? = null,
     )
 
+    @Serializable
+    private data class MediaPassGrantResponse(
+        val granted: Boolean = false,
+        val reason: String? = null,
+        @SerialName("media_pass_expires_at") val mediaPassExpiresAt: String? = null,
+    )
+
     /** Server-authoritative ad count, chat balance, recharge time, and Brain session. */
     suspend fun getEntitlementState(): ZadEntitlementState? {
         return try {
@@ -2111,6 +2118,29 @@ object SupabaseRepo {
             getEntitlementState()
         } catch (e: Exception) {
             Log.e(TAG, "claimRewardedAd() FAILED: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * بوابة الوسائط بالإعلان — إعلان مُكافئ واحد يفتح فويس/صور تليجرام 24 ساعة.
+     * بيرجع ISO timestamp للانتهاء لو المنح نجح، أو null لو رُفض (min-gap/cap).
+     * السيرفر هو مصدر الحقيقة — العميل مابيكتبش الصلاحية بنفسه.
+     */
+    suspend fun claimMediaPass(): String? {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id ?: return null
+            val grant = client.postgrest.rpc(
+                "zad_media_pass_grant",
+                buildJsonObject { put("p_user", userId) }
+            ).decodeAs<MediaPassGrantResponse>()
+            if (!grant.granted) {
+                Log.w(TAG, "claimMediaPass() rejected: ${grant.reason}")
+                return null
+            }
+            grant.mediaPassExpiresAt
+        } catch (e: Exception) {
+            Log.e(TAG, "claimMediaPass() FAILED: ${e.message}")
             null
         }
     }

@@ -51,6 +51,7 @@ import com.airbnb.lottie.compose.LottieConstants
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
 import com.example.ui.viewmodels.AiChatMessage
+import com.example.data.SupabaseRepo
 import com.example.data.ZadTransaction
 import com.example.data.ZadInventory
 import com.example.data.ZadSubscription
@@ -113,6 +114,23 @@ fun ZadIntelligenceScreen(
     var showFamilyNeuralSheet by remember { mutableStateOf(false) }
     var showExecutiveDossier by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+
+    // ── بوابة عقل زاد بالإعلان (خطة الإعلانات الذكية) ──
+    // مستخدم مجاني → دخول الشاشة محتاج إعلان واحد يفتحها 24 ساعة.
+    // المشترك مدفوع، أو جلسة العقل (3 إعلانات) شغالة → مرور مباشر.
+    var brainGateActive by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        val unlocked = RewardedBrainAdManager.isSessionUnlocked(context) ||
+            try { SupabaseRepo.getEntitlementState()?.brainSessionActive == true } catch (_: Exception) { false }
+        brainGateActive = !unlocked
+    }
+    if (brainGateActive) {
+        ZadBrainAdGate(
+            onUnlocked = { brainGateActive = false },
+            onSubscribe = { showSubscriptionPaywall = true }
+        )
+        return
+    }
 
     if (showSubscriptionPaywall) {
         androidx.compose.ui.window.Dialog(
@@ -3715,6 +3733,98 @@ fun CategoryBreakdownCard(byCategory: Map<String, Double>) {
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+
+// ════════════════════════════════════════════════════════════════
+//  بوابة عقل زاد بالإعلان — إعلان واحد يفتح الشاشة 24 ساعة.
+//  نفس روح RewardedBrainAdManager (3 إعلانات = جلسة العقل) لكن أخف:
+//  بوابة الدخول إعلان واحد. المشترك مدفوع بيمر من غير بوابة أصلاً.
+// ════════════════════════════════════════════════════════════════
+@Composable
+private fun ZadBrainAdGate(
+    onUnlocked: () -> Unit,
+    onSubscribe: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var adsWatched by remember { mutableStateOf(0) }
+    var isShowingAd by remember { mutableStateOf(false) }
+    val adsRequired = com.example.ads.RewardedBrainAdManager.TOTAL_ADS_REQUIRED
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(Color(0xFF064E3B), Color(0xFF010604))))
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("🧠", fontSize = 56.sp)
+            Text(
+                text = stringResource(R.string.brain_gate_title),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = stringResource(R.string.brain_gate_subtitle),
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF6EE7B7),
+                textAlign = TextAlign.Center
+            )
+
+            // بطارية الإعلانات — كل إعلان قطعة من البطارية
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                repeat(adsRequired) { idx ->
+                    Box(
+                        modifier = Modifier
+                            .size(26.dp)
+                            .clip(CircleShape)
+                            .background(if (idx < adsWatched) Color(0xFF10B981) else Color(0x33FFFFFF))
+                    )
+                }
+            }
+
+            Button(
+                onClick = {
+                    if (isShowingAd) return@Button
+                    isShowingAd = true
+                    com.example.ads.RewardedBrainAdManager.showRewardedEnergyAd(
+                        context = context,
+                        onAdWatched = { newCount, fullyUnlocked ->
+                            isShowingAd = false
+                            adsWatched = newCount
+                            if (fullyUnlocked) onUnlocked()
+                        },
+                        onFailed = { isShowingAd = false }
+                    )
+                },
+                enabled = !isShowingAd,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                modifier = Modifier.fillMaxWidth().height(54.dp)
+            ) {
+                Text(
+                    text = if (isShowingAd) stringResource(R.string.brain_gate_loading)
+                           else stringResource(R.string.brain_gate_watch_ad),
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            TextButton(onClick = onSubscribe) {
+                Text(
+                    text = stringResource(R.string.brain_gate_subscribe),
+                    color = Color(0xFF6EE7B7)
+                )
             }
         }
     }
