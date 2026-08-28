@@ -53,6 +53,8 @@ fun ZadSubscriptionPaywallScreen(
     var selectedPlan by remember { mutableStateOf(ZadSubscriptionPlan.PLUS) }
     var adWatchCount by remember { mutableStateOf(com.example.ads.RewardedBrainAdManager.getAdWatchCount(context)) }
     var isSessionUnlocked by remember { mutableStateOf(com.example.ads.RewardedBrainAdManager.isSessionUnlocked(context)) }
+    var isAdLoading by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         com.example.ads.RewardedBrainAdManager.syncServerState(context)?.let { state ->
@@ -383,28 +385,58 @@ fun ZadSubscriptionPaywallScreen(
                     Spacer(Modifier.height(10.dp))
                     OutlinedButton(
                         onClick = {
+                            if (isAdLoading) return@OutlinedButton
+                            isAdLoading = true
                             com.example.ads.RewardedBrainAdManager.showRewardedEnergyAd(
                                 context = context,
                                 onAdWatched = { newCount, isFullyUnlocked ->
+                                    isAdLoading = false
                                     adWatchCount = newCount
                                     isSessionUnlocked = isFullyUnlocked
                                     Toast.makeText(context, "تمت مشاهدة الإعلان بنجاح ($newCount/3)", Toast.LENGTH_SHORT).show()
                                 },
                                 onFailed = {
-                                    Toast.makeText(context, "لم نتمكن من تحميل الإعلان، يرجى المحاولة لاحقاً", Toast.LENGTH_SHORT).show()
+                                    coroutineScope.launch {
+                                        Toast.makeText(context, context.getString(R.string.ad_loading_retry_toast), Toast.LENGTH_SHORT).show()
+                                        kotlinx.coroutines.delay(2500)
+                                        com.example.ads.RewardedBrainAdManager.showRewardedEnergyAd(
+                                            context = context,
+                                            onAdWatched = { newCount, isFullyUnlocked ->
+                                                isAdLoading = false
+                                                adWatchCount = newCount
+                                                isSessionUnlocked = isFullyUnlocked
+                                                Toast.makeText(context, "تمت مشاهدة الإعلان بنجاح ($newCount/3)", Toast.LENGTH_SHORT).show()
+                                            },
+                                            onFailed = {
+                                                isAdLoading = false
+                                                Toast.makeText(context, context.getString(R.string.ad_failed_toast), Toast.LENGTH_LONG).show()
+                                            }
+                                        )
+                                    }
                                 }
                             )
                         },
                         shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.pressableScale()
+                        modifier = Modifier.pressableScale(),
+                        enabled = !isAdLoading
                     ) {
-                        Icon(Icons.Default.PlayCircle, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            "مشاهدة إعلان مجاني (${adWatchCount}/3)",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold
-                        )
+                        if (isAdLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.ad_loading_text))
+                        } else {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "مشاهدة إعلان مجاني (${adWatchCount}/3)",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }

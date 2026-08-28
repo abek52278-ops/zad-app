@@ -31,6 +31,7 @@ object RewardedBrainAdManager {
     private var rewardedAd: RewardedAd? = null
     private var isLoading = false
     private val isShowing = AtomicBoolean(false)
+    private var retryCount = 0
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     fun initialize(context: Context) {
@@ -48,6 +49,8 @@ object RewardedBrainAdManager {
         val expiry = prefs.getLong(KEY_SESSION_EXPIRY_TS, 0L)
         return System.currentTimeMillis() < expiry
     }
+
+    fun isAdReady(): Boolean = rewardedAd != null
 
     suspend fun syncServerState(context: Context): SupabaseRepo.ZadEntitlementState? {
         val state = try {
@@ -70,12 +73,23 @@ object RewardedBrainAdManager {
             Log.w(TAG, "Ad already showing; ignoring extra click")
             return
         }
+
         var settled = false
         fun settleOnce(success: Boolean, newCount: Int = -1, unlocked: Boolean = false) {
             if (settled) return
             settled = true
             isShowing.set(false)
             if (success) onAdWatched(newCount, unlocked) else onFailed()
+        }
+
+        val ad = rewardedAd
+        if (ad == null) {
+            Log.w(TAG, "Rewarded ad not loaded yet; reloading")
+            retryCount = 0
+            isLoading = false
+            preload(context.applicationContext)
+            settleOnce(false)
+            return
         }
 
         try {
@@ -156,8 +170,6 @@ object RewardedBrainAdManager {
             .apply()
     }
 
-    private var loadAttempts = 0
-
     fun isAdReady(): Boolean = rewardedAd != null
 
     fun preload(context: Context) {
@@ -173,19 +185,20 @@ object RewardedBrainAdManager {
                     isLoading = false
                     rewardedAd = null
                     Log.w(TAG, "Rewarded ad failed to load: ${loadAdError.message}")
-                    // إعادة محاولة تلقائية بحد أقصى — من غيرها أول ضغطة بتفشل دايماً
-                    // (تحميل الإعلان بيبدأ عند فتح التطبيق وبيفشل لو النت لسه بيقوم).
-                    if (loadAttempts < 3) {
-                        loadAttempts++
-                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                            preload(context.applicationContext)
-                        }, 3000L * loadAttempts)
+                    // إعادة محاولة تلقائية بحد أقصى للتعامل مع بطء الشبكة في البداية
+                    if (retryCount < 3) {
+                        val delayMs = (1L shl retryCount) * 2000L
+                        retryCount++
+                        scope.launch {
+                            kotlinx.coroutines.delay(delayMs)
+                            preload(context)
+                        }
                     }
                 }
 
                 override fun onAdLoaded(ad: RewardedAd) {
                     isLoading = false
-                    loadAttempts = 0
+                    retryCount = 0
                     rewardedAd = ad
                 }
             }

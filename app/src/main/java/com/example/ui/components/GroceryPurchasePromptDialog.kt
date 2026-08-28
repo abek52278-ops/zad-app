@@ -29,6 +29,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -58,6 +60,7 @@ fun GroceryPurchasePromptDialog(
     var newItemName by remember { mutableStateOf("") }
     var addedNames by remember { mutableStateOf(setOf<String>()) }
     val context = androidx.compose.ui.platform.LocalContext.current
+    val haptic = LocalHapticFeedback.current
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -80,6 +83,7 @@ fun GroceryPurchasePromptDialog(
                             val added = item.itemName in addedNames
                             AssistChip(
                                 onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LightClick)
                                     onAddItem(item.itemName)
                                     addedNames = addedNames + item.itemName
                                 },
@@ -122,6 +126,15 @@ fun GroceryPurchasePromptDialog(
                     }) {
                         Icon(Icons.Default.Add, contentDescription = stringResource(R.string.grocery_purchase_add_action), tint = primary)
                     }
+                }
+                if (addedNames.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = stringResource(R.string.grocery_purchase_added_count, addedNames.size),
+                        style = Typography.labelSmall,
+                        color = successColor,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
         },

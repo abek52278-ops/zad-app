@@ -184,11 +184,28 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      */
     private val _pendingGroceryPurchase = MutableStateFlow<ZadTransaction?>(null)
     val pendingGroceryPurchase: StateFlow<ZadTransaction?> = _pendingGroceryPurchase.asStateFlow()
-    private val groceryPromptedTxIds = mutableSetOf<String>()
+    private val groceryPromptedTxIds: MutableSet<String> = run {
+        val prefs = getApplication<android.app.Application>().getSharedPreferences("zad_grocery_prompt", android.content.Context.MODE_PRIVATE)
+        prefs.getStringSet("prompted_tx_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+    }
     private var transactionsBaselineEstablished = false
 
+    private fun persistGroceryPromptedIds() {
+        if (groceryPromptedTxIds.size > 200) {
+            val toKeep = groceryPromptedTxIds.toList().takeLast(200)
+            groceryPromptedTxIds.retainAll(toKeep.toSet())
+        }
+        getApplication<android.app.Application>()
+            .getSharedPreferences("zad_grocery_prompt", android.content.Context.MODE_PRIVATE)
+            .edit()
+            .putStringSet("prompted_tx_ids", groceryPromptedTxIds.toSet())
+            .apply()
+    }
+
     fun dismissPendingGroceryPurchase() {
+        _pendingGroceryPurchase.value?.let { tx -> groceryPromptedTxIds.add(tx.id) }
         _pendingGroceryPurchase.value = null
+        persistGroceryPromptedIds()
     }
 
     /**
@@ -525,11 +542,32 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 if (transactionsBaselineEstablished) {
                     val previousIds = _transactions.value.map { it.id }.toSet()
                     hasNewSpendTransaction = txs.any { it.id !in previousIds }
+
+                    val sevenDaysAgo = java.time.Instant.now().minusSeconds(7 * 86400)
+                    val oldIds = txs.filter { tx ->
+                        tx.id in groceryPromptedTxIds &&
+                        tx.createdAt?.let { ca ->
+                            runCatching {
+                                java.time.Instant.parse(ca).isBefore(sevenDaysAgo)
+                            }.getOrDefault(false)
+                        } == true
+                    }.map { it.id }
+                    if (oldIds.isNotEmpty()) {
+                        groceryPromptedTxIds.removeAll(oldIds.toSet())
+                        persistGroceryPromptedIds()
+                    }
+
                     txs.firstOrNull { tx ->
                         tx.id !in previousIds && tx.id !in groceryPromptedTxIds &&
-                            tx.category == "البقالة" && tx.txnKind == "expense"
+                            tx.category == "البقالة" && tx.txnKind == "expense" &&
+                            tx.createdAt?.let { ca ->
+                                runCatching {
+                                    java.time.Instant.parse(ca).isAfter(java.time.Instant.now().minusSeconds(86400))
+                                }.getOrDefault(false)
+                            } == true
                     }?.let { newGroceryTx ->
                         groceryPromptedTxIds.add(newGroceryTx.id)
+                        persistGroceryPromptedIds()
                         _pendingGroceryPurchase.value = newGroceryTx
                     }
                 } else {

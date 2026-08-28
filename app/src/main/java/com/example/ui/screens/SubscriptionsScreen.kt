@@ -350,8 +350,8 @@ internal fun SubScreenSubscriptionCardFull(
             .fillMaxWidth()
             .zadCardShadow(subCardShape, elevation = 2.dp)
             .clip(subCardShape)
-            .background(if (sub.isActive) Color.White else Color(0xFFF8FAFC))
-            .border(1.dp, if (sub.isActive) Color(0xFFE2E8F0) else Color(0xFFCBD5E1), subCardShape)
+            .background(if (sub.isActive) surface else surfaceContainerLow)
+            .border(1.dp, if (sub.isActive) outlineVariant.copy(alpha = 0.5f) else outlineVariant, subCardShape)
             .pressableScale()
     ) {
         Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
@@ -390,7 +390,7 @@ internal fun SubScreenSubscriptionCardFull(
                         sub.title,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (sub.isActive) Color(0xFF0F172A) else Color(0xFF64748B)
+                        color = if (sub.isActive) onSurface else onSurfaceVariant
                     )
                     Text(
                         when {
@@ -400,7 +400,7 @@ internal fun SubScreenSubscriptionCardFull(
                             else -> stringResource(R.string.renews_in_days, daysLeft)
                         },
                         fontSize = 12.sp,
-                        color = if (daysLeft != null && daysLeft <= 3 && sub.isActive) dangerColor else Color(0xFF64748B)
+                        color = if (daysLeft != null && daysLeft <= 3 && sub.isActive) dangerColor else onSurfaceVariant
                     )
                 }
                 Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -408,7 +408,7 @@ internal fun SubScreenSubscriptionCardFull(
                         com.example.data.CurrencyFormatter.format(context, sub.amount),
                         fontSize = 15.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = if (sub.isActive) Color(0xFF0F172A) else Color(0xFF94A3B8)
+                        color = if (sub.isActive) onSurface else outlineVariant
                     )
                     // التكلفة السنوية الحقيقية — ٢٠ جنيه/شهر = ٢٤٠/سنة صدمة مفيدة
                     // بتخلي العميل يراجع الاشتراكات الصغيرة المتراكمة.
@@ -428,7 +428,7 @@ internal fun SubScreenSubscriptionCardFull(
                         Icon(
                             Icons.Default.Bolt,
                             contentDescription = stringResource(R.string.auto_deduct_toggle_action),
-                            tint = if (sub.autoDeduct) primary else Color(0xFFCBD5E1),
+                            tint = if (sub.autoDeduct) primary else outlineVariant,
                             modifier = Modifier
                                 .clip(CircleShape)
                                 .clickable { onToggleAutoDeduct() }
@@ -438,7 +438,7 @@ internal fun SubScreenSubscriptionCardFull(
                         Icon(
                             if (sub.isActive) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
                             contentDescription = if (sub.isActive) stringResource(R.string.disable) else stringResource(R.string.enable),
-                            tint = Color(0xFF94A3B8),
+                            tint = onSurfaceVariant,
                             modifier = Modifier
                                 .clip(CircleShape)
                                 .clickable { onToggleActive() }
@@ -448,7 +448,7 @@ internal fun SubScreenSubscriptionCardFull(
                         Icon(
                             Icons.Default.DeleteOutline,
                             contentDescription = stringResource(R.string.delete_action),
-                            tint = Color(0xFF94A3B8),
+                            tint = onSurfaceVariant,
                             modifier = Modifier
                                 .clip(CircleShape)
                                 .clickable { onDelete() }

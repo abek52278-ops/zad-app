@@ -59,6 +59,8 @@ import com.example.data.AiInsight
 import com.example.data.ZadAiRepository
 import com.example.ads.RewardedBrainAdManager
 import com.example.ui.components.ZadSmartBotAgent
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import com.example.ui.components.ZadBotEmotion
 import com.example.voice.ZadCutePetSoundFx
 import kotlinx.coroutines.launch
@@ -244,8 +246,8 @@ fun ZadIntelligenceScreen(
                         .background(
                             brush = Brush.verticalGradient(
                                 colors = listOf(
-                                    Color(0xFF0A382C),
-                                    Color(0xFF052E16)
+                                    primaryContainer,
+                                    primaryContainer.copy(alpha = 0.8f)
                                 )
                             )
                         )
@@ -267,14 +269,14 @@ fun ZadIntelligenceScreen(
                             text = "عقل زاد الذكي",
                             fontSize = 20.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = Color.White
+                            color = onPrimaryContainer
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = if (isTyping) "زاد يحلل بياناتك الآن 🧠✨" else "متصل ومستعد لمساعدتك في إدارتك المالية والمنزلية ⚡",
                             fontSize = 12.5.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF6EE7B7),
+                            color = onPrimaryContainer.copy(alpha = 0.8f),
                             textAlign = TextAlign.Center
                         )
                     }
@@ -296,7 +298,7 @@ fun ZadIntelligenceScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(9999.dp))
-                                    .background(Color.White.copy(alpha = 0.12f))
+                                    .background(onPrimaryContainer.copy(alpha = 0.12f))
                                     .clickable {
                                         ZadCutePetSoundFx.play(ZadCutePetSoundFx.PetSound.HappyChirp)
                                         inputText = prompt
@@ -309,7 +311,7 @@ fun ZadIntelligenceScreen(
                                     text = prompt,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFD9F2E6)
+                                    color = onPrimaryContainer
                                 )
                             }
                         }
@@ -419,22 +421,54 @@ fun ZadIntelligenceScreen(
                 }
 
                 if (!isSessionUnlocked) {
+                    var isAdLoading by remember { mutableStateOf(false) }
+                    val coroutineScope = rememberCoroutineScope()
                     com.example.ui.components.AdEnergyBatteryCard(
                         adWatchCount = adWatchCount,
                         totalRequired = RewardedBrainAdManager.TOTAL_ADS_REQUIRED,
                         onWatchAdClick = {
+                            if (isAdLoading) return@AdEnergyBatteryCard
+                            isAdLoading = true
                             RewardedBrainAdManager.showRewardedEnergyAd(
                                 context = context,
                                 onAdWatched = { newCount, isFullyUnlocked ->
+                                    isAdLoading = false
                                     adWatchCount = newCount
                                     isSessionUnlocked = isFullyUnlocked
                                 },
-                                onFailed = {}
+                                onFailed = {
+                                    // إعادة محاولة واحدة بعد ثانيتين — الإعلان ممكن يكون لسه بيتحمل
+                                    coroutineScope.launch {
+                                        android.widget.Toast.makeText(
+                                            context,
+                                            context.getString(R.string.ad_loading_retry_toast),
+                                            android.widget.Toast.LENGTH_SHORT
+                                        ).show()
+                                        kotlinx.coroutines.delay(2500)
+                                        RewardedBrainAdManager.showRewardedEnergyAd(
+                                            context = context,
+                                            onAdWatched = { newCount, isFullyUnlocked ->
+                                                isAdLoading = false
+                                                adWatchCount = newCount
+                                                isSessionUnlocked = isFullyUnlocked
+                                            },
+                                            onFailed = {
+                                                isAdLoading = false
+                                                android.widget.Toast.makeText(
+                                                    context,
+                                                    context.getString(R.string.ad_failed_toast),
+                                                    android.widget.Toast.LENGTH_LONG
+                                                ).show()
+                                            }
+                                        )
+                                    }
+                                }
                             )
                         },
                         onUpgradeClick = {
                             showSubscriptionPaywall = true
-                        }
+                        },
+                        isLoading = isAdLoading
                     )
                 } else {
                     com.example.ui.components.ZadListCard(shape = RoundedCornerShape(20.dp)) {
@@ -2564,6 +2598,7 @@ fun ChatTab(
     val isListening by voiceManager.isListening.collectAsState()
     var lastSpokenResponseId by remember { mutableStateOf(messages.lastOrNull { !it.isUser }?.id) }
     var awaitingVoiceReply by remember { mutableStateOf(false) }
+    var autoTtsEnabled by remember { mutableStateOf(false) }
 
     fun submitVoiceQuery(query: String) {
         val clean = query.trim()
@@ -2601,10 +2636,20 @@ fun ChatTab(
         if (lastAssistantMessage != null && lastAssistantMessage.id != lastSpokenResponseId) {
             lastSpokenResponseId = lastAssistantMessage.id
             awaitingVoiceReply = false
-            voiceManager.speakHumanLike(lastAssistantMessage.text) {
-                // المحادثة الحية المستمرة — يستمع تلقائياً بعد انتهاء الرد
-                startListeningWithPermission()
-            }
+            voiceManager.speakHumanLike(
+                lastAssistantMessage.text,
+                onDone = {
+                    // المحادثة الحية المستمرة — يستمع تلقائياً بعد انتهاء الرد
+                    startListeningWithPermission()
+                },
+                onFailed = {
+                    android.widget.Toast.makeText(
+                        context,
+                        context.getString(R.string.voice_unavailable_toast),
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+            )
         }
     }
 
@@ -2673,7 +2718,34 @@ fun ChatTab(
             }
 
             items(messages, key = { it.id }) { msg ->
-                ZadIntChatBubble(msg, onUndo = onUndoCommit)
+                // ChatGPT-style entrance: user bubbles slide from the end,
+                // assistant bubbles rise from the bottom with a spring bounce.
+                var visible by remember(msg.id) { mutableStateOf(false) }
+                LaunchedEffect(msg.id) { visible = true }
+                AnimatedVisibility(
+                    visible = visible,
+                    enter = if (msg.isUser)
+                        slideInHorizontally(
+                            initialOffsetX = { it / 2 },
+                            animationSpec = spring(
+                                dampingRatio = 0.7f,
+                                stiffness = 300f
+                            )
+                        ) + fadeIn(animationSpec = spring(stiffness = 300f))
+                    else
+                        slideInVertically(
+                            initialOffsetY = { it / 3 },
+                            animationSpec = spring(
+                                dampingRatio = 0.65f,
+                                stiffness = 250f
+                            )
+                        ) + expandVertically(
+                            expandFrom = Alignment.Top,
+                            animationSpec = spring(stiffness = 250f)
+                        ) + fadeIn(animationSpec = spring(stiffness = 250f))
+                ) {
+                    ZadIntChatBubble(msg, onUndo = onUndoCommit, onSpeak = { voiceManager.speakHumanLike(msg.text) })
+                }
             }
 
             if (isTyping) {
@@ -2718,6 +2790,18 @@ fun ChatTab(
             modifier = Modifier.fillMaxWidth().background(surface).padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            IconToggleButton(
+                checked = autoTtsEnabled,
+                onCheckedChange = { autoTtsEnabled = it },
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    if (autoTtsEnabled) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
+                    contentDescription = "Auto TTS",
+                    tint = if (autoTtsEnabled) primary else outlineVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
             OutlinedTextField(
                 value = inputText,
                 onValueChange = onInputChange,
@@ -2735,7 +2819,10 @@ fun ChatTab(
             Spacer(modifier = Modifier.width(10.dp))
             IconButton(
                 onClick = {
-                    if (inputText.isNotBlank()) onSend()
+                    if (inputText.isNotBlank()) {
+                        if (autoTtsEnabled) awaitingVoiceReply = true
+                        onSend()
+                    }
                     else startListeningWithPermission()
                 },
                 modifier = Modifier.size(46.dp).clip(CircleShape).background(if (isListening) dangerColor else primary)
@@ -2750,7 +2837,7 @@ fun ChatTab(
 }
 
 @Composable
-private fun ZadIntChatBubble(msg: AiChatMessage, onUndo: (String) -> Unit = {}) {
+private fun ZadIntChatBubble(msg: AiChatMessage, onUndo: (String) -> Unit = {}, onSpeak: (() -> Unit)? = null) {
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = if (msg.isUser) Alignment.CenterEnd else Alignment.CenterStart
@@ -2760,7 +2847,12 @@ private fun ZadIntChatBubble(msg: AiChatMessage, onUndo: (String) -> Unit = {}) 
                 topStart = 16.dp, topEnd = 16.dp,
                 bottomStart = if (msg.isUser) 16.dp else 4.dp,
                 bottomEnd = if (msg.isUser) 4.dp else 16.dp
-            )).background(if (msg.isUser) primary else surfaceContainerHigh).padding(12.dp)
+            )).background(if (msg.isUser) primary else surfaceContainerHigh)
+                .then(if (!msg.isUser) Modifier.border(0.5.dp, outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(
+                    topStart = 16.dp, topEnd = 16.dp,
+                    bottomStart = 4.dp, bottomEnd = 16.dp
+                )) else Modifier)
+                .padding(12.dp)
         ) {
             Column {
                 if (!msg.isUser) {
@@ -2772,6 +2864,20 @@ private fun ZadIntChatBubble(msg: AiChatMessage, onUndo: (String) -> Unit = {}) 
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(stringResource(R.string.app_name), fontSize = 10.sp, color = primary, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.weight(1f))
+                        // 🔊 زر سماع الرد — يشتغل بـ ElevenLabs عبر ZadNaturalVoiceEngine
+                        onSpeak?.let { speak ->
+                            Icon(
+                                Icons.Default.VolumeUp,
+                                contentDescription = stringResource(R.string.listen_action),
+                                tint = onSurfaceVariant,
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .clickable { speak() }
+                                    .padding(2.dp)
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                 }
@@ -2798,19 +2904,62 @@ private fun ZadIntChatBubble(msg: AiChatMessage, onUndo: (String) -> Unit = {}) 
 
 @Composable
 private fun ZadIntTypingIndicator() {
+    val infiniteTransition = rememberInfiniteTransition(label = "typing")
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.Start
     ) {
         Box(
-            modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(surfaceContainerHigh).padding(horizontal = 12.dp, vertical = 6.dp),
+            modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(surfaceContainerHigh).padding(horizontal = 16.dp, vertical = 10.dp),
             contentAlignment = Alignment.Center
         ) {
-            com.example.ui.components.CompanionOrb(
-                state = com.example.ui.components.CompanionState.Focused,
-                size = 36.dp,
-                animated = true
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(3) { index ->
+                    val delay = index * 150
+                    val offsetY by infiniteTransition.animateFloat(
+                        initialValue = 0f,
+                        targetValue = -8f,
+                        animationSpec = infiniteRepeatable(
+                            animation = keyframes {
+                                durationMillis = 900
+                                0f at 0
+                                -8f at 300
+                                0f at 600
+                                0f at 900
+                            },
+                            repeatMode = RepeatMode.Restart,
+                            initialStartOffset = StartOffset(delay)
+                        ),
+                        label = "dot_$index"
+                    )
+                    val alpha by infiniteTransition.animateFloat(
+                        initialValue = 0.35f,
+                        targetValue = 1f,
+                        animationSpec = infiniteRepeatable(
+                            animation = keyframes {
+                                durationMillis = 900
+                                0.35f at 0
+                                1f at 300
+                                0.35f at 600
+                                0.35f at 900
+                            },
+                            repeatMode = RepeatMode.Restart,
+                            initialStartOffset = StartOffset(delay)
+                        ),
+                        label = "dot_alpha_$index"
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .offset(y = offsetY.dp)
+                            .clip(CircleShape)
+                            .background(primary.copy(alpha = alpha))
+                    )
+                }
+            }
         }
     }
 }
