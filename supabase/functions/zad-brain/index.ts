@@ -3260,6 +3260,14 @@ async function processDueAgentTasks(sb: SupabaseClient): Promise<{ processed: nu
           }
           const result = await runTool(sb, task.user_id, call.name, call.input, snap, ctx, scope);
           toolResults.push({ id: call.id, name: call.name, content: result });
+          // تقرير العمل للصندوق حتى من المهام المجدولة — العقل لازم يعرف شغل الأيدجنت اللي حصل وهو مش حاضر.
+          if (!result.startsWith("مرفوض:")) {
+            await sendAgentReport(
+              sb, task.user_id, specialist as AgentSender,
+              `نفّذ ${call.name} (مهمة مجدولة)`,
+              result.slice(0, 300),
+            );
+          }
         }
         history.push({ role: "tool", results: toolResults });
       }
