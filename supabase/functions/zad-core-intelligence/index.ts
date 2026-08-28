@@ -922,7 +922,7 @@ Deno.serve(async (req: Request) => {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
           body: JSON.stringify({
-            contents: [{ parts: [{ text: "مرحبا" }] }],
+            contents: [{ parts: [{ text: "اقرأ النص التالي بصوت واضح وطبيعي.\n\nمرحبا، أنا زاد، مساعدتك الشخصية.\n\nالآن ولّد الصوت لهذا النص." }] }],
             generationConfig: {
               responseModalities: ["AUDIO"],
               speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } } },

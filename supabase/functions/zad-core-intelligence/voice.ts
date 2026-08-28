@@ -90,6 +90,11 @@ export async function requestGeminiVoice(
 ): Promise<Response> {
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
   const dialectLine = dialectInstruction ? `\n${dialectInstruction}، مع الحفاظ على الطبيعية التامة.` : "";
+  // Gemini TTS quirk (googleapis/js-genai#1058): the internal prompt classifier رفض
+  // أي نص شكله "طلب نص" وردّ 400 "Model tried to generate text". الحل المعتمد:
+  // تعليمة صريحة قبل النص + سطر أمر توليد الصوت بعد النص — كلهم في part واحد.
+  const ttsDirective = "اقرأ النص التالي بصوت واضح وطبيعي — ولّد الصوت فقط من دون أي نص مكتوب.";
+  const closingDirective = "\n\nالآن ولّد الصوت لهذا النص.";
   const res = await fetcher(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TTS_MODEL}:generateContent`,
     {
@@ -100,7 +105,7 @@ export async function requestGeminiVoice(
       },
       body: JSON.stringify({
         contents: [{
-          parts: [{ text: `${stylePrompt(input.text)}${dialectLine}\n\n${input.text}` }],
+          parts: [{ text: `${ttsDirective}${dialectLine}\n\n${stylePrompt(input.text)}\n\n${input.text}${closingDirective}` }],
         }],
         generationConfig: {
           responseModalities: ["AUDIO"],
