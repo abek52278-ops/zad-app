@@ -1407,7 +1407,27 @@ Deno.serve(async (req: Request) => {
         const systemPrompt = "أنت محلل اشتراكات. حلل قائمة المعاملات وحدد أي منها قد يكون اشتراكاً شهرياً أو سنوياً (خدمات ترفيه/برمجيات/عضويات وما شابه). لا تصنف الإيجار أو سداد قروض/أقساط أو الفواتير الأساسية (كهرباء/مياه/غاز) كاشتراك — دي التزامات ثابتة مش اشتراكات اختيارية. أجب بصيغة JSON: {\"subscriptions\":[{\"name\":\"\",\"amount\":0.0,\"frequency\":\"monthly\",\"confidence\":0.0,\"next_billing_date\":\"\"}]}";
         const userPrompt = "المعاملات: " + JSON.stringify(transactions);
         const result = await logged(user_id, action, "callJsonModel", { args: [systemPrompt, userPrompt, 2000] }, () => callJsonModel(systemPrompt, userPrompt, 2000));
-        return jsonResponse({ subscriptions: result?.subscriptions || [] });
+        // LLM hallucination guard: الاشتراك المقترح لازم يشاور على معاملة موجودة فعلاً —
+        // نفس المبلغ (±1%) أو الاسم جزء من وصف معاملة حقيقية. كان الموديل بيهتري بأسماء
+        // ومبالغ مخترعة فالشاشة بتعرض اشتراكات "وهمية" مختلفة عن دفتر العميل.
+        const txs: Array<{ title?: string; amount?: number; date?: string }> = transactions;
+        const norm = (s: unknown) => String(s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+        const valid = (result?.subscriptions || []).filter((s: { name?: string; amount?: number; confidence?: number }) => {
+          if ((s.confidence ?? 0) < 0.6) return false;
+          const name = norm(s.name);
+          if (!name) return false;
+          const amt = Number(s.amount ?? 0);
+          return txs.some((t) => {
+            const title = norm(t.title);
+            if (!title) return false;
+            const nameMatch = title.includes(name) || name.includes(title) || name.length > 3 && title.includes(name.split(" ")[0]);
+            const amountMatch = Number.isFinite(amt) && amt > 0 && Number(t.amount ?? 0) > 0 &&
+              Math.abs(amt - Number(t.amount)) / Math.max(amt, Number(t.amount)) <= 0.01;
+            // نطابق الاسم أو المبلغ مع معاملة واحدة على الأقل — الموديل مش بيتصور
+            return nameMatch || amountMatch;
+          });
+        });
+        return jsonResponse({ subscriptions: valid });
       }
 
       // ──────────────────────────────────────────────

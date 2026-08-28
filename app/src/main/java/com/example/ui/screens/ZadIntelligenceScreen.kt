@@ -120,6 +120,10 @@ fun ZadIntelligenceScreen(
     // المشترك مدفوع، أو جلسة العقل (3 إعلانات) شغالة → مرور مباشر.
     var brainGateActive by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
+        // زامن السيرفر الأول: لو الجلسة انتهت على السيرفر أو اتجددت من جهاز تاني/
+        // تليجرام، الحكم المحلي لوحده كان بيرجّع البوابة رغم الموافقة (تكرار الإعلان)
+        // أو يفتحها وجلسة السيرفر منتهية (فالعقل يحسب الرسائل على الحصة).
+        RewardedBrainAdManager.syncServerState(context)
         val unlocked = RewardedBrainAdManager.isSessionUnlocked(context) ||
             try { SupabaseRepo.getEntitlementState()?.brainSessionActive == true } catch (_: Exception) { false }
         brainGateActive = !unlocked
