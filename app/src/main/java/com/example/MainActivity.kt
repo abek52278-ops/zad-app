@@ -159,6 +159,16 @@ class MainActivity : ComponentActivity() {
             workRequest
         )
 
+        // حلقة الوعي — كل ساعة: نداء العقل + مزامنة الرؤى لإشعارات/صوت.
+        // (اللي فوق تحليل محلي كل 6 ساعات، وده "عين" العقل السحابي كل ساعة —
+        // فواتير هتستحق، أدوية هتخلص، أصناف قبل الراتب — من غير ما تفتح التطبيق.)
+        val awarenessRequest = PeriodicWorkRequestBuilder<com.example.workers.AwarenessWorker>(1, TimeUnit.HOURS).build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            com.example.workers.AwarenessWorker.UNIQUE_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            awarenessRequest
+        )
+
         // الملخص الصباحي الذكي — كل يوم الساعة 7 صباحاً
         val now = java.time.LocalDateTime.now()
         var next7am = now.withHour(7).withMinute(0).withSecond(0).withNano(0)
