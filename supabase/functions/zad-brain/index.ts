@@ -3263,7 +3263,7 @@ async function processDueAgentTasks(sb: SupabaseClient): Promise<{ processed: nu
           // تقرير العمل للصندوق حتى من المهام المجدولة — العقل لازم يعرف شغل الأيدجنت اللي حصل وهو مش حاضر.
           if (!result.startsWith("مرفوض:")) {
             await sendAgentReport(
-              sb, task.user_id, specialist as AgentSender,
+              sb, task.user_id, "brain",
               `نفّذ ${call.name} (مهمة مجدولة)`,
               result.slice(0, 300),
             );
