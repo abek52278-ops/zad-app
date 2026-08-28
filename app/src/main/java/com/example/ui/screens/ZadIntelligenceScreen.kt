@@ -3817,7 +3817,7 @@ private fun ZadBrainAdGate(
                             adsWatched = newCount
                             if (fullyUnlocked) onUnlocked()
                         },
-                        onFailed = { /* زرار بيرجع يشتغل فوراً — المحرّك بيعالج الحالة */ }
+                        onFailed = { isShowingAd = false }
                     )
                 },
                 enabled = !isShowingAd,
@@ -3825,8 +3825,11 @@ private fun ZadBrainAdGate(
                 modifier = Modifier.fillMaxWidth().height(54.dp)
             ) {
                 Text(
-                    text = if (isShowingAd) stringResource(R.string.brain_gate_loading)
-                           else stringResource(R.string.brain_gate_watch_ad),
+                    text = when {
+                        isShowingAd -> stringResource(R.string.brain_gate_loading)
+                        !RewardedBrainAdManager.isAdReady() -> "جاري تحميل الإعلان… ثواني وجرب تاني ⏳"
+                        else -> stringResource(R.string.brain_gate_watch_ad)
+                    },
                     color = Color.White,
                     fontWeight = FontWeight.Bold
                 )

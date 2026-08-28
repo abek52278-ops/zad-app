@@ -410,6 +410,20 @@ internal fun SubScreenSubscriptionCardFull(
                         fontWeight = FontWeight.ExtraBold,
                         color = if (sub.isActive) Color(0xFF0F172A) else Color(0xFF94A3B8)
                     )
+                    // التكلفة السنوية الحقيقية — ٢٠ جنيه/شهر = ٢٤٠/سنة صدمة مفيدة
+                    // بتخلي العميل يراجع الاشتراكات الصغيرة المتراكمة.
+                    if (sub.isActive) {
+                        val yearly = when (sub.billingCycle?.uppercase()) {
+                            "YEARLY" -> sub.amount
+                            "WEEKLY" -> sub.amount * 52
+                            else -> sub.amount * 12
+                        }
+                        Text(
+                            "≈ " + com.example.data.CurrencyFormatter.format(context, yearly) + "/سنة",
+                            fontSize = 10.sp,
+                            color = Color(0xFF94A3B8)
+                        )
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         Icon(
                             Icons.Default.Bolt,

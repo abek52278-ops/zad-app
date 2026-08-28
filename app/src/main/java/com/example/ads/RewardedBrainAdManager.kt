@@ -156,6 +156,10 @@ object RewardedBrainAdManager {
             .apply()
     }
 
+    private var loadAttempts = 0
+
+    fun isAdReady(): Boolean = rewardedAd != null
+
     fun preload(context: Context) {
         if (isLoading) return
         isLoading = true
@@ -169,10 +173,19 @@ object RewardedBrainAdManager {
                     isLoading = false
                     rewardedAd = null
                     Log.w(TAG, "Rewarded ad failed to load: ${loadAdError.message}")
+                    // إعادة محاولة تلقائية بحد أقصى — من غيرها أول ضغطة بتفشل دايماً
+                    // (تحميل الإعلان بيبدأ عند فتح التطبيق وبيفشل لو النت لسه بيقوم).
+                    if (loadAttempts < 3) {
+                        loadAttempts++
+                        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                            preload(context.applicationContext)
+                        }, 3000L * loadAttempts)
+                    }
                 }
 
                 override fun onAdLoaded(ad: RewardedAd) {
                     isLoading = false
+                    loadAttempts = 0
                     rewardedAd = ad
                 }
             }
