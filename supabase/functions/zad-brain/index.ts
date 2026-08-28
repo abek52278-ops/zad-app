@@ -4285,8 +4285,13 @@ Deno.serve(async (req: Request) => {
 
     // ── حلقة التأمل الليلي المستقلة (Nightly Autonomous Dream & Memory Synthesis) ──
     // تعمل في الخلفية يومياً لتحليل سرعة الاستهلاك، استنتاج أنماط الإنفاق، وتغذية شبكة الذاكرة.
+    // الصلاحية: service-role bearer (للاستدعاء اليدوي/الإداري) أو ZAD-PROACTIVE-CRON-SECRET
+    // (لـ pg_cron — نفس سيكريت الفحص الاستباقي المختوم في vault، بنفس نمط W9 بالظبط).
     if (body.action === "nightly_dream_reflection") {
-      if (!hasServiceRoleAuthorization(req, SERVICE_ROLE_KEY)) {
+      const dreamCronAuthorized = hasConfiguredSecret(
+        req.headers.get("ZAD-PROACTIVE-CRON-SECRET"), PROACTIVE_CRON_SECRET,
+      );
+      if (!hasServiceRoleAuthorization(req, SERVICE_ROLE_KEY) && !dreamCronAuthorized) {
         return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: CORS_HEADERS });
       }
       const sbDream = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);

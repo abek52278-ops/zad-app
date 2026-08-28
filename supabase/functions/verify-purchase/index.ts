@@ -118,9 +118,21 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // 4) tier من productId نفسه — مش من جسم الطلب (anti-spoof)
-    const pid = body.productId.toLowerCase();
-    const tier = pid.includes("pro") ? "pro" : pid.includes("starter") ? "starter" : "plus";
+    // 4) tier من productId نفسه — مش من جسم الطلب (anti-spoof).
+    // خريطة موحّدة مع GooglePlayBillingManager.ZadSubscriptionPlan وزاد_tiers في القاعدة:
+    //   zad_sub_basic_monthly → starter (15 رؤية عقل/شهر)
+    //   zad_sub_plus_monthly  → plus   (50 رؤية عقل/شهر)
+    //   zad_sub_ultra_monthly → pro    (150 رؤية عقل + unlimited chat/شهر)
+    const PID_TO_TIER: Record<string, string> = {
+      "zad_sub_basic_monthly": "starter",
+      "zad_sub_plus_monthly": "plus",
+      "zad_sub_ultra_monthly": "pro",
+    };
+    const tier = PID_TO_TIER[body.productId.toLowerCase()]
+      // fallback للمنتجات القديمة بالاسم (لو حصلت) — من الـ pid نفسه مش من الجسم
+      ?? (pid.includes("pro") || pid.includes("ultra") ? "pro"
+        : pid.includes("starter") || pid.includes("basic") ? "starter"
+        : "plus");
     const isAnnual = pid.includes("annual") || pid.includes("yearly");
 
     // 5) الكتابة في الداتابيز بمفتاح الخدمة (تجاوز RLS بشكل آمن ومقصود هنا)

@@ -244,32 +244,44 @@ class GooglePlayBillingManager private constructor(private val context: Context)
                 val matchedPlan = ZadSubscriptionPlan.values().find { it.productId == productId }
                 _activePlan.value = matchedPlan
 
-                verifyWithServerWebhook(purchase)
+                // التحقق السيرفر-سايد الحقيقي: verify-purchase بيتصل بـ Google Play
+                // Developer API (anti-spoof) وبكتب tier في zad_entitlements — العقل
+                // والعرف بيتقروا من هناك. (المسار القديم zad-billing-webhook كان بيسجل
+                // من غير تحقق من جوجل وبيرفع tier مش هيتقري — اتشال من مسار الشراء.)
+                val verified = verifyWithServer(purchase)
 
                 withContext(Dispatchers.Main) {
-                    matchedPlan?.let { _billingState.value = BillingState.Success(it) }
+                    if (verified) {
+                        matchedPlan?.let { _billingState.value = BillingState.Success(it) }
+                    } else {
+                        _billingState.value = BillingState.Error(
+                            "تم الشراء لكن تعذر توثيق الاشتراك من جوجل — هيتم التوثيق تلقائياً عند إعادة فتح التطبيق"
+                        )
+                    }
                 }
             }
         }
     }
 
-    private suspend fun verifyWithServerWebhook(purchase: Purchase) {
-        try {
-            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
-            @Suppress("UNCHECKED_CAST")
-            val payload = mapOf<String, Any>(
-                "action" to "verify_google_play_purchase",
-                "user_id" to (userId ?: ""),
-                "order_id" to (purchase.orderId ?: ""),
-                "purchase_token" to purchase.purchaseToken,
-                "package_name" to context.packageName,
-                "products" to (purchase.products as List<Any>),
-                "purchase_time" to purchase.purchaseTime
-            )
-            SupabaseRepo.callEdgeFunction("zad-billing-webhook", payload)
-            Log.d(tag, "Server verification webhook completed successfully for ${purchase.orderId}")
+    /**
+     * تحقق سيرفر-سايد عبر verify-purchase (Google Play Developer API + service account).
+     * السيرفر هو مصدر الحقيقة: الـ tier بيتحدد من productId بتاع الاشتراك الفعلي مش
+     * من جسم الطلب، والكتابة في zad_entitlements بتحصل بسيرفر بعد موافقة جوجل.
+     */
+    private suspend fun verifyWithServer(purchase: Purchase): Boolean {
+        val productId = purchase.products.firstOrNull() ?: return false
+        return try {
+            SupabaseRepo.callEdgeFunction(
+                "verify-purchase",
+                mapOf(
+                    "purchaseToken" to purchase.purchaseToken,
+                    "orderId" to (purchase.orderId ?: ""),
+                    "productId" to productId,
+                )
+            )["valid"] == true
         } catch (e: Exception) {
-            Log.e(tag, "Failed to verify purchase with server webhook: ${e.message}")
+            Log.e(tag, "verify-purchase failed for ${purchase.orderId}: ${e.message}")
+            false
         }
     }
 
@@ -283,6 +295,19 @@ class GooglePlayBillingManager private constructor(private val context: Context)
                 val active = purchasesList.firstOrNull { it.purchaseState == Purchase.PurchaseState.PURCHASED }
                 val productId = active?.products?.firstOrNull()
                 _activePlan.value = ZadSubscriptionPlan.values().find { it.productId == productId }
+                // استرجاع التوثيق: أي اشتراك نشط بيتوثق تاني كل فتح — بلاش عميل دفع
+                // ومش واخد مزايا لو توثيق أول مرة فشل (نت قطع أثناء الشراء مثلاً).
+                if (active != null) {
+                    scope.launch {
+                        if (!active.isAcknowledged) {
+                            val ackParams = AcknowledgePurchaseParams.newBuilder()
+                                .setPurchaseToken(active.purchaseToken)
+                                .build()
+                            billingClient.acknowledgePurchase(ackParams)
+                        }
+                        verifyWithServer(active)
+                    }
+                }
             }
         }
     }
