@@ -2151,12 +2151,14 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
           .select("id").eq("user_id", userId).eq("title", String(input.goal_title).trim()).maybeSingle();
         goalId = (goal as { id: string } | null)?.id ?? null;
       }
+      const rec = ["daily", "weekly", "monthly"].includes(String(input.recurrence)) ? String(input.recurrence) : "once";
       const w = await writeRows(
         sb.from("agent_tasks").insert({
           user_id: userId,
           task_description: String(input.task_description).trim(),
           scheduled_for: new Date(input.run_at).toISOString(),
           goal_id: goalId,
+          recurrence: rec,
         }).select("id,scheduled_for"),
         "جدولة المهمة",
       );
@@ -3124,6 +3126,7 @@ const CHAT_TOOLS: ToolDef[] = [
         task_description: { type: "string", description: "وصف الطلب بالظبط زي ما هيتقال لك وقت التنفيذ (مثال: \"راجع مصاريف الأسبوع ده وقولي لو محتاج أقلل السقف\")" },
         run_at: { type: "string", description: "تاريخ ووقت التنفيذ بصيغة ISO 8601 (مثال: 2026-08-10T09:00:00Z)" },
         goal_title: { type: "string", description: "لو المهمة دي جزء من هدف حياة مسجّل، اكتب عنوانه بالظبط زي ما اتسجل — بتربط المهمة بالهدف وبتزود تقدمه لما تنجز" },
+        recurrence: { type: "string", enum: ["once", "daily", "weekly", "monthly"], description: "المهام المرتبطة بهدف حياة بتحتاج recurrence=daily غالباً (مثال: سلسلة تسبيحة يومية). متسجلهاش متكررة إلا لو الجزء ده من الهدف نفسه مطلوب تكرار — once افتراضي." },
       },
       required: ["task_description", "run_at"],
     },
@@ -3388,14 +3391,14 @@ function describeProposal(tool: string, input: any, currency: string): string {
  */
 async function processDueAgentTasks(sb: SupabaseClient): Promise<{ processed: number; failed: number }> {
   const { data: due } = await sb.from("agent_tasks")
-    .select("id,user_id,task_description")
+    .select("id,user_id,task_description,goal_id,recurrence,scheduled_for")
     .eq("status", "pending")
     .lte("scheduled_for", new Date().toISOString())
     .order("scheduled_for", { ascending: true })
     .limit(20);
 
   let processed = 0, failed = 0;
-  for (const task of (due ?? []) as Array<{ id: string; user_id: string; task_description: string }>) {
+  for (const task of (due ?? []) as Array<{ id: string; user_id: string; task_description: string; goal_id: string | null; recurrence: string | null; scheduled_for: string }>) {
     await sb.from("agent_tasks").update({ status: "running", updated_at: new Date().toISOString() }).eq("id", task.id);
     try {
       const snap = await buildSnapshot(sb, task.user_id);
@@ -3438,6 +3441,25 @@ async function processDueAgentTasks(sb: SupabaseClient): Promise<{ processed: nu
       await sb.from("agent_tasks").update({
         status: "done", result: finalText, updated_at: new Date().toISOString(),
       }).eq("id", task.id);
+      // حلقة الأهداف: المهمة المتكررة بتخلي نفسها دورة جديدة بعد ما تخلص —
+      // يومية/أسبوعية/شهرية من وقت الجدولة الأصلي، ونفس الربط بالهدف. الtrigger
+      // اللي على status='done' هو اللي بيزود تقدم الهدف (agent_goal_touch_progress).
+      const rec = task.recurrence ?? "once";
+      if (rec !== "once") {
+        const next = new Date(task.scheduled_for);
+        if (rec === "daily") next.setDate(next.getDate() + 1);
+        else if (rec === "weekly") next.setDate(next.getDate() + 7);
+        else if (rec === "monthly") next.setMonth(next.getMonth() + 1);
+        if (Number.isFinite(next.getTime())) {
+          await sb.from("agent_tasks").insert({
+            user_id: task.user_id,
+            task_description: task.task_description,
+            scheduled_for: next.toISOString(),
+            goal_id: task.goal_id,
+            recurrence: rec,
+          });
+        }
+      }
       await sb.from("app_notifications").insert({
         user_id: task.user_id, title: "زاد خلّص مهمة كنت طلبتها", message: finalText,
       });
