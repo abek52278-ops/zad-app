@@ -3976,7 +3976,7 @@ private fun ZadBrainAdGate(
                 Text(
                     text = when {
                         isShowingAd -> stringResource(R.string.brain_gate_loading)
-                        !RewardedBrainAdManager.isAdReady() -> "جاري تحميل الإعلان… ثواني وجرب تاني ⏳"
+                        RewardedBrainAdManager.isAdReady().not() -> "جاري تحميل الإعلان… ثواني وجرب تاني ⏳"
                         else -> stringResource(R.string.brain_gate_watch_ad)
                     },
                     color = Color.White,

@@ -83,7 +83,7 @@ fun GroceryPurchasePromptDialog(
                             val added = item.itemName in addedNames
                             AssistChip(
                                 onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LightClick)
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     onAddItem(item.itemName)
                                     addedNames = addedNames + item.itemName
                                 },

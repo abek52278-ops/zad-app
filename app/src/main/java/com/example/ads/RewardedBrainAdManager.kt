@@ -170,8 +170,6 @@ object RewardedBrainAdManager {
             .apply()
     }
 
-    fun isAdReady(): Boolean = rewardedAd != null
-
     fun preload(context: Context) {
         if (isLoading) return
         isLoading = true
