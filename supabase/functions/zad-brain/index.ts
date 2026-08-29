@@ -380,7 +380,7 @@ async function buildDriftLessons(sb: SupabaseClient, userId: string): Promise<st
 
 async function buildSnapshot(sb: SupabaseClient, userId: string) {
   const cashKey = isoWeekKey(new Date());
-  const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes, askedRes, selfMemRes, cashBalRes, cashAskedRes, obligRes, debtRes, maintRes, behaviorRes, notifRes, doseRes, budgetRes, obsRes, lifeRes] =
+  const [userRes, txRes, invRes, subRes, pharmRes, shopRes, consRes, memRes, dismissedRes, selfReviewRes, askedRes, selfMemRes, cashBalRes, cashAskedRes, obligRes, debtRes, maintRes, behaviorRes, notifRes, doseRes, budgetRes, obsRes, lifeRes, famRes] =
     await Promise.all([
       sb.from("zad_users").select("monthly_limit,cycle_start_day,cycle_anchor,currency,country,gender").eq("id", userId).maybeSingle(),
       // `id` مضاف عشان set_transaction_category و update_transaction يقدروا يشاوروا على
@@ -468,6 +468,16 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
       // محفّزات نمط الحياة: شيف زاد، التسبيحة، والفايض. منفصلة عن ملاحظات المجالات لأن
       // دي بتفتح باب لعرض (اقترح وجبة / اخرج) مش بتبلّغ عن حالة محتاجة تصرّف.
       sb.rpc("zad_lifestyle_observations", { p_user: userId }),
+      // ─── العقل الواحد: بيانات العيلة اللي كانت غايبة تماماً عن الـsnapshot ───
+      // العقل كان بيقول "مش منضم لعيلة" لعميل فعلاً عنده عيلة كاملة لأن
+      // query_family كانت المصدر الوحيد وبتشتغل بس لما يسأل. دلوقتي العيلة جزء
+      // من وعيه الدائم: مين الأفراد، رصيد محفظة كل طفل، ومهامهم.
+      // العقل بيشتغل بمفتاح service_role — نفس مستوى الوصول اللي بيقرا به
+      // zad_transactions لكل المستخدمين في family_mediation، فمفيش صلاحية جديدة هنا.
+      // العضوية الأولى بس هنا — المهام والأهداف والتسبيحة كلها family-scoped،
+      // فلازم نعرف family_id الأول (جولة تانية تحت بعد ما العضوية تتحل).
+      sb.from("family_members").select("family_id,role,alias,balance,savings_goal,daily_limit,weekly_limit,last_seen_at")
+        .eq("user_id", userId).maybeSingle(),
     ]);
 
   // ── الحاجة اللي خلّت كل ده يفضل مستخبي سنة ──────────────────────────────
@@ -502,6 +512,10 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     "app_notifications": "الإشعارات اللي اتبعتت",
     "zad_dose_log": "سجل جرعات الدوا",
     "zad_budget_state": "حساب ميزانيتك",
+    "family_members": "بيانات عيلتك",
+    "family_chores": "مهام العيلة",
+    "family_goals": "أهداف العيلة",
+    "family_tasbiha": "بستان التسبيحة",
   };
 
   const sources: Array<[string, { error?: unknown } | null]> = [
@@ -513,7 +527,7 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     ["zad_insights.cash_asked", cashAskedRes], ["zad_obligations", obligRes],
     ["zad_debts", debtRes], ["zad_maintenance_items", maintRes],
     ["user_behavior_profile", behaviorRes], ["app_notifications", notifRes], ["zad_dose_log", doseRes],
-    ["zad_budget_state", budgetRes],
+    ["zad_budget_state", budgetRes], ["family_members", famRes],
   ];
   const dataErrors: Array<{ source: string }> = [];
   for (const [name, res] of sources) {
@@ -530,6 +544,63 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
       // التقني أصلاً: هو محتاج يعرف *أنهي جزء* من صورته ناقص، مش اسم الجدول.
       dataErrors.push({ source: SOURCE_LABELS[name] ?? name });
     }
+  }
+
+  // ─── جولة العيلة: المهام والأهداف والتسبيحة كلها family-scoped ───
+  // الموديل لازم يشوفها دايمًا (مش بس لما يسأل query_family) عشان يتابع أطفال
+  // العميل ومهامهم وأشجارهم بنفسه. لو مفيش عيلة → family block بيبقى null ببساطة.
+  const famMembership = (famRes.data ?? null) as { family_id: string; role: string; alias: string; balance: number; savings_goal: number; daily_limit: number | null; weekly_limit: number | null; last_seen_at: string | null } | null;
+  let family: {
+    mine: { role: string; alias: string; balance: number; savings_goal: number };
+    members: Array<{ alias: string; role: string; balance: number; savings_goal: number; online_now: boolean }>;
+    chores: Array<{ title: string; due: string | null; reward: number; done: boolean }>;
+    goals: Array<{ target: number; current: number; month: string; reward: string | null }>;
+    tasbiha: Array<{ name: string; level: number; score: number; clicks: number; streak: number; mature: boolean }>;
+  } | null = null;
+  if (famMembership?.family_id) {
+    const familyId = famMembership.family_id;
+    const [membersRes, choresRes, goalsRes, tasRes] = await Promise.all([
+      sb.from("family_members").select("role,alias,balance,savings_goal,last_seen_at").eq("family_id", familyId).limit(20),
+      sb.from("family_chores").select("title,assigned_to,due_date,reward_amount,is_completed")
+        .eq("family_id", familyId).order("created_at", { ascending: false }).limit(40),
+      sb.from("family_goals").select("target_amount,current_amount,month_year,reward_suggestion")
+        .eq("family_id", familyId).order("created_at", { ascending: false }).limit(12),
+      sb.from("family_tasbiha").select("tree_name,level,score,total_clicks,streak_days,is_mature,last_tasbih_at")
+        .eq("family_id", familyId).order("last_tasbih_at", { ascending: false, nullsFirst: false }).limit(10),
+    ]);
+    for (const [name, res] of [["family_chores", choresRes], ["family_goals", goalsRes], ["family_tasbiha", tasRes]] as const) {
+      const err = (res as any)?.error;
+      if (err) {
+        console.error(`[zad-brain] SNAPSHOT SOURCE FAILED: ${name} — ${String((err as any).message ?? err)}`);
+        dataErrors.push({ source: SOURCE_LABELS[name] ?? name });
+      }
+    }
+    const isOnline = (ls: string | null) => {
+      if (!ls) return false;
+      const t = Date.parse(ls);
+      return Number.isFinite(t) && (Date.now() - t) < 5 * 60000;
+    };
+    family = {
+      mine: {
+        role: famMembership.role, alias: famMembership.alias,
+        balance: famMembership.balance ?? 0, savings_goal: famMembership.savings_goal ?? 0,
+      },
+      members: ((membersRes.data ?? []) as any[]).map((m) => ({
+        alias: m.alias ?? "", role: m.role ?? "member",
+        balance: m.balance ?? 0, savings_goal: m.savings_goal ?? 0, online_now: isOnline(m.last_seen_at),
+      })),
+      chores: ((choresRes.data ?? []) as any[]).map((c) => ({
+        title: c.title, due: c.due_date ?? null, reward: c.reward_amount ?? 0, done: !!c.is_completed,
+      })),
+      goals: ((goalsRes.data ?? []) as any[]).map((g) => ({
+        target: g.target_amount ?? 0, current: g.current_amount ?? 0,
+        month: g.month_year ?? "", reward: g.reward_suggestion ?? null,
+      })),
+      tasbiha: ((tasRes.data ?? []) as any[]).map((t) => ({
+        name: t.tree_name ?? "", level: t.level ?? 1, score: t.score ?? 0,
+        clicks: t.total_clicks ?? 0, streak: t.streak_days ?? 0, mature: !!t.is_mature,
+      })),
+    };
   }
 
   const transactions = txRes.data ?? [];
@@ -795,6 +866,9 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
       if (due.length === 0) return null;
       return { scheduled: due.length, taken: due.filter((d: any) => d.taken_at).length };
     })(),
+    // العقل الواحد — حالة العيلة كاملة: أفرادها، محافظ الأطفال، المهام، الأهداف،
+    // وبستان التسبيحة. null يعني العميل مش منضم لعيلة (مش خطأ).
+    family,
     // Task: مصادر فشلت في التحميل. مش فاضية — مجهولة. الفرق ده هو كل الفرق بين
     // "مفيش مصاريف" و"مقدرتش أقرا المصاريف"، والعقل كان بيقول الأولانية وهو يقصد التانية.
     data_errors: dataErrors,
@@ -4121,6 +4195,7 @@ function buildChatSystemPrompt(snap: any, voiceMode = false): string {
 6. اعتمد بس على الأرقام والبيانات اللي جوه === SNAPSHOT === تحت — متخترعش رقم أو معلومة من عندك.
 7. أدوات الفلوس (log_transaction, update_transaction, delete_transaction, set_monthly_limit) بتعرض تأكيد على العميل قبل الكتابة. قول إنك مجهزها ومحتاج تأكيده — مش إنها اتسجلت نهائي.
 8. متكتبش أي اسم تقني في ردك. تكلم بشكل طبيعي يناسب ${voiceMode ? "المكالمة الصوتية" : "المحادثة المكتوبة"}.
+9. **عيلة العميل (family)**: لو مش null، العميل عنده عيلة — أفرادها ومحافظ أطفالهم ومهامهم وأهدافهم وأشجار التسبيحة كلها جوه الـsnapshot. استخدمها عشان تتابع معاه: "أحمد خلّص مهام النهاردة؟" أو "هدف العيلة الشهر ده وصل نصه" — برقم من snapshot ومحفوظ بأدب العائلة (ماتعرضش تفاصيل صرف فرد لأفراد تانيين). لو null فالعميل مش منضم لعيلة، ومتقولش "مش منضم" إلا لما يسأل عن عيلته.
 
 === SNAPSHOT ===
 ${JSON.stringify(snap)}
@@ -4143,6 +4218,7 @@ function buildSystemPrompt(snap: any): string {
 - الحد الأدنى لسداد الديون (debts[].min_payment) التزام ثابت زي الإيجار بالظبط — ممنوع تقترح تقليله أو تأجيله، وممنوع تحسب "متاح" وكأنه فلوس اختيارية.
 - notifications_sent هو اللي التطبيق قاله للعميل فعلاً آخر أسبوع (من مسارات تانية غيرك). لو موضوعك اتقال فيه بالفعل، ماتكررهوش — العميل شايفه أصلاً. read=false برضه بيتحسب اتقال.
 - behavior_profile أرقام محسوبة من معاملات حقيقية سيرفر-سايد. لو رقمك مختلف عنها اختلاف كبير، الغلط الأرجح عندك انت — راجع حسابك قبل ما تنبّه.
+- family لو مش null: عندك صورة عيلة العميل (أفراد، محافظ أطفال، مهام مجدولة، أهداف شهرية، أشجار تسبيحة). لو مهام أطفال متأخرة أو هدف عيلة واقف، دي رؤية مفيدة (emit_insight) — بأسلوب تشجيعي مش لوم، ومتحسبش محفظة الطفل فلوس صرف للبيت. family=null يعني مفيش عيلة — ماتطلعش رؤى عنها أصلاً.
 - العملة والبلد جوه الـ snapshot هم الحقيقة الوحيدة. لو currency = "غير معروف"، ممنوع تفترض ريال أو جنيه أو أي عملة من عندك، وممنوع تكتب رؤية فيها رمز عملة — قول إن عملة المستخدم لسه مش متسجلة وحدّها في إعدادات البلد والعملة بالتطبيق. المبالغ في الـ snapshot كلها من نفس السجلات المالية للمستخدم، والتسمية بالعملة مش بتغيّر حجمها.
 
 لما العميل يرد على سؤال:
