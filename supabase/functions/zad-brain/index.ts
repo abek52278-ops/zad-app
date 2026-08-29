@@ -3438,8 +3438,15 @@ async function processDueAgentTasks(sb: SupabaseClient): Promise<{ processed: nu
       }
 
       const finalText = resultText.trim() || "خلصت المهمة من غير رد نصي.";
+      // تمييز النجاح الحقيقي عن "شغلت بس مقدرتش أنجز": لو في رفض أو أداة محتاجة تأكيد
+      // ومالهاش عميل حاضر، المهمة بتتقفل done_with_issue — الtrigger بتاع تقدم الهدف
+      // بيتفعل بس على status='done'، فالهدف ماياخدش +1 كاذب.
+      const hadIssue = ctx.rejections.length > 0
+        || history.some((h: any) => Array.isArray(h.results) && h.results.some((tr: any) =>
+          String(tr.content ?? "").startsWith("مرفوض:") || String(tr.content ?? "").includes("محتاج تأكيده")));
+      const finalStatus = hadIssue && task.goal_id ? "done_with_issue" : "done";
       await sb.from("agent_tasks").update({
-        status: "done", result: finalText, updated_at: new Date().toISOString(),
+        status: finalStatus, result: finalText, updated_at: new Date().toISOString(),
       }).eq("id", task.id);
       // حلقة الأهداف: المهمة المتكررة بتخلي نفسها دورة جديدة بعد ما تخلص —
       // يومية/أسبوعية/شهرية من وقت الجدولة الأصلي، ونفس الربط بالهدف. الtrigger

@@ -36,7 +36,13 @@ comment on table public.agent_goals is
   'أهداف حياة طويلة المدى العميل حطها بنفسه — العقل بيفككها مهام agent_tasks ويجاري تقدمها ويبلغ بالتقدم أو الخنق.';
 
 -- ربط المهمة بهدفها + تكرارها + نتيجة آخر تنفيذ.
+-- done_with_issue: اتنفذت لكن في رفض/تأكيد ناقص — بتتحسب محاولة مش إنجاز،
+-- والtrigger بتاع تقدم الهدف بيتفعل بس على 'done' (حماية من +1 كاذب).
 alter table public.agent_tasks
+  drop constraint if exists agent_tasks_status_check;
+alter table public.agent_tasks
+  add constraint agent_tasks_status_check
+    check (status in ('pending','running','done','done_with_issue','failed','cancelled')),
   add column if not exists goal_id uuid references public.agent_goals(id) on delete set null,
   add column if not exists recurrence text
     check (recurrence in ('once','daily','weekly','monthly')) default 'once',
