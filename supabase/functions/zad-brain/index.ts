@@ -603,6 +603,19 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     };
   }
 
+  // ─── أهداف حياة العميل (حلقة الأهداف) — العقل لازم يعرفها دايماً عشان يتابع تقدمها ───
+  const lifeGoalsRes = await sb.from("agent_goals")
+    .select("id,title,metric,target_value,current_value,deadline_date,status,last_reviewed_at")
+    .eq("user_id", userId).in("status", ["active", "stalled"]).order("created_at", { ascending: false }).limit(10);
+  if ((lifeGoalsRes as any).error) {
+    console.error(`[zad-brain] SNAPSHOT SOURCE FAILED: agent_goals — ${String((lifeGoalsRes as any).error.message ?? "")}`);
+    dataErrors.push({ source: "أهدافك الحياتية" });
+  }
+  const lifeGoals = (lifeGoalsRes.data ?? []) as Array<{
+    id: string; title: string; metric: string | null; target_value: number | null;
+    current_value: number; deadline_date: string | null; status: string; last_reviewed_at: string | null;
+  }>;
+
   const transactions = txRes.data ?? [];
   const now = new Date();
 
@@ -869,6 +882,12 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     // العقل الواحد — حالة العيلة كاملة: أفرادها، محافظ الأطفال، المهام، الأهداف،
     // وبستان التسبيحة. null يعني العميل مش منضم لعيلة (مش خطأ).
     family,
+    // حلقة الأهداف — أهداف حياة نشطة/متوقفة. التقدم (current_value) بيتحرك من إنجاز
+    // المهام المرتبطة — العقل بيتابعها ويشجع ويعيد التخطيط لو هدف واقف.
+    life_goals: lifeGoals.map((g) => ({
+      title: g.title, metric: g.metric, target: g.target_value,
+      done: g.current_value, deadline: g.deadline_date, status: g.status,
+    })),
     // Task: مصادر فشلت في التحميل. مش فاضية — مجهولة. الفرق ده هو كل الفرق بين
     // "مفيش مصاريف" و"مقدرتش أقرا المصاريف"، والعقل كان بيقول الأولانية وهو يقصد التانية.
     data_errors: dataErrors,
@@ -2125,11 +2144,19 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
         : "اتعلمت مهارة جديدة — هتفضل معايا في المحادثات الجاية";
     }
     case "schedule_task": {
+      // حلقة الأهداف — لو المهمة دي جزء من هدف، اربطها. الهدف لازم يكون للعميل نفسه.
+      let goalId: string | null = null;
+      if (input.goal_title) {
+        const { data: goal } = await sb.from("agent_goals")
+          .select("id").eq("user_id", userId).eq("title", String(input.goal_title).trim()).maybeSingle();
+        goalId = (goal as { id: string } | null)?.id ?? null;
+      }
       const w = await writeRows(
         sb.from("agent_tasks").insert({
           user_id: userId,
           task_description: String(input.task_description).trim(),
           scheduled_for: new Date(input.run_at).toISOString(),
+          goal_id: goalId,
         }).select("id,scheduled_for"),
         "جدولة المهمة",
       );
@@ -2143,6 +2170,45 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       });
       const when = new Date(newRow.scheduled_for).toLocaleString("ar-EG", { timeZone: "UTC", hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" });
       return `تمام، هعمل ده الساعة ${when} وهبعتلك النتيجة`;
+    }
+    case "set_life_goal": {
+      const title = String(input.title).trim();
+      const action = String(input.action ?? "add");
+      if (action === "cancel") {
+        const w = await writeRows(
+          sb.from("agent_goals").update({ status: "cancelled", updated_at: new Date().toISOString() })
+            .eq("user_id", userId).eq("title", title).select("id"),
+          "إلغاء الهدف",
+        );
+        if (!w.ok) return `مرفوض: ${w.reason}`;
+        ctx.mutationCount++;
+        ctx.mutations.push({ tool: name, old: { title, status: "active" }, new: { title, status: "cancelled" } });
+        return `تمام، الهدف «${title}» اتلغى`;
+      }
+      const deadline = input.deadline_date != null && String(input.deadline_date).trim() !== ""
+        ? String(input.deadline_date).slice(0, 10)
+        : null;
+      const w = await writeRows(
+        sb.from("agent_goals").upsert({
+          user_id: userId,
+          title,
+          metric: input.metric != null ? String(input.metric).trim() : null,
+          target_value: input.target_value != null ? Number(input.target_value) : null,
+          deadline_date: deadline,
+          status: "active",
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "user_id,title" }).select("id,current_value"),
+        "تسجيل الهدف",
+      );
+      if (!w.ok) return `مرفوض: ${w.reason}`;
+      const gRow = w.rows[0] as any;
+      ctx.mutationCount++;
+      ctx.mutations.push({ tool: name, old: null, new: { title, metric: input.metric ?? null } });
+      await recordAction(sb, userId, scope, {
+        tool: name, input, table: "agent_goals", targetId: gRow.id,
+        previous: null, next: gRow,
+      });
+      return `تمام، هدف «${title}» اتسجل — فكّكه دلوقتي لمهام بـ schedule_task واربط كل مهمة بيه بـ goal_title`;
     }
     case "find_nearby_stores": {
       const { data: prof } = await sb.from("zad_users")
@@ -3057,8 +3123,30 @@ const CHAT_TOOLS: ToolDef[] = [
       properties: {
         task_description: { type: "string", description: "وصف الطلب بالظبط زي ما هيتقال لك وقت التنفيذ (مثال: \"راجع مصاريف الأسبوع ده وقولي لو محتاج أقلل السقف\")" },
         run_at: { type: "string", description: "تاريخ ووقت التنفيذ بصيغة ISO 8601 (مثال: 2026-08-10T09:00:00Z)" },
+        goal_title: { type: "string", description: "لو المهمة دي جزء من هدف حياة مسجّل، اكتب عنوانه بالظبط زي ما اتسجل — بتربط المهمة بالهدف وبتزود تقدمه لما تنجز" },
       },
       required: ["task_description", "run_at"],
+    },
+  },
+  {
+    // حلقة الأهداف — العميل يحط هدف حياة، والعقل بيفككه مهام ويتابع تقدمه
+    // (agent_goals + أعمدة goal_id/recurrence على agent_tasks، migration 20260829010000).
+    name: "set_life_goal",
+    description:
+      "سجّل هدف حياة طويل المدى العميل حدده (مثال: «وفّر 500 شهرياً»، «سلسلة تسبيحة 30 يوم»). "
+      + "بعد التسجيل: فكّك الهدف لمهام متكررة بنادِ schedule_task لكل جزء. التقدم بيتحسب تلقائياً من المهام المنجزة — "
+      + "العميل يقدر يسألك «هدفي عامل إيه؟» وأنت تجاوب برقم current_value من الهدف. "
+      + "action=cancel للإلغاء فقط — العميل هو اللي يحط ويعدل أهدافه بنفسه، انت بتسجل كلامه.",
+    input_schema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "عنوان الهدف بكلام العميل نفسه" },
+        metric: { type: "string", description: "إزاي بنقيس النجاح (مثال: \"500 جنيه توفير شهري\")" },
+        target_value: { type: "number", description: "الرقم المستهدف لو فيه" },
+        deadline_date: { type: "string", description: "تاريخ الاستحقاق YYYY-MM-DD لو العميل حدده" },
+        action: { type: "string", enum: ["add", "cancel"] },
+      },
+      required: ["title", "action"],
     },
   },
   {
@@ -3973,8 +4061,14 @@ async function handleNotificationIngest(sb: SupabaseClient, userId: string, body
   }
 
   const mark = async (status: string, reason?: string, transactionId?: string | null) => {
+    // الحالات النهائية بتختم processed_at — إيداع الإغلاق idempotent (مايتحطش تاني لو موجود).
+    const terminal = ["logged", "ignored", "rejected"].includes(status);
     await sb.from("zad_notification_ingest_events")
-      .update({ status, rejection_reason: reason ?? null, transaction_id: transactionId ?? null, updated_at: new Date().toISOString() })
+      .update({
+        status, rejection_reason: reason ?? null, transaction_id: transactionId ?? null,
+        updated_at: new Date().toISOString(),
+        ...(terminal ? { processed_at: new Date().toISOString() } : {}),
+      })
       .eq("user_id", userId).eq("dedupe_hash", dedupeHash);
   };
 
@@ -4062,6 +4156,36 @@ async function handleNotificationIngest(sb: SupabaseClient, userId: string, body
   };
 
   type ProposalState = { id: string; status: string };
+
+  // ─── طبقة dedupe ضبابية (migration 20260829020000) ───
+  // الهاش الحرفي بينكسر أول ما البنك يعيد الإشعار بنص مختلف (رصيد متبقي/توقيت).
+  // البصمة الضبابية (مبلغ + تاجر مطبّع) خلال 20 دقيقة بتلقط الrepost قبل ما يولّد
+  // اقتراح تاني. مش هاش ممتاز 100% — ده سد ثقب شائع، والهاش الحرفي بيفضل هو الحكم.
+  let fuzzySibling: ProposalState | null = null;
+  if (Number.isFinite(amount) && amount > 0 && ingestEventId) {
+    const windowStart = new Date(Date.now() - 20 * 60000).toISOString();
+    const { data: siblingEvents } = await sb.from("zad_notification_ingest_events")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("fuzzy_key", (await sb.rpc("zad_notif_fuzzy_key", { p_title: title, p_body: text })).data as unknown as string)
+      .neq("id", ingestEventId)
+      .gte("created_at", windowStart)
+      .limit(5);
+    const siblingIds = ((siblingEvents ?? []) as Array<{ id: string }>).map((e) => e.id);
+    if (siblingIds.length > 0) {
+      const { data: siblingProposal } = await sb.from("zad_transaction_proposals")
+        .select("id,status")
+        .eq("user_id", userId)
+        .in("source_event_id", siblingIds)
+        .eq("amount", Math.round(amount * 100) / 100)
+        .in("status", ["awaiting_confirmation", "needs_classification"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      fuzzySibling = (siblingProposal as ProposalState | null) ?? null;
+    }
+  }
+
   const { data: existingProposal, error: existingProposalError } = await sb.from("zad_transaction_proposals")
     .select("id,status")
     .eq("user_id", userId)
@@ -4075,8 +4199,24 @@ async function handleNotificationIngest(sb: SupabaseClient, userId: string, body
     });
   }
 
-  let proposal = existingProposal as ProposalState | null;
+  let proposal = (existingProposal ?? fuzzySibling) as ProposalState | null;
   let createdProposal = false;
+  if (!existingProposal && fuzzySibling) {
+    // repost بنص مختلف لنفس العملية — نعيد استخدام اقتراح الأخ بدل ما نكرر الإزعاج.
+    await sb.from("zad_notification_ingest_events")
+      .update({ status: "duplicate_fuzzy" })
+      .eq("id", ingestEventId);
+    const promptDeliveryFuzzy = await deliverNotificationPrompt(sb, userId, ingestEventId, {
+      job: "confirm_transaction",
+      proposalId: fuzzySibling.id,
+    });
+    return new Response(JSON.stringify({
+      ok: true,
+      status: promptDeliveryFuzzy === "delivered" ? "duplicate_fuzzy" : "delivery_retry",
+      proposal_id: fuzzySibling.id,
+      prompt_delivery: promptDeliveryFuzzy,
+    }), { headers: CORS_HEADERS });
+  }
   if (proposal && ["posted", "rejected", "expired"].includes(proposal.status)) {
     return new Response(JSON.stringify({
       ok: true,
@@ -4196,6 +4336,7 @@ function buildChatSystemPrompt(snap: any, voiceMode = false): string {
 7. أدوات الفلوس (log_transaction, update_transaction, delete_transaction, set_monthly_limit) بتعرض تأكيد على العميل قبل الكتابة. قول إنك مجهزها ومحتاج تأكيده — مش إنها اتسجلت نهائي.
 8. متكتبش أي اسم تقني في ردك. تكلم بشكل طبيعي يناسب ${voiceMode ? "المكالمة الصوتية" : "المحادثة المكتوبة"}.
 9. **عيلة العميل (family)**: لو مش null، العميل عنده عيلة — أفرادها ومحافظ أطفالهم ومهامهم وأهدافهم وأشجار التسبيحة كلها جوه الـsnapshot. استخدمها عشان تتابع معاه: "أحمد خلّص مهام النهاردة؟" أو "هدف العيلة الشهر ده وصل نصه" — برقم من snapshot ومحفوظ بأدب العائلة (ماتعرضش تفاصيل صرف فرد لأفراد تانيين). لو null فالعميل مش منضم لعيلة، ومتقولش "مش منضم" إلا لما يسأل عن عيلته.
+10. **أهداف حياة العميل (life_goals)**: دي أهداف هو بنفسه حطها — تابعها بنفسك: لو هدف current وصل قريب من target شجّعه بالرقم الحقيقي، ولو هدف واقف من غير تقدم اسأل عنه بغير لوم واقترح تفكيكه لمهام أصغر (schedule_task بـ goal_title). لما يسجل هدف جديد، فكّكه فوراً لمهام مرتبطة — هدف من غير مهام مجدولة بيتنسي.
 
 === SNAPSHOT ===
 ${JSON.stringify(snap)}

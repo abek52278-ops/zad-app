@@ -657,6 +657,25 @@ export const validateQueryFamily: Validator = (_input, _snap, ctx) => {
   return { ok: true };
 };
 
+// حلقة الأهداف — هدف حياة طويل المدى العميل حطه. العقل يقدر يضيف أو يلغي بس،
+// التقدم بيتحسب من إنجاز المهام المرتبطة (trigger سيرفر-سايد) مش من هنا.
+export const validateSetLifeGoal: Validator = (input, _snap, ctx) => {
+  if ((ctx.counts["set_life_goal"] ?? 0) >= 2) return { ok: false, reason: "وصلت لحد هدفين في المرة — هدف واحد كل مرة" };
+  const title = String(input.title ?? "").trim();
+  if (title.length < 4) return { ok: false, reason: "عنوان الهدف قصير أوي" };
+  if (title.length > 200) return { ok: false, reason: "عنوان الهدف طويل أوي، لخّصه" };
+  if (input.metric != null && String(input.metric).length > 200) return { ok: false, reason: "وصف المقياس طويل أوي" };
+  if (input.target_value != null) {
+    const t = Number(input.target_value);
+    if (!Number.isFinite(t) || t <= 0 || t > 100_000_000) return { ok: false, reason: "target_value لازم رقم موجب منطقي" };
+  }
+  if (input.deadline_date != null && Number.isNaN(new Date(String(input.deadline_date)).getTime())) {
+    return { ok: false, reason: "deadline_date لازم تاريخ صحيح" };
+  }
+  if (input.action === "cancel" && !input.title) return { ok: false, reason: "الإلغاء محتاج عنوان الهدف" };
+  return { ok: true };
+};
+
 export const VALIDATORS: Record<string, Validator> = {
   log_transaction: validateLogTransaction,
   update_transaction: validateUpdateTransaction,
@@ -671,6 +690,7 @@ export const VALIDATORS: Record<string, Validator> = {
   delete_pharmacy_item: validateDeletePharmacyItem,
   schedule_task: validateScheduleTask,
   query_family: validateQueryFamily,
+  set_life_goal: validateSetLifeGoal,
   emit_insight: validateEmitInsight,
   ask_user: validateAskUser,
   update_inventory_qty: validateUpdateInventoryQty,
