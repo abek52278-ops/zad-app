@@ -82,11 +82,52 @@ function stylePrompt(text: string): string {
  * نداء Gemini TTS — يرجع PCM base64 داخل inlineData.
  * الأخطاء ترمي exception والـ caller (index.ts) بيرد 502 بشكل آمن.
  */
+/**
+ * مسبح مفاتيح TTS — نفس عقد callGeminiPool في index.ts بس للصوت.
+ * بيجرّب كل مفتاح بالترتيب على الموديل الأساسي، ولو الموديل نفسه اترفض
+ * (404=اتسحب / 400=اترفض) بيروح للموديل الاحتياطي بنفس المفتاح الحالي.
+ * بيرجّع Response جاهز (PCM) أو JSON خطأ فيه محاولات بدون أي مادة مفتاح.
+ */
+export async function requestGeminiVoiceWithPool(
+  input: ValidVoiceRequest,
+  apiKeys: string[],
+  fetcher: typeof fetch = fetch,
+  dialectInstruction = "",
+  models: string[] = [GEMINI_TTS_MODEL, "gemini-2.5-pro-preview-tts"],
+): Promise<Response> {
+  const attempts: Array<{ key_index: number; model: string; status: number | null }> = [];
+  if (!apiKeys.length) {
+    return new Response(JSON.stringify({ error: "voice_provider_unavailable", reason: "no_api_keys", attempts }), {
+      status: 503, headers: { "Content-Type": "application/json" },
+    });
+  }
+  for (let ki = 0; ki < apiKeys.length; ki++) {
+    for (const model of models) {
+      try {
+        const res = await requestGeminiVoice(input, apiKeys[ki], fetcher, dialectInstruction, model);
+        if (res.ok) return res;
+        attempts.push({ key_index: ki, model, status: res.status });
+        // موديل مش موجود/مرفوض → جرّب الموديل التالي بنفس المفتاح
+        if (res.status === 404 || res.status === 400) continue;
+        // المفتاح نفسه ضغط/مرفوض/سيرفر → كمل للمفتاح التالي
+        break;
+      } catch (e) {
+        attempts.push({ key_index: ki, model, status: null });
+      }
+    }
+  }
+  return new Response(
+    JSON.stringify({ error: "voice_provider_unavailable", attempts }),
+    { status: 502, headers: { "Content-Type": "application/json" } },
+  );
+}
+
 export async function requestGeminiVoice(
   input: ValidVoiceRequest,
   apiKey: string,
   fetcher: typeof fetch = fetch,
   dialectInstruction = "",
+  model: string = GEMINI_TTS_MODEL,
 ): Promise<Response> {
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
   const dialectLine = dialectInstruction ? `\n${dialectInstruction}، مع الحفاظ على الطبيعية التامة.` : "";
@@ -96,7 +137,7 @@ export async function requestGeminiVoice(
   const ttsDirective = "اقرأ النص التالي بصوت واضح وطبيعي — ولّد الصوت فقط من دون أي نص مكتوب.";
   const closingDirective = "\n\nالآن ولّد الصوت لهذا النص.";
   const res = await fetcher(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TTS_MODEL}:generateContent`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
       method: "POST",
       headers: {
