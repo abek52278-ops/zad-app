@@ -4164,14 +4164,21 @@ async function handleNotificationIngest(sb: SupabaseClient, userId: string, body
   let fuzzySibling: ProposalState | null = null;
   if (Number.isFinite(amount) && amount > 0 && ingestEventId) {
     const windowStart = new Date(Date.now() - 20 * 60000).toISOString();
-    const { data: siblingEvents } = await sb.from("zad_notification_ingest_events")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("fuzzy_key", (await sb.rpc("zad_notif_fuzzy_key", { p_title: title, p_body: text })).data as unknown as string)
-      .neq("id", ingestEventId)
-      .gte("created_at", windowStart)
-      .limit(5);
-    const siblingIds = ((siblingEvents ?? []) as Array<{ id: string }>).map((e) => e.id);
+    const { data: tokensRes } = await sb.rpc("zad_notif_fuzzy_key", { p_title: title, p_body: text });
+    const merchantTokens = (tokensRes ?? null) as string[] | null;
+    if (merchantTokens && merchantTokens.length > 0) {
+      const { data: siblingEvents } = await sb.from("zad_notification_ingest_events")
+        .select("id")
+        .eq("user_id", userId)
+        .overlaps("fuzzy_tokens", merchantTokens)
+        .neq("id", ingestEventId)
+        .gte("created_at", windowStart)
+        .limit(5);
+      var siblingEventRows = ((siblingEvents ?? []) as Array<{ id: string }>);
+    } else {
+      var siblingEventRows: Array<{ id: string }> = [];
+    }
+    const siblingIds = siblingEventRows.map((e) => e.id);
     if (siblingIds.length > 0) {
       const { data: siblingProposal } = await sb.from("zad_transaction_proposals")
         .select("id,status")
