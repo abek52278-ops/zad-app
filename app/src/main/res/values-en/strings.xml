@@ -1554,4 +1554,11 @@
     <string name="brain_gate_subscribe">Or subscribe to Zad Premium</string>
     <string name="media_pass_unlock_title">Unlock voice &amp; photos</string>
     <string name="media_pass_unlock_button">🎬 Unlock with 1 ad — 24 hours</string>
+    <string name="new_life_goal_title">New life goal</string>
+    <string name="new_life_goal_subtitle">Let Zad track a saving or habit goal for you</string>
+    <string name="new_life_goal_name">Goal name</string>
+    <string name="new_life_goal_metric">How do we measure it? (e.g. 500 SAR/month)</string>
+    <string name="new_life_goal_deadline">Deadline (optional)</string>
+    <string name="new_life_goal_deadline_hint">e.g. 2026-12-31</string>
+    <string name="save_action">Save</string>
 </resources>

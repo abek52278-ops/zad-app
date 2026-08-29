@@ -143,6 +143,8 @@ fun ProfileScreen(
     var showHelpSupport by remember { mutableStateOf(false) }
     var showBehaviorConsentDialog by remember { mutableStateOf(false) }
     var showRegionalSettings by remember { mutableStateOf(false) }
+    // حلقة الأهداف — زر "هدف جديد" يفتح حوار بيبعت الهدف للعقل (set_life_goal).
+    var showNewGoalDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(showSaveSuccess) {
         if (showSaveSuccess) {
@@ -219,6 +221,16 @@ fun ProfileScreen(
         HelpSupportScreen(onBack = { showHelpSupport = false })
     }
 
+    if (showNewGoalDialog) {
+        NewLifeGoalDialog(
+            onDismiss = { showNewGoalDialog = false },
+            onSubmit = { title, metric, deadline ->
+                viewModel.submitLifeGoal(title, metric, deadline) { _ ->
+                    showNewGoalDialog = false
+                }
+            }
+        )
+    }
     if (showRegionalSettings) {
         RegionalSettingsSheet(
             viewModel = viewModel,
@@ -448,6 +460,11 @@ fun ProfileScreen(
                         onClick = { navController?.navigate(com.example.ZadNav.AGENT_ACTION_LOG) }
                     )
                     com.example.ui.components.ZadMenuRow(
+                        title = stringResource(R.string.new_life_goal_title),
+                        subtitle = stringResource(R.string.new_life_goal_subtitle),
+                        onClick = { showNewGoalDialog = true }
+                    )
+                    com.example.ui.components.ZadMenuRow(
                         title = stringResource(R.string.terms_of_service_menu_title),
                         subtitle = stringResource(R.string.terms_of_service_menu_subtitle),
                         onClick = { navController?.navigate(com.example.ZadNav.TERMS) },
@@ -616,6 +633,57 @@ private fun RegionalSettingsSheet(
             Text(stringResource(R.string.currency_derived_note), style = Typography.labelSmall, color = onSurfaceVariant)
         }
     }
+}
+
+/**
+ * حوار "هدف جديد" — حلقة الأهداف: العميل يكتب الهدف والمقياس والاستحقاق،
+ * والنداء بيمشي في أنبوب الشات العادي (agent_turn) فالعقل بيسجل بـ set_life_goal
+ * ويقترح تفكيكه مهام فوراً في رده.
+ */
+@Composable
+fun NewLifeGoalDialog(onDismiss: () -> Unit, onSubmit: (title: String, metric: String?, deadline: String?) -> Unit) {
+    var title by remember { mutableStateOf("") }
+    var metric by remember { mutableStateOf("") }
+    var deadline by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.new_life_goal_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text(stringResource(R.string.new_life_goal_name)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = metric,
+                    onValueChange = { metric = it },
+                    label = { Text(stringResource(R.string.new_life_goal_metric)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = deadline,
+                    onValueChange = { deadline = it },
+                    label = { Text(stringResource(R.string.new_life_goal_deadline)) },
+                    placeholder = { Text(stringResource(R.string.new_life_goal_deadline_hint)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSubmit(title, metric.ifBlank { null }, deadline.ifBlank { null }) },
+                enabled = title.isNotBlank()
+            ) { Text(stringResource(R.string.save_action)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel_action)) }
+        }
+    )
 }
 
 @Composable

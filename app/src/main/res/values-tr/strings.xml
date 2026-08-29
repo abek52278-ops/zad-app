@@ -1551,4 +1551,11 @@
     <string name="brain_gate_subscribe">Ya da Zad Premium\'a abone ol</string>
     <string name="media_pass_unlock_title">Ses ve fotoğrafları aç</string>
     <string name="media_pass_unlock_button">🎬 1 reklamla aç — 24 saat</string>
+    <string name="new_life_goal_title">Yeni yaşam hedefi</string>
+    <string name="new_life_goal_subtitle">Zad birikim veya alışkanlık hedefini seninle takip etsin</string>
+    <string name="new_life_goal_name">Hedef adı</string>
+    <string name="new_life_goal_metric">Nasıl ölçüyoruz? (örn: ayda 500 TL)</string>
+    <string name="new_life_goal_deadline">Son tarih (isteğe bağlı)</string>
+    <string name="new_life_goal_deadline_hint">örn: 2026-12-31</string>
+    <string name="save_action">Kaydet</string>
 </resources>

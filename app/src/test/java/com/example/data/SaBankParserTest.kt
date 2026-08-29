@@ -266,6 +266,16 @@ class SaBankParserTest {
     }
 
     @Test
+    fun `restaurant named with سوبر prefix does NOT classify as grocery`() {
+        // سوبر ماك = مطعم — ماتفتحش نافذة "ضيف للمخزون؟"
+        val result = SaBankParser.detectAndParse(
+            "com.alrajhi.bank", "الراجحي",
+            "تم خصم مبلغ 85.00 ريال من حسابك لدى سوبر ماك. الرصيد المتاح: 3,000.00 ريال"
+        )!!
+        assertEquals("المطاعم", result.category)
+    }
+
+    @Test
     fun `SNB cash withdrawal from ATM`() {
         val result = SaBankParser.detectAndParse(
             "com.snb", "البنك الأهلي السعودي",

@@ -1698,6 +1698,28 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      *  context, short of the open-ended budget that made replies feel hung. */
     private val CHAT_THINKING_BUDGET = 512
 
+    /**
+     * حلقة الأهداف — مدخل الواجهة. بيستدعي العقل بنفس أنبوب الشات (agent_turn)،
+     * والعقل بيستخدم set_life_goal عشان يسجل الهدف + schedule_task بـ goal_title
+     * عشان يفككه مهام. بيرجّع null لو النص فاضي — النداء في coroutine عشان الUI ميتجمدش.
+     */
+    fun submitLifeGoal(title: String, metric: String?, deadline: String?, onDone: (Boolean) -> Unit) {
+        if (title.isBlank()) {
+            onDone(false)
+            return
+        }
+        val msg = buildString {
+            append("سجل هدف جديد باسم «").append(title.trim()).append("»")
+            if (!metric.isNullOrBlank()) append(" والمقياس هو ").append(metric.trim())
+            if (!deadline.isNullOrBlank()) append(" والاستحقاق بتاريخ ").append(deadline.trim())
+            append(" — وسجّله بـ set_life_goal وبعدين فكّكه لمهام متكررة بـ schedule_task واربط كل مهمة بيه.")
+        }
+        viewModelScope.launch {
+            val ok = sendAiChatMessage(msg) != null
+            onDone(ok)
+        }
+    }
+
     fun sendAiChatMessage(userText: String, voiceMode: Boolean = false): String? {
         if (userText.isBlank()) return null
         val userMsg = AiChatMessage(text = userText, isUser = true)

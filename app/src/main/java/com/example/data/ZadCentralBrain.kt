@@ -273,30 +273,18 @@ object ZadCentralBrain {
                 "لديك ${inventory.size} صنف في المخزون — منظم جداً!", "LOW"))
         }
 
-        // ====== 8. GROQ AI ENHANCED SUMMARY ======
-        var summary = generateLocalSummary(inventory, transactions, budget, totalSpent)
-        try {
-            val aiSummary = ZadAiRepository.getAgentSummary(
-                inventory, transactions, subscriptions, budget, shoppingList, behaviorPatterns
-            )
-            if (aiSummary != null) {
-                summary = aiSummary.summary.ifBlank { summary }
-                aiSummary.suggestions.forEach { s ->
-                    suggestions.add("${s.action}: ${s.item} — ${s.reason}")
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "AI summary failed: ${e.message}")
-        }
+        // ====== 8. GROQ AI ENHANCED SUMMARY — RETIRED (one-brain) ======
+        // كان لفة LLM تانية على الموبايل (Groq مباشر) بتضارب رؤيتها مع رؤية العقل
+        // السيرفر (zad-brain) لنفس البيانات — وده مصدر "الأرقام بتختلف بين الشاشة
+        // والشات". الملخص المحلي الحتمي (generateLocalSummary) بيفضل هو مصدر الشاشة،
+        // والاستنتاج والإشعارات من zad-brain بس.
+        val summary = generateLocalSummary(inventory, transactions, budget, totalSpent)
 
-        // ====== 9. AI PROACTIVE TOOL-LOOP (merged from the old ZadBrainEngine) ======
-        // Only for judgment calls a fixed rule can't make — low-stock/expiry are already
-        // handled deterministically above, so the prompt doesn't ask the model to re-decide them.
-        try {
-            runAiProactiveActions(context, inventory, transactions, lowStockItems, expiringSoon, pharmacyItems)
-        } catch (e: Exception) {
-            Log.e(TAG, "runAiProactiveActions failed: ${e.message}")
-        }
+        // ====== 9. AI PROACTIVE TOOL-LOOP — RETIRED (one-brain) ======
+        // نفس السبب: حلقة أدوات موازية كانت تبعت إشعارات ZadNotifier من غير ما
+        // العقل السيرفر يعرف. كل الاستنتاج الاستباقي بقى من zad-brain (snapshot +
+        // proactive scan + dream). الدوال محفوظة لو احتاجها مسار صوتي محلي،
+        // بس مش بتتنادى من fullAnalysis تاني.
 
         Log.d(TAG, "fullAnalysis() done → ${alerts.size} alerts, ${suggestions.size} suggestions, ${predictions.size} predictions, ${smartNotifications.size} smart notifs")
         BrainOutput(

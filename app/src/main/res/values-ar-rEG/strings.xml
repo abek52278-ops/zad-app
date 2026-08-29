@@ -1554,4 +1554,11 @@
     <string name="brain_gate_subscribe">أو اشترك في زاد بريميوم</string>
     <string name="media_pass_unlock_title">افتح الصوت والصور</string>
     <string name="media_pass_unlock_button">🎬 افتح بإعلان واحد — 24 ساعة</string>
+    <string name="new_life_goal_title">هدف حياة جديد</string>
+    <string name="new_life_goal_subtitle">خلّي زاد يتابع معاك هدف توفير أو عادة</string>
+    <string name="new_life_goal_name">اسم الهدف</string>
+    <string name="new_life_goal_metric">إزاي بنقيسه؟ (مثال: 500 جنيه شهرياً)</string>
+    <string name="new_life_goal_deadline">الاستحقاق (اختياري)</string>
+    <string name="new_life_goal_deadline_hint">مثال: 2026-12-31</string>
+    <string name="save_action">احفظ</string>
 </resources>
