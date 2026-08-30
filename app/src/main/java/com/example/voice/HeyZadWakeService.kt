@@ -103,33 +103,59 @@ class HeyZadWakeService : Service() {
         armRecognizer()
     }
 
+    /** عمود صفر: الالتقاط في onPartialResults لوحده مش كفاية — أجهزة كتير بتبعت
+     *  partials فاضية للعبارت القصيرة، فالكلمة السحرية "مش بتتسمع" والحلقة بتفضل تدور.
+     *  البديل: نفحص partials + النتيجة النهائية، وguard واحد يمنع الطلبات المكررة. */
+    @Volatile private var wakeFired = false
+    @Volatile private var consecutiveErrors = 0
+
+    private fun handleTranscript(text: String?) {
+        if (wakeFired) return
+        val t = text?.lowercase()?.trim() ?: return
+        if (WAKE_PHRASES.none { t.contains(it) }) return
+        wakeFired = true
+        // نبّه بالأذن — صفتة قصيرة لطيفة (مش مزعجة) عشان العميل يعرف إنه اتسمع
+        try { ZadCutePetSoundFx.play(ZadCutePetSoundFx.PetSound.MeowChirp, 0.35f) } catch (_: Exception) {}
+        val launch = Intent(this@HeyZadWakeService, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            putExtra("open_voice", true)
+        }
+        startActivity(launch)
+    }
+
     private fun armRecognizer() {
         if (!running || paused) return
+        wakeFired = false
         try { recognizer?.destroy() } catch (_: Exception) {}
         recognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
             setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: android.os.Bundle?) {}
+                override fun onReadyForSpeech(params: android.os.Bundle?) { consecutiveErrors = 0 }
                 override fun onBeginningOfSpeech() {}
                 override fun onRmsChanged(rmsdB: Float) {}
                 override fun onBufferReceived(buffer: ByteArray?) {}
                 override fun onEndOfSpeech() {}
                 override fun onPartialResults(partialResults: android.os.Bundle?) {
-                    val text = partialResults
-                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        ?.firstOrNull()?.lowercase()?.trim() ?: return
-                    if (WAKE_PHRASES.any { text.contains(it) }) {
-                        // فتح شاشة زاد الصوتية — نفس مسار ضغطة الزر بالظبط
-                        val launch = Intent(this@HeyZadWakeService, MainActivity::class.java).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                            putExtra("open_voice", true)
-                        }
-                        startActivity(launch)
-                        // مفيش صوت هنا — الشاشة نفسها بتفتح فورًا وده الإشعار البصري.
-                        // الـ chime كان بييجي معه صوت مزعج كل مرة الكلمة تتقال.
-                    }
+                    handleTranscript(
+                        partialResults
+                            ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                            ?.firstOrNull()
+                    )
                 }
-                override fun onResults(results: android.os.Bundle?) { rearm() }
-                override fun onError(error: Int) { rearm() }
+                override fun onResults(results: android.os.Bundle?) {
+                    handleTranscript(
+                        results
+                            ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                            ?.firstOrNull()
+                    )
+                    rearm()
+                }
+                override fun onError(error: Int) {
+                    // أخطاء 6/7 (مهلة صمت/لا تطابق) طبيعية في حلقة استماع دائمة —
+                    // لكن لو اتكررت ورا بعض يبقى فيه مشكلة أجهزة: نبطّئ الحلقة تدريجياً
+                    // عشان ما نستهلكش بطارية وما يتقتلش الـ service.
+                    consecutiveErrors++
+                    rearm()
+                }
                 override fun onEvent(eventType: Int, params: android.os.Bundle?) {}
             })
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -147,7 +173,16 @@ class HeyZadWakeService : Service() {
     /** إعادة تسليح بعد كل نتيجة/خطأ — مع مهلة قصيرة عشان ما نلفش الحلقة بسرعة جنونية. */
     private fun rearm() {
         if (!running || paused) return
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ armRecognizer() }, 400L)
+        // backoff تدريجي: 400ms عادي، ولحد 4s لو الأخطاء اتكررت — الحلقة تفضل حية
+        val delayMs = if (consecutiveErrors >= 5) 4000L else if (consecutiveErrors >= 2) 1200L else 400L
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            if (wakeFired) {
+                // كلمة السحر اتقالت والشاشة اتفتحت — صفّر الحالة وكمّل الاستماع بعد ما الشاشة تستقر
+                consecutiveErrors = 0
+                wakeFired = false
+            }
+            armRecognizer()
+        }, delayMs)
     }
 
     override fun onDestroy() {
