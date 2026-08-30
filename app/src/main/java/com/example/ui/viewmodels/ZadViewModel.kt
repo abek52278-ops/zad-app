@@ -3221,6 +3221,38 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** مسح كل الاشتراكات اللي اكتشفها الذكاء الاصطناعي تلقائياً (قبل نظام التأكيد)
+     *  أو اللي المستخدم أكّدها بضغطة من دون قصد — دي الاشتراكات "الوهمية" اللي
+     *  بتظهر في صفحة الاشتراكات بدون ما المستخدم يضيفها بنفسه.
+     *  بيمسح الصفوف محلياً ومن السحابة دفعة واحدة، واللي اتمسح مش بيرجع. */
+    fun deleteAllDetectedSubscriptions() {
+        val targets = _subscriptions.value.filter {
+            it.category == "Auto-detected" || it.category == "ai_detected" ||
+            // الاسم بيجي من الذكاء الاصطناعي ومش هيضيفه مستخدم حقيقي أبداً
+            ((it.category == "اشتراك" || it.category == "فواتير") && it.title.trim().isEmpty())
+        }
+        if (targets.isEmpty()) {
+            com.example.ui.components.ZadChime.play(com.example.ui.components.ZadChime.Tone.Tap)
+            return
+        }
+        viewModelScope.launch {
+            var deleted = 0
+            for (sub in targets) {
+                try {
+                    SupabaseRepo.deleteSubscription(sub.id)
+                    _subscriptions.value = _subscriptions.value.filterNot { it.id == sub.id }
+                    deleted++
+                } catch (e: Exception) {
+                    Log.w(TAG, "deleteAllDetectedSubscriptions: failed "${sub.title}": ${e.message}")
+                }
+            }
+            if (deleted > 0) {
+                com.example.ui.components.ZadChime.play(com.example.ui.components.ZadChime.Tone.Success)
+                Log.i(TAG, "deleteAllDetectedSubscriptions: removed $deleted subscriptions")
+            }
+        }
+    }
+
     fun updateSubscriptionActive(id: String, isActive: Boolean) {
         viewModelScope.launch {
             Log.d(TAG, "updateSubscriptionActive() → id=$id, isActive=$isActive")

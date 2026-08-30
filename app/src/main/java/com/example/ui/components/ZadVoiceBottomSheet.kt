@@ -231,8 +231,10 @@ fun ZadVoiceBottomSheet(
             )
 
             // Live Transcript text or listening hint
+            val errorMsg = (voiceState as? VoiceState.Error)?.message
             Text(
                 text = when {
+                    errorMsg != null -> "⚠️ $errorMsg\nاضغط على المايك للمحاولة مجدداً"
                     recognizedLiveText.isNotBlank() -> recognizedLiveText
                     isListeningState -> "أنا أسمعك الآن… تكلّم مع زاد بحرية وسأجيبك فوراً"
                     voiceState is VoiceState.Thinking -> "عقل زاد يفكّر بالرد…"

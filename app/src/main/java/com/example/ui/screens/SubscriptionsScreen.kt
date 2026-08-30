@@ -187,6 +187,31 @@ fun SubscriptionsScreen(
                 }
             }
 
+            // اشتراكات اكتشفها الذكاء الاصطناعي — زر مسح سريع (الاشتراكات "الوهمية")
+            val autoDetectedCount = subscriptions.count {
+                it.category == "Auto-detected" || (it.category == "اشتراك" && it.title.isBlank())
+            }
+            if (autoDetectedCount > 0) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${autoDetectedCount} اشتراك مكتشف تلقائياً",
+                            style = Typography.labelMedium,
+                            color = onSurfaceVariant
+                        )
+                        TextButton(onClick = { viewModel.deleteAllDetectedSubscriptions() }) {
+                            Icon(Icons.Default.AutoDelete, contentDescription = null, modifier = Modifier.size(16.dp), tint = dangerColor)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("مسح الكل", color = dangerColor, style = Typography.labelLarge)
+                        }
+                    }
+                }
+            }
+
             // اشتراكات اكتشفها الذكاء الاصطناعي، لسه محتاجة تأكيد المستخدم قبل ما تتسجل (AUDIT.md)
             if (pendingSubscriptions.isNotEmpty()) {
                 item {
