@@ -23,7 +23,7 @@ create or replace function public.zad_notif_fuzzy_key(
   p_title text,
   p_body text
 )
--- returns text[]
+returns text[]
 language plpgsql
 immutable
 as $$
