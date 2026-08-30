@@ -2598,7 +2598,14 @@ fun ChatTab(
     val isListening by voiceManager.isListening.collectAsState()
     var lastSpokenResponseId by remember { mutableStateOf(messages.lastOrNull { !it.isUser }?.id) }
     var awaitingVoiceReply by remember { mutableStateOf(false) }
-    var autoTtsEnabled by remember { mutableStateOf(false) }
+    // الرد الصوتي التلقائي: ON افتراضياً (طلب العميل: الإيجنت يرد بصوت)، ومحفوظ بين الجلسات
+    // بدل remember{} اللي كان بيمسح الاختيار مع كل خروج من الشاشة — فكان الصوت "مش شغال".
+    val autoTtsEnabled = remember {
+        mutableStateOf(
+            context.getSharedPreferences("zad_voice", android.content.Context.MODE_PRIVATE)
+                .getBoolean("auto_tts", true)
+        )
+    }
 
     fun submitVoiceQuery(query: String) {
         val clean = query.trim()
@@ -2791,14 +2798,18 @@ fun ChatTab(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconToggleButton(
-                checked = autoTtsEnabled,
-                onCheckedChange = { autoTtsEnabled = it },
+                checked = autoTtsEnabled.value,
+                onCheckedChange = {
+                    autoTtsEnabled.value = it
+                    context.getSharedPreferences("zad_voice", android.content.Context.MODE_PRIVATE)
+                        .edit().putBoolean("auto_tts", it).apply()
+                },
                 modifier = Modifier.size(36.dp)
             ) {
                 Icon(
-                    if (autoTtsEnabled) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
+                    if (autoTtsEnabled.value) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
                     contentDescription = "Auto TTS",
-                    tint = if (autoTtsEnabled) primary else outlineVariant
+                    tint = if (autoTtsEnabled.value) primary else outlineVariant
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
@@ -2820,7 +2831,7 @@ fun ChatTab(
             IconButton(
                 onClick = {
                     if (inputText.isNotBlank()) {
-                        if (autoTtsEnabled) awaitingVoiceReply = true
+                        if (autoTtsEnabled.value) awaitingVoiceReply = true
                         onSend()
                     }
                     else startListeningWithPermission()
