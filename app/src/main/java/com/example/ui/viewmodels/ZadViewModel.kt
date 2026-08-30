@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -1518,10 +1519,12 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             history,
             voiceMode = voiceMode
         ) { chunk ->
-            // كل مقطع: حدّث آخر رسالة بالنص التراكمي — على الـ main thread
-            _aiChatMessages.value.let { list ->
+            // كل مقطع: حدّث آخر رسالة بالنص التراكمي بطريقة Thread-Safe عشان مفيش كلام يقع
+            _aiChatMessages.update { list ->
                 if (list.isNotEmpty() && !list.last().isUser) {
-                    _aiChatMessages.value = list.dropLast(1) + list.last().copy(text = list.last().text + chunk)
+                    list.dropLast(1) + list.last().copy(text = list.last().text + chunk)
+                } else {
+                    list
                 }
             }
         }

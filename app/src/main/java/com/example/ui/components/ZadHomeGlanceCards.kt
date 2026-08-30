@@ -359,15 +359,7 @@ fun ZadFoodShortagesGlanceCard(
                 )
             }
         } else {
-            listOf(
-                FoodItemSample("موز طازج", "🍌", "فاكهة", 2, true, Color(0xFFFCEAEA)),
-                FoodItemSample("تفاح أحمر", "🍎", "فاكهة", 6, false, Color(0xFFFCEAEA)),
-                FoodItemSample("حليب كامل", "🥛", "ألبان", 1, true, Color(0xFFEAF2FB)),
-                FoodItemSample("خبز بلدي", "🍞", "مخبوزات", 3, false, Color(0xFFFBF1E3)),
-                FoodItemSample("دجاج طازج", "🍗", "لحوم", 2, true, Color(0xFFFFEBEE)),
-                FoodItemSample("أرز بسمتي", "🍚", "بقالة", 8, false, Color(0xFFFFF8E7)),
-                FoodItemSample("زيت زيتون", "🫒", "بقالة", 12, false, Color(0xFFE8F5E9))
-            )
+            emptyList()
         }
     }
 

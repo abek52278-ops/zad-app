@@ -4592,7 +4592,7 @@ Deno.serve(async (req: Request) => {
     // user_id من جسم الطلب (سلوك قديم، بيتنادى من workers ومن الكلاينت بجلسته)؛ المسار
     // ده بيكتب معاملات مالية، فبياخد الهوية من الـ JWT بس. لو أخدها من الجسم كان أي حد
     // معاه توكن صالح يقدر يكتب في دفتر أي مستخدم تاني بمجرد إنه يبعت الـ id بتاعه.
-    if (body.action === "agent_turn" || body.action === "agent_confirm" || body.action === "agent_execute" || body.action === "notification_ingest") {
+    if (body.action === "agent_turn" || body.action === "agent_turn_stream" || body.action === "agent_confirm" || body.action === "agent_execute" || body.action === "notification_ingest") {
       const authedUserId = await resolveRequestUserId(req, body);
       if (!authedUserId) {
         return new Response(

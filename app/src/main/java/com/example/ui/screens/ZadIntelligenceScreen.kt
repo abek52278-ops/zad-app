@@ -361,14 +361,14 @@ fun ZadIntelligenceScreen(
                         ZadStatTile(
                             modifier = Modifier.weight(1f),
                             label = "قوة الإنفاق",
-                            value = brainReport?.spendingPower?.powerPct?.let { "$it%" } ?: "82%",
+                            value = brainReport?.spendingPower?.powerPct?.let { "$it%" } ?: "—",
                             emoji = "⚡",
                             iconBg = Color(0xFFFEF3C7)
                         )
                         ZadStatTile(
                             modifier = Modifier.weight(1f),
                             label = "الصحة المالية",
-                            value = brainReport?.healthScore?.let { "$it/100" } ?: "74/100",
+                            value = brainReport?.healthScore?.let { "$it/100" } ?: "—",
                             emoji = "🛡️",
                             iconBg = Color(0xFFE0F2FE)
                         )
