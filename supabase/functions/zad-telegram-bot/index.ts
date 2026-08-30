@@ -459,15 +459,15 @@ interface AgentTurnResult {
 function userFacingFailure(reason: string): string {
   const r = reason.toLowerCase();
   if (r.includes("429") || r.includes("quota") || r.includes("exhausted")) {
-    return "الخدمة الذكية واصلة حد الاستخدام دلوقتي";
+    return "عقلي وصل حد الاستخدام دلوقتي — رجّعني تاني بعد شوية وهنفذ الطلب فوراً 🙏";
   }
   if (r.includes("503") || r.includes("unavailable") || r.includes("high demand") || r.includes("overload")) {
-    return "الخدمة الذكية زحمة دلوقتي";
+    return "مفكر بالحاجة دي، بس الخدمة زحمة لحظة — ابعت الطلب تاني وأنا منفذهولك";
   }
   if (r.includes("timeout") || r.includes("timed out") || r.includes("abort")) {
-    return "الرد أخد وقت أطول من اللازم";
+    return "الطلب أخد وقت أطول من اللازم — ابعت تاني وأنا أنفذه على طول";
   }
-  return "الخدمة الذكية مش متاحة دلوقتي";
+  return "حصلت مشكلة لحظية عندى — ابعت الطلب تاني وهنجهزه";
 }
 
 /** errorReason is set only when the agent path failed and the caller fell back to the

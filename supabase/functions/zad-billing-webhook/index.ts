@@ -92,82 +92,22 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // ── 2. Direct App Purchase Verification Flow ──
-    const { action, user_id, order_id, purchase_token, package_name, products, purchase_time } = body;
-
-    if (action === "verify_google_play_purchase") {
-      if (!purchase_token || !products || products.length === 0) {
-        return new Response(JSON.stringify({ error: "missing_purchase_details" }), {
-          status: 400,
-          headers: corsHeaders,
-        });
-      }
-
-      const productId = products[0];
-      const plan = PLAN_MAP[productId] || PLAN_MAP["zad_sub_plus_monthly"];
-
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30); // 30 days monthly cycle
-
-      // Record / Upsert subscription in database
-      const subscriptionRecord = {
-        user_id: user_id || "anonymous",
-        order_id: order_id || `GPA.${Date.now()}`,
-        purchase_token: purchase_token,
-        product_id: productId,
-        package_name: package_name || "com.aistudio.zad.wrtqvx",
-        tier: plan.tier,
-        status: "active",
-        ad_free: plan.adFree,
-        monthly_ai_quota: plan.monthlyAiQuota,
-        family_limit: plan.familyLimit,
-        price_usd: plan.priceUsd,
-        expires_at: expiresAt.toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      const { data: subData, error: subErr } = await admin
-        .from("zad_subscriptions")
-        .upsert(subscriptionRecord, { onConflict: "purchase_token" })
-        .select()
-        .single();
-
-      if (subErr) {
-        console.warn(`[ZadBillingWebhook] Note on subscriptions upsert: ${subErr.message}`);
-      }
-
-      // Also update user profile if user_id is provided
-      if (user_id && user_id !== "anonymous") {
-        await admin
-          .from("user_behavior_profile")
-          .upsert({
-            user_id: user_id,
-            subscription_tier: plan.tier,
-            ad_free: plan.adFree,
-            ai_quota_monthly: plan.monthlyAiQuota,
-            family_sharing_limit: plan.familyLimit,
-            subscription_expires_at: expiresAt.toISOString(),
-            updated_at: new Date().toISOString(),
-          }, { onConflict: "user_id" });
-      }
-
+    // ── 2. Direct App Purchase Verification Flow — RETIRED 2026-08-30 ──
+    // كان المسار بيكتب اشتراك "active" لأي purchase_token من غير أي اتصال بـ Google
+    // Play Developer API — أي حد بيتبعتله توكن (أو بيكتبه يدوي) بياخد tier كامل 30 يوم.
+    // التوثيق الحقيقي الوحيد: Edge Function verify-purchase (androidpublisher + service
+    // account) — التطبيق بيكلمه من GooglePlayBillingManager.verifyWithServer. RTDN فوق
+    // لسه شغال لأنه بس بيحدّث صفوف موجودة بالتوكن، مش بيخترع اشتراكات.
+    if (body?.action === "verify_google_play_purchase") {
+      console.warn("[ZadBillingWebhook] legacy verify path rejected — use verify-purchase function");
       return new Response(
         JSON.stringify({
-          success: true,
-          message: `تم توثيق اشتراك ${plan.title} بنجاح`,
-          entitlement: {
-            tier: plan.tier,
-            title: plan.title,
-            ad_free: plan.adFree,
-            monthly_ai_quota: plan.monthlyAiQuota,
-            family_limit: plan.familyLimit,
-            expires_at: expiresAt.toISOString(),
-          },
+          error: "verification_retired",
+          message: "هذا المسار اتقفل. التوثيق الحقيقي بيحصل عبر verify-purchase مع Google Play Developer API.",
         }),
-        { status: 200, headers: corsHeaders }
+        { status: 410, headers: corsHeaders },
       );
     }
-
     return new Response(JSON.stringify({ error: "unknown_action" }), {
       status: 400,
       headers: corsHeaders,
