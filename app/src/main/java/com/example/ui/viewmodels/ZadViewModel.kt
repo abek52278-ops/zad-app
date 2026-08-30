@@ -3243,7 +3243,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     _subscriptions.value = _subscriptions.value.filterNot { it.id == sub.id }
                     deleted++
                 } catch (e: Exception) {
-                    Log.w(TAG, "deleteAllDetectedSubscriptions: failed "${sub.title}": ${e.message}")
+                    Log.w(TAG, "deleteAllDetectedSubscriptions: failed \"${sub.title}\": ${e.message}")
                 }
             }
             if (deleted > 0) {
