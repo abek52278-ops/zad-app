@@ -10,8 +10,19 @@
 //                                 مع صلاحية androidpublisher على Play Console
 //   GOOGLE_PLAY_PACKAGE_NAME    — مثال: com.example.zad (package التطبيق الفعلي)
 //
-// التدفق: التطبيق يبعت { tier, isAnnual, purchaseToken, orderId, productId }
-// → هنا نتحقق من Google → نكتب tier في zad_users + zad_entitlements + subscriptions.
+// التدفق: التطبيق يبعت { purchaseToken, orderId, productId }
+// → هنا نتحقق من Google → zad_set_tier RPC بيكتب في zad_entitlements.
+//
+// ⚠️ إصلاح 2026-08-31 (بند 30.6): الملف ده كان مكسور من أربع جهات، وكل عملية شراء
+// ناجحة كانت بترجع internal_error بعد ما جوجل تأكد الدفع فعلاً:
+//   1. المتغير `pid` كان مستخدَم في أربع سطور ومعرَّفش خالص → ReferenceError.
+//   2. كان بيكتب zad_users.{tier, subscription_status, subscription_expires_at}
+//      والتلات أعمدة دي مش موجودة في الجدول (متأكَّد من information_schema الحي).
+//   3. كان بيعمل upsert على جدول `subscriptions` وهو مش موجود في القاعدة أصلاً.
+//   4. أخطاء 2 و3 كانت مش متفحوصة فبتتبلع بصمت.
+// الكتابة الشغالة الوحيدة هي zad_set_tier RPC → zad_entitlements، وده مصدر الحقيقة
+// اللي entitlement.ts بيقرا منه (وبيصفّر الكوتة للشهر الجديد كمان). الكتابتين
+// الميتين اتشالوا — الصح إننا نشيل كود ميت مش نضيف أعمدة عشانه.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { JWT } from "npm:google-auth-library@9";
@@ -21,9 +32,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// ملاحظة: `tier` و`isAnnual` كانوا في الواجهة دي ومحدش بيبعتهم —
+// GooglePlayBillingManager.verifyWithServer بيبعت التلاتة دول بس. والـ tier
+// بيتحدد سيرفر-سايد من productId (anti-spoof)، فقبوله من الجسم كان هيبقى ثغرة.
 interface VerifyRequest {
-  tier: string;
-  isAnnual?: boolean;
   purchaseToken: string;
   orderId?: string;
   productId?: string;
@@ -128,37 +140,39 @@ Deno.serve(async (req: Request) => {
       "zad_sub_plus_monthly": "plus",
       "zad_sub_ultra_monthly": "pro",
     };
-    const tier = PID_TO_TIER[body.productId.toLowerCase()]
+    const pid = body.productId.toLowerCase();
+    const tier = PID_TO_TIER[pid]
       // fallback للمنتجات القديمة بالاسم (لو حصلت) — من الـ pid نفسه مش من الجسم
       ?? (pid.includes("pro") || pid.includes("ultra") ? "pro"
         : pid.includes("starter") || pid.includes("basic") ? "starter"
         : "plus");
-    const isAnnual = pid.includes("annual") || pid.includes("yearly");
 
-    // 5) الكتابة في الداتابيز بمفتاح الخدمة (تجاوز RLS بشكل آمن ومقصود هنا)
+    // 5) الكتابة في الداتابيز بمفتاح الخدمة (تجاوز RLS بشكل آمن ومقصود هنا).
+    // zad_set_tier هي الكتابة الوحيدة المطلوبة: بتعمل refresh للصف، تكتب
+    // tier + tier_expires_at في zad_entitlements، وتصفّر الكوتة للشهر الجديد
+    // (من غير التصفير العميل بيدفع النهاردة وياخد الكوتة الجديدة لما دورته
+    // القديمة تخلص بالصدفة).
     const sb = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const expiry = new Date(expiryMs).toISOString();
 
-    const { error: tierErr } = await sb.rpc("zad_set_tier", {
+    const { data: tierResult, error: tierErr } = await sb.rpc("zad_set_tier", {
       p_user: userId, p_tier: tier, p_expires: expiry,
     });
-    if (tierErr) console.warn("zad_set_tier rpc:", tierErr.message);
 
-    await sb.from("zad_users").update({
-      tier, subscription_status: "active", subscription_expires_at: expiry,
-    }).eq("id", userId);
-
-    await sb.from("zad_entitlements").update({
-      tier, tier_expires_at: expiry,
-    }).eq("user_id", userId);
-
-    await sb.from("subscriptions").upsert({
-      user_id: userId, tier, provider: "google_play", status: "active",
-      current_period_start: new Date().toISOString(),
-      current_period_end: expiry,
-      external_id: body.orderId ?? null,
-      notes: body.purchaseToken.slice(0, 32),
-    }, { onConflict: "user_id,provider" });
+    // جوجل أكدت الدفع بس الترقية مكتبتش — ده فشل حقيقي ولازم يتقال. لو رجعنا
+    // valid:true هنا، العميل يدفع وياخد رسالة نجاح ومفيش ترقية، ومفيش أي مسار
+    // بيعيد المحاولة. العميل بيعيد النداء تلقائياً عند فتح التطبيق
+    // (queryActivePurchases → verifyWithServer)، فالخطأ هنا مش نهاية الطريق.
+    const rpcOk = tierResult && (tierResult as { ok?: boolean }).ok !== false;
+    if (tierErr || !rpcOk) {
+      console.error(
+        "verify-purchase: Google approved the purchase but zad_set_tier failed",
+        { userId, tier, rpcError: tierErr?.message, rpcResult: tierResult },
+      );
+      return new Response(JSON.stringify({ valid: false, reason: "entitlement_write_failed" }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     return new Response(JSON.stringify({ valid: true, tier, expires: expiry }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
