@@ -70,6 +70,8 @@ import { agentMailBlock, fetchUnreadAgentMail, sendAgentReport, type AgentSender
 // SOUL — هوية مدير الحياة الكامل (نمط Hermes) + المهارات المتعلمة.
 import { soulBlock } from "./soul.ts";
 import { loadSkills, skillsBlock } from "./skills.ts";
+// FCM — إشعار فوري للجهاز (الوعي اللحظي حتى والتطبيق مقفول).
+import { pushToDevice } from "./push.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -3470,6 +3472,8 @@ async function processDueAgentTasks(sb: SupabaseClient): Promise<{ processed: nu
       await sb.from("app_notifications").insert({
         user_id: task.user_id, title: "زاد خلّص مهمة كنت طلبتها", message: finalText,
       });
+      // FCM — الإشعار يوصل الجهاز فوراً حتى والتطبيق مقفول (fire-and-forget).
+      await pushToDevice(sb, task.user_id, "زاد خلّص مهمة كنت طلبتها ✅", finalText.slice(0, 180));
       processed++;
     } catch (e) {
       console.error("processDueAgentTasks failed for task", task.id, e);
@@ -4011,9 +4015,12 @@ async function deliverNotificationPrompt(
       delivery = "delivered";
     } else if (response.ok && responseBody.reason === "not linked") {
       delivery = "not_linked";
+      // تليجرام مش مربوط → FCM يغطي الفراغ (الوعي اللحظي). fire-and-forget.
+      pushToDevice(sb, userId, "زاد محتاج رأيك 💭", "في معاملة بنكية مستنية تأكيدك — افتح زاد للتأكيد.").catch(() => {});
     }
   } catch (e) {
     console.error("notification prompt to telegram failed:", (e as Error).message);
+    pushToDevice(sb, userId, "زاد محتاج رأيك 💭", "في معاملة بنكية مستنية تأكيدك — افتح زاد للتأكيد.").catch(() => {});
   }
 
   const { error: finishError } = await sb.rpc("zad_finish_notification_prompt_service", {

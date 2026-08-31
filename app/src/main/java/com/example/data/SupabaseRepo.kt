@@ -126,6 +126,12 @@ object SupabaseRepo {
                 this.password = password
             }
             Log.d(TAG, "signIn() SUCCESS → userId=${client.auth.currentUserOrNull()?.id}")
+            // FCM: بعد ما الجلسة تجهز نرفع توكن الجهاز (لو onNewToken حصل قبل الجلسة)
+            try {
+                com.example.services.ZadFcmGate.syncTokenAfterLogin()
+            } catch (e: Exception) {
+                Log.w(TAG, "FCM token sync after sign-in failed: ${e.message}")
+            }
             true
         } catch (e: Exception) {
             Log.e(TAG, "signIn() FAILED for email=$email, supabaseUrl=${BuildConfig.SUPABASE_URL}: $e", e)

@@ -7,6 +7,13 @@ plugins {
   alias(libs.plugins.kotlin.serialization)
 }
 
+// FCM: بيتفعّل بس لما google-services.json يكون موجود — CI والأجهزة المحلية
+// من غير الملف بتبني عادي، وأول ما الملف يجي Firebase بيتفعّل لوحده.
+// (apply خارج بلوك plugins{} عشان الشرط مش مسموح جواه)
+if (projectDir.resolve("google-services.json").exists()) {
+  apply(plugin = "com.google.gms.google-services")
+}
+
 android {
   namespace = "com.example"
   compileSdk = 36
@@ -123,6 +130,10 @@ dependencies {
   implementation(libs.okhttp)
   implementation(libs.play.services.location)
   implementation(libs.retrofit)
+  // FCM — الوعي اللحظي للأيدجنت. google-services plugin بيتفعّل لو الملف موجود
+  // (app/google-services.json)، وFirebase BOM بيمدّ كلاس الماسنجر.
+  implementation(platform(libs.firebase.bom))
+  implementation("com.google.firebase:firebase-messaging")
   implementation("com.google.android.gms:play-services-ads:23.3.0")
   implementation("com.android.billingclient:billing-ktx:7.1.1")
 

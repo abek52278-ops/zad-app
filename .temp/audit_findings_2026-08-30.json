@@ -1,0 +1,38 @@
+{
+ "date": "2026-08-30",
+ "subscriptions_fake": {
+  "root_cause_1": "supabase/functions/zad-billing-webhook/index.ts:98-168 — verify_google_play_purchase marks ANY purchase_token active 30 days WITHOUT calling Google. Legacy endpoint still live on Supabase.",
+  "root_cause_2": "Auto-detected subscriptions (detectSubscriptions ZadViewModel.kt:3515) are now pending-confirm only, but old auto-written rows remain in zad_subscriptions.",
+  "note": "zad_subscriptions in-app = recurring bills (rent/netflix) tracker, NOT premium tiers. Real verification path: GooglePlayBillingManager.kt:247 -> verify-purchase function (androidpublisher API).",
+  "fix": "1) Remove or lock zad-billing-webhook behind service auth. 2) Purge auto-detected/legacy rows from zad_subscriptions in DB. 3) Keep verify-purchase as the only verification path."
+ },
+ "chef": {
+  "status": "WIRED CORRECTLY",
+  "path": "ZadViewModel.kt:615-646 -> ZadAiRepository.suggestMeals:178 -> meal_suggestions -> zad-core-intelligence/index.ts:1041 (honest prompt, no canned fallback)",
+  "why_no_suggestions": "Recomputes only when inventory signature changes; needs quantity>0; AI failure returns honest message; ai_response_cache may serve stale entries."
+ },
+ "voice": {
+  "status": "FULLY WIRED — runtime failure",
+  "path": "ZadIntelligenceScreen.kt:2607 -> ZadVoiceManager.speakHumanLike:196 -> ZadNaturalVoiceEngine:148 -> voice_synthesize -> zad-core-intelligence/index.ts:948 -> requestGeminiVoiceWithPool (gemini-2.5-flash-preview-tts voice.ts:20) via ZAD_API_KEY_1..5 pool",
+  "personas": "sarah_warm->Aoede, karim_pro->Charon, pet_mascot->Leda (cute) — voice.ts:23-25",
+  "likely_failures": "503 if ZAD_API_KEY_* missing/exhausted; requires logged-in session; stale ElevenLabs comments",
+  "fix": "Verify ZAD_API_KEY_1..5 secrets + quota; run voice-selftest; check logcat for 'voice provider unavailable' or 'No auth session'"
+ },
+ "notifications": {
+  "architecture": "NO FCM/push. zad_insights pulled by ZadAlertRouter.sync() (ZadAlertRouter.kt:163-171) only on app open; telegram jobs (daily_checkins/subscription_alerts/realtime_push) only for telegram-bound users; parent-digest is cron.",
+  "why_father_sees_nothing": "No push channel exists; app closed + no telegram binding = nothing delivered.",
+  "green_card": "Feature not found in codebase — does not exist.",
+  "fix": "Add FCM push or WorkManager sync for zad_insights; bind parents to a delivery channel."
+ },
+ "budget_deduction": {
+  "root_cause": "zad_budget_state() computes remaining from zad_transactions rows (20260809120000 migration). Spend paths that don't insert a zad_transactions row = no deduction shown.",
+  "fix": "Audit all spend paths (agent agent_confirm, telegram log_transaction, manual) ensure each inserts zad_transactions."
+ },
+ "telegram_bot": {
+  "status": "Read-only chat by design; writes require user confirmation tap",
+  "path": "proposals -> confirm tap -> telegram_pending_writes/tools -> agent_confirm -> zad-brain validators -> DB",
+  "why_no_execution": "telegram-bot/index.ts:1303 — bot never writes directly; if user doesn't tap confirm nothing happens. Also verify agent_confirm path works.",
+  "fix": "Verify agent_confirm end-to-end; improve UX so confirm requirement is obvious."
+ },
+ "mock_data": "CLEAN — all mock/dummy/fake/placeholder grep hits are false positives (comments/design refs). No user-facing dummy data in screened files."
+}

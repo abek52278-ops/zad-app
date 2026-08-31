@@ -9,6 +9,7 @@ Deno.test("persona follows the account country instead of forcing Egyptian Arabi
 });
 
 Deno.test("voice mode asks for speech-sized turns", () => {
-  assertMatch(voiceModeInstruction(true), /جمل قصيرة/);
+  assertMatch(voiceModeInstruction(true), /جملك قصيرة/);
+  assertMatch(voiceModeInstruction(true), /بنت حرة/);
   assertMatch(voiceModeInstruction(false), /محادثة مكتوبة/);
 });
