@@ -27,3 +27,42 @@ verify_jwt = true
 
 [functions.zad-telegram-bot]
 verify_jwt = false
+
+# ── أضيف 2026-08-31 (بند 30.6ب) ────────────────────────────────────────────
+# الدوال التحت كانت **مش معرَّفة** هنا، والـ CLI بيفترض verify_jwt = true لأي
+# دالة مش لاقيها. تلاتة منهم منشورين فعلياً بـ false، يعني أول ديبلوي آلي كان
+# هيقلبهم true ويكسرهم من غير ما حد يطلب — بالظبط الخطر اللي الملف ده اتعمل
+# عشانه. القيم دي مقروءة من الدوال المنشورة نفسها (2026-08-31)، مش أمنيات.
+#
+# ⚠️ update-behavior-profile مالوش أي حارس داخلي وشغال بمفتاح الخدمة، فـ
+#    verify_jwt = false معناها إنه مفتوح للإنترنت. القيمة دي **بتحافظ على
+#    السلوك الحالي مش بتباركه**: الكرون بينده بمفتاح ديمو مزيّف
+#    ("iss":"supabase-demo" في 20260721150210) فلو اتقلب true الكرون هيقع
+#    بصمت — وpg_net بيأكد إن الطلب اتصف بس، مش إنه نجح. الإصلاح الصح
+#    (سيكريت مخصص + إعادة جدولة الكرون) مسجّل كبند 30.11.
+[functions.amazon-creators-search]
+verify_jwt = false
+
+[functions.update-behavior-profile]
+verify_jwt = false
+
+[functions.voice-selftest]
+verify_jwt = false
+
+[functions.verify-purchase]
+verify_jwt = true
+
+[functions.affiliate-price-refresh]
+verify_jwt = true
+
+[functions.parent-digest]
+verify_jwt = true
+
+# مقصود إنها false: إشعارات Google Play RTDN بتوصل من Pub/Sub وهي **مبتحملش
+# توكن سوبابيز خالص**، فـ verify_jwt = true كانت بترفضها عند البوابة قبل ما
+# الدالة تشتغل أصلاً. ده السبب الحقيقي إن تتبع التجديد/الإلغاء مكانش شغال —
+# الأعمدة الغلط كانت العَرَض التاني مش الأول. البديل للتوثيق: سيكريت في
+# الـ query string بتاع push endpoint (ZAD_RTDN_SECRET)، نفس نمط
+# X-Checkin-Cron-Secret الموجود.
+[functions.zad-billing-webhook]
+verify_jwt = false
