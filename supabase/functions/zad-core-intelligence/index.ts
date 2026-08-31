@@ -37,7 +37,11 @@ const GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
 // Model IDs are env-configurable, not hardcoded — Groq's model catalog (especially vision)
 // has churned before (Llama vision models were pulled from Groq's catalog previously over
 // licensing). A wrong/deprecated slug becomes a secret update, not a redeploy.
-const GROQ_TEXT_MODEL = Deno.env.get("ZAD_GROQ_TEXT_MODEL") || "llama-3.3-70b-versatile";
+// 2026-08-31: was llama-3.3-70b-versatile, which now 404s — Groq dropped every Llama chat
+// model from this project's catalogue, so the text/JSON fallback was dead. gpt-oss-120b was
+// probed the same day for both things this call site needs: tool_calls and
+// response_format json_object (callGroqPool passes jsonMode for the JSON actions).
+const GROQ_TEXT_MODEL = Deno.env.get("ZAD_GROQ_TEXT_MODEL") || "openai/gpt-oss-120b";
 // No GROQ_VISION_MODEL any more: images go to Gemini and nowhere else (see callVisionModel).
 // Kept as history because it cost real debugging: "llama-3.2-11b-vision-instruct", this
 // file's original vision default, was verified on 2026-07-25 to be absent from Groq's

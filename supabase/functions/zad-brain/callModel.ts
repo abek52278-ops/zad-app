@@ -116,8 +116,17 @@ function modelChain(primary: string): string[] {
 }
 
 // Last leg of the chain. Groq is a different vendor with a different quota, so it survives
-// a total Gemini outage. Probed the same day: llama-3.3-70b-versatile returns 200 and does
-// emit tool_calls, so it can carry the agent loop rather than only plain text.
+// a total Gemini outage. **Re-probed 2026-08-31 and the model had to change**: Groq's
+// catalogue on this project's key no longer contains a single Llama model, so the old
+// default `llama-3.3-70b-versatile` answered 404 model_not_found — i.e. this entire last
+// leg had been silently dead, and every Gemini-wide outage was a hard failure for the turn.
+// The catalogue that day was: openai/gpt-oss-120b, openai/gpt-oss-20b,
+// openai/gpt-oss-safeguard-20b, qwen/qwen3.6-27b, qwen/qwen3.8-27b, groq/compound,
+// groq/compound-mini, whisper-large-v3(-turbo), allam-2-7b, meta-llama/llama-prompt-guard-2-*
+// (a guard classifier, not a chat model). Probed openai/gpt-oss-120b the same day: 200, and
+// it emits real tool_calls (`add_expense{amount:50,category:"قهوة"}` on "سجل 50 جنيه قهوة"),
+// so it can carry the agent loop rather than only plain text. It also honours
+// response_format json_object, which is what zad-core-intelligence's Groq leg needs.
 // الاسم المفرد `GROQ_API_KEY` محسوب هنا كمان. الكود كان بيقرا الاسمين المرقّمين بس،
 // بينما رسالة الفشل تحت بتقول "no GROQ_API_KEY_1/GROQ_API_KEY" — يعني بتوعد بمفتاح
 // مالوش قارئ. لو المشروع كان محطوط عليه المفرد بس (وهو الاسم الأصلي قبل الـ pool،
@@ -135,7 +144,7 @@ if (GROQ_KEY_POOL.length === 0) {
   const legacy = Deno.env.get("GROQ_API_KEY");
   if (legacy) GROQ_KEY_POOL.push(legacy);
 }
-const GROQ_MODEL = Deno.env.get("ZAD_GROQ_TEXT_MODEL") ?? "llama-3.3-70b-versatile";
+const GROQ_MODEL = Deno.env.get("ZAD_GROQ_TEXT_MODEL") ?? "openai/gpt-oss-120b";
 
 const cfg = () => {
   const provider = (Deno.env.get("ZAD_PROVIDER") ?? "anthropic") as Provider;

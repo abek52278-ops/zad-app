@@ -111,7 +111,7 @@ Deno.test("سلسلة جيميناي كلها مقفولة → بيقع على G
     assertEquals(reply.text, "من جروك");
     const groqCall = s.calls.find((c) => c.url.includes("api.groq.com"));
     assert(groqCall, "المفروض ينادي جروك");
-    assertEquals(groqCall!.body.model, "llama-3.3-70b-versatile");
+    assertEquals(groqCall!.body.model, "openai/gpt-oss-120b");
     // الأدوات لازم توصل جروك كمان، وإلا الـ agent loop بيرجع نص بس ومبينفّذش حاجة
     assertEquals(groqCall!.body.tools.length, 1);
   } finally {

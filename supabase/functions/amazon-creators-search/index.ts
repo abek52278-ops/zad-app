@@ -56,7 +56,8 @@ Deno.serve(async (req: Request) => {
             method: "POST",
             headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-              model: "llama-3.3-70b-versatile",
+              // 2026-08-31: llama-3.3-70b-versatile 404s (Groq dropped all Llama chat models).
+              model: "openai/gpt-oss-120b",
               messages: [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: userPrompt }
