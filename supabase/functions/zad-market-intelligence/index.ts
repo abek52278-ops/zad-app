@@ -52,6 +52,152 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+// ─── Alert Detection & Thresholds ────────────────────────────────────────
+
+const PRICE_CHANGE_THRESHOLD = 5; // 5% change triggers an alert
+const EXCHANGE_RATE_THRESHOLD = 2; // 2% change for currency alerts
+
+interface PriceAlert {
+  user_id: string;
+  item_name: string;
+  item_category: string;
+  alert_type: "price_drop" | "price_surge" | "below_avg" | "deal_found";
+  old_price: number;
+  new_price: number;
+  percentage_change: number;
+}
+
+// ─── Helper Functions ────────────────────────────────────────────────────
+
+async function getLastPriceForItem(itemName: string): Promise<number | null> {
+  const { data } = await supabase
+    .from("price_index")
+    .select("price")
+    .ilike("item_name", itemName)
+    .order("timestamp", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.price || null;
+}
+
+async function getLastExchangeRate(from: string, to: string): Promise<number | null> {
+  const { data } = await supabase
+    .from("currency_rates")
+    .select("rate")
+    .eq("from_currency", from)
+    .eq("to_currency", to)
+    .order("timestamp", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.rate || null;
+}
+
+async function detectPriceAlerts(foodPrices: FoodPrice[]): Promise<PriceAlert[]> {
+  const alerts: PriceAlert[] = [];
+  const { data: users } = await supabase.from("zad_users").select("id").limit(100);
+
+  if (!users || users.length === 0) return alerts;
+
+  for (const price of foodPrices) {
+    const lastPrice = await getLastPriceForItem(price.itemName);
+    if (!lastPrice) continue;
+
+    const changePercent = ((price.price - lastPrice) / lastPrice) * 100;
+    const absChange = Math.abs(changePercent);
+
+    if (absChange >= PRICE_CHANGE_THRESHOLD) {
+      const alertType = changePercent < 0 ? "price_drop" : "price_surge";
+      for (const user of users) {
+        alerts.push({
+          user_id: user.id,
+          item_name: price.itemName,
+          item_category: price.category,
+          alert_type: alertType,
+          old_price: lastPrice,
+          new_price: price.price,
+          percentage_change: changePercent,
+        });
+      }
+    }
+  }
+
+  return alerts;
+}
+
+async function detectExchangeRateAlerts(exchangeRates: ExchangeRate[]): Promise<PriceAlert[]> {
+  const alerts: PriceAlert[] = [];
+  const { data: users } = await supabase.from("zad_users").select("id").limit(100);
+
+  if (!users || users.length === 0) return alerts;
+
+  for (const rate of exchangeRates) {
+    const lastRate = await getLastExchangeRate(rate.from, rate.to);
+    if (!lastRate) continue;
+
+    const changePercent = ((rate.rate - lastRate) / lastRate) * 100;
+    const absChange = Math.abs(changePercent);
+
+    if (absChange >= EXCHANGE_RATE_THRESHOLD) {
+      const alertType = changePercent < 0 ? "price_drop" : "price_surge";
+      for (const user of users) {
+        alerts.push({
+          user_id: user.id,
+          item_name: `${rate.from}→${rate.to} سعر صرف`,
+          item_category: "exchange_rate",
+          alert_type: alertType,
+          old_price: lastRate,
+          new_price: rate.rate,
+          percentage_change: changePercent,
+        });
+      }
+    }
+  }
+
+  return alerts;
+}
+
+async function sendFCMNotifications(alerts: PriceAlert[]): Promise<number> {
+  let sent = 0;
+
+  for (const alert of alerts) {
+    try {
+      const { data: fcmData } = await supabase
+        .from("fcm_tokens")
+        .select("token")
+        .eq("user_id", alert.user_id)
+        .eq("active", true)
+        .maybeSingle();
+
+      if (!fcmData?.token) continue;
+
+      const title = alert.alert_type === "price_drop"
+        ? `📉 ${alert.item_name} انخفض`
+        : `📈 ${alert.item_name} ارتفع`;
+
+      const body = `${alert.alert_type === "price_drop" ? "وفّر" : "احذر"}: ${Math.abs(alert.percentage_change).toFixed(1)}% (${alert.old_price.toFixed(2)} → ${alert.new_price.toFixed(2)})`;
+
+      // Store notification in DB (Firebase Messaging handled by client)
+      await supabase.from("price_alerts").insert({
+        user_id: alert.user_id,
+        item_name: alert.item_name,
+        item_category: alert.item_category,
+        alert_type: alert.alert_type,
+        old_price: alert.old_price,
+        new_price: alert.new_price,
+        percentage_change: alert.percentage_change,
+        created_at: new Date().toISOString(),
+      });
+
+      sent++;
+      console.log(`[FCM] Queued notification for user ${alert.user_id}: ${title}`);
+    } catch (err) {
+      console.error(`[FCM] Failed to send alert for user ${alert.user_id}:`, err);
+    }
+  }
+
+  return sent;
+}
+
 // ─── API Fetchers ───────────────────────────────────────────────────────
 
 async function fetchExchangeRates(): Promise<ExchangeRate[]> {
@@ -272,21 +418,25 @@ async function main() {
     if (error) errors.push(`market_snapshot: ${error.message}`);
   }
 
-  // 4. Create sample price alerts (real logic would come from zad-brain)
-  if (foodPrices.length > 0 && existingUsers && existingUsers.length > 0) {
-    const alerts = existingUsers.slice(0, 5).map((user) => ({
-      user_id: user.id,
-      item_name: foodPrices[0].itemName,
-      item_category: foodPrices[0].category,
-      alert_type: "price_drop",
-      old_price: foodPrices[0].price * 1.1,
-      new_price: foodPrices[0].price,
-      percentage_change: -9.1,
-      created_at: new Date().toISOString(),
-    }));
+  // 4. Detect and create price alerts based on changes
+  let alertsCreated = 0;
+  try {
+    const [priceAlerts, exchangeAlerts] = await Promise.all([
+      detectPriceAlerts(foodPrices),
+      detectExchangeRateAlerts(exchangeRates),
+    ]);
 
-    const { error } = await supabase.from("price_alerts").insert(alerts);
-    if (error) errors.push(`price_alerts: ${error.message}`);
+    const allAlerts = [...priceAlerts, ...exchangeAlerts];
+
+    if (allAlerts.length > 0) {
+      // Send FCM notifications
+      const notificationsSent = await sendFCMNotifications(allAlerts);
+      alertsCreated = notificationsSent;
+      console.log(`[Market Intelligence] Created ${allAlerts.length} alerts, sent ${notificationsSent} notifications`);
+    }
+  } catch (err) {
+    console.error("[Market Intelligence] Alert detection error:", err);
+    errors.push(`alert_detection: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   if (errors.length > 0) {
@@ -303,6 +453,7 @@ async function main() {
       weather: weather ? "ok" : "failed",
       metalPrices: metalPrices ? "ok" : "failed",
       nearbyStores: nearbyStores.length,
+      alerts_created: alertsCreated,
     },
     errors: errors.length > 0 ? errors : null,
   };

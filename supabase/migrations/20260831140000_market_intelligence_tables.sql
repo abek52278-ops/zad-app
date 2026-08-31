@@ -176,3 +176,44 @@ create policy "price_alerts_server_write" on public.price_alerts
 
 -- No automatic triggers here — let zad-market-intelligence manage retention
 -- via Deno job during cron, so we don't hammer the DB on read-heavy queries.
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- 5. fcm_tokens — Firebase Cloud Messaging tokens للإشعارات (Phase 1)
+-- كل جهاز يسجل token الخاص به لاستقبال notifications
+create table if not exists public.fcm_tokens (
+  id bigserial primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+
+  token text not null unique,
+  device_name text, -- "iPhone 12", "Samsung Galaxy", etc
+  device_type text not null check (device_type in ('ios', 'android', 'web')),
+
+  active boolean not null default true,
+  last_used_at timestamptz default now(),
+  created_at timestamptz not null default now()
+);
+
+comment on table public.fcm_tokens is 'Firebase Cloud Messaging tokens for push notifications. Each device/user pair maintains one token.';
+
+create index if not exists idx_fcm_tokens_user_active
+  on public.fcm_tokens(user_id, active) where active = true;
+
+create index if not exists idx_fcm_tokens_token
+  on public.fcm_tokens(token);
+
+alter table public.fcm_tokens enable row level security;
+
+-- Users manage their own tokens
+create policy "fcm_tokens_own" on public.fcm_tokens
+  for select using (auth.uid() = user_id);
+
+create policy "fcm_tokens_own_write" on public.fcm_tokens
+  for insert with check (auth.uid() = user_id);
+
+create policy "fcm_tokens_own_update" on public.fcm_tokens
+  for update using (auth.uid() = user_id);
+
+-- Server read (zad-market-intelligence)
+create policy "fcm_tokens_server_read" on public.fcm_tokens
+  for select using (true);
