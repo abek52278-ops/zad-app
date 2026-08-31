@@ -6,6 +6,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.postgrest.postgrest
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
  * جسر آمن بين التطبيق وFCM — كلاس FirebaseMessaging بيتحمّل بس لو
@@ -37,13 +41,18 @@ object ZadFcmGate {
                 return
             }
             SupabaseRepo.client.postgrest["zad_fcm_tokens"].upsert(
-                mapOf(
-                    "user_id" to userId,
-                    "token" to token,
-                    "platform" to "android"
-                ),
-                onConflict = "token"
-            )
+                buildJsonObject {
+                    put("user_id", userId)
+                    put("token", token)
+                    put("platform", "android")
+                }
+            ) {
+                // upsert على توكن الجهاز نفسه — الجهاز ميتكررش
+                @OptIn(io.github.jan.supabase.annotations.SupabaseExperimental::class)
+                run {
+                    params["on_conflict"] = listOf("token")
+                }
+            }
             Log.d(TAG, "FCM token saved")
         } catch (e: Exception) {
             Log.e(TAG, "saveToken FAILED: ${e.message}")
