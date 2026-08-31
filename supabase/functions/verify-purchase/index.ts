@@ -155,6 +155,22 @@ Deno.serve(async (req: Request) => {
     const sb = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const expiry = new Date(expiryMs).toISOString();
 
+    // 4.5) التوكن ده محجوز لحد تاني؟ — الفحص ده **قبل** الترقية عن قصد.
+    // جوجل بتأكد إن التوكن شراء حقيقي مدفوع، بس مش بتقول إنه بتاع الحساب ده.
+    // من غير الفحص، حد ياخد توكن صحيح ويستخدمه على أكتر من حساب وكلهم يترقّوا.
+    // الحارس النهائي هو zad_entitlements_purchase_token_uniq، وده بيخلي الرفض
+    // يحصل قبل المنح مش بعده.
+    const { data: holder } = await sb.from("zad_entitlements")
+      .select("user_id").eq("purchase_token", body.purchaseToken).maybeSingle();
+    if (holder && holder.user_id !== userId) {
+      console.warn("verify-purchase: purchase token already claimed by another account", {
+        userId, holder: holder.user_id,
+      });
+      return new Response(JSON.stringify({ valid: false, reason: "token_already_claimed" }), {
+        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { data: tierResult, error: tierErr } = await sb.rpc("zad_set_tier", {
       p_user: userId, p_tier: tier, p_expires: expiry,
     });
@@ -172,6 +188,18 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ valid: false, reason: "entitlement_write_failed" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // 6) تخزين التوكن — ده اللي بيخلي RTDN تعرف ترجع للعميل ده. من غيره
+    // التجديد والإلغاء من جوجل مبيوصلوش (zad-billing-webhook بيدوّر بالتوكن).
+    // fail-open مقصود: الترقية نجحت خلاص، وفشل تخزين التوكن يعني تتبع أضعف
+    // مش شراء ضايع — والنداء الجاي من التطبيق هيحاول تاني.
+    const { error: tokenErr } = await sb.from("zad_entitlements")
+      .update({ purchase_token: body.purchaseToken })
+      .eq("user_id", userId);
+    if (tokenErr) {
+      console.warn("verify-purchase: tier granted but purchase_token not stored —",
+        "RTDN renewal/cancel tracking will not work for this user:", tokenErr.message);
     }
 
     return new Response(JSON.stringify({ valid: true, tier, expires: expiry }), {
