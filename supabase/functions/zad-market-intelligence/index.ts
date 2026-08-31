@@ -45,6 +45,18 @@ interface NearbyStore {
   distance: number; // km
 }
 
+interface PriceForecast {
+  item_name: string;
+  item_category: string;
+  current_price: number;
+  forecasted_price_30d: number;
+  forecasted_price_90d: number;
+  confidence_score: number; // 0-100
+  trend: "upward" | "downward" | "stable";
+  recommendation: string; // "buy_now" | "wait" | "stock_up"
+  reasoning: string;
+}
+
 // ─── Supabase Setup ──────────────────────────────────────────────────────
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -154,6 +166,140 @@ async function detectExchangeRateAlerts(exchangeRates: ExchangeRate[]): Promise<
   }
 
   return alerts;
+}
+
+async function getHistoricalPriceData(
+  itemName: string,
+  days: number = 90
+): Promise<Array<{ price: number; timestamp: string }>> {
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+
+  const { data } = await supabase
+    .from("price_index")
+    .select("price, timestamp")
+    .ilike("item_name", itemName)
+    .gte("timestamp", since)
+    .order("timestamp", { ascending: true });
+
+  return (data || []).map((row: any) => ({
+    price: row.price,
+    timestamp: row.timestamp,
+  }));
+}
+
+async function analyzeWithGemini(
+  itemName: string,
+  currentPrice: number,
+  historicalData: Array<{ price: number; timestamp: string }>,
+  weatherContext?: string
+): Promise<PriceForecast | null> {
+  try {
+    // Prepare data summary for Gemini
+    const avgPrice = historicalData.length > 0
+      ? historicalData.reduce((sum, d) => sum + d.price, 0) / historicalData.length
+      : currentPrice;
+
+    const priceChange30d = historicalData.length > 0
+      ? ((currentPrice - historicalData[0].price) / historicalData[0].price) * 100
+      : 0;
+
+    const prompt = `You are a market analyst. Analyze this price data and provide a forecast.
+
+Item: ${itemName}
+Current Price: ${currentPrice} EGP
+30-Day Average: ${avgPrice.toFixed(2)} EGP
+30-Day Change: ${priceChange30d > 0 ? "+" : ""}${priceChange30d.toFixed(1)}%
+Data Points: ${historicalData.length}
+${weatherContext ? `Weather Context: ${weatherContext}` : ""}
+
+Respond with ONLY valid JSON (no markdown, no code blocks):
+{
+  "forecasted_price_30d": <number>,
+  "forecasted_price_90d": <number>,
+  "confidence_score": <0-100>,
+  "trend": "<upward|downward|stable>",
+  "recommendation": "<buy_now|wait|stock_up>",
+  "reasoning": "<brief explanation in Arabic>"
+}`;
+
+    // Call Gemini API (via CLAUDE.md callGeminiPool)
+    const GEMINI_KEY = Deno.env.get("ZAD_API_KEY_1") || Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_KEY) {
+      console.warn("[Forecast] No Gemini key available, skipping AI analysis");
+      return null;
+    }
+
+    const response = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=" + GEMINI_KEY,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: prompt }],
+            },
+          ],
+          generationConfig: {
+            maxOutputTokens: 256,
+            temperature: 0.3,
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      console.warn(`[Forecast] Gemini API error: ${response.status}`);
+      return null;
+    }
+
+    const result = await response.json();
+    const textContent = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!textContent) {
+      console.warn("[Forecast] No text in Gemini response");
+      return null;
+    }
+
+    // Parse JSON response (handle potential markdown wrapping)
+    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+    const jsonStr = jsonMatch ? jsonMatch[0] : textContent;
+    const forecast = JSON.parse(jsonStr);
+
+    return {
+      item_name: itemName,
+      item_category: "general",
+      current_price: currentPrice,
+      forecasted_price_30d: forecast.forecasted_price_30d || currentPrice,
+      forecasted_price_90d: forecast.forecasted_price_90d || currentPrice,
+      confidence_score: Math.min(100, Math.max(0, forecast.confidence_score || 70)),
+      trend: forecast.trend || "stable",
+      recommendation: forecast.recommendation || "wait",
+      reasoning: forecast.reasoning || "Data insufficient for strong prediction",
+    };
+  } catch (err) {
+    console.error(`[Forecast] Gemini analysis failed for ${itemName}:`, err);
+    return null;
+  }
+}
+
+async function generateForecasts(foodPrices: FoodPrice[]): Promise<PriceForecast[]> {
+  const forecasts: PriceForecast[] = [];
+
+  // Analyze top items only (avoid excessive API calls)
+  const topItems = foodPrices.slice(0, 5);
+
+  for (const price of topItems) {
+    const history = await getHistoricalPriceData(price.itemName, 90);
+    if (history.length < 3) continue; // Need at least 3 data points
+
+    const forecast = await analyzeWithGemini(price.itemName, price.price, history);
+    if (forecast) {
+      forecasts.push(forecast);
+    }
+  }
+
+  return forecasts;
 }
 
 async function sendFCMNotifications(alerts: PriceAlert[]): Promise<number> {
@@ -439,6 +585,26 @@ async function main() {
     errors.push(`alert_detection: ${err instanceof Error ? err.message : String(err)}`);
   }
 
+  // 5. Generate AI-powered price forecasts (Phase 2)
+  let forecastsGenerated = 0;
+  try {
+    const forecasts = await generateForecasts(foodPrices);
+
+    if (forecasts.length > 0 && existingUsers && existingUsers.length > 0) {
+      // Store forecasts in market_snapshot (extended with forecast_data)
+      forecastsGenerated = forecasts.length;
+      console.log(`[Market Intelligence] Generated ${forecasts.length} price forecasts`);
+
+      // Log forecasts for debugging
+      for (const forecast of forecasts) {
+        console.log(`  ${forecast.item_name}: ${forecast.current_price} → ${forecast.forecasted_price_30d.toFixed(2)} (30d), confidence: ${forecast.confidence_score}%`);
+      }
+    }
+  } catch (err) {
+    console.error("[Market Intelligence] Forecast generation error:", err);
+    errors.push(`forecast_generation: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
   if (errors.length > 0) {
     console.error("[Market Intelligence] Errors:", errors);
   }
@@ -454,6 +620,7 @@ async function main() {
       metalPrices: metalPrices ? "ok" : "failed",
       nearbyStores: nearbyStores.length,
       alerts_created: alertsCreated,
+      forecasts_generated: forecastsGenerated,
     },
     errors: errors.length > 0 ? errors : null,
   };

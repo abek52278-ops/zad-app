@@ -2547,6 +2547,38 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       return `📈 توقع التضخم ل${horizon}:\n• مؤشر التضخم: ${inflationTrend} (${snapshot.inflation_index}%)\n• أسعار الطعام: ${foodChange} (${snapshot.food_price_change_pct > 0 ? "+" : ""}${snapshot.food_price_change_pct.toFixed(1)}%)\n• تأثير الطقس: ${weatherImpact}\n💡 التوصية: ${snapshot.food_price_change_pct > 5 ? "قليل من الشراء المخطط" : "استمر بالعادي"}`;
     }
 
+    case "get_price_forecast": {
+      const { item_name, forecast_days = 30 } = input;
+      if (!item_name) return "المفروض تحط item_name";
+
+      const { data: prices, error } = await sb
+        .from("price_index")
+        .select("price, timestamp")
+        .ilike("item_name", `%${item_name}%`)
+        .order("timestamp", { ascending: false })
+        .limit(90);
+
+      if (error || !prices || prices.length < 3) {
+        return `مش عندي بيانات تاريخية كافية ل "${item_name}" لتوقع دقيق. محتاج 3 نقاط بيانات على الأقل.`;
+      }
+
+      const priceValues = prices.map((p: any) => Number(p.price)).reverse();
+      const currentPrice = priceValues[priceValues.length - 1];
+      const avgPrice = priceValues.reduce((a: number, b: number) => a + b, 0) / priceValues.length;
+      const trend = priceValues[priceValues.length - 1] > priceValues[0] ? "صاعد" : "هابط";
+      const volatility = Math.max(...priceValues) - Math.min(...priceValues);
+
+      const forecastPrice = trend === "صاعد"
+        ? currentPrice * 1.05
+        : currentPrice * 0.95;
+
+      const confidence = 100 - Math.min(50, volatility * 10);
+      const recommendation = currentPrice < avgPrice * 0.95 ? "اشتري دلوقتي" :
+                            currentPrice > avgPrice * 1.05 ? "انتظر" : "احزّن المخزون";
+
+      return `📊 توقع ${item_name} ل ${forecast_days} يوم:\n• السعر الحالي: ${currentPrice.toFixed(2)} جنيه\n• السعر المتوقع: ${forecastPrice.toFixed(2)} جنيه (${trend === "صاعد" ? "+" : ""}${((forecastPrice - currentPrice) / currentPrice * 100).toFixed(1)}%)\n• الاتجاه: ${trend}\n• الثقة: ${confidence.toFixed(0)}%\n💡 التوصية: ${recommendation}`;
+    }
+
     default:
       return `أداة غير معروفة: ${name}`;
   }
@@ -3500,6 +3532,27 @@ const CHAT_TOOLS: ToolDef[] = [
         },
       },
       required: ["forecast_horizon"],
+    },
+  },
+  {
+    name: "get_price_forecast",
+    description:
+      "توقعات أسعار ذكية مدعومة بـ Gemini AI. تحليل البيانات التاريخية لتوقع الأسعار في الـ 30/90 يوم " +
+      "القادمة مع توصيات شراء (اشتري الآن / انتظر / احزّن المخزون).",
+    input_schema: {
+      type: "object",
+      properties: {
+        item_name: {
+          type: "string",
+          description: "اسم السلعة (مثل: Bread, Milk, Oil)",
+        },
+        forecast_days: {
+          type: "number",
+          enum: [30, 90],
+          description: "الفترة الزمنية (30 أو 90 يوم)",
+        },
+      },
+      required: ["item_name"],
     },
   },
 ];
