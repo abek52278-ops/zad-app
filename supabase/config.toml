@@ -66,3 +66,8 @@ verify_jwt = true
 # X-Checkin-Cron-Secret الموجود.
 [functions.zad-billing-webhook]
 verify_jwt = false
+
+# Added 2026-08-31: Market Intelligence — جمع بيانات الأسواق الحية
+# Called by cron job (no user JWT); no internal authentication needed
+[functions.zad-market-intelligence]
+verify_jwt = false

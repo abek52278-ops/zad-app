@@ -74,6 +74,10 @@ jobs:
         working-directory: supabase/functions/zad-telegram-bot
         run: deno test --allow-all
 
+      - name: Type-check zad-market-intelligence
+        working-directory: supabase/functions/zad-market-intelligence
+        run: deno check index.ts
+
   # النشر من الريبو، بعد ما الفحص يعدي — مش من على جهاز حد.
   #
   # الانحراف بين الريبو والمنشور مش احتمال نظري هنا، هو حصل فعلاً: في 2026-08-01 النسخة
@@ -173,7 +177,7 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          for fn in zad-brain zad-core-intelligence zad-telegram-bot delete-account verify-purchase zad-billing-webhook parent-digest; do
+          for fn in zad-brain zad-core-intelligence zad-telegram-bot delete-account verify-purchase zad-billing-webhook parent-digest zad-market-intelligence; do
             echo "::group::deploy $fn"
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF"
             echo "::endgroup::"
