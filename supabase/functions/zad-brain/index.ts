@@ -55,7 +55,7 @@
 
 import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { CONFIRM_REQUIRED_TOOLS, freshContext, looksLikeAnsweredQuestion, RunContext, validateTool } from "./validators.ts";
-import { callModel, embedText, smokeTestTools, Turn, ToolDef } from "./callModel.ts";
+import { callModel, embedText, embedSelfTest, smokeTestTools, Turn, ToolDef } from "./callModel.ts";
 import { decideOnBrainFailure, hasRecentMutatingRun, normalizeDoseTimes } from "./shared.ts";
 import { type FastIntent, formatBalanceReply, parseFastPath } from "./fastPath.ts";
 import { AgentSource, AuditScope, recordAction, writeRows } from "./audit.ts";
@@ -4508,6 +4508,24 @@ Deno.serve(async (req: Request) => {
       }
       try {
         const result = await smokeTestTools(MODEL_ROUTINE);
+        return new Response(JSON.stringify(result), { headers: CORS_HEADERS });
+      } catch (e) {
+        return new Response(JSON.stringify({ ok: false, error: String(e) }), { status: 200, headers: CORS_HEADERS });
+      }
+    }
+
+    // نفس فكرة smoke_test بس للذاكرة الدلالية — بند 30.5.
+    // { "embed_selftest": true } + Bearer service-role. بيرجع: الموديل المضبوط،
+    // حجم الـ pool، حالة الـ breaker، الموديلات اللي ListModels بتدّعي إنها
+    // بتدعم embedContent، ونتيجة نداء **حي** لكل واحد فيهم.
+    // السبب: zad_memory.embedding = صفر من ٩ والبنية التحتية كلها سليمة، فلازم
+    // نقيس الطبقة اللي بتفشل بدل ما نخمّن اسم موديل — القاعدة في CLAUDE.md.
+    if (body.embed_selftest === true) {
+      if (!hasServiceRoleAuthorization(req, SERVICE_ROLE_KEY)) {
+        return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: CORS_HEADERS });
+      }
+      try {
+        const result = await embedSelfTest();
         return new Response(JSON.stringify(result), { headers: CORS_HEADERS });
       } catch (e) {
         return new Response(JSON.stringify({ ok: false, error: String(e) }), { status: 200, headers: CORS_HEADERS });

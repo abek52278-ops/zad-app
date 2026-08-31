@@ -749,23 +749,38 @@ export function embedBreakerState(): { open: boolean; failures: number } {
   };
 }
 
+// اسم موديل الـ embedding قابل للضبط بمتغير بيئة **عن قصد**: CLAUDE.md موثّق إن
+// موديلات Gemini بتتقفل على المشاريع الجديدة وبترجع 404 وهي لسه ظاهرة في
+// ListModels (حصلت حرفياً مع gemini-2.5-flash). لو text-embedding-004 اتقفل،
+// الإصلاح يبقى تغيير سيكريت مش نشر جديد — وده فرق ساعات في وقت التعافي.
+export const EMBED_MODEL = Deno.env.get("ZAD_EMBED_MODEL")?.trim() || "text-embedding-004";
+
 export async function embedText(text: string): Promise<number[] | null> {
   if (!text.trim() || GEMINI_KEY_POOL.length === 0) return null;
   if (Date.now() < embedBreakerOpenUntil) return null; // دائرة مقفولة — متحرقش وقت
   const start = nextGeminiKeyIndex();
+  // ليه بنمسك أول خطأ؟ الكود ده كان `if (!res.ok) continue;` و`catch { continue; }`
+  // من غير أي تسجيل خالص. لما الـ embeddings وقفت (صفر من ٩ ملاحظات، مسح
+  // 2026-08-31) مكانش فيه أي أثر يقول السبب — لا status ولا رسالة ولا اسم موديل.
+  // تشخيص مستحيل. الملاحظة الوحيدة اللي كانت بتتطبع هي "breaker OPEN" وهي
+  // بتقول إن فيه فشل، مش بتقول ليه.
+  let firstError: string | null = null;
   for (let i = 0; i < GEMINI_KEY_POOL.length; i++) {
     const keyIndex = (start + i) % GEMINI_KEY_POOL.length;
     try {
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${encodeURIComponent(GEMINI_KEY_POOL[keyIndex])}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${EMBED_MODEL}:embedContent?key=${encodeURIComponent(GEMINI_KEY_POOL[keyIndex])}`,
         {
           method: "POST",
           headers: { "content-type": "application/json" },
           signal: AbortSignal.timeout(10_000),
-          body: JSON.stringify({ model: "models/text-embedding-004", content: { parts: [{ text }] } }),
+          body: JSON.stringify({ model: `models/${EMBED_MODEL}`, content: { parts: [{ text }] } }),
         },
       );
-      if (!res.ok) continue;
+      if (!res.ok) {
+        if (!firstError) firstError = `HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`;
+        continue;
+      }
       const data = await res.json();
       const values = data?.embedding?.values;
       if (Array.isArray(values) && values.length > 0) {
@@ -773,15 +788,102 @@ export async function embedText(text: string): Promise<number[] | null> {
         embedBreakerOpenUntil = 0;
         return values;
       }
-    } catch {
+      // 200 بجسم من غير embedding.values — شكل رد مختلف، مش فشل شبكة
+      if (!firstError) firstError = `HTTP 200 but no embedding.values: ${JSON.stringify(data).slice(0, 300)}`;
+    } catch (e) {
+      if (!firstError) firstError = `threw: ${String(e).slice(0, 300)}`;
       continue;
     }
   }
   // الـ pool كله فشل في المحاولة دي
   embedConsecutiveFailures++;
+  console.warn(
+    `embedText: all ${GEMINI_KEY_POOL.length} keys failed for model "${EMBED_MODEL}" —`,
+    firstError ?? "(no HTTP response at all)",
+  );
   if (embedConsecutiveFailures >= EMBED_BREAKER_THRESHOLD) {
     embedBreakerOpenUntil = Date.now() + EMBED_BREAKER_COOLDOWN_MS;
     console.warn("embedText breaker OPEN for", EMBED_BREAKER_COOLDOWN_MS / 1000, "s after", embedConsecutiveFailures, "full-pool failures");
   }
   return null;
+}
+
+/**
+ * probe حي لموديلات الـ embedding — بند 30.5.
+ *
+ * ليه دي موجودة؟ `zad_memory.embedding` = صفر من ٩ ملاحظات (مسح 2026-08-31)
+ * والبنية التحتية كلها سليمة: الفهرس ivfflat موجود، توقيعات
+ * zad_memory_set_embedding و zad_memory_semantic_search مطابقة للنداءات
+ * بالحرف، والكود بينده الاتنين في الترتيب الصح. فالفشل عند طبقة HTTP.
+ *
+ * ومينفعش نخمّن البديل: CLAUDE.md قاعدة صريحة — **ListModels بتسرد موديلات
+ * مش قادر تنديها**، و gemini-2.5-flash كان في القايمة وبيرجع 404. فالدالة دي
+ * بتاخد المرشحين من ListModels (كمصدر أسماء بس) وتضيف عليهم أسماء معروفة،
+ * وبعدين **بتنده embedContent فعلاً على كل واحد** وترجع اللي رد.
+ *
+ * النتيجة بتتحط في ZAD_EMBED_MODEL كسيكريت — من غير نشر.
+ */
+export async function embedSelfTest(): Promise<{
+  configured: string;
+  keyPoolSize: number;
+  breaker: { open: boolean; failures: number };
+  listedForEmbedding: string[];
+  probes: Array<{ model: string; ok: boolean; dims?: number; status?: number; error?: string }>;
+}> {
+  const breaker = embedBreakerState();
+  if (GEMINI_KEY_POOL.length === 0) {
+    return {
+      configured: EMBED_MODEL, keyPoolSize: 0, breaker,
+      listedForEmbedding: [],
+      probes: [{ model: EMBED_MODEL, ok: false, error: "GEMINI_KEY_POOL فاضي — مفيش ZAD_API_KEY_1..5 ولا GEMINI_API_KEY" }],
+    };
+  }
+  const key = GEMINI_KEY_POOL[0];
+
+  // 1) ListModels — كمصدر أسماء مرشحة فقط، مش كدليل على القابلية للنداء
+  const listed: string[] = [];
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}&pageSize=200`,
+      { signal: AbortSignal.timeout(15_000) },
+    );
+    if (res.ok) {
+      const data = await res.json();
+      for (const m of data?.models ?? []) {
+        if ((m?.supportedGenerationMethods ?? []).includes("embedContent")) {
+          listed.push(String(m.name).replace(/^models\//, ""));
+        }
+      }
+    }
+  } catch { /* الـ probe تحت هو الحقيقة، مش دي */ }
+
+  // المضبوط حالياً الأول عشان يبان في أول سطر من النتيجة
+  const candidates = [...new Set([EMBED_MODEL, ...listed])];
+
+  const probes: Array<{ model: string; ok: boolean; dims?: number; status?: number; error?: string }> = [];
+  for (const model of candidates) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent?key=${encodeURIComponent(key)}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          signal: AbortSignal.timeout(10_000),
+          body: JSON.stringify({ model: `models/${model}`, content: { parts: [{ text: "اختبار الذاكرة الدلالية" }] } }),
+        },
+      );
+      if (!res.ok) {
+        probes.push({ model, ok: false, status: res.status, error: (await res.text()).slice(0, 200) });
+        continue;
+      }
+      const values = (await res.json())?.embedding?.values;
+      // الفهرس والعمود متعرّفين vector(768) — أي أبعاد تانية محتاجة ميجريشن،
+      // فالأبعاد جزء من النتيجة مش تفصيلة.
+      probes.push({ model, ok: Array.isArray(values) && values.length > 0, dims: values?.length });
+    } catch (e) {
+      probes.push({ model, ok: false, error: String(e).slice(0, 200) });
+    }
+  }
+
+  return { configured: EMBED_MODEL, keyPoolSize: GEMINI_KEY_POOL.length, breaker, listedForEmbedding: listed, probes };
 }
