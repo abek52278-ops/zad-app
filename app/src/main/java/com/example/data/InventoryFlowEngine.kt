@@ -3,15 +3,9 @@ package com.example.data
 import android.content.Context
 import android.util.Log
 import com.example.data.local.ZadDao
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 private const val TAG_FLOW = "InventoryFlowEngine"
-// scope للمزامنات غير الحرجة (رفع التعلم للسيرفر) — فشلها مبيأثرش على الحقن
-private val rateSyncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
 /**
  * محرك الدورة المغلقة للمخزون — Closed-Loop Inventory
@@ -132,26 +126,16 @@ object InventoryFlowEngine {
                     Log.d(TAG_FLOW, "Closed loop: ${shoppingItem.itemName} marked purchased")
                 }
 
-            // تسجيل حدث الشراء للتعلم + صعوده للسيرفر (A: التعلم المحلي يوصل للعقل —
-            // معدل الشراء المتعلم هنا هو نفس اللي zad_consumption بيبني عليه تنبؤاته)
+            // تسجيل حدث الشراء للتعلم المحلي — الرفع للسيرفر (zad_record_observation) بقى
+            // مسؤولية الـcaller دلوقتي (32.3)، مش هنا. كان فيه نداء سيرفر هنا بمصدر
+            // "consumption_learner" — قيمة مش موجودة في zad_inventory_observations_source_check
+            // (question_answer|camera_ocr|manual|purchase|chat_add بس)، فكل نداء منه كان بيفشل
+            // بصمت (0 صف بمصدر ده في الجدول الحي، اتأكد بـ execute_sql) من غير أي SyncOutbox
+            // fallback — خسارة تعلّم صامتة تامة. اتشال بدل ما يتصلح لأنه أصلاً مكرر: أي caller
+            // بيعدّي على ZadViewModel.injectScannedItems() (شاشة الكاميرا) بيسجل observation
+            // صح بمصدر "camera_ocr" فعلاً في الطبقة اللي فوق. الـcaller الوحيد اللي كان معتمد
+            // على النداء الميت ده هو addGroceryPurchaseItem() — بقى بيسجل بنفسه دلوقتي.
             ConsumptionLearner.recordPurchase(context, scanned.itemName)
-        }
-
-        // A) مزامنة التعلم مع السيرفر: كل منتج اتعدل دلوقتي بيرفع متوسطه المُتعلم
-        // (interval أيام بين الشراءات) لـ zad_record_observation — فتنبؤ "هيخلص امتى"
-        // بيبقى من العقل المركزي بنفس دقة الجهاز، ولو العميل غير جهاز التعلم مبيضيعش.
-        rateSyncScope.launch {
-            for (item in addedNew + updatedExisting) {
-                try {
-                    val interval = ConsumptionLearner.averagePurchaseIntervalDays(context, item.itemName)
-                        ?: continue
-                    // نحول المعدل لمراقبة كمية: كمية الصنف الحالية كملاحظة بمصدر "learned_rate"
-                    SupabaseRepo.recordInventoryObservation(item.itemName, item.quantity, "consumption_learner")
-                    Log.d(TAG_FLOW, "Learned rate synced: ${item.itemName} every ${interval}d")
-                } catch (e: Exception) {
-                    Log.w(TAG_FLOW, "rate sync failed for ${item.itemName}: ${e.message}")
-                }
-            }
         }
 
         return InjectionResult(addedNew, updatedExisting, removedFromShopping)

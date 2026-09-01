@@ -216,14 +216,25 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      * إضافة سريعة من سؤال معاملة البقالة — بتعيد استخدام InventoryFlowEngine.injectScannedItems
      * بالظبط زي حقن فاتورة مصوّرة (نفس دمج الكمية لو الصنف موجود، ونفس قفل قائمة التسوق لو
      * الصنف كان ناقص، ونفس تسجيل التعلّم) — مفيش مسار تاني موازي بيعمل نفس الحاجة بمنطق مختلف.
+     *
+     * 32.3 — ده الـcaller الوحيد لـInventoryFlowEngine.injectScannedItems() اللي مش بيعدّي على
+     * الـwrapper injectScannedItems() فوق (اللي بيسجل "camera_ocr" لوحده)، فكان محتاج تسجيل
+     * observation بنفسه بعد ما اتشال النداء الميت اللي كان جوه المحرك. "purchase" هو المصدر
+     * الصح دلالياً هنا (تأكيد شراء حقيقي، مش سكان كاميرا) وهو ضمن القيم المسموحة فعلاً في
+     * zad_inventory_observations_source_check.
      */
     fun addGroceryPurchaseItem(itemName: String) {
         if (itemName.isBlank()) return
         viewModelScope.launch {
-            com.example.data.InventoryFlowEngine.injectScannedItems(
+            val result = com.example.data.InventoryFlowEngine.injectScannedItems(
                 getApplication(), dao, _inventory.value, _shoppingList.value,
                 listOf(ZadInventory(itemName = itemName.trim(), quantity = 1))
             )
+            (result.addedNew + result.updatedExisting).forEach {
+                if (!SupabaseRepo.recordInventoryObservation(it.itemName, it.quantity, "purchase")) {
+                    com.example.data.SyncOutbox.enqueueInventoryObservation(getApplication(), it.itemName, it.quantity, "purchase")
+                }
+            }
         }
     }
 
@@ -3082,9 +3093,13 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 com.example.data.SyncOutbox.enqueueInventoryUpsert(getApplication(), updated)
             }
             if (updated.quantity != item.quantity) {
-                if (!SupabaseRepo.recordInventoryObservation(updated.itemName, updated.quantity, "manual_edit")) {
+                // 32.3 — كانت "manual_edit"، مش من ضمن zad_inventory_observations_source_check
+                // (question_answer|camera_ocr|manual|purchase|chat_add بس)، فالنداء وحتى إعادة
+                // محاولة SyncOutbox كانوا بيفشلوا للأبد. "manual" هو نفس المصدر اللي زرار
+                // −/+ بيستخدمه (السطر فوق) وهو دلالياً نفس الحاجة: تصحيح كمية يدوي.
+                if (!SupabaseRepo.recordInventoryObservation(updated.itemName, updated.quantity, "manual")) {
                     com.example.data.SyncOutbox.enqueueInventoryObservation(
-                        getApplication(), updated.itemName, updated.quantity, "manual_edit"
+                        getApplication(), updated.itemName, updated.quantity, "manual"
                     )
                 }
             }
