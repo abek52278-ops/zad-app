@@ -1082,6 +1082,9 @@
     <!-- إعجاب/عدم إعجاب على وصفة شيف زاد -->
     <string name="chef_recipe_like_action">عجبتني</string>
     <string name="chef_recipe_dislike_action">معجبتنيش</string>
+
+    <!-- شفافية الذاكرة في الشات -->
+    <string name="chat_memory_hint_label">اتبنى على %1$d حاجة زاد فاكرها عنك</string>
     <string name="monthly_report_empty_hint">اضغط على "توليد التقرير" عشان زاد يحلل مصاريفك الشهر ده ويديك تقرير ونصايح</string>
     <string name="generate_monthly_report_action">توليد التقرير</string>
     <string name="recommendations_label">نصايح زاد</string>

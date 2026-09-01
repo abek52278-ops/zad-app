@@ -1149,6 +1149,9 @@
     <string name="chef_recipe_like_action">عجبتني</string>
     <string name="chef_recipe_dislike_action">معجبتنيش</string>
 
+    <!-- شفافية الذاكرة في الشات -->
+    <string name="chat_memory_hint_label">اتبنى على %1$d حاجة زاد فاكرها عنك</string>
+
     <!-- Ledger: quick deduct and manual balance override -->
     <string name="quick_deduct">خصم سريع</string>
     <string name="quick_deduct_default_title">خصم سريع</string>

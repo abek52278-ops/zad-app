@@ -4185,6 +4185,10 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
     observations: ctx.observations,
     // الوكيل اللي عالج الرسالة — الكلاينت بيعرضه ككارت تنفيذ حي.
     specialist,
+    // شفافية الذاكرة: أعلى ٣ ملاحظات كانت **متاحة** للعقل وقت الرد ده (relevantMemory
+    // مرتبة بالصلة). "متاحة" مش "استُخدمت فعلاً" — مفيش طريقة نتأكد إن الموديل استند
+    // عليها بالظبط من غير تحليل النص نفسه، فده أصدق ادعاء نقدر نقوله.
+    memory_available: relevantMemory.slice(0, 3).map((m) => ({ note: m.note, scope: m.scope })),
   }), { headers: CORS_HEADERS });
 }
 

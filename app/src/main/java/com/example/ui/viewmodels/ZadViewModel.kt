@@ -40,7 +40,10 @@ data class AiChatMessage(
      */
     val undoableCommitId: String? = null,
     /** In-memory turn correlation for live voice. Persisted chat remains backward-compatible. */
-    val replyToMessageId: String? = null
+    val replyToMessageId: String? = null,
+    /** شفافية الذاكرة — راجع توثيق AgentTurnResult.memoryAvailable لنفس التحفّظ. فاضية
+     *  لأي رسالة مش من agent_turn (رسائل المستخدم، رسائل ترحيب محلية...). */
+    val memoryAvailable: List<com.example.data.ZadAiRepository.MemoryHint> = emptyList()
 )
 
 private const val TAG = "ZadViewModel"
@@ -1564,9 +1567,13 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         if (finalText != null) {
             _aiChatMessages.value.let { list ->
                 if (list.isNotEmpty() && !list.last().isUser) {
-                    _aiChatMessages.value = list.dropLast(1) + list.last().copy(text = finalText)
+                    _aiChatMessages.value = list.dropLast(1) +
+                        list.last().copy(text = finalText, memoryAvailable = result.memoryAvailable)
                 } else {
-                    val msg = AiChatMessage(text = finalText, isUser = false, replyToMessageId = replyToMessageId)
+                    val msg = AiChatMessage(
+                        text = finalText, isUser = false, replyToMessageId = replyToMessageId,
+                        memoryAvailable = result.memoryAvailable
+                    )
                     _aiChatMessages.value = _aiChatMessages.value + msg
                 }
             }

@@ -734,8 +734,33 @@ object ZadAiRepository {
         val partial: Boolean,
         /** الوكيل المتخصص اللي عالج الرسالة (finance/pantry/pharmacy/family/home/general) —
          *  من السيرفر، مش استنتاج محلي. null = سيرفر قديم لسه مابيبعتش الحقل. */
-        val specialist: String? = null
+        val specialist: String? = null,
+        /** شفافية الذاكرة — أعلى ٣ ملاحظات كانت **متاحة** للعقل وقت الرد ده، مش تأكيد إنها
+         *  اتستخدمت فعلاً (السيرفر نفسه بيوثّق نفس التحفّظ). فاضية = سيرفر قديم أو مفيش
+         *  ذاكرة متعلّقة بالرسالة دي. */
+        val memoryAvailable: List<MemoryHint> = emptyList()
     )
+
+    data class MemoryHint(val note: String, val scope: String)
+
+    /**
+     * `memory_available` بييجي بشكلين مختلفين حسب مسار القراءة: Map/List كوتلن عادية من
+     * callEdgeFunction، أو org.json.JSONArray/JSONObject من الـparsing اليدوي في المسار
+     * الـstreaming تحت (SSE finalMeta والـfallback). لازم يتعامل مع الاتنين.
+     */
+    private fun parseMemoryAvailable(raw: Any?): List<MemoryHint> {
+        fun rowToHint(row: Any?): MemoryHint? = when (row) {
+            is Map<*, *> -> (row["note"] as? String)?.let { MemoryHint(it, row["scope"] as? String ?: "") }
+            is org.json.JSONObject -> row.optString("note", "").takeIf { it.isNotBlank() }
+                ?.let { MemoryHint(it, row.optString("scope", "")) }
+            else -> null
+        }
+        return when (raw) {
+            is List<*> -> raw.mapNotNull(::rowToHint)
+            is org.json.JSONArray -> (0 until raw.length()).mapNotNull { i -> rowToHint(raw.opt(i)) }
+            else -> emptyList()
+        }
+    }
 
     // قايمة الشاشات المسموح للعقل يفتحها — نفس قايمة validators.ts بالظبط (حارس مزدوج).
     // في object مستوى أعلى فمش محتاج companion.
@@ -802,7 +827,8 @@ object ZadAiRepository {
                 appCommands = appCommands,
                 toolAttempted = response["tool_attempted"] == true,
                 partial = response["partial"] == true,
-                specialist = response["specialist"] as? String
+                specialist = response["specialist"] as? String,
+                memoryAvailable = parseMemoryAvailable(response["memory_available"])
             )
         } catch (e: Exception) {
             Log.e(TAG_REPO, "agentTurn() FAILED: ${e.message}")
@@ -888,7 +914,8 @@ object ZadAiRepository {
                     proposals = proposals,
                     toolAttempted = false,
                     partial = false,
-                    specialist = finalMeta["specialist"] as? String
+                    specialist = finalMeta["specialist"] as? String,
+                    memoryAvailable = parseMemoryAvailable(finalMeta["memory_available"])
                 )
             } else {
                 // JSON عادي — fallback لنفس منطق agentTurn العادي
@@ -915,7 +942,8 @@ object ZadAiRepository {
                     proposals = proposals,
                     toolAttempted = response["tool_attempted"] == true,
                     partial = response["partial"] == true,
-                    specialist = response["specialist"] as? String
+                    specialist = response["specialist"] as? String,
+                    memoryAvailable = parseMemoryAvailable(response["memory_available"])
                 )
             }
         } catch (e: Exception) {

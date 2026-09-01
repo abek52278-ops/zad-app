@@ -1101,6 +1101,9 @@
     <!-- Zad Şef tarifi beğenme/beğenmeme -->
     <string name="chef_recipe_like_action">Beğendim</string>
     <string name="chef_recipe_dislike_action">Beğenmedim</string>
+
+    <!-- Sohbette hafıza şeffaflığı -->
+    <string name="chat_memory_hint_label">Zad\'ın senin hakkında hatırladığı %1$d şeye dayanıyor</string>
     <string name="monthly_report_empty_hint">Zad\'ın harcamalarını analiz edip rapor ve tavsiye vermesi için "Rapor Oluştur"a bas</string>
     <string name="generate_monthly_report_action">Rapor Oluştur</string>
     <string name="recommendations_label">Zad\'ın Tavsiyeleri</string>

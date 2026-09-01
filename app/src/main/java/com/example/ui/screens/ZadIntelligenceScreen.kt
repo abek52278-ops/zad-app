@@ -2911,6 +2911,38 @@ private fun ZadIntChatBubble(msg: AiChatMessage, onUndo: (String) -> Unit = {}, 
                         Text(stringResource(R.string.chat_undo_action), style = Typography.labelMedium, color = primary)
                     }
                 }
+                // شفافية الذاكرة — "متاحة وقت الرد" مش "اتستخدمت أكيد"، نفس التحفّظ من
+                // السيرفر. مطوية افتراضيًا عشان مايزحمش الفقاعة لمين مش مهتم.
+                if (!msg.isUser && msg.memoryAvailable.isNotEmpty()) {
+                    var memoryExpanded by remember(msg.id) { mutableStateOf(false) }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clickable { memoryExpanded = !memoryExpanded }
+                            .heightIn(min = 32.dp)
+                    ) {
+                        Icon(Icons.Default.Psychology, contentDescription = null, modifier = Modifier.size(13.dp), tint = onSurfaceVariant)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            stringResource(R.string.chat_memory_hint_label, msg.memoryAvailable.size),
+                            style = Typography.labelSmall,
+                            color = onSurfaceVariant
+                        )
+                    }
+                    if (memoryExpanded) {
+                        Column(modifier = Modifier.padding(top = 2.dp, start = 17.dp)) {
+                            msg.memoryAvailable.forEach { hint ->
+                                Text(
+                                    "• " + hint.note,
+                                    style = Typography.labelSmall,
+                                    color = onSurfaceVariant,
+                                    modifier = Modifier.padding(vertical = 1.dp)
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
