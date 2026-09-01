@@ -1104,6 +1104,9 @@
 
     <!-- Sohbette hafıza şeffaflığı -->
     <string name="chat_memory_hint_label">Zad\'ın senin hakkında hatırladığı %1$d şeye dayanıyor</string>
+
+    <!-- Zad konuşurken sözünü kesme -->
+    <string name="voice_tap_to_interrupt_hint">Sözünü kesmek için dokun</string>
     <string name="monthly_report_empty_hint">Zad\'ın harcamalarını analiz edip rapor ve tavsiye vermesi için "Rapor Oluştur"a bas</string>
     <string name="generate_monthly_report_action">Rapor Oluştur</string>
     <string name="recommendations_label">Zad\'ın Tavsiyeleri</string>

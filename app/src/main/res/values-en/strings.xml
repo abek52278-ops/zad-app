@@ -1144,6 +1144,9 @@
     <!-- Chat memory transparency -->
     <string name="chat_memory_hint_label">Built on %1$d thing(s) Zad remembers about you</string>
 
+    <!-- Interrupting Zad while she's talking -->
+    <string name="voice_tap_to_interrupt_hint">Tap to interrupt</string>
+
     <!-- Ledger: quick deduct and manual balance override -->
     <string name="quick_deduct">Quick Deduct</string>
     <string name="quick_deduct_default_title">Quick deduct</string>

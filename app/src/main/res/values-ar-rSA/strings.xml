@@ -955,6 +955,9 @@
 
     <!-- شفافية الذاكرة في الشات -->
     <string name="chat_memory_hint_label">اتبنى على %1$d حاجة زاد فاكرها عنك</string>
+
+    <!-- مقاطعة زاد وهي تتكلم -->
+    <string name="voice_tap_to_interrupt_hint">اضغط تقاطعها</string>
     <string name="monthly_report_empty_hint">اضغط على "توليد التقرير" حتى يحلل زاد مصاريفك لهذا الشهر ويعطيك تقريراً ونصائح</string>
     <string name="generate_monthly_report_action">توليد التقرير</string>
     <string name="recommendations_label">نصائح زاد</string>

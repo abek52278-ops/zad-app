@@ -27,11 +27,13 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.example.R
 import com.example.voice.VoiceState
 import com.example.voice.ZadCutePetSoundFx
 import com.example.voice.ZadVoiceManager
@@ -247,17 +249,24 @@ fun ZadVoiceBottomSheet(
                 modifier = Modifier.padding(horizontal = 12.dp)
             )
 
+            // زاد بتتكلم؟ الزرار ده أصلاً بيقاطعها — startListening() بينده stopSpeaking()
+            // كأول سطر فيه (ZadVoiceManager.kt:51). الناقص كان بصري بس: الزرار كان بيبان
+            // نفسه بالظبط سواء زاد ساكتة أو بتتكلم، فمفيش حاجة بتقول "دوس تقاطعها". لون
+            // كهرماني نابض هنا بدل الأخضر الثابت — نفس الضغطة، بس بتقول للعميل إنها فرصة
+            // مقاطعة دلوقتي مش مجرد "ابدأ الكلام".
+            val isSpeakingState = voiceState is VoiceState.Speaking
             // Interactive Mic Push / Stop Button
             Box(
                 modifier = Modifier
                     .size(60.dp)
+                    .then(if (isSpeakingState) Modifier.pulseGlow(minScale = 1f, maxScale = 1.08f) else Modifier)
                     .clip(CircleShape)
                     .background(
                         brush = Brush.radialGradient(
-                            colors = if (isListeningState) {
-                                listOf(Color(0xFFEF4444), Color(0xFF991B1B))
-                            } else {
-                                listOf(Color(0xFF0F9B76), Color(0xFF064E3B))
+                            colors = when {
+                                isListeningState -> listOf(Color(0xFFEF4444), Color(0xFF991B1B))
+                                isSpeakingState -> listOf(Color(0xFFFBBF24), Color(0xFFB45309))
+                                else -> listOf(Color(0xFF0F9B76), Color(0xFF064E3B))
                             }
                         )
                     )
@@ -285,6 +294,15 @@ fun ZadVoiceBottomSheet(
                     contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(28.dp)
+                )
+            }
+            if (isSpeakingState) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = stringResource(R.string.voice_tap_to_interrupt_hint),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFFFBBF24)
                 )
             }
 

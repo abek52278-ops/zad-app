@@ -1152,6 +1152,9 @@
     <!-- شفافية الذاكرة في الشات -->
     <string name="chat_memory_hint_label">اتبنى على %1$d حاجة زاد فاكرها عنك</string>
 
+    <!-- مقاطعة زاد وهي بتتكلم -->
+    <string name="voice_tap_to_interrupt_hint">دوس تقاطعها</string>
+
     <!-- Ledger: quick deduct and manual balance override -->
     <string name="quick_deduct">خصم سريع</string>
     <string name="quick_deduct_default_title">خصم سريع</string>
