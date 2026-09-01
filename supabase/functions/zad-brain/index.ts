@@ -2579,6 +2579,49 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       return `📊 توقع ${item_name} ل ${forecast_days} يوم:\n• السعر الحالي: ${currentPrice.toFixed(2)} جنيه\n• السعر المتوقع: ${forecastPrice.toFixed(2)} جنيه (${trend === "صاعد" ? "+" : ""}${((forecastPrice - currentPrice) / currentPrice * 100).toFixed(1)}%)\n• الاتجاه: ${trend}\n• الثقة: ${confidence.toFixed(0)}%\n💡 التوصية: ${recommendation}`;
     }
 
+    case "get_shopping_recommendations": {
+      const { budget_remaining, family_size = 4, preferences = [] } = input;
+      if (!budget_remaining) return "المفروض تحط budget_remaining";
+
+      // Fetch recent recommendations for this user
+      const { data: recommendations, error } = await sb
+        .from("shopping_recommendations")
+        .select("item_name, recommendation_type, estimated_savings, urgency, reasoning")
+        .eq("user_id", userId)
+        .is("dismissed_at", null)
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (error || !recommendations || recommendations.length === 0) {
+        return "مش عندي توصيات حالية. الـ Gemini بيحلل البيانات دلوقتي...";
+      }
+
+      const urgent = recommendations.filter((r: any) => r.urgency === "high");
+      const lines = ["🛍️ توصيات الشراء الذكية:"];
+
+      for (const rec of recommendations.slice(0, 3)) {
+        const savingsStr = rec.estimated_savings ? ` (توفير: ${rec.estimated_savings.toFixed(0)} جنيه)` : "";
+        const urgencyIcon = rec.urgency === "high" ? "🔴" : rec.urgency === "medium" ? "🟡" : "🟢";
+        lines.push(
+          `${urgencyIcon} ${rec.item_name}: ${rec.recommendation_type}${savingsStr}`
+        );
+        lines.push(`   → ${rec.reasoning}`);
+      }
+
+      if (urgent.length > 0) {
+        lines.push(`\n⚡ ${urgent.length} توصية عاجلة تحتاج انتباه فوري!`);
+      }
+
+      lines.push(`\nالميزانية المتبقية: ${budget_remaining.toFixed(0)} جنيه`);
+      lines.push(
+        `التوفير المتوقع من هذه التوصيات: ${recommendations
+          .reduce((sum: number, r: any) => sum + (r.estimated_savings || 0), 0)
+          .toFixed(0)} جنيه`
+      );
+
+      return lines.join("\n");
+    }
+
     default:
       return `أداة غير معروفة: ${name}`;
   }
@@ -3553,6 +3596,31 @@ const CHAT_TOOLS: ToolDef[] = [
         },
       },
       required: ["item_name"],
+    },
+  },
+  {
+    name: "get_shopping_recommendations",
+    description:
+      "توصيات شراء ذكية من Gemini بناءً على: أسعار السوق الحية، الطقس المتوقع، التضخم، الميزانية العائلية، " +
+      "والمتاجر القريبة. توصيات personalized لكل عائلة.",
+    input_schema: {
+      type: "object",
+      properties: {
+        budget_remaining: {
+          type: "number",
+          description: "الميزانية المتبقية للشهر",
+        },
+        family_size: {
+          type: "number",
+          description: "عدد أفراد العائلة",
+        },
+        preferences: {
+          type: "array",
+          items: { type: "string" },
+          description: "التفضيلات (organic, local, budget-friendly, etc)",
+        },
+      },
+      required: ["budget_remaining"],
     },
   },
 ];

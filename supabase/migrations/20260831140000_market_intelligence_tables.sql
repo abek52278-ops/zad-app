@@ -249,3 +249,54 @@ create policy "user_achievements_own" on public.user_achievements
 -- Server write (zad-market-intelligence)
 create policy "user_achievements_server_write" on public.user_achievements
   for insert with check (true);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- 7. shopping_recommendations — توصيات شراء ذكية من Gemini (Phase 4)
+-- استخدم market data + family budget لتقديم توصيات personalized
+create table if not exists public.shopping_recommendations (
+  id bigserial primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+
+  -- Recommendation details
+  item_name text not null,
+  recommendation_type text not null check (recommendation_type in
+    ('buy_now', 'wait', 'bulk_buy', 'avoid', 'substitute')),
+  reasoning text, -- Arabic explanation
+
+  -- Financial context
+  estimated_savings double precision,
+  urgency text not null check (urgency in ('low', 'medium', 'high')),
+
+  -- Store info (optional)
+  best_store text,
+  best_price double precision,
+
+  -- Tracking
+  acted_on_at timestamptz,
+  dismissed_at timestamptz,
+
+  created_at timestamptz not null default now()
+);
+
+comment on table public.shopping_recommendations is 'AI-powered shopping recommendations from Gemini analysis of prices, weather, budget, and family preferences.';
+
+create index if not exists idx_shopping_recommendations_user
+  on public.shopping_recommendations(user_id, created_at desc);
+
+create index if not exists idx_shopping_recommendations_urgency
+  on public.shopping_recommendations(urgency) where acted_on_at is null;
+
+alter table public.shopping_recommendations enable row level security;
+
+-- Users see their own recommendations
+create policy "shopping_recommendations_own" on public.shopping_recommendations
+  for select using (auth.uid() = user_id);
+
+-- Users mark as acted/dismissed
+create policy "shopping_recommendations_own_update" on public.shopping_recommendations
+  for update using (auth.uid() = user_id);
+
+-- Server write (zad-market-intelligence)
+create policy "shopping_recommendations_server_write" on public.shopping_recommendations
+  for insert with check (true);
