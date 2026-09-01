@@ -1152,7 +1152,7 @@ object SupabaseRepo {
         return try {
             val userId = client.auth.currentUserOrNull()?.id ?: return emptyList()
             val result = client.postgrest["zad_memory"].select(
-                columns = Columns.list("scope", "note", "confidence", "evidence_count")
+                columns = Columns.list("id", "scope", "note", "confidence", "evidence_count", "last_seen")
             ) {
                 filter { eq("user_id", userId) }
                 order("confidence", Order.DESCENDING)
@@ -1163,6 +1163,18 @@ object SupabaseRepo {
         } catch (e: Exception) {
             Log.e(TAG, "getMemoryNotes() FAILED: ${e.message}")
             emptyList()
+        }
+    }
+
+    /** "زاد عارف عني إيه" — العميل يقدر ينسي زاد ملاحظة بعينها. RLS بتضمن إنه صفه هو بس. */
+    suspend fun deleteMemoryNote(id: String): Boolean {
+        return try {
+            client.postgrest["zad_memory"].delete { filter { eq("id", id) } }
+            Log.d(TAG, "deleteMemoryNote() SUCCESS — id=$id")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "deleteMemoryNote() FAILED: ${e.message}")
+            false
         }
     }
 

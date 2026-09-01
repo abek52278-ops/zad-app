@@ -594,10 +594,14 @@ data class UnparsedNotificationPayload(
  */
 @Serializable
 data class ZadMemoryNote(
+    // اختياري: القراءة القديمة (buildFullChatContext وغيرها) بتختار أعمدة بس من غير id —
+    // مايتكسرش عليها لو اتنده الموديل بيها. شاشة "زاد عارف عني إيه" هي اللي محتاجة id فعليًا.
+    val id: String? = null,
     val scope: String = "",
     val note: String = "",
     val confidence: Double = 0.0,
-    @SerialName("evidence_count") val evidenceCount: Int = 1
+    @SerialName("evidence_count") val evidenceCount: Int = 1,
+    @SerialName("last_seen") val lastSeen: String? = null
 )
 
 /**

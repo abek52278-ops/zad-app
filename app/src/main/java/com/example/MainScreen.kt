@@ -65,6 +65,8 @@ object ZadNav {
     const val HELP = "help_support"
     // W5 — "سجل تعديلات زاد" (agent_actions log + undo), متاحة من إعدادات البروفايل.
     const val AGENT_ACTION_LOG = "agent_action_log"
+    // "زاد عارف عني إيه" — شفافية zad_memory، متاحة من إعدادات البروفايل.
+    const val ZAD_MEMORY = "zad_memory"
 }
 
 /** Routes that own the whole viewport — no shell header, no bottom pill. */
@@ -77,6 +79,7 @@ private val fullScreenRoutes = setOf(
     ZadNav.TERMS,
     ZadNav.HELP,
     ZadNav.AGENT_ACTION_LOG,
+    ZadNav.ZAD_MEMORY,
 )
 
 @Composable
@@ -513,6 +516,9 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                         composable(ZadNav.HELP) { HelpSupportScreen(onBack = { navController.popBackStack() }) }
                         composable(ZadNav.AGENT_ACTION_LOG) {
                             com.example.ui.screens.AgentActionLogScreen(onBack = { navController.popBackStack() })
+                        }
+                        composable(ZadNav.ZAD_MEMORY) {
+                            com.example.ui.screens.ZadMemoryScreen(onBack = { navController.popBackStack() })
                         }
                         composable(ZadNav.EDIT_PROFILE) { EditProfileScreen(viewModel) { navController.popBackStack() } }
                         composable(ZadNav.FAMILY_MANAGEMENT) { FamilyManagementScreen(familyViewModel) { navController.popBackStack() } }

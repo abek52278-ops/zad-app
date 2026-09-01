@@ -1119,6 +1119,18 @@
     <string name="agent_action_log_empty_subtitle">Anything Zad logs or changes will appear here</string>
     <string name="agent_action_log_undo">Undo</string>
 
+    <!-- What Zad knows about you — long-term memory transparency (zad_memory) -->
+    <string name="zad_memory_title">What Zad knows about you</string>
+    <string name="zad_memory_subtitle">Things Zad has learned about you</string>
+    <string name="zad_memory_empty_title">No memories yet</string>
+    <string name="zad_memory_empty_subtitle">Zad will learn about you gradually as you use the app</string>
+    <string name="zad_memory_evidence_count">Confirmed %1$d times</string>
+    <string name="zad_memory_delete_action">Forget it</string>
+    <string name="zad_memory_delete_confirm_title">Forget this memory?</string>
+    <string name="zad_memory_delete_confirm_body">Zad won\'t recall it in any future reply</string>
+    <string name="zad_memory_deleted_snackbar">Forgotten</string>
+    <string name="zad_memory_delete_failed_snackbar">Couldn\'t forget it, try again</string>
+
     <!-- Ledger: quick deduct and manual balance override -->
     <string name="quick_deduct">Quick Deduct</string>
     <string name="quick_deduct_default_title">Quick deduct</string>

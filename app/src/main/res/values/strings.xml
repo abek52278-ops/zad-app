@@ -1127,6 +1127,18 @@
     <string name="agent_action_log_empty_subtitle">أي حاجة زاد يسجّلها أو يعدّلها هتظهر هنا</string>
     <string name="agent_action_log_undo">تراجع</string>
 
+    <!-- زاد عارف عني إيه — شفافية الذاكرة طويلة الأمد (zad_memory) -->
+    <string name="zad_memory_title">زاد عارف عني إيه</string>
+    <string name="zad_memory_subtitle">الذكريات اللي اتعلمها عنك</string>
+    <string name="zad_memory_empty_title">لسه مفيش ذكريات</string>
+    <string name="zad_memory_empty_subtitle">زاد هيتعلم عنك تدريجيًا من كلامك واستخدامك للتطبيق</string>
+    <string name="zad_memory_evidence_count">اتأكدت %1$d مرة</string>
+    <string name="zad_memory_delete_action">تنسيها</string>
+    <string name="zad_memory_delete_confirm_title">تنسى الملاحظة دي؟</string>
+    <string name="zad_memory_delete_confirm_body">زاد مش هيفتكرها تاني في أي رد جاي</string>
+    <string name="zad_memory_deleted_snackbar">اتنسيت</string>
+    <string name="zad_memory_delete_failed_snackbar">معرفتش أنساها، جرب تاني</string>
+
     <!-- Ledger: quick deduct and manual balance override -->
     <string name="quick_deduct">خصم سريع</string>
     <string name="quick_deduct_default_title">خصم سريع</string>

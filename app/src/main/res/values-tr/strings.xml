@@ -1079,6 +1079,18 @@
     <string name="agent_action_log_empty_title">Henüz değişiklik yok</string>
     <string name="agent_action_log_empty_subtitle">Zad\'ın kaydettiği veya değiştirdiği her şey burada görünür</string>
     <string name="agent_action_log_undo">Geri al</string>
+
+    <!-- Zad senin hakkında ne biliyor — uzun vadeli hafıza şeffaflığı (zad_memory) -->
+    <string name="zad_memory_title">Zad senin hakkında ne biliyor</string>
+    <string name="zad_memory_subtitle">Zad\'ın senin hakkında öğrendikleri</string>
+    <string name="zad_memory_empty_title">Henüz hafıza yok</string>
+    <string name="zad_memory_empty_subtitle">Zad, uygulamayı kullandıkça seni tanıyacak</string>
+    <string name="zad_memory_evidence_count">%1$d kez doğrulandı</string>
+    <string name="zad_memory_delete_action">Unut</string>
+    <string name="zad_memory_delete_confirm_title">Bu hafıza unutulsun mu?</string>
+    <string name="zad_memory_delete_confirm_body">Zad bunu bir daha hatırlamayacak</string>
+    <string name="zad_memory_deleted_snackbar">Unutuldu</string>
+    <string name="zad_memory_delete_failed_snackbar">Unutulamadı, tekrar dene</string>
     <string name="monthly_report_empty_hint">Zad\'ın harcamalarını analiz edip rapor ve tavsiye vermesi için "Rapor Oluştur"a bas</string>
     <string name="generate_monthly_report_action">Rapor Oluştur</string>
     <string name="recommendations_label">Zad\'ın Tavsiyeleri</string>
