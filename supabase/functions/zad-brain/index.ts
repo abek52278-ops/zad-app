@@ -1962,6 +1962,12 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
     }
     case "add_obligation": {
       const title = String(input.title).trim();
+      const provider = ["تابي", "تمارة", "فاليو"].includes(String(input.provider ?? "").trim())
+        ? String(input.provider).trim()
+        : null;
+      const totalInstallments = provider && Number.isFinite(input.total_installments) && input.total_installments > 0
+        ? Math.round(input.total_installments)
+        : null;
       const w = await writeRows(
         sb.from("zad_obligations").insert({
           user_id: userId,
@@ -1973,6 +1979,9 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
           auto_detected: false,
           confirmed: true,
           active: true,
+          provider,
+          total_installments: totalInstallments,
+          remaining_installments: totalInstallments,
         }).select("id,title,amount,kind"),
         "إضافة الالتزام",
       );
@@ -3236,6 +3245,15 @@ const CHAT_TOOLS: ToolDef[] = [
         },
         recurrence: { type: "string", enum: ["monthly", "quarterly", "yearly"], description: "افتراضي monthly لو العميل مذكرش" },
         due_day: { type: "number", description: "يوم الاستحقاق الشهري 1-31 لو العميل ذكره" },
+        provider: {
+          type: "string",
+          enum: ["تابي", "تمارة", "فاليو"],
+          description: "لو ده خطة \"اشترِ الآن وادفع لاحقاً\" حدد المزوّد بالظبط بالاسم ده — ده اللي بيخلي إشعارات البنك الجاية من نفس المزوّد تتربط تلقائيًا بالخطة دي وتقلل الأقساط الباقية. سيبه فاضي لو مش تابي/تمارة/فاليو.",
+        },
+        total_installments: {
+          type: "number",
+          description: "عدد الأقساط الكلي لخطة تابي/تمارة/فاليو لو العميل قاله (مثلاً \"4 أقساط\"). من غيره متعرفش تعرف امتى الخطة تخلص، فسيبه فاضي لو مش متأكد بدل ما تخترع رقم.",
+        },
       },
       required: ["title", "amount", "kind"],
     },
