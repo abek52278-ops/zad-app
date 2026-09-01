@@ -217,3 +217,35 @@ create policy "fcm_tokens_own_update" on public.fcm_tokens
 -- Server read (zad-market-intelligence)
 create policy "fcm_tokens_server_read" on public.fcm_tokens
   for select using (true);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- 6. user_achievements — إنجازات المستخدم والـ gamification (Phase 3)
+-- تتبع الشارات والإنجازات التي فتحها المستخدم
+create table if not exists public.user_achievements (
+  id bigserial primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+
+  achievement_id text not null, -- 'first_step', 'rising_star', etc
+  points_earned int not null default 0,
+
+  unlocked_at timestamptz not null default now()
+);
+
+comment on table public.user_achievements is 'Gamification achievements and points for crowdsourcing contributions.';
+
+create index if not exists idx_user_achievements_user_id
+  on public.user_achievements(user_id);
+
+create unique index if not exists idx_user_achievements_unique
+  on public.user_achievements(user_id, achievement_id);
+
+alter table public.user_achievements enable row level security;
+
+-- Users see their own achievements
+create policy "user_achievements_own" on public.user_achievements
+  for select using (auth.uid() = user_id);
+
+-- Server write (zad-market-intelligence)
+create policy "user_achievements_server_write" on public.user_achievements
+  for insert with check (true);
