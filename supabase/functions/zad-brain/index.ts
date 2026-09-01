@@ -357,6 +357,91 @@ export function rankMemoryForMessage(
   return scored.sort((a, b) => b.score - a.score).slice(0, limit).map((x) => x.m);
 }
 
+const SKILL_KEYS = new Set([
+  "reminder_style", "budget_talk", "shopping_nudge", "med_tone",
+  "meal_suggest", "digest_style", "confirm_flow", "general_pattern",
+]);
+
+/**
+ * بند 31.2 + 31.5 — يفكّك رد نموذج الاستخلاص التلقائي بعد اللفة (سطرين: FACT:/SKILL:)
+ * لحقيقة دائمة و/أو مهارة، بيرفض أي حاجة غير مكتملة (NONE، مفتاح مش من القايمة الثابتة،
+ * طول برّه الحدود اللي zad_skills.note بتفرضها db-side) بدل ما يمررها ويخلي الكتابة
+ * تفشل هناك بصمت. Pure function عشان يتفحص من غير موديل حقيقي.
+ */
+export function parseFactSkillExtraction(
+  text: string,
+): { fact: string | null; skillKey: string | null; skillNote: string | null } {
+  const lines = text.split("\n").map((l) => l.trim());
+  const factLine = lines.find((l) => /^FACT:/i.test(l))?.replace(/^FACT:\s*/i, "").trim();
+  const skillLine = lines.find((l) => /^SKILL:/i.test(l))?.replace(/^SKILL:\s*/i, "").trim();
+
+  const fact = (factLine && !/^none[.!؟]?$/i.test(factLine) && factLine.length >= 10)
+    ? factLine.slice(0, 200)
+    : null;
+
+  let skillKey: string | null = null;
+  let skillNote: string | null = null;
+  if (skillLine && !/^none[.!؟]?$/i.test(skillLine)) {
+    const [key, ...rest] = skillLine.split("|").map((s) => s.trim());
+    const note = rest.join("|").trim();
+    if (SKILL_KEYS.has(key) && note.length >= 10 && note.length <= 200) {
+      skillKey = key;
+      skillNote = note;
+    }
+  }
+  return { fact, skillKey, skillNote };
+}
+
+/**
+ * كتابة ملاحظة ذاكرة + توليد embedding + ربط تلقائي (31.1) — منطق remember() نفسه،
+ * مستخرج عشان يتشارك مع أي مصدر تاني بيكتب ذاكرة (استخلاص تلقائي بعد اللفة، 31.2).
+ * fail-open في الـembedding/الربط زي ما كان بالظبط — فشلهم مايأثرش على نجاح الحفظ.
+ */
+async function writeMemoryNoteWithLinking(
+  sb: SupabaseClient, userId: string, scope: string, note: string, confidence: number,
+): Promise<{ status: "inserted" | "strengthened" | "conflict" } | { status: "error"; message: string }> {
+  const { data, error } = await sb.rpc("zad_memory_upsert", {
+    p_user: userId, p_scope: scope, p_note: note, p_conf: confidence,
+  });
+  if (error) return { status: "error", message: error.message };
+  const upsertStatus = data as "inserted" | "strengthened" | "conflict";
+
+  try {
+    const vec = await embedText(note);
+    if (vec) {
+      await sb.rpc("zad_memory_set_embedding", { p_user: userId, p_note: note, p_vec: vec });
+
+      // بند 31.1 — ربط تلقائي بدل ما يستنى الموديل يفتكر ينده link_memory (عمره ما بيعمل
+      // ده، صفر روابط كانت موجودة من يوم ما الجدول اتعمل). relation='co_occurs' مقصودة
+      // كأضعف علاقة ممكنة — تشابه المتجهات بيقول "الملاحظتين قريبين من بعض"، مش "دي سبب
+      // دي" أو "دي بتفسر دي". عتبة ٠.٥٥ بداية تحفظية مش مقايسة.
+      if (upsertStatus !== "conflict") {
+        const { data: ownRow } = await sb.from("zad_memory")
+          .select("id").eq("user_id", userId).eq("scope", scope).eq("note", note)
+          .maybeSingle();
+        const ownId = (ownRow as { id: string } | null)?.id;
+        if (ownId) {
+          const { data: neighbors } = await sb.rpc("zad_memory_semantic_search", {
+            p_user: userId, p_query_embedding: vec, p_limit: 4,
+          });
+          const AUTO_LINK_MIN_SIMILARITY = 0.55;
+          for (const n of (neighbors ?? []) as Array<{ id: string; similarity: number }>) {
+            if (n.id === ownId || n.similarity < AUTO_LINK_MIN_SIMILARITY) continue;
+            await sb.rpc("zad_memory_link_upsert", {
+              p_user: userId, p_from: ownId, p_to: n.id,
+              p_relation: "co_occurs", p_strength: n.similarity,
+            });
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("memory embedding/auto-link skipped:", e);
+  }
+
+  return { status: upsertStatus };
+}
+
 /**
  * دروس من الأخطاء — آخر ١٤ يوم من agent_drift_events بتتلخص في سطرين:
  * كل نمط انحرف مرتين+ بيتحول لتعليمة صريحة تدخل برومبت المحادثة، فالوكيل
@@ -1150,49 +1235,9 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
         return "سجّلت الجديدة وربطتها بالقديمة كتناقض، وقلّلت ثقتي في القديمة";
       }
 
-      const { data, error } = await sb.rpc("zad_memory_upsert", {
-        p_user: userId, p_scope: scope, p_note: input.note, p_conf: input.confidence ?? 0.5,
-      });
-      if (error) return `فشل الحفظ: ${error.message}`;
-
-      // الذاكرة الدلالية — نولّد embedding للملاحظة الجديدة. fail-open: فشل التوليد
-      // مالوش أي تأثير على نجاح الحفظ نفسه.
-      try {
-        const vec = await embedText(input.note);
-        if (vec) {
-          await sb.rpc("zad_memory_set_embedding", { p_user: userId, p_note: input.note, p_vec: vec });
-
-          // بند 31.1 — ربط تلقائي بدل ما يستنى الموديل يفتكر ينده link_memory (عمره ما
-          // بيعمل ده، صفر روابط كانت موجودة من يوم ما الجدول اتعمل). دلوقتي بعد ما
-          // الـembedding بقى حي (30.5)، أول لفة remember() تقدر فعلاً تدوّر دلاليًا.
-          // relation='co_occurs' مقصودة كأضعف علاقة ممكنة — تشابه المتجهات بيقول
-          // "الملاحظتين قريبين من بعض"، مش "دي سبب دي" أو "دي بتفسر دي"، وادّعاء علاقة
-          // أدق من كده كان هيبقى نفس فخ الأرقام المخترعة بس في شكل تصنيف مش رقم.
-          // عتبة ٠.٥٥ بداية تحفظية مش مقايسة — لسه مفيش روابط حقيقية اتراكمت نقارن
-          // بيها، فاختيار عتبة "الصح" سابق لأوانه.
-          if (data !== "conflict") {
-            const { data: ownRow } = await sb.from("zad_memory")
-              .select("id").eq("user_id", userId).eq("scope", scope).eq("note", input.note)
-              .maybeSingle();
-            const ownId = (ownRow as { id: string } | null)?.id;
-            if (ownId) {
-              const { data: neighbors } = await sb.rpc("zad_memory_semantic_search", {
-                p_user: userId, p_query_embedding: vec, p_limit: 4,
-              });
-              const AUTO_LINK_MIN_SIMILARITY = 0.55;
-              for (const n of (neighbors ?? []) as Array<{ id: string; similarity: number }>) {
-                if (n.id === ownId || n.similarity < AUTO_LINK_MIN_SIMILARITY) continue;
-                await sb.rpc("zad_memory_link_upsert", {
-                  p_user: userId, p_from: ownId, p_to: n.id,
-                  p_relation: "co_occurs", p_strength: n.similarity,
-                });
-              }
-            }
-          }
-        }
-      } catch (e) {
-        console.warn("memory embedding/auto-link skipped:", e);
-      }
+      const written = await writeMemoryNoteWithLinking(sb, userId, scope, input.note, input.confidence ?? 0.5);
+      if (written.status === "error") return `فشل الحفظ: ${written.message}`;
+      const data = written.status;
 
       // zad_memory_upsert used to read a contradiction as agreement: a near-identical note
       // with the negation flipped cleared the 0.6 merge threshold, overwrote the stored
@@ -4291,6 +4336,46 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
       }
     } catch (e) {
       console.error("orchestrator review skipped:", e);
+    }
+  }
+
+  // بند 31.2 + 31.5 — استخلاص تلقائي بعد اللفة: زي link_memory بالظبط، remember()
+  // و learn_skill نفسهم أدوات اختيارية والموديل نادرًا ما بيفتكر ينده عليهم لحقيقة/نمط
+  // عدّى في الكلام العادي. بدل ما نستناه، تمريرة رخيصة واحدة بموديل الوكيل نفسه
+  // (MODEL_ROUTINE — مش الموديل المشترك مع الرؤية، نفس عزل الكوتة اللي فوق) بعد أي لفة
+  // فيها كتابة حقيقية فعلاً. مقصورة على mutationCount>0 — قرار المستخدم الصريح كان
+  // نموذج خفيف + بوابة واضحة، مش نداء إضافي على كل رسالة عادية (الكوتة محدودة وموثّقة
+  // في CLAUDE.md). دمج الاستخلاصين في نداء واحد بدل اتنين لنفس السبب — نصف التكلفة
+  // لنفس الفايدة. NONE صريحة لكل سطر لو مفيش حاجة تستاهل، مفيش إجبار.
+  if (ctx.mutationCount > 0) {
+    try {
+      const extraction = await callModel({
+        model: MODEL_ROUTINE,
+        system:
+          "انت بتستخلص حاجتين (لو موجودين) من تبادل بين مساعد منزلي وعميله، وبترد بسطرين بالظبط:\n" +
+          "السطر الأول FACT: حقيقة دائمة عن العميل (تفضّل صحيحة لشهور — تفضيل/عادة/ظرف مستمر، " +
+          "مش حدث لحظي زي معاملة، ودي متسجلة بالفعل في مكان تاني فمتكررهاش). لو مفيش، اكتب FACT: NONE.\n" +
+          "السطر الثاني SKILL: نمط تفاعل نجح في اللفة دي (أسلوب رد بيرجع نتيجة حلوة مع العميل ده). " +
+          "لو فيه، اكتب SKILL: <key>|<وصف قصير>، وlist لازم يكون واحد بالظبط من: reminder_style, " +
+          "budget_talk, shopping_nudge, med_tone, meal_suggest, digest_style, confirm_flow, general_pattern. " +
+          "لو مفيش نمط واضح، اكتب SKILL: NONE.\n" +
+          "كل وصف (لو موجود) جملة عربية واحدة قصيرة (١٠-٢٠٠ حرف)، من غير أي سطر إضافي أو تعليق.",
+        tools: [],
+        history: [
+          { role: "user", text: `رسالة العميل: ${message}\nاللي اتنفذ: ${executed.map((x) => x.summary).join("؛ ") || "-"}\nرد المساعد: ${reply}` },
+        ],
+        maxTokens: 150,
+        thinking: false,
+      });
+      const parsed = parseFactSkillExtraction(extraction.text ?? "");
+      if (parsed.fact) {
+        await writeMemoryNoteWithLinking(sb, userId, "general", parsed.fact, 0.55);
+      }
+      if (parsed.skillKey && parsed.skillNote) {
+        await sb.rpc("zad_skill_upsert", { p_user: userId, p_key: parsed.skillKey, p_note: parsed.skillNote, p_conf: 0.55 });
+      }
+    } catch (e) {
+      console.warn("post-turn fact/skill extraction skipped:", e);
     }
   }
 
