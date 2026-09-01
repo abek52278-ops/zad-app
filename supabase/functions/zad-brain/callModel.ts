@@ -760,9 +760,22 @@ export function embedBreakerState(): { open: boolean; failures: number } {
 
 // اسم موديل الـ embedding قابل للضبط بمتغير بيئة **عن قصد**: CLAUDE.md موثّق إن
 // موديلات Gemini بتتقفل على المشاريع الجديدة وبترجع 404 وهي لسه ظاهرة في
-// ListModels (حصلت حرفياً مع gemini-2.5-flash). لو text-embedding-004 اتقفل،
+// ListModels (حصلت حرفياً مع gemini-2.5-flash). لو الموديل الحالي اتقفل،
 // الإصلاح يبقى تغيير سيكريت مش نشر جديد — وده فرق ساعات في وقت التعافي.
-export const EMBED_MODEL = Deno.env.get("ZAD_EMBED_MODEL")?.trim() || "text-embedding-004";
+//
+// ⚠️ probe حي 2026-09-01 (بند 30.5): text-embedding-004 بيرجع 404 على المشروع ده
+// بالظبط ("is not found... or is not supported for embedContent") — 9 ملاحظات
+// zad_memory كانت بصفر embedding من يوم ما اتكتب الكود ده. الشغّالين فعلاً من
+// ListModels: gemini-embedding-001 (مختار — الاسم المستقر، مش -preview) و
+// gemini-embedding-2/-2-preview (بيرجعوا نفس الأرقام، غالبًا alias لبعض).
+export const EMBED_MODEL = Deno.env.get("ZAD_EMBED_MODEL")?.trim() || "gemini-embedding-001";
+// gemini-embedding-001 افتراضيًا بيرجع 3072 بُعد (MRL)، وعمود zad_memory.embedding
+// مثبّت على vector(768) من يوم ما كان text-embedding-004 هو الموديل. outputDimensionality
+// بيقطع لـ768 حي من غير migration. القطعة دي مش unit-normalized (اتأكد: L2 norm ≈ 0.58
+// مش 1.0) — لكن ده مش مشكلة هنا: الفهرس مبني بـvector_cosine_ops والاستعلام بيستخدم
+// <=> (cosine distance)، والصيغة دي `1 - (a·b)/(|a|·|b|)` بتقسّم على الحجمين أصلاً،
+// يعني scale-invariant — تطبيع يدوي زيادة مالوش داعي هنا.
+const EMBED_OUTPUT_DIMENSIONALITY = 768;
 
 export async function embedText(text: string): Promise<number[] | null> {
   if (!text.trim() || GEMINI_KEY_POOL.length === 0) return null;
@@ -783,7 +796,11 @@ export async function embedText(text: string): Promise<number[] | null> {
           method: "POST",
           headers: { "content-type": "application/json" },
           signal: AbortSignal.timeout(10_000),
-          body: JSON.stringify({ model: `models/${EMBED_MODEL}`, content: { parts: [{ text }] } }),
+          body: JSON.stringify({
+            model: `models/${EMBED_MODEL}`,
+            content: { parts: [{ text }] },
+            outputDimensionality: EMBED_OUTPUT_DIMENSIONALITY,
+          }),
         },
       );
       if (!res.ok) {
@@ -878,7 +895,11 @@ export async function embedSelfTest(): Promise<{
           method: "POST",
           headers: { "content-type": "application/json" },
           signal: AbortSignal.timeout(10_000),
-          body: JSON.stringify({ model: `models/${model}`, content: { parts: [{ text: "اختبار الذاكرة الدلالية" }] } }),
+          body: JSON.stringify({
+            model: `models/${model}`,
+            content: { parts: [{ text: "اختبار الذاكرة الدلالية" }] },
+            outputDimensionality: EMBED_OUTPUT_DIMENSIONALITY,
+          }),
         },
       );
       if (!res.ok) {
@@ -886,9 +907,10 @@ export async function embedSelfTest(): Promise<{
         continue;
       }
       const values = (await res.json())?.embedding?.values;
-      // الفهرس والعمود متعرّفين vector(768) — أي أبعاد تانية محتاجة ميجريشن،
-      // فالأبعاد جزء من النتيجة مش تفصيلة.
-      probes.push({ model, ok: Array.isArray(values) && values.length > 0, dims: values?.length });
+      // نفس شكل النداء بالظبط اللي embedText بتستخدمه (outputDimensionality مضبوط)،
+      // عشان الـprobe يكشف موديل بيرفض الباراميتر ده بس مش عام. العمود vector(768) —
+      // أي أبعاد غير 768 هنا معناها فشل حقيقي مش تفصيلة.
+      probes.push({ model, ok: Array.isArray(values) && values.length === EMBED_OUTPUT_DIMENSIONALITY, dims: values?.length });
     } catch (e) {
       probes.push({ model, ok: false, error: String(e).slice(0, 200) });
     }
