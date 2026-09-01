@@ -109,6 +109,7 @@ fun ZadIntelligenceScreen(
     val resilienceRemainingBalance by viewModel.remainingBalance.collectAsState()
     val weeklyAdherencePercent by viewModel.weeklyAdherencePercent.collectAsState()
     val brainStats by viewModel.brainStats.collectAsState()
+    val maintenanceItemsForNodes by viewModel.maintenanceItems.collectAsState()
     val companionState by viewModel.companionState.collectAsState()
     val pendingAgentProposals by viewModel.pendingAgentProposals.collectAsState()
     val familyState by familyViewModel.state.collectAsState()
@@ -409,8 +410,51 @@ fun ZadIntelligenceScreen(
 
             // ── العقل الثاني: الكرة العصبية المجسمة ثلاثية الأبعاد (3D Holographic Neural Sphere) ──
             item {
+                // بند 35.1 (تكملة) — الـ9 سطور حالة كانت كلها نصوص مكتوبة يدويًا. كل سطر
+                // دلوقتي من مصدر حقيقي فعلي، وبيرجع صياغة صادقة ("لسه بيدرس...") لو
+                // البيانات مش كفاية بدل رقم مخترع. مقاسات/ألوان/تخطيط العقد الأصلية
+                // (initialX/Y/Z، layerName) متلمستش — التغيير في statusText بس.
+                val activeFamilyForNodes = familyState as? com.example.ui.viewmodels.FamilyState.Active
+                val chefReadyMeals = remember(inventory) {
+                    com.example.data.ZadAiRepository.generateDeterministicChefRecipes(inventory).size
+                }
+                val realNodes = remember(
+                    brainStats, activeFamilyForNodes, weeklyAdherencePercent, subscriptions,
+                    chefReadyMeals, maintenanceItemsForNodes, expensePrediction,
+                ) {
+                    val today = java.time.LocalDate.now()
+                    val underWarranty = maintenanceItemsForNodes.count { m ->
+                        m.warrantyExpiryDate?.let {
+                            runCatching { java.time.LocalDate.parse(it) > today }.getOrDefault(false)
+                        } ?: false
+                    }
+                    val forecastConfidence = expensePrediction?.confidence?.takeIf { it > 0.0 }
+                    listOf(
+                        com.example.ui.components.Node3D("budget", "المصاريف والتدفق", "💳", Color(0xFF0F9B76), -0.72f, -0.45f, 0.45f, "ROOT - FINANCIAL",
+                            resilienceAvailableFigure?.value?.let { "المتاح: ${Math.round(it)} ${budgetState?.currency ?: ""}" } ?: "لسه بيحسب الرصيد المتاح"),
+                        com.example.ui.components.Node3D("family", "عقل العائلة", "👨‍👩‍👧‍👦", Color(0xFF2563EB), 0.75f, -0.42f, 0.40f, "AREAS - FAMILY",
+                            activeFamilyForNodes?.members?.size?.let { "مزامنة نشطة • $it أفراد" } ?: "مش منضم لعيلة"),
+                        com.example.ui.components.Node3D("inventory", "المخزون وتأمين الغذاء", "📦", Color(0xFFF59E0B), 0.85f, 0.15f, -0.35f, "PROJECTS - PANTRY",
+                            brainStats?.nextShortageItem?.let { "أول نقص متوقع: $it خلال ${brainStats?.nextShortageDays ?: 0} يوم" } ?: "لسه بيدرس نمط استهلاكك"),
+                        com.example.ui.components.Node3D("pharmacy", "صيدلية الأسرة", "💊", Color(0xFFDC2626), -0.80f, 0.20f, -0.38f, "KNOWLEDGE - HEALTH",
+                            weeklyAdherencePercent?.let { "الالتزام الدوائي هذا الأسبوع: $it%" } ?: "لسه مفيش جرعات كفاية مسجّلة"),
+                        com.example.ui.components.Node3D("subs", "الاشتراكات والفواتير", "⚡", Color(0xFF8B5CF6), 0.05f, -0.85f, 0.25f, "ROOT - COMMITMENTS",
+                            "${subscriptions.count { it.isActive }} اشتراكات نشطة"),
+                        com.example.ui.components.Node3D("chef", "شيف زاد الذكي", "🍲", Color(0xFF10B981), -0.55f, 0.65f, 0.35f, "RESOURCES - NUTRITION",
+                            if (chefReadyMeals > 0) "جاهز لـ$chefReadyMeals وجبة فورية من مخزونك" else "المخزون محتاج تعزيز لوجبات جاهزة"),
+                        com.example.ui.components.Node3D("maintenance", "الصيانة والضمانات", "🔧", Color(0xFF64748B), 0.50f, 0.68f, 0.38f, "PROJECTS - HOME",
+                            "$underWarranty أجهزة تحت الضمان"),
+                        com.example.ui.components.Node3D("forecast", "التنبؤات السلوكية", "🔮", Color(0xFFEC4899), 0.10f, 0.82f, -0.42f, "AI PREDICTIVE",
+                            forecastConfidence?.let { "ثقة توقع الذكاء الاصطناعي: ${Math.round(it * 100)}%" } ?: "لسه مفيش توقع كفاية"),
+                        com.example.ui.components.Node3D("tasbiha", "بستان التسبيح والبركة", "🌿", Color(0xFF34D399), 0.0f, -0.30f, -0.85f, "SPIRITUAL - ZAD",
+                            familyViewModel.familyTasbiha.sumOf { it.totalClicks }.let { clicks ->
+                                if (clicks > 0) "$clicks تسبيحة • مستوى ${familyViewModel.familyTasbiha.maxOfOrNull { t -> t.level } ?: 1}" else "لسه ما بدأتوش التسبيح"
+                            }),
+                    )
+                }
                 com.example.ui.components.Zad3DNeuralSphereWidget(
                     stats = brainStats,
+                    nodes = realNodes,
                     onNodeClick = { onNavigateToKnowledgeMap() },
                     onViewFullMapClick = { onNavigateToKnowledgeMap() },
                     onOpenDossierClick = { showExecutiveDossier = true }

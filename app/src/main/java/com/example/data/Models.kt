@@ -21,7 +21,11 @@ data class ZadBrainStats(
     @SerialName("skills_count") val skillsCount: Int = 0,
     @SerialName("neural_links") val neuralLinks: Int = 0,
     @SerialName("growth_pct") val growthPct: Double? = null,
-    @SerialName("prediction_accuracy_pct") val predictionAccuracyPct: Double? = null
+    @SerialName("prediction_accuracy_pct") val predictionAccuracyPct: Double? = null,
+    // "أضعف حلقة" مش متوسط — أقرب صنف معروف معدل استهلاكه للنفاد. null = لسه مفيش صنف
+    // rate_known، مش "مفيش نواقص".
+    @SerialName("next_shortage_item") val nextShortageItem: String? = null,
+    @SerialName("next_shortage_days") val nextShortageDays: Int? = null
 )
 
 @Serializable

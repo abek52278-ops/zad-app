@@ -813,6 +813,10 @@ data class Node3D(
 @Composable
 fun Zad3DNeuralSphereWidget(
     stats: com.example.data.ZadBrainStats? = null,
+    // بند 35.1 (تكملة) — الـ9 عقد بقيت بتتبنى من داتا حقيقية في ZadIntelligenceScreen
+    // (الشاشة عندها كل الـStateFlows اللازمة). null = fallback للنص القديم، مش المفروض
+    // يحصل من الاستدعاء الوحيد الحالي بس بيمنع كسر أي كولر تاني/معاينة مستقبلية.
+    nodes: List<Node3D>? = null,
     onNodeClick: (String) -> Unit = {},
     onViewFullMapClick: () -> Unit = {},
     onOpenDossierClick: () -> Unit = {},
@@ -844,8 +848,8 @@ fun Zad3DNeuralSphereWidget(
         label = "coreGlow"
     )
 
-    // عقد الفضاء ثلاثي الأبعاد الموزعة في طبقات كروية هندسية
-    val nodes3D = remember {
+    // عقد الفضاء ثلاثي الأبعاد الموزعة في طبقات كروية هندسية — fallback لو مفيش nodes حقيقية اتبعتت
+    val nodes3D = nodes ?: remember {
         listOf(
             Node3D("budget", "المصاريف والتدفق", "💳", Color(0xFF0F9B76), -0.72f, -0.45f, 0.45f, "ROOT - FINANCIAL", "معدل الصرف اليومي: آمن ومستقر"),
             Node3D("family", "عقل العائلة", "👨‍👩‍👧‍👦", Color(0xFF2563EB), 0.75f, -0.42f, 0.40f, "AREAS - FAMILY", "مزامنة نشطة • 4 أفراد"),
