@@ -208,7 +208,7 @@ function hashKey(s: string): string {
 interface ObligationRow {
   id: string; title: string; amount: number; kind: string;
   due_day: number | null; due_date: string | null; recurrence: string;
-  confirmed: boolean; active: boolean;
+  confirmed: boolean; active: boolean; provider?: string | null;
 }
 
 // nextDueDate() moved to Postgres as zad_obligation_next_due() — same rules ('once' that
@@ -258,6 +258,49 @@ function detectObligationCandidate(
     amount: best.amount,
     due_day: mostRecent.getDate(),
     dedupe_key: `obligation_confirm_${hashKey(`${best.title}_${best.amount}`)}`,
+  };
+}
+
+const BNPL_PROVIDERS = new Set(["تابي", "تمارة", "فاليو", "tabby", "tamara", "valu"]);
+
+/**
+ * بند 32.1 — نسخة أسرع من detectObligationCandidate مخصوصة لتابي/تمارة/فاليو: مرتين
+ * بس مش ٣ شهور متفرقة. خطة تقسيط عادةً ٣-٤ دفعات شهرية — لو استنينا نفس عتبة الالتزام
+ * العادي (٣ شهور)، هنكتشفها وهي خلصت أو قربت تخلص، مش وهي لسه بادئة.
+ *
+ * false positive مش مستبعد نظريًا (عميل اشترى مرتين بنفس المزوّد وصدفة نفس المبلغ من
+ * غير خطة فعلية) لكنه نادر عمليًا: bank_name هنا هوية مُصنَّفة من التطبيق المُرسِل
+ * (SaBankParser)، مش تخمين نصي على اسم تاجر غامض، والمطابقة على المبلغ **بالظبط** مش
+ * بتقريب — تقاطع الاتنين ضيق. زي detectObligationCandidate تمامًا: بيستبعد أي حاجة
+ * متسجلة كالتزام بالفعل، ومرشح واحد بس في المرة.
+ */
+export function detectBnplObligationCandidate(
+  expenseTx: Array<{ bank_name: string | null; amount: number; created_at: string }>,
+  existingObligations: ObligationRow[],
+): { title: string; amount: number; provider: string; due_day: number; dedupe_key: string } | null {
+  const known = new Set(existingObligations.filter((o) => o.provider).map((o) => `${o.provider}_${o.amount}`));
+  const groups = new Map<string, { provider: string; amount: number; dates: Date[] }>();
+  for (const t of expenseTx) {
+    const provider = (t.bank_name ?? "").trim().toLowerCase();
+    if (!BNPL_PROVIDERS.has(provider)) continue;
+    const key = `${provider}_${t.amount}`;
+    if (known.has(key)) continue;
+    if (!groups.has(key)) groups.set(key, { provider: t.bank_name!.trim(), amount: t.amount, dates: [] });
+    groups.get(key)!.dates.push(new Date(t.created_at));
+  }
+  let best: { provider: string; amount: number; dates: Date[] } | null = null;
+  for (const g of groups.values()) {
+    if (g.dates.length < 2) continue;
+    if (!best || g.dates.length > best.dates.length) best = g;
+  }
+  if (!best) return null;
+  const mostRecent = best.dates.reduce((a, b) => (b > a ? b : a));
+  return {
+    title: `قسط ${best.provider}`,
+    amount: best.amount,
+    provider: best.provider,
+    due_day: mostRecent.getDate(),
+    dedupe_key: `obligation_confirm_bnpl_${hashKey(`${best.provider}_${best.amount}`)}`,
   };
 }
 
@@ -490,7 +533,7 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
       // الـ٢٠٠ صف كانت بتخلص قبل ما توصل ٩٠ يوم فعلياً، فـ"آخر شهرين/تلاتة للتحليل والتنبؤ"
       // كان بيتقصر بصمت من غير ما حد يلاحظ. ١٢٠ يوم عشان يغطي أطول نافذة مستخدمة (اكتشاف
       // دورة الراتب/الالتزام الثابت)، مش بس أقصر نافذة (الشذوذ).
-      sb.from("zad_transactions").select("id,amount,title,category,is_expense,txn_kind,created_at,merchant_name")
+      sb.from("zad_transactions").select("id,amount,title,category,is_expense,txn_kind,created_at,merchant_name,bank_name")
         .eq("user_id", userId).gte("created_at", new Date(Date.now() - 120 * 86400000).toISOString())
         .order("created_at", { ascending: false }).limit(600),
       sb.from("zad_inventory").select("item_name,category,quantity,unit,expiry_date,low_stock_threshold,created_at")
@@ -524,7 +567,7 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
       sb.from("zad_insights").select("id").eq("user_id", userId).eq("dedupe_key", cashKey).limit(1),
       // Task 26 — committed obligations feeding "available". Fetches ALL rows (not just
       // confirmed) so detectObligationCandidate can see already-known/pending ones too.
-      sb.from("zad_obligations").select("id,title,amount,kind,due_day,due_date,recurrence,confirmed,active")
+      sb.from("zad_obligations").select("id,title,amount,kind,due_day,due_date,recurrence,confirmed,active,provider")
         .eq("user_id", userId).eq("active", true),
       // ─── المصادر دي كانت موجودة في الداتابيز والعقل مكانش بيشوفها خالص ───
       // كلها user-scoped ومالية/سلوكية بطبيعتها، يعني كانت بتغيب عن كل تحليل بيتعمل.
@@ -786,10 +829,17 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     | null;
 
   // اكتشاف التزام جديد (إيجار/قسط) — مرشح واحد بس في المرة، نفس مبدأ cycle_detection فوق.
-  let obligationDetection: { needs_ask: boolean; title: string | null; amount: number | null; due_day: number | null; dedupe_key: string | null } = {
-    needs_ask: false, title: null, amount: null, due_day: null, dedupe_key: null,
+  // بند 32.1: مرشح BNPL (مرتين، أسرع) له أولوية على المرشح العام (٣ شهور) — حساس للوقت
+  // أكتر (خطة تقسيط ممكن تخلص قبل ما العتبة العامة توصله)، ومطابقته أضيق (bank_name
+  // مصنَّف + مبلغ مطابق بالظبط، مش تخمين اسم تاجر).
+  let obligationDetection: { needs_ask: boolean; title: string | null; amount: number | null; due_day: number | null; dedupe_key: string | null; provider: string | null } = {
+    needs_ask: false, title: null, amount: null, due_day: null, dedupe_key: null, provider: null,
   };
-  const candidate = detectObligationCandidate(
+  const bnplCandidate = detectBnplObligationCandidate(
+    transactions.filter((t) => t.txn_kind === "expense"),
+    obligationRows,
+  );
+  const candidate = bnplCandidate ?? detectObligationCandidate(
     transactions.filter((t) => t.txn_kind === "expense"),
     obligationRows,
     subRes.data ?? [],
@@ -799,6 +849,7 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     obligationDetection = {
       needs_ask: !(dismissedRes.data ?? []).some((d: any) => d.dedupe_key === candidate.dedupe_key),
       title: candidate.title, amount: candidate.amount, due_day: candidate.due_day, dedupe_key: candidate.dedupe_key,
+      provider: (candidate as { provider?: string }).provider ?? null,
     };
   }
 
@@ -1448,10 +1499,20 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       // مش يعيد كتابة رقم/اسم ممكن يغلط فيه. الصف بيتسجل confirmed=true من الأول —
       // مفيش صف pending وسيط، الاكتشاف والتأكيد بيحصلوا في نداء واحد.
       const det = snap.obligation_detection;
+      // بند 32.1 — لو المرشح BNPL (det.provider مضبوط)، total_installments اختياري من
+      // كلام العميل بس، مش تخمين. لو قاله، remaining_installments = العدد ده بالظبط —
+      // "من دلوقتي فيه كذا قسط باقي" زي ما العميل قاله، مش محاسبة رجعية على قسطين
+      // شفناهم فعلاً. لو مقالوش، تفضل provider مسجلة (مفيدة لوحدها) والعددين فاضيين —
+      // حالة فاضية شريفة، مش رقم مخترع، ومطابقة الإشعارات الجاية (zad_match_bnpl_obligation)
+      // هتنتظر لحد ما يتحددوا.
+      const totalInstallments = det.provider && Number.isFinite(input.total_installments) && input.total_installments > 0
+        ? Math.round(input.total_installments)
+        : null;
       const w = await writeRows(
         sb.from("zad_obligations").insert({
           user_id: userId, title: det.title, amount: det.amount, kind: input.kind,
           due_day: det.due_day, recurrence: "monthly", auto_detected: true, confirmed: true, active: true,
+          provider: det.provider, total_installments: totalInstallments, remaining_installments: totalInstallments,
         }).select("id,title,amount,kind"),
         "حفظ الالتزام",
       );
@@ -2998,11 +3059,12 @@ const TOOLS: ToolDef[] = [
   },
   {
     name: "confirm_obligation",
-    description: "بعد ما العميل يأكد بـ(أيوة) على سؤال التزام ثابت (obligation_detection) — سجّل الالتزام (إيجار/قسط/دين...) عشان يتحسب في رقم \"متاح\".",
+    description: "بعد ما العميل يأكد بـ(أيوة) على سؤال التزام ثابت (obligation_detection) — سجّل الالتزام (إيجار/قسط/دين...) عشان يتحسب في رقم \"متاح\". لو obligation_detection.provider مضبوط (تابي/تمارة/فاليو) اسأل العميل كام قسط في الخطة قبل ما تنادي الأداة دي وابعت الرقم في total_installments — من غيره مش هينفع نربط دفعات الشهور الجاية بالخطة دي أوتوماتيك.",
     input_schema: {
       type: "object",
       properties: {
         kind: { type: "string", enum: ["rent", "installment", "debt", "tuition", "utility", "other"], description: "صنّف الالتزام حسب اسم التاجر ونص السؤال" },
+        total_installments: { type: "number", description: "عدد أقساط خطة تابي/تمارة/فاليو لو العميل قاله. سيبها فاضية لو مش متأكد — متخترعش رقم." },
       },
       required: ["kind"],
     },
@@ -5012,6 +5074,10 @@ link_memory بيربط ملاحظتين موجودين فعلاً في memory �
 - لو الرد جالك "أيوة" أو صنّف نوعه، نادِ confirm_obligation فوراً بـ kind المناسب من
   (rent/installment/debt/tuition/utility/other) حسب اسم التاجر ونص الرد — الاسم والمبلغ
   والتاريخ بياخدهم النظام من obligation_detection نفسها، انت بس بتصنّف النوع.
+- لو obligation_detection.provider مضبوط (يعني الاكتشاف ده خطة تابي/تمارة/فاليو)، اسأل
+  كمان "كام قسط في الخطة دي؟" قبل ما تنادي confirm_obligation، وابعت الرقم في
+  total_installments لو قاله — من غيره سيبها فاضية، متخترعش رقم. ده اللي بيخلي دفعات
+  الشهور الجاية من نفس المزوّد تتربط تلقائيًا بالخطة دي.
 - لو الرد "لأ"، متعملش حاجة — السؤال ده مش هيتكرر بنفس المفتاح.
 - لو obligation_detection.needs_ask=false أو title=null، متسألش خالص.
 

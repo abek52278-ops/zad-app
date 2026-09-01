@@ -124,6 +124,15 @@ export const validateConfirmObligation: Validator = (input, snap, ctx) => {
   if (!snap.obligation_detection?.title || snap.obligation_detection?.needs_ask === false) {
     return { ok: false, reason: "مفيش التزام مكتشف محتاج تأكيد دلوقتي في الـ snapshot" };
   }
+  // بند 32.1 — لو اتبعت، لازم عدد أقساط واقعي. أي رقم برّه المدى ده أقرب لهلوسة موديل
+  // منه لخطة تقسيط حقيقية (والأداة أصلاً بترفض total_installments لو obligation_detection
+  // مش BNPL — التحقق ده بس ضد رقم غير منطقي).
+  if (input.total_installments !== undefined) {
+    const n = input.total_installments;
+    if (typeof n !== "number" || !Number.isFinite(n) || n < 1 || n > 60) {
+      return { ok: false, reason: "عدد الأقساط لازم يكون رقم واقعي بين 1 و60" };
+    }
+  }
   return { ok: true };
 };
 
