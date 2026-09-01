@@ -1148,9 +1148,39 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       // مالوش أي تأثير على نجاح الحفظ نفسه.
       try {
         const vec = await embedText(input.note);
-        if (vec) await sb.rpc("zad_memory_set_embedding", { p_user: userId, p_note: input.note, p_vec: vec });
+        if (vec) {
+          await sb.rpc("zad_memory_set_embedding", { p_user: userId, p_note: input.note, p_vec: vec });
+
+          // بند 31.1 — ربط تلقائي بدل ما يستنى الموديل يفتكر ينده link_memory (عمره ما
+          // بيعمل ده، صفر روابط كانت موجودة من يوم ما الجدول اتعمل). دلوقتي بعد ما
+          // الـembedding بقى حي (30.5)، أول لفة remember() تقدر فعلاً تدوّر دلاليًا.
+          // relation='co_occurs' مقصودة كأضعف علاقة ممكنة — تشابه المتجهات بيقول
+          // "الملاحظتين قريبين من بعض"، مش "دي سبب دي" أو "دي بتفسر دي"، وادّعاء علاقة
+          // أدق من كده كان هيبقى نفس فخ الأرقام المخترعة بس في شكل تصنيف مش رقم.
+          // عتبة ٠.٥٥ بداية تحفظية مش مقايسة — لسه مفيش روابط حقيقية اتراكمت نقارن
+          // بيها، فاختيار عتبة "الصح" سابق لأوانه.
+          if (data !== "conflict") {
+            const { data: ownRow } = await sb.from("zad_memory")
+              .select("id").eq("user_id", userId).eq("scope", scope).eq("note", input.note)
+              .maybeSingle();
+            const ownId = (ownRow as { id: string } | null)?.id;
+            if (ownId) {
+              const { data: neighbors } = await sb.rpc("zad_memory_semantic_search", {
+                p_user: userId, p_query_embedding: vec, p_limit: 4,
+              });
+              const AUTO_LINK_MIN_SIMILARITY = 0.55;
+              for (const n of (neighbors ?? []) as Array<{ id: string; similarity: number }>) {
+                if (n.id === ownId || n.similarity < AUTO_LINK_MIN_SIMILARITY) continue;
+                await sb.rpc("zad_memory_link_upsert", {
+                  p_user: userId, p_from: ownId, p_to: n.id,
+                  p_relation: "co_occurs", p_strength: n.similarity,
+                });
+              }
+            }
+          }
+        }
       } catch (e) {
-        console.warn("memory embedding skipped:", e);
+        console.warn("memory embedding/auto-link skipped:", e);
       }
 
       // zad_memory_upsert used to read a contradiction as agreement: a near-identical note
