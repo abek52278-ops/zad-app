@@ -83,7 +83,7 @@ jobs:
       # WebSocket؛ persona.ts منطق نقي وله اختبارات فعلية (نفس نمط zad-brain/persona_test.ts).
       - name: Type-check zad-voice-live
         working-directory: supabase/functions/zad-voice-live
-        run: deno check index.ts persona.ts
+        run: deno check index.ts persona.ts tools.ts
 
       - name: Test zad-voice-live
         working-directory: supabase/functions/zad-voice-live

@@ -4524,7 +4524,7 @@ async function handleAgentConfirm(sb: SupabaseClient, userId: string, body: any)
   // Keeping Telegram here makes the audit log explain where the money operation
   // came from while preserving "confirm" as the safe default for older clients.
   const scope: AuditScope = {
-    source: body.source === "telegram" ? "telegram" : "confirm",
+    source: body.source === "telegram" ? "telegram" : body.source === "voice" ? "voice" : "confirm",
     runId: null,
   };
   const result = await runTool(sb, userId, tool, input, snap, ctx, scope);
@@ -4558,7 +4558,7 @@ async function handleAgentExecute(sb: SupabaseClient, userId: string, body: any)
   }
   const snap = await buildSnapshot(sb, userId);
   const ctx = freshContext(userId);
-  const source: AgentSource = body.source === "telegram" ? "telegram" : "event";
+  const source: AgentSource = body.source === "telegram" ? "telegram" : body.source === "voice" ? "voice" : "event";
   const result = await runTool(sb, userId, tool, body.input ?? {}, snap, ctx, { source, runId: null });
   const rejected = result.startsWith("مرفوض:");
   return new Response(JSON.stringify({ ok: !rejected, summary: result, mutations: ctx.mutations, observations: ctx.observations }), {

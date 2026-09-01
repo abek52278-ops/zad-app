@@ -21,9 +21,10 @@ import { SupabaseClient } from "jsr:@supabase/supabase-js@2";
  * من فين جه الطلب. لازم يطابق CHECK constraint على agent_actions.source بالظبط.
  * القيم دي هي القنوات الحقيقية اللي بتنادي runTool/executeTool دلوقتي — مش قايمة
  * نظرية: app_chat/telegram/confirm من agent_turn/agent_confirm (المحادثة)،
- * daily/event نفس قيم zad_brain_runs.trigger بتاعة الحلقة الخلفية بالظبط.
+ * daily/event نفس قيم zad_brain_runs.trigger بتاعة الحلقة الخلفية بالظبط، voice من
+ * zad-voice-live (بند 33.2 — أدوات مباشرة/مؤكَّدة نادية من جلسة صوتية حية).
  */
-export type AgentSource = "app_chat" | "telegram" | "confirm" | "daily" | "event";
+export type AgentSource = "app_chat" | "telegram" | "confirm" | "daily" | "event" | "voice";
 
 export interface AuditScope {
   source: AgentSource;
