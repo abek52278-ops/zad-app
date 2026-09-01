@@ -1068,6 +1068,42 @@ Deno.serve(async (req: Request) => {
           console.error("[CoreIntel] meal_suggestions feedback lookup failed:", (e as Error).message);
         }
 
+        // بند 32.4 — شيف زاد كان بيشوف المخزون بس، من غير عدد الأسرة أو الميزانية. الاتنين
+        // دول آمنين (مفيش قرار طبي/غذائي حساس فيهم زي تعارض الدوا اللي اتقرر تأجيله عمدًا —
+        // شوف التعليق تحت). فشل أي منهم مايوقفش الاقتراح، بيرجع من غير التخصيص ده بس.
+        let familySize = 1;
+        try {
+          const { data: fm } = await supabase.from("family_members").select("family_id").eq("user_id", user_id).maybeSingle();
+          if (fm?.family_id) {
+            const { count } = await supabase.from("family_members").select("id", { count: "exact", head: true }).eq("family_id", fm.family_id);
+            if (count && count > 0) familySize = count;
+          }
+        } catch (e) {
+          console.error("[CoreIntel] meal_suggestions family lookup failed:", (e as Error).message);
+        }
+
+        let availableBudgetLine = "";
+        try {
+          const { data: budgetState } = await supabase.rpc("zad_budget_state", { p_user: user_id });
+          const available = (budgetState as { available?: number } | null)?.available;
+          const currency = (budgetState as { currency?: string } | null)?.currency;
+          if (typeof available === "number") {
+            availableBudgetLine = `المتاح تقريبًا من رصيد العميلة لحد آخر الدورة: ${Math.round(available)} ${currency || ""}. ` +
+              "خدي بالك من الرقم ده وانتي بتقدّري تكلفة الوصفات — لو منخفض نسبيًا فضّلي الاقتصادية.\n";
+          }
+        } catch (e) {
+          console.error("[CoreIntel] meal_suggestions budget lookup failed:", (e as Error).message);
+        }
+
+        const seasonMonthAr = new Intl.DateTimeFormat("ar", { month: "long" }).format(new Date());
+
+        // بند 32.4 عن قصد ناقص هنا: تعارض الدوا/الحمية الغذائية. zad_pharmacy_items عندها
+        // category (عام/مسكن/مضاد حيوي/فيتامين/مزمن) و active_ingredient بس — مفيش حقل
+        // "حالة صحية" أو "قيد غذائي" منظّم. خلي موديل يستنتج تعارض دوا-أكل من اسم دوا خام
+        // ده مخاطرة طبية حقيقية (استنتاج غلط أخطر من مفيش استنتاج خالص)، مش تحسين بيانات
+        // زي التلاتة فوق دول. محتاج قرار منتج (حقل قيود غذائية صريح يدخّله العميل، ولا
+        // قايمة تعارضات مراجَعة من مصدر طبي موثوق) قبل ما يتبنى، مش تخمين من هنا.
+
         // القاعدة القديمة كانت "اقترح وجبات من المخزون ومتقترحش صنف مش موجود" — والاتنين
         // مع بعض مستحيلين لما المخزون يبقى لبن وميّة. النموذج مكانش عنده إجابة مسموحة غير
         // إنه يخترع، فكان بيخترع، والعميل شايف "أكلات فشلة". الحل مش تشديد المنع — الحل إن
@@ -1108,7 +1144,10 @@ Deno.serve(async (req: Request) => {
             : "") +
           (dislikedNames.length > 0
             ? "العميلة ملهاش نفس في: " + dislikedNames.join("، ") + " — متقترحيهاش تاني إلا لو مفيش بديل حقيقي من المخزون.\n"
-            : "");
+            : "") +
+          `عدد أفراد الأسرة: ${familySize} — خلي الكميات والوصف يناسبوا العدد ده، مش وجبة لفرد واحد لو الأسرة أكبر.\n` +
+          availableBudgetLine +
+          `الشهر الحالي: ${seasonMonthAr} — لو فيه مناسبة موسمية معروفة (رمضان، الصيف، الشتاء، الأعياد) خدي بالك منها في اقتراحاتك، من غير ما تفرضيها لو المخزون مش مناسب.\n`;
         const userPrompt = "=== المخزون ===\n" + (items || "لا يوجد مخزون") + "\n=== نهاية المخزون ===";
         const result = await logged(user_id, action, "callJsonModel", { args: [systemPrompt, userPrompt] }, () => callJsonModel(systemPrompt, userPrompt));
         // same honest-failure contract as recipe_details: null/ok:false on a genuine upstream
