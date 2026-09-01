@@ -1142,7 +1142,9 @@ Deno.serve(async (req: Request) => {
         if (user_id && user_id !== rateCaller.user.id) {
           return jsonResponse({ ok: false, error: "forbidden" }, 403);
         }
-        const recipeName = String((payload || {}).recipe_name ?? "").trim();
+        // مقصوصة لطول معقول لاسم أكلة — بيترجع يتحقن في برومبت meal_suggestions الجاي
+        // كنص عادي، فمفيش داعي نسيب مجال لنص طويل يحاول يغيّر تعليمات الموديل.
+        const recipeName = String((payload || {}).recipe_name ?? "").trim().slice(0, 120);
         const liked = (payload || {}).liked;
         if (!recipeName || typeof liked !== "boolean") {
           return jsonResponse({ ok: false, error: "missing recipe_name or liked" }, 400);
@@ -1153,6 +1155,18 @@ Deno.serve(async (req: Request) => {
         if (error) {
           console.error("[CoreIntel] rate_recipe upsert failed:", error.message);
           return jsonResponse({ ok: false }, 500);
+        }
+        // meal_suggestions بقى مخزّن (cached) بمفتاح فيه user_id — لازم يتمسح وقت الرأي
+        // الجديد، وإلا العميل ممكن يرجع يشوف نفس الوصفة اللي لسه رفضها من نفس الكاش
+        // القديم (اتلقطت في مراجعة llm-council، مش من عندي).
+        const { error: cacheClearError } = await supabase
+          .from("ai_response_cache")
+          .delete()
+          .eq("action", "meal_suggestions")
+          .like("cache_key", `meal_suggestions:${rateCaller.user.id}:%`);
+        if (cacheClearError) {
+          // مش fatal — أسوأ حالة الكاش القديم يفضل شوية وبعدين ينتهي بـTTL العادي.
+          console.error("[CoreIntel] rate_recipe cache invalidation failed:", cacheClearError.message);
         }
         return jsonResponse({ ok: true });
       }
