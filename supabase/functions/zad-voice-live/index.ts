@@ -7,8 +7,10 @@
 // زي ما هو، وأي فريم بيرجع من جيميناي بيتمرر للعميل زي ما هو. المفتاح عمره ما بيوصل
 // للكلاينت — ده أهم سبب لوجود الفانكشن دي أصلاً بدل ما التطبيق يكلم Gemini مباشرة.
 //
-// نطاق 33.1 بالظبط: النقل ثنائي الاتجاه بس. الشخصية (33.3) وربط أدوات zad-brain
-// بالجلسة الصوتية (33.2) ملاحم منفصلة تُبنى فوق الـrelay ده، مش جواه.
+// نطاق 33.1 الأصلي كان النقل ثنائي الاتجاه بس. بند 33.3 (الشخصية/اللهجة) اتضاف
+// فوقه بعدين — systemInstruction في رسالة setup مبني من persona.ts (نسخة مقصودة من
+// zad-brain/persona.ts). ربط أدوات zad-brain بالجلسة الصوتية (33.2) لسه منفصل، مش
+// هنا — الجلسة دي لسه مالهاش أي tool declarations.
 //
 // بروتوكول Gemini Live الحقيقي (اتأكد حي 2026-09-01 ضد مفاتيح المشروع، مش من التوثيق):
 // - العنوان: wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent
@@ -16,7 +18,10 @@
 //   x-goog-api-key اللي الـSDK الرسمي بيستخدمه مش متاح أصلاً على WebSocket قياسي في
 //   Deno/المتصفح، فباراميتر الرابط هو الطريقة الوحيدة الممكنة هنا، ولحسن الحظ شغالة).
 // - أول رسالة لازم تتبعت من العميل (هنا: الفانكشن نفسها) هي setup:
-//   {"setup":{"model":"models/<name>","generationConfig":{"responseModalities":["AUDIO"]}}}
+//   {"setup":{"model":"models/<name>","generationConfig":{"responseModalities":["AUDIO"]},
+//             "systemInstruction":{"parts":[{"text":"..."}]}}}
+//   systemInstruction تحقق حي (2026-09-01) إنه sibling لـmodel/generationConfig جوه
+//   setup، مش متداخل جوه generationConfig — جرّبتها بنص عربي وردت رسالة حقيقية.
 // - الموديلات اللي بتقبل bidiGenerateContent فعلاً على مشروعنا (`client.models.list()`
 //   مفلترة بـsupported_actions): gemini-3.1-flash-live-preview،
 //   gemini-2.5-flash-native-audio-preview-{09,12}-2025، gemini-3.5-transcribe-live،
@@ -26,6 +31,7 @@
 //   نفس تفضيل المشروع الموثّق في CLAUDE.md إن 2.5 كتير منها بيتقفل لعملاء جداد).
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { buildVoiceSystemInstruction } from "./persona.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -121,6 +127,11 @@ Deno.serve(async (req) => {
     });
   }
 
+  // بند 33.3 — نفس مصدر اللهجة اللي buildChatSystemPrompt بيقراه (zad_users.country)،
+  // عشان الصوت يتكلم بنفس لهجة العميل اللي الشات المكتوب بيتكلم بيها بالظبط.
+  const { data: userRow } = await sb.from("zad_users").select("country").eq("id", userId).maybeSingle();
+  const systemInstructionText = buildVoiceSystemInstruction((userRow as { country?: string } | null)?.country);
+
   const { socket: clientSocket, response } = Deno.upgradeWebSocket(req);
 
   // رسائل العميل اللي وصلت قبل ما اتصال جيميناي يخلص الهاندشيك وياخد setup — بتتراكم
@@ -155,6 +166,7 @@ Deno.serve(async (req) => {
         setup: {
           model: `models/${VOICE_LIVE_MODEL}`,
           generationConfig: { responseModalities: ["AUDIO"] },
+          systemInstruction: { parts: [{ text: systemInstructionText }] },
         },
       };
       geminiSocket!.send(JSON.stringify(setup));

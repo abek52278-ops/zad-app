@@ -78,12 +78,16 @@ jobs:
         working-directory: supabase/functions/zad-market-intelligence
         run: deno check index.ts
 
-      # بند 33.1 — relay صوتي ريل-تايم. لا اختبارات وحدة هنا عن قصد: منطق الملف كله
-      # I/O (WebSocket relay)، والصحة الفعلية اتحقّقت حي ضد بروتوكول Gemini Live الحقيقي
-      # وقت الكتابة (URL/auth/setup message)، مش بمحاكاة WebSocket.
+      # بند 33.1/33.3 — relay صوتي + شخصية. index.ts نفسه I/O بحت (WebSocket relay)
+      # وصحته اتحقّقت حي ضد بروتوكول Gemini Live الحقيقي وقت الكتابة، مش بمحاكاة
+      # WebSocket؛ persona.ts منطق نقي وله اختبارات فعلية (نفس نمط zad-brain/persona_test.ts).
       - name: Type-check zad-voice-live
         working-directory: supabase/functions/zad-voice-live
-        run: deno check index.ts
+        run: deno check index.ts persona.ts
+
+      - name: Test zad-voice-live
+        working-directory: supabase/functions/zad-voice-live
+        run: deno test --allow-all
 
       # بند 30.1 — عقد السكيما بين الكود وschema.json (لقطة من الداتابيز الحي). بيمنع
       # بالظبط النمط اللي رجع تلات مرات في الجلسة دي: .select()/.eq()/.insert() على
