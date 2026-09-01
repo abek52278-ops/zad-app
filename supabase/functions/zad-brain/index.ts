@@ -318,12 +318,17 @@ const LOCATION_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 
 /**
  * استرجاع ذاكرة مرتبط بالرسالة — deterministic بدون LLM:
- * كل ملاحظة بتاخد نتيجة = (عدد الكلمات المشتركة مع الرسالة × 2) + confidence + evidence.
- * الملاحظات اللي ملهاش علاقة بتفضل موجودة لكن ورا المرتبطة. كلمات التوقف مستبعدة
- * عشان «هو انا قلتلك ايه» مايرجعش كل حاجة.
+ * كل ملاحظة بتاخد نتيجة = (عدد الكلمات المشتركة مع الرسالة × 2) + confidence + evidence
+ * + مكافأة حداثة صغيرة. الملاحظات اللي ملهاش علاقة بتفضل موجودة لكن ورا المرتبطة.
+ * كلمات التوقف مستبعدة عشان «هو انا قلتلك ايه» مايرجعش كل حاجة.
+ *
+ * بند 31.4 — الحداثة: ملاحظة اتفكرت النهاردة أوزن من نفس الملاحظة قبل شهرين، حتى لو
+ * نفس التطابق اللفظي بالظبط. تدهور خطي على 30 يوم لحد صفر — بعد شهر الحداثة مالهاش
+ * أي أثر تاني، مش إنها بتبقى سالبة أو بتمسح النتيجة. last_seen اختياري (بعض القراءات
+ * القديمة أو استدعاءات الاختبار ممكن ماتبعتوش) — غيابه معناه صفر مكافأة، مش استبعاد.
  */
 export function rankMemoryForMessage(
-  memory: Array<{ id: string; scope: string; note: string; confidence: number; evidence_count?: number }>,
+  memory: Array<{ id: string; scope: string; note: string; confidence: number; evidence_count?: number; last_seen?: string | null }>,
   message: string,
   limit = 12,
 ): typeof memory {
@@ -336,11 +341,17 @@ export function rankMemoryForMessage(
     .split(/\s+/)
     .filter((w) => w.length >= 3 && !STOP.has(w));
   const wordSet = new Set(words);
+  const now = Date.now();
+  const RECENCY_WINDOW_MS = 30 * 86400000;
   const scored = memory.map((m) => {
     const noteWords = m.note.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/);
     let overlap = 0;
     for (const w of noteWords) if (wordSet.has(w)) overlap++;
-    const score = overlap * 2 + m.confidence + Math.min(m.evidence_count ?? 0, 5) * 0.2;
+    const lastSeenMs = m.last_seen ? Date.parse(m.last_seen) : NaN;
+    const recencyBonus = Number.isFinite(lastSeenMs)
+      ? Math.max(0, 1 - (now - lastSeenMs) / RECENCY_WINDOW_MS)
+      : 0;
+    const score = overlap * 2 + m.confidence + Math.min(m.evidence_count ?? 0, 5) * 0.2 + recencyBonus;
     return { m, score };
   });
   return scored.sort((a, b) => b.score - a.score).slice(0, limit).map((x) => x.m);
@@ -405,7 +416,7 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
         .eq("user_id", userId),
       sb.from("zad_shopping_list").select("item_name").eq("user_id", userId).eq("is_purchased", false),
       sb.from("zad_consumption").select("item_name,avg_daily_qty,rate_known").eq("user_id", userId),
-      sb.from("zad_memory").select("id,scope,note,confidence,evidence_count")
+      sb.from("zad_memory").select("id,scope,note,confidence,evidence_count,last_seen")
         .eq("user_id", userId).order("confidence", { ascending: false }).limit(20),
       sb.from("zad_insights").select("dedupe_key,dismiss_reason").eq("user_id", userId).eq("status", "dismissed"),
       sb.rpc("zad_brain_self_review", { p_user: userId }),
@@ -4049,8 +4060,37 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
         // الملاحظات الدلالية القريبة تتقدم (مرتبة بالتشابه)، والباقي keyword-order بعدها
         const semanticFirst = relevantMemory.filter((m) => semHit.has(m.id))
           .sort((a, b) => (semOrder.get(a.id) ?? 99) - (semOrder.get(b.id) ?? 99));
-        const rest = relevantMemory.filter((m) => !semHit.has(m.id));
-        relevantMemory = [...semanticFirst, ...rest].slice(0, 12);
+        let rest = relevantMemory.filter((m) => !semHit.has(m.id));
+
+        // بند 31.4 — نتيجة الجراف: ملاحظة مربوطة (zad_memory_links، من 31.1) بمرشح
+        // دلالي قوي بترتفع حتى لو معندهاش تطابق كلمات ولا تشابه دلالي مباشر مع الرسالة —
+        // القرب من ملاحظة مهمة دليل غير مباشر إنها مهمة كمان. مقصورة على أقوى 3 مرشحين
+        // بس عشان الترقية تفضل موجّهة، مش أي ملاحظة مربوطة بأي حاجة.
+        const topIds = semanticFirst.slice(0, 3).map((m) => m.id);
+        if (rest.length > 0 && topIds.length > 0) {
+          const { data: links } = await sb.from("zad_memory_links")
+            .select("from_id,to_id,strength")
+            .eq("user_id", userId)
+            .or(`from_id.in.(${topIds.join(",")}),to_id.in.(${topIds.join(",")})`);
+          const topIdSet = new Set(topIds);
+          const linkStrength = new Map<string, number>();
+          for (const l of (links ?? []) as Array<{ from_id: string; to_id: string; strength: number }>) {
+            const other = topIdSet.has(l.from_id) ? l.to_id : (topIdSet.has(l.to_id) ? l.from_id : null);
+            if (other && (!linkStrength.has(other) || linkStrength.get(other)! < l.strength)) {
+              linkStrength.set(other, l.strength);
+            }
+          }
+          if (linkStrength.size > 0) {
+            const graphBoosted = rest.filter((m) => linkStrength.has(m.id))
+              .sort((a, b) => (linkStrength.get(b.id) ?? 0) - (linkStrength.get(a.id) ?? 0));
+            rest = rest.filter((m) => !linkStrength.has(m.id));
+            relevantMemory = [...semanticFirst, ...graphBoosted, ...rest].slice(0, 12);
+          } else {
+            relevantMemory = [...semanticFirst, ...rest].slice(0, 12);
+          }
+        } else {
+          relevantMemory = [...semanticFirst, ...rest].slice(0, 12);
+        }
       }
     }
   } catch (e) {

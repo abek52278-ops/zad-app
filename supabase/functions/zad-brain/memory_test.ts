@@ -34,3 +34,22 @@ Deno.test("rankMemoryForMessage يتعامل مع ذاكرة فاضية ورسا
   const out = rankMemoryForMessage(mem, "من في على عن");
   assertEquals(out.length, 3); // مفيش كلمات دالة — يرجع بالترتيب الأصلي/الثقة
 });
+
+Deno.test("rankMemoryForMessage (31.4) بيفضّل الملاحظة الأحدث لما كل حاجة تانية متساوية", () => {
+  const now = Date.now();
+  const tied = [
+    { id: "old", scope: "general", note: "نفس الملاحظة", confidence: 0.5, evidence_count: 1,
+      last_seen: new Date(now - 60 * 86400000).toISOString() }, // خارج نافذة الـ30 يوم
+    { id: "new", scope: "general", note: "نفس الملاحظة", confidence: 0.5, evidence_count: 1,
+      last_seen: new Date(now).toISOString() },
+  ];
+  const ranked = rankMemoryForMessage(tied, "أي رسالة عامة مالهاش عالقة بالكلام");
+  assertEquals(ranked[0].id, "new");
+});
+
+Deno.test("rankMemoryForMessage (31.4) last_seen غايبة = صفر مكافأة مش استبعاد", () => {
+  const noTimestamp = [{ id: "1", scope: "general", note: "ملاحظة", confidence: 0.5, evidence_count: 1 }];
+  const ranked = rankMemoryForMessage(noTimestamp, "ملاحظة");
+  assertEquals(ranked.length, 1);
+  assertEquals(ranked[0].id, "1");
+});
