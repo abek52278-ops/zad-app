@@ -669,6 +669,7 @@
     "created_at",
     "embedding",
     "evidence_count",
+    "family_id",
     "id",
     "last_seen",
     "note",

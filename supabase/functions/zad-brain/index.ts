@@ -442,9 +442,10 @@ export function parseFactSkillExtraction(
  */
 async function writeMemoryNoteWithLinking(
   sb: SupabaseClient, userId: string, scope: string, note: string, confidence: number,
+  familyId: string | null = null,
 ): Promise<{ status: "inserted" | "strengthened" | "conflict" } | { status: "error"; message: string }> {
   const { data, error } = await sb.rpc("zad_memory_upsert", {
-    p_user: userId, p_scope: scope, p_note: note, p_conf: confidence,
+    p_user: userId, p_scope: scope, p_note: note, p_conf: confidence, p_family_id: familyId,
   });
   if (error) return { status: "error", message: error.message };
   const upsertStatus = data as "inserted" | "strengthened" | "conflict";
@@ -698,9 +699,13 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     goals: Array<{ target: number; current: number; month: string; reward: string | null }>;
     tasbiha: Array<{ name: string; level: number; score: number; clicks: number; streak: number; mature: boolean }>;
   } | null = null;
+  // بند 34.2 — ملاحظات شاركها فرد تاني في العيلة (remember(share_with_family=true)).
+  // مستبعد ملاحظات العميل نفسه (neq user_id) عشان ما تتكررش — دي أصلاً بترجع من
+  // memRes العادية تحت.
+  let familySharedMemory: Array<{ id: string; scope: string; note: string; confidence: number; evidence_count: number; last_seen: string | null }> = [];
   if (famMembership?.family_id) {
     const familyId = famMembership.family_id;
-    const [membersRes, choresRes, goalsRes, tasRes] = await Promise.all([
+    const [membersRes, choresRes, goalsRes, tasRes, sharedMemRes] = await Promise.all([
       sb.from("family_members").select("role,alias,balance,savings_goal,last_seen_at").eq("family_id", familyId).limit(20),
       sb.from("family_chores").select("title,assigned_to,due_date,reward_amount,is_completed")
         .eq("family_id", familyId).order("created_at", { ascending: false }).limit(40),
@@ -708,7 +713,10 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
         .eq("family_id", familyId).order("created_at", { ascending: false }).limit(12),
       sb.from("family_tasbiha").select("tree_name,level,score,total_clicks,streak_days,is_mature,last_tasbih_at")
         .eq("family_id", familyId).order("last_tasbih_at", { ascending: false, nullsFirst: false }).limit(10),
+      sb.from("zad_memory").select("id,scope,note,confidence,evidence_count,last_seen")
+        .eq("family_id", familyId).neq("user_id", userId).limit(20),
     ]);
+    familySharedMemory = (sharedMemRes.data ?? []) as typeof familySharedMemory;
     for (const [name, res] of [["family_chores", choresRes], ["family_goals", goalsRes], ["family_tasbiha", tasRes]] as const) {
       const err = (res as any)?.error;
       if (err) {
@@ -949,7 +957,15 @@ async function buildSnapshot(sb: SupabaseClient, userId: string) {
     // متكرر" أقوى من واحد عابر.
     // الـid بيتعرض عشان link_memory تقدر تشاور على ملاحظة بعينها. من غيره الموديل
     // مالوش غير نص الملاحظة كمعرّف، ومطابقة بالنص بتكسر أول ما الملاحظة تتعدّل.
-    memory: (memRes.data ?? []).map((m) => ({ id: m.id, scope: m.scope, note: m.note, confidence: m.confidence, evidence_count: m.evidence_count })),
+    // تصحيح 2026-09-01: last_seen كانت بتتقرا من الداتابيز (بند 31.4) بس بتتحذف هنا قبل
+    // ما توصل rankMemoryForMessage — يعني مكافأة الحداثة كانت ميتة عمليًا من يوم ما
+    // اتضافت النهاردة، رغم إن deno test مرّت (كل fixtures الاختبار كانت بتبعت last_seen
+    // صراحة، مش عن طريق المسار الحقيقي ده). بند 34.2: family-shared notes من أفراد
+    // تانيين في العيلة بتتضاف هنا كمان — نفس الشكل بالظبط.
+    memory: [
+      ...(memRes.data ?? []).map((m) => ({ id: m.id, scope: m.scope, note: m.note, confidence: m.confidence, evidence_count: m.evidence_count, last_seen: m.last_seen })),
+      ...familySharedMemory.map((m) => ({ id: m.id, scope: m.scope, note: m.note, confidence: m.confidence, evidence_count: m.evidence_count, last_seen: m.last_seen })),
+    ],
     // Task 28 — "timing" (عرفت خلاص) دايماً مؤقت بالتصميم: مقصود متستبعدش من
     // dismissed_keys، عشان upsert لاحق بنفس dedupe_key (مناسبة الشهر الجاي مثلاً) يرجّع
     // الصف pending تلقائي بدل ما يفضل محظور للأبد زي not_relevant/wrong_data.
@@ -1286,7 +1302,14 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
         return "سجّلت الجديدة وربطتها بالقديمة كتناقض، وقلّلت ثقتي في القديمة";
       }
 
-      const written = await writeMemoryNoteWithLinking(sb, userId, scope, input.note, input.confidence ?? 0.5);
+      // بند 34.2 — العميل لازم يكون في عيلة فعلاً عشان share_with_family تعمل حاجة.
+      // مفيش تخمين — لو مفيش family_id حقيقي، الملاحظة بتتسجل عادية (خاصة) بصمت.
+      let shareFamilyId: string | null = null;
+      if (input.share_with_family === true) {
+        const { data: fam } = await sb.from("family_members").select("family_id").eq("user_id", userId).maybeSingle();
+        shareFamilyId = (fam as { family_id: string } | null)?.family_id ?? null;
+      }
+      const written = await writeMemoryNoteWithLinking(sb, userId, scope, input.note, input.confidence ?? 0.5, shareFamilyId);
       if (written.status === "error") return `فشل الحفظ: ${written.message}`;
       const data = written.status;
 
@@ -2945,6 +2968,13 @@ const TOOLS: ToolDef[] = [
         scope: { type: "string" },
         note: { type: "string", description: "بين ١٠ و٢٠٠ حرف" },
         confidence: { type: "number", description: "رقم بين 0 و1" },
+        share_with_family: {
+          type: "boolean",
+          description:
+            "true بس لو العميل قال حاجة واضح إنها بتخص العيلة كلها مش هو بس (حساسية ولد، " +
+            "عيد ميلاد، عادة رمضان) وقال أو أوحى إنه عايز باقي العيلة تعرفها. الافتراضي false — " +
+            "ملاحظة خاصة. لو مفيش عيلة للعميل، متأثرش.",
+        },
       },
       required: ["note"],
     },
@@ -3690,6 +3720,13 @@ const CHAT_TOOLS: ToolDef[] = [
         scope: { type: "string" },
         note: { type: "string", description: "بين ١٠ و٢٠٠ حرف" },
         confidence: { type: "number", description: "رقم بين 0 و1" },
+        share_with_family: {
+          type: "boolean",
+          description:
+            "true بس لو العميل قال حاجة واضح إنها بتخص العيلة كلها مش هو بس (حساسية ولد، " +
+            "عيد ميلاد، عادة رمضان) وقال أو أوحى إنه عايز باقي العيلة تعرفها. الافتراضي false — " +
+            "ملاحظة خاصة. لو مفيش عيلة للعميل، متأثرش.",
+        },
       },
       required: ["note"],
     },
