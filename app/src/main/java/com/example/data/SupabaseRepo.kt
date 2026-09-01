@@ -81,6 +81,21 @@ object SupabaseRepo {
     // No app-side session persistence code needed — see the removed SessionHelper.
 
     /**
+     * لو الـ.env كان ناقص وقت الـbuild، الـSecrets Gradle Plugin بيرجع لقيم .env.example
+     * الوهمية (SUPABASE_URL=https://your-project-ref.supabase.co) بصمت — الـAPK
+     * بيتبني عادي، وأي نداء auth بعدين بيفشل بشكل غامض (فشل DNS أو اتصال) بدل ما يقول
+     * إن المشكلة في الإعداد نفسه. اتكشف فعلياً 2026-09-01: android.yml (workflow التاني
+     * اللي بيبني APK) كان مبيكتبش .env خالص، فكل APK طالع منه كان فيه رابط وهمي وتسجيل
+     * الدخول كان مستحيل ينجح لأي حساب. نفس نمط الفحص المستخدم في
+     * FamilyJoinFlowIntegrationTest.kt، هنا كـfail-fast قبل أي نداء شبكة عشان الرسالة
+     * تبقى واضحة بدل "Login failed" غامضة تحمّل العميل مسؤولية باج في البناء.
+     */
+    private fun configErrorOrNull(): String? =
+        if (BuildConfig.SUPABASE_URL.contains("your-project-ref")) {
+            "التطبيق مش متوصّل بالسيرفر الصح (إعداد ناقص وقت البناء) — مش مشكلة في حسابك. تواصل مع الدعم."
+        } else null
+
+    /**
      * `name` كان بيتسأل عنه في شاشة التسجيل **وبيترمي**: `SignUpScreen` فيه حقل "اسم
      * المستخدم" مربوط بمتغيّر `username` مكانش بيتبعت لأي حتة. فـ`zad_users.name` كان
      * بيفضل null للأبد (٢ من ٣ حسابات حقيقية)، والشاشات كانت بتغطي على ده بعرض الجزء
@@ -88,8 +103,12 @@ object SupabaseRepo {
      *
      * الكتابة بتحصل بعد التسجيل مباشرة لو فيه جلسة. لو المشروع مفعّل عليه تأكيد الإيميل
      * فمفيش جلسة لسه — الاسم بيتسجّل محلياً وقتها بدل ما يضيع تاني.
+     *
+     * بيرجع null لو نجح، أو رسالة خطأ حقيقية (مش نص عام ثابت) لو فشل — نفس سبب وجود
+     * configErrorOrNull() فوق: خطأ حقيقي مسكوت عنه هو اللي أخّر اكتشاف باج android.yml.
      */
-    suspend fun signUp(email: String, password: String, name: String? = null): Boolean {
+    suspend fun signUp(email: String, password: String, name: String? = null): String? {
+        configErrorOrNull()?.let { return it }
         Log.d(TAG, "signUp() → email=$email, hasName=${!name.isNullOrBlank()}")
         return try {
             client.auth.signUpWith(Email) {
@@ -111,14 +130,15 @@ object SupabaseRepo {
                 }
             }
             Log.d(TAG, "signUp() SUCCESS")
-            true
+            null
         } catch (e: Exception) {
             Log.e(TAG, "signUp() FAILED for email=$email, supabaseUrl=${BuildConfig.SUPABASE_URL}: $e", e)
-            false
+            e.message?.takeIf { it.isNotBlank() } ?: "Sign up failed. Check your connection or try another email."
         }
     }
 
-    suspend fun signIn(email: String, password: String): Boolean {
+    suspend fun signIn(email: String, password: String): String? {
+        configErrorOrNull()?.let { return it }
         Log.d(TAG, "signIn() → email=$email")
         return try {
             client.auth.signInWith(Email) {
@@ -132,10 +152,10 @@ object SupabaseRepo {
             } catch (e: Exception) {
                 Log.w(TAG, "FCM token sync after sign-in failed: ${e.message}")
             }
-            true
+            null
         } catch (e: Exception) {
             Log.e(TAG, "signIn() FAILED for email=$email, supabaseUrl=${BuildConfig.SUPABASE_URL}: $e", e)
-            false
+            e.message?.takeIf { it.isNotBlank() } ?: "Login failed. Check your credentials."
         }
     }
 

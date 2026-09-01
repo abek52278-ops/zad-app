@@ -22,6 +22,23 @@ jobs:
       run: |
         echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 -d > app/google-services.json
 
+    # هذه الخطوة كانت غايبة تماماً — bug حقيقي اكتشفناه 2026-09-01 بعد بلاغ فشل تسجيل
+    # دخول كامل. الـ Secrets Gradle Plugin (app/build.gradle.kts's propertiesFileName
+    # = ".env"، defaultPropertiesFileName = ".env.example") بيرجع لقيم .env.example
+    # الوهمية (SUPABASE_URL=https://your-project-ref.supabase.co،
+    # SUPABASE_ANON_KEY=your-anon-key) لو .env مش موجود أو ناقص المفتاحين دول. الـ
+    # workflow ده كان بيبني assembleDebug من غير أي .env خالص، فكل APK طالع منه فيه
+    # رابط سوبابيز وهمي — تسجيل الدخول كان مستحيل ينجح لأي حساب، مش مشكلة بيانات
+    # العميل. نفس الخطوة بالظبط الموجودة في build-debug-apk.yml (اللي هي الصح).
+    - name: Write .env
+      run: |
+        echo "GEMINI_API_KEY=unused" >> .env
+        echo "SUPABASE_URL=${SUPABASE_URL}" >> .env
+        echo "SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}" >> .env
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 

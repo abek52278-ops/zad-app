@@ -25,12 +25,15 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     fun signUp(email: String, pass: String, name: String? = null) {
         viewModelScope.launch {
             _authState.value = AuthState.Loading
-            val result = SupabaseRepo.signUp(email, pass, name)
-            if (result) {
+            // signUp() بيرجع null = نجح، أو رسالة الخطأ الحقيقية — مش Boolean بيتحوّل
+            // لنص عام ثابت زي ما كان قبل كده. رسالة عامة زي "Sign up failed" مش هتظهر
+            // إلا لو الاستثناء نفسه من غير .message خالص.
+            val error = SupabaseRepo.signUp(email, pass, name)
+            if (error == null) {
                 com.example.data.CurrentUser.cache(getApplication(), SupabaseRepo.client.auth.currentUserOrNull()?.id)
                 _authState.value = AuthState.Success
             } else {
-                _authState.value = AuthState.Error("Sign up failed. Check your connection or try another email.")
+                _authState.value = AuthState.Error(error)
             }
         }
     }
@@ -38,12 +41,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     fun signIn(email: String, pass: String) {
         viewModelScope.launch {
             _authState.value = AuthState.Loading
-            val result = SupabaseRepo.signIn(email, pass)
-            if (result) {
+            val error = SupabaseRepo.signIn(email, pass)
+            if (error == null) {
                 com.example.data.CurrentUser.cache(getApplication(), SupabaseRepo.client.auth.currentUserOrNull()?.id)
                 _authState.value = AuthState.Success
             } else {
-                _authState.value = AuthState.Error("Login failed. Check your credentials.")
+                _authState.value = AuthState.Error(error)
             }
         }
     }
