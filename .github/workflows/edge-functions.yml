@@ -78,6 +78,13 @@ jobs:
         working-directory: supabase/functions/zad-market-intelligence
         run: deno check index.ts
 
+      # بند 33.1 — relay صوتي ريل-تايم. لا اختبارات وحدة هنا عن قصد: منطق الملف كله
+      # I/O (WebSocket relay)، والصحة الفعلية اتحقّقت حي ضد بروتوكول Gemini Live الحقيقي
+      # وقت الكتابة (URL/auth/setup message)، مش بمحاكاة WebSocket.
+      - name: Type-check zad-voice-live
+        working-directory: supabase/functions/zad-voice-live
+        run: deno check index.ts
+
       # بند 30.1 — عقد السكيما بين الكود وschema.json (لقطة من الداتابيز الحي). بيمنع
       # بالظبط النمط اللي رجع تلات مرات في الجلسة دي: .select()/.eq()/.insert() على
       # عمود مش موجود، بيرجع 42703 بصمت لأن حد من غير { error } destructuring. اتبنى
@@ -186,7 +193,7 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          for fn in zad-brain zad-core-intelligence zad-telegram-bot delete-account verify-purchase zad-billing-webhook parent-digest zad-market-intelligence; do
+          for fn in zad-brain zad-core-intelligence zad-telegram-bot delete-account verify-purchase zad-billing-webhook parent-digest zad-market-intelligence zad-voice-live; do
             echo "::group::deploy $fn"
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF"
             echo "::endgroup::"
