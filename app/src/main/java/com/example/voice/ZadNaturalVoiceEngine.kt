@@ -91,7 +91,15 @@ class ZadNaturalVoiceEngine(private val context: Context) {
     // ممكن يبقى فيه أكتر من نداء شبكة شغال في نفس الوقت (الجملة الحالية بتتشغّل
     // واللي بعدها بتتجاب مقدمًا) — لازم كلهم يتلغوا مع أي stop() جديد.
     private val activeCalls = CopyOnWriteArrayList<Call>()
+    // نفس الفكرة لكن على مستوى الـcoroutine نفسها مش بس نداء الشبكة جواها — لو
+    // stop() جه قبل ما الـcoroutine توصل أصلاً لـactiveCalls.add()، إلغاء الـDeferred
+    // بيمنعها تبدأ نداء شبكة مدفوع من الأول، مش بس تتجاهل نتيجته لما يخلص.
+    private val pendingFetches = CopyOnWriteArrayList<Deferred<java.io.InputStream?>>()
     @Volatile private var audioTrack: AudioTrack? = null
+    // مين آخر جيل فعليًا استحوذ على Audio Focus — بدون ده أي coroutine قديمة اتقاطعت
+    // ولسه بتتنفذ ممكن تسحب الـfocus بتاع جيل أحدث لسه بيتكلم فعليًا (finding حقيقي
+    // في المراجعة: abandonAudioFocus كان عام مش مربوط بجيل معيّن).
+    @Volatile private var audioFocusOwnerGeneration: Long = -1L
     @Volatile private var completion: (() -> Unit)? = null
     @Volatile private var failedCompletion: (() -> Unit)? = null
     private var audioFocusRequest: AudioFocusRequest? = null
@@ -170,8 +178,7 @@ class ZadNaturalVoiceEngine(private val context: Context) {
         if (persona.isPetPersona) {
             ZadCutePetSoundFx.play(ZadCutePetSoundFx.PetSound.MeowChirp, 0.40f)
         }
-        val naturalText = prepareNaturalSpeechText(text, persona)
-        val chunks = splitIntoSpeechChunks(naturalText)
+        val chunks = buildSpeechChunks(text, persona)
 
         scope.launch {
             speakChunksPipelined(requestGeneration, chunks, persona)
@@ -195,18 +202,19 @@ class ZadNaturalVoiceEngine(private val context: Context) {
             if (requestGeneration == generation.get()) finishSpeaking(requestGeneration)
             return
         }
-        var nextFetch: Deferred<java.io.InputStream?> =
-            scope.async { synthesizeWithRetry(requestGeneration, chunks[0], persona) }
+        var nextFetch: Deferred<java.io.InputStream?> = launchFetch(requestGeneration, chunks[0], persona)
         var track: AudioTrack? = null
         var anySpoken = false
         try {
             for (i in chunks.indices) {
                 if (requestGeneration != generation.get()) break
-                val stream = nextFetch.await()
+                val awaited = nextFetch
+                val stream = awaited.await()
+                pendingFetches.remove(awaited)
                 // اجهّز الجملة التالية فورًا قبل ما نشغّل الحالية — كده وقت شبكتها
                 // بيتغطى بوقت تشغيل الحالية بدل ما يتضاف عليه.
                 nextFetch = if (i + 1 < chunks.size && requestGeneration == generation.get()) {
-                    scope.async { synthesizeWithRetry(requestGeneration, chunks[i + 1], persona) }
+                    launchFetch(requestGeneration, chunks[i + 1], persona)
                 } else {
                     scope.async { null }
                 }
@@ -221,18 +229,21 @@ class ZadNaturalVoiceEngine(private val context: Context) {
                     if (!requestAudioFocus()) {
                         Log.w(tag, "Audio focus denied — playing at reduced priority")
                     }
+                    audioFocusOwnerGeneration = requestGeneration
                     track.play()
                 }
                 anySpoken = true
                 writePcmStream(requestGeneration, track, stream)
             }
         } finally {
-            abandonAudioFocus()
+            // بس لو أنا لسه صاحب الـfocus — جيل أحدث ممكن يكون استحوذ عليه بعدي
+            // ولسه بيتكلم فعليًا، وسحبه هنا كان بيسكته من غير سبب.
+            if (audioFocusOwnerGeneration == requestGeneration) abandonAudioFocus()
             val finished = track
             if (audioTrack === finished) audioTrack = null
             if (finished != null) {
                 try { finished.stop() } catch (_: Exception) {}
-                finished.release()
+                try { finished.release() } catch (_: Exception) {}
             }
         }
         if (!anySpoken) {
@@ -250,6 +261,16 @@ class ZadNaturalVoiceEngine(private val context: Context) {
         }
         _humanVoiceAvailable.value = true
         if (requestGeneration == generation.get()) finishSpeaking(requestGeneration)
+    }
+
+    private fun launchFetch(
+        requestGeneration: Long,
+        text: String,
+        persona: VoicePersona
+    ): Deferred<java.io.InputStream?> {
+        val deferred = scope.async { synthesizeWithRetry(requestGeneration, text, persona) }
+        pendingFetches.add(deferred)
+        return deferred
     }
 
     /** بيقسم النص لجمل (.!؟) وبيجمع الجمل القصيرة مع بعض لحد ~٢٠٠ حرف — توازن بين
@@ -316,22 +337,25 @@ class ZadNaturalVoiceEngine(private val context: Context) {
 
                 val call = httpClient.newCall(request)
                 activeCalls.add(call)
-                val response = call.execute()
-                activeCalls.remove(call)
-                if (requestGeneration != generation.get()) {
-                    response.close()
-                    return null
-                }
-                if (!response.isSuccessful || response.body == null) {
-                    Log.w(tag, "Voice proxy attempt ${attempt + 1}: HTTP ${response.code}")
-                    response.close()
-                    if (attempt == 0 && (response.code >= 500)) {
-                        Thread.sleep(600)
-                        return@repeat
+                try {
+                    val response = call.execute()
+                    if (requestGeneration != generation.get()) {
+                        response.close()
+                        return null
                     }
-                    return null
+                    if (!response.isSuccessful || response.body == null) {
+                        Log.w(tag, "Voice proxy attempt ${attempt + 1}: HTTP ${response.code}")
+                        response.close()
+                        if (attempt == 0 && (response.code >= 500)) {
+                            Thread.sleep(600)
+                            return@repeat
+                        }
+                        return null
+                    }
+                    return response.body!!.byteStream()
+                } finally {
+                    activeCalls.remove(call)
                 }
-                return response.body!!.byteStream()
             } catch (error: Exception) {
                 if (requestGeneration != generation.get()) return null
                 Log.w(tag, "Voice stream attempt ${attempt + 1} failed: ${error.message}")
@@ -425,6 +449,8 @@ class ZadNaturalVoiceEngine(private val context: Context) {
         _isSpeaking.value = false
         activeCalls.forEach { it.cancel() }
         activeCalls.clear()
+        pendingFetches.forEach { it.cancel() }
+        pendingFetches.clear()
         val track = audioTrack
         audioTrack = null
         try {
@@ -445,19 +471,19 @@ class ZadNaturalVoiceEngine(private val context: Context) {
         }
     }
 
-    private fun prepareNaturalSpeechText(rawText: String, persona: VoicePersona): String {
-        val linkWord = if (MarketPrefs.getMarket(context).localeTag.startsWith("tr")) "bağlantı" else "الرابط"
-        var cleaned = rawText
-            .replace(Regex("""https?://\S+"""), linkWord)
-            .replace(Regex("""[#*`_~\[\]()]"""), " ")
-            .replace(Regex("""[\p{So}\p{Cn}]"""), " ")
-            .replace(Regex("""\s+"""), " ")
-            .trim()
-
-        // وقفة بعد الفاصلة بس — نهاية الجملة (. ! ؟) بقت حدود التقطيع الصوتي نفسها
-        // في splitIntoSpeechChunks، فمفيش داعي لعلامة وقفة صناعية هناك كمان (وكانت
-        // كمان بتكسر نقطة التقطيع بالظبط لو اتحطت قبلها).
-        cleaned = cleaned.replace("،", "، ... ")
+    /**
+     * نظافة + تقطيع لجمل + وقفة الفاصلة لكل جملة لوحدها + بادئة الشخصية الأليفة
+     * للجملة الأولى بس. **ترتيب مقصود**: وقفة الفاصلة (اللي بتحط "...") لازم
+     * تتحط **بعد** التقطيع لجمل مش قبله — لو اتحطت قبل، الـ"..." نفسها فيها نقط
+     * بيتبعها مسافة، فبتنضرب مع regex حدود الجملة في splitIntoSpeechChunks
+     * وتقسّم عند كل فاصلة كمان، مش بس عند آخر الجملة (كان بق حاصل فعليًا قبل
+     * الفيكس ده — كل فاصلة كانت بتفتح نداء TTS منفصل من غير داعي).
+     */
+    private fun buildSpeechChunks(rawText: String, persona: VoicePersona): List<String> {
+        val cleaned = cleanRawText(rawText).take(1_200)
+        val rawChunks = splitIntoSpeechChunks(cleaned)
+        if (rawChunks.isEmpty()) return emptyList()
+        val chunks = rawChunks.map { it.replace("،", "، ... ") }.toMutableList()
 
         if (persona.isPetPersona) {
             val prefixes = if (MarketPrefs.getMarket(context).localeTag.startsWith("tr")) {
@@ -465,10 +491,20 @@ class ZadNaturalVoiceEngine(private val context: Context) {
             } else {
                 listOf("أهلاً يا صديقي! ", "من عيوني! ", "تمام حاضر! ", "يا سلام! ")
             }
-            if (!cleaned.startsWith("أهل") && !cleaned.startsWith("مرحب")) {
-                cleaned = prefixes.random() + cleaned
+            if (!rawChunks[0].startsWith("أهل") && !rawChunks[0].startsWith("مرحب")) {
+                chunks[0] = prefixes.random() + chunks[0]
             }
         }
-        return cleaned.take(1_200)
+        return chunks
+    }
+
+    private fun cleanRawText(rawText: String): String {
+        val linkWord = if (MarketPrefs.getMarket(context).localeTag.startsWith("tr")) "bağlantı" else "الرابط"
+        return rawText
+            .replace(Regex("""https?://\S+"""), linkWord)
+            .replace(Regex("""[#*`_~\[\]()]"""), " ")
+            .replace(Regex("""[\p{So}\p{Cn}]"""), " ")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
     }
 }

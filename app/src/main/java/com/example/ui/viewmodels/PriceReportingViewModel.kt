@@ -6,6 +6,7 @@ import com.example.data.SupabaseRepo
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
+import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -86,9 +87,12 @@ class PriceReportingViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 // PostgREST القياسي مش بيعمل GROUP BY حر من غير view/RPC مخصص، فالعدّ
-                // بيتحسب هنا محليًا بدل استعلام aggregate غير مضمون النتيجة.
+                // بيتحسب هنا محليًا بدل استعلام aggregate غير مضمون النتيجة. لازم
+                // order صريح — من غيره الـ٥٠٠ صف اللي بترجع عشوائية بمجرد ما الجدول
+                // يعدّي ٥٠٠ صف، فمساهم حقيقي ممكن يقع بره النافذة ويختفي من اللوحة.
                 val rows = SupabaseRepo.client.postgrest["price_index"]
                     .select(Columns.list("user_id")) {
+                        order(column = "timestamp", order = Order.DESCENDING)
                         limit(500)
                     }
                     .decodeList<UserIdRow>()
