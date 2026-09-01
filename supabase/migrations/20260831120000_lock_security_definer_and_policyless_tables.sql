@@ -23,10 +23,14 @@
 -- 20260824170000). الدالة الخارجية SECURITY DEFINER فبتشتغل بصلاحيات مالكها ومش
 -- بتستشير منح EXECUTE أصلاً — فسحبها من PUBLIC مش بيكسر الحلقة، بيقفل الباب
 -- بتاع /rest/v1/rpc/<name> اللي كان مفتوح بالغلط ومحدش محتاجه.
-revoke execute on function public._agent_bill_reminder_for_user(uuid) from public;
-revoke execute on function public._agent_warranty_reminder_for_user(uuid) from public;
-revoke execute on function public._agent_home_weekly_digest_for_user(uuid) from public;
-revoke execute on function public._agent_listener_gap_alert_for_user(uuid) from public;
+-- REVOKE ... FROM public لوحدها اتبان مفيش أثر ليها هنا: مشروعات Supabase بتضيف
+-- `ALTER DEFAULT PRIVILEGES ... GRANT EXECUTE ON FUNCTIONS TO anon, authenticated,
+-- service_role` منفصلة عن PUBLIC — proacl الحقيقي بيوري anon=X/postgres جنب
+-- =X/postgres كصفين منفصلين. لازم يتسحبوا صراحةً كلهم، مش PUBLIC بس.
+revoke execute on function public._agent_bill_reminder_for_user(uuid) from public, anon, authenticated;
+revoke execute on function public._agent_warranty_reminder_for_user(uuid) from public, anon, authenticated;
+revoke execute on function public._agent_home_weekly_digest_for_user(uuid) from public, anon, authenticated;
+revoke execute on function public._agent_listener_gap_alert_for_user(uuid) from public, anon, authenticated;
 grant execute on function public._agent_bill_reminder_for_user(uuid) to service_role;
 grant execute on function public._agent_warranty_reminder_for_user(uuid) to service_role;
 grant execute on function public._agent_home_weekly_digest_for_user(uuid) to service_role;
@@ -38,7 +42,7 @@ grant execute on function public._agent_listener_gap_alert_for_user(uuid) to ser
 -- agent_goal_touch_progress() متربطة بـ trg_agent_goal_progress. التريجر بيشتغل
 -- بصلاحيات مالك الجدول ومش بيبص لمنح EXECUTE، فمحدش محتاج ينديها عبر PostgREST
 -- ومفيش حاجة هتقع. نفس منطق التلات دوال في 20260817003500.
-revoke execute on function public.agent_goal_touch_progress() from public;
+revoke execute on function public.agent_goal_touch_progress() from public, anon, authenticated;
 
 -- ───────────────────────────────────────────────────────────────────────────
 -- 3) دوال المهارات — سيرفر-سايد بس
@@ -46,8 +50,8 @@ revoke execute on function public.agent_goal_touch_progress() from public;
 -- zad_skill_upsert بيتنده من zad-brain/index.ts:2131 بمفتاح الخدمة. zad_skill_touch
 -- مفيهوش نداء من TypeScript ولا Kotlin خالص. مفيش سبب إن العميل يوصلهم: اللي
 -- بيقرر إن العقل "اتعلم" مهارة هو العقل، مش الجهاز.
-revoke execute on function public.zad_skill_upsert(uuid, text, text, real) from public;
-revoke execute on function public.zad_skill_touch(uuid, text) from public;
+revoke execute on function public.zad_skill_upsert(uuid, text, text, real) from public, anon, authenticated;
+revoke execute on function public.zad_skill_touch(uuid, text) from public, anon, authenticated;
 grant execute on function public.zad_skill_upsert(uuid, text, text, real) to service_role;
 grant execute on function public.zad_skill_touch(uuid, text) to service_role;
 
@@ -56,7 +60,7 @@ grant execute on function public.zad_skill_touch(uuid, text) to service_role;
 -- ───────────────────────────────────────────────────────────────────────────
 -- التطبيق بينديها بتوكن العميل (SupabaseRepo.kt:2140 بعد مشاهدة إعلان)، فـ
 -- authenticated لازم تفضل. السحب من PUBLIC بيشيل anon.
-revoke execute on function public.zad_media_pass_grant(uuid) from public;
+revoke execute on function public.zad_media_pass_grant(uuid) from public, anon;
 grant execute on function public.zad_media_pass_grant(uuid) to authenticated, service_role;
 
 -- والجسم نفسه بيتقوّى كمان (دفاع في العمق): من غير التعديل ده، الدالة تفضل تثق
@@ -117,7 +121,7 @@ end;
 $function$;
 
 -- create or replace بيرجّع منحة PUBLIC الافتراضية، فالسحب لازم يتكرر بعده.
-revoke execute on function public.zad_media_pass_grant(uuid) from public;
+revoke execute on function public.zad_media_pass_grant(uuid) from public, anon;
 grant execute on function public.zad_media_pass_grant(uuid) to authenticated, service_role;
 
 -- ───────────────────────────────────────────────────────────────────────────
