@@ -1014,10 +1014,16 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       else if (traits.includes("حاسم") && traits.includes("له اتجاه واضح")) persona = "مخطط واثق";
 
       const personalityNote = `شخصية مالية (${monthKey}): ${persona}. صفات: ${traits.join(", ") || "لسه بنتعرف عليك"}. هدف الشهر الجاي: ${goal || "لسه محددش"}`;
-      await sb.from("zad_memory").upsert({
+      // zad_memory مفيهاش unique(user_id,scope) عن قصد — الscope فيه أكتر من ملاحظة عادةً
+      // (زي "general"/"spending_pattern"). السكوب ده بالذات المفروض نسخة واحدة بس فباستبدلها
+      // يدوي بدل onConflict: "user_id,scope" اللي كانت بترمي 42P10 (مفيش constraint تطابقه)
+      // ويتبلع بصمت — فالشخصية المالية ما كانتش بتتسجل ولا مرة.
+      await sb.from("zad_memory").delete().eq("user_id", userId).eq("scope", "financial_persona");
+      const { error: personaMemErr } = await sb.from("zad_memory").insert({
         user_id: userId, scope: "financial_persona",
         note: personalityNote, confidence: 0.9,
-      }, { onConflict: "user_id,scope" });
+      });
+      if (personaMemErr) console.error("financial_persona memory write failed:", personaMemErr);
 
       ctx.counts["monthly_review"] = (ctx.counts["monthly_review"] ?? 0) + 1;
       return `تمت المراجعة ✅\n\nشخصيتك المالية: **${persona}**\n${personalityNote}\n\nهفتكر ده في كل كلامنا جاي — هقولك قبل ما توقع في نفس الفخ.`;
@@ -1028,9 +1034,14 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       // ٢- المعدل اليومي الآمن بعد حجزها
       // ٣- أعلى فئة صرف الشهر اللي فات (نقطة انتباه)
       const since = new Date(Date.now() - 35 * 86400000).toISOString();
+      // zad_obligations معندهاش name ولا is_paid خالص (الأعمدة الحقيقية: title، active،
+      // confirmed) — الكويري القديمة كانت بترمي 42703 على كل نداء، والخطأ ما كانش متفحوص
+      // (destructuring بيرمي error) فـ fixedTotal كان بيطلع صفر دايمًا مهما كانت الالتزامات
+      // الحقيقية. الالتزام هنا "جاري" لو active+confirmed — الجدول مفيهوش تتبع "اتدفع الشهر
+      // ده" منفصل، مجرد التزام متكرر فعّال لحد ما يتلغي.
       const [{ data: obligations }, { data: monthTx }] = await Promise.all([
-        sb.from("zad_obligations").select("name,amount,due_date,is_paid")
-          .eq("user_id", userId).eq("is_paid", false),
+        sb.from("zad_obligations").select("title,amount,due_date")
+          .eq("user_id", userId).eq("active", true).eq("confirmed", true),
         sb.from("zad_transactions").select("amount,category,created_at,is_expense")
           .eq("user_id", userId).gte("created_at", since),
       ]);
@@ -1064,10 +1075,12 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       }
 
       const plan = points.join("\n");
-      await sb.from("zad_memory").upsert({
+      await sb.from("zad_memory").delete().eq("user_id", userId).eq("scope", "salary_plan");
+      const { error: salaryMemErr } = await sb.from("zad_memory").insert({
         user_id: userId, scope: "salary_plan",
         note: plan, confidence: 0.95,
-      }, { onConflict: "user_id,scope" });
+      });
+      if (salaryMemErr) console.error("salary_plan memory write failed:", salaryMemErr);
 
       return `💰 الراتب وصل — خطتك للشهر:\n${plan}`;
     }
@@ -1101,10 +1114,12 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
           end_date: new Date(Date.now() + 7 * 86400000).toISOString(),
         });
       }
-      await sb.from("zad_memory").upsert({
+      await sb.from("zad_memory").delete().eq("user_id", userId).eq("scope", "active_challenge");
+      const { error: challengeMemErr } = await sb.from("zad_memory").insert({
         user_id: userId, scope: "active_challenge",
         note: challengeText, confidence: 0.9,
-      }, { onConflict: "user_id,scope" });
+      });
+      if (challengeMemErr) console.error("active_challenge memory write failed:", challengeMemErr);
       ctx.counts["suggest_challenge"] = (ctx.counts["suggest_challenge"] ?? 0) + 1;
       return challengeText + " — التحدي اتسجل وهتابع التزامك تلقائياً";
     }
