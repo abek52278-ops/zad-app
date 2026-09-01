@@ -11,6 +11,7 @@ def get_groq_response(prompt, results):
             api_key=os.environ.get("GROQ_API_KEY")
         )
         response = client.chat.completions.create(
+            
             model="openai/gpt-oss-120b",
             messages=[{"role": "user", "content": prompt}]
         )

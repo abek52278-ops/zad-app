@@ -2,10 +2,14 @@ package com.example.ui.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.SupabaseRepo
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import com.example.data.SupabaseRepo
+import kotlinx.serialization.Serializable
 
 data class PriceReportState(
     val isSubmitting: Boolean = false,
@@ -22,9 +26,12 @@ data class LeaderboardEntryData(
     val score: Int
 )
 
-class PriceReportingViewModel(private val repo: SupabaseRepo) : ViewModel() {
+class PriceReportingViewModel : ViewModel() {
     private val _state = MutableStateFlow(PriceReportState())
     val state: StateFlow<PriceReportState> = _state
+
+    @Serializable
+    private data class UserIdRow(val user_id: String? = null)
 
     fun submitPrice(
         itemName: String,
@@ -37,10 +44,10 @@ class PriceReportingViewModel(private val repo: SupabaseRepo) : ViewModel() {
             _state.value = _state.value.copy(isSubmitting = true, error = null)
             try {
                 // Insert price into price_index table with current user_id
-                val userId = repo.getCurrentUserId() ?: throw Exception("User not authenticated")
+                val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
+                    ?: throw Exception("User not authenticated")
 
-                val result = repo.supabase
-                    .from("price_index")
+                SupabaseRepo.client.postgrest["price_index"]
                     .insert(
                         mapOf(
                             "item_name" to itemName,
@@ -78,22 +85,29 @@ class PriceReportingViewModel(private val repo: SupabaseRepo) : ViewModel() {
     fun loadLeaderboard() {
         viewModelScope.launch {
             try {
-                // Query price_index for top contributors
-                val result = repo.supabase
-                    .from("price_index")
-                    .select("user_id, count(*) as count")
-                    .limit(10)
-                    .decodeAs<List<Map<String, Any>>>()
+                // PostgREST القياسي مش بيعمل GROUP BY حر من غير view/RPC مخصص، فالعدّ
+                // بيتحسب هنا محليًا بدل استعلام aggregate غير مضمون النتيجة.
+                val rows = SupabaseRepo.client.postgrest["price_index"]
+                    .select(Columns.list("user_id")) {
+                        limit(500)
+                    }
+                    .decodeList<UserIdRow>()
 
-                // Transform to LeaderboardEntryData
-                val leaderboardEntries = result.mapIndexed { index, entry ->
-                    LeaderboardEntryData(
-                        userId = entry["user_id"] as? String ?: "",
-                        userName = "المساهم ${index + 1}",
-                        contributionCount = (entry["count"] as? Number)?.toInt() ?: 0,
-                        score = (index + 1) * 10
-                    )
-                }
+                val leaderboardEntries = rows
+                    .mapNotNull { it.user_id }
+                    .groupingBy { it }
+                    .eachCount()
+                    .entries
+                    .sortedByDescending { it.value }
+                    .take(10)
+                    .mapIndexed { index, (userId, count) ->
+                        LeaderboardEntryData(
+                            userId = userId,
+                            userName = "المساهم ${index + 1}",
+                            contributionCount = count,
+                            score = (index + 1) * 10
+                        )
+                    }
 
                 _state.value = _state.value.copy(leaderboard = leaderboardEntries)
             } catch (e: Exception) {

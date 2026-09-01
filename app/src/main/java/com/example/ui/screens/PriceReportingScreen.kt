@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -355,7 +356,7 @@ fun CrowdsourceDashboard(
 private fun StatCard(
     title: String,
     value: String,
-    icon: androidx.compose.material.icons.filled.Icon = Icons.Default.Info,
+    icon: ImageVector = Icons.Default.Info,
     modifier: Modifier = Modifier
 ) {
     Card(
