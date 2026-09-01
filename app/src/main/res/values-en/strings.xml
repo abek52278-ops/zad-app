@@ -1131,6 +1131,12 @@
     <string name="zad_memory_deleted_snackbar">Forgotten</string>
     <string name="zad_memory_delete_failed_snackbar">Couldn\'t forget it, try again</string>
 
+    <!-- Family medications — parents/admins only (family_admin_read_pharmacy) -->
+    <string name="family_pharmacy_title">Family Medications</string>
+    <string name="family_pharmacy_action">Family Medications</string>
+    <string name="family_pharmacy_empty_title">No medications yet</string>
+    <string name="family_pharmacy_empty_subtitle">Anything a family member logs will show up here</string>
+
     <!-- Ledger: quick deduct and manual balance override -->
     <string name="quick_deduct">Quick Deduct</string>
     <string name="quick_deduct_default_title">Quick deduct</string>

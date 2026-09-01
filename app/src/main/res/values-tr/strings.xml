@@ -1091,6 +1091,12 @@
     <string name="zad_memory_delete_confirm_body">Zad bunu bir daha hatırlamayacak</string>
     <string name="zad_memory_deleted_snackbar">Unutuldu</string>
     <string name="zad_memory_delete_failed_snackbar">Unutulamadı, tekrar dene</string>
+
+    <!-- Aile ilaçları — sadece ebeveynler/adminler (family_admin_read_pharmacy) -->
+    <string name="family_pharmacy_title">Aile İlaçları</string>
+    <string name="family_pharmacy_action">Aile İlaçları</string>
+    <string name="family_pharmacy_empty_title">Henüz ilaç yok</string>
+    <string name="family_pharmacy_empty_subtitle">Bir aile üyesinin kaydettiği her şey burada görünecek</string>
     <string name="monthly_report_empty_hint">Zad\'ın harcamalarını analiz edip rapor ve tavsiye vermesi için "Rapor Oluştur"a bas</string>
     <string name="generate_monthly_report_action">Rapor Oluştur</string>
     <string name="recommendations_label">Zad\'ın Tavsiyeleri</string>

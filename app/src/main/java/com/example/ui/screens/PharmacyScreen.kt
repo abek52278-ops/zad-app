@@ -69,13 +69,18 @@ private fun suggestDoseTimes(dailyDoseCount: Int): String {
 fun PharmacyScreen(
     viewModel: ZadViewModel,
     familyViewModel: FamilyViewModel = viewModel(),
-    onNavigateToCamera: () -> Unit = {}
+    onNavigateToCamera: () -> Unit = {},
+    onNavigateToFamilyPharmacy: () -> Unit = {}
 ) {
     val items by viewModel.pharmacyItems.collectAsState()
     val monthlyCost by viewModel.monthlyPharmaCost.collectAsState()
     val weeklyAdherence by viewModel.weeklyAdherencePercent.collectAsState()
     val familyState by familyViewModel.state.collectAsState()
-    val familyMembers = (familyState as? FamilyState.Active)?.members ?: emptyList()
+    val activeFamilyState = familyState as? FamilyState.Active
+    val familyMembers = activeFamilyState?.members ?: emptyList()
+    // family_admin_read_pharmacy: الرؤية للوالدين بس، ومفيش داعي للزرار لو مفيش عيلة
+    // حقيقية أصلاً (عضو واحد = العميل نفسه بس).
+    val isFamilyPharmacyAdmin = activeFamilyState?.myMemberInfo?.role == "admin" && familyMembers.size > 1
 
     var showAddDialog by remember { mutableStateOf(false) }
     // كان بيودّي لشاشة "عقل زاد" (ZadRoutes.ASSISTANT) بدل ما يضيف الدوا هنا — العميل
@@ -128,6 +133,11 @@ fun PharmacyScreen(
             ) {
                 IconButton(onClick = { isGridView = !isGridView }, modifier = Modifier.pressableScale()) {
                     Icon(if (isGridView) Icons.Default.ViewList else Icons.Default.GridView, contentDescription = stringResource(R.string.toggle_view_action), tint = onSurfaceVariant)
+                }
+                if (isFamilyPharmacyAdmin) {
+                    IconButton(onClick = onNavigateToFamilyPharmacy, modifier = Modifier.pressableScale()) {
+                        Icon(Icons.Default.FamilyRestroom, contentDescription = stringResource(R.string.family_pharmacy_action), tint = onSurfaceVariant)
+                    }
                 }
                 IconButton(onClick = onNavigateToCamera, modifier = Modifier.pressableScale()) {
                     Icon(Icons.Default.CameraAlt, contentDescription = stringResource(R.string.scan_medicine_action), tint = primary)

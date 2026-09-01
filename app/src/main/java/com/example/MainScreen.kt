@@ -67,6 +67,8 @@ object ZadNav {
     const val AGENT_ACTION_LOG = "agent_action_log"
     // "زاد عارف عني إيه" — شفافية zad_memory، متاحة من إعدادات البروفايل.
     const val ZAD_MEMORY = "zad_memory"
+    // "أدوية العيلة" — رؤية للوالدين بس، متاحة من شاشة الصيدلية.
+    const val FAMILY_PHARMACY = "family_pharmacy"
 }
 
 /** Routes that own the whole viewport — no shell header, no bottom pill. */
@@ -80,6 +82,7 @@ private val fullScreenRoutes = setOf(
     ZadNav.HELP,
     ZadNav.AGENT_ACTION_LOG,
     ZadNav.ZAD_MEMORY,
+    ZadNav.FAMILY_PHARMACY,
 )
 
 @Composable
@@ -440,7 +443,8 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                             PharmacyScreen(
                                 viewModel = viewModel,
                                 familyViewModel = familyViewModel,
-                                onNavigateToCamera = { showCameraSheet = true }
+                                onNavigateToCamera = { showCameraSheet = true },
+                                onNavigateToFamilyPharmacy = { go(ZadNav.FAMILY_PHARMACY) }
                             )
                         }
                         composable(ZadRoutes.MAINTENANCE) { MaintenanceScreen(viewModel = viewModel) }
@@ -519,6 +523,14 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                         }
                         composable(ZadNav.ZAD_MEMORY) {
                             com.example.ui.screens.ZadMemoryScreen(onBack = { navController.popBackStack() })
+                        }
+                        composable(ZadNav.FAMILY_PHARMACY) {
+                            val famState by familyViewModel.state.collectAsState()
+                            val members = (famState as? com.example.ui.viewmodels.FamilyState.Active)?.members ?: emptyList()
+                            com.example.ui.screens.FamilyPharmacyScreen(
+                                members = members,
+                                onBack = { navController.popBackStack() }
+                            )
                         }
                         composable(ZadNav.EDIT_PROFILE) { EditProfileScreen(viewModel) { navController.popBackStack() } }
                         composable(ZadNav.FAMILY_MANAGEMENT) { FamilyManagementScreen(familyViewModel) { navController.popBackStack() } }

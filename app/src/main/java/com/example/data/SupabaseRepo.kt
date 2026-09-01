@@ -819,6 +819,20 @@ object SupabaseRepo {
     suspend fun getPharmacyItemsSnapshot(): RemoteListSnapshot<ZadPharmacyItem> =
         getOwnedListSnapshot("zad_pharmacy_items", "getPharmacyItems")
 
+    /**
+     * أدوية العيلة كلها — رؤية بس (family_admin_read_pharmacy migration). مفيش فلتر
+     * user_id هنا عمدًا: RLS هي حدود الأمان الحقيقية (مش فلترة العميل) — الوالد بيرجّعله
+     * صفوفه هو + صفوف باقي العيلة اللي الـpolicy سامحة بيها، أي حد تاني برجعله صفوفه بس.
+     */
+    suspend fun getFamilyPharmacyItems(): List<ZadPharmacyItem> {
+        return try {
+            client.postgrest["zad_pharmacy_items"].select().decodeList<ZadPharmacyItem>()
+        } catch (e: Exception) {
+            Log.e(TAG, "getFamilyPharmacyItems() FAILED: ${e.message}")
+            emptyList()
+        }
+    }
+
     suspend fun addPharmacyItem(item: ZadPharmacyItem) {
         try {
             val userId = client.auth.currentUserOrNull()?.id
