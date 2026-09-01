@@ -59,8 +59,15 @@ object ZadV3 {
     val mint50  = Color(0xFFE6F4EC)
     val mintGlow = Color(0xFF6EE7B7)       // AI accent glow
 
-    // ── Canvas & Neutrals (iOS-inspired: #F2F2F7 warm gray) ──────────────
-    val canvas = Color(0xFFF2F2F7)          // iOS system background
+    // ── Canvas & Neutrals ─────────────────────────────────────────────────
+    // بند 36.1 — كان هنا #F2F2F7 مستقل، وColor.kt عنده canvasMid #ECEEF1 منفصل —
+    // نفس القيمة المفهومياً ("خلفية التطبيق") بحرفين مختلفين في نظامين، وده بالظبط
+    // اللي الخطة وصفته "بيتخانقوا". اتأكد حي إن ZadV3.canvas/canvasGradient
+    // مالهومش أي استخدام في الكود (grep) — الكانفاس الفعلي المرسوم هو Color.kt's
+    // canvasTop/Mid/Bottom عبر ZadCanvasBackground. فبدل ما نمسح القيمة أو نغيّر أي
+    // بيكسل فعلي، ZadV3 بقت بترجع لنفس مصدر Color.kt — مصدر واحد حقيقي، صفر تغيير
+    // بصري (مفيش حد بيقرا القيمة القديمة أصلاً).
+    val canvas = canvasMid
     val canvasWarm = Color(0xFFFBFAF8)      // Splash/auth canvas
     val surface = Color(0xFFFFFFFF)         // White card surface
     val ink = Color(0xFF0F172A)             // Near-black text
@@ -114,9 +121,10 @@ object ZadV3 {
     val neutralBg = Color(0xFFF1F4F3)       // #F1F4F3
     val greenDeepest = Color(0xFF052E16)    // #052E16 (== aiPlate, aliased for clarity)
 
-    // Screen canvas: linear-gradient(165deg,#F4F5F7 0%,#ECEEF1 45%,#E9ECEF 100%)
+    // Screen canvas — بند 36.1: نفس تدرّج ZadCanvasBackground الحقيقي (Color.kt's
+    // canvasTop/Mid/Bottom) بدل تكرار نفس الألوان كحروف مستقلة هنا.
     val canvasGradient = Brush.linearGradient(
-        colors = listOf(Color(0xFFF4F5F7), Color(0xFFECEEF1), Color(0xFFE9ECEF)),
+        colors = listOf(canvasTop, canvasMid, canvasBottom),
         start = Offset(0f, 0f),
         end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
     )
