@@ -164,12 +164,12 @@
 
 ---
 
-### الملحمة 34 — العائلة كشبكة واحدة `[أكبر شغل معماري]`
+### الملحمة 34 — العائلة كشبكة واحدة `[أكبر شغل معماري]` — ✅ الأربعة بنود مقفولة (2026-09-01)
 
-- **34.1 المخزون العائلي** — أهم بند: `zad_inventory` مربوط بـ `user_id` بس. لازم `family_id` اختياري + RLS بـ `get_my_family_ids()` (النمط موجود). الأم تصوّر الفاتورة والأب يشوف المخزون اتحدّث.
-- **34.2 ذاكرة عائلية** — نطاق `family` في `zad_memory`: حقائق مشتركة (حساسية الولد، عيد ميلاد، عادة رمضان) يشوفها كل عقول العائلة، والحقائق الفردية تفضل خاصة.
-- **34.3 تقرير الأب** — `parent-digest` بيشتغل أسبوعياً و `zad_parent_digests` **فاضي** → يتشاف في اللوجات ويتصلّح. يتوسّع: صرف + التزام دوائي + مهام + إشارات سلوك.
-- **34.4 تنبؤ عائلي** — الأنماط الموسمية تتحسب على مستوى العائلة (`seasonal_forecast` بيعمل ده وبيقع على ثوابت لما التاريخ قليل — بعد 34.1 هيبقى عنده تاريخ كفاية).
+- **34.1 المخزون العائلي** ✅ — `20260901010000_family_shared_inventory.sql`: `zad_inventory.family_id` اختياري + RLS بـ `get_my_family_ids()`.
+- **34.2 ذاكرة عائلية** ✅ — `20260901170000_family_shared_memory.sql` + `20260901180000`: نطاق `family_id` على `zad_memory`، `remember(share_with_family=true)`، `buildSnapshot` بيدمج ملاحظات العيلة المشتركة.
+- **34.3 تقرير الأب** ✅ — `20260901160000_fix_parent_digest_cron_auth.sql`: الكرون كانت بتفشل كل مرة (GUC مش موجود)، اتصلحت بسيكريت مخصص + `verify_jwt=false`.
+- **34.4 تنبؤ عائلي** ✅ **— كان متبني بالفعل وقت كتابة الخطة، اتأكد حي 2026-09-01.** `get_family_category_monthly_stats(uuid)` و`get_family_event_window_spend(uuid,timestamptz,timestamptz)` الاتنين موجودين في `pg_proc` وبياخدوا `family_id` مش `user_id` من الأصل — `seasonal_forecast` (`zad-core-intelligence/index.ts:1909`) كان أصلاً بيحسب على مستوى العيلة قبل 34.1، مش محتاج له. متوصّل كامل: `ZadAiRepository.kt:555` → `ZadViewModel.seasonalForecasts` → `HomeScreen`'s `EventsRadarCard` (خلف `FamilyState.Active`). **مفيش كود جديد اتكتب هنا** — كان لازم يتأكد بدل ما يتفترض، زي 30.3.
 
 ---
 
