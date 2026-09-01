@@ -5198,6 +5198,8 @@ Deno.serve(async (req: Request) => {
 
     // ── حلقة التأمل الليلي المستقلة (Nightly Autonomous Dream & Memory Synthesis) ──
     // تعمل في الخلفية يومياً لتحليل سرعة الاستهلاك، استنتاج أنماط الإنفاق، وتغذية شبكة الذاكرة.
+    // بند 31.3 زوّد ثلاثة: تعزيز روابط بين ملاحظات مؤكَّدة، ربط (مش حذف) للملاحظات
+    // المتناقضة اللي فاتت على كتابة الوقت، وتلخيص أسبوعي وحيد بدل الملاحظة اليومية المكررة.
     // الصلاحية: service-role bearer (للاستدعاء اليدوي/الإداري) أو ZAD-PROACTIVE-CRON-SECRET
     // (لـ pg_cron — نفس سيكريت الفحص الاستباقي المختوم في vault، بنفس نمط W9 بالظبط).
     if (body.action === "nightly_dream_reflection") {
@@ -5241,6 +5243,69 @@ Deno.serve(async (req: Request) => {
               }
             }
           }
+
+          // بند 31.3 (تعزيز الروابط) — رابط بين ملاحظتين اتأكدت الاتنين لوحدهم بالاستخدام
+          // الحقيقي (مش بس وقت الكتابة الأولى) هو نفسه دليل إضافي على العلاقة. نفس صيغة
+          // التقارب في zad_memory_link_upsert (strength += (1-strength)*0.25) — مفيش قفز
+          // مفاجئ للثقة الكاملة من تكرار واحد.
+          const { data: weakLinks } = await sbDream.from("zad_memory_links")
+            .select("from_id, to_id, relation")
+            .eq("user_id", u.id).lt("strength", 1.0);
+          if (weakLinks && weakLinks.length > 0) {
+            const linkedIds = [...new Set(weakLinks.flatMap((l: any) => [l.from_id, l.to_id]))];
+            const { data: linkedNotes } = await sbDream.from("zad_memory")
+              .select("id, confidence, evidence_count").in("id", linkedIds);
+            const strong = new Set(
+              (linkedNotes ?? []).filter((n: any) => n.confidence >= 0.75 && n.evidence_count >= 2).map((n: any) => n.id),
+            );
+            for (const link of weakLinks) {
+              if (strong.has(link.from_id) && strong.has(link.to_id)) {
+                await sbDream.rpc("zad_memory_link_upsert", {
+                  p_user: u.id, p_from: link.from_id, p_to: link.to_id, p_relation: link.relation,
+                });
+              }
+            }
+          }
+
+          // بند 31.3 (تقليم المتناقض) — أزواج ملاحظات وصلت الجدول من مسارات مختلفة (remember
+          // يدوي، استخلاص 31.2، التأمل نفسه) وما اتقارنتش ببعض وقت الكتابة. بنربطهم
+          // 'contradicts' بدل ما نمسح حاجة — نفس فلسفة zad_memory_upsert وقت الكتابة، الحل
+          // إشارة في الجراف مش حذف بيانات عميل.
+          const { data: contradictions } = await sbDream.rpc("zad_memory_find_contradictions", { p_user: u.id });
+          for (const c of (contradictions ?? []) as Array<{ from_id: string; to_id: string }>) {
+            await sbDream.rpc("zad_memory_link_upsert", {
+              p_user: u.id, p_from: c.from_id, p_to: c.to_id, p_relation: "contradicts", p_strength: 0.7,
+            });
+          }
+
+          // بند 31.3 (تلخيص أسبوعي) — ملاحظة "شخصية" وحيدة (delete-then-insert زي
+          // financial_persona بالظبط) بدل ملاحظة يومية بتعيد نفس الحساب. البوابة الزمنية هي
+          // last_seen بتاع آخر نسخة — مفيش عمود/جدول جديد محتاج، والكرون شغال يومي فالتحقق
+          // هنا هو اللي بيقرر الأسبوعية مش جدول الكرون. أرقام حقيقية معدودة بس، مفيش تخمين.
+          const { data: lastWeekly } = await sbDream.from("zad_memory")
+            .select("last_seen").eq("user_id", u.id).eq("scope", "weekly_synthesis").maybeSingle();
+          const weeklyDue = !lastWeekly || (Date.now() - new Date(lastWeekly.last_seen).getTime()) >= 7 * 86400000;
+          if (weeklyDue) {
+            const since = new Date(Date.now() - 7 * 86400000).toISOString();
+            const { data: weekTxns } = await sbDream.from("zad_transactions")
+              .select("amount, category").eq("user_id", u.id).gte("created_at", since);
+            if (weekTxns && weekTxns.length > 0) {
+              const weekTotal = weekTxns.reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+              const byCategory = new Map<string, number>();
+              for (const t of weekTxns as Array<{ amount: number; category: string | null }>) {
+                const cat = t.category ?? "غير مصنف";
+                byCategory.set(cat, (byCategory.get(cat) ?? 0) + (Number(t.amount) || 0));
+              }
+              const topCategory = [...byCategory.entries()].sort((a, b) => b[1] - a[1])[0];
+              const weeklyNote = `تلخيص الأسبوع: ${weekTxns.length} معاملة بإجمالي ${Math.round(weekTotal)} ${u.currency ?? ""}.`
+                + (topCategory ? ` أعلى فئة صرف: ${topCategory[0]} (${Math.round(topCategory[1])} ${u.currency ?? ""}).` : "");
+              await sbDream.from("zad_memory").delete().eq("user_id", u.id).eq("scope", "weekly_synthesis");
+              await sbDream.from("zad_memory").insert({
+                user_id: u.id, scope: "weekly_synthesis", note: weeklyNote, confidence: 0.8, evidence_count: 1,
+              });
+            }
+          }
+
           synthesized++;
         } catch (e) {
           console.error("nightly_dream_reflection failed for user", u.id, e);
