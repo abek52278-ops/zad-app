@@ -1481,3 +1481,16 @@ income_allocated`، و`counts_toward_budget` افتراضيها `null` و`null` 
 اتعمل: ٨ اختبارات جديدة في `BudgetMathTest`/`BudgetAuthorityParityTest` بتغطي نقطة التثبيت
 (قبل/بعد، نفس اليوم، `+00:00`، `createdAt` فاضي، `null` = السلوك القديم). **CI هو التحقق
 الحقيقي** — `build-debug-apk.yml` و`edge-functions.yml`.
+
+## تصحيح (٢٠٢٦-٠٩-٠١): "مش متغطّى" فوق ده اتقفل من غير ما الملف يتحدّث
+
+الفقرة اللي فاتت بتقول تحويلات السحب (ATM) بتتكتب على طول من غير سؤال. ده بقى غلط —
+اتقفل ضمن شغل لاحق (`20260820004901_transaction_proposals.sql` وما بعدها، ٢٠٢٦-٠٨-٢٠):
+`WITHDRAWAL`/`TRANSFER_OUT` بتعدّي بنفس مسار `notification_ingest` زي أي مصروف عادي —
+`zad_transaction_proposals` بحالة `awaiting_confirmation`، وتأكيد العميل عبر تيليجرام/التطبيق
+هو اللي بيكتب فعليًا عبر `zad_resolve_transaction_proposal_impl`. `zad_cash_balance()` كمان
+بقى بيحسب `txn_kind='transfer' AND transfer_to='cash'` كزيادة كاش حقيقية — "بطاقة←كاش
+مابيغيّرش رقم" بقت غير صحيحة هي كمان. `log_transaction`/`validators.ts` لسه بيرفض
+`transfer` عن قصد — ده مش بق، ده تصميم: التحويلات بس عبر مسار الإشعار المصنَّف
+سيرفر-سايد، مش عبر أداة الشات المباشرة. مفيش كود اتغيّر هنا، الفحص بس اتعاد ووصلت النتيجة
+مختلفة عن الملاحظة القديمة.
