@@ -393,8 +393,8 @@ fun HomeScreen(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(24.dp))
                             .background(Color.White)
-                            .shadow(elevation = 4.dp, shape = RoundedCornerShape(24.dp), spotColor = Color(0xFF064E3B).copy(alpha = 0.08f))
-                            .border(1.dp, Color(0xFF0F9B76).copy(alpha = 0.15f), RoundedCornerShape(24.dp))
+                            .shadow(elevation = 4.dp, shape = RoundedCornerShape(24.dp), spotColor = primary.copy(alpha = 0.08f))
+                            .border(1.dp, primaryLight.copy(alpha = 0.15f), RoundedCornerShape(24.dp))
                             .clickable {
                                 com.example.voice.ZadCutePetSoundFx.play(com.example.voice.ZadCutePetSoundFx.PetSound.HappyChirp)
                                 onOpenVoice()
@@ -413,13 +413,13 @@ fun HomeScreen(
                                 stringResource(R.string.greeting_hi_name, userName),
                                 fontSize = 17.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFF0F172A)
+                                color = onBackground
                             )
                             Text(
                                 "مساعدك الذكي جاهز • اضغط للتحدث 🎙️",
                                 fontSize = 12.5.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF0F9B76)
+                                color = primaryLight
                             )
                         }
                     }
@@ -1717,7 +1717,7 @@ fun AgentSummaryCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(Brush.linearGradient(listOf(Color(0xFF052E16), Color(0xFF0A382C))))
+            .background(Brush.linearGradient(listOf(primaryContainer, Color(0xFF0A382C))))
             // ::before بتاع البروتوتايب: دائرة ضوء mint نصف قطرها 140px أعلى اليمين
             // بتنفس breathe 4s (scale 1→1.05)
             .drawBehind {
@@ -1725,7 +1725,7 @@ fun AgentSummaryCard(
                 val radius = size.width * 0.35f * breatheVal
                 drawCircle(
                     brush = Brush.radialGradient(
-                        colors = listOf(Color(0xFF6EE7B7).copy(alpha = 0.22f), Color.Transparent)
+                        colors = listOf(primaryFixed.copy(alpha = 0.22f), Color.Transparent)
                     ),
                     radius = radius,
                     center = Offset(size.width + 40f, -40f)
@@ -1743,12 +1743,12 @@ fun AgentSummaryCard(
                     Icon(
                         painter = androidx.compose.ui.res.painterResource(R.drawable.ic_zad_sparkle),
                         contentDescription = null,
-                        tint = Color(0xFF6EE7B7),
+                        tint = primaryFixed,
                         modifier = Modifier.size(14.dp)
                     )
                     Text(
                         stringResource(R.string.zad_agent),
-                        color = Color(0xFF6EE7B7),
+                        color = primaryFixed,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.5.sp
                     )
@@ -2183,7 +2183,7 @@ fun AddTransactionDialog(
 
             // الحقول — رمادية فاتحة مدوّرة زي الرندر (Name / Total / Query)
             val fieldShape = RoundedCornerShape(14.dp)
-            val fieldBg = Color(0xFFF3F4F6)
+            val fieldBg = surfaceVariant
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
@@ -2438,7 +2438,7 @@ fun KidsModeContent(
                 .fillMaxWidth()
                 .shadow(elevation = 14.dp, shape = RoundedCornerShape(28.dp), spotColor = kidsPrimary.copy(alpha = 0.35f))
                 .clip(RoundedCornerShape(28.dp))
-                .background(Brush.linearGradient(listOf(kidsPrimary, Color(0xFFEC4899), Color(0xFFF59E0B))))
+                .background(Brush.linearGradient(listOf(kidsPrimary, kidsAccentPink, secondary)))
                 .padding(24.dp)
         ) {
             Column {
