@@ -55,8 +55,14 @@ verify_jwt = true
 [functions.affiliate-price-refresh]
 verify_jwt = true
 
+# مقصود إنها false (تصحيح 2026-09-01، بند 34.3): pg_cron's net.http_post مبيحملش JWT
+# سوبابيز حقيقي — الميجريشن الأصلية كانت بتحاول current_setting('app.settings.jwt_secret')
+# وده GUC مش متظبط على المشروع ده أصلاً، فكل تشغيلة كرون كانت بترجع 401 عند بوابة
+# verify_jwt قبل ما الدالة تشتغل خالص (zad_parent_digests فاضي من يوم ما اتعمل الجدول).
+# نفس نمط zad-billing-webhook فوق بالظبط: سيكريت مخصص (PARENT_DIGEST_CRON_SECRET) بدل
+# JWT حقيقي.
 [functions.parent-digest]
-verify_jwt = true
+verify_jwt = false
 
 # مقصود إنها false: إشعارات Google Play RTDN بتوصل من Pub/Sub وهي **مبتحملش
 # توكن سوبابيز خالص**، فـ verify_jwt = true كانت بترفضها عند البوابة قبل ما

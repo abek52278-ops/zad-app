@@ -13,17 +13,25 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// تصحيح 2026-09-01 (بند 34.3) — كانت بتتحقق من auth.includes(SERVICE_ROLE)، يعني محتاجة
+// JWT حقيقي في الهيدر. الكرون بتاعها (pg_cron's net.http_post) مبيحملش JWT سوبابيز أصلاً،
+// وكانت بتحاول current_setting('app.settings.jwt_secret') — GUC مش متظبط على المشروع ده،
+// فكل تشغيلة كانت بترجع 401 عند بوابة verify_jwt قبل ما توصل هنا خالص (zad_parent_digests
+// فاضي من يوم ما الجدول اتعمل). نفس نمط CHECKIN_CRON_SECRET في zad-telegram-bot بالظبط:
+// سيكريت مخصص plain literal (مش project secret — مفيش أداة هنا تضيف سيكريت مشروع عن بعد)،
+// blast radius صغير (بيشغّل التقرير بس، مفيش وصول بيانات خاص بيه)، وconfig.toml اتظبط
+// verify_jwt=false ليها عشان الهيدر ده يبقى كفاية.
+const PARENT_DIGEST_CRON_SECRET = "3302c068f8ce3057f9122ebc90b19113f1dbb0d7417e49848daee1122b530cfec5";
+
 const CORS = {
   "access-control-allow-origin": "*",
-  "access-control-allow-headers": "authorization, content-type",
+  "access-control-allow-headers": "authorization, content-type, x-parent-digest-cron-secret",
 };
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
-  // التشغيل: service_role auth فقط (cron secret) — مش مكشوف للعملاء
-  const auth = req.headers.get("authorization") ?? "";
-  if (!auth.includes(SERVICE_ROLE)) {
+  if (req.headers.get("X-Parent-Digest-Cron-Secret") !== PARENT_DIGEST_CRON_SECRET) {
     return new Response(JSON.stringify({ error: "unauthorized" }), {
       status: 401, headers: { ...CORS, "content-type": "application/json" },
     });
