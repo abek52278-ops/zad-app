@@ -102,20 +102,27 @@ function normalize(text: string): string {
     .toLowerCase();
 }
 
+/** نقاط كل وكيل لرسالة واحدة، بترتيب `ORDER` (general مش فيها لأنها مالهاش كلمات). */
+function scoreAll(message: string): Array<{ id: SpecialistId; score: number }> {
+  const norm = normalize(message);
+  return ORDER.map((id) => ({
+    id,
+    score: SPECIALISTS[id].keywords.reduce(
+      (acc, kw) => acc + (norm.includes(normalize(kw)) ? 1 : 0),
+      0,
+    ),
+  }));
+}
+
 /**
  * تصنيف deterministic. أول وكيل بيجمع أكتر نقاط كلمات مفتاحية بيكسب — العدّ مهم
  * لأن رسالة واحدة ممكن تمس مجالات (لو كلمة واحدة فقط اتطابقت بنقطة واحدة والباقي
  * صفر، برضه بيكسب). مفيش تطابق خالص = general.
  */
 export function routeSpecialist(message: string): SpecialistId {
-  const norm = normalize(message);
   let best: SpecialistId = "general";
   let bestScore = 0;
-  for (const id of ORDER) {
-    const score = SPECIALISTS[id].keywords.reduce(
-      (acc, kw) => acc + (norm.includes(normalize(kw)) ? 1 : 0),
-      0,
-    );
+  for (const { id, score } of scoreAll(message)) {
     if (score > bestScore) {
       bestScore = score;
       best = id;
@@ -124,85 +131,127 @@ export function routeSpecialist(message: string): SpecialistId {
   return best;
 }
 
-/** سطر هوية الوكيل اللي بيتحقن في برومبت المحادثة. general = null (البرومبت زي ما هو). */
-export function specialistPromptBlock(id: SpecialistId): string | null {
+/**
+ * بند 31.6 — متخصص أساسي + استشاري تانٍ. رسالة زي "أطبخ إيه بـ٥٠ جنيه؟" بتمس مطبخ
+ * *و* فلوس مع بعض؛ اختيار وكيل واحد بيخلي الرد ناقص نص السؤال. الاستشاري هو ثاني
+ * أعلى نقاط **من غير general ومن غير الأساسي نفسه**، وبس لو نقطته > 0 (تطابق كلمة
+ * حقيقية على الأقل، مش تخمين). general مالهاش استشاري — مفيش هوية أساسية توجّه منها.
+ */
+export function routeSpecialists(
+  message: string,
+): { primary: SpecialistId; secondary: SpecialistId | null } {
+  const ranked = scoreAll(message).sort((a, b) => b.score - a.score);
+  const primary = ranked[0]?.score > 0 ? ranked[0].id : "general";
+  if (primary === "general") return { primary, secondary: null };
+  const runnerUp = ranked.find((r) => r.id !== primary && r.score > 0);
+  return { primary, secondary: runnerUp ? runnerUp.id : null };
+}
+
+/** وصف نطاق كل وكيل — مستخدم في هوية الوكيل الأساسي *وفي* سطر الاستشاري (31.6). */
+const SPECIALIST_SCOPE_AR: Record<Exclude<SpecialistId, "general">, string> = {
+  finance:
+    "المعاملات، الرصيد، الالتزامات، الاشتراكات، الديون، دورة الراتب. أدوات الفلوس بتعرض تأكيد قبل الكتابة.",
+  pantry:
+    "المخزون، قائمة الشراء، الصلاحيات، اقتراح وجبات من الموجود فعلاً في المخزون بس — ماتقترحش صنف مش موجود.",
+  pharmacy:
+    "أدوات الصيدلية والجرعات. أوقات الجرعات لازم تكون ضمن ٢٤ ساعة وبصيغة HH:mm — دي قاعدة تحقق صارمة، لو الوقت مش مفهوم اسأل بدل ما تخمّن.",
+  family:
+    "المهام والمواعيد والتذكيرات، وكمان نمط استهلاك الأسرة ككل (تقرير سلوك، هدر، مقارنة بين الأفراد) عبر family_digest — مش تسجيل صرفة فردية، ده نطاق وكيل المال. المهمة محتاجة عنوان واضح، ولو التاريخ/الوقت مش محدد اسأل.",
+  home:
+    "فواتير البيت ومتابعة سدادها (تنبيه واستفسار بس — مفيش تسجيل فلوس من هنا)، الأجهزة والضمانات والصيانة الدورية، وأعطال المنزل. تقدر تفتح شاشة الصيانة للعميل بـ app_command.",
+};
+
+/**
+ * سطر هوية الوكيل اللي بيتحقن في برومبت المحادثة. general = null (البرومبت زي ما هو).
+ *
+ * بند 31.6 — لو فيه استشاري (secondary)، بيتضاف سطر تحت هوية الأساسي بدل ما الموديل
+ * يقتصر على نطاق واحد. الاستشاري **مش** هوية تانية بيتلبسها — هو معلومة إضافية
+ * الأساسي مسموح له يستخدمها من غير ما يحوّل شخصيته الكاملة له.
+ */
+export function specialistPromptBlock(
+  id: SpecialistId,
+  secondary?: SpecialistId | null,
+): string | null {
   if (id === "general") return null;
   const s = SPECIALISTS[id];
-  const scope: Record<Exclude<SpecialistId, "general">, string> = {
-    finance:
-      "- نطاقك: المعاملات، الرصيد، الالتزامات، الاشتراكات، الديون، دورة الراتب. أدوات الفلوس بتعرض تأكيد قبل الكتابة.",
-    pantry:
-      "- نطاقك: المخزون، قائمة الشراء، الصلاحيات، اقتراح وجبات من الموجود فعلاً في المخزون بس — ماتقترحش صنف مش موجود.",
-    pharmacy:
-      "- نطاقك: أدوات الصيدلية والجرعات. أوقات الجرعات لازم تكون ضمن ٢٤ ساعة وبصيغة HH:mm — دي قاعدة تحقق صارمة، لو الوقت مش مفهوم اسأل بدل ما تخمّن.",
-    family:
-      "- نطاقك: المهام والمواعيد والتذكيرات، وكمان نمط استهلاك الأسرة ككل (تقرير سلوك، هدر، مقارنة بين الأفراد) عبر family_digest — مش تسجيل صرفة فردية، ده نطاق وكيل المال. المهمة محتاجة عنوان واضح، ولو التاريخ/الوقت مش محدد اسأل.",
-    home:
-      "- نطاقك: فواتير البيت ومتابعة سدادها (تنبيه واستفسار بس — مفيش تسجيل فلوس من هنا)، الأجهزة والضمانات والصيانة الدورية، وأعطال المنزل. تقدر تفتح شاشة الصيانة للعميل بـ app_command.",
-  };
+  const consultLine = secondary
+    ? `\nاستشارة إضافية متاحة (نطاق ${SPECIALISTS[secondary].nameAr}): ${SPECIALIST_SCOPE_AR[secondary as Exclude<SpecialistId, "general">]} استخدم أدوات النطاق ده لو السؤال محتاجها فعلاً، من غير ما تحوّل هويتك الكاملة له.`
+    : "";
   return `=== الوكيل المتخصص ===
 انت دلوقتي ${s.nameAr} داخل نظام زاد — الجزء المتخصص اللي العقل العام حوّل له الرسالة دي.
-${scope[id as Exclude<SpecialistId, "general">]}
-برا نطاقك: جاوب باقتضاب واعرض إنك تحوّل الموضوع للوكيل المناسب بمجرد ما العميل يكمله — متتعمقش فيه.
+- نطاقك: ${SPECIALIST_SCOPE_AR[id as Exclude<SpecialistId, "general">]}
+برا نطاقك: جاوب باقتضاب واعرض إنك تحوّل الموضوع للوكيل المناسب بمجرد ما العميل يكمله — متتعمقش فيه.${consultLine}
 === نهاية الوكيل ===`;
 }
 
 /**
  * Trace دائم: specialist بيتكتب في صف zad_brain_runs بتاع اللفة. الفشل هنا مابيرميش —
- * التتبع تحسين، مش مسار حرج.
+ * التتبع تحسين، مش مسار حرج. `specialist_secondary` (31.6) نفس المنطق، عمود منفصل
+ * nullable — general مالهاش استشاري فمش بيتكتب أصلاً.
  */
 export async function recordSpecialistTrace(
   sb: SupabaseClient,
   runId: string | null | undefined,
   specialist: SpecialistId,
+  secondary?: SpecialistId | null,
 ): Promise<void> {
   if (!runId || specialist === "general") return;
   try {
-    await sb.from("zad_brain_runs").update({ specialist }).eq("id", runId);
+    await sb.from("zad_brain_runs")
+      .update({ specialist, specialist_secondary: secondary ?? null })
+      .eq("id", runId);
   } catch (e) {
     console.error("specialist trace failed:", e);
   }
 }
+
+/** خرائط أدوات كل وكيل — مستخدمة في الأساسي *وفي* اتحاد أدوات الاستشاري (31.6). */
+const SPECIALIST_TOOL_SCOPE: Record<Exclude<SpecialistId, "general">, string[]> = {
+  finance: [
+    "log_transaction", "allocate_income", "update_transaction", "delete_transaction",
+    "set_monthly_limit", "add_debt", "update_debt", "delete_debt",
+    "add_obligation", "update_obligation", "delete_obligation",
+    "add_subscription", "update_subscription", "delete_subscription",
+    "forward_ledger", "check_price_online", "query_family", "weekly_savings_plan",
+    "home_health_score", "propose_next_month_budget",
+  ],
+  pantry: [
+    "add_inventory_item", "update_inventory_qty", "delete_inventory_item",
+    "add_shopping_item", "complete_shopping_item", "delete_shopping_item",
+    "suggest_product", "check_price_online", "find_nearby_stores", "web_search",
+  ],
+  pharmacy: [
+    "add_pharmacy_item", "update_pharmacy_item", "delete_pharmacy_item",
+    "log_pharmacy_dose", "find_nearby_stores", "web_search",
+  ],
+  family: ["schedule_task", "query_family", "family_digest", "family_mediation"],
+  home: [
+    "app_command",
+    "add_maintenance_item", "update_maintenance_item", "delete_maintenance_item",
+    "add_obligation", "update_obligation", "delete_obligation",
+    "forward_ledger", "web_search", "home_health_score",
+  ],
+};
 
 /**
  * تقليل الأدوات المعروضة حسب الوكيل — سر سرعة الردود:
  * 39 أداة في كل طلب بتخلي الموديل يقرا أوصاف ضخمة ويتردد بين بدائل كتير قبل
  * ما يختار. لما نعرض بس أدوات نطاق الوكيل + الأدوات العامة، القرار بيبقى أسرع
  * وأدق. لو الرسالة عامة (general)، كل الأدوات متاحة زي ما هي — مفيش تغيير سلوك.
+ *
+ * بند 31.6 — لو فيه استشاري، أدواته بتتضاف لقايمة الأساسي (اتحاد مش استبدال):
+ * "أطبخ إيه بـ٥٠ جنيه؟" (مطبخ أساسي، فلوس استشاري) لازم يقدر يستخدم check_price_online
+ * *و* يشوف الميزانية من غير ما يفقد أدوات المخزون.
  */
 export function scopeToolsForSpecialist<T extends { name: string }>(
   tools: T[],
   specialist: SpecialistId,
+  secondary?: SpecialistId | null,
 ): T[] {
   if (specialist === "general") return tools;
-  const scope: Record<Exclude<SpecialistId, "general">, string[]> = {
-    finance: [
-      "log_transaction", "allocate_income", "update_transaction", "delete_transaction",
-      "set_monthly_limit", "add_debt", "update_debt", "delete_debt",
-      "add_obligation", "update_obligation", "delete_obligation",
-      "add_subscription", "update_subscription", "delete_subscription",
-      "forward_ledger", "check_price_online", "query_family", "weekly_savings_plan",
-      "home_health_score", "propose_next_month_budget",
-    ],
-    pantry: [
-      "add_inventory_item", "update_inventory_qty", "delete_inventory_item",
-      "add_shopping_item", "complete_shopping_item", "delete_shopping_item",
-      "suggest_product", "check_price_online", "find_nearby_stores", "web_search",
-    ],
-    pharmacy: [
-      "add_pharmacy_item", "update_pharmacy_item", "delete_pharmacy_item",
-      "log_pharmacy_dose", "find_nearby_stores", "web_search",
-    ],
-    family: ["schedule_task", "query_family", "family_digest", "family_mediation"],
-    home: [
-      "app_command",
-      "add_maintenance_item", "update_maintenance_item", "delete_maintenance_item",
-      "add_obligation", "update_obligation", "delete_obligation",
-      "forward_ledger", "web_search", "home_health_score",
-    ],
-  };
   const allowed = new Set([
-    ...(scope[specialist as Exclude<SpecialistId, "general">] ?? []),
+    ...(SPECIALIST_TOOL_SCOPE[specialist as Exclude<SpecialistId, "general">] ?? []),
+    ...(secondary ? SPECIALIST_TOOL_SCOPE[secondary as Exclude<SpecialistId, "general">] ?? [] : []),
     // الأدوات العابرة للنطاقات — متاحة دايمًا
     "remember", "link_memory", "web_search", "set_market", "set_transaction_category",
     "update_emergency_fund_balance", "add_maintenance_item", "update_maintenance_item",

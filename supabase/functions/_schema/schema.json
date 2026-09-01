@@ -543,6 +543,7 @@
     "output_tokens",
     "rejections",
     "specialist",
+    "specialist_secondary",
     "started_at",
     "status",
     "trigger",

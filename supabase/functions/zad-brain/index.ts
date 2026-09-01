@@ -64,7 +64,7 @@ import { classifyMessage, consume as consumeEntitlement, lockedReply } from "./e
 import { hasConfiguredSecret, hasServiceRoleAuthorization, resolveAuthedUserId } from "./auth.ts";
 import { conversationProfile, voiceModeInstruction } from "./persona.ts";
 // المرحلة ٣ — الوكلاء المتخصصون: توجيه + هوية في البرومبت + trace في zad_brain_runs.
-import { recordSpecialistTrace, routeSpecialist, specialistPromptBlock, scopeToolsForSpecialist } from "./specialists.ts";
+import { recordSpecialistTrace, routeSpecialists, specialistPromptBlock, scopeToolsForSpecialist } from "./specialists.ts";
 // Phase 3 — صندوق بريد الأيدجنتس: تقرير كل تنفيذ ناجح يوصل للعقل، والعقل بيقرا غير المقروء.
 import { agentMailBlock, fetchUnreadAgentMail, sendAgentReport, type AgentSender } from "./agentMail.ts";
 // SOUL — هوية مدير الحياة الكامل (نمط Hermes) + المهارات المتعلمة.
@@ -4184,7 +4184,8 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
   const snap = await buildSnapshot(sb, userId);
   const ctx: RunContext = freshContext(userId);
   // التوجيه للوكيل المتخصص: deterministic، قبل أي نداء موديل. general = برومبت زي ما هو.
-  const specialist = routeSpecialist(message);
+  // بند 31.6 — أساسي + استشاري تانٍ (لو الرسالة بتمس نطاقين مع بعض)، مش اختيار واحد يقصّ نص السؤال.
+  const { primary: specialist, secondary: specialistConsult } = routeSpecialists(message);
   // استرجاع ذاكرة مرتبط بالرسالة الحالية: بدل ترتيب الثقة الثابت، الملاحظات اللي
   // فيها كلمات من رسالة العميل بتتقدم — «فاتك إني مش باكل تونة؟» بيرجّع ملاحظة
   // التونة حتى لو ثقتها أقل من ملاحظات تانية.
@@ -4251,7 +4252,7 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
   const agentMail = await fetchUnreadAgentMail(sb, userId);
   const systemPrompt =
     soulBlock()
-    + (specialistPromptBlock(specialist) ?? "") + "\n" + lessonsBlock
+    + (specialistPromptBlock(specialist, specialistConsult) ?? "") + "\n" + lessonsBlock
     + agentMailBlock(agentMail)
     + skillsBlock(learnedSkills)
     + buildChatSystemPrompt({ ...snap, memory: relevantMemory }, body.voice_mode === true);
@@ -4284,7 +4285,7 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
   const runId = (runRow as { id: string } | null)?.id;
   const scope: AuditScope = { source: declaredSource, runId };
   // trace: مين عالج الرسالة دي — مثبت في الداتابيز مش ادعاء في اللوج.
-  await recordSpecialistTrace(sb, runId, specialist);
+  await recordSpecialistTrace(sb, runId, specialist, specialistConsult);
 
   const finishRun = async (status: "success" | "failed", error?: string) => {
     // W4 — تسجيل الاستخدام مستقل عن runId (سقف الاستخدام مبني عليه، مش على
@@ -4312,7 +4313,7 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
   let inputTokens = 0, outputTokens = 0;
   // تقليل الأدوات المعروضة حسب الوكيل الموجّه — 39 أداة في كل طلب بتخلي الموديل
   // يتردد ويبطّئ. الأداة العامة (web_search/remember/...) بتفضل متاحة دايمًا.
-  const scopedTools = scopeToolsForSpecialist(CHAT_TOOLS, specialist);
+  const scopedTools = scopeToolsForSpecialist(CHAT_TOOLS, specialist, specialistConsult);
   for (let turn = 0; turn < MAX_AGENT_TURNS; turn++) {
     let reply;
     try {
