@@ -80,6 +80,10 @@ class MainActivity : ComponentActivity() {
 
         /** "Hey Zad" — الخدمة طلبت فتح شاشة الصوت (wake word اتكشف). */
         var openVoiceRequest = mutableStateOf(false)
+
+        /** بند 32.2 — دوس على إشعار FCM بتاع معاملة بنكية مستنية تأكيد يفتح الرئيسية
+         *  فورًا (الكارت هناك بيتحدث لوحده realtime، مش محتاج route مخصوص). */
+        var openTransactionProposalsRequest = mutableStateOf(false)
     }
 
     /**
@@ -301,6 +305,10 @@ class MainActivity : ComponentActivity() {
         if (intent?.getBooleanExtra("open_voice", false) == true) {
             Log.d("ZAD_WAKE", "Wake word detected — opening voice screen")
             openVoiceRequest.value = true
+        }
+        if (intent?.getBooleanExtra("open_transaction_proposals", false) == true) {
+            Log.d("ZAD_NOTIF", "Bank proposal notification tapped — opening home")
+            openTransactionProposalsRequest.value = true
         }
     }
 }

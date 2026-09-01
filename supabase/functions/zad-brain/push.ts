@@ -102,6 +102,10 @@ export async function pushToDevice(
   userId: string,
   title: string,
   body: string,
+  // بند 32.2 — بيتحط كما هو في data payload بتاع FCM. المستهلك الحالي الوحيد:
+  // ZadFirebaseMessagingService بيقرا data.route ليقرر أي شاشة تتفتح لما العميل يدوس
+  // على الإشعار، بدل ما يفتح الرئيسية العادية من غير سياق دايمًا.
+  extraData?: Record<string, string>,
 ): Promise<PushDelivery> {
   try {
     const saRaw = Deno.env.get("FIREBASE_SERVICE_ACCOUNT") ?? "";
@@ -134,7 +138,7 @@ export async function pushToDevice(
             message: {
               token,
               notification: { title, body },
-              data: { title, body },
+              data: { title, body, ...extraData },
               android: { priority: "HIGH" },
             },
           }),

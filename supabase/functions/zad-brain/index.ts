@@ -4609,11 +4609,11 @@ async function deliverNotificationPrompt(
     } else if (response.ok && responseBody.reason === "not linked") {
       delivery = "not_linked";
       // تليجرام مش مربوط → FCM يغطي الفراغ (الوعي اللحظي). fire-and-forget.
-      pushToDevice(sb, userId, "زاد محتاج رأيك 💭", "في معاملة بنكية مستنية تأكيدك — افتح زاد للتأكيد.").catch(() => {});
+      pushToDevice(sb, userId, "زاد محتاج رأيك 💭", "في معاملة بنكية مستنية تأكيدك — افتح زاد للتأكيد.", { route: "transaction_proposals" }).catch(() => {});
     }
   } catch (e) {
     console.error("notification prompt to telegram failed:", (e as Error).message);
-    pushToDevice(sb, userId, "زاد محتاج رأيك 💭", "في معاملة بنكية مستنية تأكيدك — افتح زاد للتأكيد.").catch(() => {});
+    pushToDevice(sb, userId, "زاد محتاج رأيك 💭", "في معاملة بنكية مستنية تأكيدك — افتح زاد للتأكيد.", { route: "transaction_proposals" }).catch(() => {});
   }
 
   const { error: finishError } = await sb.rpc("zad_finish_notification_prompt_service", {

@@ -35,13 +35,17 @@ class ZadFirebaseMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
         val title = message.notification?.title ?: message.data["title"]
         val body = message.notification?.body ?: message.data["body"]
+        // بند 32.2 — route اختياري في الـdata payload (مثلاً "transaction_proposals" لما
+        // السيرفر يبعت push بديل عن تليجرام لإشعار بنكي مستني تأكيد) بيوصّل الدوسة على
+        // الإشعار للشاشة الصح بدل ما يفتح الرئيسية العادية من غير أي سياق.
+        val route = message.data["route"]
         if (message.notification == null && !title.isNullOrBlank()) {
-            showAgentNotification(title, body ?: "")
+            showAgentNotification(title, body ?: "", route)
         }
     }
 
-    /** إشعار محلي لإشعارات الأيدجنت data-only — يفتح الشاشة الرئيسية. */
-    private fun showAgentNotification(title: String, body: String) {
+    /** إشعار محلي لإشعارات الأيدجنت data-only — يفتح الشاشة الرئيسية (أو route محدد). */
+    private fun showAgentNotification(title: String, body: String, route: String? = null) {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             manager.createNotificationChannel(
@@ -52,6 +56,7 @@ class ZadFirebaseMessagingService : FirebaseMessagingService() {
         }
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            if (route == "transaction_proposals") putExtra("open_transaction_proposals", true)
         }
         val pending = PendingIntent.getActivity(
             this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE

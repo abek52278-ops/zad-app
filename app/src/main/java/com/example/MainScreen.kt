@@ -192,6 +192,16 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
         }
     }
 
+    // بند 32.2 — دوس على إشعار المعاملة البنكية (FCM fallback لما تيليجرام مش مربوط)
+    // يرجّع العميل للرئيسية عشان يشوف الكارت، بدل ما يفضل واقف في أي شاشة تانية كان فيها.
+    val transactionProposalNotifRequest = MainActivity.openTransactionProposalsRequest.value
+    LaunchedEffect(transactionProposalNotifRequest) {
+        if (transactionProposalNotifRequest) {
+            go(ZadRoutes.HOME)
+            MainActivity.openTransactionProposalsRequest.value = false
+        }
+    }
+
     /** Kids mode never reaches a financial screen — the PIN prompt gates it instead. */
     fun goGuarded(route: String) {
         if (kidsModeEffective && route != ZadRoutes.HOME && route != ZadRoutes.FAMILY) {
