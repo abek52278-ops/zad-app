@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -110,7 +111,17 @@ fun ZadWalletHeroCard(
                         .background(Color.White.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("💳", fontSize = 14.sp)
+                    // بند 36.4 — إيموجي بره وضع الأطفال/التصنيفات ممنوع في الأسطح البريميوم
+                    // (الكارت الأخضر هو أهمها). أيقونة Material حقيقية بدل "💳" — مش
+                    // LucideIcon اللي كان موجود (اتشال في نفس البند): بيحمّل SVG من CDN
+                    // خارجي وقت التشغيل، وصفر استخدام حي كان ليه في الكود كله؛ شبكة غايبة
+                    // = أيقونة غايبة على أهم كارت في التطبيق، مخاطرة مش مستاهلة لأيقونة ثابتة.
+                    Icon(
+                        Icons.Filled.CreditCard,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(14.dp),
+                    )
                 }
                 Text(
                     text = stringResource(R.string.available_label),
