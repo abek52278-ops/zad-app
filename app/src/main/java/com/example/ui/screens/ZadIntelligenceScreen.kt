@@ -107,6 +107,7 @@ fun ZadIntelligenceScreen(
     val emergencyFund by viewModel.emergencyFund.collectAsState()
     val resilienceAvailableFigure by viewModel.availableFigure.collectAsState()
     val resilienceRemainingBalance by viewModel.remainingBalance.collectAsState()
+    val weeklyAdherencePercent by viewModel.weeklyAdherencePercent.collectAsState()
     val companionState by viewModel.companionState.collectAsState()
     val pendingAgentProposals by viewModel.pendingAgentProposals.collectAsState()
     val familyState by familyViewModel.state.collectAsState()
@@ -224,8 +225,8 @@ fun ZadIntelligenceScreen(
             safeDailySpend = resilienceAvailableFigure?.value?.let { if (resilienceRemainingBalance != null) it / 14 else 120.0 } ?: 120.0,
             forecastNextMonth = forecast?.predictedTotal ?: (totalExpense * 1.08),
             familyMembersCount = activeFamily?.members?.size?.coerceAtLeast(1) ?: 1,
-            pharmacyAdherencePct = 91,
-            pantryDaysLeft = inventory.size.coerceAtLeast(12)
+            pharmacyAdherencePct = weeklyAdherencePercent,
+            lowStockItemCount = lowStockCount
         )
     }
 

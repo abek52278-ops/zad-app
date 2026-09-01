@@ -1181,8 +1181,8 @@ fun ZadExecutiveDossierSheet(
     safeDailySpend: Double = 145.0,
     forecastNextMonth: Double = 4100.0,
     familyMembersCount: Int = 4,
-    pharmacyAdherencePct: Int = 91,
-    pantryDaysLeft: Int = 18
+    pharmacyAdherencePct: Int? = null,
+    lowStockItemCount: Int = 0
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val currentDate = remember { java.time.LocalDate.now().toString() }
@@ -1231,37 +1231,13 @@ fun ZadExecutiveDossierSheet(
                     textAlign = TextAlign.Center
                 )
                 Text(
-                    text = "تاريخ الإصدار: $currentDate • كود التوثيق: #ZAD-NEURAL-8841",
+                    text = "تاريخ الإصدار: $currentDate",
                     fontSize = 11.sp,
                     color = Color(0xFFD9F2E6).copy(alpha = 0.85f)
                 )
             }
 
-            // ── Section 1: التحليل السلوكي والشخصية المالية ──
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Color.White.copy(alpha = 0.06f))
-                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(18.dp))
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("🧠", fontSize = 18.sp)
-                    Text("1. الملف السلوكي ونمط الإنفاق", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
-                }
-                Text(
-                    text = "• النمط المالي العام: متوازن استراتيجي مع نزعة ادخارية (Strategic Saver).\n" +
-                           "• معدل كبح الاندفاع: 88/100 (ممتاز — تم تفادي 4 عمليات شراء عاطفية هذا الشهر).\n" +
-                           "• مؤشر الاستقرار المالي: 92/100 (السيولة تغطي التزامات 3 أشهر قادمة).",
-                    fontSize = 12.5.sp,
-                    lineHeight = 20.sp,
-                    color = Color(0xFFE2E8F0)
-                )
-            }
-
-            // ── Section 2: الميزانية والتنبؤات المستقبلية ──
+            // ── Section 1: الميزانية والتنبؤات المستقبلية ──
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1278,15 +1254,14 @@ fun ZadExecutiveDossierSheet(
                 Text(
                     text = "• إجمالي الصرف الفعلي للدورة الحالية: ${totalSpent.toInt()} ر.س.\n" +
                            "• معدل الصرف اليومي الآمن الموصى به: ${safeDailySpend.toInt()} ر.س/يوم.\n" +
-                           "• التكلفة التقديرية للشهر القادم بناءً على الذكاء الاصطناعي: ${forecastNextMonth.toInt()} ر.س.\n" +
-                           "• فرصة التوفير المستهدفة: وفر 450 ر.س بإعادة جدولة الاشتراكات غير المستغلة.",
+                           "• التكلفة التقديرية للشهر القادم بناءً على الذكاء الاصطناعي: ${forecastNextMonth.toInt()} ر.س.",
                     fontSize = 12.5.sp,
                     lineHeight = 20.sp,
                     color = Color(0xFFE2E8F0)
                 )
             }
 
-            // ── Section 3: الشركة المنزلية وصحة المخزون والصيدلية ──
+            // ── Section 2: الشركة المنزلية وصحة المخزون والصيدلية ──
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1298,71 +1273,17 @@ fun ZadExecutiveDossierSheet(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("🏡", fontSize = 18.sp)
-                    Text("3. كفاءة إدارة المنزل والعائلة", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF34D399))
+                    Text("2. كفاءة إدارة المنزل والعائلة", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF34D399))
                 }
                 Text(
                     text = "• عقل العائلة المشترك: $familyMembersCount أفراد متصلين ومزامنين لحظياً.\n" +
-                           "• تأمين المخزون ومؤشر الهدر: المخزون يغطي $pantryDaysLeft يوماً مع انعدام الهدر.\n" +
-                           "• صيدلية الأسرة والجرعات: نسبة الالتزام الدوائي $pharmacyAdherencePct% دون أي جرعات مفقودة.",
+                           "• أصناف قاربت على النفاد في المخزون: $lowStockItemCount صنف.\n" +
+                           (pharmacyAdherencePct?.let { "• الالتزام الدوائي هذا الأسبوع: $it%." }
+                               ?: "• الالتزام الدوائي: لسه مفيش جرعات كفاية مسجّلة لحساب نسبة."),
                     fontSize = 12.5.sp,
                     lineHeight = 20.sp,
                     color = Color(0xFFE2E8F0)
                 )
-            }
-
-            // ── Section 4: خريطة التوجيهات الاستراتيجية ──
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Color(0xFF0F9B76).copy(alpha = 0.15f))
-                    .border(1.dp, Color(0xFF34D399).copy(alpha = 0.35f), RoundedCornerShape(18.dp))
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("⚡", fontSize = 18.sp)
-                    Text("4. خطة العمل الاستراتيجية المعتمدة", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6EE7B7))
-                }
-                Text(
-                    text = "1. تحويل 500 ر.س تلقائياً إلى صندوق الطوارئ في الأسبوع الأول.\n" +
-                           "2. استهلاك أطعمة الفريزر أولاً لتوفير 200 ر.س من قائمة البقالة القادمة.\n" +
-                           "3. تجديد وصفة دواء الوالدين قبل 5 أيام من النفاد لضمان الاستمرارية.",
-                    fontSize = 12.sp,
-                    lineHeight = 20.sp,
-                    color = Color(0xFFD9F2E6)
-                )
-            }
-
-            // ── Official Zad Neural Verification Seal ──
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(
-                        brush = Brush.radialGradient(
-                            colors = listOf(Color(0xFFD97706).copy(alpha = 0.25f), Color.Transparent)
-                        )
-                    )
-                    .border(1.5.dp, Color(0xFFFBBF24), RoundedCornerShape(16.dp))
-                    .padding(16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("🛡️ ⭐️ 🛡️", fontSize = 16.sp)
-                    Text(
-                        text = "ختم الاعتماد والتوثيق الرسمي لعقل زاد",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color(0xFFFBBF24)
-                    )
-                    Text(
-                        text = "ZAD NEURAL VERIFIED & DIGITALLY SIGNED",
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFFDE68A)
-                    )
-                }
             }
 
             // ── Action Buttons (Print / Share / WhatsApp) ──
@@ -1372,11 +1293,10 @@ fun ZadExecutiveDossierSheet(
             ) {
                 Button(
                     onClick = {
-                        val shareText = "📄 تقرير عقل زاد الاستراتيجي الشامل:\n" +
-                                "• نمط الإنفاق: متوازن استراتيجي\n" +
+                        val shareText = "📄 تقرير عقل زاد:\n" +
                                 "• إجمالي الصرف: ${totalSpent.toInt()} ر.س\n" +
-                                "• الالتزام الدوائي: $pharmacyAdherencePct%\n" +
-                                "• التقرير مختوم وموثق من ZAD AI."
+                                "• التكلفة التقديرية للشهر القادم: ${forecastNextMonth.toInt()} ر.س\n" +
+                                (pharmacyAdherencePct?.let { "• الالتزام الدوائي: $it%\n" } ?: "")
                         val sendIntent = android.content.Intent().apply {
                             action = android.content.Intent.ACTION_SEND
                             putExtra(android.content.Intent.EXTRA_TEXT, shareText)

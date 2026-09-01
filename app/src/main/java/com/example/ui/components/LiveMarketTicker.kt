@@ -75,13 +75,11 @@ fun LiveMarketTicker(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val effectivePrices = if (prices.isNotEmpty()) prices else listOf(
-        MarketPriceItem("أرز", 32.0, "ر.س", 2.0),
-        MarketPriceItem("دجاج", 18.0, "ر.س", -1.0),
-        MarketPriceItem("بنزين", 2.18, "ر.س", 0.0),
-        MarketPriceItem("سكر", 14.5, "ر.س", 1.0),
-        MarketPriceItem("زيت", 28.0, "ر.س", -2.0)
-    )
+    // كانت بتستبدل قايمة فاضية بـ5 أسعار مخترعة، فـ effectivePrices مكانتش تفضى أبدًا —
+    // ده كان بيخلي LoadingRow()/RetryRow() تحت (اللي مبنيين صح فعلاً) كود ميت مستحيل
+    // يتنفذ، وده بالظبط عكس القصد الموصوف في تعليق الفانكشن فوق (فرّق بين "لسه ما
+    // جربناش" و"جرّبنا وما لقيناش" بدل بيانات وهمية).
+    val effectivePrices = prices
 
     Column(modifier = modifier.fillMaxWidth()) {
         if (effectivePrices.isNotEmpty()) {
