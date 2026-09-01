@@ -40,6 +40,20 @@ const PSEUDO_COLUMNS = new Set(["*", "count"]);
  */
 const IGNORED_TABLES = new Set<string>([]);
 
+/**
+ * ملفات فيها استعلامات كسيرة بس **مش متوصّلة بأي حاجة** — لقيتها لما شغّلت الاختبار
+ * ده أول مرة (2026-09-01): zad-market-intelligence/index.ts معندهوش import لأي واحد
+ * من التلاتة دول خالص، يعني مستحيل ينفّذوا في الإنتاج. مش بشيلهم لأن ده قرار منتج
+ * (وصل ميزة تجميع الأسعار الجماعي دي، ولا مسحها) مش قرار تقني — لكن مفيش داعي
+ * الاختبار يفشل على كود مش شغّال. لو أي ملف من دول اتوصّل يوم من الأيام، لازم يتشال
+ * من هنا فورًا عشان الفحص الحقيقي يرجع يشتغل عليه.
+ */
+const IGNORED_FILES = new Set<string>([
+  "zad-market-intelligence/crowdsource-tools.ts",
+  "zad-market-intelligence/web-scraper.ts",
+  "zad-market-intelligence/receipt-processor.ts",
+]);
+
 /** بيشيل التعليقات عشان `.from("x")` جوه تعليق ميتحسبش نداء حقيقي */
 function stripComments(src: string): string {
   let out = "";
@@ -199,7 +213,9 @@ Deno.test("عقد السكيما: كل .from().select()/.eq()/.insert() بيشا
   const all: Violation[] = [];
   for await (const path of tsFiles(FUNCTIONS_DIR.replace(/\/$/, ""))) {
     if (path.includes("/_schema/")) continue;
-    all.push(...scanFile(path.replace(FUNCTIONS_DIR, ""), await Deno.readTextFile(path)));
+    const rel = path.replace(FUNCTIONS_DIR, "");
+    if (IGNORED_FILES.has(rel)) continue;
+    all.push(...scanFile(rel, await Deno.readTextFile(path)));
   }
 
   if (all.length > 0) {

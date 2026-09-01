@@ -78,6 +78,15 @@ jobs:
         working-directory: supabase/functions/zad-market-intelligence
         run: deno check index.ts
 
+      # بند 30.1 — عقد السكيما بين الكود وschema.json (لقطة من الداتابيز الحي). بيمنع
+      # بالظبط النمط اللي رجع تلات مرات في الجلسة دي: .select()/.eq()/.insert() على
+      # عمود مش موجود، بيرجع 42703 بصمت لأن حد من غير { error } destructuring. اتبنى
+      # 2026-08-31 بس فضل مش متوصّل بأي CI لغاية دلوقتي — تشغيله أول مرة لقى 11 مرجع
+      # كسير حقيقي (فضلوا يتصلحوا في نفس الكوميت اللي وصله).
+      - name: Schema contract (.from/.select/.insert vs live schema)
+        working-directory: supabase/functions/_schema
+        run: deno test --allow-all
+
   # النشر من الريبو، بعد ما الفحص يعدي — مش من على جهاز حد.
   #
   # الانحراف بين الريبو والمنشور مش احتمال نظري هنا، هو حصل فعلاً: في 2026-08-01 النسخة

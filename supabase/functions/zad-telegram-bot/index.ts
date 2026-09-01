@@ -349,7 +349,8 @@ async function fetchAgentContext(sb: SupabaseClient, userId: string): Promise<Ag
       .eq("user_id", userId).order("created_at", { ascending: false }).limit(200),
     sb.from("zad_inventory").select("item_name,quantity,unit,expiry_date").eq("user_id", userId).limit(60),
     sb.from("zad_subscriptions").select("title,amount,renewal_date,is_active").eq("user_id", userId).limit(30),
-    sb.from("zad_obligations").select("title,amount,due_date,status").eq("user_id", userId).limit(30),
+    // zad_obligations معندهاش status — active/confirmed بس (بند 30.1، schema_contract_test.ts).
+    sb.from("zad_obligations").select("title,amount,due_date,active").eq("user_id", userId).limit(30),
     sb.from("zad_debts").select("name,remaining_balance,interest_rate,minimum_payment,due_day").eq("user_id", userId).eq("is_active", true).limit(30),
     sb.from("zad_pharmacy_items").select("name,remaining_quantity,unit,dosage").eq("user_id", userId).limit(30),
     sb.from("zad_shopping_list").select("item_name,is_purchased").eq("user_id", userId).limit(40),

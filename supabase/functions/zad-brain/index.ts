@@ -4937,12 +4937,14 @@ Deno.serve(async (req: Request) => {
       let synthesized = 0;
       for (const u of (users ?? [])) {
         try {
-          const { data: pantryItems } = await sbDream.from("zad_inventory").select("id, name, quantity, unit, updated_at").eq("user_id", u.id);
+          // zad_inventory معندهاش name (العمود item_name) ولا updated_at خالص، وzad_shopping_list
+          // معندهاش unit — الكويري دي كانت بترمي 42703 على كل نداء (بند 30.1، schema_contract_test.ts).
+          const { data: pantryItems } = await sbDream.from("zad_inventory").select("id, item_name, quantity").eq("user_id", u.id);
           for (const item of (pantryItems ?? [])) {
             if (item.quantity <= 1) {
-              const { data: existingShop } = await sbDream.from("zad_shopping_list").select("id").eq("user_id", u.id).eq("item_name", item.name).maybeSingle();
+              const { data: existingShop } = await sbDream.from("zad_shopping_list").select("id").eq("user_id", u.id).eq("item_name", item.item_name).maybeSingle();
               if (!existingShop) {
-                await sbDream.from("zad_shopping_list").insert({ user_id: u.id, item_name: item.name, quantity: 1, unit: item.unit ?? "قطعة" });
+                await sbDream.from("zad_shopping_list").insert({ user_id: u.id, item_name: item.item_name, quantity: 1 });
               }
             }
           }
