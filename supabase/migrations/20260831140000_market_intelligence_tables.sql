@@ -97,8 +97,11 @@ create table if not exists public.market_snapshot (
   -- Confidence
   data_freshness text not null default 'current', -- 'current', 'stale', 'missing'
   created_at timestamptz not null default now(),
+  -- table-level UNIQUE only accepts plain columns, not date(created_at) (also not
+  -- IMMUTABLE on timestamptz) — a real column keeps "one per day" enforceable.
+  snapshot_date date not null default current_date,
 
-  unique(user_id, date(created_at)) -- One snapshot per user per day
+  unique(user_id, snapshot_date) -- One snapshot per user per day
 );
 
 comment on table public.market_snapshot is 'Daily market conditions + inflation + price trends. zad-brain reads to detect anomalies and alert users.';
