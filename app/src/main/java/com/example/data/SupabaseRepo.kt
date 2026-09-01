@@ -379,8 +379,31 @@ object SupabaseRepo {
         return getInventorySnapshot().items
     }
 
-    suspend fun getInventorySnapshot(): RemoteListSnapshot<ZadInventory> =
-        getOwnedListSnapshot("zad_inventory", "getInventory")
+    /**
+     * Task 30 — مش getOwnedListSnapshot العادية: لو العميل في عيلة، لازم يشوف مخزون
+     * العيلة كله (family_id) مش صفوفه هو بس. لسه بيرجع لسلوك user_id القديم بالظبط
+     * لو مفيش عيلة، عشان الغالبية اللي مش منضمين لعيلة ميحسّوش بأي فرق.
+     */
+    suspend fun getInventorySnapshot(): RemoteListSnapshot<ZadInventory> {
+        val userId = client.auth.currentUserOrNull()?.id
+        if (userId == null) {
+            Log.w(TAG, "getInventory() skipped — user not authenticated")
+            return RemoteListSnapshot(emptyList(), authoritative = false)
+        }
+        return try {
+            val familyId = getMyFamilyMember()?.familyId
+            val result = client.postgrest["zad_inventory"].select {
+                filter {
+                    if (familyId != null) eq("family_id", familyId) else eq("user_id", userId)
+                }
+            }.decodeList<ZadInventory>()
+            Log.d(TAG, "getInventory() → familyId=$familyId, returned ${result.size} items")
+            RemoteListSnapshot(result, authoritative = true)
+        } catch (e: Exception) {
+            Log.e(TAG, "getInventory() FAILED: ${e.message}")
+            RemoteListSnapshot(emptyList(), authoritative = false)
+        }
+    }
 
     suspend fun addInventory(item: ZadInventory): Boolean {
         try {
@@ -420,6 +443,11 @@ object SupabaseRepo {
         @SerialName("p_item") val item: String,
         @SerialName("p_qty") val qty: Int,
         @SerialName("p_source") val source: String
+    )
+
+    @Serializable
+    private data class BackfillInventoryParams(
+        @SerialName("p_family") val family: String
     )
 
     /**
@@ -1377,6 +1405,19 @@ object SupabaseRepo {
                 Log.d(TAG, "joinFamilyGroup() → table=family_members, familyId=${group.id}, userId=${user.id}")
                 client.postgrest["family_members"].insert(member)
                 Log.d(TAG, "joinFamilyGroup() SUCCESS")
+                // Task 30 — يوحّد مخزونه الشخصي القديم مع العيلة فورًا. فشل هنا مش لازم
+                // يفشّل الانضمام نفسه (العضوية اتسجلت أصلاً) — الصفوف القديمة هتتوحد
+                // تدريجيًا لوحدها أول ما حد يلمسها (trigger)، بس التجربة الفورية أحسن.
+                try {
+                    client.postgrest.rpc(
+                        "zad_inventory_backfill_on_family_join",
+                        Json.encodeToJsonElement(
+                            BackfillInventoryParams(family = group.id)
+                        ).jsonObject
+                    )
+                } catch (backfillError: Exception) {
+                    Log.w(TAG, "joinFamilyGroup() → inventory backfill failed (non-fatal): ${backfillError.message}")
+                }
                 true
             } else {
                 Log.w(TAG, "joinFamilyGroup() → No family found for inviteCode=$inviteCode")

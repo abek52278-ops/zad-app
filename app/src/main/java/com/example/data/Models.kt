@@ -115,6 +115,9 @@ data class ZadUser(
 data class ZadInventory(
     @PrimaryKey val id: String = UUID.randomUUID().toString(),
     @SerialName("user_id") val userId: String? = null,
+    // بيتحدد سيرفر-سايد بس (trigger)، الكلاينت مايبعتوش ومايتصدقش لو بعته —
+    // Task 30. null = مخزون شخصي (مش في عيلة)، غير null = مشترك مع العيلة.
+    @SerialName("family_id") val familyId: String? = null,
     @SerialName("item_name") val itemName: String,
     val category: String? = null,
     val quantity: Int = 1,

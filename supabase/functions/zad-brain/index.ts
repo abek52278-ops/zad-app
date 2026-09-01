@@ -1201,11 +1201,18 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       return "اتضافت لقائمة التسوق";
     }
     case "update_inventory_qty": {
-      const { data: before } = await sb.from("zad_inventory").select("id,quantity").eq("user_id", userId).eq("item_name", input.item_name).maybeSingle();
+      // Task 30 — لو العميل في عيلة، المخزون مشترك: الصنف ممكن يكون العضو التاني
+      // ضافه، فالمطابقة بـfamily_id مش user_id. before.id اتأكد ملكيته/مشاركته هنا،
+      // فالـupdate بعدين بيمشي بـid لوحده من غير فلتر user_id تاني (كان هيرفض
+      // يلاقي الصف لو مالكه الحقيقي عضو تاني في العيلة).
+      const { data: fam } = await sb.from("family_members").select("family_id").eq("user_id", userId).maybeSingle();
+      const familyId = (fam as { family_id: string } | null)?.family_id ?? null;
+      const beforeQuery = sb.from("zad_inventory").select("id,quantity").eq("item_name", input.item_name);
+      const { data: before } = await (familyId ? beforeQuery.eq("family_id", familyId) : beforeQuery.eq("user_id", userId)).maybeSingle();
       if (!before) return "مرفوض: الصنف مش موجود في مخزون العميل ده — عدّل وحاول تاني.";
       const w = await writeRows(
         sb.from("zad_inventory").update({ quantity: input.new_qty })
-          .eq("id", before.id).eq("user_id", userId).select("id,quantity"),
+          .eq("id", before.id).select("id,quantity"),
         "تعديل الكمية",
       );
       if (!w.ok) return `مرفوض: ${w.reason}`;
@@ -1570,9 +1577,14 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
     }
     case "delete_inventory_item": {
       const itemName = String(input.item_name).trim();
-      const { data: before } = await sb.from("zad_inventory").select("*").eq("user_id", userId).eq("item_name", itemName).maybeSingle();
+      // Task 30 — نفس منطق update_inventory_qty: المطابقة بـfamily_id لو العميل في
+      // عيلة، عشان يقدر يحذف صنف عضو تاني ضافه من المخزون المشترك.
+      const { data: fam } = await sb.from("family_members").select("family_id").eq("user_id", userId).maybeSingle();
+      const familyId = (fam as { family_id: string } | null)?.family_id ?? null;
+      const beforeQuery = sb.from("zad_inventory").select("*").eq("item_name", itemName);
+      const { data: before } = await (familyId ? beforeQuery.eq("family_id", familyId) : beforeQuery.eq("user_id", userId)).maybeSingle();
       if (!before) return `مرفوض: مفيش صنف اسمه "${itemName}" في المخزون.`;
-      const w = await writeRows(sb.from("zad_inventory").delete().eq("id", before.id).eq("user_id", userId).select("id"), "حذف صنف");
+      const w = await writeRows(sb.from("zad_inventory").delete().eq("id", before.id).select("id"), "حذف صنف");
       if (!w.ok) return `مرفوض: ${w.reason}`;
       ctx.mutationCount++;
       ctx.mutations.push({ tool: name, old: before, new: null });

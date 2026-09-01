@@ -27,7 +27,7 @@ import androidx.room.TypeConverters
     com.example.data.ZadDoseLog::class,
     com.example.data.PendingSyncOp::class,
     com.example.data.RejectedBankMessage::class
-], version = 16, exportSchema = false)
+], version = 17, exportSchema = false)
 @TypeConverters(Converters::class)
 abstract class ZadDatabase : RoomDatabase() {
     abstract fun zadDao(): ZadDao
@@ -138,6 +138,17 @@ abstract class ZadDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Task 30 — مرآة لـ supabase/migrations/20260901010000_family_shared_inventory.sql.
+         * zad_inventory بقى فيه family_id (سيرفر-سايد بس، الكلاينت مايكتبوش) — لازم يبقى
+         * هنا كمان لنفس السبب في تعليق MIGRATION_15_16: select() بيرجّعه.
+         */
+        private val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE zad_inventory ADD COLUMN familyId TEXT")
+            }
+        }
+
         fun getDatabase(context: Context): ZadDatabase {
             return INSTANCE ?: synchronized(this) {
                 // تشفير SQLCipher: مفتاح القاعدة بيولّد مرة واحدة ويتخزن في
@@ -154,7 +165,7 @@ abstract class ZadDatabase : RoomDatabase() {
                     "zad_database"
                 )
                     .openHelperFactory(factory)
-                    .addMigrations(MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
+                    .addMigrations(MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
