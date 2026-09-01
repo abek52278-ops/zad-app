@@ -1,0 +1,201 @@
+-- "الاشتراك ده غلى؟" — إضافة حذرة جدًا لـ zad_domain_observations. مفيش بيانات حقيقية
+-- كفاية في هذا المشروع وقت الكتابة (٤٠ معاملة إجمالًا، ٣ بس فيها merchant_name) للتحقق
+-- من مطابقة أوسع، فالمطابقة هنا **بالظبط** (case/whitespace-insensitive)، مش substring/
+-- ILIKE — لو الاسم المسجّل للاشتراك مش مطابق حرفيًا لاسم التاجر في المعاملة، الملاحظة
+-- دي مش هتظهر، وده مقصود: تفويت ملاحظة حقيقية أرخص بكتير من ملاحظة كاذبة عن فلوس العميل.
+-- الصيغة سؤال مش تأكيد، والـseverity 'low' عمدًا — ده تخمين من نص مش رقم بنكي موثوق.
+create or replace function public.zad_domain_observations(p_user uuid)
+returns jsonb
+language plpgsql
+stable security definer
+set search_path to 'public'
+as $function$
+DECLARE
+  v_out JSONB := '[]'::jsonb;
+  v_today DATE := current_date;
+  v_bs JSONB;
+  v_expected NUMERIC;
+  v_spent NUMERIC;
+  v_ahead_pct NUMERIC;
+BEGIN
+  IF auth.uid() IS NOT NULL AND auth.uid() <> p_user THEN
+    RAISE EXCEPTION 'not_authorized';
+  END IF;
+
+  SELECT v_out || coalesce(jsonb_agg(jsonb_build_object(
+      'domain', 'inventory', 'kind', 'depletion',
+      'text', i.item_name || ' متوقّع يخلص خلال ' || ceil(i.quantity / c.avg_daily_qty)::int || ' يوم',
+      'severity', CASE WHEN i.quantity / c.avg_daily_qty <= 3 THEN 'high' ELSE 'normal' END,
+      'data', jsonb_build_object('item', i.item_name, 'quantity', i.quantity,
+                                 'avg_daily_qty', round(c.avg_daily_qty::numeric, 3),
+                                 'rate_known', c.rate_known)
+    )), '[]'::jsonb)
+    INTO v_out
+    FROM zad_inventory i
+    JOIN zad_consumption c ON c.user_id = i.user_id AND c.item_name = i.item_name
+   WHERE i.user_id = p_user AND c.avg_daily_qty > 0 AND i.quantity > 0
+     AND i.quantity / c.avg_daily_qty <= 14;
+
+  SELECT v_out || coalesce(jsonb_agg(jsonb_build_object(
+      'domain', 'inventory', 'kind', 'expiry',
+      'text', item_name || ' صلاحيته بتنتهي خلال ' || (ed - v_today) || ' يوم',
+      'severity', CASE WHEN ed - v_today <= 3 THEN 'high' ELSE 'normal' END,
+      'data', jsonb_build_object('item', item_name, 'expiry_date', ed)
+    )), '[]'::jsonb)
+    INTO v_out
+    FROM (SELECT item_name, zad_try_date(expiry_date) AS ed
+            FROM zad_inventory WHERE user_id = p_user AND expiry_date IS NOT NULL) x
+   WHERE ed IS NOT NULL AND ed >= v_today AND ed - v_today <= 10;
+
+  SELECT v_out || coalesce(jsonb_agg(jsonb_build_object(
+      'domain', 'pharmacy', 'kind', 'low_stock',
+      'text', name || ' فاضل منه ' || remaining_quantity || ' ' || coalesce(unit, 'وحدة') ||
+              ' — يكفي حوالي ' || floor(remaining_quantity / greatest(daily_dose_count, 1))::int || ' يوم',
+      'severity', CASE WHEN remaining_quantity / greatest(daily_dose_count, 1) <= 3 THEN 'high' ELSE 'normal' END,
+      'data', jsonb_build_object('name', name, 'remaining', remaining_quantity,
+                                 'daily_dose_count', daily_dose_count)
+    )), '[]'::jsonb)
+    INTO v_out
+    FROM zad_pharmacy_items
+   WHERE user_id = p_user AND remaining_quantity > 0 AND coalesce(daily_dose_count, 0) > 0
+     AND remaining_quantity / greatest(daily_dose_count, 1) <= 7;
+
+  SELECT v_out || coalesce(jsonb_agg(jsonb_build_object(
+      'domain', 'subscriptions', 'kind', 'renewal',
+      'text', title || ' هيتجدد خلال ' || (rd - v_today) || ' يوم بمبلغ ' || amount,
+      'severity', 'normal',
+      'data', jsonb_build_object('title', title, 'amount', amount, 'renewal_date', rd)
+    )), '[]'::jsonb)
+    INTO v_out
+    FROM (SELECT title, amount, zad_try_date(renewal_date) AS rd
+            FROM zad_subscriptions
+           WHERE user_id = p_user AND is_active AND renewal_date IS NOT NULL) x
+   WHERE rd IS NOT NULL AND rd >= v_today AND rd - v_today <= 7;
+
+  -- جديد: "الاشتراك ده غلى؟" — راجع الملاحظة أعلى الملف قبل ما تعدّل الشرط ده.
+  SELECT v_out || coalesce(jsonb_agg(jsonb_build_object(
+      'domain', 'subscriptions', 'kind', 'possible_price_change',
+      'text', s.title || ' آخر معاملة باسم قريب منه كانت بمبلغ ' || t.amount ||
+              ' بدل ' || s.amount || ' المسجّل — يمكن الاشتراك غلى؟ راجعه قبل ما تتأكد.',
+      'severity', 'low',
+      'data', jsonb_build_object('title', s.title, 'stored_amount', s.amount, 'observed_amount', t.amount)
+    )), '[]'::jsonb)
+    INTO v_out
+    FROM zad_subscriptions s
+    JOIN LATERAL (
+      SELECT amount FROM zad_transactions t2
+       WHERE t2.user_id = p_user AND t2.txn_kind = 'expense'
+         AND t2.merchant_name IS NOT NULL
+         AND lower(btrim(t2.merchant_name)) = lower(btrim(s.title))
+         AND t2.created_at >= now() - interval '45 days'
+       ORDER BY t2.created_at DESC
+       LIMIT 1
+    ) t ON true
+   WHERE s.user_id = p_user AND s.is_active
+     AND s.amount > 0 AND t.amount > 0
+     AND abs(t.amount - s.amount) / greatest(s.amount, t.amount) >= 0.15;
+
+  SELECT v_out || coalesce(jsonb_agg(jsonb_build_object(
+      'domain', 'obligations', 'kind', 'due_soon',
+      'text', title || ' استحقاقه خلال ' || (nd - v_today) || ' يوم بمبلغ ' || amount,
+      'severity', CASE WHEN nd - v_today <= 3 THEN 'high' ELSE 'normal' END,
+      'data', jsonb_build_object('title', title, 'amount', amount, 'due', nd)
+    )), '[]'::jsonb)
+    INTO v_out
+    FROM (
+      SELECT title, amount,
+             zad_obligation_next_due(recurrence, due_day, due_date, v_today) AS nd
+        FROM zad_obligations
+       WHERE user_id = p_user AND active AND confirmed
+    ) o
+   WHERE nd IS NOT NULL AND nd >= v_today AND nd - v_today <= 7;
+
+  SELECT v_out || coalesce(jsonb_agg(jsonb_build_object(
+      'domain', 'obligations', 'kind', 'possibly_unpaid',
+      'text', title || ' كان استحقاقه ' || prev_due || ' (من ' || (v_today - prev_due) ||
+              ' يوم) ومفيش معاملة بمبلغ قريب منه — يا إما مادفعش يا إما مااتسجّلش',
+      'severity', CASE WHEN v_today - prev_due >= 5 THEN 'high' ELSE 'normal' END,
+      'data', jsonb_build_object('title', title, 'amount', amount, 'due_was', prev_due)
+    )), '[]'::jsonb)
+    INTO v_out
+    FROM (
+      SELECT o.title, o.amount,
+             (make_date(extract(year FROM v_today)::int, extract(month FROM v_today)::int,
+                        least(o.due_day, extract(day FROM (date_trunc('month', v_today)
+                             + interval '1 month - 1 day'))::int))) AS prev_due
+        FROM zad_obligations o
+       WHERE o.user_id = p_user AND o.active AND o.confirmed
+         AND o.recurrence = 'monthly' AND o.due_day IS NOT NULL
+    ) d
+   WHERE prev_due <= v_today
+     AND v_today - prev_due BETWEEN 2 AND 20
+     AND NOT EXISTS (
+       SELECT 1 FROM zad_transactions t
+        WHERE t.user_id = p_user AND t.txn_kind = 'expense'
+          AND abs(t.amount - d.amount) <= greatest(d.amount * 0.10, 5)
+          AND t.created_at::date BETWEEN d.prev_due - 3 AND v_today
+     );
+
+  SELECT v_out || coalesce(jsonb_agg(jsonb_build_object(
+      'domain', 'maintenance', 'kind', 'service_overdue',
+      'text', name || ' فات على آخر صيانة ليه ' ||
+              (v_today - lsd) || ' يوم (كل ' || service_interval_days || ' يوم)',
+      'severity', 'normal',
+      'data', jsonb_build_object('name', name, 'interval_days', service_interval_days)
+    )), '[]'::jsonb)
+    INTO v_out
+    FROM (SELECT name, service_interval_days, zad_try_date(last_service_date) AS lsd
+            FROM zad_maintenance_items
+           WHERE user_id = p_user AND last_service_date IS NOT NULL
+             AND coalesce(service_interval_days, 0) > 0) x
+   WHERE lsd IS NOT NULL AND v_today - lsd > service_interval_days;
+
+  SELECT v_out || CASE WHEN count(*) > 0 THEN jsonb_build_array(jsonb_build_object(
+      'domain', 'shopping', 'kind', 'pending',
+      'text', 'قايمة التسوق فيها ' || count(*) || ' صنف مستني' ||
+              CASE WHEN sum(coalesce(estimated_price, 0)) > 0
+                   THEN ' بتقدير ' || round(sum(coalesce(estimated_price, 0))::numeric, 2) ELSE '' END,
+      'severity', 'low',
+      'data', jsonb_build_object('count', count(*),
+                                 'estimated_total', round(sum(coalesce(estimated_price, 0))::numeric, 2))
+    )) ELSE '[]'::jsonb END
+    INTO v_out
+    FROM zad_shopping_list
+   WHERE user_id = p_user AND NOT is_purchased;
+
+  v_bs := zad_budget_state(p_user);
+
+  IF coalesce((v_bs->>'monthly_limit')::numeric, 0) > 0
+     AND coalesce((v_bs->>'cycle_length_days')::int, 0) > 0
+     AND coalesce((v_bs->>'days_elapsed')::int, 0) >= 3 THEN
+    v_spent := coalesce((v_bs->>'spent')::numeric, 0);
+    v_expected := (v_bs->>'monthly_limit')::numeric
+                  * (v_bs->>'days_elapsed')::numeric / (v_bs->>'cycle_length_days')::numeric;
+    IF v_expected > 0 AND v_spent > v_expected THEN
+      v_ahead_pct := round((v_spent - v_expected) / v_expected * 100, 0);
+      IF v_ahead_pct >= 15 THEN
+        v_out := v_out || jsonb_build_array(jsonb_build_object(
+          'domain', 'budget', 'kind', 'ahead_of_pace',
+          'text', 'صرفه أسرع من الجدول بـ' || v_ahead_pct || '٪ — صرف ' || round(v_spent, 0) ||
+                  ' والمتوقّع لحد النهارده ' || round(v_expected, 0),
+          'severity', CASE WHEN v_ahead_pct >= 40 THEN 'high' ELSE 'normal' END,
+          'data', jsonb_build_object('spent', v_spent, 'expected', round(v_expected, 2),
+                                     'ahead_pct', v_ahead_pct,
+                                     'days_left', (v_bs->>'days_left')::int)
+        ));
+      END IF;
+    END IF;
+  END IF;
+
+  IF coalesce((v_bs->>'monthly_limit')::numeric, 0) > 0
+     AND coalesce((v_bs->>'limit_confirmed')::boolean, true) IS FALSE THEN
+    v_out := v_out || jsonb_build_array(jsonb_build_object(
+      'domain', 'budget', 'kind', 'limit_unconfirmed',
+      'text', 'السقف الشهري (' || (v_bs->>'monthly_limit') || ') متسجّل بس العميل ماأكدهوش',
+      'severity', 'low',
+      'data', jsonb_build_object('monthly_limit', (v_bs->>'monthly_limit')::numeric)
+    ));
+  END IF;
+
+  RETURN v_out;
+END $function$;
