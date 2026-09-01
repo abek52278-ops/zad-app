@@ -36,7 +36,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -3591,6 +3594,11 @@ fun FamilyNeuralMeshCard(
                 }
             }
 
+            if (!activeState?.members.isNullOrEmpty()) {
+                Spacer(Modifier.height(14.dp))
+                FamilyNeuralNetworkCanvas(members = activeState.members)
+            }
+
             Spacer(Modifier.height(14.dp))
 
             Row(
@@ -3652,6 +3660,127 @@ fun FamilyNeuralMeshCard(
                 }
             }
         }
+    }
+}
+
+/**
+ * تصوّر "الشبكة العصبية العائلية" بصريًا — مفيش رسمة زي دي كانت موجودة أصلاً، الكارت كان
+ * أرقام وكارتات إحصاء بس. عمق زائف (parallax) بدل محرك 3D حقيقي: كل عقدة على طور مختلف
+ * من موجة تنفّس، فمقياسها وشفافيتها بتتغيّر بمرور الوقت بدل ما تبقى ثابتة — إحساس "حي"
+ * من غير أي مكتبة رسوميات جديدة أو تكلفة أداء تُذكر.
+ *
+ * العقدة المركزية = العقل (zad-brain)، وكل فرد بيتوصل بيها بخط. الأونلاين بس بياخد نبضة
+ * بيانات متحركة على خطه — ده فرق حقيقي مش زخرفة، بيعكس فعليًا مين متصل دلوقتي.
+ */
+@Composable
+private fun FamilyNeuralNetworkCanvas(
+    members: List<com.example.data.FamilyMember>,
+    modifier: Modifier = Modifier,
+) {
+    val textMeasurer = rememberTextMeasurer()
+    val infinite = rememberInfiniteTransition(label = "neuralMesh")
+
+    val rotationDeg by infinite.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(26000, easing = LinearEasing)),
+        label = "neuralMeshRotation"
+    )
+    val pulsePhase by infinite.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2200, easing = LinearEasing)),
+        label = "neuralMeshPulse"
+    )
+    val breathePhase by infinite.animateFloat(
+        initialValue = 0f, targetValue = (2 * Math.PI).toFloat(),
+        animationSpec = infiniteRepeatable(tween(7000, easing = LinearEasing)),
+        label = "neuralMeshBreathe"
+    )
+
+    Canvas(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(148.dp)
+    ) {
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val ringRadius = size.minDimension * 0.42f
+        val hubRadius = 16.dp.toPx()
+        val nodeRadius = 13.dp.toPx()
+
+        members.forEachIndexed { index, member ->
+            val angleDeg = (360f / members.size) * index + rotationDeg
+            val angleRad = Math.toRadians(angleDeg.toDouble())
+            // طور تنفّس مختلف لكل عقدة عشان مايتحركوش كتلة واحدة — إحساس عمق مش نبض جماعي.
+            val depthPhase = breathePhase + index * (Math.PI.toFloat() / members.size.coerceAtLeast(1))
+            val depth = (kotlin.math.sin(depthPhase) + 1f) / 2f // 0..1
+            val depthScale = 0.76f + depth * 0.36f
+            val depthAlpha = 0.55f + depth * 0.45f
+
+            // تسطيح رأسي (×0.55) = إحساس منظور "بنشوف الحلقة من فوق شوية" بدل دايرة مسطحة.
+            val nodePos = Offset(
+                x = center.x + ringRadius * kotlin.math.cos(angleRad).toFloat(),
+                y = center.y + ringRadius * kotlin.math.sin(angleRad).toFloat() * 0.55f,
+            )
+
+            val baseLineColor = if (member.isOnline) Color(0xFF9333EA) else Color(0xFF9333EA).copy(alpha = 0.28f)
+            drawLine(
+                color = baseLineColor.copy(alpha = baseLineColor.alpha * (0.4f + depth * 0.4f)),
+                start = center,
+                end = nodePos,
+                strokeWidth = 1.6.dp.toPx(),
+            )
+
+            if (member.isOnline) {
+                val t = (pulsePhase + index * 0.19f) % 1f
+                drawCircle(
+                    color = Color(0xFFC084FC),
+                    radius = 3.dp.toPx(),
+                    center = Offset(
+                        x = center.x + (nodePos.x - center.x) * t,
+                        y = center.y + (nodePos.y - center.y) * t,
+                    ),
+                )
+            }
+
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color(0xFF9333EA), Color(0xFF6C63FF)),
+                    center = nodePos,
+                    radius = nodeRadius * depthScale,
+                ),
+                radius = nodeRadius * depthScale,
+                center = nodePos,
+                alpha = depthAlpha,
+            )
+            drawCircle(
+                color = Color.White.copy(alpha = depthAlpha * 0.7f),
+                radius = nodeRadius * depthScale,
+                center = nodePos,
+                style = Stroke(width = 1.4.dp.toPx()),
+            )
+
+            val initial = member.alias.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "؟"
+            val label = textMeasurer.measure(
+                initial,
+                style = TextStyle(fontSize = (10 * depthScale).sp, fontWeight = FontWeight.Bold, color = Color.White),
+            )
+            drawText(
+                textLayoutResult = label,
+                topLeft = Offset(nodePos.x - label.size.width / 2f, nodePos.y - label.size.height / 2f),
+            )
+        }
+
+        // العقل المركزي — نفس ثابت طول الوقت، الأفراد هم اللي بيلفوا حواليه.
+        drawCircle(
+            brush = Brush.radialGradient(listOf(Color(0xFF9333EA), Color(0xFF6C63FF))),
+            radius = hubRadius,
+            center = center,
+        )
+        drawCircle(
+            color = Color.White.copy(alpha = 0.4f),
+            radius = hubRadius,
+            center = center,
+            style = Stroke(width = 1.5.dp.toPx()),
+        )
     }
 }
 
