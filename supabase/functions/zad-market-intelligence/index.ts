@@ -307,14 +307,14 @@ async function sendFCMNotifications(alerts: PriceAlert[]): Promise<number> {
 
   for (const alert of alerts) {
     try {
-      const { data: fcmData } = await supabase
-        .from("fcm_tokens")
+      // الجهاز الحقيقي المسجّل فعليًا (زاد-برين بيكتب هنا وقت push()، مش هنا).
+      const { data: fcmRows } = await supabase
+        .from("zad_fcm_tokens")
         .select("token")
         .eq("user_id", alert.user_id)
-        .eq("active", true)
-        .maybeSingle();
+        .limit(1);
 
-      if (!fcmData?.token) continue;
+      if (!fcmRows?.[0]?.token) continue;
 
       const title = alert.alert_type === "price_drop"
         ? `📉 ${alert.item_name} انخفض`
