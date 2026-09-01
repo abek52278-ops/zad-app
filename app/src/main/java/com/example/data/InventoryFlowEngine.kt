@@ -232,15 +232,27 @@ object InventoryFlowEngine {
             val alreadyListed = currentShopping.any { !it.isPurchased && namesMatch(it.itemName, item.itemName) }
             if (alreadyListed) continue
 
+            // بند 32.5 — سعر حقيقي من estimate_price (بحث ويب فعلي)، مش رقم مخترع. فشل الشبكة/
+            // الذكاء الاصطناعي مايوقفش الإضافة — estimatedPrice بيفضل ٠.٠ (نفس الافتراضي
+            // الموجود أصلاً في ZadShoppingItem)، وده حالة "مش معروف" مش سعر كاذب.
+            val priceEstimate = try {
+                com.example.data.ZadAiRepository.estimatePrice(item.itemName)
+            } catch (e: Exception) {
+                Log.w(TAG_FLOW, "estimatePrice(${item.itemName}) failed: ${e.message}")
+                null
+            }
+
             val shoppingItem = ZadShoppingItem(
                 itemName = item.itemName,
                 quantity = ((item.lowStockThreshold ?: 2) * 2).coerceAtLeast(1),
                 priority = if (item.quantity == 0) "high" else "medium",
-                predictedDaysLeft = ConsumptionLearner.predictDaysLeft(context, item.itemName, item.quantity)
+                predictedDaysLeft = ConsumptionLearner.predictDaysLeft(context, item.itemName, item.quantity),
+                estimatedPrice = priceEstimate?.avgPrice ?: 0.0,
+                store = priceEstimate?.store
             )
             dao.insertShoppingItem(shoppingItem)
             added.add(shoppingItem)
-            Log.d(TAG_FLOW, "Auto-replenish: ${item.itemName} → shopping list (qty=${item.quantity}, priority=${shoppingItem.priority})")
+            Log.d(TAG_FLOW, "Auto-replenish: ${item.itemName} → shopping list (qty=${item.quantity}, priority=${shoppingItem.priority}, est.price=${shoppingItem.estimatedPrice})")
         }
         return added
     }

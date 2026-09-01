@@ -68,7 +68,12 @@ fun ShoppingListScreen(
     val remainingBalance by viewModel.remainingBalance.collectAsState()
     val scope = rememberCoroutineScope()
 
+    // بند 32.5 — النواقص كانت بتتجمّع بترتيب الإدراج/الجلب الخام، مش بالأولوية رغم إن
+    // priority ("high"/"medium"/"low") موجود على كل صنف من زمان (autoReplenish بيحطها،
+    // والفلترة بالتابات فوق بتستخدمها). الترتيب الافتراضي (تاب "الكل") محتاج يعكسها.
+    val priorityRank = mapOf("high" to 0, "medium" to 1, "low" to 2)
     val unpurchased = shoppingList.filter { !it.isPurchased }
+        .sortedBy { priorityRank[it.priority] ?: 1 }
 
     val grocerySuggestions by viewModel.grocerySuggestions.collectAsState()
     val affiliateProducts by viewModel.affiliateProducts.collectAsState()
