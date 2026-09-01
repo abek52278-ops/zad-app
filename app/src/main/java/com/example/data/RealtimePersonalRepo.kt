@@ -32,6 +32,7 @@ object RealtimePersonalRepo {
     private var debtsChannel: RealtimeChannel? = null
     private var maintenanceChannel: RealtimeChannel? = null
     private var userChannel: RealtimeChannel? = null
+    private var transactionProposalsChannel: RealtimeChannel? = null
 
     suspend fun subscribeToOwnTransactions(userId: String): Flow<Unit> = subscribe(
         channelName = "own_transactions:$userId", table = "zad_transactions", userId = userId,
@@ -78,6 +79,15 @@ object RealtimePersonalRepo {
         existing = userChannel, store = { userChannel = it }
     )
 
+    // بند 32.2 — zad_transaction_proposals متضافة لـsupabase_realtime من زمان
+    // (20260820004901_transaction_proposals.sql) بتعليق بيوعد إن كارت البنك يتحدث لحظيًا،
+    // بس مفيش حد استخدم الاشتراك ده على الكلاينت — الكارت كان بيتحدث بس عند فتح الشاشة
+    // أو ON_RESUME. نفس النمط بالظبط، مفيش حاجة جديدة.
+    suspend fun subscribeToOwnTransactionProposals(userId: String): Flow<Unit> = subscribe(
+        channelName = "own_transaction_proposals:$userId", table = "zad_transaction_proposals", userId = userId,
+        existing = transactionProposalsChannel, store = { transactionProposalsChannel = it }
+    )
+
     private suspend fun subscribe(
         channelName: String,
         table: String,
@@ -120,6 +130,7 @@ object RealtimePersonalRepo {
         debtsChannel?.unsubscribe()
         maintenanceChannel?.unsubscribe()
         userChannel?.unsubscribe()
+        transactionProposalsChannel?.unsubscribe()
         transactionsChannel = null
         inventoryChannel = null
         pharmacyChannel = null
@@ -129,5 +140,6 @@ object RealtimePersonalRepo {
         debtsChannel = null
         maintenanceChannel = null
         userChannel = null
+        transactionProposalsChannel = null
     }
 }

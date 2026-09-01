@@ -866,6 +866,22 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.e(TAG, "subscribeToOwnUserProfile() FAILED: ${e.message}")
             }
         }
+        // بند 32.2 — كارت اقتراح المعاملة البنكية (TransactionProposalCard على HomeScreen)
+        // كان بيتحدث بس عند ON_RESUME أو فتح الشاشة أول مرة، رغم إن zad_transaction_proposals
+        // متضافة لـsupabase_realtime من زمان (تعليق الميجريشن كان بيوعد بتحديث فوري ومحصلش).
+        // نفس نمط باقي الاشتراكات فوق، بس بينادي loadTransactionProposals() المستهدفة
+        // بدل syncData() الشاملة — تحديث الكارت مش محتاج يعيد تحميل كل حاجة تانية.
+        viewModelScope.launch {
+            val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return@launch
+            try {
+                com.example.data.RealtimePersonalRepo.subscribeToOwnTransactionProposals(userId).collect {
+                    Log.d(TAG, "Realtime own-transaction-proposal change → loadTransactionProposals()")
+                    loadTransactionProposals()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "subscribeToOwnTransactionProposals() FAILED: ${e.message}")
+            }
+        }
 
         // تهيئة Google Play Billing لترقية الباقات وتأكيد الاشتراكات.
         // المانجر الجديد singleton (getInstance) — والتحقق بيحصل server-side جوه
