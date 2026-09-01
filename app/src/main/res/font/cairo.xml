@@ -3,7 +3,18 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <!-- Cairo variable font (Google Fonts, OFL) — Arabic + Latin UI face.
-         Design system weights actually used: 600 / 700 / 800 only. -->
+         Weights: 400/600/700/800/900. Item 36.2 — 400 and 900 added 2026-09-01;
+         confirmed via the font's own fvar table (fonttools) that its wght axis
+         spans 200-1000, so both are real instances, not synthesized. Needed because
+         Typography.kt's body/label styles ask for Normal(400) and displayLarge/
+         displayMedium ask for Black(900) — neither had a matching instance before,
+         so Android fell back to synthetic (fake) bold/regular for the bulk of the
+         app's body text and its two biggest headline styles. -->
+    <font android:font="@font/cairo_variable"
+        app:font="@font/cairo_variable"
+        android:fontVariationSettings="'wght' 400"
+        app:fontVariationSettings="'wght' 400"
+        android:fontWeight="400" />
     <font android:font="@font/cairo_variable"
         app:font="@font/cairo_variable"
         android:fontVariationSettings="'wght' 600"
@@ -19,4 +30,9 @@
         android:fontVariationSettings="'wght' 800"
         app:fontVariationSettings="'wght' 800"
         android:fontWeight="800" />
+    <font android:font="@font/cairo_variable"
+        app:font="@font/cairo_variable"
+        android:fontVariationSettings="'wght' 900"
+        app:fontVariationSettings="'wght' 900"
+        android:fontWeight="900" />
 </font-family>

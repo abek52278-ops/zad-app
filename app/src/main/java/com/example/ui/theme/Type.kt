@@ -11,13 +11,22 @@ import com.example.R
 
 // ZAD Typography System — per "new ui ux" design contract:
 //   Cairo (Arabic UI face) + Inter (SF Pro substitute for numbers/English).
-// Variable fonts registered at the three weights the system uses (600/700/800);
-// wght axis instances come from res/font/cairo.xml & inter.xml fontWeight entries.
+// Item 36.2 — CairoFamily used to register only 600/700/800, but bodyLarge/bodyMedium/
+// labelSmall below ask for Normal(400) and displayLarge/displayMedium ask for
+// Black(900): neither weight had a matching instance, so Android substituted the
+// nearest registered weight and Compose synthesized (faked) the rest — for body/label
+// that meant most of the app's actual text (not just headlines) was silently rendering
+// in the system font's weight approximation, not a real Cairo instance. Confirmed via
+// the font file's own fvar table (fonttools: wght axis spans 200-1000) that both 400
+// and 900 are real instances of this variable font, not synthesized guesses — matching
+// res/font/cairo.xml, which now registers the same five weights.
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 val CairoFamily = FontFamily(
+    Font(R.font.cairo_variable, weight = FontWeight.Normal),
     Font(R.font.cairo_variable, weight = FontWeight.SemiBold),
     Font(R.font.cairo_variable, weight = FontWeight.Bold),
     Font(R.font.cairo_variable, weight = FontWeight.ExtraBold),
+    Font(R.font.cairo_variable, weight = FontWeight.Black),
 )
 val InterFamily = FontFamily(
     Font(R.font.inter_variable, weight = FontWeight.SemiBold),
@@ -65,28 +74,28 @@ val Typography = Typography(
         letterSpacing = 0.1.sp
     ),
     bodyLarge = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = CairoFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 17.sp,
         lineHeight = 26.sp,
         letterSpacing = 0.3.sp
     ),
     bodyMedium = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = CairoFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 15.sp,
         lineHeight = 22.sp,
         letterSpacing = 0.2.sp
     ),
     labelMedium = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = CairoFamily,
         fontWeight = FontWeight.SemiBold,
         fontSize = 13.sp,
         lineHeight = 18.sp,
         letterSpacing = 0.4.sp
     ),
     labelSmall = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = CairoFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 12.sp,
         lineHeight = 16.sp,
