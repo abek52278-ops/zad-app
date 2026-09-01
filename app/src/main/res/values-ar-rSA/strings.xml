@@ -948,6 +948,10 @@
     <string name="family_pharmacy_action">أدوية العيلة</string>
     <string name="family_pharmacy_empty_title">لسه مفيش أدوية مسجّلة</string>
     <string name="family_pharmacy_empty_subtitle">أي دوا يسجّله أي فرد في العيلة هيظهر هنا</string>
+
+    <!-- إعجاب/عدم إعجاب على وصفة شيف زاد -->
+    <string name="chef_recipe_like_action">عجبتني</string>
+    <string name="chef_recipe_dislike_action">معجبتنيش</string>
     <string name="monthly_report_empty_hint">اضغط على "توليد التقرير" حتى يحلل زاد مصاريفك لهذا الشهر ويعطيك تقريراً ونصائح</string>
     <string name="generate_monthly_report_action">توليد التقرير</string>
     <string name="recommendations_label">نصائح زاد</string>

@@ -215,6 +215,16 @@ object ZadAiRepository {
         return ChefSuggestion(text = finalText, recipes = finalRecipes)
     }
 
+    /** إعجاب/عدم إعجاب على وصفة شيف زاد — بيغذّي suggestMeals الجاية (rate_recipe). */
+    suspend fun rateRecipe(recipeName: String, liked: Boolean): Boolean {
+        val response = callAction(
+            "rate_recipe",
+            mapOf("recipe_name" to recipeName, "liked" to liked),
+            swallowErrors = true
+        )
+        return response["ok"] as? Boolean ?: false
+    }
+
     fun generateDeterministicChefRecipes(available: List<ZadInventory>): List<ZadRecipe> {
         val names = available.map { it.itemName.lowercase().trim() }
         val recipes = mutableListOf<ZadRecipe>()

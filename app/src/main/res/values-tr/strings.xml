@@ -1097,6 +1097,10 @@
     <string name="family_pharmacy_action">Aile İlaçları</string>
     <string name="family_pharmacy_empty_title">Henüz ilaç yok</string>
     <string name="family_pharmacy_empty_subtitle">Bir aile üyesinin kaydettiği her şey burada görünecek</string>
+
+    <!-- Zad Şef tarifi beğenme/beğenmeme -->
+    <string name="chef_recipe_like_action">Beğendim</string>
+    <string name="chef_recipe_dislike_action">Beğenmedim</string>
     <string name="monthly_report_empty_hint">Zad\'ın harcamalarını analiz edip rapor ve tavsiye vermesi için "Rapor Oluştur"a bas</string>
     <string name="generate_monthly_report_action">Rapor Oluştur</string>
     <string name="recommendations_label">Zad\'ın Tavsiyeleri</string>

@@ -1137,6 +1137,10 @@
     <string name="family_pharmacy_empty_title">No medications yet</string>
     <string name="family_pharmacy_empty_subtitle">Anything a family member logs will show up here</string>
 
+    <!-- Chef Zad recipe like/dislike -->
+    <string name="chef_recipe_like_action">I liked it</string>
+    <string name="chef_recipe_dislike_action">Didn\'t like it</string>
+
     <!-- Ledger: quick deduct and manual balance override -->
     <string name="quick_deduct">Quick Deduct</string>
     <string name="quick_deduct_default_title">Quick deduct</string>

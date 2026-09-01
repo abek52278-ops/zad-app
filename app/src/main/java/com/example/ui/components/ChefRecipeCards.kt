@@ -20,6 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddShoppingCart
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.ThumbDown
+import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -58,6 +60,8 @@ import com.example.ui.theme.surface
 fun ChefRecipeRow(
     recipes: List<ZadRecipe>,
     onAddMissingToShopping: (List<String>) -> Unit,
+    ratedRecipes: Map<String, Boolean> = emptyMap(),
+    onRate: (String, Boolean) -> Unit = { _, _ -> },
 ) {
     if (recipes.isEmpty()) return
     LazyRow(
@@ -65,7 +69,14 @@ fun ChefRecipeRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp),
     ) {
-        items(recipes) { recipe -> ChefRecipeCard(recipe, onAddMissingToShopping) }
+        items(recipes) { recipe ->
+            ChefRecipeCard(
+                recipe = recipe,
+                onAddMissingToShopping = onAddMissingToShopping,
+                liked = ratedRecipes[recipe.recipeName],
+                onRate = { liked -> onRate(recipe.recipeName, liked) },
+            )
+        }
     }
 }
 
@@ -73,6 +84,8 @@ fun ChefRecipeRow(
 private fun ChefRecipeCard(
     recipe: ZadRecipe,
     onAddMissingToShopping: (List<String>) -> Unit,
+    liked: Boolean?,
+    onRate: (Boolean) -> Unit,
 ) {
     val shape = RoundedCornerShape(18.dp)
     val context = LocalContext.current
@@ -140,6 +153,26 @@ private fun ChefRecipeCard(
                         color = onSurfaceVariant,
                     )
                 }
+                Spacer(Modifier.weight(1f))
+                // إعجاب/عدم إعجاب — بيغذّي الاقتراحات الجاية (rate_recipe). ضغطة تانية
+                // على نفس الرأي بترجّعه لغير محدد، مش قفل عليه.
+                Icon(
+                    Icons.Default.ThumbUp,
+                    contentDescription = stringResource(R.string.chef_recipe_like_action),
+                    tint = if (liked == true) primary else onSurfaceVariant.copy(alpha = 0.4f),
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clickable { onRate(true) },
+                )
+                Spacer(Modifier.width(10.dp))
+                Icon(
+                    Icons.Default.ThumbDown,
+                    contentDescription = stringResource(R.string.chef_recipe_dislike_action),
+                    tint = if (liked == false) secondaryDark else onSurfaceVariant.copy(alpha = 0.4f),
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clickable { onRate(false) },
+                )
             }
 
             if (recipe.missingIngredientsToBuy.isNotEmpty()) {

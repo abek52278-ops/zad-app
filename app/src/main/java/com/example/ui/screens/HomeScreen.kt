@@ -124,6 +124,7 @@ fun HomeScreen(
     val subscriptions by viewModel.subscriptions.collectAsState()
     val mealSuggestions by viewModel.mealSuggestions.collectAsState()
     val chefRecipes by viewModel.chefRecipes.collectAsState()
+    val ratedRecipes by viewModel.ratedRecipes.collectAsState()
     val insights by viewModel.insights.collectAsState()
     val zadInsights by viewModel.zadInsights.collectAsState()
     val zadFacts by viewModel.zadFacts.collectAsState()
@@ -574,6 +575,8 @@ fun HomeScreen(
                                 )
                             }
                         },
+                        ratedRecipes = ratedRecipes,
+                        onRateRecipe = { name, liked -> viewModel.rateRecipe(name, liked) },
                     )
                 }
                 Spacer(modifier = Modifier.height(18.dp))
@@ -1544,7 +1547,9 @@ fun SmartChefSection(
     onViewAll: () -> Unit,
     onOpenRecipe: (String) -> Unit,
     recipes: List<com.example.data.ZadRecipe> = emptyList(),
-    onAddMissingToShopping: (List<String>) -> Unit = {}
+    onAddMissingToShopping: (List<String>) -> Unit = {},
+    ratedRecipes: Map<String, Boolean> = emptyMap(),
+    onRateRecipe: (String, Boolean) -> Unit = { _, _ -> },
 ) {
     // Was `isNotBlank() && startsWith("1.") || startsWith("-") || startsWith("•")` —
     // && binds tighter than ||, so isNotBlank() only guarded the "1." branch, and the
@@ -1576,6 +1581,8 @@ fun SmartChefSection(
         com.example.ui.components.ChefRecipeRow(
             recipes = recipes,
             onAddMissingToShopping = onAddMissingToShopping,
+            ratedRecipes = ratedRecipes,
+            onRate = onRateRecipe,
         )
     }
 }

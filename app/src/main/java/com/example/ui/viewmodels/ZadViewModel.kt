@@ -245,6 +245,26 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val _chefRecipes = MutableStateFlow<List<com.example.data.ZadRecipe>>(emptyList())
     val chefRecipes: StateFlow<List<com.example.data.ZadRecipe>> = _chefRecipes.asStateFlow()
 
+    // recipeName → liked. تحديث متفائل (optimistic) وقت الضغط عشان الأيقونة تتلوّن على
+    // طول، من غير ما تستنى رد السيرفر — لو فشل النداء الرأي بيرجع يتشال من هنا.
+    private val _ratedRecipes = MutableStateFlow<Map<String, Boolean>>(emptyMap())
+    val ratedRecipes: StateFlow<Map<String, Boolean>> = _ratedRecipes.asStateFlow()
+
+    fun rateRecipe(recipeName: String, liked: Boolean) {
+        val previous = _ratedRecipes.value[recipeName]
+        _ratedRecipes.value = _ratedRecipes.value + (recipeName to liked)
+        viewModelScope.launch {
+            val ok = com.example.data.ZadAiRepository.rateRecipe(recipeName, liked)
+            if (!ok) {
+                _ratedRecipes.value = if (previous == null) {
+                    _ratedRecipes.value - recipeName
+                } else {
+                    _ratedRecipes.value + (recipeName to previous)
+                }
+            }
+        }
+    }
+
     private val _grocerySuggestions = MutableStateFlow<List<GrocerySuggestion>>(emptyList())
     val grocerySuggestions: StateFlow<List<GrocerySuggestion>> = _grocerySuggestions.asStateFlow()
 

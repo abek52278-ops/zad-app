@@ -1044,9 +1044,29 @@ Deno.serve(async (req: Request) => {
       // ──────────────────────────────────────────────
       case "meal_suggestions": {
         const { items } = payload || {};
-        const cacheKey = "meal_suggestions:" + dialectPrefix + ":" + (items || "");
+        // الكاش بقى شخصي: الرد بقى فيه تفضيلات العميلة (تحت)، فمشاركته بين عملاء مختلف
+        // مخزونهم زي بعضه كانت هتسرّب اقتراح مبني على حد تاني، أو تتجاهل تفضيلات العميلة
+        // دي وترجّع رد حد تاني اتخزن الأول.
+        const cacheKey = "meal_suggestions:" + user_id + ":" + dialectPrefix + ":" + (items || "");
         const cached = await getCachedAiResponse(cacheKey);
         if (cached) return jsonResponse(cached);
+
+        // تقوية شيف زاد: آخر آراء العميلة على وصفات قبل كده — إعجاب وعدم إعجاب بس، مش
+        // تفصيل تاني. أي فشل هنا مايوقفش الاقتراح، بس بيرجع من غير تخصيص.
+        let likedNames: string[] = [];
+        let dislikedNames: string[] = [];
+        try {
+          const { data: feedbackRows } = await supabase
+            .from("zad_recipe_feedback")
+            .select("recipe_name, liked")
+            .eq("user_id", user_id)
+            .order("created_at", { ascending: false })
+            .limit(30);
+          likedNames = (feedbackRows || []).filter((r) => r.liked).map((r) => r.recipe_name).slice(0, 10);
+          dislikedNames = (feedbackRows || []).filter((r) => !r.liked).map((r) => r.recipe_name).slice(0, 10);
+        } catch (e) {
+          console.error("[CoreIntel] meal_suggestions feedback lookup failed:", (e as Error).message);
+        }
 
         // القاعدة القديمة كانت "اقترح وجبات من المخزون ومتقترحش صنف مش موجود" — والاتنين
         // مع بعض مستحيلين لما المخزون يبقى لبن وميّة. النموذج مكانش عنده إجابة مسموحة غير
@@ -1082,7 +1102,13 @@ Deno.serve(async (req: Request) => {
           "\"recipes\":[{\"recipe_name\":\"\",\"image_keyword_en\":\"\",\"prep_time_minutes\":0," +
           "\"cost_estimate\":0,\"available_ingredients_used\":[],\"missing_ingredients_to_buy\":[]," +
           "\"cooking_instructions\":[]}]}\n" +
-          "لو المخزون ما يكفيش، سيبي `recipes` مصفوفة فاضية واشرحي في `text`.";
+          "لو المخزون ما يكفيش، سيبي `recipes` مصفوفة فاضية واشرحي في `text`.\n" +
+          (likedNames.length > 0
+            ? "العميلة عجبتها الأكلات دي قبل كده: " + likedNames.join("، ") + " — خدي بالك من نفس الروح لو مناسب، مش شرط تكرريها.\n"
+            : "") +
+          (dislikedNames.length > 0
+            ? "العميلة ملهاش نفس في: " + dislikedNames.join("، ") + " — متقترحيهاش تاني إلا لو مفيش بديل حقيقي من المخزون.\n"
+            : "");
         const userPrompt = "=== المخزون ===\n" + (items || "لا يوجد مخزون") + "\n=== نهاية المخزون ===";
         const result = await logged(user_id, action, "callJsonModel", { args: [systemPrompt, userPrompt] }, () => callJsonModel(systemPrompt, userPrompt));
         // same honest-failure contract as recipe_details: null/ok:false on a genuine upstream
@@ -1097,6 +1123,38 @@ Deno.serve(async (req: Request) => {
         const response = { text: result?.text || null, recipes, ok: !!result?.text };
         if (response.ok) await setCachedAiResponse(cacheKey, "meal_suggestions", response);
         return jsonResponse(response);
+      }
+
+      // ──────────────────────────────────────────────
+      // RATE_RECIPE — إعجاب/عدم إعجاب على وصفة، بيغذّي meal_suggestions الجاية.
+      // ──────────────────────────────────────────────
+      case "rate_recipe": {
+        // نفس حارس voice_synthesize بالظبط — دي كتابة، ومفيش تحقق عام في الملف ده إن
+        // user_id في الـpayload هو فعلاً صاحب التوكن (كل الأكشنز التانية بتثق فيه على
+        // طول). مش هصلّح ده في الملف كله دلوقتي، بس أكشن كتابة جديد أضيفه ميستهلش نفس الثغرة.
+        const rateToken = bearerToken(req);
+        const { data: rateCaller, error: rateAuthError } = rateToken
+          ? await supabase.auth.getUser(rateToken)
+          : { data: { user: null }, error: new Error("missing token") };
+        if (rateAuthError || !rateCaller?.user?.id) {
+          return jsonResponse({ ok: false, error: "unauthorized" }, 401);
+        }
+        if (user_id && user_id !== rateCaller.user.id) {
+          return jsonResponse({ ok: false, error: "forbidden" }, 403);
+        }
+        const recipeName = String((payload || {}).recipe_name ?? "").trim();
+        const liked = (payload || {}).liked;
+        if (!recipeName || typeof liked !== "boolean") {
+          return jsonResponse({ ok: false, error: "missing recipe_name or liked" }, 400);
+        }
+        const { error } = await supabase
+          .from("zad_recipe_feedback")
+          .upsert({ user_id: rateCaller.user.id, recipe_name: recipeName, liked }, { onConflict: "user_id,recipe_name" });
+        if (error) {
+          console.error("[CoreIntel] rate_recipe upsert failed:", error.message);
+          return jsonResponse({ ok: false }, 500);
+        }
+        return jsonResponse({ ok: true });
       }
 
       // ──────────────────────────────────────────────
