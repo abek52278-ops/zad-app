@@ -185,7 +185,7 @@ export function scopeToolsForSpecialist<T extends { name: string }>(
       "home_health_score", "propose_next_month_budget",
     ],
     pantry: [
-      "add_inventory_item", "update_inventory_qty",
+      "add_inventory_item", "update_inventory_qty", "delete_inventory_item",
       "add_shopping_item", "complete_shopping_item", "delete_shopping_item",
       "suggest_product", "check_price_online", "find_nearby_stores", "web_search",
     ],
@@ -193,7 +193,7 @@ export function scopeToolsForSpecialist<T extends { name: string }>(
       "add_pharmacy_item", "update_pharmacy_item", "delete_pharmacy_item",
       "log_pharmacy_dose", "find_nearby_stores", "web_search",
     ],
-    family: ["schedule_task", "query_family", "family_digest"],
+    family: ["schedule_task", "query_family", "family_digest", "family_mediation"],
     home: [
       "app_command",
       "add_maintenance_item", "update_maintenance_item", "delete_maintenance_item",
