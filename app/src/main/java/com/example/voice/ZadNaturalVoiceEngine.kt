@@ -15,8 +15,10 @@ import com.example.data.MarketPrefs
 import com.example.data.SupabaseRepo
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,14 +30,15 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * محرك صوت زاد — ElevenLabs فقط عبر الـ Edge Function (المفتاح سيرفر-سايد).
+ * محرك صوت زاد — Gemini TTS فقط عبر الـ Edge Function (المفتاح سيرفر-سايد).
  *
  * مبادئ إعادة الهيكلة:
- * - مفيش TTS روبوتي: لو ElevenLabs فشل، بنعمل retry بسيط ثم نبلّغ بالفشل بدل ما
+ * - مفيش TTS روبوتي: لو Gemini TTS فشل، بنعمل retry بسيط ثم نبلّغ بالفشل بدل ما
  *   نشغّل صوت آلي يكسر إحساس "صوت بشري". (الـ fallback المحلي اتمسح نهائيًا.)
  * - Audio Focus دايمًا قبل الكلام — مفيش خدمة تتكلم فوق زاد.
  * - PCM 16-bit بحدود عينات محفوظة — لا تشويش ولا "صرير راديو".
@@ -85,7 +88,9 @@ class ZadNaturalVoiceEngine(private val context: Context) {
         .readTimeout(90, TimeUnit.SECONDS)
         .build()
 
-    @Volatile private var activeCall: Call? = null
+    // ممكن يبقى فيه أكتر من نداء شبكة شغال في نفس الوقت (الجملة الحالية بتتشغّل
+    // واللي بعدها بتتجاب مقدمًا) — لازم كلهم يتلغوا مع أي stop() جديد.
+    private val activeCalls = CopyOnWriteArrayList<Call>()
     @Volatile private var audioTrack: AudioTrack? = null
     @Volatile private var completion: (() -> Unit)? = null
     @Volatile private var failedCompletion: (() -> Unit)? = null
@@ -141,7 +146,7 @@ class ZadNaturalVoiceEngine(private val context: Context) {
     }
 
     /**
-     * ينطق النص بصوت سارة/كريم البشري عبر ElevenLabs (streaming PCM). مع retry واحد
+     * ينطق النص بصوت سارة/كريم البشري عبر Gemini TTS (streaming PCM). مع retry واحد
      * للأخطاء العابرة (نت/5xx). لو فشل نهائيًا: onDone مش هيتنده — onFailed هو اللي
      * هيشتغل، عشان الواجهة تعرض النص مكتوبًا وتقول الحقيقة بدل صوت روبوت.
      */
@@ -166,26 +171,104 @@ class ZadNaturalVoiceEngine(private val context: Context) {
             ZadCutePetSoundFx.play(ZadCutePetSoundFx.PetSound.MeowChirp, 0.40f)
         }
         val naturalText = prepareNaturalSpeechText(text, persona)
+        val chunks = splitIntoSpeechChunks(naturalText)
 
         scope.launch {
-            val spoken = synthesizeWithRetry(requestGeneration, naturalText, persona)
-            if (requestGeneration != generation.get()) return@launch // اتقاطع بكلام أحدث
-            if (spoken == null) {
-                Log.w(tag, "Human voice unavailable after retries")
-                _humanVoiceAvailable.value = false
-                _isSpeaking.value = false
-                mainHandler.post {
-                    if (requestGeneration != generation.get()) return@post
-                    val cb = failedCompletion
-                    failedCompletion = null
-                    completion = null
-                    cb?.invoke()
-                }
-                return@launch
-            }
-            _humanVoiceAvailable.value = true
-            streamPcm(requestGeneration, spoken)
+            speakChunksPipelined(requestGeneration, chunks, persona)
         }
+    }
+
+    /**
+     * بيقسم الرد لجمل ويشغّلها الواحدة ورا التانية على AudioTrack واحد مستمر،
+     * وبيبدأ تجهيز صوت الجملة التالية وهو لسه بيشغّل الحالية (one-ahead prefetch).
+     * ده اللي بيقصّر "وقت أول صوت" لأول جملة بدل ما ننتظر توليد الرد كله صوتيًا —
+     * قبل كده كان النص الكامل بيتبعت لـvoice_synthesize في نداء واحد، فالمستخدم
+     * كان يسمع أول صوت بعد ما التوليد الصوتي للرد **كله** يخلص (Gemini TTS مالوش
+     * streaming حقيقي، بيرجع الصوت كامل في نداء واحد — التقسيم هنا هو اللي بيعوّض ده).
+     */
+    private suspend fun speakChunksPipelined(
+        requestGeneration: Long,
+        chunks: List<String>,
+        persona: VoicePersona
+    ) {
+        if (chunks.isEmpty()) {
+            if (requestGeneration == generation.get()) finishSpeaking(requestGeneration)
+            return
+        }
+        var nextFetch: Deferred<java.io.InputStream?> =
+            scope.async { synthesizeWithRetry(requestGeneration, chunks[0], persona) }
+        var track: AudioTrack? = null
+        var anySpoken = false
+        try {
+            for (i in chunks.indices) {
+                if (requestGeneration != generation.get()) break
+                val stream = nextFetch.await()
+                // اجهّز الجملة التالية فورًا قبل ما نشغّل الحالية — كده وقت شبكتها
+                // بيتغطى بوقت تشغيل الحالية بدل ما يتضاف عليه.
+                nextFetch = if (i + 1 < chunks.size && requestGeneration == generation.get()) {
+                    scope.async { synthesizeWithRetry(requestGeneration, chunks[i + 1], persona) }
+                } else {
+                    scope.async { null }
+                }
+                if (stream == null) continue // جملة واحدة فشلت — كمّل الباقي بدل ما توقف كل الرد
+                if (requestGeneration != generation.get()) {
+                    try { stream.close() } catch (_: Exception) {}
+                    break
+                }
+                if (track == null) {
+                    track = buildAudioTrack()
+                    audioTrack = track
+                    if (!requestAudioFocus()) {
+                        Log.w(tag, "Audio focus denied — playing at reduced priority")
+                    }
+                    track.play()
+                }
+                anySpoken = true
+                writePcmStream(requestGeneration, track, stream)
+            }
+        } finally {
+            abandonAudioFocus()
+            val finished = track
+            if (audioTrack === finished) audioTrack = null
+            if (finished != null) {
+                try { finished.stop() } catch (_: Exception) {}
+                finished.release()
+            }
+        }
+        if (!anySpoken) {
+            Log.w(tag, "Human voice unavailable after retries")
+            _humanVoiceAvailable.value = false
+            _isSpeaking.value = false
+            mainHandler.post {
+                if (requestGeneration != generation.get()) return@post
+                val cb = failedCompletion
+                failedCompletion = null
+                completion = null
+                cb?.invoke()
+            }
+            return
+        }
+        _humanVoiceAvailable.value = true
+        if (requestGeneration == generation.get()) finishSpeaking(requestGeneration)
+    }
+
+    /** بيقسم النص لجمل (.!؟) وبيجمع الجمل القصيرة مع بعض لحد ~٢٠٠ حرف — توازن بين
+     *  "أول صوت بسرعة" و"مكالمات شبكة كتير عديمة الفايدة" لرد فيه جمل قصيرة كتير. */
+    private fun splitIntoSpeechChunks(text: String): List<String> {
+        val sentences = Regex("""(?<=[.!؟])\s+""").split(text).map { it.trim() }.filter { it.isNotEmpty() }
+        if (sentences.size <= 1) return if (text.isBlank()) emptyList() else listOf(text)
+        val merged = mutableListOf<String>()
+        val current = StringBuilder()
+        for (sentence in sentences) {
+            if (current.isNotEmpty() && current.length + sentence.length > 200) {
+                merged.add(current.toString().trim())
+                current.clear()
+            }
+            if (current.isNotEmpty()) current.append(' ')
+            current.append(sentence)
+        }
+        if (current.isNotEmpty()) merged.add(current.toString().trim())
+        return merged
     }
 
     /** جلب الصوت من الـ Edge Function مع retry واحد للأخطاء العابرة. */
@@ -232,17 +315,16 @@ class ZadNaturalVoiceEngine(private val context: Context) {
                     .build()
 
                 val call = httpClient.newCall(request)
-                activeCall = call
+                activeCalls.add(call)
                 val response = call.execute()
+                activeCalls.remove(call)
                 if (requestGeneration != generation.get()) {
                     response.close()
-                    activeCall = null
                     return null
                 }
                 if (!response.isSuccessful || response.body == null) {
                     Log.w(tag, "Voice proxy attempt ${attempt + 1}: HTTP ${response.code}")
                     response.close()
-                    activeCall = null
                     if (attempt == 0 && (response.code >= 500)) {
                         Thread.sleep(600)
                         return@repeat
@@ -253,7 +335,6 @@ class ZadNaturalVoiceEngine(private val context: Context) {
             } catch (error: Exception) {
                 if (requestGeneration != generation.get()) return null
                 Log.w(tag, "Voice stream attempt ${attempt + 1} failed: ${error.message}")
-                activeCall = null
                 if (attempt == 0 && error !is kotlinx.coroutines.CancellationException) {
                     try { Thread.sleep(600) } catch (_: InterruptedException) {}
                     return@repeat
@@ -264,13 +345,13 @@ class ZadNaturalVoiceEngine(private val context: Context) {
         return null
     }
 
-    private fun streamPcm(requestGeneration: Long, input: java.io.InputStream) {
+    private fun buildAudioTrack(): AudioTrack {
         val minBufferSize = AudioTrack.getMinBufferSize(
             sampleRate,
             AudioFormat.CHANNEL_OUT_MONO,
             AudioFormat.ENCODING_PCM_16BIT
         ).coerceAtLeast(sampleRate / 2)
-        val track = AudioTrack.Builder()
+        return AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_ASSISTANT)
@@ -287,12 +368,12 @@ class ZadNaturalVoiceEngine(private val context: Context) {
             .setBufferSizeInBytes(minBufferSize * 2)
             .setTransferMode(AudioTrack.MODE_STREAM)
             .build()
-        audioTrack = track
+    }
+
+    /** بيكتب جملة واحدة (stream) على track مستمر من غير ما يقفله — القفل بتاع
+     *  آخر جملة بس، عشان مفيش فجوة/طقطقة بين الجمل المتتالية. */
+    private fun writePcmStream(requestGeneration: Long, track: AudioTrack, input: java.io.InputStream) {
         try {
-            if (!requestAudioFocus()) {
-                Log.w(tag, "Audio focus denied — playing at reduced priority")
-            }
-            track.play()
             val buffer = ByteArray(8_192)
             var carry = 0
             while (requestGeneration == generation.get()) {
@@ -315,18 +396,10 @@ class ZadNaturalVoiceEngine(private val context: Context) {
             if (carry == 1 && requestGeneration == generation.get()) {
                 track.write(byteArrayOf(buffer[0], 0), 0, 2, AudioTrack.WRITE_BLOCKING)
             }
-            if (requestGeneration == generation.get()) finishSpeaking(requestGeneration)
         } catch (error: Exception) {
-            if (requestGeneration == generation.get()) {
-                Log.w(tag, "Playback failed mid-stream: ${error.message}")
-                finishSpeaking(requestGeneration)
-            }
+            Log.w(tag, "Playback failed mid-stream: ${error.message}")
         } finally {
-            abandonAudioFocus()
-            if (audioTrack === track) audioTrack = null
             try { input.close() } catch (_: Exception) {}
-            try { track.stop() } catch (_: Exception) {}
-            track.release()
         }
     }
 
@@ -350,8 +423,8 @@ class ZadNaturalVoiceEngine(private val context: Context) {
         completion = null
         failedCompletion = null
         _isSpeaking.value = false
-        activeCall?.cancel()
-        activeCall = null
+        activeCalls.forEach { it.cancel() }
+        activeCalls.clear()
         val track = audioTrack
         audioTrack = null
         try {
@@ -381,10 +454,10 @@ class ZadNaturalVoiceEngine(private val context: Context) {
             .replace(Regex("""\s+"""), " ")
             .trim()
 
+        // وقفة بعد الفاصلة بس — نهاية الجملة (. ! ؟) بقت حدود التقطيع الصوتي نفسها
+        // في splitIntoSpeechChunks، فمفيش داعي لعلامة وقفة صناعية هناك كمان (وكانت
+        // كمان بتكسر نقطة التقطيع بالظبط لو اتحطت قبلها).
         cleaned = cleaned.replace("،", "، ... ")
-            .replace(".", ". ... ")
-            .replace("!", "! ... ")
-            .replace("؟", "؟ ... ")
 
         if (persona.isPetPersona) {
             val prefixes = if (MarketPrefs.getMarket(context).localeTag.startsWith("tr")) {
