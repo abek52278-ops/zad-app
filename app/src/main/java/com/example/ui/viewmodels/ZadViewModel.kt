@@ -4028,6 +4028,17 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // بند 35.1 — أرقام حقيقية لودجت الكرة العصبية 3D (Zad3DNeuralSphereWidget) بدل
+    // الأرقام المكتوبة يدويًا. نفس نمط behaviorProfile فوق بالظبط.
+    private val _brainStats = kotlinx.coroutines.flow.MutableStateFlow<com.example.data.ZadBrainStats?>(null)
+    val brainStats: kotlinx.coroutines.flow.StateFlow<com.example.data.ZadBrainStats?> = _brainStats
+
+    fun refreshBrainStats() {
+        viewModelScope.launch {
+            _brainStats.value = com.example.data.SupabaseRepo.getBrainStats()
+        }
+    }
+
     // --- ديون العائلة (Feature 2: Debt Snowball/Avalanche) — لا تُخزّن في Room، تُحمّل من Supabase مباشرة مثل behaviorProfile ---
     private val _debts = kotlinx.coroutines.flow.MutableStateFlow<List<com.example.data.ZadDebt>>(emptyList())
     val debts: kotlinx.coroutines.flow.StateFlow<List<com.example.data.ZadDebt>> = _debts

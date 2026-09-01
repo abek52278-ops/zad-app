@@ -2125,6 +2125,27 @@ object SupabaseRepo {
     }
 
     @Serializable
+    private data class BrainStatsParams(@SerialName("p_user") val user: String)
+
+    /**
+     * بند 35.1 — أرقام حقيقية لودجت الكرة العصبية 3D بدل الأرقام المكتوبة يدويًا
+     * ("412"/"2,103"/"+196%"/"96%"). null على أي فشل — الكلاينت يعرض الودجت من غير
+     * الشارات (أو حالة "لسه مفيش بيانات") بدل ما يعرض رقم قديم/كاذب.
+     */
+    suspend fun getBrainStats(): ZadBrainStats? {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id ?: return null
+            client.postgrest.rpc(
+                "zad_brain_stats",
+                Json.encodeToJsonElement(BrainStatsParams(user = userId)).jsonObject
+            ).decodeAs<ZadBrainStats>()
+        } catch (e: Exception) {
+            Log.e(TAG, "getBrainStats() FAILED: ${e.message}")
+            null
+        }
+    }
+
+    @Serializable
     data class ZadEntitlementState(
         val tier: String = "free",
         @SerialName("chat_left") val chatLeft: Int = 0,

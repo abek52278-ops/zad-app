@@ -108,6 +108,7 @@ fun ZadIntelligenceScreen(
     val resilienceAvailableFigure by viewModel.availableFigure.collectAsState()
     val resilienceRemainingBalance by viewModel.remainingBalance.collectAsState()
     val weeklyAdherencePercent by viewModel.weeklyAdherencePercent.collectAsState()
+    val brainStats by viewModel.brainStats.collectAsState()
     val companionState by viewModel.companionState.collectAsState()
     val pendingAgentProposals by viewModel.pendingAgentProposals.collectAsState()
     val familyState by familyViewModel.state.collectAsState()
@@ -183,6 +184,8 @@ fun ZadIntelligenceScreen(
         viewModel.generateBrainReport()
         viewModel.loadBehaviorProfile()
         viewModel.refreshBehaviorProfile()
+        // بند 35.1 — عدّاد/RPC بس، مش نداء LLM، فمفيش تعارض مع قاعدة "مفيش LLM عند فتح الشاشة".
+        viewModel.refreshBrainStats()
     }
 
     // نفس بق دونات الفئات القديم: كان بيجمع كل الوقت بينما الكروت فوقيه (totalExpense) بقت
@@ -407,6 +410,7 @@ fun ZadIntelligenceScreen(
             // ── العقل الثاني: الكرة العصبية المجسمة ثلاثية الأبعاد (3D Holographic Neural Sphere) ──
             item {
                 com.example.ui.components.Zad3DNeuralSphereWidget(
+                    stats = brainStats,
                     onNodeClick = { onNavigateToKnowledgeMap() },
                     onViewFullMapClick = { onNavigateToKnowledgeMap() },
                     onOpenDossierClick = { showExecutiveDossier = true }

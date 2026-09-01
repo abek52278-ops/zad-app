@@ -812,6 +812,7 @@ data class Node3D(
  */
 @Composable
 fun Zad3DNeuralSphereWidget(
+    stats: com.example.data.ZadBrainStats? = null,
     onNodeClick: (String) -> Unit = {},
     onViewFullMapClick: () -> Unit = {},
     onOpenDossierClick: () -> Unit = {},
@@ -925,11 +926,14 @@ fun Zad3DNeuralSphereWidget(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
+            // بند 35.1 — أرقام حقيقية من zad_brain_stats بدل القيم المكتوبة يدويًا. growth/
+            // accuracy بيتعرضوا "لسه مبكّر" لو الـRPC رجعت null (مش رقم مخترع زي +196%/96%
+            // القدام) — مفيش بيانات كفاية للمقارنة لسه، ودي حالة حقيقية مش نقص بيانات نعرضه كصفر.
             listOf(
-                Triple("العقد النشطة", "412", Color(0xFF38BDF8)),
-                Triple("الروابط العصبية", "2,103", Color(0xFFFBBF24)),
-                Triple("معدل النمو", "+196%", Color(0xFF34D399)),
-                Triple("دقة التنبؤ", "96%", Color(0xFFA78BFA))
+                Triple("العقد النشطة", stats?.activeNodes?.toString() ?: "—", Color(0xFF38BDF8)),
+                Triple("الروابط العصبية", stats?.neuralLinks?.toString() ?: "—", Color(0xFFFBBF24)),
+                Triple("معدل النمو", stats?.growthPct?.let { "${if (it >= 0) "+" else ""}${it}%" } ?: "لسه مبكّر", Color(0xFF34D399)),
+                Triple("دقة التنبؤ", stats?.predictionAccuracyPct?.let { "$it%" } ?: "لسه مبكّر", Color(0xFFA78BFA))
             ).forEach { (title, count, badgeColor) ->
                 Column(
                     modifier = Modifier

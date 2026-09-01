@@ -11,6 +11,19 @@ import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 
+/** بند 35.1 — أرقام حقيقية بديلة عن telemetry الودجت العصبي المكتوبة يدويًا.
+ *  growth_pct/prediction_accuracy_pct نص لأن zad_brain_stats بترجعهم null صراحة لو
+ *  مفيش بيانات كفاية — مش صفر مزيّف. */
+@Serializable
+data class ZadBrainStats(
+    @SerialName("active_nodes") val activeNodes: Int = 0,
+    @SerialName("memory_count") val memoryCount: Int = 0,
+    @SerialName("skills_count") val skillsCount: Int = 0,
+    @SerialName("neural_links") val neuralLinks: Int = 0,
+    @SerialName("growth_pct") val growthPct: Double? = null,
+    @SerialName("prediction_accuracy_pct") val predictionAccuracyPct: Double? = null
+)
+
 @Serializable
 data class AiPriceEstimate(
     @SerialName("item_name") val itemName: String = "",
