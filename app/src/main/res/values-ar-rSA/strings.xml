@@ -997,6 +997,7 @@
 
     <!-- Ledger: quick deduct and manual balance override -->
     <string name="quick_deduct">خصم سريع</string>
+    <string name="paywall_price_loading">جاري تحميل السعر…</string>
     <string name="quick_deduct_default_title">خصم سريع</string>
     <string name="quick_deduct_hint">هذا المبلغ ينزل من رصيدك مباشرة — بدون تحليل ولا تصنيف.</string>
     <string name="quick_deduct_amount">المبلغ</string>

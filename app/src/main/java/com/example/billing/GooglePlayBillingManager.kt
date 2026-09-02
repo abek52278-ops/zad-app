@@ -104,7 +104,14 @@ class GooglePlayBillingManager private constructor(private val context: Context)
     private val _activePlan = MutableStateFlow<ZadSubscriptionPlan?>(null)
     val activePlan: StateFlow<ZadSubscriptionPlan?> = _activePlan.asStateFlow()
 
-    private val productDetailsMap = mutableMapOf<String, ProductDetails>()
+    // كانت Map عادية، والشاشة كانت مضطرة تخمّن السعر بجدول أسعار مكتوب يدوياً بالدولة
+    // (ج.م/ر.س/د.إ) لأنها ملهاش طريقة تستنى نتيجة queryAvailableProducts() غير المتزامنة.
+    // StateFlow هنا هو اللي بيسمح للشاشة تعرض السعر الحقيقي اللي Google Play نفسه رجّعه
+    // (بعملة وضريبة المستخدم الفعلية، مش تخمين) أول ما يوصل، بدل جدول أسعار ثابت غلط
+    // لأي دولة غير التلاتة المكتوبة ومش متزامن مع أي تغيير سعر حقيقي على Play Console.
+    private val _productDetails = MutableStateFlow<Map<String, ProductDetails>>(emptyMap())
+    val productDetails: StateFlow<Map<String, ProductDetails>> = _productDetails.asStateFlow()
+    private val productDetailsMap: Map<String, ProductDetails> get() = _productDetails.value
 
     private val pendingPurchasesParams = PendingPurchasesParams.newBuilder()
         .enableOneTimeProducts()
@@ -166,8 +173,8 @@ class GooglePlayBillingManager private constructor(private val context: Context)
 
         billingClient.queryProductDetailsAsync(params) { billingResult, productDetailsList ->
             if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                _productDetails.value = productDetailsList.associateBy { it.productId }
                 productDetailsList.forEach { details ->
-                    productDetailsMap[details.productId] = details
                     Log.d(tag, "Loaded product: ${details.productId} - ${details.name}")
                 }
             } else {

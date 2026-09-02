@@ -19,7 +19,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -64,6 +63,12 @@ fun FloatingMascotCompanion(
     viewModel: ZadViewModel,
     kidsMode: Boolean,
     modifier: Modifier = Modifier,
+    // المسافة الحقيقية لقاع منطقة المحتوى (Scaffold's innerPadding.calculateBottomPadding())
+    // — طولها بالظبط ارتفاع ZadBottomNavBar الفعلي (بما فيه inset النظام اللي هي بتحسبه
+    // بنفسها). قبل كده كان المكوّن ده معمول برّه الـ Scaffold وبيخمّن 94.dp ثابتة فوق
+    // navigationBarsPadding() الخاصة بيه — تخمين بيتفرقع لو ارتفاع الشريط اتغيّر (خط أكبر،
+    // تصميم تاني) فيتراكب المسكوت مع الشريط أو يسيب فراغ غريب فوقه.
+    contentBottomInset: androidx.compose.ui.unit.Dp = 0.dp,
     onNavigateToChat: () -> Unit = {},
     // W6 — سطح محادثة سريع من غير خروج من الشاشة (Phase 4: "persistent chat entry
     // point available on every screen"). المكوّن ده أصلاً موجود على كل شاشة chromeVisible
@@ -165,8 +170,7 @@ fun FloatingMascotCompanion(
         modifier = modifier
             .fillMaxSize()
             .zIndex(100f)
-            .navigationBarsPadding()
-            .padding(bottom = 94.dp),
+            .padding(bottom = contentBottomInset + 14.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
         Column(

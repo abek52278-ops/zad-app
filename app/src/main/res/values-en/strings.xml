@@ -1149,6 +1149,7 @@
 
     <!-- Ledger: quick deduct and manual balance override -->
     <string name="quick_deduct">Quick Deduct</string>
+    <string name="paywall_price_loading">Loading price…</string>
     <string name="quick_deduct_default_title">Quick deduct</string>
     <string name="quick_deduct_hint">This comes straight off your balance — no analysis, no category.</string>
     <string name="quick_deduct_amount">Amount</string>

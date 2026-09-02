@@ -31,7 +31,6 @@ import com.example.R
 import com.example.billing.BillingState
 import com.example.billing.GooglePlayBillingManager
 import com.example.billing.ZadSubscriptionPlan
-import com.example.data.MarketPrefs
 import com.example.ui.components.pressableScale
 import com.example.ui.components.zadCardShadow
 import com.example.ui.theme.*
@@ -45,11 +44,13 @@ fun ZadSubscriptionPaywallScreen(
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
-    val currentMarket = remember { MarketPrefs.getMarket(context) }
     val billingManager = remember { GooglePlayBillingManager.getInstance(context) }
 
     val billingState by billingManager.billingState.collectAsState()
     val activePlan by billingManager.activePlan.collectAsState()
+    // بيقرأ من نفس productDetails اللي queryAvailableProducts() بيملاها — لما يوصل، كل
+    // سعر في الشاشة بيبقى هو نفسه اللي Google Play هيعرضه للمستخدم ده فعلياً وقت الدفع.
+    val productDetails by billingManager.productDetails.collectAsState()
 
     var selectedPlan by remember { mutableStateOf(ZadSubscriptionPlan.PLUS) }
     var adWatchCount by remember { mutableStateOf(com.example.ads.RewardedBrainAdManager.getAdWatchCount(context)) }
@@ -161,24 +162,17 @@ fun ZadSubscriptionPaywallScreen(
                 val isSelected = selectedPlan == plan
                 val cardShape = RoundedCornerShape(22.dp)
 
-                val formattedPrice = when (currentMarket.countryCode) {
-                    "EG" -> when (plan) {
-                        ZadSubscriptionPlan.BASIC -> "490 ج.م"
-                        ZadSubscriptionPlan.PLUS -> "980 ج.م"
-                        ZadSubscriptionPlan.ULTRA -> "2,450 ج.م"
-                    }
-                    "SA" -> when (plan) {
-                        ZadSubscriptionPlan.BASIC -> "37.5 ر.س"
-                        ZadSubscriptionPlan.PLUS -> "75.0 ر.س"
-                        ZadSubscriptionPlan.ULTRA -> "187.5 ر.س"
-                    }
-                    "AE" -> when (plan) {
-                        ZadSubscriptionPlan.BASIC -> "36.5 د.إ"
-                        ZadSubscriptionPlan.PLUS -> "73.5 د.إ"
-                        ZadSubscriptionPlan.ULTRA -> "183.5 د.إ"
-                    }
-                    else -> "${plan.priceUsd} / شهر"
-                }
+                // كان في جدول أسعار مكتوب يدوياً لثلاث دول بس (مصر/السعودية/الإمارات) وأي
+                // دولة تانية كانت بتاخد سعر بالدولار مكتوب بالغلط "شهر" بالعربي — أسعار
+                // مش متزامنة مع Play Console، ولو السعر اتغيّر هناك الشاشة تفضل تكدب.
+                // productDetails جاية من Google Play نفسه (عملة/ضريبة/دولة المستخدم
+                // الفعليين)، فهي دايماً السعر الصح لأي دولة. لسه لحد ما queryAvailableProducts()
+                // يوصل: نص صريح إنه بيتحمّل، مش رقم دولار مخمّن يوهم إنه نهائي.
+                val formattedPrice = productDetails[plan.productId]
+                    ?.subscriptionOfferDetails?.firstOrNull()
+                    ?.pricingPhases?.pricingPhaseList?.firstOrNull()
+                    ?.formattedPrice
+                    ?: stringResource(R.string.paywall_price_loading)
 
                 Box(
                     modifier = Modifier

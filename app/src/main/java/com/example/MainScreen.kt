@@ -308,6 +308,11 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
         // The mockup's neutral canvas gradient is the app background for EVERY screen.
         Box(modifier = Modifier.fillMaxSize()) {
             ZadCanvasBackground(modifier = Modifier.fillMaxSize())
+            // FloatingMascotCompanion و ZadAgentOverlay معمولين برّه محتوى الـ Scaffold
+            // (تحت) عشان يطفوا فوق أي شاشة — يعني مش وارثين innerPadding تلقائي. القيمة
+            // دي هي الجسر: بتتسجّل من نفس innerPadding اللي الـ NavHost بيستخدمها تحت،
+            // فالمسكوت بياخد ارتفاع شريط التنقل الحقيقي مش رقم مخمّن.
+            var scaffoldInnerPadding by remember { mutableStateOf(PaddingValues(0.dp)) }
             Scaffold(
                 containerColor = Color.Transparent,
                 contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -403,6 +408,7 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                     }
                 }
             ) { innerPadding ->
+                SideEffect { scaffoldInnerPadding = innerPadding }
                 Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
                     NavHost(
                         navController = navController,
@@ -554,6 +560,7 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                 com.example.ui.components.FloatingMascotCompanion(
                     viewModel = viewModel,
                     kidsMode = kidsModeEffective,
+                    contentBottomInset = scaffoldInnerPadding.calculateBottomPadding(),
                     onNavigateToChat = { goGuarded(ZadRoutes.ASSISTANT) },
                     onQuickChat = { showAgentOverlay = true }
                 )

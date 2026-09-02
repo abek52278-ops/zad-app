@@ -90,6 +90,10 @@ private fun ChefRecipeCard(
     val shape = RoundedCornerShape(18.dp)
     val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
+    // الموديل أحياناً بيرجّع وصفة من غير cooking_instructions (حقل ناقص في رد الـ AI).
+    // كارت clickable ملوش حاجة يوسّعها كان بيدّي ضغطة من غير أي رد فعل — يبان معطوب.
+    // بدل ما نختلق خطوات، الكارت مش قابل للتوسيع أصلاً لو مفيش خطوات فعلاً.
+    val expandable = recipe.cookingInstructions.isNotEmpty()
 
     Column(
         modifier = Modifier
@@ -97,7 +101,7 @@ private fun ChefRecipeCard(
             .zadCardShadow(shape)
             .clip(shape)
             .background(surface)
-            .clickable { expanded = !expanded }
+            .let { if (expandable) it.clickable { expanded = !expanded } else it }
             .padding(bottom = 14.dp),
     ) {
         // الصورة بتيجي من Pexels عبر الأكشن. لو مفيش رابط (النموذج نسي image_keyword_en،

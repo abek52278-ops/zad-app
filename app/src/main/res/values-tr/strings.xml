@@ -1146,6 +1146,7 @@
 
     <!-- Ledger: quick deduct and manual balance override -->
     <string name="quick_deduct">Hızlı düşüm</string>
+    <string name="paywall_price_loading">Fiyat yükleniyor…</string>
     <string name="quick_deduct_default_title">Hızlı düşüm</string>
     <string name="quick_deduct_hint">Bu tutar doğrudan bakiyenden düşer — analiz yok, kategori yok.</string>
     <string name="quick_deduct_amount">Tutar</string>
