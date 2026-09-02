@@ -34,8 +34,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.R
+import com.example.voice.LiveVoiceState
 import com.example.voice.VoiceState
 import com.example.voice.ZadCutePetSoundFx
+import com.example.voice.ZadLiveVoiceSession
 import com.example.voice.ZadVoiceManager
 
 /**
@@ -54,6 +56,25 @@ fun ZadVoiceBottomSheet(
     val voiceState by voiceManager.voiceState.collectAsState()
     val isListeningState by voiceManager.isListening.collectAsState()
     val soundLevel by voiceManager.soundLevel.collectAsState()
+
+    // بند 33.1/33.2/33.3 — مكالمة حية حقيقية (Gemini Live API عبر zad-voice-live)، بديل
+    // اختياري للمسار دور-بدور (STT محلي → نداء شات → TTS) اللي فوق. افتراضياً off عشان
+    // المسار المُتحقق منه يفضل هو الافتراضي — ده أول اتصال WebSocket خام في التطبيق،
+    // ومعملش عليه اختبار جهاز حقيقي (شوف تحذير ZadLiveVoiceSession.kt عن شكل الفريمات).
+    var isLiveMode by remember { mutableStateOf(false) }
+    val liveSession = remember { ZadLiveVoiceSession(context) }
+    val liveState by liveSession.state.collectAsState()
+    val liveMicLevel by liveSession.micLevel.collectAsState()
+
+    LaunchedEffect(isLiveMode) {
+        if (isLiveMode) {
+            voiceManager.stopListening()
+            voiceManager.stopSpeaking()
+            liveSession.start { /* liveState بيتحدث تلقائي برسالة الخطأ */ }
+        } else {
+            liveSession.stop()
+        }
+    }
 
     var recognizedLiveText by remember { mutableStateOf("") }
     var hasAudioPermission by remember {
@@ -78,15 +99,23 @@ fun ZadVoiceBottomSheet(
     ) { isGranted ->
         hasAudioPermission = isGranted
         if (isGranted) {
-            listen { result ->
-                recognizedLiveText = result
-                viewModel.sendAiChatMessage(result, voiceMode = true)
+            // كان بينده listen() (دور-بدور) على طول بغض النظر مين طلب الإذن — لو
+            // isLiveMode كان مستني الإذن، الموافقة كانت بتشغّل الوضع الغلط.
+            if (isLiveMode) {
+                liveSession.start { }
+            } else {
+                listen { result ->
+                    recognizedLiveText = result
+                    viewModel.sendAiChatMessage(result, voiceMode = true)
+                }
             }
         }
     }
 
-    // بدء الاستماع فور فتح النافذة
-    LaunchedEffect(hasAudioPermission) {
+    // بدء الاستماع فور فتح النافذة (مسار دور-بدور بس — المكالمة الحية ليها LaunchedEffect
+    // منفصل فوق، وبتتحكم في voiceManager بنفسها لو الوضعين اتبدّلوا).
+    LaunchedEffect(hasAudioPermission, isLiveMode) {
+        if (isLiveMode) return@LaunchedEffect
         if (hasAudioPermission) {
             listen { result ->
                 recognizedLiveText = result
@@ -109,8 +138,9 @@ fun ZadVoiceBottomSheet(
             replyCountAtSpeakStart = messages.count { !it.isUser }
         }
     }
-    LaunchedEffect(isTyping, messages) {
+    LaunchedEffect(isTyping, messages, isLiveMode) {
         // ننطق لما التايبينغ يخلص وظهر رد جديد (عدد الردود زاد عن لحظة بدء اللفة)
+        if (isLiveMode) return@LaunchedEffect
         if (isTyping) return@LaunchedEffect
         val lastReply = messages.lastOrNull { !it.isUser } ?: return@LaunchedEffect
         if (lastReply.text.isBlank()) return@LaunchedEffect
@@ -131,7 +161,8 @@ fun ZadVoiceBottomSheet(
 
     // إنشاء المحادثة الصوتية: لو التعرف فشل (مهلة/ضوضاء) نعيد الاستماع تلقائياً
     // بحد أقصى 3 محاولات بدل إن الشيت يبقى ميت.
-    LaunchedEffect(voiceState) {
+    LaunchedEffect(voiceState, isLiveMode) {
+        if (isLiveMode) return@LaunchedEffect
         if (voiceState is VoiceState.Error) {
             kotlinx.coroutines.delay(1200)
             if (hasAudioPermission && voiceState is VoiceState.Error) {
@@ -147,6 +178,7 @@ fun ZadVoiceBottomSheet(
         onDispose {
             voiceManager.stopListening()
             voiceManager.stopSpeaking()
+            liveSession.release()
         }
     }
 
@@ -196,47 +228,84 @@ fun ZadVoiceBottomSheet(
                         color = Color.White
                     )
                 }
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.1f))
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "إغلاق",
-                        tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // بند 33.1 — مكالمة حية حقيقية (Gemini Live) بديل اختياري لمسار الدور-بدور
+                    // الافتراضي. تجريبي عن قصد: أول WebSocket خام في التطبيق، مفيش اختبار جهاز
+                    // حقيقي عليه (شوف تحذير ZadLiveVoiceSession.kt).
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(9999.dp))
+                            .background(if (isLiveMode) Color(0xFFEF4444).copy(alpha = 0.25f) else Color.White.copy(alpha = 0.1f))
+                            .border(
+                                1.dp,
+                                if (isLiveMode) Color(0xFFEF4444) else Color.White.copy(alpha = 0.15f),
+                                RoundedCornerShape(9999.dp)
+                            )
+                            .clickable { isLiveMode = !isLiveMode }
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                    ) {
+                        Text(
+                            text = if (isLiveMode) "🔴 مباشر" else "تجربة: مكالمة حية",
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isLiveMode) Color.White else Color(0xFF94A3B8)
+                        )
+                    }
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.1f))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "إغلاق",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
 
             // Central SmartBot Agent with Dynamic Listening Emotion
             ZadSmartBotAgent(
                 sizeDp = 96.dp,
-                emotion = when (voiceState) {
-                    is VoiceState.Listening -> ZadBotEmotion.LISTENING
-                    is VoiceState.Thinking -> ZadBotEmotion.THINKING
-                    is VoiceState.Speaking -> ZadBotEmotion.SPEAKING
-                    else -> ZadBotEmotion.IDLE
+                emotion = if (isLiveMode) {
+                    when (liveState) {
+                        is LiveVoiceState.Listening -> ZadBotEmotion.LISTENING
+                        is LiveVoiceState.ModelSpeaking -> ZadBotEmotion.SPEAKING
+                        is LiveVoiceState.Connecting -> ZadBotEmotion.THINKING
+                        else -> ZadBotEmotion.IDLE
+                    }
+                } else {
+                    when (voiceState) {
+                        is VoiceState.Listening -> ZadBotEmotion.LISTENING
+                        is VoiceState.Thinking -> ZadBotEmotion.THINKING
+                        is VoiceState.Speaking -> ZadBotEmotion.SPEAKING
+                        else -> ZadBotEmotion.IDLE
+                    }
                 }
             )
 
             // Dynamic Audio Waveform Bars responsive to soundLevel
             ZadAudioWavebars(
-                isListening = isListeningState,
-                soundLevel = soundLevel,
+                isListening = if (isLiveMode) liveState is LiveVoiceState.Listening || liveState is LiveVoiceState.ModelSpeaking else isListeningState,
+                soundLevel = if (isLiveMode) liveMicLevel else soundLevel,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
             )
 
             // Live Transcript text or listening hint
-            val errorMsg = (voiceState as? VoiceState.Error)?.message
+            val errorMsg = if (isLiveMode) (liveState as? LiveVoiceState.Error)?.message else (voiceState as? VoiceState.Error)?.message
             Text(
                 text = when {
                     errorMsg != null -> "⚠️ $errorMsg\nاضغط على المايك للمحاولة مجدداً"
+                    isLiveMode && liveState is LiveVoiceState.Connecting -> "بيتّصل بعقل زاد المباشر…"
+                    isLiveMode && liveState is LiveVoiceState.ModelSpeaking -> "زاد بيتكلم… اتكلم في أي وقت تقاطعه"
+                    isLiveMode && liveState is LiveVoiceState.Listening -> "مكالمة مباشرة — اتكلم بحرية، زاد سامعك دلوقتي"
+                    isLiveMode -> "اضغط على المايك لبدء المكالمة المباشرة 🔴"
                     recognizedLiveText.isNotBlank() -> recognizedLiveText
                     isListeningState -> "أنا أسمعك الآن… تكلّم مع زاد بحرية وسأجيبك فوراً"
                     voiceState is VoiceState.Thinking -> "عقل زاد يفكّر بالرد…"
@@ -254,7 +323,8 @@ fun ZadVoiceBottomSheet(
             // نفسه بالظبط سواء زاد ساكتة أو بتتكلم، فمفيش حاجة بتقول "دوس تقاطعها". لون
             // كهرماني نابض هنا بدل الأخضر الثابت — نفس الضغطة، بس بتقول للعميل إنها فرصة
             // مقاطعة دلوقتي مش مجرد "ابدأ الكلام".
-            val isSpeakingState = voiceState is VoiceState.Speaking
+            val isSpeakingState = if (isLiveMode) liveState is LiveVoiceState.ModelSpeaking else voiceState is VoiceState.Speaking
+            val isLiveConnected = liveState is LiveVoiceState.Listening || liveState is LiveVoiceState.ModelSpeaking
             // Interactive Mic Push / Stop Button
             Box(
                 modifier = Modifier
@@ -264,7 +334,8 @@ fun ZadVoiceBottomSheet(
                     .background(
                         brush = Brush.radialGradient(
                             colors = when {
-                                isListeningState -> listOf(Color(0xFFEF4444), Color(0xFF991B1B))
+                                isLiveMode && isLiveConnected -> listOf(Color(0xFFEF4444), Color(0xFF991B1B))
+                                !isLiveMode && isListeningState -> listOf(Color(0xFFEF4444), Color(0xFF991B1B))
                                 isSpeakingState -> listOf(Color(0xFFFBBF24), Color(0xFFB45309))
                                 else -> listOf(Color(0xFF0F9B76), Color(0xFF064E3B))
                             }
@@ -272,7 +343,15 @@ fun ZadVoiceBottomSheet(
                     )
                     .border(2.dp, Color.White.copy(alpha = 0.4f), CircleShape)
                     .clickable {
-                        if (isListeningState) {
+                        if (isLiveMode) {
+                            if (isLiveConnected || liveState is LiveVoiceState.Connecting) {
+                                liveSession.stop()
+                            } else if (hasAudioPermission) {
+                                liveSession.start { }
+                            } else {
+                                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        } else if (isListeningState) {
                             voiceManager.stopListening()
                         } else {
                             if (hasAudioPermission) {
@@ -290,7 +369,7 @@ fun ZadVoiceBottomSheet(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = if (isListeningState) Icons.Default.Stop else Icons.Default.Mic,
+                    imageVector = if ((isLiveMode && isLiveConnected) || (!isLiveMode && isListeningState)) Icons.Default.Stop else Icons.Default.Mic,
                     contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(28.dp)
@@ -306,7 +385,9 @@ fun ZadVoiceBottomSheet(
                 )
             }
 
-            // Quick contextual prompt chips
+            // Quick contextual prompt chips — بترسل رسالة دور-بدور منفصلة، مش جزء من
+            // المكالمة الحية، فبتتخفى وقت isLiveMode عشان متتلخبطش مع الصوت المستمر.
+            if (!isLiveMode) {
             Text(
                 text = "أو اختر سؤالاً جاهزاً:",
                 fontSize = 11.5.sp,
@@ -339,6 +420,7 @@ fun ZadVoiceBottomSheet(
                         )
                     }
                 }
+            }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
