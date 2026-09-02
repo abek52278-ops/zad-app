@@ -155,6 +155,11 @@ class MainActivity : ComponentActivity() {
         // (TransactionSyncWorker) بغض النظر عن رجوع النت الفعلي. register() idempotent.
         com.example.data.NetworkMonitor.register(applicationContext)
 
+        // نفس السبب: صار object مشترك بدل instance منفصل لكل شاشة (ZadVoiceBottomSheet،
+        // ZadIntelligenceScreen كانوا كل واحد بيعمل نسخته بنفسه). init() هنا يضمن إنه
+        // جاهز قبل أي مكان يقرا voiceState بتاعه (زي مسكوت HomeScreen).
+        com.example.voice.ZadVoiceManager.init(applicationContext)
+
         // Schedule periodic AI analysis (Feature 6)
         val workRequest = PeriodicWorkRequestBuilder<PeriodicAnalysisWorker>(6, TimeUnit.HOURS).build()
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(

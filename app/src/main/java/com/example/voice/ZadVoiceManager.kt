@@ -29,9 +29,33 @@ sealed class VoiceState {
  * إدخال: SpeechRecognizer (جوجل STT) — متعدد اللهجات.
  * إخراج: ZadNaturalVoiceEngine فقط (ElevenLabs صوت بشري عبر سيرفرنا) — مفيش TTS آلي.
  * Wake word: "hey zad / يا زاد / hey زاد" بيبدأ جلسة استماع تلقائيًا (see onWakeWord).
+ *
+ * object مش class — كانت بتتعمل بـ `remember { ZadVoiceManager(context) }` في كل شيت/شاشة
+ * لوحدها (ZadVoiceBottomSheet، ZadIntelligenceScreen)، يعني كل واحدة معاها voiceState منفصلة
+ * تمامًا عن التانية، فمفيش حد بره الشيت يقدر يعرف حالة الصوت الحقيقية. singleton واحد على
+ * نمط NetworkMonitor/SupabaseRepo الموجود فعلاً (init() مرة واحدة idempotent، مش Hilt —
+ * المشروع مقرر ما يستخدمش DI framework) بيخلي أي مكان في التطبيق (زي المسكوت في HomeScreen)
+ * يقدر يقرا نفس الـvoiceState الحقيقي.
  */
-class ZadVoiceManager(private val context: Context) {
-    private val TAG = "ZadVoiceManager"
+object ZadVoiceManager {
+    private const val TAG = "ZadVoiceManager"
+
+    private lateinit var appContext: Context
+    private var initialized = false
+
+    /** لازم تتنادى مرة قبل أي استخدام — MainActivity.onCreate بينادّيها زي NetworkMonitor.register. */
+    fun init(context: Context) {
+        if (initialized) return
+        initialized = true
+        appContext = context.applicationContext
+
+        val savedId = personaPrefs.getString("persona_id", null)
+        savedId?.let { id ->
+            ZadNaturalVoiceEngine.VoicePersona.values()
+                .firstOrNull { it.id == id }
+                ?.let { naturalVoiceEngine.setPersona(it) }
+        }
+    }
 
     private val _voiceState = MutableStateFlow<VoiceState>(VoiceState.Idle)
     val voiceState: StateFlow<VoiceState> = _voiceState.asStateFlow()
@@ -51,8 +75,8 @@ class ZadVoiceManager(private val context: Context) {
         stopSpeaking()
         val mainHandler = Handler(Looper.getMainLooper())
         mainHandler.post {
-            if (!SpeechRecognizer.isRecognitionAvailable(context)) {
-                _voiceState.value = VoiceState.Error(context.getString(R.string.voice_error_unavailable))
+            if (!SpeechRecognizer.isRecognitionAvailable(appContext)) {
+                _voiceState.value = VoiceState.Error(appContext.getString(R.string.voice_error_unavailable))
                 return@post
             }
 
@@ -72,9 +96,9 @@ class ZadVoiceManager(private val context: Context) {
 
     private fun startListeningInternal(onResult: (String) -> Unit) {
             try {
-                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
+                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(appContext)
 
-                val marketLocale = com.example.data.MarketPrefs.getMarket(context).toLocale()
+                val marketLocale = com.example.data.MarketPrefs.getMarket(appContext).toLocale()
                 val localeTag = marketLocale.toLanguageTag()
                 val additionalLanguages = buildList {
                     add(localeTag)
@@ -116,13 +140,13 @@ class ZadVoiceManager(private val context: Context) {
                     override fun onError(error: Int) {
                         _isListening.value = false
                         val msg = when (error) {
-                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> context.getString(R.string.voice_error_permission)
-                            SpeechRecognizer.ERROR_AUDIO -> context.getString(R.string.voice_error_audio)
-                            SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> context.getString(R.string.voice_error_network)
-                            SpeechRecognizer.ERROR_NO_MATCH -> context.getString(R.string.voice_error_no_match)
-                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> context.getString(R.string.voice_error_timeout)
-                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> context.getString(R.string.voice_error_busy)
-                            else -> context.getString(R.string.voice_error_generic)
+                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> appContext.getString(R.string.voice_error_permission)
+                            SpeechRecognizer.ERROR_AUDIO -> appContext.getString(R.string.voice_error_audio)
+                            SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> appContext.getString(R.string.voice_error_network)
+                            SpeechRecognizer.ERROR_NO_MATCH -> appContext.getString(R.string.voice_error_no_match)
+                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> appContext.getString(R.string.voice_error_timeout)
+                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> appContext.getString(R.string.voice_error_busy)
+                            else -> appContext.getString(R.string.voice_error_generic)
                         }
                         Log.w(TAG, "SpeechRecognizer error: $error ($msg)")
                         // أخطاء التعرف حالة واجهة، مش كلام المستخدم — عمرها ما تتبعت للوكيل.
@@ -139,7 +163,7 @@ class ZadVoiceManager(private val context: Context) {
                             com.example.ui.components.ZadChime.play(com.example.ui.components.ZadChime.Tone.Success)
                             onResult(text)
                         } else {
-                            _voiceState.value = VoiceState.Error(context.getString(R.string.voice_error_no_match))
+                            _voiceState.value = VoiceState.Error(appContext.getString(R.string.voice_error_no_match))
                         }
                     }
 
@@ -158,7 +182,7 @@ class ZadVoiceManager(private val context: Context) {
                 _voiceState.value = VoiceState.Listening
             } catch (e: Exception) {
                 Log.e(TAG, "SpeechRecognizer error: ${e.message}")
-                _voiceState.value = VoiceState.Error(context.getString(R.string.voice_error_microphone))
+                _voiceState.value = VoiceState.Error(appContext.getString(R.string.voice_error_microphone))
             }
     }
 
@@ -178,19 +202,12 @@ class ZadVoiceManager(private val context: Context) {
         _soundLevel.value = 0f
     }
 
-    private val naturalVoiceEngine = ZadNaturalVoiceEngine(context)
+    // by lazy — appContext لسه مش متعين وقت أول تحميل للـobject، بيتحل أول ما init() تتنادى
+    // وأي method فيها يتلمس فعليًا بعد كده.
+    private val naturalVoiceEngine by lazy { ZadNaturalVoiceEngine(appContext) }
 
     // حفظ الشخصية المختارة بين الجلسات
-    private val personaPrefs = context.getSharedPreferences("zad_voice_persona", Context.MODE_PRIVATE)
-
-    init {
-        val savedId = personaPrefs.getString("persona_id", null)
-        savedId?.let { id ->
-            ZadNaturalVoiceEngine.VoicePersona.values()
-                .firstOrNull { it.id == id }
-                ?.let { naturalVoiceEngine.setPersona(it) }
-        }
-    }
+    private val personaPrefs by lazy { appContext.getSharedPreferences("zad_voice_persona", Context.MODE_PRIVATE) }
 
     fun setVoicePersona(persona: ZadNaturalVoiceEngine.VoicePersona) {
         naturalVoiceEngine.setPersona(persona)

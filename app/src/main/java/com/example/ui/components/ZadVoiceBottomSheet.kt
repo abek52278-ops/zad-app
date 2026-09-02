@@ -53,7 +53,9 @@ fun ZadVoiceBottomSheet(
     initialLiveMode: Boolean = false
 ) {
     val context = LocalContext.current
-    val voiceManager = remember { ZadVoiceManager(context) }
+    // ZadVoiceManager بقى object مشترك (singleton) مش instance منفصل لكل شيت — init()
+    // idempotent، آمنة تتنادى من أكتر من مكان.
+    val voiceManager = remember { ZadVoiceManager.apply { init(context) } }
     val voiceState by voiceManager.voiceState.collectAsState()
     val isListeningState by voiceManager.isListening.collectAsState()
     val soundLevel by voiceManager.soundLevel.collectAsState()

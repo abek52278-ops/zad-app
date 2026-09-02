@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.ui.components.GlassCard
+import com.example.ui.components.LocalBottomBarInset
 import com.example.ui.components.pressableScale
 import com.example.ui.components.zadCardShadow
 import com.example.ui.components.ZadBezierSpendChart
@@ -242,7 +243,14 @@ fun ZadIntelligenceScreen(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(16.dp),
+            // كانت PaddingValues(16.dp) ثابتة على كل الجوانب — آخر كارت كان بيقف على بعد
+            // 16dp بس من شريط التنقل السفلي بدل ما ياخد ارتفاعه الحقيقي في الاعتبار.
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                top = 16.dp,
+                end = 16.dp,
+                bottom = LocalBottomBarInset.current + 16.dp
+            ),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // ── 0. بطل عقل زاد ثلاثي الأبعاد والعيون الحية (3D SmartBot Living Orb) ──
@@ -2646,7 +2654,7 @@ fun ChatTab(
     }
 
     val context = LocalContext.current
-    val voiceManager = remember { com.example.voice.ZadVoiceManager(context) }
+    val voiceManager = remember { com.example.voice.ZadVoiceManager.apply { init(context) } }
     val isListening by voiceManager.isListening.collectAsState()
     var lastSpokenResponseId by remember { mutableStateOf(messages.lastOrNull { !it.isUser }?.id) }
     var awaitingVoiceReply by remember { mutableStateOf(false) }
