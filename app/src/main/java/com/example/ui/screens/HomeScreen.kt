@@ -39,6 +39,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
@@ -119,6 +123,9 @@ fun HomeScreen(
     onNavigateToMaintenance: () -> Unit = {},
     onNavigateToPlans: () -> Unit = {},
     onOpenVoice: () -> Unit = {},
+    /** المسكوت الأليف (الكرة الخضراء) بيفتح على طول في وضع المكالمة الحية، عكس
+     * onOpenVoice العادي اللي بيفتح دور-بدور. */
+    onOpenVoiceLive: () -> Unit = onOpenVoice,
     /** تفعيل يدوي من الأب/الأم (Switch to Kids Mode) — بيفرض واجهة الأطفال حتى لو role الحساب "admin" */
     kidsModeOverride: Boolean = false
 ) {
@@ -925,39 +932,56 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                Spacer(modifier = Modifier.height(84.dp))
+                // HomeScreen بتاعة Column().verticalScroll مش LazyColumn — فمفيش contentPadding
+                // تتحط عليها. الـSpacer ده هو المعادل بتاعها، وبقى معتمد على LocalBottomBarInset
+                // الحقيقي بدل رقم ثابت عشان يتكيف مع أي ارتفاع فعلي للشريط السفلي.
+                Spacer(modifier = Modifier.height(LocalBottomBarInset.current + 84.dp))
             } // closes inner Column
         } // closes else block (line 125)
     } // closes outer Column (line 103)
 
-        // زر عائم **واحد** بس: بوت زاد. "خصم سريع" و"تعديل الميزانية" اتنقلوا جوه الكارت
-        // الأخضر كأزرار صريحة (ZadWalletHeroCard's HeroCardAction) — قبل كده كانوا عمودين
-        // عائمين فوق المحتوى بيغطّوا أسماء الأدوية والمخزون، و"خصم سريع" كان كمان مخفي على
-        // ضغطة مطوّلة على الكارت. مقفول في وضع الأطفال زي ما كان.
+        // المسكوت الأليف (الكرة الخضراء الحية) بدّل زر "بوت زاد" الجامد. مقفول في وضع
+        // الأطفال زي ما كان الزر القديم. مساحته محجوزة في ركن ثابت (نفس مكان الزر
+        // القديم بالظبط) — قابل للسحب بس *جوه* الصندوق ده بس، فمستحيل يتحرك فوق
+        // كروت الـLazyColumn زي ما كان بيحصل قبل e2a4d22 (كان zIndex(100f) عائم فوق
+        // الشاشة كلها وبيقطع أسماء الأدوية والمخزون). الضغطة (مش السحبة) بتفتح مكالمة
+        // Gemini Live مباشرة.
         if (!isChild) {
-            ExtendedFloatingActionButton(
-                onClick = onOpenBotChat,
+            val density = LocalDensity.current
+            val safeZoneDp = 96.dp
+            val orbSizeDp = 64.dp
+            val maxOffsetPx = with(density) { (safeZoneDp - orbSizeDp).toPx() }
+            var dragOffset by remember { mutableStateOf(Offset.Zero) }
+            var isDragging by remember { mutableStateOf(false) }
+
+            Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 20.dp, bottom = LocalBottomBarInset.current + 16.dp),
-                containerColor = primary,
-                contentColor = Color.White,
-                shape = RoundedCornerShape(18.dp),
-                icon = {
-                    Icon(
-                        Icons.AutoMirrored.Filled.Chat,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
-                    )
-                },
-                text = {
-                    Text(
-                        stringResource(R.string.zad_bot_fab),
-                        style = Typography.labelLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            )
+                    .padding(end = 20.dp, bottom = LocalBottomBarInset.current + 16.dp)
+                    .size(safeZoneDp)
+            ) {
+                ZadSmartBotAgent(
+                    sizeDp = orbSizeDp,
+                    emotion = if (isDragging) ZadBotEmotion.HAPPY else ZadBotEmotion.IDLE,
+                    onClick = onOpenVoiceLive,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .offset { IntOffset(dragOffset.x.toInt(), dragOffset.y.toInt()) }
+                        .pointerInput(maxOffsetPx) {
+                            detectDragGestures(
+                                onDragStart = { isDragging = true },
+                                onDragEnd = { isDragging = false },
+                                onDragCancel = { isDragging = false }
+                            ) { change, drag ->
+                                change.consume()
+                                dragOffset = Offset(
+                                    x = (dragOffset.x + drag.x).coerceIn(-maxOffsetPx, 0f),
+                                    y = (dragOffset.y + drag.y).coerceIn(-maxOffsetPx, 0f)
+                                )
+                            }
+                        }
+                )
+            }
         }
 } // closes Box
     if (showQuickDeductDialog) {

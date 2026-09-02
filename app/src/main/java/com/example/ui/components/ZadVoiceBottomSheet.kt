@@ -49,7 +49,8 @@ import com.example.voice.ZadVoiceManager
 @Composable
 fun ZadVoiceBottomSheet(
     viewModel: com.example.ui.viewmodels.ZadViewModel,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    initialLiveMode: Boolean = false
 ) {
     val context = LocalContext.current
     val voiceManager = remember { ZadVoiceManager(context) }
@@ -61,7 +62,7 @@ fun ZadVoiceBottomSheet(
     // اختياري للمسار دور-بدور (STT محلي → نداء شات → TTS) اللي فوق. افتراضياً off عشان
     // المسار المُتحقق منه يفضل هو الافتراضي — ده أول اتصال WebSocket خام في التطبيق،
     // ومعملش عليه اختبار جهاز حقيقي (شوف تحذير ZadLiveVoiceSession.kt عن شكل الفريمات).
-    var isLiveMode by remember { mutableStateOf(false) }
+    var isLiveMode by remember { mutableStateOf(initialLiveMode) }
     val liveSession = remember { ZadLiveVoiceSession(context) }
     val liveState by liveSession.state.collectAsState()
     val liveMicLevel by liveSession.micLevel.collectAsState()
