@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.ZadMaintenanceItem
 import com.example.ui.components.AppearOnEntry
+import com.example.ui.components.LocalBottomBarInset
 import com.example.ui.components.ZadLottieAsset
 import com.example.ui.components.ZadTransitions
 import com.example.ui.components.ZadListCard
@@ -131,7 +132,7 @@ fun MaintenanceScreen(
             onClick = { showAddDialog = true },
             containerColor = primary,
             contentColor = Color.White,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 88.dp).pressableScale()
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = LocalBottomBarInset.current + 16.dp).pressableScale()
         ) {
             Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_action))
         }

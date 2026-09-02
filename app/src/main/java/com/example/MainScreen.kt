@@ -31,6 +31,7 @@ import com.example.ui.components.PinPromptDialog
 import com.example.ui.components.ZadBottomNavBar
 import com.example.ui.components.ZadCameraSheet
 import com.example.ui.components.ZadCanvasBackground
+import com.example.ui.components.LocalBottomBarInset
 import com.example.ui.components.ZadDrawerContent
 import com.example.ui.components.ZadDrawerEntry
 import com.example.ui.components.ZadMoreSheet
@@ -410,6 +411,9 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
             ) { innerPadding ->
                 SideEffect { scaffoldInnerPadding = innerPadding }
                 Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+                  // كل شاشة جوه NavHost بتقرأ LocalBottomBarInset.current بدل ما تخمّن
+                  // ارتفاع الشريط بنفسها — نفس القيمة اللي بتغذّي FloatingMascotCompanion.
+                  CompositionLocalProvider(LocalBottomBarInset provides innerPadding.calculateBottomPadding()) {
                     NavHost(
                         navController = navController,
                         startDestination = ZadRoutes.HOME,
@@ -554,6 +558,7 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                         composable(ZadNav.ASSISTANT_ALERTS) { AssistantAlertsScreen { navController.popBackStack() } }
                         composable(ZadNav.TERMS) { TermsOfServiceScreen { navController.popBackStack() } }
                     }
+                  }
                 }
             }
             if (chromeVisible) {

@@ -101,8 +101,10 @@ export const MARKET_INTELLIGENCE_TOOLS = [
           description: "اسم السلعة (مثل: Bread, Milk, Oil)",
         },
         forecast_days: {
-          type: "number",
-          enum: [30, 90],
+          // نفس الفيكس اللي في index.ts (المصدر الفعلي المنشور) — enum لازم قيمه
+          // strings دايماً في Gemini's function-calling schema بغض النظر عن type.
+          type: "string",
+          enum: ["30", "90"],
           description: "الفترة الزمنية (30 أو 90 يوم)",
         },
       },

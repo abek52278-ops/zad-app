@@ -170,7 +170,7 @@ fun FloatingMascotCompanion(
         modifier = modifier
             .fillMaxSize()
             .zIndex(100f)
-            .padding(bottom = contentBottomInset + 14.dp),
+            .padding(bottom = contentBottomInset + 16.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
         Column(

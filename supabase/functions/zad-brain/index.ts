@@ -3841,8 +3841,15 @@ const CHAT_TOOLS: ToolDef[] = [
           description: "اسم السلعة (مثل: Bread, Milk, Oil)",
         },
         forecast_days: {
-          type: "number",
-          enum: [30, 90],
+          // كان type:"number" مع enum:[30,90] رقمي — Gemini's function-calling schema
+          // بيتطلب enum قيمه strings دايماً بغض النظر عن type المُعلن (schema.enum هو
+          // repeated string في الـ API، مش polymorphic). ده كان بيفشل بـ400 على
+          // properties[1].value.enum[0] (TYPE_STRING) — 57% من كل نداءات zad-brain
+          // النهاردة (2026-09-02) فشلت بسببه لأنه بيتبعت مع كل تعريفات الأدوات في كل
+          // نداء. forecast_days بيتستخدم للعرض بس (template literal) فمفيش أي فرق
+          // فعلي بين الرقم والنص جوه handler الأداة.
+          type: "string",
+          enum: ["30", "90"],
           description: "الفترة الزمنية (30 أو 90 يوم)",
         },
       },

@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import com.example.ui.components.LocalBottomBarInset
 import com.example.ui.components.ZadCategoryCard
 import com.example.ui.components.ZadCategoryType
 import com.example.ui.components.ZadSmartBotAgent
@@ -899,7 +900,7 @@ fun HomeScreen(
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 20.dp, bottom = 88.dp),
+                    .padding(end = 20.dp, bottom = LocalBottomBarInset.current + 16.dp),
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {

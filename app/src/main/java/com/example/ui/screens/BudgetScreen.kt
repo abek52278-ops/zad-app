@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.util.Log
 import com.example.data.ZadTransaction
+import com.example.ui.components.LocalBottomBarInset
 import com.example.ui.components.ZadLottieAsset
 import com.example.ui.components.pressableScale
 import com.airbnb.lottie.compose.LottieConstants
@@ -589,7 +590,7 @@ fun BudgetScreen(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 20.dp, bottom = 88.dp),
+                .padding(end = 20.dp, bottom = LocalBottomBarInset.current + 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalAlignment = Alignment.End
         ) {

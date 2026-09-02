@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.animation.core.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.graphicsLayer
@@ -54,6 +55,17 @@ import com.example.ui.theme.*
  * the app into missing-resource crashes. That slot carries the notification bell
  * instead — same position, same pill shape, backed by a feature that exists.
  */
+
+/**
+ * ارتفاع منطقة الشريط السفلي الحقيقي (Scaffold's innerPadding.calculateBottomPadding())،
+ * متاح لأي شاشة جوه NavHost من غير prop drilling. قبل كده كل شاشة فيها FAB عائم كانت
+ * بتخمّن الرقم يدوياً (`bottom = 88.dp` مكرر حرفياً في خمس شاشات: BudgetScreen،
+ * MaintenanceScreen، HomeScreen، PharmacyScreen، SubscriptionsScreen) — تخمين بيتفرقع
+ * لو ارتفاع ZadBottomNavBar اتغيّر (خط أكبر، تصميم تاني) فيتراكب الزرار مع الشريط أو
+ * يسيب فراغ فاضي فوقه. الافتراضي 0.dp عشان أي Preview/اختبار بيعمل الشاشة من غير
+ * MainScreen's provider يفضل يشتغل، بس بدون الحماية الفعلية.
+ */
+val LocalBottomBarInset = compositionLocalOf { 0.dp }
 
 // ── screen routes the shell knows about ──────────────────────────────────────
 object ZadRoutes {
