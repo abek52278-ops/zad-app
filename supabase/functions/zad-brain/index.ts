@@ -55,7 +55,7 @@
 
 import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { CONFIRM_REQUIRED_TOOLS, freshContext, looksLikeAnsweredQuestion, RunContext, validateTool } from "./validators.ts";
-import { callModel, embedText, embedSelfTest, smokeTestTools, Turn, ToolDef } from "./callModel.ts";
+import { callModel, embedText, embedSelfTest, EMBED_MODEL, smokeTestTools, Turn, ToolDef } from "./callModel.ts";
 import { decideOnBrainFailure, hasRecentMutatingRun, normalizeDoseTimes } from "./shared.ts";
 import { type FastIntent, formatBalanceReply, parseFastPath } from "./fastPath.ts";
 import { AgentSource, AuditScope, recordAction, writeRows } from "./audit.ts";
@@ -5142,6 +5142,37 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json();
+
+    // STEP 0 diagnostic — a caller kept getting `unauthorized` from smoke_test/
+    // embed_selftest despite pasting the decoded-and-confirmed service_role JWT
+    // (role: service_role verified by decoding it themselves). hasServiceRoleAuthorization
+    // is plain string equality (auth.ts) — no JWT verification happens here at all, so a
+    // "role: service_role" decode proves nothing about whether the bytes match
+    // Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") specifically. Rather than guess again
+    // (key rotation? stale warm instance? a platform layer mangling the header?), this
+    // proves it with a hash comparison that can never leak either secret: SHA-256 of a
+    // ~200+ byte high-entropy JWT is not invertible, so exposing both hashes plus lengths
+    // is safe even with **no auth required to call this action** — that's deliberate,
+    // since the whole point is to debug why authorization is failing. This action is a
+    // one-time diagnostic; remove it once the mismatch (or lack thereof) is confirmed.
+    if (body.auth_debug === true) {
+      const header = req.headers.get("Authorization") ?? "";
+      const received = header.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : "";
+      const sha256 = async (s: string) => {
+        if (!s) return null;
+        const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+        return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+      };
+      return new Response(JSON.stringify({
+        authorization_header_present: header.length > 0,
+        received_bearer_length: received.length,
+        received_bearer_sha256: await sha256(received),
+        expected_service_role_length: SERVICE_ROLE_KEY.length,
+        expected_service_role_sha256: await sha256(SERVICE_ROLE_KEY),
+        matches: received.length > 0 && received === SERVICE_ROLE_KEY,
+        configured_embed_model: EMBED_MODEL,
+      }), { headers: CORS_HEADERS });
+    }
 
     // STEP 1 diagnostic — bypasses everything else (no user_id/DB needed) so
     // ZAD_PROVIDER/ZAD_API_KEY/ZAD_MODEL_ROUTINE can be checked in isolation
