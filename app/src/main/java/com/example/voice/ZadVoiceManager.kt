@@ -216,8 +216,12 @@ object ZadVoiceManager {
 
     fun getCurrentPersona(): ZadNaturalVoiceEngine.VoicePersona = naturalVoiceEngine.currentPersona.value
 
-    /** حالة توفر الصوت البشري — لو ElevenLاس فشل، الواجهة تعرض النص بدل صمت. */
-    val humanVoiceAvailable: StateFlow<Boolean> = naturalVoiceEngine.humanVoiceAvailable
+    /** حالة توفر الصوت البشري — لو ElevenLاس فشل، الواجهة تعرض النص بدل صمت.
+     *  by lazy زي naturalVoiceEngine بالظبط — val عادي هنا كان بيجبر تقييم naturalVoiceEngine
+     *  وقت تحميل الـ object (static init)، يعني قبل ما init(context) تتنادى أصلاً، فـ appContext
+     *  لسه lateinit مش متعين → UninitializedPropertyAccessException بتتلف كـ
+     *  ExceptionInInitializerError عند أول لمسة للـ object (MainActivity.onCreate). */
+    val humanVoiceAvailable: StateFlow<Boolean> by lazy { naturalVoiceEngine.humanVoiceAvailable }
 
     /** نطق بصوت بشري. onDone بعد نجاح التشغيل، onFailed لو الصوت البشري مش متاح. */
     fun speakHumanLike(text: String, onDone: () -> Unit = {}, onFailed: () -> Unit = {}) {
