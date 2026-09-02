@@ -22,8 +22,10 @@ android {
     applicationId = "com.aistudio.zad.wrtqvx"
     minSdk = 24
     targetSdk = 35
-    versionCode = 1
-    versionName = "1.0"
+    // كانت ثابتة على 1 / "1.0" من أول التطبيق — يعني مستحيل تفرّق نسخة عن نسخة من
+    // شاشة "حول التطبيق"، وكانت بتزوّد لخبطة "هو ده البيلد الجديد ولا القديم؟".
+    versionCode = 2
+    versionName = "1.1"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -31,6 +33,22 @@ android {
   }
 
   signingConfigs {
+    // debug كان بيستخدم ~/.android/debug.keystore الافتراضي — الملف ده **مش موجود على
+    // سيرفر CI**، فبيتولّد جديد عشوائي في كل بيلد. النتيجة: كل APK موقّع بمفتاح مختلف
+    // (اتأكد بالمقارنة: بيلد 04ee86e شهادته 0bec552a…، بيلد 998e229 شهادته 1f9ccc34…)،
+    // وأندرويد بيرفض يثبّت APK فوق تطبيق متثبّت لو التوقيع اتغيّر → "التطبيق غير مثبت"
+    // → الجهاز يفضل شايل النسخة القديمة مهما اتبنى كود جديد. ده كان سبب "بفتح التطبيق
+    // بلاقيه زي الشهر اللي فات" رغم إن الكود فعلاً جوه الـAPK.
+    //
+    // keystore ثابت متسجّل في الريبو. ده **مش سر**: مفاتيح الديباج معروفة بالتعريف
+    // (كلمة السر القياسية `android`)، ومابتوقّعش أي حاجة بتتنشر على المتجر — النشر
+    // بيستخدم signingConfigs("release") تحت باللي جاي من متغيرات البيئة.
+    getByName("debug") {
+      storeFile = file("${rootDir}/zad-debug.keystore")
+      storePassword = "android"
+      keyAlias = "androiddebugkey"
+      keyPassword = "android"
+    }
     create("release") {
       val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
       storeFile = file(keystorePath)
