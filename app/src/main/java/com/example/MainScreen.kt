@@ -111,6 +111,12 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
 
     // ─── وضع الأطفال: قفل تنقّل على مستوى الشاشة كلها ───
     val context = LocalContext.current
+    // كان recordNavigation() بيتنده بـisSubscribed الافتراضية (false) دايماً — يعني
+    // المشتركين المدفوعين كانوا بيشوفوا إعلانات interstitial زي أي حد تاني رغم "زاد بلس
+    // = من غير إعلانات". نفس singleton شاشة الدفع (ZadSubscriptionPaywallScreen) بتقرا
+    // منه أصلاً، فمفيش نداء شبكة إضافي هنا.
+    val billingManagerForAds = remember { com.example.billing.GooglePlayBillingManager.getInstance(context) }
+    val activeSubscriptionPlan by billingManagerForAds.activePlan.collectAsState()
     val isChildRole = (familyStateForChat as? FamilyState.Active)?.myMemberInfo?.role == "child"
     var manualKidsModeActive by remember { mutableStateOf(KidsModePin.isManualModeActive(context)) }
     LaunchedEffect(manualKidsModeActive) {
@@ -239,7 +245,7 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
     // screen, so one correct PIN entry can't stay unlocked for the rest of the session.
     LaunchedEffect(currentRoute) {
         if (currentRoute != null) {
-            com.example.ads.InterstitialAdManager.recordNavigation(context)
+            com.example.ads.InterstitialAdManager.recordNavigation(context, isSubscribed = activeSubscriptionPlan != null)
         }
         if (isChildRole && pinUnlockedOverride && (currentRoute == ZadRoutes.HOME || currentRoute == ZadRoutes.FAMILY)) {
             pinUnlockedOverride = false

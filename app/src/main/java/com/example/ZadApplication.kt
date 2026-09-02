@@ -27,6 +27,11 @@ class ZadApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         RewardedBrainAdManager.initialize(this)
+        // كانت مش متندهة خالص — InterstitialAdManager.preload() عمره ما بيتنده استباقياً،
+        // فأول إعلان بيني في الجلسة (بعد ٥ تنقلات) كان بيلاقي interstitialAd=null دايماً
+        // ويطلب preload وقتها بس، يعني بيتفوّت — الإعلان الفعلي كان بيبان بعد ١٠ تنقلات
+        // مش ٥. preload من هنا بيضمن إعلان جاهز من أول تنقلة.
+        com.example.ads.InterstitialAdManager.initialize(this)
     }
 
     override fun attachBaseContext(base: Context) {
