@@ -32,6 +32,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.ui.res.stringResource
@@ -912,41 +913,34 @@ fun HomeScreen(
         } // closes else block (line 125)
     } // closes outer Column (line 103)
 
-        // الصفحة الرئيسية كانت من غير FAB خالص رغم إنها أكتر شاشة بيتفتح — مقفولة في وضع
-        // الأطفال لأن طلب الشراء بتاعهم بيحصل من KidsModeContent (onAddRequest) مش من هنا.
+        // زر عائم **واحد** بس: بوت زاد. "خصم سريع" و"تعديل الميزانية" اتنقلوا جوه الكارت
+        // الأخضر كأزرار صريحة (ZadWalletHeroCard's HeroCardAction) — قبل كده كانوا عمودين
+        // عائمين فوق المحتوى بيغطّوا أسماء الأدوية والمخزون، و"خصم سريع" كان كمان مخفي على
+        // ضغطة مطوّلة على الكارت. مقفول في وضع الأطفال زي ما كان.
         if (!isChild) {
-            // "خصم سريع" هو الزرار الأساسي دلوقتي، مش إضافة معاملة كاملة. السبب إن أغلب
-            // المصاريف اللي بتضيع مش اللي العميل قاعد يصنّفها — هي اللي بيدفعها وهو واقف
-            // والنظام ما شافهاش. الفورم الكامل (عنوان/فئة/دخل ولا مصروف) لسه موجود في
-            // الزرار الصغير فوقه، بس مابقاش هو الافتراضي.
-            Column(
+            ExtendedFloatingActionButton(
+                onClick = onNavigateToAssistant,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = 20.dp, bottom = LocalBottomBarInset.current + 16.dp),
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                SmallFloatingActionButton(
-                    onClick = { showAddTransactionDialog = true },
-                    containerColor = surface,
-                    contentColor = primary
-                ) {
-                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.add_action))
+                containerColor = primary,
+                contentColor = Color.White,
+                shape = RoundedCornerShape(18.dp),
+                icon = {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Chat,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                },
+                text = {
+                    Text(
+                        stringResource(R.string.zad_bot_fab),
+                        style = Typography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
-                ExtendedFloatingActionButton(
-                    onClick = { showQuickDeductDialog = true },
-                    containerColor = primary,
-                    contentColor = Color.White,
-                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = {
-                        Text(
-                            stringResource(R.string.quick_deduct),
-                            style = Typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                )
-            }
+            )
         }
 } // closes Box
     if (showQuickDeductDialog) {

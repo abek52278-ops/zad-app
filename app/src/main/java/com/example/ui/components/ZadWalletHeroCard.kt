@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Edit
@@ -225,27 +226,29 @@ fun ZadWalletHeroCard(
             }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        // Bottom Wallet Footer: Emerald Hex Tag & Quick Edit Indicator
+        // أزرار الكارت الداخلية — بديل الأزرار العائمة اللي كانت بتطفو فوق المحتوى
+        // وتغطي أسماء الأدوية والمخزون. "خصم سريع" كان مخفي تمامًا على ضغطة مطوّلة على
+        // الكارت (غير قابلة للاكتشاف)، عشان كده كان لازم FAB عائم يعوّضها؛ دلوقتي هو زر
+        // صريح جوه الكارت نفسه، والمحتوى تحت فاضي بالكامل.
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                text = "#0A382C • ZAD WALLET",
-                fontSize = 10.5.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White.copy(alpha = 0.5f),
-                letterSpacing = 0.5.sp
+            HeroCardAction(
+                label = "خصم سريع",
+                icon = Icons.Default.Add,
+                emphasized = true,
+                onClick = onQuickExpense,
+                modifier = Modifier.weight(1f)
             )
-            Text(
-                text = "تعديل الميزانية ✎",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF6EE7B7),
-                modifier = Modifier.clickable { onEditBudget() }
+            HeroCardAction(
+                label = "تعديل الميزانية",
+                icon = Icons.Default.Edit,
+                emphasized = false,
+                onClick = onEditBudget,
+                modifier = Modifier.weight(1f)
             )
         }
     }
@@ -255,6 +258,46 @@ fun ZadWalletHeroCard(
             delay(120)
             isPressed = false
         }
+    }
+}
+
+/**
+ * زر داخلي في الكارت الأخضر بستايل iOS — سطح زجاجي خفيف على تدرّج الكارت، حواف دائرية
+ * كاملة، وارتفاع 44dp (حد أدنى لهدف اللمس). `emphasized` بيدي الزر الأساسي تعبئة أوضح.
+ */
+@Composable
+private fun HeroCardAction(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    emphasized: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .height(44.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(
+                if (emphasized) Color.White.copy(alpha = 0.20f)
+                else Color.White.copy(alpha = 0.08f)
+            )
+            .clickable { onClick() },
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = label,
+            fontSize = 12.5.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
     }
 }
 

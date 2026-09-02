@@ -188,8 +188,6 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
             MainActivity.openVoiceRequest.value = false
         }
     }
-    // W6 — سطح المحادثة السريع (ZadAgentOverlay)، بيتفتح بضغطة طويلة على المسكوت.
-    var showAgentOverlay by remember { mutableStateOf(false) }
 
     fun go(route: String) {
         navController.navigate(route) {
@@ -315,11 +313,6 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
         // The mockup's neutral canvas gradient is the app background for EVERY screen.
         Box(modifier = Modifier.fillMaxSize()) {
             ZadCanvasBackground(modifier = Modifier.fillMaxSize())
-            // FloatingMascotCompanion و ZadAgentOverlay معمولين برّه محتوى الـ Scaffold
-            // (تحت) عشان يطفوا فوق أي شاشة — يعني مش وارثين innerPadding تلقائي. القيمة
-            // دي هي الجسر: بتتسجّل من نفس innerPadding اللي الـ NavHost بيستخدمها تحت،
-            // فالمسكوت بياخد ارتفاع شريط التنقل الحقيقي مش رقم مخمّن.
-            var scaffoldInnerPadding by remember { mutableStateOf(PaddingValues(0.dp)) }
             Scaffold(
                 containerColor = Color.Transparent,
                 contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -415,10 +408,9 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                     }
                 }
             ) { innerPadding ->
-                SideEffect { scaffoldInnerPadding = innerPadding }
                 Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
                   // كل شاشة جوه NavHost بتقرأ LocalBottomBarInset.current بدل ما تخمّن
-                  // ارتفاع الشريط بنفسها — نفس القيمة اللي بتغذّي FloatingMascotCompanion.
+                  // ارتفاع الشريط بنفسها.
                   CompositionLocalProvider(LocalBottomBarInset provides innerPadding.calculateBottomPadding()) {
                     NavHost(
                         navController = navController,
@@ -567,24 +559,14 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                   }
                 }
             }
-            if (chromeVisible) {
-                com.example.ui.components.FloatingMascotCompanion(
-                    viewModel = viewModel,
-                    kidsMode = kidsModeEffective,
-                    contentBottomInset = scaffoldInnerPadding.calculateBottomPadding(),
-                    onNavigateToChat = { goGuarded(ZadRoutes.ASSISTANT) },
-                    onQuickChat = { showAgentOverlay = true }
-                )
-            }
-            com.example.ui.components.ZadAgentOverlay(
-                visible = showAgentOverlay,
-                viewModel = viewModel,
-                onDismiss = { showAgentOverlay = false },
-                onOpenFullChat = {
-                    showAgentOverlay = false
-                    goGuarded(ZadRoutes.ASSISTANT)
-                }
-            )
+            // المسكوت العائم (الكورة الخضرا) اتشال من فوق كل الشاشات: كان zIndex(100f)
+            // فوق محتوى الـLazyColumn، فبيقطع أسماء الأدوية والمخزون في PharmacyScreen
+            // وInventoryScreen — ومكانش فيه أي padding في القوايم دي يخلي المحتوى يعدّيه.
+            // مدخل الشات بقى زر واحد صريح ("بوت زاد") في الرئيسية + تبويب المساعد في
+            // شريط التنقل، فمفيش وظيفة اتفقدت — بس الشاشات بقت نضيفة من طبقة عائمة
+            // كانت بتغطي المحتوى في كل مكان. ZadAgentOverlay (شيت الشات السريع) اتشال
+            // معاه: المسكوت كان **المشغّل الوحيد** ليه (onQuickChat)، فمن غيره بقى كود
+            // ميت مستحيل يظهر — وسيبه كان هيوهم إنه شغال.
         }
     }
 

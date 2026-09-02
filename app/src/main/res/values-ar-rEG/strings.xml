@@ -1127,6 +1127,7 @@
 
     <!-- Ledger: quick deduct and manual balance override -->
     <string name="quick_deduct">خصم سريع</string>
+    <string name="zad_bot_fab">بوت زاد</string>
     <string name="paywall_price_loading">جاري تحميل السعر…</string>
     <string name="quick_deduct_default_title">خصم سريع</string>
     <string name="quick_deduct_hint">المبلغ ده هينزل من رصيدك على طول — من غير تحليل ولا تصنيف.</string>
