@@ -234,7 +234,7 @@ fun ZadBezierSpendChart(
 
                     // Floating Peak Tooltip Bubble Badge
                     if (amountVal > 0) {
-                        val labelText = "${amountVal.toInt()} ر.س"
+                        val labelText = com.example.data.CurrencyFormatter.format(context, amountVal)
                         val textLayout = textMeasurer.measure(
                             text = labelText,
                             style = TextStyle(

@@ -32,7 +32,6 @@ import com.example.R
 import com.example.data.ZadAiRepository
 import com.example.data.ZadSubscription
 import com.example.ui.components.GlassCard
-import com.example.ui.components.LocalBottomBarInset
 import com.example.ui.components.ZadListCard
 import com.example.ui.components.ZadScreenBanner
 import com.example.ui.components.pressableScale
@@ -307,7 +306,7 @@ fun SubscriptionsScreen(
             onClick = { showAddDialog = true },
             containerColor = primary,
             contentColor = Color.White,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = LocalBottomBarInset.current + 16.dp).pressableScale()
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 16.dp).pressableScale()
         ) {
             Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_action))
         }

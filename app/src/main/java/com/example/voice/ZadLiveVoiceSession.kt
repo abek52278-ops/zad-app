@@ -167,6 +167,7 @@ class ZadLiveVoiceSession(private val context: Context) {
                 val reason = when (response?.code) {
                     401 -> "محتاج تسجّل دخول تاني"
                     402 -> "خلص رصيدك من المكالمات الصوتية الحية"
+                    503 -> "الخدمة الصوتية مش متاحة دلوقتي، جرّب تاني بعد شوية"
                     else -> "تعذّر الاتصال بالمساعد الصوتي"
                 }
                 mainHandler.post { _state.value = LiveVoiceState.Error(reason) }

@@ -45,7 +45,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.ui.components.GlassCard
-import com.example.ui.components.LocalBottomBarInset
 import com.example.ui.components.pressableScale
 import com.example.ui.components.zadCardShadow
 import com.example.ui.components.ZadBezierSpendChart
@@ -227,8 +226,14 @@ fun ZadIntelligenceScreen(
         com.example.ui.components.ZadExecutiveDossierSheet(
             onDismiss = { showExecutiveDossier = false },
             totalSpent = totalExpense,
-            safeDailySpend = resilienceAvailableFigure?.value?.let { if (resilienceRemainingBalance != null) it / 14 else 120.0 } ?: 120.0,
-            forecastNextMonth = forecast?.predictedTotal ?: (totalExpense * 1.08),
+            // القيمتين دول بقوا nullable عن قصد. قبل كده لو مفيش بيانات كفاية كانوا
+            // بيتملّوا بأرقام مخترعة (120 ج.م/يوم ثابتة، وتوقّع = المصروف × 1.08) وبتتعرض
+            // في تقرير مكتوب عليه "بناءً على الذكاء الاصطناعي" — يعني رقم متخيّل بيتقري
+            // كأنه تحليل. دلوقتي التقرير بيقول "لسه مفيش بيانات كفاية" بدل ما يخمّن.
+            safeDailySpend = resilienceAvailableFigure?.value
+                ?.takeIf { resilienceRemainingBalance != null }
+                ?.let { it / 14 },
+            forecastNextMonth = forecast?.predictedTotal,
             familyMembersCount = activeFamily?.members?.size?.coerceAtLeast(1) ?: 1,
             pharmacyAdherencePct = weeklyAdherencePercent,
             lowStockItemCount = lowStockCount
@@ -249,7 +254,7 @@ fun ZadIntelligenceScreen(
                 start = 16.dp,
                 top = 16.dp,
                 end = 16.dp,
-                bottom = LocalBottomBarInset.current + 16.dp
+                bottom = 16.dp
             ),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {

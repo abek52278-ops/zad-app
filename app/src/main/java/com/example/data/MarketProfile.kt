@@ -196,8 +196,10 @@ object MarketPrefs {
         // والنداء هنا مش زيادة احتياطية: الفرع اللي بيحترم اختيار اللغة مابيلمسش getMarket
         // خالص، فمن غير السطر ده الـ static كان هيفضل على الافتراضي طول عمر العملية.
         getMarket(context)
-        val alreadyChosen = androidx.appcompat.app.AppCompatDelegate.getApplicationLocales()
-            .toLanguageTags().isNotBlank()
+        // نفس تصحيح effectiveLocaleTag: "فيه لغة متخزّنة" ≠ "العميل اختار لغة".
+        val alreadyChosen = LocaleHelper.userChoseLanguage(context) &&
+            androidx.appcompat.app.AppCompatDelegate.getApplicationLocales()
+                .toLanguageTags().isNotBlank()
         if (alreadyChosen) {
             // الفورماترز بتقرا من الـ default الساكن مش من الـ Configuration، فلازم يتظبط
             // على اللغة المختارة برضه وإلا تلاقي واجهة إنجليزي بتواريخ عربية.
@@ -243,6 +245,11 @@ object MarketPrefs {
      * مصر أول ما يفتح التطبيق يلاقيه بالعربي من غير ما يطلب.
      */
     private fun effectiveLocaleTag(context: Context): String {
+        // `getApplicationLocales()` مش دليل على اختيار العميل: `applyLocale(market)`
+        // بيكتب فيه هو كمان. فالشرط بقى العلامة الصريحة اللي LocaleHelper.setLanguage
+        // بتسجّلها — من غيرها، أول لغة اتطبّقت من السوق الافتراضي (السعودية) كانت
+        // بتتقفل للأبد وتخلي حساب مصري يقرا نصوص values-ar-rSA.
+        if (!LocaleHelper.userChoseLanguage(context)) return getMarket(context).localeTag
         val chosen = androidx.appcompat.app.AppCompatDelegate.getApplicationLocales()
             .toLanguageTags()
             .takeIf { it.isNotBlank() }

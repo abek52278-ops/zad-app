@@ -56,16 +56,20 @@ import com.example.ui.theme.*
  * instead — same position, same pill shape, backed by a feature that exists.
  */
 
-/**
- * ارتفاع منطقة الشريط السفلي الحقيقي (Scaffold's innerPadding.calculateBottomPadding())،
- * متاح لأي شاشة جوه NavHost من غير prop drilling. قبل كده كل شاشة فيها FAB عائم كانت
- * بتخمّن الرقم يدوياً (`bottom = 88.dp` مكرر حرفياً في خمس شاشات: BudgetScreen،
- * MaintenanceScreen، HomeScreen، PharmacyScreen، SubscriptionsScreen) — تخمين بيتفرقع
- * لو ارتفاع ZadBottomNavBar اتغيّر (خط أكبر، تصميم تاني) فيتراكب الزرار مع الشريط أو
- * يسيب فراغ فاضي فوقه. الافتراضي 0.dp عشان أي Preview/اختبار بيعمل الشاشة من غير
- * MainScreen's provider يفضل يشتغل، بس بدون الحماية الفعلية.
+/*
+ * `LocalBottomBarInset` اتشال (٢٠٢٦-٠٩-٠٢) — كان بيتحسب مرتين.
+ *
+ * MainScreen بيعمل `Box(Modifier.padding(innerPadding))` على محتوى الـNavHost، وSca­ffold
+ * بيحط في `innerPadding` ارتفاع الـbottomBar كامل بالفعل. فالمساحة محجوزة خلاص قبل ما
+ * أي شاشة تشوف حاجة. وبعدين نفس الرقم كان بيتنشر تاني كـCompositionLocal وكل شاشة
+ * بتضيفه من جديد — يعني الأزرار العائمة في BudgetScreen/PharmacyScreen/
+ * SubscriptionsScreen/MaintenanceScreen كانت بتطلع فوق بارتفاع شريط كامل زيادة
+ * (~١٠٠dp)، وZadIntelligenceScreen/HomeScreen كان تحتيهم فراغ ميت بنفس القدر.
+ *
+ * المصدر الوحيد للحقيقة دلوقتي هو `innerPadding` بتاع Scaffold — لو ارتفاع
+ * ZadBottomNavBar اتغيّر، Scaffold بيقيسه لوحده وكل الـ٢١ شاشة بتتظبط من غير ما
+ * تعرف عنه حاجة. الشاشات بتضيف مسافتها الجمالية بس (16.dp) فوق كده.
  */
-val LocalBottomBarInset = compositionLocalOf { 0.dp }
 
 // ── screen routes the shell knows about ──────────────────────────────────────
 object ZadRoutes {

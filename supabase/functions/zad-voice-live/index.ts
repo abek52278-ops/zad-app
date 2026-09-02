@@ -45,6 +45,19 @@ import { describeVoiceProposal, isConfirmRequired, VOICE_TOOL_USAGE_INSTRUCTION,
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const VOICE_LIVE_MODEL = Deno.env.get("ZAD_VOICE_LIVE_MODEL") ?? "gemini-3.1-flash-live-preview";
+
+// صوت الرد. من غير speechConfig جيميناي بيستخدم صوته الافتراضي (Puck، ذكوري) — وده كان
+// السبب الحقيقي إن المكالمة بترد بصوت مش أنثوي رغم إن persona.ts مكتوب فيها "أنتي بنت
+// حرة" و"الصوت اللي هينطقك أنثوي شبابي". النص كان صح، الإعداد هو اللي كان ناقص.
+// Aoede نفس الصوت اللي zad-core-intelligence/index.ts:932 وvoice-selftest بيستخدموه
+// بالظبط، فالمكالمة الحية والردود القصيرة بقى ليهم نفس الصوت بدل صوتين مختلفين.
+const VOICE_LIVE_VOICE = Deno.env.get("ZAD_VOICE_LIVE_VOICE") ?? "Aoede";
+
+// اللهجة بتتظبط من systemInstruction (مجرّبة وشغالة). speechConfig.languageCode
+// **مش** متأكد منه على موديلات الـnative-audio، وفريم setup مرفوض بيقفل الجلسة بـ1007
+// بدل ما يتجاهل الحقل — يعني تجربة غير محسوبة هنا بتكسر الصوت كله. فسايبينه خلف
+// متغير بيئة، مقفول افتراضياً: اضبط ZAD_VOICE_LIVE_LANG=ar-EG بعد ما تجرّبه حي.
+const VOICE_LIVE_LANG = Deno.env.get("ZAD_VOICE_LIVE_LANG")?.trim() || null;
 const GEMINI_LIVE_HOST = "generativelanguage.googleapis.com";
 const GEMINI_LIVE_PATH =
   "/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
@@ -246,7 +259,13 @@ Deno.serve(async (req) => {
       const setup = {
         setup: {
           model: `models/${VOICE_LIVE_MODEL}`,
-          generationConfig: { responseModalities: ["AUDIO"] },
+          generationConfig: {
+            responseModalities: ["AUDIO"],
+            speechConfig: {
+              voiceConfig: { prebuiltVoiceConfig: { voiceName: VOICE_LIVE_VOICE } },
+              ...(VOICE_LIVE_LANG ? { languageCode: VOICE_LIVE_LANG } : {}),
+            },
+          },
           systemInstruction: { parts: [{ text: systemInstructionText }] },
           tools: [{ functionDeclarations: VOICE_TOOLS.map((t) => ({
             name: t.name, description: t.description, parameters: t.parameters,

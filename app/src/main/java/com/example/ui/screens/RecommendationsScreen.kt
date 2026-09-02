@@ -43,6 +43,7 @@ fun RecommendationsScreen(
     onDismiss: (recommendationId: String) -> Unit,
     onBack: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -102,7 +103,7 @@ fun RecommendationsScreen(
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                "${stats.totalSavingsPotential.toInt()} ج.م",
+                                com.example.data.CurrencyFormatter.format(context, stats.totalSavingsPotential),
                                 fontSize = 28.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
@@ -210,6 +211,7 @@ private fun RecommendationCard(
     onAction: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -269,7 +271,7 @@ private fun RecommendationCard(
                 // Savings
                 if (recommendation.estimatedSavings > 0) {
                     Text(
-                        "−${recommendation.estimatedSavings.toInt()}ج.م",
+                        "−" + com.example.data.CurrencyFormatter.format(context, recommendation.estimatedSavings),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF10B981)
@@ -313,7 +315,7 @@ private fun RecommendationCard(
                         )
                         if (recommendation.bestPrice != null) {
                             Text(
-                                "${recommendation.bestPrice} ج.م",
+                                com.example.data.CurrencyFormatter.format(context, recommendation.bestPrice),
                                 fontSize = 10.sp,
                                 color = primary
                             )

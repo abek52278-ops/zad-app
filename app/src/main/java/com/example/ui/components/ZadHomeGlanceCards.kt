@@ -499,26 +499,20 @@ fun ZadSubscriptionsGlanceCard(
     onViewAllClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val activeSubs = remember(subscriptions) { subscriptions.filter { it.isActive } }
-    val totalAmount = remember(activeSubs) {
-        if (activeSubs.isNotEmpty()) activeSubs.sumOf { it.amount } else 294.0
-    }
+    val totalAmount = remember(activeSubs) { activeSubs.sumOf { it.amount } }
 
+    // المبلغ بيفضل Double لحد ما يترسم — CurrencyFormatter.format() بتقرا
+    // MarketPrefs.currentMarket (Compose state)، فلو ناديناها جوّه remember كان النص
+    // هيتجمّد على عملة أول تركيب ومايتغيّرش لما المستخدم يبدّل السوق.
     val displayList = remember(activeSubs) {
-        if (activeSubs.isNotEmpty()) {
-            activeSubs.take(3).map {
-                Triple(it.title, "${it.amount.toInt()} ر.س", when (it.title) {
-                    "نتفليكس", "Netflix" -> Color(0xFFB45309)
-                    "الجيم", "Gym" -> Color(0xFFDC5B4B)
-                    else -> Color(0xFF0F9B76)
-                })
-            }
-        } else {
-            listOf(
-                Triple("نتفليكس", "45 ر.س", Color(0xFFB45309)),
-                Triple("STC TV", "99 ر.س", Color(0xFF064E3B)),
-                Triple("اشتراك الجيم", "150 ر.س", Color(0xFFDC5B4B))
-            )
+        activeSubs.take(3).map {
+            Triple(it.title, it.amount, when (it.title) {
+                "نتفليكس", "Netflix" -> Color(0xFFB45309)
+                "الجيم", "Gym" -> Color(0xFFDC5B4B)
+                else -> Color(0xFF0F9B76)
+            })
         }
     }
 
@@ -545,7 +539,12 @@ fun ZadSubscriptionsGlanceCard(
                 }
                 Column {
                     Text("الاشتراكات الشهرية", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
-                    Text("إجمالي شهري: ${totalAmount.toInt()} ر.س", fontSize = 11.5.sp, color = Color(0xFF64748B))
+                    Text(
+                        text = if (activeSubs.isEmpty()) "مفيش اشتراكات مسجّلة"
+                               else "إجمالي شهري: ${com.example.data.CurrencyFormatter.format(context, totalAmount)}",
+                        fontSize = 11.5.sp,
+                        color = Color(0xFF64748B)
+                    )
                 }
             }
             TextButton(
@@ -556,8 +555,21 @@ fun ZadSubscriptionsGlanceCard(
             }
         }
 
+        if (displayList.isEmpty()) {
+            // كان هنا ٣ اشتراكات مخترعة (نتفليكس/STC TV/الجيم بالريال) بتتعرض لأي حساب
+            // فاضي — المستخدم كان بيشوف اشتراكات ما سجّلهاش وبعملة مش بتاعته. الحالة
+            // الفاضية الصح هي دي: بنقول مفيش، وبندي طريق للإضافة.
+            ZadEmptyState(
+                icon = Icons.Default.CreditCard,
+                title = "مفيش اشتراكات لسه",
+                subtitle = "ضيف اشتراكاتك الشهرية عشان زاد يحسبها في المتاح ويفكّرك بمواعيد التجديد",
+                iconTint = Color(0xFF2563EB).copy(alpha = 0.55f),
+                iconBackground = Color(0xFFE8F1FC),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+            )
+        } else {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            displayList.forEach { (name, price, accentColor) ->
+            displayList.forEach { (name, amount, accentColor) ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -577,22 +589,34 @@ fun ZadSubscriptionsGlanceCard(
                         )
                         Text(name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E293B))
                     }
-                    Text(price, fontSize = 13.5.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
+                    Text(
+                        com.example.data.CurrencyFormatter.format(context, amount),
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF0F172A)
+                    )
                 }
             }
+        }
         }
     }
 }
 
 /**
  * ── 4. إيدج الصيدلية والجرعات (Pharmacy & Doses Quick Glance) ──
- * نسبة الالتزام 91% والتكلفة الشهرية والأدوية النشطة
+ * الأدوية النشطة ونسبة الالتزام الحقيقية.
+ *
+ * [adherencePercent] بييجي من ZadViewModel.weeklyAdherencePercent، وهو `Int?` عن قصد:
+ * null معناها "مفيش جرعات مسجّلة كفاية آخر ٧ أيام عشان نحسب نسبة" — مش صفر ومش رقم
+ * مخمّن. كان مكتوب هنا "91% • منتظم" ثابت في الكود لأي حساب، حتى الحساب اللي مفيهوش
+ * ولا دواء واحد.
  */
 @Composable
 fun ZadPharmacyGlanceCard(
     pharmacyItems: List<ZadPharmacyItem>,
     onViewAllClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    adherencePercent: Int? = null
 ) {
     Column(
         modifier = modifier
@@ -617,7 +641,25 @@ fun ZadPharmacyGlanceCard(
                 }
                 Column {
                     Text("صيدلية العائلة والجرعات", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF0F172A))
-                    Text("الالتزام بالجرعات: 91% • منتظم", fontSize = 11.5.sp, color = Color(0xFF0F9B76), fontWeight = FontWeight.Bold)
+                    val adherenceLabel = when {
+                        pharmacyItems.isEmpty() -> "مفيش أدوية مسجّلة"
+                        adherencePercent != null -> "الالتزام بالجرعات: $adherencePercent% • " +
+                            if (adherencePercent >= 80) "منتظم" else "محتاج انتباه"
+                        else -> "${pharmacyItems.size} دواء نشط • لسه بنجمّع بيانات الالتزام"
+                    }
+                    Text(
+                        text = adherenceLabel,
+                        fontSize = 11.5.sp,
+                        // رمادي محايد لما مفيش بيانات — الأخضر بيقرا كأنه حالة كويسة،
+                        // و"مفيش أدوية مسجّلة" مش حالة كويسة ولا وحشة، دي غياب بيانات.
+                        color = when {
+                            pharmacyItems.isEmpty() -> Color(0xFF64748B)
+                            adherencePercent == null -> Color(0xFF64748B)
+                            adherencePercent < 80 -> Color(0xFFB45309)
+                            else -> Color(0xFF0F9B76)
+                        },
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
             TextButton(
@@ -628,21 +670,28 @@ fun ZadPharmacyGlanceCard(
             }
         }
 
-        // Medicines Pill Rows
+        // Medicines Pill Rows — الجرعة الحقيقية من الصف نفسه. كان مكتوب "جرعة منتظمة"
+        // لكل دواء مهما كانت جرعته، وللحسابات الفاضية كان بيخترع ٣ أدوية
+        // (باراسيتامول/فيتامين د/أنسولين) — أخطر نوع بيانات وهمية في التطبيق، لأنها طبية.
         val meds = remember(pharmacyItems) {
-            if (pharmacyItems.isNotEmpty()) {
-                pharmacyItems.take(3).map {
-                    Triple(it.name, "جرعة منتظمة", if (it.isLowStock()) Color(0xFFB45309) else Color(0xFF0F9B76))
-                }
-            } else {
-                listOf(
-                    Triple("باراسيتامول", "3 مرات يومياً", Color(0xFF0F9B76)),
-                    Triple("فيتامين د", "مرة واحدة يومياً", Color(0xFFB45309)),
-                    Triple("أنسولين", "مرتين يومياً", Color(0xFFDC5B4B))
-                )
+            pharmacyItems.take(3).map { item ->
+                val note = item.dosage?.takeIf { it.isNotBlank() }
+                    ?: item.daysOfSupplyLeft()?.let { "يكفي $it يوم" }
+                    ?: "${item.dailyDoseCount} جرعة يومياً"
+                Triple(item.name, note, if (item.isLowStock()) Color(0xFFB45309) else Color(0xFF0F9B76))
             }
         }
 
+        if (meds.isEmpty()) {
+            ZadEmptyState(
+                icon = Icons.Default.LocalPharmacy,
+                title = "الصيدلية فاضية",
+                subtitle = "صوّر شريط الدواء أو ضيفه يدوي، وزاد هيفكّرك بمواعيد الجرعات وينبّهك قبل ما يخلص",
+                iconTint = Color(0xFFDC5B4B).copy(alpha = 0.55f),
+                iconBackground = Color(0xFFFCE8ED),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+            )
+        } else {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             meds.forEach { (name, note, statusColor) ->
                 Row(
@@ -661,6 +710,7 @@ fun ZadPharmacyGlanceCard(
                     Text(note, fontSize = 11.5.sp, color = Color(0xFF64748B))
                 }
             }
+        }
         }
     }
 }
@@ -1185,10 +1235,12 @@ fun Zad3DNeuralSphereWidget(
 @Composable
 fun ZadExecutiveDossierSheet(
     onDismiss: () -> Unit,
-    totalSpent: Double = 3250.0,
-    safeDailySpend: Double = 145.0,
-    forecastNextMonth: Double = 4100.0,
-    familyMembersCount: Int = 4,
+    totalSpent: Double = 0.0,
+    // null = "لسه مفيش بيانات كفاية للحساب"، مش صفر ومش رقم افتراضي. الافتراضيات
+    // القديمة (3250/145/4100/4 أفراد) كانت أرقام عرض تقديمي سايبة في كود الإنتاج.
+    safeDailySpend: Double? = null,
+    forecastNextMonth: Double? = null,
+    familyMembersCount: Int = 1,
     pharmacyAdherencePct: Int? = null,
     lowStockItemCount: Int = 0
 ) {
@@ -1260,9 +1312,11 @@ fun ZadExecutiveDossierSheet(
                     Text("2. التنبؤات والتدفق المالي للشهر القادم", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24))
                 }
                 Text(
-                    text = "• إجمالي الصرف الفعلي للدورة الحالية: ${totalSpent.toInt()} ر.س.\n" +
-                           "• معدل الصرف اليومي الآمن الموصى به: ${safeDailySpend.toInt()} ر.س/يوم.\n" +
-                           "• التكلفة التقديرية للشهر القادم بناءً على الذكاء الاصطناعي: ${forecastNextMonth.toInt()} ر.س.",
+                    text = "• إجمالي الصرف الفعلي للدورة الحالية: ${com.example.data.CurrencyFormatter.format(context, totalSpent)}.\n" +
+                           (safeDailySpend?.let { "• معدل الصرف اليومي الآمن الموصى به: ${com.example.data.CurrencyFormatter.format(context, it)}/يوم.\n" }
+                               ?: "• معدل الصرف اليومي الآمن: محتاج ميزانية ورصيد محدّدين عشان يتحسب.\n") +
+                           (forecastNextMonth?.let { "• التكلفة التقديرية للشهر القادم بناءً على الذكاء الاصطناعي: ${com.example.data.CurrencyFormatter.format(context, it)}." }
+                               ?: "• التكلفة التقديرية للشهر القادم: لسه مفيش تاريخ صرف كفاية للتنبؤ."),
                     fontSize = 12.5.sp,
                     lineHeight = 20.sp,
                     color = Color(0xFFE2E8F0)
@@ -1302,8 +1356,8 @@ fun ZadExecutiveDossierSheet(
                 Button(
                     onClick = {
                         val shareText = "📄 تقرير عقل زاد:\n" +
-                                "• إجمالي الصرف: ${totalSpent.toInt()} ر.س\n" +
-                                "• التكلفة التقديرية للشهر القادم: ${forecastNextMonth.toInt()} ر.س\n" +
+                                "• إجمالي الصرف: ${com.example.data.CurrencyFormatter.format(context, totalSpent)}\n" +
+                                (forecastNextMonth?.let { "• التكلفة التقديرية للشهر القادم: ${com.example.data.CurrencyFormatter.format(context, it)}\n" } ?: "") +
                                 (pharmacyAdherencePct?.let { "• الالتزام الدوائي: $it%\n" } ?: "")
                         val sendIntent = android.content.Intent().apply {
                             action = android.content.Intent.ACTION_SEND

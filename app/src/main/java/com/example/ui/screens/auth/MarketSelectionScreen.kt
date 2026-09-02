@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.Market
 import com.example.data.MarketPrefs
+import com.example.data.findActivity
 import com.example.ui.theme.*
 import com.example.ui.components.AppearOnEntry
 import com.example.ui.components.ZadTransitions
@@ -89,7 +90,16 @@ fun MarketSelectionScreen(onContinue: () -> Unit) {
                                 com.example.data.SyncOutbox.enqueueMarketProfile(context, market.currencyCode, market.countryCode)
                             }
                         }
-                        onContinue()
+                        // تغيير السوق بيغيّر لغة الواجهة (ar-SA ← ar-EG)، لكن موارد
+                        // الـActivity الشغالة اتحلّت خلاص في attachBaseContext — من غير
+                        // إعادة إنشاء، الجلسة كلها بعد الاختيار بتفضل تقرا نصوص السوق
+                        // القديم. TravelBanner بيعمل recreate() لنفس السبب بالظبط.
+                        //
+                        // بعد recreate الـNavHost بيبدأ من "splash" وnavigateAfterSplash
+                        // بيوجّه صح لوحده (hasSelectedMarket بقت true دلوقتي)، فمابنناديش
+                        // onContinue كمان — ده هو onContinue نفسه.
+                        val activity = context.findActivity()
+                        if (activity != null) activity.recreate() else onContinue()
                     }
                 },
                 enabled = selected != null,

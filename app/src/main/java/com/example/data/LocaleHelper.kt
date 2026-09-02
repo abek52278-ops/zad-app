@@ -39,12 +39,35 @@ object LocaleHelper {
      * التنقل بين اللغات بالترتيب. الشاشات اللي فيها زرار واحد (تسجيل الدخول، الترحيب)
      * بتستخدمها؛ كانت بتقلب بين اتنين بس فماكانش فيه طريق للتركي من هناك خالص.
      */
-    fun toggleLanguage() {
+    fun toggleLanguage(context: android.content.Context) {
         val index = supported.indexOfFirst { it.first == currentLanguage() }
-        setLanguage(supported[(index + 1) % supported.size].first)
+        setLanguage(context, supported[(index + 1) % supported.size].first)
     }
 
-    fun setLanguage(languageTag: String) {
+    /**
+     * اختيار العميل الصريح للغة. بيسجّل علامة دائمة كمان، مش بس بيكتب في
+     * AppCompatDelegate.
+     *
+     * السبب: `MarketProfile.applyLocale(market)` بيكتب في **نفس** المخزن ده لما السوق
+     * يتغير. فبعد ما يتكتب فيه أي حاجة، `applyStoredLocale` كان بيشوف قيمة موجودة
+     * ويستنتج "العميل اختار لغة بنفسه" ويسيبها زي ما هي للأبد — حتى لو اللي كتبها هو
+     * التطبيق نفسه من السوق الافتراضي (السعودية). النتيجة: حساب سوقه مصر بيفضل يقرا
+     * من `values-ar-rSA` ("هلا يا فلان" بدل "إزيك يا فلان")، والعملة بتبقى صح لأنها
+     * بتتقري من MarketPrefs مباشرة — فتطلع واجهة سعودية بأرقام مصرية.
+     *
+     * العلامة دي هي الفرق بين "العميل قال عايز إنجليزي" و"التطبيق طبّق لغة السوق".
+     */
+    fun setLanguage(context: android.content.Context, languageTag: String) {
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_USER_CHOSE, true).apply()
         AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(languageTag))
     }
+
+    /** هل العميل اختار اللغة بنفسه؟ لو لأ، لغة السوق هي المرجع وبتتطبّق مع كل تغيير سوق. */
+    fun userChoseLanguage(context: android.content.Context): Boolean =
+        context.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE)
+            .getBoolean(KEY_USER_CHOSE, false)
+
+    private const val PREFS = "zad_locale_prefs"
+    private const val KEY_USER_CHOSE = "user_chose_language"
 }

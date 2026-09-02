@@ -596,7 +596,7 @@ private fun RegionalSettingsSheet(
                     FilterChip(
                         selected = currentLanguage == tag,
                         onClick = {
-                            com.example.data.LocaleHelper.setLanguage(tag)
+                            com.example.data.LocaleHelper.setLanguage(context, tag)
                             currentLanguage = tag
                             context.findActivity()?.recreate()
                         },

@@ -89,7 +89,7 @@ fun OnboardingScreen(
                     list[(list.indexOfFirst { it.first == language } + 1) % list.size].second
                 }
                 TextButton(onClick = {
-                    com.example.data.LocaleHelper.toggleLanguage()
+                    com.example.data.LocaleHelper.toggleLanguage(context)
                     language = com.example.data.LocaleHelper.currentLanguage()
                     Log.d("ZAD_TEST", "Language Toggle -> $language")
                     // MainActivity مش AppCompatActivity — لازم recreate يدوي عشان اتجاه RTL/LTR

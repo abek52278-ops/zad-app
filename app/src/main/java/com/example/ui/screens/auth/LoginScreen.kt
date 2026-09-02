@@ -117,7 +117,7 @@ fun LoginScreen(
                     // بتلف على تلات لغات، فـ "EN" كانت هتظهر والواجهة تركي.
                     var language by remember { mutableStateOf(com.example.data.LocaleHelper.currentLanguage()) }
                     TextButton(onClick = {
-                        com.example.data.LocaleHelper.toggleLanguage()
+                        com.example.data.LocaleHelper.toggleLanguage(context)
                         language = com.example.data.LocaleHelper.currentLanguage()
                         context.findActivity()?.recreate()
                     }) {

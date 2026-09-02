@@ -31,7 +31,6 @@ import com.example.ui.components.PinPromptDialog
 import com.example.ui.components.ZadBottomNavBar
 import com.example.ui.components.ZadCameraSheet
 import com.example.ui.components.ZadCanvasBackground
-import com.example.ui.components.LocalBottomBarInset
 import com.example.ui.components.ZadDrawerContent
 import com.example.ui.components.ZadDrawerEntry
 import com.example.ui.components.ZadMoreSheet
@@ -417,10 +416,11 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                     }
                 }
             ) { innerPadding ->
+                // `innerPadding` هو المصدر الوحيد لمساحة الشريط السفلي: Scaffold بيقيس
+                // ارتفاع bottomBar الحقيقي وبيحجزه هنا مرة واحدة لكل الشاشات. كان فيه
+                // كمان CompositionLocal بينشر نفس الرقم والشاشات بتضيفه تاني — شوف
+                // التعليق في ZadShell.kt مكان تعريفه القديم.
                 Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-                  // كل شاشة جوه NavHost بتقرأ LocalBottomBarInset.current بدل ما تخمّن
-                  // ارتفاع الشريط بنفسها.
-                  CompositionLocalProvider(LocalBottomBarInset provides innerPadding.calculateBottomPadding()) {
                     NavHost(
                         navController = navController,
                         startDestination = ZadRoutes.HOME,
@@ -570,7 +570,6 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                         composable(ZadNav.ASSISTANT_ALERTS) { AssistantAlertsScreen { navController.popBackStack() } }
                         composable(ZadNav.TERMS) { TermsOfServiceScreen { navController.popBackStack() } }
                     }
-                  }
                 }
             }
             // المسكوت العائم (الكورة الخضرا) اتشال من فوق كل الشاشات: كان zIndex(100f)

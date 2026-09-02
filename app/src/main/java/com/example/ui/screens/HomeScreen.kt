@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import com.example.ui.components.LocalBottomBarInset
 import com.example.ui.components.ZadCategoryCard
 import com.example.ui.components.ZadCategoryType
 import com.example.ui.components.ZadSmartBotAgent
@@ -593,7 +592,11 @@ fun HomeScreen(
                 com.example.ui.components.AppearOnEntry(delayMs = 85) {
                     ZadPharmacyGlanceCard(
                         pharmacyItems = pharmacyItems,
-                        onViewAllClick = onNavigateToPharmacy
+                        onViewAllClick = onNavigateToPharmacy,
+                        // النسبة الحقيقية المحسوبة من dose_logs آخر ٧ أيام — الشاشة دي
+                        // كانت بتجمّعها أصلاً (weeklyAdherence) بس الكارت كان بيتجاهلها
+                        // ويعرض 91% ثابتة.
+                        adherencePercent = weeklyAdherence
                     )
                 }
                 Spacer(modifier = Modifier.height(18.dp))
@@ -935,9 +938,10 @@ fun HomeScreen(
                 }
 
                 // HomeScreen بتاعة Column().verticalScroll مش LazyColumn — فمفيش contentPadding
-                // تتحط عليها. الـSpacer ده هو المعادل بتاعها، وبقى معتمد على LocalBottomBarInset
-                // الحقيقي بدل رقم ثابت عشان يتكيف مع أي ارتفاع فعلي للشريط السفلي.
-                Spacer(modifier = Modifier.height(LocalBottomBarInset.current + 84.dp))
+                // تتحط عليها. الـSpacer ده هو المعادل بتاعها. مساحة الشريط السفلي نفسها
+                // محجوزة خلاص في MainScreen (Scaffold's innerPadding)، فده بس المساحة
+                // اللي المسكوت العائم محتاجها عشان مايقعدش فوق آخر كارت.
+                Spacer(modifier = Modifier.height(84.dp))
             } // closes inner Column
         } // closes else block (line 125)
     } // closes outer Column (line 103)
@@ -971,7 +975,7 @@ fun HomeScreen(
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 20.dp, bottom = LocalBottomBarInset.current + 16.dp)
+                    .padding(end = 20.dp, bottom = 16.dp)
                     .size(safeZoneDp)
             ) {
                 ZadSmartBotAgent(
