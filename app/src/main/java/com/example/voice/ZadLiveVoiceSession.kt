@@ -193,12 +193,23 @@ class ZadLiveVoiceSession(private val context: Context) {
             } catch (e: SecurityException) {
                 Log.w(tag, "AudioRecord init denied: ${e.message}")
                 recordingActive.set(false)
+                failSession("محتاج إذن الميكروفون")
+                return@launch
+            } catch (e: IllegalArgumentException) {
+                // كان مش متلقّط — لو الجهاز رفض المعاملات (نادر لـ16kHz mono PCM16، لكن
+                // مش مستحيل)، الجلسة كانت تفضل "Listening" بصريًا رغم إن المايك ميت فعليًا.
+                Log.w(tag, "AudioRecord bad params: ${e.message}")
+                recordingActive.set(false)
+                failSession("تعذّر تجهيز الميكروفون")
                 return@launch
             }
+            // نفس الملاحظة — كانت بتسجّل تحذير في الـlog وتسيب الحالة على Listening، فالشاشة
+            // كانت تبان "شغالة" رغم إن المايك مقفول فعليًا من غير أي إشارة للعميل.
             if (record.state != AudioRecord.STATE_INITIALIZED) {
-                Log.w(tag, "AudioRecord not initialized")
+                Log.w(tag, "AudioRecord not initialized, state=${record.state}")
                 try { record.release() } catch (_: Exception) {}
                 recordingActive.set(false)
+                failSession("تعذّر تجهيز الميكروفون")
                 return@launch
             }
             audioRecord = record
@@ -375,6 +386,16 @@ class ZadLiveVoiceSession(private val context: Context) {
         try { webSocket?.close(1000, "client stop") } catch (_: Exception) {}
         webSocket = null
         teardown(toIdle = true)
+    }
+
+    /** فشل المايك بعد ما الـWebSocket اتفتح فعلاً — الجلسة كلها بلا معنى من غيره، فبنقفلها
+     *  بدل ما نسيبها "Listening" بصريًا وميت فعليًا. */
+    private fun failSession(message: String) {
+        sessionActive.set(false)
+        try { webSocket?.close(1000, "mic init failed") } catch (_: Exception) {}
+        webSocket = null
+        teardown(toIdle = false)
+        mainHandler.post { _state.value = LiveVoiceState.Error(message) }
     }
 
     private fun teardown(toIdle: Boolean) {

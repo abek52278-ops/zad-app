@@ -51,16 +51,27 @@ class ZadVoiceManager(private val context: Context) {
         stopSpeaking()
         val mainHandler = Handler(Looper.getMainLooper())
         mainHandler.post {
+            if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+                _voiceState.value = VoiceState.Error(context.getString(R.string.voice_error_unavailable))
+                return@post
+            }
+
             try {
-                if (!SpeechRecognizer.isRecognitionAvailable(context)) {
-                    _voiceState.value = VoiceState.Error(context.getString(R.string.voice_error_unavailable))
-                    return@post
-                }
+                speechRecognizer?.destroy()
+            } catch (_: Exception) {}
+            speechRecognizer = null
 
-                try {
-                    speechRecognizer?.destroy()
-                } catch (_: Exception) {}
+            // كان create+startListening بينفذوا في نفس الـtick بعد destroy() على طول —
+            // خدمة التعرف بتاعة أندرويد (بروسس نظام منفصل، مش نفس الأوبچكت العميل) محتاجة
+            // لحظة تفرّج فيها الجلسة القديمة قبل ما جلسة جديدة تقدر تاخدها؛ من غير فاصل،
+            // النتيجة المتكررة على أجهزة حقيقية كانت ERROR_RECOGNIZER_BUSY فورية — مش
+            // مشكلة في المايك نفسه ولا في صلاحيته، مجرد سباق توقيت. ١٥٠ مللي كافية عمليًا.
+            mainHandler.postDelayed({ startListeningInternal(onResult) }, 150)
+        }
+    }
 
+    private fun startListeningInternal(onResult: (String) -> Unit) {
+            try {
                 speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
 
                 val marketLocale = com.example.data.MarketPrefs.getMarket(context).toLocale()
@@ -149,7 +160,6 @@ class ZadVoiceManager(private val context: Context) {
                 Log.e(TAG, "SpeechRecognizer error: ${e.message}")
                 _voiceState.value = VoiceState.Error(context.getString(R.string.voice_error_microphone))
             }
-        }
     }
 
     fun stopListening() {

@@ -70,6 +70,10 @@ fun ZadVoiceBottomSheet(
         if (isLiveMode) {
             voiceManager.stopListening()
             voiceManager.stopSpeaking()
+            // فاصل صغير قبل ما AudioRecord يحاول ياخد المايك — نفس سبب التأخيرة جوه
+            // ZadVoiceManager.startListening(): SpeechRecognizer.stopListening() مش
+            // متزامن، وخدمة النظام محتاجة لحظة تفرّج المايك قبل ما جلسة تانية تاخده.
+            kotlinx.coroutines.delay(200)
             liveSession.start { /* liveState بيتحدث تلقائي برسالة الخطأ */ }
         } else {
             liveSession.stop()
