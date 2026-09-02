@@ -1,3 +1,16 @@
+# DISABLED 2026-09-02 — renamed out of .yml so GitHub Actions ignores it entirely
+# (no push trigger, no manual dispatch, doesn't show up in the Actions tab).
+#
+# This workflow and build-debug-apk.yml both uploaded an artifact literally named
+# `zad-debug-apk` on every push to main, so picking a run in the Actions UI could
+# silently hand you a build from either one. That collision was directly responsible
+# for real confusion about whether a fix had "actually reached the device": this
+# workflow ran assembleDebug with no test/lint gate, no --no-daemon, and (until
+# 2026-09-01) with a placeholder Supabase URL that made login impossible. Everything
+# it did that build-debug-apk.yml didn't — the google-services.json restore step —
+# has been migrated there. build-debug-apk.yml is now the single source of the
+# zad-debug-apk artifact. Rename this file back to .yml only if you deliberately need
+# a second parallel build workflow, and remove the artifact-name collision if you do.
 name: Build Android APK
 
 on:

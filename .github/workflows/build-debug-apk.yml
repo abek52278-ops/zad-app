@@ -26,6 +26,14 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # Migrated from the now-disabled android.yml — that workflow restored this and
+      # this one didn't, so this build was silently shipping without Firebase/FCM
+      # wired in (build.gradle.kts only applies com.google.gms.google-services when
+      # this file exists on disk).
+      - name: Restore google-services.json
+        run: |
+          echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 -d > app/google-services.json
+
       # GEMINI_API_KEY is intentionally NOT read from secrets — the app doesn't need it.
       # AI runs server-side in Supabase on ZAD_API_KEY_1..5 (Gemini pool, primary) with
       # GROQ_API_KEY_1/_2 as the text-only fallback; the only client-side use of a Gemini
