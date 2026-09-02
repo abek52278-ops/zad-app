@@ -488,6 +488,28 @@ fun HomeScreen(
                         onQuickExpense = { showQuickExpenseSheet = true }
                     )
                 }
+                // نبض الاستماع لرسايل البنك — كان معمول (BankReadingStatus بيتتبّع صحة
+                // السيرفس لحظياً فعلاً) بس مش متحط في أي شاشة خالص. من غيره العميل ميعرفش
+                // إن الاستماع وقف غير لما يلاقي الرصيد ثابت أيام. القراءة مش StateFlow
+                // (SharedPreferences مباشرة)، فبنعيد الفحص كل ٣٠ ثانية والشاشة مفتوحة.
+                var bankListenerAlive by remember {
+                    mutableStateOf(com.example.data.BankReadingStatus.isListenerAlive(context))
+                }
+                LaunchedEffect(Unit) {
+                    while (true) {
+                        bankListenerAlive = com.example.data.BankReadingStatus.isListenerAlive(context)
+                        kotlinx.coroutines.delay(30_000L)
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                com.example.ui.components.BankListeningPill(
+                    alive = bankListenerAlive,
+                    lastSeenAt = com.example.data.BankReadingStatus.lastSawNotificationAt(context),
+                    onClick = {
+                        com.example.data.BankReadingStatus.requestRebindIfPermitted(context)
+                        bankListenerAlive = com.example.data.BankReadingStatus.isListenerAlive(context)
+                    }
+                )
                 Spacer(modifier = Modifier.height(14.dp))
 
                 // ── 2. مؤشرات الأيام المتبقية والصرف اليومي الآمن (ZadMinimalMetricsDuo) ──
