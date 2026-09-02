@@ -12,8 +12,11 @@ import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 
 object InterstitialAdManager {
     private const val TAG = "InterstitialAdManager"
-    // AdMob Interstitial Unit ID
-    private const val AD_UNIT_ID = "ca-app-pub-4433736715872551/5974535887"
+    // كان نفس ID بتاع RewardedBrainAdManager بالحرف — Ad Units في AdMob مربوطة بنوع
+    // الإعلان وقت الإنشاء (Rewarded ≠ Interstitial)، فمستحيل نفس الـID يخدم الاتنين؛
+    // أحدهم على الأغلب كان بيفشل يحمّل في الإنتاج بصمت. معرّف اختبار جوجل الرسمي
+    // للـInterstitial مؤقتاً — TODO: استبدله بمعرّف الإنتاج الحقيقي من AdMob Console.
+    private const val AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712"
 
     private var interstitialAd: InterstitialAd? = null
     private var isLoading = false
