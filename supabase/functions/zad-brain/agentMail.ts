@@ -15,9 +15,27 @@
 // كل السطور مرتبطة بـ user_id وagent ثابت من allowlist.
 
 import { SupabaseClient } from "jsr:@supabase/supabase-js@2";
+import { SpecialistId } from "./specialists.ts";
 
-/** الأيدجنتس المسموح ليهم يكتبوا في الصندوق — نفس SpecialistId في specialists.ts */
+/** الأيدجنتس المسموح ليهم يكتبوا في الصندوق — نفس SpecialistId في specialists.ts، عدا
+ *  "general" (شوف agentSenderFor تحت). zad_agent_messages.sender_check في القاعدة
+ *  بيفرض نفس الستة دول بالحرف — لو اتغيّرت هنا لازم تتغيّر هناك كمان. */
 export type AgentSender = "finance" | "pantry" | "pharmacy" | "family" | "home" | "brain";
+
+/**
+ * SpecialistId → AgentSender. الفرق الوحيد بينهم "general" (مفيش تخصص واضح اتوصّف
+ * للرسالة) — مالوش قيمة مقابلة في AgentSender ولا في قيد القاعدة. قبل الدالة دي، نداء
+ * sendAgentReport كان بيعمل `specialist as AgentSender` مباشرة: كاست بيسكت الخطأ وقت
+ * الكومبايل بدل ما يحله، فأي تنفيذ أداة في محادثة "general" (الأغلبية لأي رسالة ملهاش
+ * كلمات مفتاحية تخصص واضح) كان بيفشل يسجّل في الصندوق بصمت (sender_check بيرفض
+ * "general"، والرفض بيتبلع جوه try/catch في sendAgentReport) — وده كان السبب الفعلي
+ * إن zad_agent_messages فيه صف واحد بس من يوم ما الجدول اتعمل. "general" يترجم لـ
+ * "brain" لأنه نفس المعنى: العقل بيتكلم بلا قبعة تخصص، زي المهام المجدولة اللي أصلاً
+ * بتستخدم "brain" حرفياً.
+ */
+export function agentSenderFor(specialist: SpecialistId): AgentSender {
+  return specialist === "general" ? "brain" : specialist;
+}
 
 export interface AgentMailEntry {
   sender: string;

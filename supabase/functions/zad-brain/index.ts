@@ -66,7 +66,7 @@ import { conversationProfile, voiceModeInstruction } from "./persona.ts";
 // المرحلة ٣ — الوكلاء المتخصصون: توجيه + هوية في البرومبت + trace في zad_brain_runs.
 import { recordSpecialistTrace, routeSpecialists, specialistPromptBlock, scopeToolsForSpecialist } from "./specialists.ts";
 // Phase 3 — صندوق بريد الأيدجنتس: تقرير كل تنفيذ ناجح يوصل للعقل، والعقل بيقرا غير المقروء.
-import { agentMailBlock, fetchUnreadAgentMail, sendAgentReport, type AgentSender } from "./agentMail.ts";
+import { agentMailBlock, agentSenderFor, fetchUnreadAgentMail, sendAgentReport } from "./agentMail.ts";
 // SOUL — هوية مدير الحياة الكامل (نمط Hermes) + المهارات المتعلمة.
 import { soulBlock } from "./soul.ts";
 import { loadSkills, skillsBlock } from "./skills.ts";
@@ -4383,9 +4383,11 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
       if (!result.startsWith("مرفوض:")) {
         executed.push({ tool: call.name, ok: true, summary: result });
         // تقرير عمل للصندوق: العقل في الرد الجاي (أو من cron) هيعرف إن الأيدجنت اشتغل.
-        // fire-and-forget — فشل التسجيل مش بيكسر الرد.
+        // fire-and-forget — فشل التسجيل مش بيكسر الرد. كانت `specialist as AgentSender`
+        // (كاست بيسكت الخطأ بدل ما يحله — "general" مالوش قيمة مقابلة، فـsender_check
+        // كان بيرفض كل رسالة "general" بصمت). شوف agentSenderFor في agentMail.ts للتفصيل.
         await sendAgentReport(
-          sb, userId, specialist as AgentSender,
+          sb, userId, agentSenderFor(specialist),
           `نفّذ ${call.name}`,
           result.slice(0, 300),
         );
