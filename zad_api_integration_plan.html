@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zad Market Intelligence — APIs & Integration</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+  <style>
+    :root {
+      --emerald-500: #10B981;
+      --slate-50: #F8FAFC;
+      --slate-100: #F1F5F9;
+      --slate-600: #475569;
+      --slate-900: #0F172A;
+      --amber-500: #F59E0B;
+      --red-500: #EF4444;
+      --blue-500: #3B82F6;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --slate-50: #1E293B;
+        --slate-100: #334155;
+        --slate-600: #CBD5E1;
+        --slate-900: #F1F5F9;
+      }
+    }
+
+    :root[data-theme="dark"] {
+      --slate-50: #1E293B;
+      --slate-100: #334155;
+      --slate-600: #CBD5E1;
+      --slate-900: #F1F5F9;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      color: var(--slate-900);
+      background: var(--slate-50);
+      padding: 2rem 1rem;
+    }
+
+    .container { max-width: 1100px; margin: 0 auto; }
+    h1 { font-size: 2.5rem; color: var(--emerald-500); margin-bottom: 0.5rem; }
+    h2 { font-size: 1.75rem; margin-top: 2.5rem; padding-bottom: 0.75rem; border-bottom: 3px solid var(--emerald-500); display: inline-block; }
+    h3 { font-size: 1.25rem; margin-top: 1.5rem; }
+    p { margin-bottom: 1rem; max-width: 65ch; color: var(--slate-600); }
+    code { font-family: 'JetBrains Mono', monospace; font-size: 0.875rem; background: var(--slate-100); padding: 0.2rem 0.4rem; border-radius: 3px; color: var(--emerald-500); }
+
+    .api-item {
+      background: white;
+      border-left: 4px solid var(--emerald-500);
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+      border-radius: 4px;
+      border: 1px solid #E2E8F0;
+    }
+
+    .api-name { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--emerald-500); margin-bottom: 0.5rem; }
+    .badge-free { display: inline-block; background: #F0FDF4; color: var(--emerald-500); border: 1px solid var(--emerald-500); padding: 0.3rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; }
+
+    .api-details {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+      font-size: 0.875rem;
+    }
+
+    .api-detail-item {
+      padding: 0.5rem 0.75rem;
+      background: var(--slate-100);
+      border-radius: 4px;
+      border-left: 2px solid var(--emerald-500);
+    }
+
+    .api-detail-label { font-weight: 600; color: var(--slate-900); display: block; font-size: 0.75rem; text-transform: uppercase; }
+    .api-detail-value { color: var(--slate-600); margin-top: 0.25rem; }
+
+    .callout {
+      background: #F0FDF4;
+      border-left: 4px solid var(--emerald-500);
+      padding: 1.25rem 1.5rem;
+      border-radius: 6px;
+      margin: 1.5rem 0;
+    }
+
+    .callout-title { font-weight: 600; color: var(--slate-900); margin-bottom: 0.5rem; }
+
+    table {
+      width: 100%;
+      margin: 1.5rem 0;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+    }
+
+    th {
+      background: var(--slate-100);
+      padding: 0.75rem 1rem;
+      text-align: right;
+      font-weight: 600;
+      border-bottom: 2px solid var(--emerald-500);
+    }
+
+    td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid #E2E8F0;
+      color: var(--slate-600);
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin: 2rem 0;
+    }
+
+    .feature {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 8px;
+      border: 1px solid #E2E8F0;
+    }
+
+    .feature-num {
+      display: inline-block;
+      width: 2.5rem;
+      height: 2.5rem;
+      background: var(--emerald-500);
+      color: white;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 2.5rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+    }
+
+    .timeline {
+      position: relative;
+    }
+
+    .timeline-item {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      background: white;
+      border-radius: 6px;
+      border: 1px solid #E2E8F0;
+    }
+
+    .timeline-marker {
+      flex-shrink: 0;
+      width: 2rem;
+      height: 2rem;
+      background: var(--emerald-500);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 600;
+      font-size: 0.875rem;
+    }
+
+    section { margin-bottom: 3rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <section>
+      <h1>🚀 Zad Market Intelligence</h1>
+      <p style="font-size: 1.125rem; color: var(--slate-600); font-weight: 500;">خطة دمج 26 API مجاني لتحويل زاد من عرض بيانات إلى نظام ذكي متوقع</p>
+    </section>
+
+    <section>
+      <h2>الهدف</h2>
+      <p>تحويل زاد من تطبيق عرض بيانات سلبي إلى <strong>نظام ذكي</strong> يستخدم بيانات الأسواق الحية (أسعار، طقس، عملات) لتقديم توصيات فورية وتنبيهات ديناميكية.</p>
+      <p><strong>النتيجة:</strong> من "رصيدك 500 جنيه" ← إلى "رصيدك 500 جنيه، أسعار الطعام ستزيد 15% الشهر القادم، جهّز الميزانية"</p>
+    </section>
+
+    <section>
+      <h2>APIs المجانية — نتائج شاملة (26 API)</h2>
+
+      <h3>💱 1. أسعار الصرف (6 APIs)</h3>
+      <p style="font-size: 0.9rem; color: var(--slate-600);">الأفضل: <strong>Currency-api</strong> — بلا مفتاح، unlimited، MENA كامل</p>
+
+      <div class="api-item">
+        <div class="api-name">Currency-api <span class="badge-free">⭐ NO KEY</span></div>
+        <p>الأفضل للبدء الفوري: بلا مفتاح، unlimited، MENA full (EGP, SAR, TRY)</p>
+        <div class="api-details">
+          <div class="api-detail-item">
+            <span class="api-detail-label">المفتاح</span>
+            <span class="api-detail-value">❌ غير مطلوب</span>
+          </div>
+          <div class="api-detail-item">
+            <span class="api-detail-label">الحد الأقصى</span>
+            <span class="api-detail-value">بلا حد</span>
+          </div>
+          <div class="api-detail-item">
+            <span class="api-detail-label">التحديث</span>
+            <span class="api-detail-value">فوري</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="api-item">
+        <div class="api-name">Exchangerate.host <span class="badge-free">NO KEY</span></div>
+        <p>1,500 req/hour، بلا مفتاح، MENA support</p>
+      </div>
+
+      <div class="api-item">
+        <div class="api-name">Frankfurter <span class="badge-free">NO KEY</span></div>
+        <p>معدلات تاريخية منذ 1999، unlimited</p>
+      </div>
+
+      <p style="font-size: 0.9rem;">+ CurrencyBeacon, Currencylayer, Exchangerate.dev (كلهم free tier)</p>
+
+      <h3>🌡️ 2. الطقس (6 APIs)</h3>
+      <p style="font-size: 0.9rem; color: var(--slate-600);">الأفضل: <strong>Open-Meteo</strong> — بلا مفتاح، unlimited، دقة عالية جداً</p>
+
+      <div class="api-item">
+        <div class="api-name">Open-Meteo <span class="badge-free">⭐ NO KEY</span></div>
+        <p>الأفضل بلا منافسة: مجاني، unlimited، دقة عالية، MENA coverage ممتاز</p>
+        <div class="api-details">
+          <div class="api-detail-item">
+            <span class="api-detail-label">المفتاح</span>
+            <span class="api-detail-value">❌ غير مطلوب</span>
+          </div>
+          <div class="api-detail-item">
+            <span class="api-detail-label">الحد الأقصى</span>
+            <span class="api-detail-value">بلا حد</span>
+          </div>
+          <div class="api-detail-item">
+            <span class="api-detail-label">Forecast</span>
+            <span class="api-detail-value">15+ يوم</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="api-item">
+        <div class="api-name">Pirate Weather <span class="badge-free">NO KEY</span></div>
+        <p>Dark Sky alternative، بلا مفتاح</p>
+      </div>
+
+      <div class="api-item">
+        <div class="api-name">wttr.in <span class="badge-free">NO KEY</span></div>
+        <p>الأبسط: JSON output، global coverage</p>
+      </div>
+
+      <p style="font-size: 0.9rem;">+ WeatherAPI (1M calls/month), Weatherstack, IPMA</p>
+
+      <h3>🥕 3. السلع والطعام (4 APIs)</h3>
+      <p style="font-size: 0.9rem; color: var(--slate-600);">الأفضل: <strong>Open Food Facts</strong> — بلا مفتاح، منتجات MENA</p>
+
+      <div class="api-item">
+        <div class="api-name">Open Food Facts <span class="badge-free">⭐ NO KEY</span></div>
+        <p>منتجات عربية، crowd-sourced، مفتوحة المصدر</p>
+        <div class="api-details">
+          <div class="api-detail-item">
+            <span class="api-detail-label">المفتاح</span>
+            <span class="api-detail-value">❌ غير مطلوب</span>
+          </div>
+          <div class="api-detail-item">
+            <span class="api-detail-label">المنتجات</span>
+            <span class="api-detail-value">500K+</span>
+          </div>
+          <div class="api-detail-item">
+            <span class="api-detail-label">MENA</span>
+            <span class="api-detail-value">✅ عربي</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="api-item">
+        <div class="api-name">USDA Food Data Central</div>
+        <p>2M+ منتج، معلومات تغذية دقيقة، unlimited</p>
+      </div>
+
+      <p style="font-size: 0.9rem;">+ Edamam (nutrition), Spoonacular (recipes)</p>
+
+      <h3>💰 4. المعادن والسلع (3 APIs)</h3>
+      <p style="font-size: 0.9rem; color: var(--slate-600);">الأفضل: <strong>Goldprice.dev</strong> — بلا مفتاح، ذهب/فضة بـ EGP/SAR/TRY</p>
+
+      <div class="api-item">
+        <div class="api-name">Goldprice.dev <span class="badge-free">⭐ NO KEY</span></div>
+        <p>أسعار ذهب/فضة/نحاس مباشرة بـ العملات المحلية، 30 سنة بيانات</p>
+        <div class="api-details">
+          <div class="api-detail-item">
+            <span class="api-detail-label">المفتاح</span>
+            <span class="api-detail-value">❌ غير مطلوب</span>
+          </div>
+          <div class="api-detail-item">
+            <span class="api-detail-label">العملات</span>
+            <span class="api-detail-value">13 (MENA)</span>
+          </div>
+          <div class="api-detail-item">
+            <span class="api-detail-label">التاريخ</span>
+            <span class="api-detail-value">30 سنة</span>
+          </div>
+        </div>
+      </div>
+
+      <p style="font-size: 0.9rem;">+ Sugra (MENA commodities), Marketstack (MENA exchanges)</p>
+
+      <h3>🏪 5. المتاجر والأماكن (7 APIs)</h3>
+      <p style="font-size: 0.9rem; color: var(--slate-600);">الأفضل: <strong>OpenStreetMap/Nominatim</strong> — بلا مفتاح، MENA بيانات ممتازة</p>
+
+      <div class="api-item">
+        <div class="api-name">OpenStreetMap/Nominatim <span class="badge-free">⭐ NO KEY</span></div>
+        <p>بيانات مفتوحة، بلا مفتاح، unlimited، MENA data ممتاز</p>
+        <div class="api-details">
+          <div class="api-detail-item">
+            <span class="api-detail-label">المفتاح</span>
+            <span class="api-detail-value">❌ غير مطلوب</span>
+          </div>
+          <div class="api-detail-item">
+            <span class="api-detail-label">الحد الأقصى</span>
+            <span class="api-detail-value">1 req/sec</span>
+          </div>
+          <div class="api-detail-item">
+            <span class="api-detail-label">البيانات</span>
+            <span class="api-detail-value">مفتوحة</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="api-item">
+        <div class="api-name">Google Maps (Places API)</div>
+        <p>$200/month free، advanced MENA coverage</p>
+      </div>
+
+      <p style="font-size: 0.9rem;">+ Geoapify, LocationIQ, Positionstack</p>
+
+      <div class="callout">
+        <div class="callout-title">📊 ملخص البحث</div>
+        <p><strong>26 API إجمالي</strong> • <strong>10 بدون مفاتيح</strong> • <strong>22 لهم MENA support</strong> • <strong>100% JSON format</strong></p>
+        <p style="margin-top: 0.75rem;"><strong>Zero-Key Setup (ابدأ الآن):</strong> Currency-api + Open-Meteo + Open Food Facts + Goldprice.dev + Nominatim</p>
+      </div>
+    </section>
+
+    <section>
+      <h2>10 ميزات ثورية</h2>
+      <div class="feature-grid">
+        <div class="feature">
+          <div class="feature-num">1</div>
+          <h3 style="margin-top: 0; font-size: 1rem;">توقعات الأسعار الذكية</h3>
+          <p style="margin: 0;">Gemini يحلل أنماط تاريخية: "اشتري 50 لتر زيت دلوقتي، السعر هيقع 5% الشهر اللي جاي"</p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-num">2</div>
+          <h3 style="margin-top: 0; font-size: 1rem;">Crowdsource أسعار محلي</h3>
+          <p style="margin: 0;">كل عضو عائلة يسجل السعر، البيانات تحدّث مؤشر السعر الحي</p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-num">3</div>
+          <h3 style="margin-top: 0; font-size: 1rem;">إعادة توازن ميزانية ديناميكية</h3>
+          <p style="margin: 0;">"محتاجين +8% للطعام الشهر اللي جاي" ← العائلة توافق وتحول من بند تاني</p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-num">4</div>
+          <h3 style="margin-top: 0; font-size: 1rem;">تحديات Gamified</h3>
+          <p style="margin: 0;">"اشتروا أرخص من الشهر اللي فات" + Leaderboard عائلي + achievements</p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-num">5</div>
+          <h3 style="margin-top: 0; font-size: 1rem;">توقعات الطقس → إنفاق</h3>
+          <p style="margin: 0;">"موجة حر قادمة، بتوع الصيف هتغلي 12-15%"</p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-num">6</div>
+          <h3 style="margin-top: 0; font-size: 1rem;">تنبيهات صرف فوري</h3>
+          <p style="margin: 0;">"الدولار زاد 8%، متحول الآن" + توقعات الهبوط</p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-num">7</div>
+          <h3 style="margin-top: 0; font-size: 1rem;">صحة مالية مرتبطة بالتضخم</h3>
+          <p style="margin: 0;">Dashboard: "أنت محمي من التضخم ب 65%" + توصيات</p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-num">8</div>
+          <h3 style="margin-top: 0; font-size: 1rem;">اكتشاف متاجر ذكي</h3>
+          <p style="margin: 0;">"في متجر جديد 2 كيلو، أسعاره أرخص 18% في 40% من الحاجات"</p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-num">9</div>
+          <h3 style="margin-top: 0; font-size: 1rem;">تنبيهات انتهاء + سعر</h3>
+          <p style="margin: 0;">"اللبن ينتهي بكرة، سعره هبط 12%، قريب منك ب 18 جنيه"</p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-num">10</div>
+          <h3 style="margin-top: 0; font-size: 1rem;">Arbitrage عائلي</h3>
+          <p style="margin: 0;">أسعار مختلفة بين الفروع؟ "روح الفرع ده، وفّر 500 جنيه"</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>البنية التقنية</h2>
+      <h3>دالة جديدة: <code>zad-market-intelligence</code></h3>
+      <p>Edge Function جديدة تشتغل كـ cron job كل ساعة أو يومياً:</p>
+      <ol style="color: var(--slate-600); max-width: 65ch;">
+        <li>Fetch من 5 APIs (عملات + طقس + أسعار + معادن + متاجر)</li>
+        <li>Parse وتنظيف البيانات + validation</li>
+        <li>Store في جداول جديدة (currency_rates, price_index, market_snapshot)</li>
+        <li>Detect تغييرات مهمة → alert events</li>
+        <li>Send context جديد إلى zad-brain</li>
+      </ol>
+
+      <h3>الجداول الجديدة</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>الجدول</th>
+            <th>الهدف</th>
+            <th>الحقول الرئيسية</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>currency_rates</code></td>
+            <td>تاريخ أسعار الصرف</td>
+            <td>from, to, rate, timestamp</td>
+          </tr>
+          <tr>
+            <td><code>price_index</code></td>
+            <td>تاريخ أسعار السلع</td>
+            <td>item_name, price, currency, timestamp</td>
+          </tr>
+          <tr>
+            <td><code>market_snapshot</code></td>
+            <td>مؤشرات السوق</td>
+            <td>user_id, inflation_index, timestamp</td>
+          </tr>
+          <tr>
+            <td><code>price_alerts</code></td>
+            <td>تنبيهات أسعار</td>
+            <td>user_id, item_name, alert_type, price_change</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>أدوات zad-brain الجديدة</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>الأداة</th>
+            <th>الاستخدام</th>
+            <th>الإرجاع</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>fetch_current_exchange_rate</code></td>
+            <td>from/to currencies</td>
+            <td>"1 EGP = 0.031 USD"</td>
+          </tr>
+          <tr>
+            <td><code>check_price_trend</code></td>
+            <td>item, days</td>
+            <td>{current, avg, trend, change%}</td>
+          </tr>
+          <tr>
+            <td><code>get_nearby_deals</code></td>
+            <td>category, location</td>
+            <td>[{store, price, savings%}]</td>
+          </tr>
+          <tr>
+            <td><code>get_inflation_forecast</code></td>
+            <td>category</td>
+            <td>{next_month%, next_quarter%}</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>خطة التنفيذ</h2>
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-marker">1</div>
+          <div>
+            <h4 style="margin: 0 0 0.25rem 0;">Create <code>zad-market-intelligence</code></h4>
+            <p style="margin: 0.25rem 0; font-size: 0.95rem;">دالة جديدة + 5 API integrations</p>
+            <div style="font-size: 0.8rem; color: var(--slate-600); margin-top: 0.5rem;">⏱️ 2-3 ساعات | 🔴 P0</div>
+          </div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-marker">2</div>
+          <div>
+            <h4 style="margin: 0 0 0.25rem 0;">Database Migrations</h4>
+            <p style="margin: 0.25rem 0; font-size: 0.95rem;">إضافة 4 جداول جديدة</p>
+            <div style="font-size: 0.8rem; color: var(--slate-600); margin-top: 0.5rem;">⏱️ 1 ساعة | 🔴 P0</div>
+          </div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-marker">3</div>
+          <div>
+            <h4 style="margin: 0 0 0.25rem 0;">Wire zad-brain Tools</h4>
+            <p style="margin: 0.25rem 0; font-size: 0.95rem;">أضف 4 tools جديدة</p>
+            <div style="font-size: 0.8rem; color: var(--slate-600); margin-top: 0.5rem;">⏱️ 1 ساعة | 🟡 P1</div>
+          </div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-marker">4</div>
+          <div>
+            <h4 style="margin: 0 0 0.25rem 0;">CI/CD Testing</h4>
+            <p style="margin: 0.25rem 0; font-size: 0.95rem;"><code>deno check</code> + <code>deno test</code></p>
+            <div style="font-size: 0.8rem; color: var(--slate-600); margin-top: 0.5rem;">⏱️ 30 دقيقة | 🔴 P0</div>
+          </div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-marker">5</div>
+          <div>
+            <h4 style="margin: 0 0 0.25rem 0;">Price Alerts + Notifications</h4>
+            <p style="margin: 0.25rem 0; font-size: 0.95rem;">Table + trigger logic + FCM</p>
+            <div style="font-size: 0.8rem; color: var(--slate-600); margin-top: 0.5rem;">⏱️ 1 ساعة | 🟡 P1</div>
+          </div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-marker">6</div>
+          <div>
+            <h4 style="margin: 0 0 0.25rem 0;">Smart Forecasting</h4>
+            <p style="margin: 0.25rem 0; font-size: 0.95rem;">Gemini analysis + توقعات</p>
+            <div style="font-size: 0.8rem; color: var(--slate-600); margin-top: 0.5rem;">⏱️ 2 ساعات | 🟢 P2</div>
+          </div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-marker">7</div>
+          <div>
+            <h4 style="margin: 0 0 0.25rem 0;">Crowdsource UI</h4>
+            <p style="margin: 0.25rem 0; font-size: 0.95rem;">Mobile screen + dashboard</p>
+            <div style="font-size: 0.8rem; color: var(--slate-600); margin-top: 0.5rem;">⏱️ 4-6 ساعات | 🟢 P2</div>
+          </div>
+        </div>
+
+        <div class="timeline-item">
+          <div class="timeline-marker">8</div>
+          <div>
+            <h4 style="margin: 0 0 0.25rem 0;">Gamification</h4>
+            <p style="margin: 0.25rem 0; font-size: 0.95rem;">Achievements + leaderboard</p>
+            <div style="font-size: 0.8rem; color: var(--slate-600); margin-top: 0.5rem;">⏱️ 3 ساعات | 🔵 P3</div>
+          </div>
+        </div>
+      </div>
+
+      <p style="margin-top: 2rem; color: var(--slate-600); font-size: 0.9rem;">✅ <strong>Phase 0</strong> (P0 فقط): 4-5 ساعات | المدة الإجمالية: 15-20 ساعة</p>
+    </section>
+
+    <section>
+      <h2>Secrets المطلوبة</h2>
+      <p>أضف في Supabase project settings:</p>
+      <div style="background: white; border: 1px solid #E2E8F0; padding: 1.25rem; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.9rem;">
+        <code style="background: transparent; color: var(--slate-600); padding: 0;">
+          CURRENCY_API_KEY               <span style="color: #999;"># Free, unlimited</span><br>
+          USDA_API_KEY                   <span style="color: #999;"># Free, unlimited</span><br>
+          OPEN_METEO_API_KEY             <span style="color: #999;"># Not needed, free</span><br>
+          GOLDPRICE_API_KEY              <span style="color: #999;"># Not needed, free</span><br>
+          NOMINATIM_API_KEY              <span style="color: #999;"># Not needed, free</span><br>
+        </code>
+      </div>
+    </section>
+
+    <div style="margin-top: 4rem; padding-top: 2rem; border-top: 1px solid #E2E8F0; text-align: center; color: var(--slate-600); font-size: 0.875rem;">
+      <p>خطة استراتيجية شاملة لـ market intelligence في زاد — جزء من Vision 2026</p>
+    </div>
+  </div>
+</body>
+</html>
