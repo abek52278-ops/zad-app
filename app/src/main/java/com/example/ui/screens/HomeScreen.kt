@@ -97,6 +97,11 @@ fun HomeScreen(
     viewModel: ZadViewModel,
     familyViewModel: FamilyViewModel = viewModel(),
     onNavigateToAssistant: () -> Unit = {},
+    // زر "بوت زاد" العائم كان بيستخدم onNavigateToAssistant، اللي بيودّي لشاشة "عقل زاد"
+    // (ZadIntelligenceScreen) — شاشة تحليلات 4200 سطر، وصندوق الشات فيها هو الـ41 من
+    // 45 قسم LazyColumn، يعني ضغطة "كلّم البوت" كانت بتودّي لداشبورد لازم تتمرمط فيه
+    // مش شات. onOpenBotChat هو المدخل الصح — شيت خفيف يفتح فورًا (ZadAgentOverlay).
+    onOpenBotChat: () -> Unit = onNavigateToAssistant,
     onNavigateToInventory: () -> Unit = {},
     onNavigateToSubscriptions: () -> Unit = {},
     onNavigateToShopping: () -> Unit = {},
@@ -534,6 +539,18 @@ fun HomeScreen(
                         onNavigateToTasbiha = onNavigateToTasbiha
                     )
                 }
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // ── 3ب. زر ربط بوت تيليجرام — TelegramBotCard/Sheet كانوا مبنيين
+                // بالكامل (كود التوليد، الديب لينك، حالة الربط) ومكتوب في تعليقهم
+                // صراحة "Home entry point" بس مش متحطين في أي شاشة خالص.
+                var showTelegramSheet by remember { mutableStateOf(false) }
+                com.example.ui.components.AppearOnEntry(delayMs = 55) {
+                    com.example.ui.components.TelegramBotCard(onClick = { showTelegramSheet = true })
+                }
+                if (showTelegramSheet) {
+                    com.example.ui.components.TelegramBotSheet(onDismiss = { showTelegramSheet = false })
+                }
                 Spacer(modifier = Modifier.height(18.dp))
 
                 // ── 4. إيدج زاد بريميوم الجذاب بدون إعلانات (Zad Premium Promo Hero Card) ──
@@ -919,7 +936,7 @@ fun HomeScreen(
         // ضغطة مطوّلة على الكارت. مقفول في وضع الأطفال زي ما كان.
         if (!isChild) {
             ExtendedFloatingActionButton(
-                onClick = onNavigateToAssistant,
+                onClick = onOpenBotChat,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = 20.dp, bottom = LocalBottomBarInset.current + 16.dp),

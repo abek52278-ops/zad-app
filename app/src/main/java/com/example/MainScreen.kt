@@ -189,6 +189,11 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
         }
     }
 
+    // شيت شات سريع لزر "بوت زاد" العائم — مش تنقّل لشاشة "عقل زاد" (تحليلات 4200 سطر،
+    // صندوق الشات فيها مدفون بعد 40 كارت). ZadAgentOverlay مكوّن جاهز بالفعل ومعمول
+    // لبالظبط الغرض ده، من onQuickChat القديم بتاع المسكوت اللي اتشال.
+    var showAgentOverlay by remember { mutableStateOf(false) }
+
     fun go(route: String) {
         navController.navigate(route) {
             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -440,7 +445,8 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                                 onNavigateToCurrencySettings = { go(ZadNav.PAYMENT_BUDGET) },
                                 onNavigateToMaintenance = { go(ZadRoutes.MAINTENANCE) },
                                 onNavigateToPlans = { go(ZadRoutes.PREMIUM_PLANS) },
-                                onOpenVoice = { showVoiceSheet = true }
+                                onOpenVoice = { showVoiceSheet = true },
+                                onOpenBotChat = { showAgentOverlay = true }
                             )
                         }
                         composable(ZadRoutes.NOTIFICATIONS) {
@@ -562,11 +568,17 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
             // المسكوت العائم (الكورة الخضرا) اتشال من فوق كل الشاشات: كان zIndex(100f)
             // فوق محتوى الـLazyColumn، فبيقطع أسماء الأدوية والمخزون في PharmacyScreen
             // وInventoryScreen — ومكانش فيه أي padding في القوايم دي يخلي المحتوى يعدّيه.
-            // مدخل الشات بقى زر واحد صريح ("بوت زاد") في الرئيسية + تبويب المساعد في
-            // شريط التنقل، فمفيش وظيفة اتفقدت — بس الشاشات بقت نضيفة من طبقة عائمة
-            // كانت بتغطي المحتوى في كل مكان. ZadAgentOverlay (شيت الشات السريع) اتشال
-            // معاه: المسكوت كان **المشغّل الوحيد** ليه (onQuickChat)، فمن غيره بقى كود
-            // ميت مستحيل يظهر — وسيبه كان هيوهم إنه شغال.
+            // ZadAgentOverlay (شيت الشات السريع) فاضل — بقى مدخله زر "بوت زاد" العائم في
+            // الرئيسية (onOpenBotChat) بدل onQuickChat بتاع المسكوت اللي اتشال.
+            com.example.ui.components.ZadAgentOverlay(
+                visible = showAgentOverlay,
+                viewModel = viewModel,
+                onDismiss = { showAgentOverlay = false },
+                onOpenFullChat = {
+                    showAgentOverlay = false
+                    goGuarded(ZadRoutes.ASSISTANT)
+                }
+            )
         }
     }
 
