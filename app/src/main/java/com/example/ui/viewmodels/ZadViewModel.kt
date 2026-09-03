@@ -939,46 +939,102 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             syncMutex.withLock {
                 Log.d(TAG, "syncData() → starting Supabase sync")
-                try {
                 // الطابور الأول، قبل أي قراءة. أي حاجة اتعملت أوفلاين لازم تبقى على
                 // السيرفر قبل ما نعتبر السيرفر هو المرجع — وإلا التنضيف تحت هيمسحها.
-                com.example.data.SyncOutbox.flush(getApplication())
-                val outboxDrained = dao.getAllPendingSyncOps().isEmpty()
-                val inventorySnapshot = SupabaseRepo.getInventorySnapshot()
-                val remoteInventory = inventorySnapshot.items
-                Log.d(TAG, "syncData() → remoteInventory count=${remoteInventory.size}")
-                if (remoteInventory.isNotEmpty()) dao.insertInventory(remoteInventory)
-
-                val remoteTransactions = SupabaseRepo.getTransactions()
-                Log.d(TAG, "syncData() → remoteTransactions count=${remoteTransactions.size}")
-                if (remoteTransactions.isNotEmpty()) dao.insertTransactions(remoteTransactions)
-
-                val subscriptionsSnapshot = SupabaseRepo.getSubscriptionsSnapshot()
-                val remoteSubscriptions = subscriptionsSnapshot.items
-                Log.d(TAG, "syncData() → remoteSubscriptions count=${remoteSubscriptions.size}")
-                if (remoteSubscriptions.isNotEmpty()) dao.insertSubscriptions(remoteSubscriptions)
-
-                val pharmacySnapshot = SupabaseRepo.getPharmacyItemsSnapshot()
-                val remotePharmacyItems = pharmacySnapshot.items
-                Log.d(TAG, "syncData() → remotePharmacyItems count=${remotePharmacyItems.size}")
-                if (remotePharmacyItems.isNotEmpty()) dao.insertPharmacyItems(remotePharmacyItems)
-
-                val maintenanceSnapshot = SupabaseRepo.getMaintenanceItemsSnapshot()
-                val remoteMaintenanceItems = maintenanceSnapshot.items
-                Log.d(TAG, "syncData() → remoteMaintenanceItems count=${remoteMaintenanceItems.size}")
-                if (remoteMaintenanceItems.isNotEmpty()) dao.insertMaintenanceItems(remoteMaintenanceItems)
-
-                val remoteDoseLogs = SupabaseRepo.getDoseLogs()
-                Log.d(TAG, "syncData() → remoteDoseLogs count=${remoteDoseLogs.size}")
-                if (remoteDoseLogs.isNotEmpty()) dao.insertDoseLogs(remoteDoseLogs)
-
-                val shoppingSnapshot = SupabaseRepo.getShoppingListSnapshot()
-                val remoteShoppingList = shoppingSnapshot.items
-                Log.d(TAG, "syncData() → remoteShoppingList count=${remoteShoppingList.size}")
-                if (remoteShoppingList.isNotEmpty()) {
-                    remoteShoppingList.forEach { dao.insertShoppingItem(it) }
+                try {
+                    com.example.data.SyncOutbox.flush(getApplication())
+                } catch (e: Exception) {
+                    Log.e(TAG, "syncData() → SyncOutbox.flush FAILED: ${e.message}")
+                }
+                val outboxDrained = try {
+                    dao.getAllPendingSyncOps().isEmpty()
+                } catch (e: Exception) {
+                    Log.e(TAG, "syncData() → outbox check FAILED: ${e.message}")
+                    false // مش متأكدين إن الطابور فاضي → مفيش تنضيف الدورة دي، أأمن اختيار
                 }
 
+                // كل جدول جوه try/catch مستقل. قبل كده الفانكشن كلها كانت جوه try واحد:
+                // استثناء في أي جدول (شبكة، decode، أي حاجة) كان بيوقف كل الجداول اللي
+                // بعده في الترتيب من غير ما يتزامنوا خالص — الاشتراكات والصيدلية والصيانة
+                // وقائمة التسوق كانوا بعد المخزون والمعاملات في الترتيب، فخطأ عابر في
+                // واحد منهم كان بيمنعهم كلهم بصمت، وده بيبان للمستخدم "الكارت فاضي" رغم
+                // إن عنده بيانات حقيقية على السيرفر. دلوقتي فشل جدول واحد بيتسجّل ويكمل
+                // الباقي، ونفس منطق authoritative=false القديم بيمنع التنضيف بس لجدول ده.
+                var inventorySnapshot = RemoteListSnapshot<ZadInventory>(emptyList(), authoritative = false)
+                var remoteInventory: List<ZadInventory> = emptyList()
+                try {
+                    inventorySnapshot = SupabaseRepo.getInventorySnapshot()
+                    remoteInventory = inventorySnapshot.items
+                    Log.d(TAG, "syncData() → remoteInventory count=${remoteInventory.size}")
+                    if (remoteInventory.isNotEmpty()) dao.insertInventory(remoteInventory)
+                } catch (e: Exception) {
+                    Log.e(TAG, "syncData() → inventory sync FAILED: ${e.message} — other tables continue")
+                }
+
+                var remoteTransactions: List<ZadTransaction> = emptyList()
+                try {
+                    remoteTransactions = SupabaseRepo.getTransactions()
+                    Log.d(TAG, "syncData() → remoteTransactions count=${remoteTransactions.size}")
+                    if (remoteTransactions.isNotEmpty()) dao.insertTransactions(remoteTransactions)
+                } catch (e: Exception) {
+                    Log.e(TAG, "syncData() → transactions sync FAILED: ${e.message} — other tables continue")
+                }
+
+                var subscriptionsSnapshot = RemoteListSnapshot<ZadSubscription>(emptyList(), authoritative = false)
+                var remoteSubscriptions: List<ZadSubscription> = emptyList()
+                try {
+                    subscriptionsSnapshot = SupabaseRepo.getSubscriptionsSnapshot()
+                    remoteSubscriptions = subscriptionsSnapshot.items
+                    Log.d(TAG, "syncData() → remoteSubscriptions count=${remoteSubscriptions.size}")
+                    if (remoteSubscriptions.isNotEmpty()) dao.insertSubscriptions(remoteSubscriptions)
+                } catch (e: Exception) {
+                    Log.e(TAG, "syncData() → subscriptions sync FAILED: ${e.message} — other tables continue")
+                }
+
+                var pharmacySnapshot = RemoteListSnapshot<ZadPharmacyItem>(emptyList(), authoritative = false)
+                var remotePharmacyItems: List<ZadPharmacyItem> = emptyList()
+                try {
+                    pharmacySnapshot = SupabaseRepo.getPharmacyItemsSnapshot()
+                    remotePharmacyItems = pharmacySnapshot.items
+                    Log.d(TAG, "syncData() → remotePharmacyItems count=${remotePharmacyItems.size}")
+                    if (remotePharmacyItems.isNotEmpty()) dao.insertPharmacyItems(remotePharmacyItems)
+                } catch (e: Exception) {
+                    Log.e(TAG, "syncData() → pharmacy sync FAILED: ${e.message} — other tables continue")
+                }
+
+                var maintenanceSnapshot = RemoteListSnapshot<ZadMaintenanceItem>(emptyList(), authoritative = false)
+                var remoteMaintenanceItems: List<ZadMaintenanceItem> = emptyList()
+                try {
+                    maintenanceSnapshot = SupabaseRepo.getMaintenanceItemsSnapshot()
+                    remoteMaintenanceItems = maintenanceSnapshot.items
+                    Log.d(TAG, "syncData() → remoteMaintenanceItems count=${remoteMaintenanceItems.size}")
+                    if (remoteMaintenanceItems.isNotEmpty()) dao.insertMaintenanceItems(remoteMaintenanceItems)
+                } catch (e: Exception) {
+                    Log.e(TAG, "syncData() → maintenance sync FAILED: ${e.message} — other tables continue")
+                }
+
+                try {
+                    val remoteDoseLogs = SupabaseRepo.getDoseLogs()
+                    Log.d(TAG, "syncData() → remoteDoseLogs count=${remoteDoseLogs.size}")
+                    if (remoteDoseLogs.isNotEmpty()) dao.insertDoseLogs(remoteDoseLogs)
+                } catch (e: Exception) {
+                    Log.e(TAG, "syncData() → dose logs sync FAILED: ${e.message} — other tables continue")
+                }
+
+                var shoppingSnapshot = RemoteListSnapshot<com.example.data.ZadShoppingItem>(emptyList(), authoritative = false)
+                var remoteShoppingList: List<com.example.data.ZadShoppingItem> = emptyList()
+                try {
+                    shoppingSnapshot = SupabaseRepo.getShoppingListSnapshot()
+                    remoteShoppingList = shoppingSnapshot.items
+                    Log.d(TAG, "syncData() → remoteShoppingList count=${remoteShoppingList.size}")
+                    if (remoteShoppingList.isNotEmpty()) {
+                        remoteShoppingList.forEach { dao.insertShoppingItem(it) }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "syncData() → shopping list sync FAILED: ${e.message} — other tables continue")
+                }
+
+                try {
                 // ── تنضيف: اللي مش موجود على السيرفر مايفضلش على الجهاز ──────────────
                 // المزامنة كانت بتضيف بس. صف اتمسح من السيرفر — أو أربع صفوف اتدمجوا في
                 // واحد بحارس التكرار — كان بيفضل معروض على الشاشة للأبد، وده اللي المستخدم
