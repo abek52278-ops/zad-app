@@ -9,6 +9,7 @@ import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
+import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.functions.Functions
 import io.github.jan.supabase.storage.Storage
@@ -1208,6 +1209,81 @@ object SupabaseRepo {
         } catch (e: Exception) {
             Log.e(TAG, "getCrowdsourceContributionTimestamps() FAILED: ${e.message}")
             emptyList()
+        }
+    }
+
+    // ─── توصيات الشراء الذكية (shopping_recommendations) ────────────────────────
+    // mirror لـ zad-market-intelligence/recommendations.ts (نفس منطق التخزين)، بس
+    // recommendations.ts نفسه مش متستدعى من index.ts — نفس حالة gamification.ts فوق.
+
+    suspend fun getShoppingRecommendations(): List<ZadShoppingRecommendation> {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id ?: return emptyList()
+            Log.d(TAG, "getShoppingRecommendations() → userId=$userId, table=shopping_recommendations")
+            val result = client.postgrest["shopping_recommendations"].select {
+                filter {
+                    eq("user_id", userId)
+                    filter("acted_on_at", FilterOperator.IS, "null")
+                    filter("dismissed_at", FilterOperator.IS, "null")
+                }
+                order("created_at", Order.DESCENDING)
+                limit(20L)
+            }.decodeList<ZadShoppingRecommendation>()
+            Log.d(TAG, "getShoppingRecommendations() → returned ${result.size} rows")
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "getShoppingRecommendations() FAILED: ${e.message}")
+            emptyList()
+        }
+    }
+
+    private data class RecommendationIdRow(val id: Long)
+
+    suspend fun getActedOnRecommendationsCount(): Int {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id ?: return 0
+            val rows = client.postgrest["shopping_recommendations"]
+                .select(Columns.list("id")) {
+                    filter {
+                        eq("user_id", userId)
+                        filterNot("acted_on_at", FilterOperator.IS, "null")
+                    }
+                }
+                .decodeList<RecommendationIdRow>()
+            rows.size
+        } catch (e: Exception) {
+            Log.e(TAG, "getActedOnRecommendationsCount() FAILED: ${e.message}")
+            0
+        }
+    }
+
+    suspend fun markRecommendationActedOn(id: Long): Boolean {
+        return try {
+            Log.d(TAG, "markRecommendationActedOn() → table=shopping_recommendations, id=$id")
+            client.postgrest["shopping_recommendations"].update(
+                mapOf("acted_on_at" to java.time.Instant.now().toString())
+            ) {
+                filter { eq("id", id) }
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "markRecommendationActedOn() FAILED: ${e.message}")
+            false
+        }
+    }
+
+    suspend fun dismissRecommendation(id: Long): Boolean {
+        return try {
+            Log.d(TAG, "dismissRecommendation() → table=shopping_recommendations, id=$id")
+            client.postgrest["shopping_recommendations"].update(
+                mapOf("dismissed_at" to java.time.Instant.now().toString())
+            ) {
+                filter { eq("id", id) }
+            }
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "dismissRecommendation() FAILED: ${e.message}")
+            false
         }
     }
 

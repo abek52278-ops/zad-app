@@ -1074,6 +1074,8 @@
     <string name="zad_memory_subtitle">الذكريات اللي اتعلمها عنك</string>
     <string name="achievements_menu_title">الإنجازات والرتب</string>
     <string name="achievements_menu_subtitle">نقاطك وإنجازاتك من المساهمة بالأسعار</string>
+    <string name="shopping_recommendations_menu_title">توصيات الشراء الذكية</string>
+    <string name="shopping_recommendations_menu_subtitle">توصيات مبنية على الأسعار والسوق</string>
     <string name="zad_memory_empty_title">لسه مفيش ذكريات</string>
     <string name="zad_memory_empty_subtitle">زاد هيتعلم عنك تدريجيًا من كلامك واستخدامك للتطبيق</string>
     <string name="zad_memory_evidence_count">اتأكدت %1$d مرة</string>

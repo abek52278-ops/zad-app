@@ -470,6 +470,11 @@ fun ProfileScreen(
                         onClick = { navController?.navigate(com.example.ZadNav.ACHIEVEMENTS) }
                     )
                     com.example.ui.components.ZadMenuRow(
+                        title = stringResource(R.string.shopping_recommendations_menu_title),
+                        subtitle = stringResource(R.string.shopping_recommendations_menu_subtitle),
+                        onClick = { navController?.navigate(com.example.ZadNav.RECOMMENDATIONS) }
+                    )
+                    com.example.ui.components.ZadMenuRow(
                         title = stringResource(R.string.new_life_goal_title),
                         subtitle = stringResource(R.string.new_life_goal_subtitle),
                         onClick = { showNewGoalDialog = true }

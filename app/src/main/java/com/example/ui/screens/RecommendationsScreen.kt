@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -15,7 +16,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.SupabaseRepo
+import com.example.ui.components.ZadLoadingState
 import com.example.ui.theme.primary
+import kotlinx.coroutines.launch
 
 data class RecommendationData(
     val id: String,
@@ -34,6 +38,74 @@ data class RecommendationsStatsData(
     val totalSavingsPotential: Double,
     val actionedCount: Int
 )
+
+private fun com.example.data.ZadShoppingRecommendation.toUiData() = RecommendationData(
+    id = id.toString(),
+    itemName = itemName,
+    recommendationType = recommendationType,
+    reasoning = reasoning ?: "",
+    estimatedSavings = estimatedSavings ?: 0.0,
+    urgency = urgency,
+    bestStore = bestStore,
+    bestPrice = bestPrice,
+    actedOn = false
+)
+
+/**
+ * حالة محلية بسيطة (مش ViewModel) — نفس نمط AchievementsRoute/ZadMemoryScreen:
+ * قراءة/كتابة Supabase مباشرة من غير أي نداء LLM هنا. كانت الشاشة قبل كده بتاخد
+ * recommendations/stats كـ parameters فاضية بلا أي caller حقيقي.
+ */
+@Composable
+fun RecommendationsRoute(onBack: () -> Unit) {
+    var recommendations by remember { mutableStateOf<List<com.example.data.ZadShoppingRecommendation>>(emptyList()) }
+    var actionedCount by remember { mutableStateOf(0) }
+    var loading by remember { mutableStateOf(true) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        loading = true
+        recommendations = SupabaseRepo.getShoppingRecommendations()
+        actionedCount = SupabaseRepo.getActedOnRecommendationsCount()
+        loading = false
+    }
+
+    if (loading) {
+        ZadLoadingState(modifier = Modifier.fillMaxSize())
+    } else {
+        val stats = RecommendationsStatsData(
+            totalRecommendations = recommendations.size,
+            totalSavingsPotential = recommendations.sumOf { it.estimatedSavings ?: 0.0 },
+            actionedCount = actionedCount
+        )
+        RecommendationsScreen(
+            recommendations = recommendations.map { it.toUiData() },
+            stats = stats,
+            onAction = { idStr ->
+                idStr.toLongOrNull()?.let { id ->
+                    recommendations = recommendations.filterNot { it.id == id }
+                    actionedCount += 1
+                    scope.launch {
+                        if (!SupabaseRepo.markRecommendationActedOn(id)) {
+                            Log.e("RecommendationsRoute", "markRecommendationActedOn($id) FAILED")
+                        }
+                    }
+                }
+            },
+            onDismiss = { idStr ->
+                idStr.toLongOrNull()?.let { id ->
+                    recommendations = recommendations.filterNot { it.id == id }
+                    scope.launch {
+                        if (!SupabaseRepo.dismissRecommendation(id)) {
+                            Log.e("RecommendationsRoute", "dismissRecommendation($id) FAILED")
+                        }
+                    }
+                }
+            },
+            onBack = onBack
+        )
+    }
+}
 
 @Composable
 fun RecommendationsScreen(

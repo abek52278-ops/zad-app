@@ -432,6 +432,22 @@ data class ZadUserAchievement(
     @SerialName("unlocked_at") val unlockedAt: String? = null
 )
 
+@Serializable
+data class ZadShoppingRecommendation(
+    val id: Long = 0,
+    @SerialName("user_id") val userId: String? = null,
+    @SerialName("item_name") val itemName: String,
+    @SerialName("recommendation_type") val recommendationType: String,
+    val reasoning: String? = null,
+    @SerialName("estimated_savings") val estimatedSavings: Double? = null,
+    val urgency: String,
+    @SerialName("best_store") val bestStore: String? = null,
+    @SerialName("best_price") val bestPrice: Double? = null,
+    @SerialName("acted_on_at") val actedOnAt: String? = null,
+    @SerialName("dismissed_at") val dismissedAt: String? = null,
+    @SerialName("created_at") val createdAt: String? = null
+)
+
 @Entity(tableName = "zad_behavior_patterns")
 @Serializable
 data class ZadBehaviorPattern(
