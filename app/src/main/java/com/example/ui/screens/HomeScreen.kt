@@ -200,53 +200,15 @@ fun HomeScreen(
     // شكل صادق (الكارت النصي بيهنّد لوحده بمساحة فاضية محترمة بلا كروت مزيفة).
     val displayChefRecipes = chefRecipes
 
+    // كان فيه fallback بيعرض 3 منتجات أمازون مُختلقة بالكامل (أسعار ولينكات صور وهمية)
+    // لما affiliatePicks وaffiliateProducts يرجعوا فاضيين — بيانات مالية وهمية معروضة
+    // كأنها حقيقية. دلوقتي: القائمة الفاضية = الكارت بيتخفي (شايف الاستخدام تحت).
     val displayAffiliatePicks = remember(affiliatePicks, affiliateProducts) {
         if (affiliatePicks.isNotEmpty()) {
             affiliatePicks
         } else {
-            val active = affiliateProducts.filter { it.isActive }
-            if (active.isNotEmpty()) {
-                active.map { com.example.ui.viewmodels.ZadViewModel.AffiliatePick(product = it, reason = "منتج موصى به للعائلة", score = 1) }
-            } else {
-                listOf(
-                    com.example.ui.viewmodels.ZadViewModel.AffiliatePick(
-                        product = com.example.data.AffiliateProduct(
-                            id = "az_oil",
-                            productNameAr = "زيت زيتون بكر ممتاز 1 لتر",
-                            category = "بقالة",
-                            averagePriceSar = 38.5,
-                            imageUrl = "https://m.media-amazon.com/images/I/71wE6bHqLqL._AC_SL1500_.jpg",
-                            isActive = true
-                        ),
-                        reason = "أفضل قيمة لمطبخك",
-                        score = 1
-                    ),
-                    com.example.ui.viewmodels.ZadViewModel.AffiliatePick(
-                        product = com.example.data.AffiliateProduct(
-                            id = "az_rice",
-                            productNameAr = "أرز بسمتي هندي فاخر 5 كجم",
-                            category = "بقالة",
-                            averagePriceSar = 45.0,
-                            imageUrl = "https://m.media-amazon.com/images/I/61abc123XYZ._AC_SL1500_.jpg",
-                            isActive = true
-                        ),
-                        reason = "عرض شهري خاص",
-                        score = 1
-                    ),
-                    com.example.ui.viewmodels.ZadViewModel.AffiliatePick(
-                        product = com.example.data.AffiliateProduct(
-                            id = "az_soap",
-                            productNameAr = "مسحوق غسيل أوتوماتيك مركز 3 كجم",
-                            category = "منظفات",
-                            averagePriceSar = 52.0,
-                            imageUrl = "https://m.media-amazon.com/images/I/81XYZclean._AC_SL1500_.jpg",
-                            isActive = true
-                        ),
-                        reason = "توفير لاحتياج المنزل",
-                        score = 1
-                    )
-                )
-            }
+            affiliateProducts.filter { it.isActive }
+                .map { com.example.ui.viewmodels.ZadViewModel.AffiliatePick(product = it, reason = "منتج موصى به للعائلة", score = 1) }
         }
     }
 
