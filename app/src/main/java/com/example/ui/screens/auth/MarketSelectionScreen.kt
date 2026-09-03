@@ -90,16 +90,22 @@ fun MarketSelectionScreen(onContinue: () -> Unit) {
                                 com.example.data.SyncOutbox.enqueueMarketProfile(context, market.currencyCode, market.countryCode)
                             }
                         }
-                        // تغيير السوق بيغيّر لغة الواجهة (ar-SA ← ar-EG)، لكن موارد
-                        // الـActivity الشغالة اتحلّت خلاص في attachBaseContext — من غير
-                        // إعادة إنشاء، الجلسة كلها بعد الاختيار بتفضل تقرا نصوص السوق
-                        // القديم. TravelBanner بيعمل recreate() لنفس السبب بالظبط.
+                        // باج حقيقي حصل هنا (٢٠٢٦-٠٩-٠٣): recreate() كان بدل onContinue()
+                        // مش بعده، على افتراض غلط إن NavHost بيرجع لـ"splash" بعد أي
+                        // recreate. مايرجعش — rememberNavController() بيحفظ الـbackstack
+                        // عبر rememberSaveable، فبعد recreate الشاشة الحالية (market_
+                        // selection نفسها، لسه ما اتنقلناش منها) هي اللي بترجع، مش splash.
+                        // النتيجة: زرار "متابعة" كان بيعمل recreate ويرجّع نفس الشاشة —
+                        // قفلة كاملة، محدش يقدر يعدّي الخطوة دي خالص.
                         //
-                        // بعد recreate الـNavHost بيبدأ من "splash" وnavigateAfterSplash
-                        // بيوجّه صح لوحده (hasSelectedMarket بقت true دلوقتي)، فمابنناديش
-                        // onContinue كمان — ده هو onContinue نفسه.
-                        val activity = context.findActivity()
-                        if (activity != null) activity.recreate() else onContinue()
+                        // الترتيب الصح: onContinue() الأول (بيحرّك الـbackstack فعلياً —
+                        // نفس اللي كل الشاشات التانية اللي فيها recreate() بتعتمد عليه
+                        // ضمنياً، لأنها هي نفسها اللي المستخدم واقف فيها ومش بتتحرك).
+                        // بعدين recreate() على الـActivity الجديدة يلاقي الـbackstack
+                        // بالفعل واقف على الشاشة التالية، فبتترسم هي مش market_selection،
+                        // ونفس الوقت attachBaseContext بيتلف بلغة السوق الجديدة.
+                        onContinue()
+                        context.findActivity()?.recreate()
                     }
                 },
                 enabled = selected != null,
