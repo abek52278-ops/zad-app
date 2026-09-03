@@ -143,6 +143,20 @@
 
 **🟢 اكتملت جميع البوابات الخمس.** الخطوات المتبقية (تدقيق `ZadIntelligenceScreen` الكامل، تعميم `ZadHomeLuxe` على باقي البوابات) موثقة في §5.
 
+## 8. خطة تعميم `ZadLuxe` على باقي التطبيق (بدأت 2026-09-03)
+
+طلب العميل: نفس الشكل الفاخر (Home) على كل شاشة، صفر بقايا تصميم قديم، صفر فجوة/بيانات وهمية باقية. الخطة 7 مراحل — كل مرحلة: قراءة الكود الحقيقي أول (مش افتراض من الدوكيومنت)، تطبيق `ZadLuxe`، إصلاح أي فجوة حقيقية تتلاقى، تحقق build فعلي، commit منفصل.
+
+1. **الميزانية** (`FinancesScreen`/`BudgetScreen`/`SubscriptionsScreen`/`StatementImportScreen`) — ✅ 2026-09-03.
+2. المخزون والتسوق (`InventoryScreen`/`ShoppingListScreen`/`RecommendationsScreen`/`MaintenanceScreen`/`PriceReportingScreen`).
+3. الصيدلية (`PharmacyScreen`).
+4. عقل زاد والعائلة (`ZadIntelligenceScreen` + `FamilyScreen` + `TasbihaScreen` + `ZadKnowledgeMapScreen` + `ZadMemoryScreen` + `AgentActionLogScreen` + `AchievementsScreen`) — الأتقل، فيها تدقيق الـ40+ كارت المؤجل من §5.
+5. البروفايل وملحقاته.
+6. الدخول والاشتراك (`auth/*`, `ZadSubscriptionPaywallScreen`, `SubscriptionPlansScreen`, `BudgetGateScreen`).
+7. تدقيق نهائي شامل + build كامل من الصفر.
+
+**مرحلة 1 (الميزانية) — نُفذت**: `ZadSegmentedTabs` (`ZadShell.kt`، مشترك — بينفع تلقائيًا لأي بوابة تانية بتستخدمه) بقى بـ`ZadLuxe.emerald`/`cardWhite`/`hairline`. `BudgetScreen`: كارت "متاح" بقى `ZadLuxe.emerald`+squircle بدل `primary`، شريط الالتزامات وشريط دخل/مصروف/ميزانية بقوا `ZadLuxe.cardWhite`+hairline، loading guard بقى `ZadLoadingState` بدل `CircularProgressIndicator` عاري، empty state لميزانيات الأقسام بقى `ZadEmptyState` بدل `Text` عاري. `SubscriptionsScreen`: `DebtPayoffPlannerCard`'s empty state بقى `ZadEmptyState`، `Spacer` مكرر لـ`ZadHubListBottomPadding` (كان فوق `contentPadding` اللي أصلاً فيها نفس القيمة — ~220dp حشو سفلي مكرر) اتشال. 3 حوارات كان فيها `imePadding()` بس مفيش `verticalScroll()` (إضافة حركة، دفع دين، مساهمة صندوق ادخار) بقى فيها الاتنين. **تحقق فعلي**: `compileDebugKotlin` نجح بالإعدادات الافتراضية (الهيب المخفّض كان بيكسّر Kotlin daemon هنا، مش الـGradle daemon زي `assembleDebug`)، `assembleDebug` نجح بالهيب المخفّض. **مسحوب عمدًا**: `StatementImportScreen` اتفحصت ولقيتها نضيفة أصلاً (`ZadEmptyState`/`CurrencyFormatter` صح، مفيش حوارات) — صفر تعديل عليها.
+
 - **2026-09-03 — بوابة Home (§2.1/§4.1، إعادة بناء `HomeScreen.kt`)**: نُفذت. **عكس قرار §4.1 الموثّق سابقًا** (نقل المحفظة/الرسم البياني لـFinances) — العميل بعت مخطط تصميم (mockup) صريح يفضّل يفضلوا في Home، فده اعتماد صريح جديد بيلغي القرار القديم: `ZadWalletHeroCard`/`ZadQuickExpenseSheet` فضلوا في Home زي ما هم، ومفيش أي شاشة نُقلت. الفجوة الحقيقية اللي اتقفلت: `ZadBezierSpendChart` كان *مستورد* في `HomeScreen.kt` بس **صفر استدعاء** — كارت جديد `ZadWeeklySpendChartCard` (مصروف آخر ٧ أيام حقيقي من `zad_transactions`، مجمّع يوميًا) بقى بيعرضه فعليًا.
   نظام تصميم فاخر جديد `ZadHomeLuxe.kt` (Emerald `0xFF1B4332`/Ochre `0xFFC68216`/Terracotta `0xFFD95726`/hairline `0xFFE0E3DA`/squircle 20.dp) — نطاقه Home وكومبوننتاتها بس، مش بديل لـ`ZadV3`/`ZadV2` المشترك.
   هيدر البوت بقى فيه زرار كاميرا حقيقي (`onNavigateToCamera`، نفس `ZadCameraSheet` الموجود) + شارة "عقل زاد نشط" نابضة، بدل ما تتخيّل هيدر مستقل جديد (`ZadTopHeader` في `ZadShell.kt` أصلاً بيغطي الجرس/الأفاتار/الدرج لكل الشاشات، اتأكد إن `hasUnreadNotifications` فيه بالفعل محسوبة حقيقي من `appNotifications`).
