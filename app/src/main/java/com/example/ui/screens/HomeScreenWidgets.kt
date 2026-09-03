@@ -357,7 +357,9 @@ fun MiniSubscriptionsWidget(subscriptions: List<com.example.data.ZadSubscription
 fun TasbihaHomeWidget(
     tree: TasbihaTree?,
     onTasbih: () -> Unit,
-    onNavigateToTasbiha: () -> Unit
+    onNavigateToTasbiha: () -> Unit,
+    activeChallenge: com.example.data.TasbihaChallenge? = null,
+    challengeCurrentClicks: Int = 0
 ) {
     val pct = ((tree?.progressToNext() ?: 0f) * 100).toInt().coerceIn(0, 100)
     val animatedPct by animateFloatAsState(
@@ -549,6 +551,42 @@ fun TasbihaHomeWidget(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(stringResource(R.string.auto_homescreenwidgets_18996), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
+            }
+
+            // تحدي التسبيحة العائلي — مؤشر تقدم دائري حقيقي مرتبط بـ
+            // family_tasbiha_challenges/tasbiha_challenge_progress (§7.4). بيتخفي
+            // تمامًا لو مفيش تحدي نشط، مفيش حالة فاضية مزيفة.
+            if (activeChallenge != null) {
+                val challengeProgress = (challengeCurrentClicks.toFloat() / activeChallenge.targetClicks.coerceAtLeast(1))
+                    .coerceIn(0f, 1f)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(kidsPrimary.copy(alpha = 0.08f))
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(
+                            progress = { challengeProgress },
+                            modifier = Modifier.size(40.dp),
+                            color = kidsPrimary,
+                            trackColor = kidsPrimary.copy(alpha = 0.15f),
+                            strokeWidth = 4.dp
+                        )
+                        Text("${(challengeProgress * 100).toInt()}%", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = kidsPrimary)
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text(activeChallenge.title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = textPrimary, maxLines = 1)
+                        Text(
+                            "$challengeCurrentClicks من ${activeChallenge.targetClicks} تسبيحة",
+                            fontSize = 11.sp,
+                            color = onSurfaceVariant
+                        )
                     }
                 }
             }

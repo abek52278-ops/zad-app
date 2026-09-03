@@ -73,7 +73,8 @@ fun LiveMarketTicker(
     prices: List<MarketPriceItem>,
     fetchState: ZadViewModel.LiveFetchState,
     onRetry: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onContributePrice: (() -> Unit)? = null
 ) {
     // كانت بتستبدل قايمة فاضية بـ5 أسعار مخترعة، فـ effectivePrices مكانتش تفضى أبدًا —
     // ده كان بيخلي LoadingRow()/RetryRow() تحت (اللي مبنيين صح فعلاً) كود ميت مستحيل
@@ -109,6 +110,24 @@ fun LiveMarketTicker(
             LoadingRow()
         } else {
             RetryRow(onRetry = onRetry)
+        }
+
+        // الأسعار التشاركية الحية (price_index) — زر فرعي بس، مش جزء من الشريط
+        // الأساسي المحسوب سيرفر-سايد فوق. price_index/PriceReportingScreen بيقرا
+        // ويكتب حقيقي أصلاً (§7.1 UI_ARCHITECTURE_SPEC.md) — هنا بس مدخل سريع ليه.
+        if (onContributePrice != null) {
+            Row(
+                modifier = Modifier
+                    .padding(top = 6.dp)
+                    .clip(RoundedCornerShape(50))
+                    .clickable { onContributePrice() }
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("📊", fontSize = 12.sp)
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("ساهم بسعر", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = primary)
+            }
         }
     }
 }

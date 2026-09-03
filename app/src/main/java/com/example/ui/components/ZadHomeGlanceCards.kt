@@ -334,6 +334,7 @@ fun ZadFoodShortagesGlanceCard(
     inventory: List<ZadInventory>,
     onViewAllClick: () -> Unit,
     onConfirmItem: (ZadInventory) -> Unit = {},
+    onAddToShoppingList: (ZadInventory) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val sampleItems = remember(inventory) {
@@ -407,7 +408,8 @@ fun ZadFoodShortagesGlanceCard(
                 FoodGlanceTile(
                     item = item,
                     modifier = Modifier.width(155.dp),
-                    onConfirm = { item.rawItem?.let { onConfirmItem(it) } }
+                    onConfirm = { item.rawItem?.let { onConfirmItem(it) } },
+                    onAddToCart = { item.rawItem?.let { onAddToShoppingList(it) } }
                 )
             }
         }
@@ -418,7 +420,8 @@ fun ZadFoodShortagesGlanceCard(
 private fun FoodGlanceTile(
     item: FoodItemSample,
     onConfirm: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onAddToCart: () -> Unit = {}
 ) {
     val barColor = if (item.isLow) Color(0xFFDC5B4B) else if (item.daysLeft <= 4) Color(0xFFB45309) else Color(0xFF0F9B76)
     val progress = (item.daysLeft / 10f).coerceIn(0.1f, 1f)
@@ -486,6 +489,23 @@ private fun FoodGlanceTile(
             fontWeight = FontWeight.SemiBold,
             color = Color(0xFF64748B)
         )
+
+        if (item.isLow) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFF0F9B76).copy(alpha = 0.1f))
+                    .clickable { onAddToCart() }
+                    .padding(horizontal = 10.dp, vertical = 7.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.AddShoppingCart, contentDescription = null, tint = Color(0xFF0F9B76), modifier = Modifier.size(14.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("أضف للسلة", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F9B76))
+            }
+        }
     }
 }
 
@@ -616,7 +636,10 @@ fun ZadPharmacyGlanceCard(
     pharmacyItems: List<ZadPharmacyItem>,
     onViewAllClick: () -> Unit,
     modifier: Modifier = Modifier,
-    adherencePercent: Int? = null
+    adherencePercent: Int? = null,
+    nextDoseItem: ZadPharmacyItem? = null,
+    nextDoseTime: String? = null,
+    onTakeNextDose: () -> Unit = {}
 ) {
     Column(
         modifier = modifier
@@ -667,6 +690,36 @@ fun ZadPharmacyGlanceCard(
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
             ) {
                 Text("فتح الصيدلية ←", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFDC5B4B))
+            }
+        }
+
+        // الجرعة التالية — أقرب موعد حقيقي من doseTimes، بزر تسجيل مباشر
+        if (nextDoseItem != null && nextDoseTime != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFFDC5B4B).copy(alpha = 0.08f))
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("الجرعة التالية", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFDC5B4B))
+                    Text("${nextDoseItem.name} • $nextDoseTime", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E293B))
+                }
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(99.dp))
+                        .background(Color(0xFFDC5B4B))
+                        .clickable { onTakeNextDose() }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("خدت الجرعة", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
             }
         }
 
