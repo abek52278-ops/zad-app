@@ -26,6 +26,7 @@
     <string name="nav_inventory">Inventory</string>
     <string name="nav_shopping">Shopping List</string>
     <string name="pantry_tab_recommendations">Recommendations</string>
+    <string name="contribute_price_action">Contribute a price</string>
     <string name="nav_budget">Budget</string>
     <string name="finances_tab_daily">Transactions &amp; Budget</string>
     <string name="nav_wishlist">Wishlist</string>
@@ -903,6 +904,10 @@
     <string name="no_challenges_yet">No challenges right now</string>
     <string name="ask_admin_new_challenge">Ask the admin to create a new challenge!</string>
     <string name="challenge_target_label">Target: %1$d dhikr</string>
+    <string name="challenge_progress_label">%1$d of %2$d dhikr</string>
+    <string name="new_challenge_action">New challenge</string>
+    <string name="tasbiha_challenge_description_hint">Description (optional)</string>
+    <string name="tasbiha_challenge_target_hint">Target (dhikr count)</string>
     <string name="challenge_ongoing_label">Ongoing</string>
     <string name="rename_tree_title">Name the Tree</string>
     <string name="tree_name_hint">Tree Name</string>

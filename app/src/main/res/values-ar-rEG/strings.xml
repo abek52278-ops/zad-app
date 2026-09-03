@@ -26,6 +26,7 @@
     <string name="nav_inventory">المخزون</string>
     <string name="nav_shopping">قايمة التسوق</string>
     <string name="pantry_tab_recommendations">التوصيات</string>
+    <string name="contribute_price_action">ساهم بسعر</string>
     <string name="nav_budget">الميزانية</string>
     <string name="finances_tab_daily">الحركات والميزانية</string>
     <string name="nav_wishlist">قايمة الأمنيات</string>
@@ -858,6 +859,10 @@
     <string name="no_challenges_yet">مفيش تحديات دلوقتي</string>
     <string name="ask_admin_new_challenge">اطلب من الأدمن يعمل تحدي جديد!</string>
     <string name="challenge_target_label">الهدف: %1$d تسبيح</string>
+    <string name="challenge_progress_label">%1$d من %2$d تسبيحة</string>
+    <string name="new_challenge_action">تحدي جديد</string>
+    <string name="tasbiha_challenge_description_hint">الوصف (اختياري)</string>
+    <string name="tasbiha_challenge_target_hint">الهدف (عدد التسبيحات)</string>
     <string name="challenge_ongoing_label">مستمر</string>
     <string name="rename_tree_title">سمّي الشجرة</string>
     <string name="tree_name_hint">اسم الشجرة</string>

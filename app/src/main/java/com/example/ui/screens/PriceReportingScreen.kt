@@ -15,8 +15,41 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.ui.components.ZadEmptyState
 import com.example.ui.theme.primary
-import com.example.ui.theme.secondary
+import com.example.ui.viewmodels.PriceReportingViewModel
+
+/**
+ * UI_ARCHITECTURE_SPEC.md §7.1 — كانت `PriceReportingScreen`/`CrowdsourceDashboard`
+ * موجودين بالكامل (نموذج + leaderboard حقيقي عبر PriceReportingViewModel) بس صفر
+ * استدعاء في كل التطبيق. دلوقتي "زر جانبي" جوه PantryShoppingScreen (نفس نمط
+ * BrainFamilyScreen — local sub-view، مش NavController).
+ */
+@Composable
+fun PriceReportingRoute(onBack: () -> Unit, viewModel: PriceReportingViewModel = viewModel()) {
+    val state by viewModel.state.collectAsState()
+    var showForm by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) { viewModel.loadLeaderboard() }
+
+    if (showForm) {
+        PriceReportingScreen(
+            onSubmit = { itemName, category, price, location, storeName ->
+                viewModel.submitPrice(itemName, category, price, location, storeName)
+                showForm = false
+            },
+            onBack = { showForm = false }
+        )
+    } else {
+        CrowdsourceDashboard(
+            onReportPrice = { showForm = true },
+            onBack = onBack,
+            contributionCount = state.contributionCount,
+            leaderboardUsers = state.leaderboard
+        )
+    }
+}
 
 @Composable
 fun PriceReportingScreen(
@@ -232,7 +265,7 @@ fun CrowdsourceDashboard(
     onReportPrice: () -> Unit,
     onBack: () -> Unit,
     contributionCount: Int = 0,
-    leaderboardUsers: List<LeaderboardEntry> = emptyList()
+    leaderboardUsers: List<com.example.ui.viewmodels.LeaderboardEntryData> = emptyList()
 ) {
     LazyColumn(
         modifier = Modifier
@@ -261,27 +294,15 @@ fun CrowdsourceDashboard(
             }
         }
 
-        // Stats Cards
+        // Stats Card — UI_ARCHITECTURE_SPEC.md §7.1 Zero-Mock: كان فيه كارت تاني
+        // "أسعار حية" = contributionCount * 3، رقم مختلق مالوش أي مصدر حقيقي. اتشال.
         item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                StatCard(
-                    title = "مساهماتك",
-                    value = contributionCount.toString(),
-                    icon = Icons.Default.TrendingUp,
-                    modifier = Modifier.weight(1f)
-                )
-                StatCard(
-                    title = "أسعار حية",
-                    value = (contributionCount * 3).toString(),
-                    icon = Icons.Default.BarChart,
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            StatCard(
+                title = "مساهماتك",
+                value = contributionCount.toString(),
+                icon = Icons.Default.TrendingUp,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+            )
         }
 
         // Report Button
@@ -318,33 +339,11 @@ fun CrowdsourceDashboard(
         // Empty State
         if (leaderboardUsers.isEmpty()) {
             item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            Icons.Default.Info,
-                            "Empty",
-                            tint = Color(0xFFA1A5AB),
-                            modifier = Modifier.size(40.dp)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            "لا توجد مساهمات بعد",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF475569)
-                        )
-                    }
-                }
+                ZadEmptyState(
+                    icon = Icons.Default.Info,
+                    title = "لا توجد مساهمات بعد",
+                    modifier = Modifier.fillMaxWidth().padding(8.dp)
+                )
             }
         }
 
@@ -394,7 +393,7 @@ private fun StatCard(
 }
 
 @Composable
-private fun LeaderboardCard(entry: LeaderboardEntry, rank: Int) {
+private fun LeaderboardCard(entry: com.example.ui.viewmodels.LeaderboardEntryData, rank: Int) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -444,19 +443,6 @@ private fun LeaderboardCard(entry: LeaderboardEntry, rank: Int) {
                     color = Color(0xFF475569)
                 )
             }
-
-            Text(
-                "⭐ ${entry.score}",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = primary
-            )
         }
     }
 }
-
-data class LeaderboardEntry(
-    val userName: String,
-    val contributionCount: Int,
-    val score: Int
-)

@@ -26,6 +26,7 @@
     <string name="nav_inventory">Envanter</string>
     <string name="nav_shopping">Alışveriş listesi</string>
     <string name="pantry_tab_recommendations">Öneriler</string>
+    <string name="contribute_price_action">Fiyat katkısı yap</string>
     <string name="nav_budget">Bütçe</string>
     <string name="finances_tab_daily">İşlemler ve Bütçe</string>
     <string name="nav_wishlist">İstek listesi</string>
@@ -859,6 +860,10 @@
     <string name="no_challenges_yet">Şu anda meydan okuma yok</string>
     <string name="ask_admin_new_challenge">Yöneticiden yeni bir meydan okuma oluşturmasını iste!</string>
     <string name="challenge_target_label">Hedef: %1$d zikir</string>
+    <string name="challenge_progress_label">%2$d üzerinden %1$d zikir</string>
+    <string name="new_challenge_action">Yeni meydan okuma</string>
+    <string name="tasbiha_challenge_description_hint">Açıklama (isteğe bağlı)</string>
+    <string name="tasbiha_challenge_target_hint">Hedef (zikir sayısı)</string>
     <string name="challenge_ongoing_label">Devam ediyor</string>
     <string name="rename_tree_title">Ağacı adlandır</string>
     <string name="tree_name_hint">Ağaç adı</string>

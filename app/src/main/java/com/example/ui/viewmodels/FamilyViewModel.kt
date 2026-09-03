@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.collectLatest
+import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
@@ -991,6 +992,10 @@ class FamilyViewModel(application: Application) : AndroidViewModel(application) 
     val familyTasbiha: List<TasbihaTree> get() = _familyTasbiha
     private var _activeChallenges by mutableStateOf<List<TasbihaChallenge>>(emptyList())
     val activeChallenges: List<TasbihaChallenge> get() = _activeChallenges
+    // UI_ARCHITECTURE_SPEC.md §7.4 — challengeId → تقدم المستخدم الحالي بس (مش كل أعضاء
+    // العيلة)، عشان ChallengeCard تعرض شريط تقدم حقيقي بدل ما تفضل تعرض target_clicks بس.
+    private var _tasbihaChallengeProgress by mutableStateOf<Map<String, TasbihaChallengeProgress>>(emptyMap())
+    val tasbihaChallengeProgress: Map<String, TasbihaChallengeProgress> get() = _tasbihaChallengeProgress
     private var _selectedTree by mutableStateOf<TasbihaTree?>(null)
     val selectedTree: TasbihaTree? get() = _selectedTree
     
@@ -1010,6 +1015,42 @@ class FamilyViewModel(application: Application) : AndroidViewModel(application) 
                     ?: SupabaseRepo.createNewTree("بستاني الأول").also {
                         if (it != null) _myAllTrees = SupabaseRepo.getMyAllTrees()
                     }
+            }
+            // UI_ARCHITECTURE_SPEC.md §7.4 — تقدم المستخدم الحالي لكل تحدي نشط، عشان
+            // ChallengeCard تعرض progress bar حقيقي بدل target_clicks/endDate بس.
+            val myUserId = SupabaseRepo.client.auth.currentUserOrNull()?.id
+            if (myUserId != null) {
+                val progressMap = _activeChallenges.associate { challenge ->
+                    val myProgress = SupabaseRepo.getChallengeProgress(challenge.id).find { it.userId == myUserId }
+                    challenge.id to myProgress
+                }.filterValues { it != null }.mapValues { it.value!! }
+                _tasbihaChallengeProgress = progressMap
+            }
+        }
+    }
+
+    /** UI_ARCHITECTURE_SPEC.md §7.4 — إنشاء تحدي تسبيحة عائلي جديد (أدمن العيلة بس من الـ UI). */
+    fun createTasbihaChallenge(
+        title: String,
+        description: String?,
+        challengeType: String,
+        targetClicks: Int,
+        endDate: String?
+    ) {
+        val familyId = (_state.value as? FamilyState.Active)?.familyGroup?.id ?: return
+        viewModelScope.launch {
+            val created = SupabaseRepo.createChallenge(
+                TasbihaChallenge(
+                    familyId = familyId,
+                    challengeType = challengeType,
+                    title = title,
+                    description = description,
+                    targetClicks = targetClicks,
+                    endDate = endDate
+                )
+            )
+            if (created != null) {
+                _activeChallenges = SupabaseRepo.getActiveChallenges()
             }
         }
     }

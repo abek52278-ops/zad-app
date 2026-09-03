@@ -17,8 +17,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.SupabaseRepo
+import com.example.data.ZadShoppingItem
+import com.example.ui.components.ZadEmptyState
 import com.example.ui.components.ZadLoadingState
 import com.example.ui.theme.primary
+import com.example.ui.viewmodels.ZadViewModel
 import kotlinx.coroutines.launch
 
 data class RecommendationData(
@@ -59,9 +62,13 @@ private fun com.example.data.ZadShoppingRecommendation.toUiData() = Recommendati
  * دلوقتي تاب داخل PantryShoppingScreen (UI_ARCHITECTURE_SPEC.md §2.3) بدل route
  * منفصل (`ZadNav.RECOMMENDATIONS` كانت orphaned — وصولها الوحيد كان من البروفايل) —
  * مفيش onBack لأنها مش شاشة مستقلة تحتاج ترجع منها.
+ *
+ * UI_ARCHITECTURE_SPEC.md §7.3 — `onAction` كانت بس بتنده markRecommendationActedOn
+ * (تغيير status)، من غير أي إضافة فعلية لـ zad_shopping_list — الزرار كان بيوهم إنه
+ * "حوّل التوصية لسلة" بينما فعليًا بيخفي الكارت بس. دلوقتي بيضيف الصنف فعليًا كمان.
  */
 @Composable
-fun RecommendationsRoute() {
+fun RecommendationsRoute(viewModel: ZadViewModel) {
     var recommendations by remember { mutableStateOf<List<com.example.data.ZadShoppingRecommendation>>(emptyList()) }
     var actionedCount by remember { mutableStateOf(0) }
     var loading by remember { mutableStateOf(true) }
@@ -87,8 +94,19 @@ fun RecommendationsRoute() {
             stats = stats,
             onAction = { idStr ->
                 idStr.toLongOrNull()?.let { id ->
+                    val rec = recommendations.find { it.id == id }
                     recommendations = recommendations.filterNot { it.id == id }
                     actionedCount += 1
+                    if (rec != null) {
+                        viewModel.addShoppingItem(
+                            ZadShoppingItem(
+                                itemName = rec.itemName,
+                                quantity = 1,
+                                estimatedPrice = rec.bestPrice ?: 0.0,
+                                store = rec.bestStore ?: ""
+                            )
+                        )
+                    }
                     scope.launch {
                         if (!SupabaseRepo.markRecommendationActedOn(id)) {
                             Log.e("RecommendationsRoute", "markRecommendationActedOn($id) FAILED")
@@ -217,39 +235,12 @@ fun RecommendationsScreen(
         // Empty State
         if (recommendations.isEmpty()) {
             item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            Icons.Default.CheckCircle,
-                            "Empty",
-                            tint = primary,
-                            modifier = Modifier.size(40.dp)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            "شغلت كل التوصيات! 🎉",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF0F172A)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            "بتتحدث التوصيات كل ساعة",
-                            fontSize = 12.sp,
-                            color = Color(0xFF475569)
-                        )
-                    }
-                }
+                ZadEmptyState(
+                    icon = Icons.Default.CheckCircle,
+                    title = "شغلت كل التوصيات! 🎉",
+                    subtitle = "بتتحدث التوصيات كل ساعة",
+                    modifier = Modifier.fillMaxWidth().padding(8.dp)
+                )
             }
         }
 
@@ -409,7 +400,7 @@ private fun RecommendationCard(
                         modifier = Modifier.size(14.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("تم", fontSize = 11.sp)
+                    Text("أضف للسلة", fontSize = 11.sp)
                 }
             }
         }

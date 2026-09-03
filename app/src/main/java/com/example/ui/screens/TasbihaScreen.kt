@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -339,7 +341,7 @@ private fun TasbihaMainContent(
                     onCreateNew = { viewModel.createNewTree(it) }
                 )
                 1 -> FamilyGardenTab(familyMembers = familyMembers)
-                2 -> ChallengesTab(challenges = viewModel.activeChallenges)
+                2 -> ChallengesTab(viewModel = viewModel)
             }
         }
     }
@@ -973,14 +975,33 @@ private fun MiniTreeCard(tree: TasbihaTree) {
 }
 
 @Composable
-private fun ChallengesTab(challenges: List<com.example.data.TasbihaChallenge>) {
+private fun ChallengesTab(viewModel: FamilyViewModel) {
+    val familyState by viewModel.state.collectAsState()
+    val isAdmin = (familyState as? com.example.ui.viewmodels.FamilyState.Active)?.myMemberInfo?.role == "admin"
+    val challenges = viewModel.activeChallenges
+    val progress = viewModel.tasbihaChallengeProgress
+    var showCreateDialog by remember { mutableStateOf(false) }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp)
     ) {
         item {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Default.TrackChanges, contentDescription = null, modifier = Modifier.size(24.dp), tint = primary)
-                Text(stringResource(R.string.family_challenges_title), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.TrackChanges, contentDescription = null, modifier = Modifier.size(24.dp), tint = primary)
+                    Text(stringResource(R.string.family_challenges_title), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = onSurface)
+                }
+                // UI_ARCHITECTURE_SPEC.md §7.4 — createChallenge() كان مفيهوش زرار خالص،
+                // الشاشة الفاضية كانت بتقول "اسأل المشرف" بدون ما تدّي المشرف نفسه وسيلة.
+                if (isAdmin) {
+                    IconButton(onClick = { showCreateDialog = true }) {
+                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.new_challenge_action), tint = primary)
+                    }
+                }
             }
             Spacer(Modifier.height(8.dp))
             Text(
@@ -993,39 +1014,36 @@ private fun ChallengesTab(challenges: List<com.example.data.TasbihaChallenge>) {
 
         if (challenges.isEmpty()) {
             item {
-                com.example.ui.components.ZadListCard(contentPadding = 0.dp) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(Icons.Default.TrackChanges, contentDescription = null, modifier = Modifier.size(48.dp), tint = onSurfaceVariant.copy(alpha = 0.4f))
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            stringResource(R.string.no_challenges_yet),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = onSurface
-                        )
-                        Text(
-                            stringResource(R.string.ask_admin_new_challenge),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = onSurfaceVariant
-                        )
-                    }
-                }
+                com.example.ui.components.ZadEmptyState(
+                    icon = Icons.Default.TrackChanges,
+                    title = stringResource(R.string.no_challenges_yet),
+                    subtitle = if (isAdmin) null else stringResource(R.string.ask_admin_new_challenge),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
+                )
             }
         } else {
             items(challenges) { challenge ->
-                ChallengeCard(challenge)
+                ChallengeCard(challenge, progress[challenge.id])
                 Spacer(Modifier.height(8.dp))
             }
         }
 
         item { Spacer(Modifier.height(24.dp)) }
     }
+
+    if (showCreateDialog) {
+        CreateTasbihaChallengeDialog(
+            onDismiss = { showCreateDialog = false },
+            onCreate = { title, description, challengeType, targetClicks ->
+                viewModel.createTasbihaChallenge(title, description, challengeType, targetClicks, null)
+                showCreateDialog = false
+            }
+        )
+    }
 }
 
 @Composable
-private fun ChallengeCard(challenge: com.example.data.TasbihaChallenge) {
+private fun ChallengeCard(challenge: com.example.data.TasbihaChallenge, progress: com.example.data.TasbihaChallengeProgress?) {
     // white card, like every other row in the design — this was a 10%-primary tint,
     // the only card in the app filled with a wash of the brand colour
     com.example.ui.components.ZadListCard(contentPadding = 0.dp) {
@@ -1046,12 +1064,23 @@ private fun ChallengeCard(challenge: com.example.data.TasbihaChallenge) {
                 Text(challenge.description, style = MaterialTheme.typography.bodyMedium, color = onSurfaceVariant)
             }
             Spacer(Modifier.height(12.dp))
+            // UI_ARCHITECTURE_SPEC.md §7.4 — كان بيعرض target_clicks/endDate بس، مفيش
+            // تقدم المستخدم الحالي ظاهر خالص رغم إن getChallengeProgress() موجودة.
+            val currentClicks = progress?.currentClicks ?: 0
+            val fraction = (currentClicks.toFloat() / challenge.targetClicks.coerceAtLeast(1)).coerceIn(0f, 1f)
+            LinearProgressIndicator(
+                progress = { fraction },
+                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                color = if (fraction >= 1f) successColor else primary,
+                trackColor = primary.copy(alpha = 0.12f)
+            )
+            Spacer(Modifier.height(6.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    stringResource(R.string.challenge_target_label, challenge.targetClicks),
+                    stringResource(R.string.challenge_progress_label, currentClicks, challenge.targetClicks),
                     style = MaterialTheme.typography.labelMedium,
                     color = primary
                 )
@@ -1063,6 +1092,62 @@ private fun ChallengeCard(challenge: com.example.data.TasbihaChallenge) {
             }
         }
     }
+}
+
+@Composable
+private fun CreateTasbihaChallengeDialog(
+    onDismiss: () -> Unit,
+    onCreate: (title: String, description: String?, challengeType: String, targetClicks: Int) -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var challengeType by remember { mutableStateOf("weekly") }
+    var targetClicksStr by remember { mutableStateOf("100") }
+    val types = listOf("weekly", "monthly")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.new_challenge_action), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()
+            ) {
+                OutlinedTextField(
+                    value = title, onValueChange = { title = it },
+                    label = { Text(stringResource(R.string.financial_challenge_title_hint)) },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true
+                )
+                OutlinedTextField(
+                    value = description, onValueChange = { description = it },
+                    label = { Text(stringResource(R.string.tasbiha_challenge_description_hint)) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = targetClicksStr,
+                    onValueChange = { v -> if (v.all { it.isDigit() }) targetClicksStr = v },
+                    label = { Text(stringResource(R.string.tasbiha_challenge_target_hint)) },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    types.forEach { t ->
+                        FilterChip(selected = challengeType == t, onClick = { challengeType = t }, label = { Text(t) })
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val target = targetClicksStr.toIntOrNull() ?: 100
+                    if (title.isNotBlank()) onCreate(title.trim(), description.trim().ifBlank { null }, challengeType, target)
+                },
+                enabled = title.isNotBlank()
+            ) { Text(stringResource(R.string.save)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
+    )
 }
 
 @Composable
