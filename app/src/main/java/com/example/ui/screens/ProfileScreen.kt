@@ -472,7 +472,10 @@ fun ProfileScreen(
                     com.example.ui.components.ZadMenuRow(
                         title = stringResource(R.string.shopping_recommendations_menu_title),
                         subtitle = stringResource(R.string.shopping_recommendations_menu_subtitle),
-                        onClick = { navController?.navigate(com.example.ZadNav.RECOMMENDATIONS) }
+                        onClick = {
+                            PantryShoppingNavState.pendingTab = PantryShoppingTab.RECOMMENDATIONS
+                            navController?.navigate(com.example.ui.components.ZadRoutes.INVENTORY)
+                        }
                     )
                     com.example.ui.components.ZadMenuRow(
                         title = stringResource(R.string.new_life_goal_title),

@@ -23,13 +23,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.ZadMaintenanceItem
 import com.example.ui.components.AppearOnEntry
-import com.example.ui.components.ZadLottieAsset
+import com.example.ui.components.ZadEmptyState
 import com.example.ui.components.ZadTransitions
 import com.example.ui.components.ZadListCard
 import com.example.ui.components.pressableScale
@@ -92,23 +91,16 @@ fun MaintenanceScreen(
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(20.dp, 8.dp, 20.dp, 100.dp),
+                contentPadding = PaddingValues(20.dp, 8.dp, 20.dp, ZadHubListBottomPadding),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 if (sortedItems.isEmpty()) {
                     item {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ZadEmptyState(
+                            icon = Icons.Default.Build,
+                            title = stringResource(R.string.no_maintenance_items_hint),
                             modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
-                        ) {
-                            ZadLottieAsset(resId = R.raw.lottie_empty_box, modifier = Modifier.size(140.dp))
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = stringResource(R.string.no_maintenance_items_hint),
-                                style = Typography.titleMedium, fontWeight = FontWeight.Bold,
-                                color = onSurface, textAlign = TextAlign.Center
-                            )
-                        }
+                        )
                     }
                 } else {
                     itemsIndexed(sortedItems, key = { _, it -> it.id }) { index, item ->
@@ -285,7 +277,7 @@ private fun AddMaintenanceItemDialog(onDismiss: () -> Unit, onSave: (ZadMaintena
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())
+                modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()).imePadding()
             ) {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.appliance_name_hint)) }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = purchaseDate, onValueChange = { purchaseDate = it }, label = { Text(stringResource(R.string.purchase_date_hint)) }, modifier = Modifier.fillMaxWidth())

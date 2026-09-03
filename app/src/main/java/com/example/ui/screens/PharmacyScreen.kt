@@ -28,7 +28,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -37,7 +36,8 @@ import com.example.data.ZadPharmacyItem
 import com.example.ui.components.AppearOnEntry
 import com.example.ui.components.GlassCard
 import com.example.ui.components.HeroGradientCard
-import com.example.ui.components.ZadLottieAsset
+import com.example.ui.components.ZadEmptyState
+import com.example.ui.components.ZadLoadingState
 import com.example.ui.components.ZadTransitions
 import com.example.ui.components.pressableScale
 import com.example.ui.components.zadCardShadow
@@ -69,8 +69,7 @@ private fun suggestDoseTimes(dailyDoseCount: Int): String {
 fun PharmacyScreen(
     viewModel: ZadViewModel,
     familyViewModel: FamilyViewModel = viewModel(),
-    onNavigateToCamera: () -> Unit = {},
-    onNavigateToFamilyPharmacy: () -> Unit = {}
+    onNavigateToCamera: () -> Unit = {}
 ) {
     val items by viewModel.pharmacyItems.collectAsState()
     val monthlyCost by viewModel.monthlyPharmaCost.collectAsState()
@@ -81,6 +80,24 @@ fun PharmacyScreen(
     // family_admin_read_pharmacy: الرؤية للوالدين بس، ومفيش داعي للزرار لو مفيش عيلة
     // حقيقية أصلاً (عضو واحد = العميل نفسه بس).
     val isFamilyPharmacyAdmin = activeFamilyState?.myMemberInfo?.role == "admin" && familyMembers.size > 1
+
+    // UI_ARCHITECTURE_SPEC.md §2.4 / §4.3 — "أدوية العيلة" كان Nested Route منفصل
+    // (FamilyPharmacyScreen)، دلوقتي Toggle داخل نفس الشاشة بدل تعقيد مسار ملاحة كامل.
+    // رؤية بس، زي ما كانت — مفيش تعديل/حذف من هنا.
+    var showFamilyView by remember { mutableStateOf(false) }
+    var familyItems by remember { mutableStateOf<List<ZadPharmacyItem>>(emptyList()) }
+    var familyItemsLoading by remember { mutableStateOf(false) }
+    LaunchedEffect(showFamilyView) {
+        if (showFamilyView) {
+            familyItemsLoading = true
+            familyItems = com.example.data.SupabaseRepo.getFamilyPharmacyItems()
+            familyItemsLoading = false
+        }
+    }
+    val familyItemsByMember = remember(familyItems, familyMembers) {
+        familyMembers.associateWith { member -> familyItems.filter { it.userId == member.userId } }
+            .filterValues { it.isNotEmpty() }
+    }
 
     var showAddDialog by remember { mutableStateOf(false) }
     // كان بيودّي لشاشة "عقل زاد" (ZadRoutes.ASSISTANT) بدل ما يضيف الدوا هنا — العميل
@@ -131,17 +148,34 @@ fun PharmacyScreen(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { isGridView = !isGridView }, modifier = Modifier.pressableScale()) {
-                    Icon(if (isGridView) Icons.Default.ViewList else Icons.Default.GridView, contentDescription = stringResource(R.string.toggle_view_action), tint = onSurfaceVariant)
-                }
-                if (isFamilyPharmacyAdmin) {
-                    IconButton(onClick = onNavigateToFamilyPharmacy, modifier = Modifier.pressableScale()) {
-                        Icon(Icons.Default.FamilyRestroom, contentDescription = stringResource(R.string.family_pharmacy_action), tint = onSurfaceVariant)
+                if (!showFamilyView) {
+                    IconButton(onClick = { isGridView = !isGridView }, modifier = Modifier.pressableScale()) {
+                        Icon(if (isGridView) Icons.Default.ViewList else Icons.Default.GridView, contentDescription = stringResource(R.string.toggle_view_action), tint = onSurfaceVariant)
                     }
                 }
-                IconButton(onClick = onNavigateToCamera, modifier = Modifier.pressableScale()) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = stringResource(R.string.scan_medicine_action), tint = primary)
+                if (isFamilyPharmacyAdmin) {
+                    IconButton(onClick = { showFamilyView = !showFamilyView }, modifier = Modifier.pressableScale()) {
+                        Icon(
+                            if (showFamilyView) Icons.Default.Person else Icons.Default.FamilyRestroom,
+                            contentDescription = stringResource(R.string.family_pharmacy_action),
+                            tint = if (showFamilyView) primary else onSurfaceVariant
+                        )
+                    }
                 }
+                if (!showFamilyView) {
+                    IconButton(onClick = onNavigateToCamera, modifier = Modifier.pressableScale()) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = stringResource(R.string.scan_medicine_action), tint = primary)
+                    }
+                }
+            }
+
+            if (showFamilyView) {
+                PharmacyFamilyBody(
+                    itemsByMember = familyItemsByMember,
+                    loading = familyItemsLoading,
+                    modifier = Modifier.fillMaxSize().weight(1f)
+                )
+                return@Column
             }
 
             // زر بارز لبدء إضافة دواء بالكلام العادي — حوار على نفس الشاشة (Smart
@@ -263,24 +297,16 @@ fun PharmacyScreen(
             }
 
             if (sortedItems.isEmpty()) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 32.dp),
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    ZadLottieAsset(resId = R.raw.lottie_empty_box, modifier = Modifier.size(140.dp))
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = stringResource(R.string.no_medicines_hint),
-                        style = Typography.titleMedium, fontWeight = FontWeight.Bold,
-                        color = onSurface, textAlign = TextAlign.Center
-                    )
-                }
+                ZadEmptyState(
+                    icon = Icons.Default.Medication,
+                    title = stringResource(R.string.no_medicines_hint),
+                    modifier = Modifier.fillMaxWidth().weight(1f)
+                )
             } else if (isGridView) {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(20.dp, 8.dp, 20.dp, 100.dp),
+                    contentPadding = PaddingValues(20.dp, 8.dp, 20.dp, ZadHubListBottomPadding),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
@@ -300,7 +326,7 @@ fun PharmacyScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(20.dp, 8.dp, 20.dp, 100.dp),
+                    contentPadding = PaddingValues(20.dp, 8.dp, 20.dp, ZadHubListBottomPadding),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     itemsIndexed(sortedItems, key = { _, it -> it.id }) { index, item ->
@@ -328,46 +354,48 @@ fun PharmacyScreen(
             }
         }
 
-        FloatingActionButton(
-            onClick = { showAddDialog = true },
-            containerColor = primary,
-            contentColor = Color.White,
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 16.dp).pressableScale()
-        ) {
-            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_action))
-        }
+        if (!showFamilyView) {
+            FloatingActionButton(
+                onClick = { showAddDialog = true },
+                containerColor = primary,
+                contentColor = Color.White,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 16.dp).pressableScale()
+            ) {
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_action))
+            }
 
-        if (showAddDialog) {
-            AddPharmacyItemDialog(
-                familyMembers = familyMembers,
-                onDismiss = { showAddDialog = false },
-                onSave = { item ->
-                    viewModel.addPharmacyItem(item)
-                    showAddDialog = false
-                }
-            )
-        }
+            if (showAddDialog) {
+                AddPharmacyItemDialog(
+                    familyMembers = familyMembers,
+                    onDismiss = { showAddDialog = false },
+                    onSave = { item ->
+                        viewModel.addPharmacyItem(item)
+                        showAddDialog = false
+                    }
+                )
+            }
 
-        if (showSmartAddDialog) {
-            SmartAddMedicationDialog(
-                onDismiss = { showSmartAddDialog = false },
-                onSubmit = { text ->
-                    viewModel.sendAiChatMessage(text)
-                    showSmartAddDialog = false
-                    android.widget.Toast.makeText(context, context.getString(R.string.smart_pharmacy_add_submitted), android.widget.Toast.LENGTH_LONG).show()
-                }
-            )
-        }
+            if (showSmartAddDialog) {
+                SmartAddMedicationDialog(
+                    onDismiss = { showSmartAddDialog = false },
+                    onSubmit = { text ->
+                        viewModel.sendAiChatMessage(text)
+                        showSmartAddDialog = false
+                        android.widget.Toast.makeText(context, context.getString(R.string.smart_pharmacy_add_submitted), android.widget.Toast.LENGTH_LONG).show()
+                    }
+                )
+            }
 
-        refillTarget?.let { item ->
-            RefillPharmacyItemDialog(
-                item = item,
-                onDismiss = { refillTarget = null },
-                onSave = { addedQty, newPrice, newExpiry ->
-                    viewModel.refillPharmacyItem(item.id, addedQty, newPrice, newExpiry)
-                    refillTarget = null
-                }
-            )
+            refillTarget?.let { item ->
+                RefillPharmacyItemDialog(
+                    item = item,
+                    onDismiss = { refillTarget = null },
+                    onSave = { addedQty, newPrice, newExpiry ->
+                        viewModel.refillPharmacyItem(item.id, addedQty, newPrice, newExpiry)
+                        refillTarget = null
+                    }
+                )
+            }
         }
     }
 }
@@ -785,7 +813,7 @@ private fun AddPharmacyItemDialog(
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState())
+                modifier = Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()).imePadding()
             ) {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.medicine_name_hint)) }, modifier = Modifier.fillMaxWidth())
 
@@ -999,7 +1027,7 @@ internal fun SmartAddMedicationDialog(onDismiss: () -> Unit, onSubmit: (String) 
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.smart_pharmacy_add_dialog_title), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.imePadding()) {
                 Text(stringResource(R.string.smart_pharmacy_add_dialog_hint), style = Typography.bodySmall, color = onSurfaceVariant)
                 OutlinedTextField(
                     value = text,
@@ -1053,7 +1081,7 @@ private fun RefillPharmacyItemDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.renew_order_dialog_title, item.name), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.imePadding()) {
                 OutlinedTextField(
                     value = addedQuantity, onValueChange = { addedQuantity = it },
                     label = { Text(stringResource(R.string.added_quantity_hint, item.unit)) },
@@ -1136,5 +1164,86 @@ private fun PharmacyCountLine(count: Int, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("$count", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = textSecondary)
         Text(label, fontSize = 11.5.sp, color = textTertiary)
+    }
+}
+
+/**
+ * "أدوية العيلة" — رؤية بس (family_admin_read_pharmacy migration، 2026-09-01)، متاحة
+ * للوالدين (role=admin) بس. مفيش تعديل/حذف هنا عن قصد: الدوا شخصي وحساس.
+ *
+ * كانت شاشة/route منفصل (`FamilyPharmacyScreen`), دُمجت هنا كـ Toggle داخل PharmacyScreen
+ * نفسها — UI_ARCHITECTURE_SPEC.md §2.4/§4.3.
+ */
+@Composable
+private fun PharmacyFamilyBody(
+    itemsByMember: Map<com.example.data.FamilyMember, List<ZadPharmacyItem>>,
+    loading: Boolean,
+    modifier: Modifier = Modifier
+) {
+    when {
+        loading -> ZadLoadingState(modifier = modifier)
+        itemsByMember.isEmpty() -> ZadEmptyState(
+            icon = Icons.Default.LocalPharmacy,
+            title = stringResource(R.string.family_pharmacy_empty_title),
+            subtitle = stringResource(R.string.family_pharmacy_empty_subtitle),
+            modifier = modifier
+        )
+        else -> LazyColumn(
+            modifier = modifier,
+            contentPadding = PaddingValues(bottom = ZadHubListBottomPadding),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            itemsByMember.forEach { (member, memberItems) ->
+                item(key = "header_${member.id}") { FamilyPharmacyMemberHeader(member) }
+                items(memberItems, key = { it.id }) { med -> FamilyPharmacyItemRow(med) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FamilyPharmacyMemberHeader(member: com.example.data.FamilyMember) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier.size(28.dp).clip(CircleShape).background(primary.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                member.alias.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "؟",
+                style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = primary
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(member.alias, style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = onSurface)
+    }
+}
+
+@Composable
+private fun FamilyPharmacyItemRow(item: ZadPharmacyItem) {
+    Row(
+        modifier = Modifier.fillMaxWidth().zadCardShadow(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp)).background(surface).padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(item.name, style = Typography.bodyLarge, fontWeight = FontWeight.Bold, color = onSurface)
+            if (!item.dosage.isNullOrBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(item.dosage, style = Typography.labelSmall, color = onSurfaceVariant)
+            }
+        }
+        val lowStock = item.isLowStock()
+        Box(
+            modifier = Modifier.clip(RoundedCornerShape(20.dp))
+                .background((if (lowStock) dangerColor else successColor).copy(alpha = 0.12f))
+                .padding(horizontal = 10.dp, vertical = 4.dp)
+        ) {
+            Text(
+                "${item.remainingQuantity} ${item.unit}",
+                style = Typography.labelSmall,
+                color = if (lowStock) dangerColor else successColor,
+                fontWeight = FontWeight.Bold, fontSize = 11.sp
+            )
+        }
     }
 }

@@ -1103,7 +1103,7 @@ private fun SpendLimitDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.spend_limits_title)) },
         text = {
-            Column {
+            Column(modifier = Modifier.imePadding()) {
                 Text(stringResource(R.string.spend_limits_hint, member.alias), style = Typography.bodySmall, color = onSurfaceVariant)
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
@@ -1358,7 +1358,7 @@ private fun AddChoreDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.add_new_task)) },
         text = {
-            Column {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()) {
                 OutlinedTextField(
                     value = title, onValueChange = { title = it },
                     label = { Text(stringResource(R.string.task_name)) },
@@ -1662,7 +1662,7 @@ private fun JoinFamilyDialog(
         },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 AuthTextField(

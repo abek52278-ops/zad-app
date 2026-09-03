@@ -55,9 +55,13 @@ private fun com.example.data.ZadShoppingRecommendation.toUiData() = Recommendati
  * حالة محلية بسيطة (مش ViewModel) — نفس نمط AchievementsRoute/ZadMemoryScreen:
  * قراءة/كتابة Supabase مباشرة من غير أي نداء LLM هنا. كانت الشاشة قبل كده بتاخد
  * recommendations/stats كـ parameters فاضية بلا أي caller حقيقي.
+ *
+ * دلوقتي تاب داخل PantryShoppingScreen (UI_ARCHITECTURE_SPEC.md §2.3) بدل route
+ * منفصل (`ZadNav.RECOMMENDATIONS` كانت orphaned — وصولها الوحيد كان من البروفايل) —
+ * مفيش onBack لأنها مش شاشة مستقلة تحتاج ترجع منها.
  */
 @Composable
-fun RecommendationsRoute(onBack: () -> Unit) {
+fun RecommendationsRoute() {
     var recommendations by remember { mutableStateOf<List<com.example.data.ZadShoppingRecommendation>>(emptyList()) }
     var actionedCount by remember { mutableStateOf(0) }
     var loading by remember { mutableStateOf(true) }
@@ -101,8 +105,7 @@ fun RecommendationsRoute(onBack: () -> Unit) {
                         }
                     }
                 }
-            },
-            onBack = onBack
+            }
         )
     }
 }
@@ -112,39 +115,16 @@ fun RecommendationsScreen(
     recommendations: List<RecommendationData>,
     stats: RecommendationsStatsData,
     onAction: (recommendationId: String) -> Unit,
-    onDismiss: (recommendationId: String) -> Unit,
-    onBack: () -> Unit
+    onDismiss: (recommendationId: String) -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF8FAFC))
-            .padding(16.dp),
+            .background(Color(0xFFF8FAFC)),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = com.example.ui.theme.ZadHubListBottomPadding),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Header
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Default.ArrowBack, "Back", tint = primary)
-                }
-                Text(
-                    "توصيات الشراء الذكية",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF0F172A)
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                Icon(Icons.Default.AutoAwesome, "AI", tint = primary, modifier = Modifier.size(24.dp))
-            }
-        }
-
         // Stats Card
         item {
             Card(

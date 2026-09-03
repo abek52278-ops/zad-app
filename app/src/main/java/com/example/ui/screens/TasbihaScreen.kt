@@ -1075,7 +1075,7 @@ private fun RenameDialog(currentName: String, onConfirm: (String) -> Unit, onDis
             OutlinedTextField(
                 value = name, onValueChange = { name = it },
                 label = { Text(stringResource(R.string.tree_name_hint)) },
-                singleLine = true, modifier = Modifier.fillMaxWidth()
+                singleLine = true, modifier = Modifier.fillMaxWidth().imePadding()
             )
         },
         confirmButton = {
@@ -1094,7 +1094,7 @@ private fun CreateTreeDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit)
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.new_tree_action)) },
         text = {
-            Column {
+            Column(modifier = Modifier.imePadding()) {
                 Text(
                     stringResource(R.string.add_tree_to_garden_desc),
                     style = MaterialTheme.typography.bodyMedium,

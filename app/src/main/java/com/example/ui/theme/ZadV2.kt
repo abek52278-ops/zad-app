@@ -268,6 +268,15 @@ val V3ScreenPadding = androidx.compose.foundation.layout.PaddingValues(
 )
 val V3ScreenGap = 14.dp
 
+/**
+ * UI_ARCHITECTURE_SPEC.md §3.2 — bottom clearance for lists/grids sitting under the
+ * floating mic button, standardized to 110.dp (was scattered as a repeated 100.dp
+ * literal across BudgetScreen/MaintenanceScreen/PharmacyScreen/SubscriptionsScreen/
+ * InventoryScreen). Adopt this constant instead of a new literal when touching those
+ * screens' hub rebuilds.
+ */
+val ZadHubListBottomPadding = 110.dp
+
 /** Meter bar (progress) */
 @Composable
 fun ZadMeterBar(

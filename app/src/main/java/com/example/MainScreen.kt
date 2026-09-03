@@ -67,14 +67,9 @@ object ZadNav {
     const val AGENT_ACTION_LOG = "agent_action_log"
     // "زاد عارف عني إيه" — شفافية zad_memory، متاحة من إعدادات البروفايل.
     const val ZAD_MEMORY = "zad_memory"
-    // "أدوية العيلة" — رؤية للوالدين بس، متاحة من شاشة الصيدلية.
-    const val FAMILY_PHARMACY = "family_pharmacy"
     // "الإنجازات والرتب" — إنجازات المساهمة بالأسعار (user_achievements)، متاحة من
     // إعدادات البروفايل. كانت الشاشة موجودة بالكامل بس من غير أي route ليها.
     const val ACHIEVEMENTS = "achievements"
-    // "توصيات الشراء الذكية" — shopping_recommendations، متاحة من إعدادات البروفايل.
-    // نفس حالة ACHIEVEMENTS بالظبط: شاشة + ViewModel + كتابة حقيقية، من غير route.
-    const val RECOMMENDATIONS = "shopping_recommendations_screen"
 }
 
 /** Routes that own the whole viewport — no shell header, no bottom pill. */
@@ -88,9 +83,7 @@ private val fullScreenRoutes = setOf(
     ZadNav.HELP,
     ZadNav.AGENT_ACTION_LOG,
     ZadNav.ZAD_MEMORY,
-    ZadNav.FAMILY_PHARMACY,
     ZadNav.ACHIEVEMENTS,
-    ZadNav.RECOMMENDATIONS,
 )
 
 @Composable
@@ -472,22 +465,36 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                             )
                         }
                         composable(ZadRoutes.INVENTORY) {
-                            InventoryScreen(
+                            com.example.ui.screens.PantryShoppingScreen(
                                 viewModel = viewModel,
+                                initialTab = com.example.ui.screens.PantryShoppingTab.INVENTORY,
                                 onNavigateToAssistant = { go(ZadRoutes.ASSISTANT) },
                                 onNavigateToCamera = { showCameraSheet = true }
                             )
                         }
-                        composable(ZadRoutes.SUBS) { SubscriptionsScreen(viewModel, familyViewModel) }
+                        composable(ZadRoutes.SUBS) {
+                            com.example.ui.screens.FinancesScreen(
+                                viewModel = viewModel,
+                                initialTab = com.example.ui.screens.FinancesTab.SUBSCRIPTIONS,
+                                onNavigateToAssistant = { go(ZadRoutes.ASSISTANT) },
+                                onNavigateToCamera = { showCameraSheet = true }
+                            )
+                        }
                         composable(ZadRoutes.PHARMACY) {
                             PharmacyScreen(
                                 viewModel = viewModel,
                                 familyViewModel = familyViewModel,
-                                onNavigateToCamera = { showCameraSheet = true },
-                                onNavigateToFamilyPharmacy = { go(ZadNav.FAMILY_PHARMACY) }
+                                onNavigateToCamera = { showCameraSheet = true }
                             )
                         }
-                        composable(ZadRoutes.MAINTENANCE) { MaintenanceScreen(viewModel = viewModel) }
+                        composable(ZadRoutes.MAINTENANCE) {
+                            com.example.ui.screens.PantryShoppingScreen(
+                                viewModel = viewModel,
+                                initialTab = com.example.ui.screens.PantryShoppingTab.MAINTENANCE,
+                                onNavigateToAssistant = { go(ZadRoutes.ASSISTANT) },
+                                onNavigateToCamera = { showCameraSheet = true }
+                            )
+                        }
                         composable(ZadRoutes.STATEMENT) { StatementImportScreen() }
                         composable(ZadRoutes.KNOWLEDGE_MAP) {
                             ZadKnowledgeMapScreen(
@@ -500,23 +507,44 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                             com.example.ui.screens.NearbyDealsScreen(onBack = { navController.popBackStack() })
                         }
                         composable(ZadRoutes.ASSISTANT) {
-                            ZadIntelligenceScreen(
+                            // وضع الأطفال ممنوع يوصل للـ route ده أصلاً (goGuarded فوق) —
+                            // البوابة دي أدوات بالغين بالكامل، مانع دايمًا هنا.
+                            com.example.ui.screens.BrainFamilyScreen(
                                 viewModel = viewModel,
                                 familyViewModel = familyViewModel,
-                                onNavigateToFamily = { go(ZadRoutes.FAMILY) },
+                                initialTab = com.example.ui.screens.BrainFamilyTab.INTELLIGENCE,
+                                pendingInviteCode = pendingInviteCode,
+                                unreadNotificationCount = appNotifications.count { !it.isRead },
+                                onNotificationsClick = { goGuarded(ZadRoutes.NOTIFICATIONS) },
                                 onNavigateToStatementImport = { go(ZadRoutes.STATEMENT) },
-                                onNavigateToKnowledgeMap = { go(ZadRoutes.KNOWLEDGE_MAP) }
+                                onNavigateToRoute = { route -> goGuarded(route) }
                             )
                         }
                         composable(ZadRoutes.TASBIHA) { TasbihaScreen(viewModel = familyViewModel) }
                         composable(ZadRoutes.FAMILY) {
-                            FamilyScreen(
-                                pendingInviteCode = pendingInviteCode,
-                                viewModel = familyViewModel,
-                                unreadNotificationCount = appNotifications.count { !it.isRead },
-                                onNotificationsClick = { goGuarded(ZadRoutes.NOTIFICATIONS) },
-                                showFinancials = !kidsModeEffective
-                            )
+                            // وضع الأطفال: FamilyScreen وحدها بلا أي تبويبات — نفس القيد
+                            // القديم بالظبط (route != FAMILY ممنوع لغير home)، مفيش تسريب
+                            // لتبويب "عقل زاد" أو أي sub-view تاني للطفل.
+                            if (kidsModeEffective) {
+                                FamilyScreen(
+                                    pendingInviteCode = pendingInviteCode,
+                                    viewModel = familyViewModel,
+                                    unreadNotificationCount = appNotifications.count { !it.isRead },
+                                    onNotificationsClick = { goGuarded(ZadRoutes.NOTIFICATIONS) },
+                                    showFinancials = false
+                                )
+                            } else {
+                                com.example.ui.screens.BrainFamilyScreen(
+                                    viewModel = viewModel,
+                                    familyViewModel = familyViewModel,
+                                    initialTab = com.example.ui.screens.BrainFamilyTab.FAMILY,
+                                    pendingInviteCode = pendingInviteCode,
+                                    unreadNotificationCount = appNotifications.count { !it.isRead },
+                                    onNotificationsClick = { goGuarded(ZadRoutes.NOTIFICATIONS) },
+                                    onNavigateToStatementImport = { go(ZadRoutes.STATEMENT) },
+                                    onNavigateToRoute = { route -> goGuarded(route) }
+                                )
+                            }
                         }
                         composable(ZadRoutes.CAMERA) {
                             CameraScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
@@ -538,16 +566,19 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                             )
                         }
                         composable(ZadRoutes.BUDGET) {
-                            BudgetScreen(
+                            com.example.ui.screens.FinancesScreen(
                                 viewModel = viewModel,
+                                initialTab = com.example.ui.screens.FinancesTab.DAILY,
                                 onNavigateToAssistant = { go(ZadRoutes.ASSISTANT) },
                                 onNavigateToCamera = { showCameraSheet = true }
                             )
                         }
                         composable(ZadRoutes.SHOPPING) {
-                            ShoppingListScreen(
+                            com.example.ui.screens.PantryShoppingScreen(
                                 viewModel = viewModel,
-                                onNavigateToAssistant = { go(ZadRoutes.ASSISTANT) }
+                                initialTab = com.example.ui.screens.PantryShoppingTab.SHOPPING,
+                                onNavigateToAssistant = { go(ZadRoutes.ASSISTANT) },
+                                onNavigateToCamera = { showCameraSheet = true }
                             )
                         }
                         composable(ZadRoutes.PREMIUM_PLANS) {
@@ -566,17 +597,6 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                         }
                         composable(ZadNav.ACHIEVEMENTS) {
                             com.example.ui.screens.AchievementsRoute(onBack = { navController.popBackStack() })
-                        }
-                        composable(ZadNav.RECOMMENDATIONS) {
-                            com.example.ui.screens.RecommendationsRoute(onBack = { navController.popBackStack() })
-                        }
-                        composable(ZadNav.FAMILY_PHARMACY) {
-                            val famState by familyViewModel.state.collectAsState()
-                            val members = (famState as? com.example.ui.viewmodels.FamilyState.Active)?.members ?: emptyList()
-                            com.example.ui.screens.FamilyPharmacyScreen(
-                                members = members,
-                                onBack = { navController.popBackStack() }
-                            )
                         }
                         composable(ZadNav.EDIT_PROFILE) { EditProfileScreen(viewModel) { navController.popBackStack() } }
                         composable(ZadNav.FAMILY_MANAGEMENT) { FamilyManagementScreen(familyViewModel) { navController.popBackStack() } }

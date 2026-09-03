@@ -13,6 +13,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -31,7 +33,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.airbnb.lottie.compose.LottieConstants
 import androidx.compose.ui.res.stringResource
 import com.example.R
 import com.example.data.ZadShoppingItem
@@ -156,7 +157,7 @@ fun ShoppingListScreen(
         Column(modifier = Modifier.fillMaxSize()) {
 
             LazyColumn(
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 140.dp),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = ZadHubListBottomPadding),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item { ShoppingBudgetHeader(totalPrice = totalPrice, budgetRemaining = budgetRemaining, budgetPct = budgetPct, priceKnown = basketPriceKnown) }
@@ -558,21 +559,15 @@ private fun EnhancedShoppingItemCard(
 
 @Composable
 private fun SmartEmptyState() {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        ZadLottieAsset(
-            resId = R.raw.lottie_empty_box,
-            modifier = Modifier.size(140.dp),
-            iterations = LottieConstants.IterateForever,
-            contentDescription = "قائمة التسوق فارغة"
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(stringResource(R.string.auto_shoppinglist_37686), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = onSurface)
-        Spacer(Modifier.height(8.dp))
-        Text(stringResource(R.string.auto_shoppinglist_53887), fontSize = 14.sp, color = onSurfaceVariant)
-    }
+    // UI_ARCHITECTURE_SPEC.md §3.4/§4.6 — كانت نسخة Lottie مستقلة (تالت نسخة مكررة بعد
+    // BudgetScreen وPharmacyScreen القديمة)، اتوحّدت على ZadEmptyState المستخدم فعلاً
+    // في 26+ موضع تاني في التطبيق.
+    com.example.ui.components.ZadEmptyState(
+        icon = Icons.Default.ShoppingCart,
+        title = stringResource(R.string.auto_shoppinglist_37686),
+        subtitle = stringResource(R.string.auto_shoppinglist_53887),
+        modifier = Modifier.fillMaxWidth().padding(top = 40.dp)
+    )
 }
 
 @Composable
@@ -587,7 +582,10 @@ private fun AddShoppingItemDialog(onDismiss: () -> Unit, onConfirm: (name: Strin
         shape = RoundedCornerShape(20.dp),
         title = { Text(stringResource(R.string.auto_shoppinglist_17012), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = onSurface) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()
+            ) {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.auto_shoppinglist_73239)) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
                 OutlinedTextField(value = qtyStr, onValueChange = { qtyStr = it }, label = { Text(stringResource(R.string.auto_shoppinglist_43371)) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
                 OutlinedTextField(value = priceStr, onValueChange = { priceStr = it }, label = { Text(stringResource(R.string.auto_shoppinglist_66379)) }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))

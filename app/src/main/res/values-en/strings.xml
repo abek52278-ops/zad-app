@@ -25,7 +25,9 @@
     <string name="nav_mother_tools">Mom\'s Tools</string>
     <string name="nav_inventory">Inventory</string>
     <string name="nav_shopping">Shopping List</string>
+    <string name="pantry_tab_recommendations">Recommendations</string>
     <string name="nav_budget">Budget</string>
+    <string name="finances_tab_daily">Transactions &amp; Budget</string>
     <string name="nav_wishlist">Wishlist</string>
     <string name="nav_assistant">Zad Intelligence</string>
     <string name="nav_family">Family</string>
@@ -108,6 +110,7 @@
     <string name="budget_with_currency">Budget (%1$s)</string>
     <string name="budget_save_hint">Enter your current balance and Zad works from it: income adds to it, spending takes from it.</string>
     <string name="budget_unknown_value">Not set yet</string>
+    <string name="estimated_cost_unknown">Not specified</string>
     <string name="budget_unknown_speech">You haven\'t set your budget cap yet. Set it first so I can tell you what\'s left.</string>
     <string name="budget_gate_headline">Before we start, set your monthly cap</string>
     <string name="budget_gate_body">Zad doesn\'t make up numbers. Without a cap, there\'s no \"remaining\" or \"available\" — every number you\'d see would just be a guess.</string>

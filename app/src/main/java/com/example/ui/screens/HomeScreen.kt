@@ -2177,7 +2177,8 @@ fun AddTransactionDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 22.dp)
-                .padding(bottom = 28.dp),
+                .padding(bottom = 28.dp)
+                .imePadding(),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // العنوان + زر الإغلاق (الرندر: "Quick Expense" + X)

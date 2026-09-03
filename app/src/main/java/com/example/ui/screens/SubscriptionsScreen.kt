@@ -9,6 +9,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -35,7 +37,6 @@ import com.example.ui.components.GlassCard
 import com.example.ui.components.ZadListCard
 import com.example.ui.components.ZadScreenBanner
 import com.example.ui.components.pressableScale
-import com.example.ui.components.ZadLottieAsset
 import com.example.ui.components.ZadTransitions
 import com.example.ui.components.zadGlassBlur
 import com.example.ui.components.subscriptionBrandFor
@@ -46,16 +47,20 @@ import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.launch
 
+/**
+ * تاب "أقساط واشتراكات وفواتير" جوه بوابة Finances (UI_ARCHITECTURE_SPEC.md §2.2) —
+ * كانت شاشة مستقلة (`ZadRoutes.SUBS`) بتحمل معاها كمان مخطط سداد الديون + العروض
+ * الحية + تحديات العائلة + صناديق الادخار (تظهر بس في تاب "الكل" الداخلي القديم).
+ * الأربعة دول اتنقلوا لتاب "ديون" المستقل في FinancesScreen — الفلترة الداخلية هنا
+ * (الكل/اشتراكات/فواتير/أقساط عبر `type`/`category`) فضلت زي ما هي بالظبط.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SubscriptionsScreen(
-    viewModel: ZadViewModel,
-    familyViewModel: FamilyViewModel
+    viewModel: ZadViewModel
 ) {
     val subscriptions by viewModel.subscriptions.collectAsState()
     val pendingSubscriptions by viewModel.pendingSubscriptions.collectAsState()
-    val debts by viewModel.debts.collectAsState()
-    val inventory by viewModel.inventory.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
     var showInactive by remember { mutableStateOf(false) }
@@ -90,7 +95,7 @@ fun SubscriptionsScreen(
         // now items() in the one LazyColumn below so the whole screen scrolls together.
         LazyColumn(
             modifier = Modifier.fillMaxSize().navigationBarsPadding(),
-            contentPadding = PaddingValues(20.dp, 8.dp, 20.dp, 100.dp),
+            contentPadding = PaddingValues(20.dp, 8.dp, 20.dp, ZadHubListBottomPadding),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
@@ -225,37 +230,13 @@ fun SubscriptionsScreen(
                 }
             }
 
-            // مخطط سداد الديون — بس في تاب "الكل"، مش في الاشتراكات/الفواتير/الأقساط
-            // المفلترة: مستخدم بيدوس على تاب "فواتير" بالذات عايز الفواتير بس، مش
-            // ديون+فرص+صناديق مقحمة معاها. كانت بتظهر بغض النظر عن التاب المختار.
-            if (selectedTab == 0) {
-                item {
-                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                        DebtPayoffPlannerCard(debts, viewModel)
-                    }
-                }
-            }
-
             if (filtered.isEmpty()) {
                     item {
-                        // بديل الأيقونة الثابتة بـ Lottie متحركة — نفس تسلسل ZadEmptyState (عنوان بولد وسط الشاشة)
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
+                        com.example.ui.components.ZadEmptyState(
+                            icon = Icons.Default.CreditCard,
+                            title = if (selectedTab == 0) stringResource(R.string.no_subscriptions_any) else stringResource(R.string.no_items_in_category),
                             modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
-                        ) {
-                            ZadLottieAsset(
-                                resId = R.raw.lottie_empty_box,
-                                modifier = Modifier.size(140.dp)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = if (selectedTab == 0) stringResource(R.string.no_subscriptions_any) else stringResource(R.string.no_items_in_category),
-                                style = Typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = onSurface,
-                                textAlign = TextAlign.Center
-                            )
-                        }
+                        )
                     }
                 } else {
                     itemsIndexed(filtered, key = { _, sub -> sub.id }) { index, sub ->
@@ -275,30 +256,7 @@ fun SubscriptionsScreen(
                     }
                 }
 
-                // فرص واقتصاد — نفس منطق DebtPayoffPlannerCard فوق: بس في تاب "الكل"،
-                // مش مقحمة تحت تابات الاشتراكات/الفواتير/الأقساط المفلترة.
-                if (selectedTab == 0) {
-                    item {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.LocalOffer, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(stringResource(R.string.subs_deals_section), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                        }
-                    }
-                    // العروض المتاحة لنواقصك — بحث حي حقيقي (Deal Matcher)
-                    item {
-                        LiveDealsCard(
-                            shortageItems = inventory.filter { it.quantity <= (it.lowStockThreshold ?: 2) }.map { it.itemName },
-                            viewModel = viewModel
-                        )
-                    }
-                    // تحديات العائلة المالية
-                    item { FinancialChallengesCard(familyViewModel) }
-                    // صناديق التجميع للمناسبات الموسمية
-                    item { SinkingFundsCard(familyViewModel) }
-                }
-
-                item { Spacer(modifier = Modifier.height(100.dp)) }
+                item { Spacer(modifier = Modifier.height(ZadHubListBottomPadding)) }
         }
 
         // Add FAB
@@ -516,7 +474,10 @@ fun AddSubscriptionDialog(onDismiss: () -> Unit, onSave: (String, Double, String
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.add_subscription_dialog_title), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()
+            ) {
                 OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text(stringResource(R.string.subscription_name_hint)) }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text(stringResource(R.string.amount_with_currency_hint, com.example.data.CurrencyFormatter.symbol(context))) }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = provider, onValueChange = { provider = it }, label = { Text(stringResource(R.string.service_provider_hint)) }, modifier = Modifier.fillMaxWidth())
@@ -731,7 +692,10 @@ fun DebtPayoffPlannerCard(debts: List<com.example.data.ZadDebt>, viewModel: ZadV
             onDismissRequest = { showAddDialog = false },
             title = { Text(stringResource(R.string.debt_add_action), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()
+                ) {
                     OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.debt_name_hint)) }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = remainingStr, onValueChange = { remainingStr = it }, label = { Text(stringResource(R.string.debt_remaining_hint)) }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = rateStr, onValueChange = { rateStr = it }, label = { Text(stringResource(R.string.debt_interest_rate_hint)) }, modifier = Modifier.fillMaxWidth())
@@ -766,7 +730,10 @@ fun DebtPayoffPlannerCard(debts: List<com.example.data.ZadDebt>, viewModel: ZadV
             onDismissRequest = { payTarget = null },
             title = { Text(stringResource(R.string.debt_pay_title, debt.name), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.imePadding()
+                ) {
                     Text(
                         stringResource(R.string.debt_remaining_label, com.example.data.CurrencyFormatter.format(context, debt.remainingBalance)),
                         style = Typography.bodySmall,
@@ -972,7 +939,10 @@ fun FinancialChallengesCard(familyViewModel: FamilyViewModel) {
             onDismissRequest = { showCreateDialog = false },
             title = { Text(stringResource(R.string.financial_challenge_create_action), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()
+                ) {
                     OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text(stringResource(R.string.financial_challenge_title_hint)) }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = targetStr, onValueChange = { targetStr = it }, label = { Text(stringResource(R.string.financial_challenge_target_hint)) }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = rewardStr, onValueChange = { rewardStr = it }, label = { Text(stringResource(R.string.financial_challenge_reward_hint)) }, modifier = Modifier.fillMaxWidth())
@@ -1081,7 +1051,10 @@ fun SinkingFundsCard(familyViewModel: FamilyViewModel) {
             onDismissRequest = { showCreateDialog = false },
             title = { Text(stringResource(R.string.sinking_fund_create_action), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()
+                ) {
                     OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.sinking_fund_name_hint)) }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = targetStr, onValueChange = { targetStr = it }, label = { Text(stringResource(R.string.sinking_fund_target_hint)) }, modifier = Modifier.fillMaxWidth())
                     if (upcomingEvents.isNotEmpty()) {
@@ -1115,7 +1088,7 @@ fun SinkingFundsCard(familyViewModel: FamilyViewModel) {
             onDismissRequest = { contributeTarget = null },
             title = { Text(stringResource(R.string.sinking_fund_contribute_action), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
             text = {
-                OutlinedTextField(value = amountStr, onValueChange = { amountStr = it }, label = { Text(stringResource(R.string.sinking_fund_amount_hint)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = amountStr, onValueChange = { amountStr = it }, label = { Text(stringResource(R.string.sinking_fund_amount_hint)) }, modifier = Modifier.fillMaxWidth().imePadding())
             },
             confirmButton = {
                 Button(onClick = {

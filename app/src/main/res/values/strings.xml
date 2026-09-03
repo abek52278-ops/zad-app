@@ -25,7 +25,9 @@
     <string name="nav_mother_tools">أدوات الأم</string>
     <string name="nav_inventory">المخزون</string>
     <string name="nav_shopping">قائمة التسوق</string>
+    <string name="pantry_tab_recommendations">التوصيات</string>
     <string name="nav_budget">الميزانية</string>
+    <string name="finances_tab_daily">الحركات والميزانية</string>
     <string name="nav_wishlist">قائمة الأمنيات</string>
     <string name="nav_assistant">ذكاء زاد</string>
     <string name="nav_family">العائلة</string>
@@ -108,6 +110,7 @@
     <string name="budget_with_currency">الميزانية (%1$s)</string>
     <string name="budget_save_hint">اكتب رصيدك الحالي وزاد يمشي عليه: كل دخل بيزوّده وكل مصروف بينقّصه.</string>
     <string name="budget_unknown_value">لسه غير محدد</string>
+    <string name="estimated_cost_unknown">غير محدد</string>
     <string name="budget_unknown_speech">لسه ما حددتش سقف ميزانيتك. حدده الأول عشان أقدر أقول لك الباقي.</string>
     <string name="budget_gate_headline">قبل ما نبدأ، حدد سقفك الشهري</string>
     <string name="budget_gate_body">زاد ما بيخترعش أرقام. من غير السقف مفيش "متبقي" ولا "متاح" — وكل رقم هتشوفه هيبقى تخمين.</string>

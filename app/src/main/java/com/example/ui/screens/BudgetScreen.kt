@@ -39,9 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.util.Log
 import com.example.data.ZadTransaction
-import com.example.ui.components.ZadLottieAsset
 import com.example.ui.components.pressableScale
-import com.airbnb.lottie.compose.LottieConstants
 import com.example.ui.components.zadCardShadow
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
@@ -138,7 +136,7 @@ fun BudgetScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 100.dp)
+            contentPadding = PaddingValues(bottom = ZadHubListBottomPadding)
         ) {
             // ── Available (mockup `renderBudget`'s first block) ──────────────
             // Solid #064E3B at 22dp, label over figure, nothing else. What stood
@@ -527,35 +525,14 @@ fun BudgetScreen(
             // ── Transactions grouped by date ────────────────────────────────
             if (filteredTx.isEmpty()) {
                 item {
-                    AnimatedVisibility(visible = true, enter = fadeIn() + slideInVertically { it / 2 }) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(48.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            ZadLottieAsset(
-                                resId = R.raw.lottie_empty_box,
-                                iterations = LottieConstants.IterateForever,
-                                modifier = Modifier.size(140.dp),
-                                contentDescription = stringResource(R.string.no_transactions)
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                stringResource(R.string.no_transactions),
-                                style = Typography.titleMedium,
-                                color = onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                stringResource(R.string.no_transactions_bank_hint),
-                                style = Typography.bodySmall,
-                                color = onSurfaceVariant.copy(alpha = 0.6f),
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(horizontal = 24.dp)
-                            )
-                        }
-                    }
+                    // UI_ARCHITECTURE_SPEC.md §3.4/§4.6 — كانت نسخة Lottie مستقلة رابعة،
+                    // اتوحّدت على ZadEmptyState زي باقي البوابات.
+                    com.example.ui.components.ZadEmptyState(
+                        icon = Icons.Default.ReceiptLong,
+                        title = stringResource(R.string.no_transactions),
+                        subtitle = stringResource(R.string.no_transactions_bank_hint),
+                        modifier = Modifier.fillMaxWidth().padding(48.dp)
+                    )
                 }
             } else {
                 val grouped = filteredTx.groupBy { tx ->
@@ -1182,7 +1159,7 @@ private fun TransactionEditDialog(
         },
         text = {
             Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
+                modifier = Modifier.verticalScroll(rememberScrollState()).imePadding(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 OutlinedTextField(
@@ -1428,7 +1405,10 @@ internal fun AddEditObligationDialog(
             )
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()
+            ) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },

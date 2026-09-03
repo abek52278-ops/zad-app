@@ -250,11 +250,12 @@ fun ZadIntelligenceScreen(
             modifier = Modifier.fillMaxSize(),
             // كانت PaddingValues(16.dp) ثابتة على كل الجوانب — آخر كارت كان بيقف على بعد
             // 16dp بس من شريط التنقل السفلي بدل ما ياخد ارتفاعه الحقيقي في الاعتبار.
+            // UI_ARCHITECTURE_SPEC.md §3.2 — bottom بقى ZadHubListBottomPadding زي باقي البوابات.
             contentPadding = PaddingValues(
                 start = 16.dp,
                 top = 16.dp,
                 end = 16.dp,
-                bottom = 16.dp
+                bottom = ZadHubListBottomPadding
             ),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {

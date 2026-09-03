@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -297,7 +298,7 @@ fun InventoryScreen(
                         icon = Icons.Default.CheckCircle,
                         title = stringResource(R.string.no_shortages_title),
                         subtitle = stringResource(R.string.no_shortages_hint),
-                        modifier = Modifier.fillMaxSize().padding(bottom = 90.dp),
+                        modifier = Modifier.fillMaxSize().padding(bottom = ZadHubListBottomPadding),
                         iconTint = successColor,
                         iconBackground = successColor.copy(alpha = 0.1f)
                     )
@@ -325,7 +326,7 @@ fun InventoryScreen(
                     }
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(2),
-                        contentPadding = PaddingValues(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 80.dp),
+                        contentPadding = PaddingValues(start = 6.dp, end = 6.dp, top = 2.dp, bottom = ZadHubListBottomPadding),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.fillMaxSize()
@@ -334,11 +335,15 @@ fun InventoryScreen(
                             ShortageItemCard(
                                 item = item,
                                 onAddToShoppingList = {
+                                    // 0.0 = مش معروف بعد، مش رقم مختلق — نفس القيمة اللي
+                                    // AddShoppingItemDialog/GrocerySuggestionsCard بيستخدموها
+                                    // للصنف الجديد؛ ShoppingListScreen's LaunchedEffect(shoppingList)
+                                    // بيحاول يجيب تقدير حقيقي (ZadAiRepository.estimatePrice) بعد كده.
                                     viewModel.addShoppingItem(
                                         com.example.data.ZadShoppingItem(
                                             itemName = item.itemName,
                                             quantity = 1,
-                                            estimatedPrice = getEstimatedPrice(item.itemName)
+                                            estimatedPrice = 0.0
                                         )
                                     )
                                 }
@@ -401,7 +406,7 @@ fun InventoryScreen(
                     // قائمة المنتجات مباشرة في صفوف رأسية متتالية وأنيقة
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(start = 10.dp, end = 10.dp, top = 4.dp, bottom = 90.dp),
+                        contentPadding = PaddingValues(start = 10.dp, end = 10.dp, top = 4.dp, bottom = ZadHubListBottomPadding),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         itemsIndexed(filteredItems, key = { _, item -> item.id }) { index, item ->
@@ -505,7 +510,10 @@ private fun EditInventoryDialog(
             )
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.imePadding()
+            ) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
@@ -547,28 +555,13 @@ private fun EditInventoryDialog(
     )
 }
 
-private fun getEstimatedPrice(itemName: String): Double {
-    val lower = itemName.lowercase()
-    return when {
-        "لحم" in lower -> 55.0
-        "دجاج" in lower -> 18.0
-        "سمك" in lower -> 35.0
-        "بيض" in lower -> 22.0
-        "حليب" in lower || "لبن" in lower -> 6.0
-        "جبن" in lower -> 15.0
-        "خبز" in lower || "عيش" in lower -> 2.0
-        "قهوة" in lower -> 30.0
-        "شاي" in lower -> 12.0
-        "طماطم" in lower || "بصل" in lower || "بطاطس" in lower -> 5.0
-        "صابون" in lower || "شامبو" in lower -> 25.0
-        else -> 10.0 // Default fallback estimate
-    }
-}
-
 @Composable
 private fun LowStockBanner(items: List<ZadInventory>, onShopClick: () -> Unit = {}) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val totalEstimatedCost = items.sumOf { getEstimatedPrice(it.itemName) }
+    // UI_ARCHITECTURE_SPEC.md §3.3 — كان في جدول أسعار محلي وهمي (getEstimatedPrice)
+    // هنا. zad_inventory مفيهوش عمود سعر أصلاً، ومفيش cache متزامن حقيقي نقدر نقرا منه
+    // في نفس اللحظة دي (المصدر الحقيقي الوحيد، ZadAiRepository.estimatePrice، async
+    // ومحجوز لقايمة التسوق بعد ما الصنف يتضاف ليها). فبدل رقم مختلق، البانر بيعرض
+    // "غير محدد" — العدد نفسه (items.size) حقيقي وكافي هنا.
 
     Row(
         modifier = Modifier
@@ -602,7 +595,7 @@ private fun LowStockBanner(items: List<ZadInventory>, onShopClick: () -> Unit = 
             fontSize = 12.sp
         )
         Text(
-            " (${com.example.data.CurrencyFormatter.format(context, totalEstimatedCost)})",
+            " (${stringResource(R.string.estimated_cost_unknown)})",
             style = MaterialTheme.typography.labelSmall,
             color = onErrorContainer.copy(alpha = 0.75f),
             maxLines = 1,
@@ -739,7 +732,7 @@ private fun EmptyInventoryState(onNavigateToCamera: () -> Unit) {
         icon = Icons.Default.Inventory2,
         title = stringResource(R.string.inventory_empty),
         subtitle = stringResource(R.string.inventory_empty_hint),
-        modifier = Modifier.fillMaxSize().padding(bottom = 100.dp),
+        modifier = Modifier.fillMaxSize().padding(bottom = ZadHubListBottomPadding),
         action = {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(
@@ -762,7 +755,7 @@ private fun EmptySearchState() {
         icon = Icons.Default.SearchOff,
         title = stringResource(R.string.no_results),
         subtitle = stringResource(R.string.try_different_search),
-        modifier = Modifier.fillMaxSize().padding(bottom = 100.dp),
+        modifier = Modifier.fillMaxSize().padding(bottom = ZadHubListBottomPadding),
         iconTint = outline,
         iconBackground = outlineVariant
     )
@@ -1051,7 +1044,11 @@ private fun AddInventoryDialog(
                 .padding(horizontal = 24.dp)
         ) {
             Column(
-                modifier = Modifier.padding(24.dp)
+                modifier = Modifier
+                    .padding(24.dp)
+                    .heightIn(max = 520.dp)
+                    .verticalScroll(rememberScrollState())
+                    .imePadding()
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
