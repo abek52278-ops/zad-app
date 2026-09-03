@@ -2271,6 +2271,7 @@ fun AddTransactionDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 22.dp)
                 .padding(bottom = 28.dp)
                 .imePadding(),

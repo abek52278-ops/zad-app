@@ -256,7 +256,6 @@ fun SubscriptionsScreen(
                     }
                 }
 
-                item { Spacer(modifier = Modifier.height(ZadHubListBottomPadding)) }
         }
 
         // Add FAB
@@ -595,12 +594,12 @@ fun DebtPayoffPlannerCard(debts: List<com.example.data.ZadDebt>, viewModel: ZadV
             Spacer(modifier = Modifier.height(16.dp))
 
             if (debts.isEmpty()) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)) {
-                    Icon(Icons.Default.AccountBalance, contentDescription = null, tint = onSurfaceVariant.copy(alpha = 0.4f), modifier = Modifier.size(48.dp))
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(stringResource(R.string.debt_empty_state_title), style = Typography.titleSmall, color = onSurfaceVariant)
-                    Text(stringResource(R.string.debt_empty_state_hint), style = Typography.bodySmall, color = onSurfaceVariant, textAlign = TextAlign.Center)
-                }
+                com.example.ui.components.ZadEmptyState(
+                    icon = Icons.Default.AccountBalance,
+                    title = stringResource(R.string.debt_empty_state_title),
+                    subtitle = stringResource(R.string.debt_empty_state_hint),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)
+                )
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     FilterChip(
@@ -732,7 +731,7 @@ fun DebtPayoffPlannerCard(debts: List<com.example.data.ZadDebt>, viewModel: ZadV
             text = {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.imePadding()
+                    modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()
                 ) {
                     Text(
                         stringResource(R.string.debt_remaining_label, com.example.data.CurrencyFormatter.format(context, debt.remainingBalance)),
@@ -1088,7 +1087,9 @@ fun SinkingFundsCard(familyViewModel: FamilyViewModel) {
             onDismissRequest = { contributeTarget = null },
             title = { Text(stringResource(R.string.sinking_fund_contribute_action), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
             text = {
-                OutlinedTextField(value = amountStr, onValueChange = { amountStr = it }, label = { Text(stringResource(R.string.sinking_fund_amount_hint)) }, modifier = Modifier.fillMaxWidth().imePadding())
+                Column(modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()) {
+                    OutlinedTextField(value = amountStr, onValueChange = { amountStr = it }, label = { Text(stringResource(R.string.sinking_fund_amount_hint)) }, modifier = Modifier.fillMaxWidth())
+                }
             },
             confirmButton = {
                 Button(onClick = {

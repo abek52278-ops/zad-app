@@ -75,7 +75,7 @@ fun BudgetScreen(
     val availableFigureValue = availableFigure
     if (remainingBalanceValue == null || availableFigureValue == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = primary)
+            com.example.ui.components.ZadLoadingState()
         }
         return
     }
@@ -154,8 +154,8 @@ fun BudgetScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 8.dp)
-                        .clip(RoundedCornerShape(22.dp))
-                        .background(primary)
+                        .clip(com.example.ui.theme.ZadLuxe.squircle)
+                        .background(com.example.ui.theme.ZadLuxe.emerald)
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
@@ -233,9 +233,9 @@ fun BudgetScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 6.dp)
-                        .zadCardShadow(RoundedCornerShape(18.dp))
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(surface)
+                        .clip(com.example.ui.theme.ZadLuxe.squircle)
+                        .background(com.example.ui.theme.ZadLuxe.cardWhite)
+                        .border(0.5.dp, com.example.ui.theme.ZadLuxe.hairline, com.example.ui.theme.ZadLuxe.squircle)
                         .padding(horizontal = 18.dp, vertical = 16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -291,9 +291,9 @@ fun BudgetScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 10.dp)
-                        .zadCardShadow(RoundedCornerShape(18.dp))
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(surface)
+                        .clip(com.example.ui.theme.ZadLuxe.squircle)
+                        .background(com.example.ui.theme.ZadLuxe.cardWhite)
+                        .border(0.5.dp, com.example.ui.theme.ZadLuxe.hairline, com.example.ui.theme.ZadLuxe.squircle)
                         .padding(vertical = 16.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
@@ -428,11 +428,10 @@ fun BudgetScreen(
             }
             if (categoryCards.isEmpty()) {
                 item {
-                    Text(
-                        stringResource(R.string.no_category_budgets_hint),
-                        style = Typography.bodySmall,
-                        color = onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+                    com.example.ui.components.ZadEmptyState(
+                        icon = Icons.Default.PieChart,
+                        title = stringResource(R.string.no_category_budgets_hint),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)
                     )
                 }
             } else {

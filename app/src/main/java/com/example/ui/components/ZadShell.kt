@@ -598,7 +598,8 @@ fun ZadSegmentedTabs(
         .fillMaxWidth()
         .zadCardShadow(trackShape)
         .clip(trackShape)
-        .background(Color.White)
+        .background(com.example.ui.theme.ZadLuxe.cardWhite)
+        .border(0.5.dp, com.example.ui.theme.ZadLuxe.hairline, trackShape)
         .padding(4.dp)
 
     @Composable
@@ -607,7 +608,7 @@ fun ZadSegmentedTabs(
         Box(
             modifier = segModifier
                 .clip(trackShape)
-                .background(if (isSelected) primary else Color.Transparent)
+                .background(if (isSelected) com.example.ui.theme.ZadLuxe.emerald else Color.Transparent)
                 .clickable { onSelect(index) }
                 .padding(horizontal = 14.dp, vertical = 9.dp),
             contentAlignment = Alignment.Center
