@@ -1130,6 +1130,8 @@
     <!-- What Zad knows about you — long-term memory transparency (zad_memory) -->
     <string name="zad_memory_title">What Zad knows about you</string>
     <string name="zad_memory_subtitle">Things Zad has learned about you</string>
+    <string name="achievements_menu_title">Achievements &amp; Ranks</string>
+    <string name="achievements_menu_subtitle">Your points and achievements from price contributions</string>
     <string name="zad_memory_empty_title">No memories yet</string>
     <string name="zad_memory_empty_subtitle">Zad will learn about you gradually as you use the app</string>
     <string name="zad_memory_evidence_count">Confirmed %1$d times</string>

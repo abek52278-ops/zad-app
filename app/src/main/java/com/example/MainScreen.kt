@@ -69,6 +69,9 @@ object ZadNav {
     const val ZAD_MEMORY = "zad_memory"
     // "أدوية العيلة" — رؤية للوالدين بس، متاحة من شاشة الصيدلية.
     const val FAMILY_PHARMACY = "family_pharmacy"
+    // "الإنجازات والرتب" — إنجازات المساهمة بالأسعار (user_achievements)، متاحة من
+    // إعدادات البروفايل. كانت الشاشة موجودة بالكامل بس من غير أي route ليها.
+    const val ACHIEVEMENTS = "achievements"
 }
 
 /** Routes that own the whole viewport — no shell header, no bottom pill. */
@@ -83,6 +86,7 @@ private val fullScreenRoutes = setOf(
     ZadNav.AGENT_ACTION_LOG,
     ZadNav.ZAD_MEMORY,
     ZadNav.FAMILY_PHARMACY,
+    ZadNav.ACHIEVEMENTS,
 )
 
 @Composable
@@ -555,6 +559,9 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                         }
                         composable(ZadNav.ZAD_MEMORY) {
                             com.example.ui.screens.ZadMemoryScreen(onBack = { navController.popBackStack() })
+                        }
+                        composable(ZadNav.ACHIEVEMENTS) {
+                            com.example.ui.screens.AchievementsRoute(onBack = { navController.popBackStack() })
                         }
                         composable(ZadNav.FAMILY_PHARMACY) {
                             val famState by familyViewModel.state.collectAsState()

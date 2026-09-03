@@ -1091,6 +1091,8 @@
     <!-- Zad senin hakkında ne biliyor — uzun vadeli hafıza şeffaflığı (zad_memory) -->
     <string name="zad_memory_title">Zad senin hakkında ne biliyor</string>
     <string name="zad_memory_subtitle">Zad\'ın senin hakkında öğrendikleri</string>
+    <string name="achievements_menu_title">Başarılar ve Rütbeler</string>
+    <string name="achievements_menu_subtitle">Fiyat katkılarından kazandığın puanlar ve başarılar</string>
     <string name="zad_memory_empty_title">Henüz hafıza yok</string>
     <string name="zad_memory_empty_subtitle">Zad, uygulamayı kullandıkça seni tanıyacak</string>
     <string name="zad_memory_evidence_count">%1$d kez doğrulandı</string>

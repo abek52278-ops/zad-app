@@ -10,7 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -18,6 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.SupabaseRepo
+import com.example.ui.components.ZadLoadingState
 import com.example.ui.theme.primary
 
 data class AchievementData(
@@ -39,6 +41,133 @@ data class UserStatsData(
     val nextAchievementName: String?,
     val nextAchievementProgress: String?
 )
+
+enum class AchievementCondition { CONTRIBUTION_COUNT, STREAK, TOTAL_SCORE }
+
+data class AchievementCatalogEntry(
+    val id: String,
+    val name: String,
+    val description: String,
+    val icon: String,
+    val points: Int,
+    val condition: AchievementCondition,
+    val threshold: Int
+)
+
+// نفس الكتالوج بالظبط اللي في supabase/functions/zad-market-intelligence/gamification.ts
+// (ACHIEVEMENTS) — ده كتالوج التعريفات الثابت بس (اسم/أيقونة/شرط الفتح)؛ حالة "مفتوح"
+// الفعلية بتيجي من صفوف user_achievements الحقيقية (SupabaseRepo.getUserAchievements)،
+// مش محسوبة هنا. ملحوظة: gamification.ts نفسه مش متستدعى من index.ts حاليًا، يعني
+// مفيش صفوف بتتكتب في user_achievements فعليًا لحد دلوقتي — الشاشة صادقة وهتفضل
+// فاضية لحد ما ده يتوصل من ناحية السيرفر (خارج نطاق الإصلاح ده).
+val ACHIEVEMENT_CATALOG = listOf(
+    AchievementCatalogEntry("first_step", "الخطوة الأولى", "أضف سعرك الأول", "🌟", 10, AchievementCondition.CONTRIBUTION_COUNT, 1),
+    AchievementCatalogEntry("rising_star", "نجم صاعد", "أضف 10 أسعار", "⭐", 50, AchievementCondition.CONTRIBUTION_COUNT, 10),
+    AchievementCatalogEntry("market_analyst", "محلل أسواق", "أضف 50 سعر", "📊", 200, AchievementCondition.CONTRIBUTION_COUNT, 50),
+    AchievementCatalogEntry("expert_reporter", "خبير التقارير", "أضف 100 سعر", "🏆", 500, AchievementCondition.CONTRIBUTION_COUNT, 100),
+    AchievementCatalogEntry("on_fire", "أسبوع متتالي", "ساهم 7 أيام متتالية", "🔥", 100, AchievementCondition.STREAK, 7),
+    AchievementCatalogEntry("consistency", "الصبر والمثابرة", "مجموع 500 نقطة", "💪", 150, AchievementCondition.TOTAL_SCORE, 500)
+)
+
+// نفس منطق calculateStreak في gamification.ts حرفيًا (streak = 1 لو آخر مساهمة خلال
+// يوم، غير كده صفر) — مش منطق تراكمي حقيقي، ده قصور موجود في الكود الأصلي مش من هنا.
+fun calculateContributionStreak(lastContributionAtIso: String?): Int {
+    if (lastContributionAtIso.isNullOrBlank()) return 0
+    return try {
+        val lastMillis = java.time.Instant.parse(lastContributionAtIso).toEpochMilli()
+        val diffMillis = System.currentTimeMillis() - lastMillis
+        val diffDays = kotlin.math.ceil(diffMillis / 86_400_000.0).toInt()
+        if (diffDays > 1) 0 else 1
+    } catch (e: Exception) {
+        0
+    }
+}
+
+// بيحول صفوف user_achievements الحقيقية + أرقام price_index الحقيقية لنفس شكل
+// UserStatsData/AchievementData اللي الشاشة محتاجاه — بدل الـ parameters الفاضية.
+fun buildAchievementsUiState(
+    unlockedRows: List<com.example.data.ZadUserAchievement>,
+    contributionCount: Int,
+    currentStreak: Int
+): Pair<UserStatsData, List<AchievementData>> {
+    val unlockedIds = unlockedRows.map { it.achievementId }.toSet()
+    val totalPoints = unlockedRows.sumOf { it.pointsEarned }
+
+    val achievements = ACHIEVEMENT_CATALOG.map { def ->
+        val row = unlockedRows.find { it.achievementId == def.id }
+        AchievementData(
+            id = def.id,
+            name = def.name,
+            description = def.description,
+            icon = def.icon,
+            points = def.points,
+            isUnlocked = row != null,
+            unlockedAt = row?.unlockedAt
+        )
+    }
+
+    fun conditionMet(def: AchievementCatalogEntry): Boolean = when (def.condition) {
+        AchievementCondition.CONTRIBUTION_COUNT -> contributionCount >= def.threshold
+        AchievementCondition.STREAK -> currentStreak >= def.threshold
+        AchievementCondition.TOTAL_SCORE -> totalPoints >= def.threshold
+    }
+
+    val next = ACHIEVEMENT_CATALOG
+        .filter { it.id !in unlockedIds && !conditionMet(it) }
+        .minByOrNull { it.threshold }
+
+    val progressText = next?.let { def ->
+        when (def.condition) {
+            AchievementCondition.CONTRIBUTION_COUNT -> "$contributionCount/${def.threshold} مساهمة"
+            AchievementCondition.STREAK -> "$currentStreak/${def.threshold} أيام متتالية"
+            AchievementCondition.TOTAL_SCORE -> "$totalPoints/${def.threshold} نقطة"
+        }
+    }
+
+    val stats = UserStatsData(
+        level = (totalPoints / 100) + 1,
+        totalPoints = totalPoints,
+        totalContributions = contributionCount,
+        currentStreak = currentStreak,
+        achievementsUnlocked = unlockedRows.size,
+        nextAchievementName = next?.name,
+        nextAchievementProgress = progressText
+    )
+    return stats to achievements
+}
+
+/**
+ * حالة محلية بسيطة (مش ViewModel) — نفس نمط ZadMemoryScreen/AgentActionLogScreen:
+ * قراءة Supabase مباشرة من غير أي نداء LLM هنا، فمفيش داعي لدورة حياة ViewModel كاملة.
+ * كانت الشاشة قبل كده بتاخد stats/achievements كـ parameters فاضية بلا أي caller حقيقي.
+ */
+@Composable
+fun AchievementsRoute(onBack: () -> Unit) {
+    var stats by remember { mutableStateOf<UserStatsData?>(null) }
+    var achievements by remember { mutableStateOf<List<AchievementData>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        loading = true
+        val unlocked = SupabaseRepo.getUserAchievements()
+        val contributionTimestamps = SupabaseRepo.getCrowdsourceContributionTimestamps()
+        val currentStreak = calculateContributionStreak(contributionTimestamps.firstOrNull())
+        val (loadedStats, loadedAchievements) = buildAchievementsUiState(
+            unlockedRows = unlocked,
+            contributionCount = contributionTimestamps.size,
+            currentStreak = currentStreak
+        )
+        stats = loadedStats
+        achievements = loadedAchievements
+        loading = false
+    }
+
+    if (loading || stats == null) {
+        ZadLoadingState(modifier = Modifier.fillMaxSize())
+    } else {
+        AchievementsScreen(stats = stats!!, achievements = achievements, onBack = onBack)
+    }
+}
 
 @Composable
 fun AchievementsScreen(
@@ -130,7 +259,7 @@ fun AchievementsScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxHeight()
-                                    .fillMaxWidth(fraction = 0.6f)
+                                    .fillMaxWidth(fraction = ((stats.totalPoints % 100) / 100f).coerceIn(0f, 1f))
                                     .background(Color.White, shape = RoundedCornerShape(4.dp))
                             )
                         }

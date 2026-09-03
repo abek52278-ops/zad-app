@@ -1170,6 +1170,47 @@ object SupabaseRepo {
         }
     }
 
+    // ─── إنجازات المساهمة بالأسعار (user_achievements + price_index crowdsource) ────
+    // mirror لـ zad-market-intelligence/gamification.ts (كتالوج الإنجازات في
+    // ui/screens/AchievementsScreen.kt) — بيقرا فقط الصفوف الحقيقية اللي اتفتحت فعلاً.
+
+    suspend fun getUserAchievements(): List<ZadUserAchievement> {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id ?: return emptyList()
+            Log.d(TAG, "getUserAchievements() → userId=$userId, table=user_achievements")
+            val result = client.postgrest["user_achievements"].select {
+                filter { eq("user_id", userId) }
+            }.decodeList<ZadUserAchievement>()
+            Log.d(TAG, "getUserAchievements() → returned ${result.size} rows")
+            result
+        } catch (e: Exception) {
+            Log.e(TAG, "getUserAchievements() FAILED: ${e.message}")
+            emptyList()
+        }
+    }
+
+    private data class PriceContributionRow(val timestamp: String)
+
+    suspend fun getCrowdsourceContributionTimestamps(): List<String> {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id ?: return emptyList()
+            Log.d(TAG, "getCrowdsourceContributionTimestamps() → userId=$userId, table=price_index")
+            val rows = client.postgrest["price_index"]
+                .select(Columns.list("timestamp")) {
+                    filter {
+                        eq("user_id", userId)
+                        eq("source", "crowdsource")
+                    }
+                    order("timestamp", Order.DESCENDING)
+                }
+                .decodeList<PriceContributionRow>()
+            rows.map { it.timestamp }
+        } catch (e: Exception) {
+            Log.e(TAG, "getCrowdsourceContributionTimestamps() FAILED: ${e.message}")
+            emptyList()
+        }
+    }
+
     // ─── Obligations (Task 26) ──────────────────────────────────────────────────
     // نفس نمط getDebts() — مش مخزّنة في Room، بتُحمّل من Supabase مباشرة. بس الصفوف
     // confirmed=true بتدخل في committed/available (BudgetMath.availableInCycle) — صفوف

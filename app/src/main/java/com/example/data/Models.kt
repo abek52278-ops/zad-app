@@ -423,6 +423,15 @@ data class ZadDebt(
     @SerialName("created_at") val createdAt: String? = null
 )
 
+@Serializable
+data class ZadUserAchievement(
+    val id: Long = 0,
+    @SerialName("user_id") val userId: String? = null,
+    @SerialName("achievement_id") val achievementId: String,
+    @SerialName("points_earned") val pointsEarned: Int = 0,
+    @SerialName("unlocked_at") val unlockedAt: String? = null
+)
+
 @Entity(tableName = "zad_behavior_patterns")
 @Serializable
 data class ZadBehaviorPattern(
