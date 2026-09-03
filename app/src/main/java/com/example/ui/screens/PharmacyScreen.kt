@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.border
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
@@ -401,15 +402,6 @@ fun PharmacyScreen(
 }
 
 @Composable
-private fun PharmacySummaryStat(value: String, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = Typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(label, style = Typography.labelSmall, color = Color.White.copy(alpha = 0.85f))
-    }
-}
-
-@Composable
 private fun ExpiryTrackerCard(item: ZadPharmacyItem, daysLeft: Int) {
     val urgencyColor = if (daysLeft <= 7) dangerColor else warningColor
     Box(
@@ -456,8 +448,9 @@ private fun PharmacyItemCard(
     }
 
     GlassCard(
-        modifier = Modifier.shadow(elevation = 6.dp, shape = RoundedCornerShape(18.dp), spotColor = statusColor.copy(alpha = 0.16f)).pressableScale(),
-        containerColor = surface.copy(alpha = 0.85f),
+        modifier = Modifier.shadow(elevation = 6.dp, shape = com.example.ui.theme.ZadLuxe.squircle, spotColor = statusColor.copy(alpha = 0.16f)).pressableScale(),
+        shape = com.example.ui.theme.ZadLuxe.squircle,
+        containerColor = com.example.ui.theme.ZadLuxe.cardWhite,
         borderColor = statusColor.copy(alpha = 0.25f),
         contentPadding = 0.dp
     ) {
@@ -628,7 +621,7 @@ private fun ConfirmQuantityDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.confirm_quantity_title)) },
         text = {
-            Column {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()) {
                 Text("${item.name} — ${stringResource(R.string.current_recorded_quantity)}: ${item.remainingQuantity} ${item.unit}", style = Typography.bodySmall, color = onSurfaceVariant)
                 Spacer(modifier = Modifier.height(12.dp))
                 OutlinedTextField(
@@ -1027,7 +1020,7 @@ internal fun SmartAddMedicationDialog(onDismiss: () -> Unit, onSubmit: (String) 
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.smart_pharmacy_add_dialog_title), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.imePadding()) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()) {
                 Text(stringResource(R.string.smart_pharmacy_add_dialog_hint), style = Typography.bodySmall, color = onSurfaceVariant)
                 OutlinedTextField(
                     value = text,
@@ -1081,7 +1074,7 @@ private fun RefillPharmacyItemDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.renew_order_dialog_title, item.name), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.imePadding()) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()) {
                 OutlinedTextField(
                     value = addedQuantity, onValueChange = { addedQuantity = it },
                     label = { Text(stringResource(R.string.added_quantity_hint, item.unit)) },
@@ -1144,12 +1137,12 @@ private fun PharmacyStatCard(
     valueColor: Color,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = com.example.ui.theme.ZadLuxe.squircle
     Column(
         modifier = modifier
-            .zadCardShadow(shape)
             .clip(shape)
-            .background(surface)
+            .background(com.example.ui.theme.ZadLuxe.cardWhite)
+            .border(0.5.dp, com.example.ui.theme.ZadLuxe.hairline, shape)
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -1221,8 +1214,11 @@ private fun FamilyPharmacyMemberHeader(member: com.example.data.FamilyMember) {
 @Composable
 private fun FamilyPharmacyItemRow(item: ZadPharmacyItem) {
     Row(
-        modifier = Modifier.fillMaxWidth().zadCardShadow(RoundedCornerShape(16.dp))
-            .clip(RoundedCornerShape(16.dp)).background(surface).padding(16.dp),
+        modifier = Modifier.fillMaxWidth()
+            .clip(com.example.ui.theme.ZadLuxe.squircle)
+            .background(com.example.ui.theme.ZadLuxe.cardWhite)
+            .border(0.5.dp, com.example.ui.theme.ZadLuxe.hairline, com.example.ui.theme.ZadLuxe.squircle)
+            .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
