@@ -10,6 +10,14 @@
     <string name="language_toggle">العربية</string>
     <string name="session_expired_message">انتهت صلاحية جلستك، يرجى تسجيل الدخول مرة أخرى</string>
 
+    <!-- New Strings added for fixes -->
+    <string name="voice_unavailable_toast">الصوت غير متاح حالياً — حاول مرة ثانية</string>
+    <string name="ad_loading_retry_toast">جاري تحميل الإعلان... انتظر ثوانٍ وحاول مرة ثانية 🎬</string>
+    <string name="ad_failed_toast">الإعلان غير متاح حالياً، حاول بعد قليل</string>
+    <string name="ad_loading_text">جاري التحميل...</string>
+    <string name="grocery_purchase_added_count">أضفت %1$d عناصر ✅</string>
+    <string name="listen_action">استمع</string>
+
     <!-- Drawer Items -->
     <string name="nav_home">لوحة التحكم</string>
     <string name="nav_mother_tools">أدوات الأم</string>

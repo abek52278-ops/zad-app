@@ -11,7 +11,15 @@
     <string name="get_started">Get Started</string>
     <string name="language_toggle">English</string>
     <string name="session_expired_message">Your session has expired, please log in again</string>
-    
+
+    <!-- New Strings added for fixes -->
+    <string name="voice_unavailable_toast">Voice is unavailable right now — try again</string>
+    <string name="ad_loading_retry_toast">Loading the ad… give it a few seconds and try again 🎬</string>
+    <string name="ad_failed_toast">Ad unavailable right now, try again shortly</string>
+    <string name="ad_loading_text">Loading…</string>
+    <string name="grocery_purchase_added_count">Added %1$d items ✅</string>
+    <string name="listen_action">Listen</string>
+
     <!-- Drawer Items -->
     <string name="nav_home">Dashboard</string>
     <string name="nav_mother_tools">Mom\'s Tools</string>

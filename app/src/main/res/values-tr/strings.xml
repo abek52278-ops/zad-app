@@ -12,6 +12,14 @@
     <string name="language_toggle">Türkçe</string>
     <string name="session_expired_message">Oturumunuzun süresi doldu, lütfen tekrar giriş yapın</string>
 
+    <!-- New Strings added for fixes -->
+    <string name="voice_unavailable_toast">Ses şu anda kullanılamıyor — tekrar deneyin</string>
+    <string name="ad_loading_retry_toast">Reklam yükleniyor… birkaç saniye bekleyip tekrar deneyin 🎬</string>
+    <string name="ad_failed_toast">Reklam şu anda kullanılamıyor, kısa süre sonra tekrar deneyin</string>
+    <string name="ad_loading_text">Yükleniyor…</string>
+    <string name="grocery_purchase_added_count">%1$d ürün eklendi ✅</string>
+    <string name="listen_action">Dinle</string>
+
     <!-- Drawer Items -->
     <string name="nav_home">Ana sayfa</string>
     <string name="nav_mother_tools">Anne araçları</string>
