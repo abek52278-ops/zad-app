@@ -149,7 +149,7 @@
 
 1. **الميزانية** (`FinancesScreen`/`BudgetScreen`/`SubscriptionsScreen`/`StatementImportScreen`) — ✅ 2026-09-03.
 2. **المخزون والتسوق** (`InventoryScreen`/`ShoppingListScreen`/`RecommendationsScreen`/`MaintenanceScreen`/`PriceReportingScreen`) — ✅ 2026-09-03.
-3. الصيدلية (`PharmacyScreen`).
+3. **الصيدلية** (`PharmacyScreen`) — ✅ 2026-09-03.
 4. عقل زاد والعائلة (`ZadIntelligenceScreen` + `FamilyScreen` + `TasbihaScreen` + `ZadKnowledgeMapScreen` + `ZadMemoryScreen` + `AgentActionLogScreen` + `AchievementsScreen`) — الأتقل، فيها تدقيق الـ40+ كارت المؤجل من §5.
 5. البروفايل وملحقاته.
 6. الدخول والاشتراك (`auth/*`, `ZadSubscriptionPaywallScreen`, `SubscriptionPlansScreen`, `BudgetGateScreen`).
@@ -159,6 +159,8 @@
 
 **مرحلة 2 (المخزون والتسوق) — نُفذت**: `InventoryItemCard` بقت `ZadLuxe.squircle`+`cardWhite`+hairline. `ShoppingListScreen`'s `ShoppingBudgetHeader` بقت solid `ZadLuxe.emerald` بدل جراديانت `primaryDark→primary` (حالة تجاوز الميزانية فضلت أحمر زي ما هي، صح دلاليًا). `RecommendationsScreen` (كانت أقل ملف متوافق مع التوكنز، صفر `ui.theme` import) بقت خلفية+كارت الإحصائيات+كروت التوصيات كلهم `ZadLuxe`. `MaintenanceScreen`'s كارت الملخص بقى `ZadLuxe`. `PriceReportingScreen.kt` (أكبر تعديل في المرحلة — كان الملف الأقل توافقًا) بقى بالكامل `ZadLuxe`: الخلفية، الكروت، الأزرار، اللوحة.
 فجوات حقيقية اتقفلت: `EditInventoryDialog` كان فيه `imePadding()` بس مفيش `verticalScroll()`. `PriceReportingScreen`/`CrowdsourceDashboard` مكانش فيهم `ZadHubListBottomPadding` خالص (كان `Spacer(16.dp)` ثابت بدالها). `MaintenanceScreen` كان فيه `Spacer(72.dp)` ثابت زيادة فوق الـ110dp `contentPadding` اللي أصلاً موجودة. `LeaderboardEntryData.score` (`PriceReportingViewModel.kt`) كان رقم مختلق `(index+1)*10` — ميت (مش متعرض في `LeaderboardCard`) بس لسه بيتحسب؛ اتشال الحقل والحساب بالكامل. **تحقق فعلي**: `compileDebugKotlin` نجح (بعد إعادة محاولة واحدة — Kotlin daemon اتقفل عشوائيًا، مش خطأ كود)، `assembleDebug` نجح بالهيب المخفّض.
+
+**مرحلة 3 (الصيدلية) — نُفذت**: `PharmacyScreen.kt` (ملف واحد للبوابة كلها، شخصي+عائلي) كان أنضف ملف اتلمس لحد دلوقتي — Zero-Mock نضيف 100%، `ZadEmptyState`/`ZadLoadingState`/`ZadHubListBottomPadding` كلهم مطبّقين أصلاً على الفيوهين. `PharmacyItemCard`/`PharmacyStatCard`/`FamilyPharmacyItemRow` بقوا `ZadLuxe` (شريط الحالة اللوني على يمين `PharmacyItemCard` فضل أحمر/أصفر/أخضر دلالي زي ما هو). فجوات اتقفلت: `ConfirmQuantityDialog` مكانش فيها لا `imePadding()` ولا `verticalScroll()`؛ `SmartAddMedicationDialog`/`RefillPharmacyItemDialog` كان فيهم `imePadding()` بس مفيش `verticalScroll()`. `PharmacySummaryStat` (كومبوننت ميت، صفر استدعاء، بديلها `PharmacyStatCard` شغال) اتشال بالكامل. **تحقق فعلي**: `compileDebugKotlin` + `assembleDebug` نجحوا.
 
 - **2026-09-03 — بوابة Home (§2.1/§4.1، إعادة بناء `HomeScreen.kt`)**: نُفذت. **عكس قرار §4.1 الموثّق سابقًا** (نقل المحفظة/الرسم البياني لـFinances) — العميل بعت مخطط تصميم (mockup) صريح يفضّل يفضلوا في Home، فده اعتماد صريح جديد بيلغي القرار القديم: `ZadWalletHeroCard`/`ZadQuickExpenseSheet` فضلوا في Home زي ما هم، ومفيش أي شاشة نُقلت. الفجوة الحقيقية اللي اتقفلت: `ZadBezierSpendChart` كان *مستورد* في `HomeScreen.kt` بس **صفر استدعاء** — كارت جديد `ZadWeeklySpendChartCard` (مصروف آخر ٧ أيام حقيقي من `zad_transactions`، مجمّع يوميًا) بقى بيعرضه فعليًا.
   نظام تصميم فاخر جديد `ZadHomeLuxe.kt` (Emerald `0xFF1B4332`/Ochre `0xFFC68216`/Terracotta `0xFFD95726`/hairline `0xFFE0E3DA`/squircle 20.dp) — نطاقه Home وكومبوننتاتها بس، مش بديل لـ`ZadV3`/`ZadV2` المشترك.
