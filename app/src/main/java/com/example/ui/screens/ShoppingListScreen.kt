@@ -345,17 +345,17 @@ private fun ShoppingBudgetHeader(totalPrice: Double, budgetRemaining: Double, bu
     val context = LocalContext.current
     val isOverBudget = totalPrice > budgetRemaining && budgetRemaining > 0
     com.example.ui.components.ZadListCard(
-        shape = RoundedCornerShape(20.dp),
+        shape = com.example.ui.theme.ZadLuxe.squircle,
         containerColor = Color.Transparent,
         contentPadding = 0.dp
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Brush.horizontalGradient(
-                    if (isOverBudget) listOf(Color(0xFFC62828), Color(0xFFE53935))
-                    else listOf(primaryDark, primary)
-                ))
+                .background(
+                    if (isOverBudget) Brush.horizontalGradient(listOf(Color(0xFFC62828), Color(0xFFE53935)))
+                    else androidx.compose.ui.graphics.SolidColor(com.example.ui.theme.ZadLuxe.emerald)
+                )
                 .padding(20.dp)
         ) {
             Column {

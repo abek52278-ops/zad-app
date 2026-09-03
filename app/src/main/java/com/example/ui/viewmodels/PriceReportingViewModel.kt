@@ -23,8 +23,7 @@ data class PriceReportState(
 data class LeaderboardEntryData(
     val userId: String,
     val userName: String,
-    val contributionCount: Int,
-    val score: Int
+    val contributionCount: Int
 )
 
 class PriceReportingViewModel : ViewModel() {
@@ -108,8 +107,7 @@ class PriceReportingViewModel : ViewModel() {
                         LeaderboardEntryData(
                             userId = userId,
                             userName = "المساهم ${index + 1}",
-                            contributionCount = count,
-                            score = (index + 1) * 10
+                            contributionCount = count
                         )
                     }
 

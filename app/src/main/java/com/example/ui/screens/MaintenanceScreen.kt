@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -115,7 +116,6 @@ fun MaintenanceScreen(
                         }
                     }
                 }
-                item { Spacer(modifier = Modifier.height(72.dp)) }
             }
         }
 
@@ -147,12 +147,12 @@ private fun MaintenanceSummaryStat(
     label: String,
     valueColor: Color
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = com.example.ui.theme.ZadLuxe.squircle
     Column(
         modifier = modifier
-            .zadCardShadow(shape)
             .clip(shape)
-            .background(surface)
+            .background(com.example.ui.theme.ZadLuxe.cardWhite)
+            .border(0.5.dp, com.example.ui.theme.ZadLuxe.hairline, shape)
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {

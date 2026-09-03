@@ -512,7 +512,7 @@ private fun EditInventoryDialog(
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.imePadding()
+                modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()
             ) {
                 OutlinedTextField(
                     value = name,
@@ -772,15 +772,15 @@ private fun InventoryItemCard(
     val days = daysUntilExpiry(item.expiryDate)
     val catDef = categoryDefFor(item.category, item.itemName)
     val isLowStock = item.quantity <= (item.lowStockThreshold ?: 2)
-    val cardShape = RoundedCornerShape(18.dp)
+    val cardShape = com.example.ui.theme.ZadLuxe.squircle
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .zadCardShadow(cardShape, elevation = 2.dp)
             .clip(cardShape)
-            .background(Color.White)
-            .border(1.dp, Color(0xFFE2E8F0), cardShape)
+            .background(com.example.ui.theme.ZadLuxe.cardWhite)
+            .border(0.5.dp, com.example.ui.theme.ZadLuxe.hairline, cardShape)
             .pressableScale()
     ) {
         Row(

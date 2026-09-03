@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import android.util.Log
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -139,7 +140,7 @@ fun RecommendationsScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF8FAFC)),
+            .background(com.example.ui.theme.ZadLuxe.canvasBackground),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = com.example.ui.theme.ZadHubListBottomPadding),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -148,13 +149,9 @@ fun RecommendationsScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(
-                        brush = androidx.compose.ui.graphics.Brush.linearGradient(
-                            colors = listOf(Color(0xFF10B981), Color(0xFF059669))
-                        )
-                    ),
+                    .background(androidx.compose.ui.graphics.SolidColor(com.example.ui.theme.ZadLuxe.emerald)),
                 colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                shape = RoundedCornerShape(16.dp)
+                shape = com.example.ui.theme.ZadLuxe.squircle
             ) {
                 Column(
                     modifier = Modifier
@@ -258,9 +255,10 @@ private fun RecommendationCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        shape = RoundedCornerShape(12.dp)
+            .padding(horizontal = 8.dp)
+            .border(0.5.dp, com.example.ui.theme.ZadLuxe.hairline, com.example.ui.theme.ZadLuxe.squircle),
+        colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.ZadLuxe.cardWhite),
+        shape = com.example.ui.theme.ZadLuxe.squircle
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             // Header

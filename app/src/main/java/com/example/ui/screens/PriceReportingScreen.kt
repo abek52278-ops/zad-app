@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -68,8 +69,9 @@ fun PriceReportingScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF8FAFC))
+            .background(com.example.ui.theme.ZadLuxe.canvasBackground)
             .padding(16.dp),
+        contentPadding = PaddingValues(bottom = com.example.ui.theme.ZadHubListBottomPadding),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Header
@@ -81,7 +83,7 @@ fun PriceReportingScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Default.ArrowBack, "Back", tint = primary)
+                    Icon(Icons.Default.ArrowBack, "Back", tint = com.example.ui.theme.ZadLuxe.emerald)
                 }
                 Text(
                     "سجّل السعر",
@@ -90,7 +92,7 @@ fun PriceReportingScreen(
                     color = Color(0xFF0F172A)
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                Icon(Icons.Default.TrendingUp, "Report", tint = primary, modifier = Modifier.size(24.dp))
+                Icon(Icons.Default.TrendingUp, "Report", tint = com.example.ui.theme.ZadLuxe.emerald, modifier = Modifier.size(24.dp))
             }
         }
 
@@ -99,9 +101,10 @@ fun PriceReportingScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
-                shape = RoundedCornerShape(12.dp)
+                    .padding(horizontal = 8.dp)
+                    .border(0.5.dp, com.example.ui.theme.ZadLuxe.hairline, com.example.ui.theme.ZadLuxe.squircle),
+                colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.ZadLuxe.emerald.copy(alpha = 0.06f)),
+                shape = com.example.ui.theme.ZadLuxe.squircle
             ) {
                 Row(
                     modifier = Modifier
@@ -112,7 +115,7 @@ fun PriceReportingScreen(
                     Icon(
                         Icons.Default.Info,
                         "Info",
-                        tint = primary,
+                        tint = com.example.ui.theme.ZadLuxe.emerald,
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -241,7 +244,7 @@ fun PriceReportingScreen(
                     .fillMaxWidth()
                     .height(48.dp),
                 enabled = itemName.isNotEmpty() && price.isNotEmpty() && !isSubmitting,
-                colors = ButtonDefaults.buttonColors(containerColor = primary)
+                colors = ButtonDefaults.buttonColors(containerColor = com.example.ui.theme.ZadLuxe.emerald)
             ) {
                 if (isSubmitting) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
@@ -251,11 +254,6 @@ fun PriceReportingScreen(
                     Text("أرسل السعر", fontWeight = FontWeight.Bold)
                 }
             }
-        }
-
-        // Spacer
-        item {
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
@@ -270,8 +268,9 @@ fun CrowdsourceDashboard(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF8FAFC))
+            .background(com.example.ui.theme.ZadLuxe.canvasBackground)
             .padding(16.dp),
+        contentPadding = PaddingValues(bottom = com.example.ui.theme.ZadHubListBottomPadding),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Header
@@ -283,7 +282,7 @@ fun CrowdsourceDashboard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Default.ArrowBack, "Back", tint = primary)
+                    Icon(Icons.Default.ArrowBack, "Back", tint = com.example.ui.theme.ZadLuxe.emerald)
                 }
                 Text(
                     "لوحة الأسعار",
@@ -312,7 +311,7 @@ fun CrowdsourceDashboard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = primary)
+                colors = ButtonDefaults.buttonColors(containerColor = com.example.ui.theme.ZadLuxe.emerald)
             ) {
                 Icon(Icons.Default.Add, "Report", tint = Color.White)
                 Spacer(modifier = Modifier.width(8.dp))
@@ -346,8 +345,6 @@ fun CrowdsourceDashboard(
                 )
             }
         }
-
-        item { Spacer(modifier = Modifier.height(16.dp)) }
     }
 }
 
@@ -360,10 +357,10 @@ private fun StatCard(
 ) {
     Card(
         modifier = modifier
-            .background(Color.White)
-            .height(100.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        shape = RoundedCornerShape(12.dp)
+            .height(100.dp)
+            .border(0.5.dp, com.example.ui.theme.ZadLuxe.hairline, com.example.ui.theme.ZadLuxe.squircle),
+        colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.ZadLuxe.cardWhite),
+        shape = com.example.ui.theme.ZadLuxe.squircle
     ) {
         Column(
             modifier = Modifier
@@ -374,14 +371,14 @@ private fun StatCard(
             Icon(
                 icon,
                 title,
-                tint = primary,
+                tint = com.example.ui.theme.ZadLuxe.emerald,
                 modifier = Modifier.size(20.dp)
             )
             Text(
                 value,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                color = primary
+                color = com.example.ui.theme.ZadLuxe.emerald
             )
             Text(
                 title,
@@ -397,9 +394,10 @@ private fun LeaderboardCard(entry: com.example.ui.viewmodels.LeaderboardEntryDat
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        shape = RoundedCornerShape(12.dp)
+            .padding(horizontal = 8.dp)
+            .border(0.5.dp, com.example.ui.theme.ZadLuxe.hairline, com.example.ui.theme.ZadLuxe.squircle),
+        colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.ZadLuxe.cardWhite),
+        shape = com.example.ui.theme.ZadLuxe.squircle
     ) {
         Row(
             modifier = Modifier
