@@ -67,6 +67,7 @@ fun LoginScreen(
             .fillMaxSize()
             .padding(horizontal = 24.dp)
             .verticalScroll(rememberScrollState())
+            .imePadding()
     ) {
         Spacer(modifier = Modifier.height(64.dp))
 
@@ -240,7 +241,7 @@ fun LoginScreen(
             onDismissRequest = { showForgotPasswordDialog = false },
             title = { Text(text = "استعادة كلمة المرور") },
             text = {
-                Column {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()) {
                     Text(text = "أدخل بريدك الإلكتروني. سنرسل لك رابطاً لاستعادة كلمة المرور.")
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(

@@ -35,7 +35,6 @@ import kotlinx.coroutines.delay
 @Composable
 fun SignUpScreen(
     viewModel: AuthViewModel,
-    onNavigateToMain: () -> Unit,
     onNavigateToLogin: () -> Unit
 ) {
     var username by remember { mutableStateOf("") }
@@ -66,6 +65,7 @@ fun SignUpScreen(
             .fillMaxSize()
             .padding(horizontal = 24.dp)
             .verticalScroll(rememberScrollState())
+            .imePadding()
     ) {
         Spacer(modifier = Modifier.height(48.dp))
         

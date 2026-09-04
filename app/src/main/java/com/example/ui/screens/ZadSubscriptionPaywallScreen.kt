@@ -99,10 +99,10 @@ fun ZadSubscriptionPaywallScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
+                    .clip(com.example.ui.theme.ZadLuxe.squircle)
                     .background(
                         Brush.linearGradient(
-                            colors = listOf(Color(0xFF064E3B), Color(0xFF0F9B76), Color(0xFF047857))
+                            colors = listOf(com.example.ui.theme.ZadLuxe.emerald, Color(0xFF0F9B76))
                         )
                     )
                     .padding(22.dp)
@@ -282,7 +282,10 @@ fun ZadSubscriptionPaywallScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // Subscribe Button via Google Play
+            // Subscribe Button via Google Play — billingState كانت متجمّعة بس مش
+            // متقروية خالص هنا، فمفيش أي فرق مرئي وقت الشراء فعليًا بيتنفذ ولا لو
+            // فشل الاتصال بـGoogle Play من الأصل (السعر بيفضل "جاري التحميل" للأبد).
+            val isPurchasing = billingState is com.example.billing.BillingState.Purchasing
             Button(
                 onClick = {
                     if (activity != null) {
@@ -295,6 +298,7 @@ fun ZadSubscriptionPaywallScreen(
                         Toast.makeText(context, "تعذر تشغيل نافذة الدفع، يرجى إعادة فتح التطبيق", Toast.LENGTH_SHORT).show()
                     }
                 },
+                enabled = !isPurchasing,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(54.dp)
@@ -305,12 +309,28 @@ fun ZadSubscriptionPaywallScreen(
                     contentColor = Color.White
                 )
             ) {
-                Icon(Icons.Default.ShoppingBag, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color(0xFF6EE7B7))
+                if (isPurchasing) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                } else {
+                    Icon(Icons.Default.ShoppingBag, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color(0xFF6EE7B7))
+                }
                 Spacer(Modifier.width(8.dp))
                 Text(
                     text = "اشترك في ${selectedPlan.titleAr} عبر Google Play",
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 14.5.sp
+                )
+            }
+
+            val billingErrorState = billingState
+            if (billingErrorState is com.example.billing.BillingState.Error) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = billingErrorState.message,
+                    color = MaterialTheme.colorScheme.error,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
 
@@ -322,10 +342,11 @@ fun ZadSubscriptionPaywallScreen(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // مسار الدفع الحقيقي الوحيد هنا Google Play Billing — التطبيق أندرويد،
+                // فمفيش Apple Pay فعليًا، ومفيش تكامل Mada مباشر. عرضهم كطرق دفع مقبولة
+                // كان وعد كاذب بمرونة دفع مش موجودة.
                 listOf(
                     "Google Play" to "💳",
-                    "Mada / مدى" to "🇸🇦",
-                    "Apple Pay" to "🍏",
                     "دفع آمن ومحمي" to "🔒"
                 ).forEach { (method, icon) ->
                     Box(
@@ -358,8 +379,8 @@ fun ZadSubscriptionPaywallScreen(
             // Ad battery alternative option
             com.example.ui.components.ZadListCard(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                containerColor = Color(0xFF0F172A).copy(alpha = 0.03f),
+                shape = com.example.ui.theme.ZadLuxe.squircle,
+                containerColor = com.example.ui.theme.ZadLuxe.emerald.copy(alpha = 0.04f),
                 contentPadding = 0.dp
             ) {
                 Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {

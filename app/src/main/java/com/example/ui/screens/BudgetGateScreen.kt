@@ -56,7 +56,7 @@ fun BudgetGateScreen(onComplete: (budget: Double, market: Market) -> Unit) {
         contentAlignment = Alignment.Center
     ) {
         Column(
-            modifier = Modifier.verticalScroll(rememberScrollState()),
+            modifier = Modifier.verticalScroll(rememberScrollState()).imePadding(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(

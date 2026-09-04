@@ -61,12 +61,6 @@ fun OnboardingScreen(
     var currentPage by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
-    val infiniteTransition = rememberInfiniteTransition(label = "onboard_bg")
-    val bgOffset by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(6000, easing = LinearEasing), RepeatMode.Reverse),
-        label = "bg_shift"
-    )
 
     Box(modifier = Modifier.fillMaxSize().background(background)) {
         // The mockup's splash canvas — two soft radial washes on #FBFAF8. What stood
@@ -218,7 +212,7 @@ fun FeatureCard(feature: OnboardingFeature, isSelected: Boolean, page: Int = -1)
         modifier = Modifier
             .scale(scale)
             .padding(vertical = 8.dp),
-        shape = RoundedCornerShape(28.dp),
+        shape = com.example.ui.theme.ZadLuxe.squircle,
         contentPadding = 0.dp
     ) {
         Column(

@@ -425,11 +425,6 @@ fun AppNavigation(pendingInviteCode: String? = null) {
         composable("signup") {
             SignUpScreen(
                 viewModel = authViewModel,
-                onNavigateToMain = {
-                    navController.navigate("main") {
-                        popUpTo(0) { inclusive = true }
-                    }
-                },
                 onNavigateToLogin = { navController.navigate("login") }
             )
         }
