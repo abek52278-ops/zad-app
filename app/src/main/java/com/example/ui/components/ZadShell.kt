@@ -764,8 +764,8 @@ fun ZadCameraSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(150.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFF0F172A)),
+                    .clip(com.example.ui.theme.ZadLuxe.squircle)
+                    .background(com.example.ui.theme.ZadLuxe.emerald),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.Default.CameraAlt, contentDescription = null, tint = Color.White.copy(alpha = 0.4f), modifier = Modifier.size(36.dp))
@@ -773,14 +773,14 @@ fun ZadCameraSheet(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ZadSheetButton(
                     text = stringResource(R.string.camera_scan_inventory),
-                    container = primary,
+                    container = com.example.ui.theme.ZadLuxe.emerald,
                     content = Color.White,
                     modifier = Modifier.weight(1f),
                     onClick = onScanInventory
                 )
                 ZadSheetButton(
                     text = stringResource(R.string.camera_scan_receipt),
-                    container = Color(0xFFF1F4F3),
+                    container = com.example.ui.theme.ZadLuxe.emerald.copy(alpha = 0.06f),
                     content = textPrimary,
                     modifier = Modifier.weight(1f),
                     onClick = onScanReceipt

@@ -337,7 +337,7 @@ fun AffiliateEmptyState(searchedTerm: String) {
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            "قريباً هتلاقي منتجات مقترحة من أمازون",
+            "دوّر على المنتج مباشرة في أمازون",
             style = MaterialTheme.typography.bodySmall,
             color = onSurfaceVariant.copy(alpha = 0.6f),
             textAlign = TextAlign.Center

@@ -299,7 +299,7 @@ fun CameraScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(300.dp)
-                    .clip(RoundedCornerShape(24.dp))
+                    .clip(com.example.ui.theme.ZadLuxe.squircle)
                     .background(
                         Brush.linearGradient(
                             colors = listOf(
@@ -838,7 +838,7 @@ private fun ManualInventoryDialog(
         text = {
             Column(modifier = Modifier.fillMaxWidth().heightIn(max = 500.dp)) {
                 Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    modifier = Modifier.verticalScroll(rememberScrollState()).imePadding(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items.indices.toList().forEach { idx ->

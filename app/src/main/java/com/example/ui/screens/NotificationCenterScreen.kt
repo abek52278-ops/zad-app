@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -116,7 +117,7 @@ fun NotificationCenterScreen(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp)
+            contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, com.example.ui.theme.ZadHubListBottomPadding)
         ) {
             if (transactionProposals.isNotEmpty()) {
                 item {
@@ -203,7 +204,6 @@ fun NotificationCenterScreen(
                     )
                 }
             }
-            item { Spacer(Modifier.height(24.dp)) }
         }
     }
 }
@@ -226,14 +226,14 @@ private fun NotificationCard(
     isRead: Boolean,
     onClick: () -> Unit
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = com.example.ui.theme.ZadLuxe.squircle
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 5.dp)
-            .zadCardShadow(shape)
             .clip(shape)
-            .background(surface)
+            .background(com.example.ui.theme.ZadLuxe.cardWhite)
+            .border(0.5.dp, com.example.ui.theme.ZadLuxe.hairline, shape)
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.Top
