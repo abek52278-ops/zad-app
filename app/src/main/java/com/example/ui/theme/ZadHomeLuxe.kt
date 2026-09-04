@@ -1,21 +1,29 @@
 package com.example.ui.theme
 
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 /**
- * ألوان وأشكال الرئيسية الفاخرة (UI_ARCHITECTURE_SPEC.md §2.1/§4.1 rebuild, 2026-09-03).
- * نطاقها HomeScreen وكومبوننتاتها التابعة بس — مش بديل لـ ZadV3/ZadV2 المشترك في
- * باقي التطبيق، عشان إعادة البناء متتسربش تغييرات بصرية على شاشات تانية شغالة.
+ * أسماء مختصرة لتوكنز Cupertino Heritage — **مش بالتة مستقلة**.
+ *
+ * الملف اتكتب أول مرة للرئيسية لوحدها (UI_ARCHITECTURE_SPEC.md §2.1/§4.1، 2026-09-03)
+ * والتعليق القديم هنا كان بيقول "نطاقها HomeScreen بس". ده بقى غلط: §8 من نفس المستند
+ * عمّم `ZadLuxe` على التطبيق كله (٧ مراحل، خلصت 2026-09-04)، وهو دلوقتي في ٢٣ ملف —
+ * الميزانية والمخزون والصيدلية والبروفايل والاشتراك وغيرهم — زيادة على القيم الافتراضية
+ * لـ`ZadListCard` المستخدمة ٦٣ مرة في ١٨ ملف.
+ *
+ * القيم كانت هيكس خام **مكرر حرفياً** من `Color.kt` (نفس الأرقام بالظبط). التكرار ده
+ * معناه إن أي تغيير في البالتة — وأهمه الوضع الداكن — كان هيمشي على مستهلكي
+ * `MaterialTheme` بس ويسيب الـ٢٣ ملف دول على ألوان فاتحة ثابتة. دلوقتي كل قيمة بتشاور
+ * على توكن Heritage نفسه، فمصدر الحقيقة واحد: `Color.kt`.
  */
 object ZadLuxe {
-    val emerald = Color(0xFF1B4332)
-    val ochre = Color(0xFFC68216)
-    val terracotta = Color(0xFFD95726)
-    val canvasBackground = Color(0xFFF8F9FA)
-    val cardWhite = Color(0xFFFFFFFF)
-    val hairline = Color(0xFFE0E3DA)
+    val emerald = ZadForestEmerald
+    val ochre = ZadMustardOchre
+    val terracotta = ZadTerracottaRust
+    val canvasBackground = ZadIosBackground
+    val cardWhite = ZadIosSurface
+    val hairline = ZadIosOutline
 
     /** زوايا Squircle ناعمة للكروت الفاخرة — 20.dp حسب المواصفة. */
     val squircle = RoundedCornerShape(20.dp)
