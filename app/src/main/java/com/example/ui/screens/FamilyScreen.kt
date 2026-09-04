@@ -448,7 +448,8 @@ private fun GroceriesTab(
     onToggleGrocery: (String, Boolean) -> Unit
 ) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = ZadHubListBottomPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
@@ -626,7 +627,8 @@ private fun MembersTab(
     val isSoleMember = state.members.size <= 1
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = ZadHubListBottomPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
@@ -1160,7 +1162,8 @@ private fun TasksTab(
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(bottom = ZadHubListBottomPadding)
     ) {
         item {
             Spacer(Modifier.height(8.dp))
@@ -1326,8 +1329,6 @@ private fun TasksTab(
                 item { Spacer(Modifier.height(8.dp)) }
             }
         }
-
-        item { Spacer(Modifier.height(80.dp)) }
     }
 
     if (showAddDialog) {
@@ -1728,7 +1729,10 @@ fun BudgetGoalsTab(goals: List<FamilyGoal>, members: List<com.example.data.Famil
     val suggestedGoal by viewModel.suggestedGoal.collectAsState()
     val isSuggestingGoal by viewModel.isSuggestingGoal.collectAsState()
 
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(20.dp)) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
+        contentPadding = PaddingValues(top = 20.dp, bottom = ZadHubListBottomPadding)
+    ) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(Icons.Default.MonetizationOn, contentDescription = null, modifier = Modifier.size(20.dp), tint = primary)
@@ -2204,7 +2208,7 @@ fun ChatTab(
             onDismissRequest = { showPurchaseDialog = false },
             title = { Text(stringResource(R.string.expense_purchase_request)) },
             text = {
-                Column {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()) {
                     OutlinedTextField(value = purchaseTitle, onValueChange = { purchaseTitle = it }, label = { Text(stringResource(R.string.what_to_buy)) }, modifier = Modifier.fillMaxWidth())
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(value = purchaseAmount, onValueChange = { purchaseAmount = it }, label = { Text(stringResource(R.string.requested_amount_with_currency, com.example.data.CurrencyFormatter.symbol(context))) }, modifier = Modifier.fillMaxWidth())
@@ -2230,7 +2234,7 @@ fun ChatTab(
             onDismissRequest = { showPollDialog = false },
             title = { Text(stringResource(R.string.family_poll)) },
             text = {
-                Column {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()) {
                     OutlinedTextField(value = pollQuestion, onValueChange = { pollQuestion = it }, label = { Text(stringResource(R.string.question_label)) }, modifier = Modifier.fillMaxWidth())
                     pollOptions.forEachIndexed { i, opt ->
                         OutlinedTextField(value = opt, onValueChange = { n -> pollOptions = pollOptions.toMutableList().apply { set(i, n) } },
@@ -2267,7 +2271,7 @@ fun ChatTab(
             onDismissRequest = { showTaskDialog = false },
             title = { Text(stringResource(R.string.add_new_task)) },
             text = {
-                Column {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()) {
                     OutlinedTextField(value = taskTitle, onValueChange = { taskTitle = it }, label = { Text(stringResource(R.string.task_name)) }, modifier = Modifier.fillMaxWidth())
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(stringResource(R.string.assigned_to_colon), style = Typography.labelMedium, color = onSurface)
@@ -2304,7 +2308,9 @@ fun ChatTab(
             onDismissRequest = { showGroceryQuickDialog = false },
             title = { Text(stringResource(R.string.add_to_shopping_list)) },
             text = {
-                OutlinedTextField(value = groceryName, onValueChange = { groceryName = it }, placeholder = { Text(stringResource(R.string.eg_milk_placeholder)) }, modifier = Modifier.fillMaxWidth())
+                Column(modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()) {
+                    OutlinedTextField(value = groceryName, onValueChange = { groceryName = it }, placeholder = { Text(stringResource(R.string.eg_milk_placeholder)) }, modifier = Modifier.fillMaxWidth())
+                }
             },
             confirmButton = {
                 Button(onClick = {

@@ -361,6 +361,7 @@ private fun MyGardenTab(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(bottom = ZadHubListBottomPadding),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         item {
@@ -431,7 +432,6 @@ private fun MyGardenTab(
             }
         }
 
-        item { Spacer(Modifier.height(24.dp)) }
     }
 
     if (showRename && selectedTree != null) {
@@ -864,7 +864,8 @@ private fun TreeMiniCard(
 @Composable
 private fun FamilyGardenTab(familyMembers: List<FamilyMemberWithTasbiha>) {
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp)
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = ZadHubListBottomPadding)
     ) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -885,7 +886,6 @@ private fun FamilyGardenTab(familyMembers: List<FamilyMemberWithTasbiha>) {
             Spacer(Modifier.height(8.dp))
         }
 
-        item { Spacer(Modifier.height(24.dp)) }
     }
 }
 
@@ -983,7 +983,8 @@ private fun ChallengesTab(viewModel: FamilyViewModel) {
     var showCreateDialog by remember { mutableStateOf(false) }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp)
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = ZadHubListBottomPadding)
     ) {
         item {
             Row(
@@ -1028,7 +1029,6 @@ private fun ChallengesTab(viewModel: FamilyViewModel) {
             }
         }
 
-        item { Spacer(Modifier.height(24.dp)) }
     }
 
     if (showCreateDialog) {

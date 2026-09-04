@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -102,7 +103,7 @@ fun AgentActionLogScreen(onBack: () -> Unit) {
             )
             else -> LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, com.example.ui.theme.ZadHubListBottomPadding),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(actions, key = { it.id }) { action ->
@@ -156,9 +157,9 @@ private fun AgentActionRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .zadCardShadow(RoundedCornerShape(16.dp))
-            .clip(RoundedCornerShape(16.dp))
-            .background(surface)
+            .clip(com.example.ui.theme.ZadLuxe.squircle)
+            .background(com.example.ui.theme.ZadLuxe.cardWhite)
+            .border(0.5.dp, com.example.ui.theme.ZadLuxe.hairline, com.example.ui.theme.ZadLuxe.squircle)
             .padding(16.dp)
     ) {
         Row(

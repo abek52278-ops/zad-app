@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -14,11 +15,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.data.SupabaseRepo
+import com.example.ui.components.ZadErrorState
 import com.example.ui.components.ZadLoadingState
 import com.example.ui.theme.primary
 
@@ -146,26 +150,38 @@ fun AchievementsRoute(onBack: () -> Unit) {
     var stats by remember { mutableStateOf<UserStatsData?>(null) }
     var achievements by remember { mutableStateOf<List<AchievementData>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
+    var loadFailed by remember { mutableStateOf(false) }
+    var reloadKey by remember { mutableStateOf(0) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(reloadKey) {
         loading = true
-        val unlocked = SupabaseRepo.getUserAchievements()
-        val contributionTimestamps = SupabaseRepo.getCrowdsourceContributionTimestamps()
-        val currentStreak = calculateContributionStreak(contributionTimestamps.firstOrNull())
-        val (loadedStats, loadedAchievements) = buildAchievementsUiState(
-            unlockedRows = unlocked,
-            contributionCount = contributionTimestamps.size,
-            currentStreak = currentStreak
-        )
-        stats = loadedStats
-        achievements = loadedAchievements
+        loadFailed = false
+        try {
+            val unlocked = SupabaseRepo.getUserAchievements()
+            val contributionTimestamps = SupabaseRepo.getCrowdsourceContributionTimestamps()
+            val currentStreak = calculateContributionStreak(contributionTimestamps.firstOrNull())
+            val (loadedStats, loadedAchievements) = buildAchievementsUiState(
+                unlockedRows = unlocked,
+                contributionCount = contributionTimestamps.size,
+                currentStreak = currentStreak
+            )
+            stats = loadedStats
+            achievements = loadedAchievements
+        } catch (e: Exception) {
+            loadFailed = true
+        }
         loading = false
     }
 
-    if (loading || stats == null) {
-        ZadLoadingState(modifier = Modifier.fillMaxSize())
-    } else {
-        AchievementsScreen(stats = stats!!, achievements = achievements, onBack = onBack)
+    when {
+        loading -> ZadLoadingState(modifier = Modifier.fillMaxSize())
+        loadFailed || stats == null -> ZadErrorState(
+            message = stringResource(R.string.changes_save_failed),
+            modifier = Modifier.fillMaxSize(),
+            retryLabel = stringResource(R.string.retry_action),
+            onRetry = { reloadKey++ }
+        )
+        else -> AchievementsScreen(stats = stats!!, achievements = achievements, onBack = onBack)
     }
 }
 
@@ -178,8 +194,9 @@ fun AchievementsScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF8FAFC))
+            .background(com.example.ui.theme.ZadLuxe.canvasBackground)
             .padding(16.dp),
+        contentPadding = PaddingValues(bottom = com.example.ui.theme.ZadHubListBottomPadding),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Header
@@ -191,7 +208,7 @@ fun AchievementsScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Default.ArrowBack, "Back", tint = primary)
+                    Icon(Icons.Default.ArrowBack, "Back", tint = com.example.ui.theme.ZadLuxe.emerald)
                 }
                 Text(
                     "الإنجازات والرتب",
@@ -207,13 +224,9 @@ fun AchievementsScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(
-                        brush = androidx.compose.ui.graphics.Brush.linearGradient(
-                            colors = listOf(primary, Color(0xFF059669))
-                        )
-                    ),
+                    .background(androidx.compose.ui.graphics.SolidColor(com.example.ui.theme.ZadLuxe.emerald)),
                 colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-                shape = RoundedCornerShape(16.dp)
+                shape = com.example.ui.theme.ZadLuxe.squircle
             ) {
                 Row(
                     modifier = Modifier
@@ -309,9 +322,10 @@ fun AchievementsScreen(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3CD)),
-                    shape = RoundedCornerShape(12.dp)
+                        .padding(horizontal = 8.dp)
+                        .border(0.5.dp, com.example.ui.theme.ZadLuxe.ochre.copy(alpha = 0.3f), com.example.ui.theme.ZadLuxe.squircle),
+                    colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.ZadLuxe.ochre.copy(alpha = 0.1f)),
+                    shape = com.example.ui.theme.ZadLuxe.squircle
                 ) {
                     Row(
                         modifier = Modifier
@@ -323,7 +337,7 @@ fun AchievementsScreen(
                         Icon(
                             Icons.Default.EmojiEvents,
                             "Next",
-                            tint = Color(0xFFF59E0B),
+                            tint = com.example.ui.theme.ZadLuxe.ochre,
                             modifier = Modifier.size(24.dp)
                         )
                         Column(modifier = Modifier.weight(1f)) {
@@ -331,7 +345,7 @@ fun AchievementsScreen(
                                 "الإنجاز التالي",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF8B5000)
+                                color = com.example.ui.theme.ZadLuxe.ochre
                             )
                             Text(
                                 stats.nextAchievementName,
@@ -373,8 +387,6 @@ fun AchievementsScreen(
                 }
             }
         }
-
-        item { Spacer(modifier = Modifier.height(16.dp)) }
     }
 }
 
@@ -386,9 +398,11 @@ private fun MiniStatCard(
     modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = modifier.height(80.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        shape = RoundedCornerShape(12.dp)
+        modifier = modifier
+            .height(80.dp)
+            .border(0.5.dp, com.example.ui.theme.ZadLuxe.hairline, com.example.ui.theme.ZadLuxe.squircle),
+        colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.ZadLuxe.cardWhite),
+        shape = com.example.ui.theme.ZadLuxe.squircle
     ) {
         Column(
             modifier = Modifier
@@ -403,7 +417,7 @@ private fun MiniStatCard(
                 value,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
-                color = primary
+                color = com.example.ui.theme.ZadLuxe.emerald
             )
             Text(
                 label,
@@ -417,19 +431,15 @@ private fun MiniStatCard(
 @Composable
 private fun AchievementCard(achievement: AchievementData) {
     Card(
-        modifier = Modifier
-            .aspectRatio(1f)
-            .background(
-                color = if (achievement.isUnlocked) Color.White else Color(0xFFF1F5F9)
-            ),
+        modifier = Modifier.aspectRatio(1f),
         colors = CardDefaults.cardColors(
-            containerColor = if (achievement.isUnlocked) Color.White else Color(0xFFF1F5F9)
+            containerColor = if (achievement.isUnlocked) com.example.ui.theme.ZadLuxe.cardWhite else Color(0xFFF1F5F9)
         ),
-        shape = RoundedCornerShape(12.dp),
+        shape = com.example.ui.theme.ZadLuxe.squircle,
         border = if (achievement.isUnlocked)
-            androidx.compose.foundation.BorderStroke(2.dp, primary)
+            androidx.compose.foundation.BorderStroke(2.dp, com.example.ui.theme.ZadLuxe.ochre)
         else
-            null
+            androidx.compose.foundation.BorderStroke(0.5.dp, com.example.ui.theme.ZadLuxe.hairline)
     ) {
         Column(
             modifier = Modifier
@@ -455,7 +465,7 @@ private fun AchievementCard(achievement: AchievementData) {
                 Text(
                     "+${achievement.points}",
                     fontSize = 10.sp,
-                    color = primary,
+                    color = com.example.ui.theme.ZadLuxe.ochre,
                     fontWeight = FontWeight.SemiBold
                 )
             } else {
