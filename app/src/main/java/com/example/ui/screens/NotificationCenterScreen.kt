@@ -148,7 +148,7 @@ fun NotificationCenterScreen(
                         icon = Icons.Default.AutoAwesome,
                         color = primary,
                         isRead = true,
-                        onClick = {}
+                        onClick = { viewModel.dismissInsight(alert.id) }
                     )
                 }
                 item { Spacer(Modifier.height(20.dp)) }
