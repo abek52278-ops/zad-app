@@ -180,7 +180,20 @@
 `ZadLuxe` اتطبقت على هيدر شاشة الاشتراك وكارت البطارية الإعلانية، وعلى `ZadListCard`'s shape override في `OnboardingScreen`.
 **تحقق فعلي**: `compileDebugKotlin` (بعد إعادة محاولة، نفس مشكلة daemon المعتادة) نجح، `clean assembleDebug` كامل من الصفر (لازم بسبب حذف ملفين) نجح.
 
-**🟢🟢 كل الـ6 مراحل اكتملت. مرحلة 7 (تدقيق نهائي شامل) هي الوحيدة المتبقية.**
+**مرحلة 7 (تدقيق نهائي شامل) — نُفذت (2026-09-04)**: مسحة أخيرة غطت حاجتين كانوا برة الـ5 بوابات عمدًا ومحدش لمسهم لحد دلوقتي — `CameraScreen.kt` + `ZadCameraSheet` (شيت الدخول بتاعها، جوه `ZadShell.kt`) و`NotificationCenterScreen.kt`. الاتنين كانوا نضاف زيرو-موك أصلاً (نداءات Gemini vision حقيقية، قايمة إشعارات حقيقية من StateFlows، صفر بيانات وهمية). فجوتين حقيقيتين اتقفلوا: `ManualInventoryDialog` (`CameraScreen.kt`) كان فيها `verticalScroll()` بس مفيش `imePadding()`؛ `NotificationCenterScreen.kt` مكانش فيها `ZadHubListBottomPadding` خالص. `ZadLuxe` اتطبقت على الاتنين + `ZadCameraSheet`. مسحة `grep` شاملة عبر كل `app/src/main/java/com/example/ui/` لـ`TODO|FIXME|قريباً` لقت نص "قريباً" واحد مضلل في `AmazonAffiliateWidget.kt` (بيقول "قريباً" رغم إن زرار بحث حقيقي شغال تحته على طول) — اتصلح النص.
+**تحقق فعلي نهائي**: `compileDebugKotlin` (بعد إعادة محاولة، Kotlin daemon اتقفل عشوائيًا) نجح، `clean assembleDebug` كامل من الصفر نجح.
+
+**🟢🟢🟢 كل الـ7 مراحل اكتملت. تعميم `ZadLuxe` على كامل التطبيق خلص.**
+
+## 9. ملخص الحصيلة الكاملة (2026-09-03 → 2026-09-04)
+
+7 مراحل، ~30 ملف اتلمس، كل مرحلة بـ`compileDebugKotlin`+`assembleDebug` (أو `clean assembleDebug`) حقيقيين ناجحين + commit منفصل. أهم اللقطات الحقيقية (مش تصميم بس):
+- **باج حرج**: `FamilyNeuralMeshCard` (`ZadIntelligenceScreen.kt`) كانت بتعرض نص مكسور حرفي `$memberCount أفراد متصلين` لمستخدمين حقيقيين عبر 5 لغات — الأرقام الحقيقية كانت متحسوبة ومرمية.
+- **نمط مظلم (dark pattern)**: شاشة الاشتراك كانت بتدّعي قبول Apple Pay وMada رغم إن التطبيق أندرويد بس مفيش تكامل غيرهم Google Play.
+- **~12 حوار إدخال** كان فيهم `imePadding()` من غير `verticalScroll()` أو العكس أو مفيش الاتنين خالص — عبر كل البوابات.
+- **4 ملفات كود ميت** اتشالت بالكامل (`SubscriptionPlansScreen.kt`, `ZadPlanTier.kt`, `PharmacySummaryStat`, بارامتر `onNavigateToMain`).
+- **رافعة تصميم واحدة عالية الأثر**: تغيير الـdefaults بتاعة `ZadListCard`/`ZadMenuGroup` (كومبوننتات مشتركة، 63+ نقطة استخدام) عمّم الشكل الفاخر على شاشات كتير تلقائيًا من غير ما تتلمس فردي.
+- **3 ادعاءات موثّقة قديمة اتصحّحت** بعد ما اتفحصت بالكود ولقيت مش دقيقة (الختم المزيّف، `StatementImportScreen`، `TelegramBinding`).
 
 - **2026-09-03 — بوابة Home (§2.1/§4.1، إعادة بناء `HomeScreen.kt`)**: نُفذت. **عكس قرار §4.1 الموثّق سابقًا** (نقل المحفظة/الرسم البياني لـFinances) — العميل بعت مخطط تصميم (mockup) صريح يفضّل يفضلوا في Home، فده اعتماد صريح جديد بيلغي القرار القديم: `ZadWalletHeroCard`/`ZadQuickExpenseSheet` فضلوا في Home زي ما هم، ومفيش أي شاشة نُقلت. الفجوة الحقيقية اللي اتقفلت: `ZadBezierSpendChart` كان *مستورد* في `HomeScreen.kt` بس **صفر استدعاء** — كارت جديد `ZadWeeklySpendChartCard` (مصروف آخر ٧ أيام حقيقي من `zad_transactions`، مجمّع يوميًا) بقى بيعرضه فعليًا.
   نظام تصميم فاخر جديد `ZadHomeLuxe.kt` (Emerald `0xFF1B4332`/Ochre `0xFFC68216`/Terracotta `0xFFD95726`/hairline `0xFFE0E3DA`/squircle 20.dp) — نطاقه Home وكومبوننتاتها بس، مش بديل لـ`ZadV3`/`ZadV2` المشترك.
