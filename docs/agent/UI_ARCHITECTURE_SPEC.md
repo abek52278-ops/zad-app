@@ -150,7 +150,7 @@
 2. **المخزون والتسوق** (`InventoryScreen`/`ShoppingListScreen`/`RecommendationsScreen`/`MaintenanceScreen`/`PriceReportingScreen`) — ✅ 2026-09-03.
 3. **الصيدلية** (`PharmacyScreen`) — ✅ 2026-09-03.
 4. **عقل زاد والعائلة** (`ZadIntelligenceScreen` + `FamilyScreen` + `TasbihaScreen` + `ZadKnowledgeMapScreen` + `ZadMemoryScreen` + `AgentActionLogScreen` + `AchievementsScreen`) — ✅ 2026-09-03 (جزء أ + ب). تدقيق الـ40+ كارت المؤجل من §5 نُفذ فعليًا في جزء ب — شوف تفصيله تحت.
-5. البروفايل وملحقاته.
+5. **البروفايل وملحقاته** — ✅ 2026-09-04.
 6. الدخول والاشتراك (`auth/*`, `ZadSubscriptionPaywallScreen`, `SubscriptionPlansScreen`, `BudgetGateScreen`).
 7. تدقيق نهائي شامل + build كامل من الصفر.
 
@@ -169,6 +169,11 @@
 **تحقق فعلي**: `compileDebugKotlin` نجح (بعد إعادة محاولة، نفس مشكلة Kotlin daemon العشوائية)، `clean assembleDebug` كامل من الصفر (يغطي التطبيق كله بعد تغيير `ZadListCard` الافتراضي) نجح — `processDebugResources` اشتغلت من جديد (مش من الكاش)، يعني موارد الـXML الخمسة اتفحصت وترجمت صح.
 
 **🟢 مرحلة 4 اكتملت بالكامل (جزء أ + ب).**
+
+**مرحلة 5 (البروفايل) — نُفذت (2026-09-04)**: تصحيح توثيقي أول — تقسيم الملفات القديم في الدوكيومنت غلط: بس 4 من الـ6 شاشات فرعية (تعديل بروفايل/إدارة عائلة/الدفع والميزانية/تنبيهات المساعد) في `ProfileSubScreens.kt`؛ المساعدة والشروط كل واحدة ملف مستقل (`HelpSupportScreen.kt`/`TermsOfServiceScreen.kt`). `ZadMenuGroup` (الكومبوننت المشترك ورا كل صفوف الإعدادات، نطاقه Profile بس اتأكد) بقى `ZadLuxe`. هيدر البروفايل + tray ألوان الصوت بقوا `ZadLuxe.emerald` بدل هيكس خام.
+فجوات حقيقية اتقفلت: `NewLifeGoalDialog` (3 حقول) و`EditNameDialog` مكانش فيهم لا `imePadding()` ولا `verticalScroll()`. `HelpSupportScreen` بتتفتح بـstate محلي مش route حقيقي — يعني زرار الرجوع بتاع نظام أندرويد مكانش بيقفلها (كان بيتصرف على الشاشة اللي تحتها)؛ اتضاف `BackHandler` صريح. `FamilyManagementScreen`'s حالة "مفيش عيلة" كانت `Text` عادي، بقت `ZadEmptyState`. اتشال collection ميتة لـ`inventory`/`subscriptions` StateFlows في `ProfileScreen.kt` (متقروش في أي مكان تاني، كانت بس بتسبب recomposition زيادة). Spacer سفلي ثابت `100.dp` بقى نفس الثابت المشترك `ZadHubListBottomPadding`.
+**ادعاء قديم اتأكد إنه ملغي**: ملاحظة الدوكيومنت القديمة إن `TelegramBinding` "المفروض" تكون في قايمة إعدادات البروفايل — اتأكد إنها متصلة أصلاً في قسم "المزيد من أدوات زاد" بتاع Home من مرحلة سابقة، مفيش داعي لأي تعديل هنا.
+**تحقق فعلي**: `compileDebugKotlin` (بعد إعادة محاولة، Kotlin daemon اتقفل عشوائيًا زي المعتاد) + `assembleDebug` نجحوا.
 
 - **2026-09-03 — بوابة Home (§2.1/§4.1، إعادة بناء `HomeScreen.kt`)**: نُفذت. **عكس قرار §4.1 الموثّق سابقًا** (نقل المحفظة/الرسم البياني لـFinances) — العميل بعت مخطط تصميم (mockup) صريح يفضّل يفضلوا في Home، فده اعتماد صريح جديد بيلغي القرار القديم: `ZadWalletHeroCard`/`ZadQuickExpenseSheet` فضلوا في Home زي ما هم، ومفيش أي شاشة نُقلت. الفجوة الحقيقية اللي اتقفلت: `ZadBezierSpendChart` كان *مستورد* في `HomeScreen.kt` بس **صفر استدعاء** — كارت جديد `ZadWeeklySpendChartCard` (مصروف آخر ٧ أيام حقيقي من `zad_transactions`، مجمّع يوميًا) بقى بيعرضه فعليًا.
   نظام تصميم فاخر جديد `ZadHomeLuxe.kt` (Emerald `0xFF1B4332`/Ochre `0xFFC68216`/Terracotta `0xFFD95726`/hairline `0xFFE0E3DA`/squircle 20.dp) — نطاقه Home وكومبوننتاتها بس، مش بديل لـ`ZadV3`/`ZadV2` المشترك.
