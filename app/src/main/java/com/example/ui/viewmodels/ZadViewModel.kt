@@ -48,6 +48,14 @@ data class AiChatMessage(
 
 private const val TAG = "ZadViewModel"
 
+// مفاتيح حارس التحديث التلقائي (autoRefreshBlocked) — واحد لكل نداء، عشان كل نداء
+// يكون ليه نافذته الخاصة بدل نافذة مشتركة تخنق نداء بسبب نداء تاني.
+private const val KEY_AGENT_SUMMARY = "agentSummary"
+private const val KEY_AUTO_SUGGESTIONS = "autoSuggestions"
+private const val KEY_EXPENSE_PREDICTION = "expensePrediction"
+private const val KEY_OUTING_SUGGESTION = "outingSuggestion"
+private const val KEY_MARKET_PRICES = "marketPrices"
+
 /**
  * Task 19.0 — الافتراضي اللي بيتحط لما مفيش سقف محفوظ (loadBudget/getUserBudget).
  * مش فارق عن مستخدم اختار 3500 بجد، فبيتعامل كـ "غير معروف" وقت التقاط السقف.
@@ -115,6 +123,20 @@ internal fun buildAgentTurnReply(result: com.example.data.ZadAiRepository.AgentT
     if (lines.isEmpty()) return null
     return lines.joinToString("\n\n")
 }
+
+/**
+ * قرار الحارس بتاع التحديث التلقائي، متشال برا الكلاس عشان يتختبر من غير Application.
+ *
+ * `lastRunAt == null` معناها النداء ده لسه ماحصلش في عمر الـViewModel — أول فتح للشاشة
+ * لازم يشتغل. بعد كده أي دخول تاني جوه النافذة بيتخطى، وde هو اللي بيمنع كل رجوع
+ * للرئيسية إنه يولّد لفة نموذج جديدة.
+ */
+internal fun autoRefreshShouldRun(
+    lastRunAt: Long?,
+    now: Long,
+    cooldownMs: Long,
+    force: Boolean = false,
+): Boolean = force || lastRunAt == null || now - lastRunAt >= cooldownMs
 
 internal enum class CacheReconciliationAction { SKIP, CLEAR, PRUNE }
 
@@ -4569,8 +4591,28 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private var lastAgentSummaryAutoRefreshAt = 0L
-    private val AGENT_SUMMARY_AUTO_REFRESH_COOLDOWN_MS = 5 * 60 * 1000L
+    private val lastAutoRefreshAt = mutableMapOf<String, Long>()
+    private val AUTO_REFRESH_COOLDOWN_MS = 5 * 60 * 1000L
+
+    /**
+     * حارس مشترك لكل نداء بيتشغّل **تلقائي** (فتح شاشة، إشعار بنكي) مش بضغطة من العميل.
+     *
+     * `LaunchedEffect(Unit)` بيتنفذ كل مرة الشاشة تدخل الـcomposition — يعني كل رجوع
+     * للرئيسية، مش أول فتح بس. الحارس ده كان موجود لملخص العقل لوحده، والرئيسية كانت
+     * بتنادي الدالة الخام مباشرة فبتتخطاه: النتيجة ٣١٣ نداء لـ zad-brain في ٢٤ ساعة
+     * مقابل صفر لفة وكيل حقيقية في نفس الفترة — الميزانية بتتصرف على تحديثات خلفية
+     * مش على نية العميل.
+     *
+     * `force=true` (حفظ تعديل ميزانية يدوي) بيشتغل دايماً **وبيصفّر النافذة** — نفس
+     * سلوك النسخة القديمة بالظبط، عشان تحديث تلقائي مايلحقش الفعل اليدوي على طول.
+     * بيرجع true يعني "اتخطى النداء ده".
+     */
+    private fun autoRefreshBlocked(key: String, force: Boolean = false): Boolean {
+        val now = System.currentTimeMillis()
+        if (!autoRefreshShouldRun(lastAutoRefreshAt[key], now, AUTO_REFRESH_COOLDOWN_MS, force)) return true
+        lastAutoRefreshAt[key] = now
+        return false
+    }
 
     /**
      * Budget Card master refactor req #4 — auto-triggered refreshAgentSummary(), distinct from
@@ -4580,11 +4622,32 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      * background LLM call per notification.
      */
     private fun maybeAutoRefreshAgentSummary(force: Boolean = false) {
-        val now = System.currentTimeMillis()
-        if (force || now - lastAgentSummaryAutoRefreshAt >= AGENT_SUMMARY_AUTO_REFRESH_COOLDOWN_MS) {
-            lastAgentSummaryAutoRefreshAt = now
-            refreshAgentSummary()
-        }
+        if (autoRefreshBlocked(KEY_AGENT_SUMMARY, force)) return
+        refreshAgentSummary()
+    }
+
+    // مداخل فتح الشاشة. الدوال الخام تحت فاضلة زي ما هي للأفعال اليدوية (زرار تحديث،
+    // زرار إعادة محاولة) — ضغطة العميل لازم تشتغل على طول من غير أي حارس.
+    fun autoRefreshAgentSummary() = maybeAutoRefreshAgentSummary()
+
+    fun autoRefreshAutoSuggestions() {
+        if (autoRefreshBlocked(KEY_AUTO_SUGGESTIONS)) return
+        refreshAutoSuggestions()
+    }
+
+    fun autoPredictNextMonthExpenses() {
+        if (autoRefreshBlocked(KEY_EXPENSE_PREDICTION)) return
+        predictNextMonthExpenses()
+    }
+
+    fun autoRefreshOutingSuggestion() {
+        if (autoRefreshBlocked(KEY_OUTING_SUGGESTION)) return
+        refreshOutingSuggestion()
+    }
+
+    fun autoRefreshLiveMarketPrices() {
+        if (autoRefreshBlocked(KEY_MARKET_PRICES)) return
+        refreshLiveMarketPrices()
     }
 
     fun refreshAgentSummary() {

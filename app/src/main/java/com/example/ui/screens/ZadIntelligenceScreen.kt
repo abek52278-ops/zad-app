@@ -99,7 +99,8 @@ fun ZadIntelligenceScreen(
     val patterns by viewModel.behaviorPatterns.collectAsState()
     val serverBehaviorProfile by viewModel.behaviorProfile.collectAsState()
     val isRefreshingBehaviorProfile by viewModel.isRefreshingBehaviorProfile.collectAsState()
-    // predictNextMonthExpenses() below fires this AI call every time the screen opens.
+    // بيتجدد عند فتح الشاشة عبر autoPredictNextMonthExpenses() — محروس بنافذة ٥ دقايق،
+    // فالرجوع للشاشة مابيولّدش نداء AI جديد؛ القيمة المعروضة بتفضل من آخر نداء ناجح.
     val expensePrediction by viewModel.expensePrediction.collectAsState()
     val budget by viewModel.budget.collectAsState()
     val brainReport by viewModel.brainReport.collectAsState()
@@ -180,8 +181,8 @@ fun ZadIntelligenceScreen(
     // تشغيل تحليل شامل عند فتح الشاشة — detectSubscriptions() بقى مسؤولية
     // SubscriptionsScreen بس (تاسك ٦: الاشتراكات بقت شاشة مستقلة برا عقل زاد).
     LaunchedEffect(Unit) {
-        viewModel.refreshAgentSummary()
-        viewModel.predictNextMonthExpenses()
+        viewModel.autoRefreshAgentSummary()
+        viewModel.autoPredictNextMonthExpenses()
         viewModel.generateBrainReport()
         viewModel.loadBehaviorProfile()
         viewModel.refreshBehaviorProfile()

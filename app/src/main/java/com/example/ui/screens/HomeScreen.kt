@@ -177,7 +177,7 @@ fun HomeScreen(
     val marketFetchState by viewModel.marketPricesFetchState.collectAsState()
 
     LaunchedEffect(Unit) {
-        viewModel.refreshLiveMarketPrices()
+        viewModel.autoRefreshLiveMarketPrices()
     }
 
     // "مصروف" في كارت الميزانية لازم يكون مصروف نفس الدورة اللي "متاح" اتحسب عليها.
@@ -250,10 +250,10 @@ fun HomeScreen(
 
     LaunchedEffect(Unit) {
         if (userNameState.isNullOrBlank()) viewModel.loadUserProfile()
-        viewModel.refreshAgentSummary()
-        viewModel.refreshAutoSuggestions()
-        viewModel.predictNextMonthExpenses()
-        viewModel.refreshOutingSuggestion()
+        viewModel.autoRefreshAgentSummary()
+        viewModel.autoRefreshAutoSuggestions()
+        viewModel.autoPredictNextMonthExpenses()
+        viewModel.autoRefreshOutingSuggestion()
         viewModel.loadZadInsights()
         viewModel.loadTransactionProposals()
         familyViewModel.loadUpcomingSeasonalEvents()
