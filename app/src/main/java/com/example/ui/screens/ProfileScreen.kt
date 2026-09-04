@@ -82,8 +82,6 @@ fun ProfileScreen(
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
 
-    val inventory by viewModel.inventory.collectAsState()
-    val subscriptions by viewModel.subscriptions.collectAsState()
     val familyState by familyViewModel.state.collectAsState()
     val familyMembersCount = if (familyState is FamilyState.Active) {
         (familyState as FamilyState.Active).members.size
@@ -218,6 +216,9 @@ fun ProfileScreen(
     }
 
     if (showHelpSupport) {
+        // شاشة حالة محلية مش route حقيقي، فزرار الرجوع بتاع النظام كان بيتصرف على
+        // الشاشة اللي تحتها بدل ما يقفل الشيت ده — BackHandler صريح يقفلها صح.
+        androidx.activity.compose.BackHandler(enabled = true) { showHelpSupport = false }
         HelpSupportScreen(onBack = { showHelpSupport = false })
     }
 
@@ -299,8 +300,8 @@ fun ProfileScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 16.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(Brush.linearGradient(listOf(Color(0xFF064E3B), Color(0xFF0B6B4E))))
+                    .clip(com.example.ui.theme.ZadLuxe.squircle)
+                    .background(androidx.compose.ui.graphics.SolidColor(com.example.ui.theme.ZadLuxe.emerald))
             ) {
                 // مرحلة ٥ب-٥ — نفس بقعة الضوء الزجاجية بتاعة باقي كروت الـ glass family
                 // (ZadCardHero، اللوكيشن، المخزون، الاشتراكات) — هيدر البروفايل عنصر
@@ -538,7 +539,7 @@ fun ProfileScreen(
                     Spacer(Modifier.width(10.dp))
                     Text(stringResource(R.string.logout), fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
-                Spacer(Modifier.height(100.dp))
+                Spacer(Modifier.height(com.example.ui.theme.ZadHubListBottomPadding))
             }
         }
     }
@@ -667,7 +668,10 @@ fun NewLifeGoalDialog(onDismiss: () -> Unit, onSubmit: (title: String, metric: S
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.new_life_goal_title)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()
+            ) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
@@ -710,7 +714,11 @@ fun EditNameDialog(currentName: String, onDismiss: () -> Unit, onSave: (String) 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.edit_name), style = Typography.titleLarge, fontWeight = FontWeight.Bold, color = primary) },
-        text = { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.name_label)) }, modifier = Modifier.fillMaxWidth(), singleLine = true) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()) {
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.name_label)) }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            }
+        },
         confirmButton = { Button(onClick = { if (name.isNotBlank()) onSave(name.trim()) }, colors = ButtonDefaults.buttonColors(containerColor = primary)) { Text(stringResource(R.string.save)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), color = primary) } },
         containerColor = surface

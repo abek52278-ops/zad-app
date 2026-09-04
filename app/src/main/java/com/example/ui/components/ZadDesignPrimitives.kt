@@ -4,6 +4,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -243,13 +244,14 @@ fun ZadMenuGroup(
     // عائلة الزجاج. الخلفية فضلت أبيض صافي عمداً (مش جراديانت/blur) — قايمة إعدادات
     // كثيفة نصوص، والـ blur هيقلل وضوح القراءة، نفس مبدأ iOS Settings.app (كروت
     // مجموعة معتمة، الزجاج محجوز للعناصر البارزة القليلة زي الهيدر فوقها).
-    val shape = RoundedCornerShape(24.dp)
+    val shape = com.example.ui.theme.ZadLuxe.squircle
     Column(
         modifier = modifier
             .fillMaxWidth()
             .zadCardShadow(shape)
             .clip(shape)
-            .background(Color.White),
+            .background(com.example.ui.theme.ZadLuxe.cardWhite)
+            .border(0.5.dp, com.example.ui.theme.ZadLuxe.hairline, shape),
         content = content,
     )
 }

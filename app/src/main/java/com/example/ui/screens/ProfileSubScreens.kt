@@ -299,7 +299,11 @@ fun FamilyManagementScreen(familyViewModel: FamilyViewModel, onBack: () -> Unit)
                     }
                 }
             } else {
-                Text(stringResource(R.string.not_in_family_yet), color = onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(40.dp))
+                com.example.ui.components.ZadEmptyState(
+                    icon = Icons.Default.People,
+                    title = stringResource(R.string.not_in_family_yet),
+                    modifier = Modifier.fillMaxWidth().padding(40.dp)
+                )
             }
         }
         }
@@ -469,8 +473,8 @@ fun AssistantAlertsScreen(onBack: () -> Unit) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF0F172A).copy(alpha = 0.05f))
+                        .clip(com.example.ui.theme.ZadLuxe.squircle)
+                        .background(com.example.ui.theme.ZadLuxe.emerald.copy(alpha = 0.05f))
                         .padding(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
