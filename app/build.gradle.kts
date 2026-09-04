@@ -97,6 +97,73 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
   }
 }
 
+// ── Raw-colour ratchet for ui/screens/ ──────────────────────────────────────
+// Screens must take colour from ui/theme/Color.kt (Cupertino Heritage, the
+// authoritative system) rather than hardcoding hex. The reason is not neatness:
+// a hardcoded literal is invisible to a palette change, so dark mode would leave
+// every such screen stuck in light colours. ZadLuxe had exactly this problem until
+// 5127b8f turned it into an alias.
+//
+// Android Lint ships no check for this and expressing one needs a custom Detector
+// in its own module, so this task is the same ratchet directly: the literals that
+// already existed are listed in raw-color-baseline.txt and tolerated, and anything
+// beyond them fails. The baseline may shrink, never grow.
+//
+// Keyed per occurrence, not per line — several screens put multiple literals on one
+// line (TasbihaScreen's gradient lists), and a per-line key would let a new literal
+// hide on an already-listed line.
+val rawColorScreensDir = file("src/main/java/com/example/ui/screens")
+val rawColorBaseline = file("raw-color-baseline.txt")
+
+fun collectRawScreenColors(): List<String> {
+  val rx = Regex("""Color\((0x[0-9A-Fa-f]{6,8})\)""")
+  val sourceRoot = file("src/main/java")
+  return rawColorScreensDir.walkTopDown()
+    .filter { it.isFile && it.extension == "kt" }
+    .flatMap { f ->
+      val rel = f.toRelativeString(sourceRoot).replace('\\', '/')
+      rx.findAll(f.readText()).map { "$rel|${it.groupValues[1].replaceRange(0, 2, "0x")}" }
+    }
+    .sorted()
+    .toList()
+}
+
+val checkNoRawColorsInScreens = tasks.register("checkNoRawColorsInScreens") {
+  group = "verification"
+  description = "Fails on any raw Color(0x...) in ui/screens/ that is not in raw-color-baseline.txt"
+  inputs.dir(rawColorScreensDir)
+  inputs.file(rawColorBaseline)
+  outputs.upToDateWhen { false }
+  doLast {
+    val allowed = rawColorBaseline.readLines()
+      .filterNot { it.isBlank() || it.startsWith("#") }
+      .groupingBy { it }.eachCount()
+    val added = collectRawScreenColors().groupingBy { it }.eachCount()
+      .mapNotNull { (entry, count) ->
+        val budget = allowed[entry] ?: 0
+        if (count > budget) "$entry  (+${count - budget})" else null
+      }
+    if (added.isNotEmpty()) {
+      throw GradleException(
+        buildString {
+          appendLine("Raw Color(0x...) literal(s) added to ui/screens/:")
+          added.sorted().forEach { appendLine("    $it") }
+          appendLine()
+          appendLine("Use a token from ui/theme/Color.kt instead.")
+          appendLine("If a raw literal is genuinely right here — Kids Mode or an illustrative")
+          appendLine("one-off, which CLAUDE.md allows — regenerate app/raw-color-baseline.txt")
+          appendLine("and say why in the commit message.")
+        }
+      )
+    }
+  }
+}
+
+// lintDebug is what CI runs, so hanging the check there is what makes it a real gate.
+// `check` covers local runs.
+tasks.matching { it.name == "lintDebug" || it.name == "check" }
+  .configureEach { dependsOn(checkNoRawColorsInScreens) }
+
 // Configure the Secrets Gradle Plugin to use .env and .env.example files
 // to match the convention used in Web projects.
 secrets {
