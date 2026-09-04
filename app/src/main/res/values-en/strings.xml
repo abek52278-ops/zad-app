@@ -1595,6 +1595,7 @@
     <string name="zad_cancel_reply">Okay, cancelled.</string>
     <string name="zad_inventory_added">📦 Added to inventory: %1$s</string>
     <string name="zad_pharmacy_added">✅ Done, added %1$s to your medicine schedule%2$s.</string>
+    <string name="zad_agent_fallback_notice">⚠️ My action engine is unavailable right now — this is a general reply from your saved data only, and nothing was executed. If you asked to log an expense or make a change, **it was not saved** — send it again shortly.</string>
     <string name="zad_ai_busy">AI is a bit busy right now 🙏 try again in a moment.</string>
     <string name="zad_unexpected_error">An unexpected error occurred.</string>
     <string name="brain_gate_title">Unlock Zad Brain</string>

@@ -471,6 +471,32 @@ function userFacingFailure(reason: string): string {
   return "حصلت مشكلة لحظية عندى — ابعت الطلب تاني وهنجهزه";
 }
 
+/**
+ * سجل صريح لكل مرة لفة الوكيل بتقع على الرد القرائي.
+ *
+ * من غيره مفيش أي أثر للفشل ده: `agent_actions` بيتكتب وقت النجاح بس، فقناة كاملة
+ * ممكن تفضل واقعة أيام والجدول يقول إنها "مش مستخدمة" مش "بتفشل". `agent_logs` هو
+ * نفس الجدول اللي zad-core-intelligence بيكتب فيه ودشبورد الرصد بيقراه لايف.
+ * status لازم يكون واحد من success/warning/error (agent_logs_status_check).
+ * fire-and-forget زي المصدر التاني بالظبط — فشل السجل ماينفعش يكسر الرد نفسه.
+ */
+function logAgentFallback(
+  sb: SupabaseClient,
+  userId: string | null,
+  channel: string,
+  reason: string,
+): void {
+  sb.from("agent_logs").insert({
+    user_id: userId,
+    agent_name: "zad-telegram-bot",
+    tool_used: "agent_turn",
+    payload: { channel, reason, fell_back_to: "read-only prose reply" },
+    status: "warning",
+  }).then(({ error }: { error: { message: string } | null }) => {
+    if (error) console.error("[telegram] agent_logs insert failed:", error.message);
+  });
+}
+
 /** errorReason is set only when the agent path failed and the caller fell back to the
  * read-only prose reply — it's what tells the Telegram user (and the logs) why their
  * "عدّل"/"ذكرني" request silently became a plain answer instead of an executed action.
@@ -767,6 +793,14 @@ async function agentTurnReply(
   const { result: turn, errorReason } = await agentTurn(userId, outgoing);
   if (!turn) return { lines: [], errorReason: errorReason ?? "agent turn unavailable" };
 
+  // لفة رجعت 200 وهي فاضية تماماً — لا رد، ولا أداة اتنفذت، ولا اقتراح — كانت بتخرج
+  // بـ lines فاضية و errorReason غير موجود، فالمعالج تحت كان بيفتكرها الـ fallback
+  // القرائي العادي ويرد على العميل من غير أي تحذير. من ناحية العميل دي نفس حالة
+  // "الوكيل مش متاح" بالظبط، فلازم تحمل نفس السبب الصريح.
+  if (!turn.reply?.trim() && !turn.executed?.length && !turn.proposals?.length) {
+    return { lines: [], errorReason: "zad-brain returned an empty turn (HTTP 200, no reply, no executed tool, no proposal)" };
+  }
+
   const lines: string[] = [];
   if (turn.reply.trim()) lines.push(turn.reply.trim());
   for (const done of turn.executed) lines.push(`✅ ${isolate(sanitizeName(done.summary))}`);
@@ -990,10 +1024,15 @@ bot.on("message:text", async (ctx) => {
   // fallback: الوكيل مش متاح (نت/موديل/مهلة) — الرد القرائي القديم أحسن من صمت.
   // بيتشال في المرحلة ٢-هـ بعد ما agent_turn يثبت نفسه على مستخدمين حقيقيين.
   //
-  // errorReason بيبقى موجود بس هنا (turn === null) — لو أي أمر تنفيذي (عدّل/ذكرني/ضيف)
+  // errorReason دلوقتي بيتحط في الحالتين اللي بيوصلوا هنا: الوكيل مش متاح (turn === null)
+  // **و** لفة رجعت 200 وهي فاضية. الافتراض القديم إنه بيبقى موجود في الحالة الأولى بس هو
+  // اللي كان بيخلي اللفة الفاضية تعدي من غير أي تحذير. لو أي أمر تنفيذي (عدّل/ذكرني/ضيف)
   // وقع على المسار ده، لازم العميل يعرف إنه رد قراءة بس ومحصلش تنفيذ فعلي، بدل ما يفتكر
   // إن التعديل اتسجل وهو ماتسجلش. صمت هنا هو بالظبط الشكوى اللي البلاغ ده بيوصفها.
-  if (errorReason) console.error("agent turn fell back to read-only:", errorReason);
+  if (errorReason) {
+    console.error("agent turn fell back to read-only:", errorReason);
+    logAgentFallback(sb, userId, "text", errorReason);
+  }
   const notice = errorReason
     ? `⚠️ ${userFacingFailure(errorReason)}. اللي تحت رد قراءة من بياناتك المسجّلة — لو كنت طالب تعديل أو إضافة أو تذكير، **هو ماتسجّلش**، جرب تاني كمان شوية.\n\n`
     : "";
@@ -1076,7 +1115,10 @@ bot.on("message:voice", async (ctx) => {
 
   // اللفة نفسها وقعت. الرسالة الصوتية دايماً بتبقى طلب — الصمت أو "تمام" هنا بيخلي
   // العميل يفتكر إن اللي قاله اتسجل، وهو ماتسجلش.
-  if (turnReply.errorReason) console.error("voice agent turn failed:", turnReply.errorReason);
+  if (turnReply.errorReason) {
+    console.error("voice agent turn failed:", turnReply.errorReason);
+    logAgentFallback(sb, userId, "voice", turnReply.errorReason);
+  }
   await ctx.reply(clampForTelegram(
     heard + `⚠️ ${userFacingFailure(turnReply.errorReason ?? "")}. اللي قلته **ماتسجّلش** — جرب تبعته تاني كمان شوية.`,
   ));

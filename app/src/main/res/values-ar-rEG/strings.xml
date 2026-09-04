@@ -1595,6 +1595,7 @@
     <string name="zad_cancel_reply">تمام، ملغيتهاش.</string>
     <string name="zad_inventory_added">📦 اتضاف للمخزون: %1$s</string>
     <string name="zad_pharmacy_added">✅ تم، ضفنا %1$s لجدول الأدوية%2$s.</string>
+    <string name="zad_agent_fallback_notice">⚠️ عقلي التنفيذي مش متاح دلوقتي — ده رد عام من بياناتك المسجّلة بس، ومفيش أي حاجة اتنفذت. لو كنت طالب تسجيل مصروف أو تعديل، **هو ماتسجّلش** — ابعته تاني كمان شوية.</string>
     <string name="zad_ai_busy">الذكاء الاصطناعي مشغول شوية دلوقتي 🙏 جرب تاني بعد لحظات.</string>
     <string name="zad_unexpected_error">حصل خطأ غير متوقع.</string>
     <string name="brain_gate_title">افتح عقل زاد</string>

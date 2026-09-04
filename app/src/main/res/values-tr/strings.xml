@@ -1592,6 +1592,7 @@
     <string name="zad_cancel_reply">Tamam, iptal edildi.</string>
     <string name="zad_inventory_added">📦 Envantere eklendi: %1$s</string>
     <string name="zad_pharmacy_added">✅ Tamam, %1$s ilaç takvimine eklendi%2$s.</string>
+    <string name="zad_agent_fallback_notice">⚠️ Eylem motorum şu anda kullanılamıyor — bu yalnızca kayıtlı verilerinden genel bir yanıt ve hiçbir işlem yapılmadı. Bir harcama kaydı veya değişiklik istediysen **kaydedilmedi** — birazdan tekrar gönder.</string>
     <string name="zad_ai_busy">Yapay zeka şu anda biraz meşgul 🙏 birazdan tekrar dene.</string>
     <string name="zad_unexpected_error">Beklenmeyen bir hata oluştu.</string>
     <string name="brain_gate_title">Zad Zekasını Aç</string>

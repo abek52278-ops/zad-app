@@ -1608,11 +1608,21 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             "=== نهاية الملخص ===\n\n"
     }
 
+    /**
+     * سبب وقوع آخر لفة وكيل على المسار القديم، أو null لو اللفة نجحت.
+     *
+     * المسار القديم بينفذ ٤ عمليات بس (مخزون/صيدلية) — `log_transaction` مش منهم. يعني
+     * "صرفت ٥٠ بقالة" وزاد-برين واقع كان بيدي العميل رد ودود والمصروف مايتسجلش ومحدش
+     * يقوله. الحقل ده هو اللي بيخلي الرد القرائي يقول الحقيقة دي بدل ما يسكت.
+     */
+    private var lastAgentFallbackReason: String? = null
+
     private suspend fun tryAgentTurn(
         userText: String,
         voiceMode: Boolean,
         replyToMessageId: String
     ): Boolean {
+        lastAgentFallbackReason = null
         val history = _aiChatMessages.value.dropLast(1).takeLast(8)
             .map { (if (it.isUser) "user" else "assistant") to it.text }
 
@@ -1637,6 +1647,8 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
         if (result == null) {
             // فشل — نشيل الرسالة الفارغة ونرجع false عشان الـ fallback القديم يشتغل
+            lastAgentFallbackReason = "agent turn unavailable (network, timeout, or model)"
+            Log.w(TAG, "tryAgentTurn() fell back to legacy chat: $lastAgentFallbackReason")
             _aiChatMessages.value = _aiChatMessages.value.dropLast(1)
             return false
         }
@@ -1661,6 +1673,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         } else {
+            // لفة رجعت سليمة وهي فاضية تماماً (buildAgentTurnReply → null). من ناحية
+            // العميل دي نفس حالة الوكيل الواقع بالظبط، فلازم تحمل نفس التحذير.
+            lastAgentFallbackReason = "agent returned an empty turn (no reply, no executed tool, no proposal)"
+            Log.w(TAG, "tryAgentTurn() fell back to legacy chat: $lastAgentFallbackReason")
             _aiChatMessages.value = _aiChatMessages.value.dropLast(1)
             return false
         }
@@ -2027,8 +2043,14 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                     systemPrompt, userText, thinkingBudget = CHAT_THINKING_BUDGET
                 )
                 val aiMsg = if (response != null) {
+                    // الرد ده جاي من المسار القديم، اللي مايقدرش يسجّل مصروف أصلاً. لو
+                    // وصلنا هنا بسبب وقوع لفة الوكيل، العميل لازم يعرف إن اللي طلبه
+                    // ماتنفذش — الصمت هنا بيخليه يفتكر إنه اتسجل.
+                    val fallbackNotice = if (lastAgentFallbackReason != null) {
+                        getApplication<Application>().getString(R.string.zad_agent_fallback_notice) + "\n\n"
+                    } else ""
                     AiChatMessage(
-                        text = applyChatAction(response),
+                        text = fallbackNotice + applyChatAction(response),
                         isUser = false,
                         replyToMessageId = replyToMessageId
                     )
