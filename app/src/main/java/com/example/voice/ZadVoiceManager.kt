@@ -40,20 +40,32 @@ sealed class VoiceState {
 object ZadVoiceManager {
     private const val TAG = "ZadVoiceManager"
 
-    private lateinit var appContext: Context
+    private var appContext: Context? = null
     private var initialized = false
+    private var engine: ZadNaturalVoiceEngine? = null
 
-    /** لازم تتنادى مرة قبل أي استخدام — MainActivity.onCreate بينادّيها زي NetworkMonitor.register. */
+    private val _humanVoiceAvailable = MutableStateFlow(true)
+    val humanVoiceAvailable: StateFlow<Boolean> = _humanVoiceAvailable.asStateFlow()
+
+    /** لازم تتنادى مرة قبل أي استخدام — MainActivity.onCreate بينادّيها بأمان. */
     fun init(context: Context) {
         if (initialized) return
+        val app = context.applicationContext
+        appContext = app
+        val voiceEngine = ZadNaturalVoiceEngine(app)
+        engine = voiceEngine
         initialized = true
-        appContext = context.applicationContext
 
-        val savedId = personaPrefs.getString("persona_id", null)
-        savedId?.let { id ->
-            ZadNaturalVoiceEngine.VoicePersona.values()
-                .firstOrNull { it.id == id }
-                ?.let { naturalVoiceEngine.setPersona(it) }
+        try {
+            val prefs = app.getSharedPreferences("zad_voice_persona", Context.MODE_PRIVATE)
+            val savedId = prefs.getString("persona_id", null)
+            savedId?.let { id ->
+                ZadNaturalVoiceEngine.VoicePersona.values()
+                    .firstOrNull { it.id == id }
+                    ?.let { voiceEngine.setPersona(it) }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error loading voice persona prefs", e)
         }
     }
 
@@ -73,10 +85,14 @@ object ZadVoiceManager {
 
     fun startListening(onResult: (String) -> Unit) {
         stopSpeaking()
+        val context = appContext ?: run {
+            _voiceState.value = VoiceState.Error("خدمة الصوت لم تبدأ بعد")
+            return
+        }
         val mainHandler = Handler(Looper.getMainLooper())
         mainHandler.post {
-            if (!SpeechRecognizer.isRecognitionAvailable(appContext)) {
-                _voiceState.value = VoiceState.Error(appContext.getString(R.string.voice_error_unavailable))
+            if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+                _voiceState.value = VoiceState.Error(context.getString(R.string.voice_error_unavailable))
                 return@post
             }
 
@@ -85,20 +101,15 @@ object ZadVoiceManager {
             } catch (_: Exception) {}
             speechRecognizer = null
 
-            // كان create+startListening بينفذوا في نفس الـtick بعد destroy() على طول —
-            // خدمة التعرف بتاعة أندرويد (بروسس نظام منفصل، مش نفس الأوبچكت العميل) محتاجة
-            // لحظة تفرّج فيها الجلسة القديمة قبل ما جلسة جديدة تقدر تاخدها؛ من غير فاصل،
-            // النتيجة المتكررة على أجهزة حقيقية كانت ERROR_RECOGNIZER_BUSY فورية — مش
-            // مشكلة في المايك نفسه ولا في صلاحيته، مجرد سباق توقيت. ١٥٠ مللي كافية عمليًا.
-            mainHandler.postDelayed({ startListeningInternal(onResult) }, 150)
+            mainHandler.postDelayed({ startListeningInternal(context, onResult) }, 150)
         }
     }
 
-    private fun startListeningInternal(onResult: (String) -> Unit) {
+    private fun startListeningInternal(context: Context, onResult: (String) -> Unit) {
             try {
-                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(appContext)
+                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
 
-                val marketLocale = com.example.data.MarketPrefs.getMarket(appContext).toLocale()
+                val marketLocale = com.example.data.MarketPrefs.getMarket(context).toLocale()
                 val localeTag = marketLocale.toLanguageTag()
                 val additionalLanguages = buildList {
                     add(localeTag)
@@ -202,28 +213,16 @@ object ZadVoiceManager {
         _soundLevel.value = 0f
     }
 
-    // by lazy — appContext لسه مش متعين وقت أول تحميل للـobject، بيتحل أول ما init() تتنادى
-    // وأي method فيها يتلمس فعليًا بعد كده.
-    private val naturalVoiceEngine by lazy { ZadNaturalVoiceEngine(appContext) }
-
-    // حفظ الشخصية المختارة بين الجلسات
-    private val personaPrefs by lazy { appContext.getSharedPreferences("zad_voice_persona", Context.MODE_PRIVATE) }
-
     fun setVoicePersona(persona: ZadNaturalVoiceEngine.VoicePersona) {
-        naturalVoiceEngine.setPersona(persona)
-        personaPrefs.edit().putString("persona_id", persona.id).apply()
+        engine?.setPersona(persona)
+        appContext?.getSharedPreferences("zad_voice_persona", Context.MODE_PRIVATE)
+            ?.edit()?.putString("persona_id", persona.id)?.apply()
     }
 
-    fun getCurrentPersona(): ZadNaturalVoiceEngine.VoicePersona = naturalVoiceEngine.currentPersona.value
+    fun getCurrentPersona(): ZadNaturalVoiceEngine.VoicePersona =
+        engine?.currentPersona?.value ?: ZadNaturalVoiceEngine.VoicePersona.SARAH_STUDIO_WARM
 
-    /** حالة توفر الصوت البشري — لو ElevenLاس فشل، الواجهة تعرض النص بدل صمت.
-     *  by lazy زي naturalVoiceEngine بالظبط — val عادي هنا كان بيجبر تقييم naturalVoiceEngine
-     *  وقت تحميل الـ object (static init)، يعني قبل ما init(context) تتنادى أصلاً، فـ appContext
-     *  لسه lateinit مش متعين → UninitializedPropertyAccessException بتتلف كـ
-     *  ExceptionInInitializerError عند أول لمسة للـ object (MainActivity.onCreate). */
-    val humanVoiceAvailable: StateFlow<Boolean> by lazy { naturalVoiceEngine.humanVoiceAvailable }
-
-    /** نطق بصوت بشري. onDone بعد نجاح التشغيل، onFailed لو الصوت البشري مش متاح. */
+    /** نطق بصوت بشري مع fallback ذكي. */
     fun speakHumanLike(text: String, onDone: () -> Unit = {}, onFailed: () -> Unit = {}) {
         if (text.isBlank()) {
             onDone()
@@ -232,7 +231,15 @@ object ZadVoiceManager {
 
         _voiceState.value = VoiceState.Speaking(text)
         _isSpeaking.value = true
-        naturalVoiceEngine.speakHumanLike(
+        val voiceEngine = engine
+        if (voiceEngine == null) {
+            _isSpeaking.value = false
+            _voiceState.value = VoiceState.Idle
+            onFailed()
+            return
+        }
+
+        voiceEngine.speakHumanLike(
             text,
             onDone = {
                 _isSpeaking.value = false
@@ -254,7 +261,7 @@ object ZadVoiceManager {
 
     fun stopSpeaking() {
         try {
-            naturalVoiceEngine.stop()
+            engine?.stop()
         } catch (e: Exception) {
             Log.w(TAG, "stopSpeaking error: ${e.message}")
         }
@@ -268,7 +275,8 @@ object ZadVoiceManager {
         try {
             speechRecognizer?.destroy()
             speechRecognizer = null
-            naturalVoiceEngine.release()
+            engine?.release()
+            engine = null
             _isListening.value = false
             _isSpeaking.value = false
             _soundLevel.value = 0f

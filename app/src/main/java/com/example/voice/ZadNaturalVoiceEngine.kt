@@ -9,6 +9,8 @@ import android.media.AudioTrack
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import com.example.BuildConfig
 import com.example.data.MarketPrefs
@@ -103,6 +105,23 @@ class ZadNaturalVoiceEngine(private val context: Context) {
     @Volatile private var completion: (() -> Unit)? = null
     @Volatile private var failedCompletion: (() -> Unit)? = null
     private var audioFocusRequest: AudioFocusRequest? = null
+
+    private var nativeTts: TextToSpeech? = null
+    @Volatile private var nativeTtsReady = false
+
+    init {
+        try {
+            nativeTts = TextToSpeech(context.applicationContext) { status ->
+                if (status == TextToSpeech.SUCCESS) {
+                    val langResult = nativeTts?.setLanguage(java.util.Locale("ar"))
+                    nativeTtsReady = langResult != TextToSpeech.LANG_MISSING_DATA &&
+                                     langResult != TextToSpeech.LANG_NOT_SUPPORTED
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(tag, "Native TTS init error: ${e.message}")
+        }
+    }
 
     private val audioManager get() =
         context.applicationContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -247,6 +266,40 @@ class ZadNaturalVoiceEngine(private val context: Context) {
             }
         }
         if (!anySpoken) {
+            Log.w(tag, "Cloud human voice unavailable, attempting native Android TTS fallback...")
+            val tts = nativeTts
+            if (tts != null && nativeTtsReady && requestGeneration == generation.get()) {
+                val utteranceId = "zad_native_tts_${requestGeneration}"
+                tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(id: String?) {}
+                    override fun onDone(id: String?) {
+                        _isSpeaking.value = false
+                        mainHandler.post {
+                            if (requestGeneration == generation.get()) {
+                                val cb = completion
+                                completion = null
+                                failedCompletion = null
+                                cb?.invoke()
+                            }
+                        }
+                    }
+                    override fun onError(id: String?) {
+                        _isSpeaking.value = false
+                        _humanVoiceAvailable.value = false
+                        mainHandler.post {
+                            if (requestGeneration == generation.get()) {
+                                val cb = failedCompletion
+                                completion = null
+                                failedCompletion = null
+                                cb?.invoke()
+                            }
+                        }
+                    }
+                })
+                tts.speak(chunks.joinToString(" "), TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+                return
+            }
+
             Log.w(tag, "Human voice unavailable after retries")
             _humanVoiceAvailable.value = false
             _isSpeaking.value = false
@@ -459,6 +512,10 @@ class ZadNaturalVoiceEngine(private val context: Context) {
             track?.stop()
         } catch (_: Exception) {
         }
+        try {
+            nativeTts?.stop()
+        } catch (_: Exception) {
+        }
     }
 
     fun release() {
@@ -467,6 +524,11 @@ class ZadNaturalVoiceEngine(private val context: Context) {
         try {
             audioTrack?.release()
             audioTrack = null
+        } catch (_: Exception) {
+        }
+        try {
+            nativeTts?.shutdown()
+            nativeTts = null
         } catch (_: Exception) {
         }
     }

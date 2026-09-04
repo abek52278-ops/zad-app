@@ -17,7 +17,7 @@
 // الإخراج: PCM 24kHz mono 16-bit (نفس فورمات مسار التشغيل في الأندرويد بالظبط).
 // المشاعر: النص بيتغلف بتعليمات أسلوب حسب سياق الرسالة (styleForText).
 
-export const GEMINI_TTS_MODEL = Deno.env.get("GEMINI_TTS_MODEL") ?? "gemini-2.5-flash-preview-tts";
+export const GEMINI_TTS_MODEL = Deno.env.get("GEMINI_TTS_MODEL") ?? "gemini-2.0-flash";
 
 export const VOICE_IDS: Record<string, string> = {
   sarah_warm: "Aoede",
@@ -93,7 +93,7 @@ export async function requestGeminiVoiceWithPool(
   apiKeys: string[],
   fetcher: typeof fetch = fetch,
   dialectInstruction = "",
-  models: string[] = [GEMINI_TTS_MODEL, "gemini-2.5-pro-preview-tts"],
+  models: string[] = [GEMINI_TTS_MODEL, "gemini-2.0-flash-exp", "gemini-1.5-flash"],
 ): Promise<Response> {
   const attempts: Array<{ key_index: number; model: string; status: number | null }> = [];
   if (!apiKeys.length) {

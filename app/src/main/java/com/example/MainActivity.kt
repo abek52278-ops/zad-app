@@ -158,7 +158,11 @@ class MainActivity : ComponentActivity() {
         // نفس السبب: صار object مشترك بدل instance منفصل لكل شاشة (ZadVoiceBottomSheet،
         // ZadIntelligenceScreen كانوا كل واحد بيعمل نسخته بنفسه). init() هنا يضمن إنه
         // جاهز قبل أي مكان يقرا voiceState بتاعه (زي مسكوت HomeScreen).
-        com.example.voice.ZadVoiceManager.init(applicationContext)
+        try {
+            com.example.voice.ZadVoiceManager.init(applicationContext)
+        } catch (e: Throwable) {
+            android.util.Log.e("MainActivity", "ZadVoiceManager.init safely caught: ${e.message}", e)
+        }
 
         // Schedule periodic AI analysis (Feature 6)
         val workRequest = PeriodicWorkRequestBuilder<PeriodicAnalysisWorker>(6, TimeUnit.HOURS).build()

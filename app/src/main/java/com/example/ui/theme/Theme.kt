@@ -33,22 +33,14 @@ private val PremiumLightColorScheme = lightColorScheme(
 
 @Composable
 fun AppTheme(
-    // We enforce the light premium theme
     darkTheme: Boolean = false,
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            dynamicLightColorScheme(context)
-        }
-        else -> PremiumLightColorScheme
-    }
-
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = ZadColorScheme,
         typography = Typography,
+        shapes = ZadShapes,
         content = {
             androidx.compose.runtime.CompositionLocalProvider(
                 androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Rtl

@@ -2,114 +2,127 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// =====================================================
-// ZAD Design System — Liquid Glass Deep Green Identity
-// (matches the "ZAD App.dc.html" Claude Design mockup — iOS 26 liquid-glass
-// look, primary action color #064E3B; primaryContainer/primaryFixed already
-// happened to match the mockup exactly and are left unchanged)
-// =====================================================
+// =========================================================================
+// ZAD Design System — "Zad Culinary & Wealth Heritage" (Apple iOS Cupertino HIG)
+// Ultra-premium palette blending deep forest emerald, warm mustard ochre,
+// and terracotta rust with crisp iOS light surfaces and frosted glass.
+// =========================================================================
 
-// --- Primary Brand — Deep Green ---
-val primary = Color(0xFF064E3B)            // mockup's dominant action/button/icon green
-val primaryDark = Color(0xFF052E16)        // deepest — pressed/emphasis state
-val primaryLight = Color(0xFF0F9B76)       // mockup's mid-bright accent (tab indicator, tags)
-val primaryContainer = Color(0xFF052E16)   // AI summary card bg — already matched the mockup
-val primaryFixed = Color(0xFF6EE7B7)       // AI summary title text — already matched the mockup
+// --- 1. Core Heritage Palette ---
+val ZadForestEmerald = Color(0xFF1B4332)   // Primary: High-trust, household health, financial wealth
+val ZadForestEmeraldDark = Color(0xFF143225)
+val ZadForestEmeraldLight = Color(0xFF2D6A4F)
+val ZadEmeraldContainer = Color(0xFFE8F0EC)
+
+val ZadMustardOchre = Color(0xFFC68216)    // Secondary: Due dates, budget warnings, pending actions
+val ZadMustardDark = Color(0xFFA5680E)
+val ZadMustardLight = Color(0xFFE9A844)
+val ZadMustardContainer = Color(0xFFFBF4E7)
+
+val ZadTerracottaRust = Color(0xFFD95726)  // Tertiary: Urgent pharmacy doses, debt deadlines, critical stock
+val ZadTerracottaDark = Color(0xFFB84218)
+val ZadTerracottaLight = Color(0xFFEA764B)
+val ZadTerracottaContainer = Color(0xFFFDF0EA)
+
+// --- 2. Surfaces & iOS Canvas ---
+val ZadIosBackground = Color(0xFFF8F9FA)   // Soft iOS Light canvas
+val ZadIosSurface = Color(0xFFFFFFFF)      // Pure elevated glass cards
+val ZadIosSurfaceVariant = Color(0xFFEDEFE9) // Rounded container pills, icon backdrops
+val ZadIosOutline = Color(0xFFE0E3DA)      // Thin hairline borders (0.5.dp)
+val ZadNeutralDark = Color(0xFF1F1F14)     // High-contrast, pure text legibility
+val ZadNeutralMuted = Color(0xFF6E7166)    // Secondary muted labels
+
+// --- 3. Material 3 / App Theme Aliases (Backwards Compatibility) ---
+val primary = ZadForestEmerald
+val primaryDark = ZadForestEmeraldDark
+val primaryLight = ZadForestEmeraldLight
+val primaryContainer = ZadEmeraldContainer
+val primaryFixed = ZadForestEmerald
 val onPrimary = Color(0xFFFFFFFF)
+val onPrimaryContainer = ZadForestEmerald
 
-// --- Secondary — Amber ---
-val secondary = Color(0xFFF59E0B)          // Gold
-val secondaryDark = Color(0xFFB45309)      // mockup's amber-700 (prices, cost values, warnings)
-val secondaryLight = Color(0xFFFCD34D)     // Light Gold
+val secondary = ZadMustardOchre
+val secondaryDark = ZadMustardDark
+val secondaryLight = ZadMustardLight
+val secondaryContainer = ZadMustardContainer
 val onSecondary = Color(0xFFFFFFFF)
+val onSecondaryContainer = ZadMustardDark
 
-// --- Sand — warm accent family, kept for card variants (no longer the canvas) ---
-val sand = Color(0xFFF3E5D8)
-val sandLight = Color(0xFFF8EFE6)
-val sandDark = Color(0xFFE4D2BC)
-val onSand = Color(0xFF3D2B1F)
+val tertiary = ZadTerracottaRust
+val tertiaryContainer = ZadTerracottaContainer
+val onTertiaryContainer = ZadTerracottaDark
 
-// --- Coral & Lilac — pastel accent blur family (iOS-style ambient blobs) ---
-val coral = Color(0xFFFF6F61)
-val coralLight = Color(0xFFFFA69E)
-val lilac = Color(0xFFC4B5FD)
-val lilacLight = Color(0xFFE0D7FF)
+val background = ZadIosBackground
+val onBackground = ZadNeutralDark
+val surface = ZadIosSurface
+val onSurface = ZadNeutralDark
+val surfaceVariant = ZadIosSurfaceVariant
+val onSurfaceVariant = ZadNeutralMuted
+val outline = ZadIosOutline
+val outlineVariant = Color(0xFFE8EBE2)
 
-// --- Splash carrot mark (solid, not a pastel blob — distinct from `coral`) ---
-val carrotOrange = Color(0xFFF0703D)
-
-// --- Backgrounds & Surfaces (Light Mode) ---
-// The mockup's app canvas is one cool-neutral gradient
-// (`linear-gradient(165deg,#F4F5F7,#ECEEF1 45%,#E9ECEF)`) — see ZadCanvasBackground.
-// All color comes from the cards on top of it, never from a tinted canvas or from
-// blurred accent blobs (those were removed; they read as a gradient bug, not depth).
-val canvasTop = Color(0xFFF4F5F7)
-val canvasMid = Color(0xFFECEEF1)
-val canvasBottom = Color(0xFFE9ECEF)
-
-val background = Color(0xFFFFFFFF)
-val onBackground = Color(0xFF111827)       // Dark text
-val surface = Color(0xFFFFFFFF)            // Opaque white for cards
-val onSurface = Color(0xFF111827)          // Dark text on surface
-val surfaceVariant = Color(0xFFF3F4F6)     // Light gray for elevated cards
-val onSurfaceVariant = Color(0xFF4B5563)   // Medium gray text
-val outline = Color(0xFFE5E7EB)            // Light border
-val outlineVariant = Color(0xFFF3F4F6)     // Lighter border
-
-// Material 3 Surface Containers
+// Surface Container Levels
 val surfaceContainerLowest = Color(0xFFFFFFFF)
-val surfaceContainerLow = Color(0xFFFAFAFA)
-val surfaceContainer = Color(0xFFF5F5F5)
-val surfaceContainerHigh = Color(0xFFE5E7EB)
-val surfaceContainerHighest = Color(0xFFD1D5DB)
+val surfaceContainerLow = Color(0xFFFBFBFA)
+val surfaceContainer = ZadIosBackground
+val surfaceContainerHigh = ZadIosSurfaceVariant
+val surfaceContainerHighest = Color(0xFFE2E5DC)
 
-// Secondary & Tertiary Containers
-val secondaryContainer = Color(0xFF2D3748)
-val onSecondaryContainer = Color(0xFFE2E8F0)
-val tertiary = Color(0xFF3B82F6)
-val tertiaryContainer = Color(0xFF1E3A8A)
-val onTertiaryContainer = Color(0xFFDBEAFE)
-val onPrimaryContainer = Color(0xFFD1FAE5)
+// Neutral & Accent Tokens
+val sand = ZadIosSurfaceVariant
+val sandLight = ZadIosBackground
+val sandDark = ZadIosOutline
+val onSand = ZadNeutralDark
 
-// Category Colors
-val catBillsBg = Color(0x33EF4444)
-val catBillsIcon = Color(0xFFF87171)
-val catBankingBg = Color(0x333B82F6)
-val catBankingIcon = Color(0xFF60A5FA)
-val catFoodBg = Color(0x33F59E0B)
-val catFoodIcon = Color(0xFFFBBF24)
-val catTransportBg = Color(0x338B5CF6)
-val catTransportIcon = Color(0xFFA78BFA)
-val catSavingsBg = Color(0x3310B981)
-val catSavingsIcon = Color(0xFF34D399)
-val catDailyBg = Color(0x33EC4899)
-val catDailyIcon = Color(0xFFF472B6)
-val catEntertainBg = Color(0x3306B6D4)
-val catEntertainIcon = Color(0xFF22D3EE)
-val catHealthBg = Color(0x3314B8A6)
-val catHealthIcon = Color(0xFF2DD4BF)
+val coral = ZadTerracottaRust
+val coralLight = ZadTerracottaContainer
+val lilac = Color(0xFF7C6F93)
+val lilacLight = Color(0xFFF2EFF7)
+val carrotOrange = Color(0xFFF06A35)
 
-// --- Text Colors ---
-val textPrimary = Color(0xFF111827)        // Dark gray
-val textSecondary = Color(0xFF4B5563)      // Medium gray
-val textTertiary = Color(0xFF9CA3AF)       // Light gray
+val canvasTop = Color(0xFFF8F9FA)
+val canvasMid = Color(0xFFF4F6F2)
+val canvasBottom = Color(0xFFEDEFE9)
 
-// --- Semantic Colors ---
-val successColor = Color(0xFF0F9B76)       // matches new primaryLight
-val dangerColor = Color(0xFFDC5B4B)        // mockup's low-stock/obligation-pending red-orange
-val warningColor = Color(0xFFFBBF24)       // Amber
-val infoColor = Color(0xFF60A5FA)          // Blue
+// Category Colors (Soft pastels with heritage accents)
+val catBillsBg = Color(0x1AD95726)
+val catBillsIcon = ZadTerracottaRust
+val catBankingBg = Color(0x1A1B4332)
+val catBankingIcon = ZadForestEmerald
+val catFoodBg = Color(0x1AC68216)
+val catFoodIcon = ZadMustardOchre
+val catTransportBg = Color(0x1A5B7065)
+val catTransportIcon = Color(0xFF3F554A)
+val catSavingsBg = Color(0x1A2D6A4F)
+val catSavingsIcon = ZadForestEmeraldLight
+val catDailyBg = Color(0x1AE2847A)
+val catDailyIcon = Color(0xFFC0584E)
+val catEntertainBg = Color(0x1A4F777E)
+val catEntertainIcon = Color(0xFF2C5961)
+val catHealthBg = Color(0x1A1F6E54)
+val catHealthIcon = Color(0xFF135841)
 
-// --- Kids Mode Colors ---
-val kidsPrimary = Color(0xFF7C3AED)        // Purple — already matched the mockup's kids gradient start
-val kidsPrimaryDark = Color(0xFF4C1D95)
-val kidsPrimaryLight = Color(0xFFC084FC)
-val kidsAccentPink = Color(0xFFEC4899)     // mockup's kids gradient end (135deg, #7C3AED -> #EC4899)
+// Typography Text Colors
+val textPrimary = ZadNeutralDark
+val textSecondary = ZadNeutralMuted
+val textTertiary = Color(0xFF9EA197)
+
+// Semantic Colors
+val successColor = Color(0xFF238652)
+val dangerColor = ZadTerracottaRust
+val warningColor = ZadMustardOchre
+val infoColor = Color(0xFF2B6CB0)
+
+// Kids Mode Colors
+val kidsPrimary = Color(0xFF6B46C1)
+val kidsPrimaryDark = Color(0xFF442B82)
+val kidsPrimaryLight = Color(0xFFB794F4)
+val kidsAccentPink = Color(0xFFED64A6)
 val kidsBackground = Color(0xFF0F0A2E)
 val kidsSurface = Color(0xFF1E0A4A)
 
-// --- Error (Material compat) ---
-val error = Color(0xFFF87171)
+// Error Colors
+val error = ZadTerracottaRust
 val onError = Color(0xFFFFFFFF)
-val errorContainer = Color(0x1AF87171)
-val onErrorContainer = Color(0xFFF87171)
+val errorContainer = ZadTerracottaContainer
+val onErrorContainer = ZadTerracottaDark
