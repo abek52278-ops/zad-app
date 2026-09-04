@@ -198,8 +198,8 @@ private fun sizeMaxX(): Float = 1400f
 @Composable
 fun ZadListCard(
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(16.dp),
-    containerColor: Color = Color.White,
+    shape: Shape = com.example.ui.theme.ZadLuxe.squircle,
+    containerColor: Color = com.example.ui.theme.ZadLuxe.cardWhite,
     contentPadding: Dp = 16.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {

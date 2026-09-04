@@ -577,10 +577,11 @@ fun ZadIntelligenceScreen(
 
             // ═══ TOP: executive financial health + daily spend velocity ═══
             item { SectionHeader(Icons.Default.Speed, stringResource(R.string.intel_section_executive)) }
-            if (brainReport != null) {
-                item { HealthScoreCard(brainReport!!) }
-                item { DailySpendVelocityCard(brainReport!!.spendingPower) }
-                item { SpendingPowerGaugeCard(brainReport!!.spendingPower) }
+            val resolvedBrainReport = brainReport
+            if (resolvedBrainReport != null) {
+                item { HealthScoreCard(resolvedBrainReport) }
+                item { DailySpendVelocityCard(resolvedBrainReport.spendingPower) }
+                item { SpendingPowerGaugeCard(resolvedBrainReport.spendingPower) }
             } else if (brainReportError != null) {
                 // كان سبينر أبدي هنا. التقرير حساب محلي بحت — لو وقع، مفيش أي سبب يخلي
                 // العميل يستنى حاجة مش جاية، ولا يخلي سبع كروت تحته تختفي بصمت.
@@ -715,13 +716,20 @@ fun ZadIntelligenceScreen(
             budgetState?.byCategory?.takeIf { it.isNotEmpty() }?.let { byCategory ->
                 item { CategoryBreakdownCard(byCategory) }
             }
-            item {
-                FinancialStressTestCard(
-                    transactions,
-                    emergencyFund,
-                    availableBalance = resilienceAvailableFigure?.value ?: resilienceRemainingBalance ?: 0.0,
-                    onUpdateEmergencyFund = { viewModel.updateEmergencyFund(it) },
-                )
+            // resilienceAvailableFigure/resilienceRemainingBalance بيرجعوا null لحد ما
+            // يتحمّلوا من السيرفر — null مش نفس معنى "الرصيد صفر". كان بيتحوّل لـ0.0 على
+            // طول، فالكارت كان بيعرض "0 يوم تغطية / حرجة" لحظيًا لمستخدم رصيده سليم بس
+            // البيانات لسه بتتحمّل.
+            val resilienceValue = resilienceAvailableFigure?.value ?: resilienceRemainingBalance
+            if (resilienceValue != null) {
+                item {
+                    FinancialStressTestCard(
+                        transactions,
+                        emergencyFund,
+                        availableBalance = resilienceValue,
+                        onUpdateEmergencyFund = { viewModel.updateEmergencyFund(it) },
+                    )
+                }
             }
             brainReport?.depletionForecasts?.takeIf { it.isNotEmpty() }?.let { forecasts ->
                 item { DepletionForecastCard(forecasts) }
@@ -820,8 +828,6 @@ fun ZadIntelligenceScreen(
                     lastSpecialist = lastSpecialist
                 )
             }
-
-            item { Spacer(modifier = Modifier.height(80.dp)) }
         }
     }
 }
@@ -1097,7 +1103,7 @@ fun ExpenseDonutCard(categoryMap: List<Pair<String, Double>>, total: Double) {
     // الدونات من "الإجمالي" لتفاصيل الفئة دي — عرض أمرن بدل رقم إجمالي ثابت.
     var selectedIndex by remember(categoryMap) { mutableStateOf<Int?>(null) }
 
-    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
+    com.example.ui.components.ZadListCard(shape = com.example.ui.theme.ZadLuxe.squircle, contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.BarChart, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
@@ -1233,7 +1239,7 @@ fun ZadDonutChart(
 fun DailySpendVelocityCard(power: com.example.data.ZadCentralBrain.SpendingPower?) {
     val context = LocalContext.current
 
-    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
+    com.example.ui.components.ZadListCard(shape = com.example.ui.theme.ZadLuxe.squircle, contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Speed, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
@@ -1357,7 +1363,7 @@ fun WeeklyTrendCard(transactions: List<ZadTransaction>) {
         java.time.DayOfWeek.FRIDAY to "جمع"
     )
 
-    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
+    com.example.ui.components.ZadListCard(shape = com.example.ui.theme.ZadLuxe.squircle, contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1450,7 +1456,7 @@ fun MonthlyBarChartCard(monthlyData: List<Pair<String, Double>>, forecast: com.e
     // Same dead-constant animation as the donut had — see drawProgressOnEntry.
     val animatedProgress by com.example.ui.components.drawProgressOnEntry(durationMs = 1000)
 
-    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
+    com.example.ui.components.ZadListCard(shape = com.example.ui.theme.ZadLuxe.squircle, contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1537,7 +1543,7 @@ fun ConsumptionTickerCard(transactions: List<ZadTransaction>) {
 
     val drawProgress by animateFloatAsState(targetValue = if (hasData) 1f else 0f, animationSpec = tween(1200, easing = FastOutSlowInEasing), label = "ticker_draw")
 
-    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
+    com.example.ui.components.ZadListCard(shape = com.example.ui.theme.ZadLuxe.squircle, contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
@@ -1726,7 +1732,7 @@ fun WhatIfSimulatorCard(viewModel: ZadViewModel, predictedMonthlySpend: Double) 
     var aiNarrative by remember { mutableStateOf<String?>(null) }
     var isLoadingNarrative by remember { mutableStateOf(false) }
 
-    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
+    com.example.ui.components.ZadListCard(shape = com.example.ui.theme.ZadLuxe.squircle, contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Calculate, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
@@ -2025,7 +2031,7 @@ fun FinancialStressTestCard(transactions: List<ZadTransaction>, emergencyFund: D
         StressTestStatus.HEALTHY -> successColor to stringResource(R.string.stress_test_status_healthy)
     }
 
-    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
+    com.example.ui.components.ZadListCard(shape = com.example.ui.theme.ZadLuxe.squircle, contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.HealthAndSafety, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
@@ -2109,11 +2115,13 @@ fun FinancialStressTestCard(transactions: List<ZadTransaction>, emergencyFund: D
             onDismissRequest = { showEditDialog = false },
             title = { Text(stringResource(R.string.stress_test_edit_fund_action), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
             text = {
-                OutlinedTextField(
-                    value = fundStr, onValueChange = { fundStr = it },
-                    label = { Text(stringResource(R.string.stress_test_emergency_fund_label)) },
-                    modifier = Modifier.fillMaxWidth(), singleLine = true
-                )
+                Column(modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()) {
+                    OutlinedTextField(
+                        value = fundStr, onValueChange = { fundStr = it },
+                        label = { Text(stringResource(R.string.stress_test_emergency_fund_label)) },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true
+                    )
+                }
             },
             confirmButton = {
                 Button(onClick = {
@@ -2135,7 +2143,7 @@ fun InflationRadarCard(transactions: List<ZadTransaction>) {
     var aiNarrative by remember(categories) { mutableStateOf<String?>(null) }
     var isLoadingNarrative by remember { mutableStateOf(false) }
 
-    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
+    com.example.ui.components.ZadListCard(shape = com.example.ui.theme.ZadLuxe.squircle, contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Radar, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
@@ -2235,7 +2243,7 @@ fun SmartBuyingTimingCard(inventory: List<ZadInventory>, serverBehaviorProfile: 
     var isLoadingNarrative by remember { mutableStateOf(false) }
     var narratingItem by remember { mutableStateOf<String?>(null) }
 
-    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
+    com.example.ui.components.ZadListCard(shape = com.example.ui.theme.ZadLuxe.squircle, contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
@@ -2445,7 +2453,7 @@ fun PriceShockRadarCard(categories: List<String>, viewModel: ZadViewModel) {
     val warnings by viewModel.priceShockWarnings.collectAsState()
     val fetchState by viewModel.priceShockFetchState.collectAsState()
 
-    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
+    com.example.ui.components.ZadListCard(shape = com.example.ui.theme.ZadLuxe.squircle, contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.ShowChart, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
@@ -2574,7 +2582,7 @@ fun ChatSectionCard(
     onCancelAgentProposals: () -> Unit = {},
     lastSpecialist: String? = null
 ) {
-    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(24.dp), contentPadding = 0.dp) {
+    com.example.ui.components.ZadListCard(shape = com.example.ui.theme.ZadLuxe.squircle, contentPadding = 0.dp) {
         Column {
             Row(
                 modifier = Modifier.fillMaxWidth().clickable { onToggle() }.padding(20.dp),
@@ -3653,8 +3661,8 @@ fun FamilyNeuralMeshCard(
 
     com.example.ui.components.ZadListCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        containerColor = MaterialTheme.colorScheme.surface,
+        shape = com.example.ui.theme.ZadLuxe.squircle,
+        containerColor = com.example.ui.theme.ZadLuxe.cardWhite,
         contentPadding = 0.dp
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
@@ -3685,7 +3693,7 @@ fun FamilyNeuralMeshCard(
                         .background(Color(0xFF9333EA).copy(alpha = 0.12f))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
-                    Text(stringResource(R.string.auto_zadintelligence_37663), style = Typography.labelSmall, color = Color(0xFF9333EA), fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                    Text(stringResource(R.string.auto_zadintelligence_37663, memberCount), style = Typography.labelSmall, color = Color(0xFF9333EA), fontWeight = FontWeight.Bold, fontSize = 10.sp)
                 }
             }
 
@@ -3710,7 +3718,7 @@ fun FamilyNeuralMeshCard(
                     Column {
                         Text(stringResource(R.string.auto_zadintelligence_61227), style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
                         Spacer(Modifier.height(2.dp))
-                        Text(stringResource(R.string.auto_zadintelligence_70890), style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = primary)
+                        Text(stringResource(R.string.auto_zadintelligence_70890, completedChores, totalChores), style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = primary)
                     }
                 }
                 Box(
@@ -3723,7 +3731,7 @@ fun FamilyNeuralMeshCard(
                     Column {
                         Text(stringResource(R.string.auto_zadintelligence_15566), style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
                         Spacer(Modifier.height(2.dp))
-                        Text(stringResource(R.string.auto_zadintelligence_95376), style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = tertiary)
+                        Text(stringResource(R.string.auto_zadintelligence_95376, pendingGroceries), style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = tertiary)
                     }
                 }
             }

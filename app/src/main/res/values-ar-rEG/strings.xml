@@ -1314,11 +1314,11 @@
     <string name="auto_zadknowledgemap_65527">زاد</string>
     <string name="auto_zadintelligence_74185">ترقية الباقة ⚡</string>
     <string name="auto_zadintelligence_52264">شبكة عقل العائلة العصبية</string>
-    <string name="auto_zadintelligence_37663">$memberCount أفراد متصلين 🌐</string>
+    <string name="auto_zadintelligence_37663">%1$d أفراد متصلين 🌐</string>
     <string name="auto_zadintelligence_61227">🎯 مهام الأبناء</string>
-    <string name="auto_zadintelligence_70890">$completedChores / $totalChores مكتملة</string>
+    <string name="auto_zadintelligence_70890">%1$d / %2$d مكتملة</string>
     <string name="auto_zadintelligence_15566">🛒 مقاضي البيت</string>
-    <string name="auto_zadintelligence_95376">$pendingGroceries أصناف مطلوبة</string>
+    <string name="auto_zadintelligence_95376">%1$d أصناف مطلوبة</string>
     <string name="auto_zadintelligence_16928">تقرير الذكاء العائلي الشامل</string>
     <string name="auto_zadintelligence_62225">إدارة العائلة</string>
     <string name="auto_zadintelligence_36332">تقرير شبكة العائلة العصبية</string>
