@@ -112,7 +112,7 @@ private fun CategoryGridItemView(
                 onClick = onClick
             )
             .padding(horizontal = 4.dp),
-        horizontalAlignment = Alignment.CenterVertically
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             contentAlignment = Alignment.Center,

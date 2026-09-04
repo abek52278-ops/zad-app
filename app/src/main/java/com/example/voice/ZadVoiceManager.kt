@@ -151,13 +151,13 @@ object ZadVoiceManager {
                     override fun onError(error: Int) {
                         _isListening.value = false
                         val msg = when (error) {
-                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> appContext.getString(R.string.voice_error_permission)
-                            SpeechRecognizer.ERROR_AUDIO -> appContext.getString(R.string.voice_error_audio)
-                            SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> appContext.getString(R.string.voice_error_network)
-                            SpeechRecognizer.ERROR_NO_MATCH -> appContext.getString(R.string.voice_error_no_match)
-                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> appContext.getString(R.string.voice_error_timeout)
-                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> appContext.getString(R.string.voice_error_busy)
-                            else -> appContext.getString(R.string.voice_error_generic)
+                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> context.getString(R.string.voice_error_permission)
+                            SpeechRecognizer.ERROR_AUDIO -> context.getString(R.string.voice_error_audio)
+                            SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> context.getString(R.string.voice_error_network)
+                            SpeechRecognizer.ERROR_NO_MATCH -> context.getString(R.string.voice_error_no_match)
+                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> context.getString(R.string.voice_error_timeout)
+                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> context.getString(R.string.voice_error_busy)
+                            else -> context.getString(R.string.voice_error_generic)
                         }
                         Log.w(TAG, "SpeechRecognizer error: $error ($msg)")
                         // أخطاء التعرف حالة واجهة، مش كلام المستخدم — عمرها ما تتبعت للوكيل.
@@ -174,7 +174,7 @@ object ZadVoiceManager {
                             com.example.ui.components.ZadChime.play(com.example.ui.components.ZadChime.Tone.Success)
                             onResult(text)
                         } else {
-                            _voiceState.value = VoiceState.Error(appContext.getString(R.string.voice_error_no_match))
+                            _voiceState.value = VoiceState.Error(context.getString(R.string.voice_error_no_match))
                         }
                     }
 
@@ -193,7 +193,7 @@ object ZadVoiceManager {
                 _voiceState.value = VoiceState.Listening
             } catch (e: Exception) {
                 Log.e(TAG, "SpeechRecognizer error: ${e.message}")
-                _voiceState.value = VoiceState.Error(appContext.getString(R.string.voice_error_microphone))
+                _voiceState.value = VoiceState.Error(context.getString(R.string.voice_error_microphone))
             }
     }
 
