@@ -273,7 +273,7 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
         setContent {
             AppTheme {
-                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                     AppNavigation(pendingInviteCode.value)
                 }
             }
