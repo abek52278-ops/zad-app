@@ -102,7 +102,7 @@ fun ZadSubscriptionPaywallScreen(
                     .clip(com.example.ui.theme.ZadLuxe.squircle)
                     .background(
                         Brush.linearGradient(
-                            colors = listOf(com.example.ui.theme.ZadLuxe.emerald, Color(0xFF0F9B76))
+                            colors = listOf(ZadForestEmerald, ZadForestEmeraldLight)
                         )
                     )
                     .padding(22.dp)
@@ -111,7 +111,7 @@ fun ZadSubscriptionPaywallScreen(
                     Icon(
                         Icons.Default.AutoAwesome,
                         contentDescription = null,
-                        tint = Color(0xFFFDE047),
+                        tint = ZadMustardLight,
                         modifier = Modifier.size(40.dp)
                     )
                     Spacer(Modifier.height(10.dp))
@@ -137,8 +137,8 @@ fun ZadSubscriptionPaywallScreen(
                 Spacer(Modifier.height(16.dp))
                 Surface(
                     shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFF0F9B76).copy(alpha = 0.15f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF34D399)),
+                    color = ZadForestEmerald.copy(alpha = 0.15f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, ZadForestEmeraldLight),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -148,7 +148,7 @@ fun ZadSubscriptionPaywallScreen(
                     ) {
                         Text("👑", fontSize = 22.sp)
                         Column {
-                            Text("أنت مشترك حالياً في باقة: ${activePlan?.titleAr}", fontWeight = FontWeight.Bold, color = Color(0xFF0F9B76), fontSize = 13.5.sp)
+                            Text("أنت مشترك حالياً في باقة: ${activePlan?.titleAr}", fontWeight = FontWeight.Bold, color = ZadForestEmerald, fontSize = 13.5.sp)
                             Text("جميع المزايا مفعلة ونشطة في حسابك", fontSize = 11.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
@@ -186,7 +186,7 @@ fun ZadSubscriptionPaywallScreen(
                         )
                         .border(
                             width = if (isSelected) 2.dp else 1.dp,
-                            color = if (isSelected) Color(0xFF0F9B76) else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                            color = if (isSelected) ZadForestEmerald else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
                             shape = cardShape
                         )
                         .clickable { selectedPlan = plan }
@@ -203,7 +203,7 @@ fun ZadSubscriptionPaywallScreen(
                                     plan.titleAr,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = if (isSelected) Color(0xFF0F9B76) else MaterialTheme.colorScheme.onSurface
+                                    color = if (isSelected) ZadForestEmerald else MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
                                     if (plan.monthlyAiQuota == -1) "ذكاء اصطناعي غير محدود" else "${plan.monthlyAiQuota} طلب ذكي شهرياً",
@@ -218,7 +218,7 @@ fun ZadSubscriptionPaywallScreen(
                                     formattedPrice,
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFF0F9B76)
+                                    color = ZadForestEmerald
                                 )
                                 Text(
                                     "اشتراك شهري تجديد تلقائي",
@@ -233,9 +233,9 @@ fun ZadSubscriptionPaywallScreen(
                         Surface(
                             shape = RoundedCornerShape(10.dp),
                             color = when (plan) {
-                                ZadSubscriptionPlan.ULTRA -> Color(0xFF8B5CF6).copy(alpha = 0.15f)
-                                ZadSubscriptionPlan.PLUS -> Color(0xFFD97706).copy(alpha = 0.15f)
-                                ZadSubscriptionPlan.BASIC -> Color(0xFF0F9B76).copy(alpha = 0.15f)
+                                ZadSubscriptionPlan.ULTRA -> lilac.copy(alpha = 0.15f)
+                                ZadSubscriptionPlan.PLUS -> ZadMustardOchre.copy(alpha = 0.15f)
+                                ZadSubscriptionPlan.BASIC -> ZadForestEmerald.copy(alpha = 0.15f)
                             },
                             modifier = Modifier.wrapContentSize()
                         ) {
@@ -245,9 +245,9 @@ fun ZadSubscriptionPaywallScreen(
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = when (plan) {
-                                    ZadSubscriptionPlan.ULTRA -> Color(0xFF7C3AED)
-                                    ZadSubscriptionPlan.PLUS -> Color(0xFFD97706)
-                                    ZadSubscriptionPlan.BASIC -> Color(0xFF0F9B76)
+                                    ZadSubscriptionPlan.ULTRA -> lilac
+                                    ZadSubscriptionPlan.PLUS -> ZadMustardDark
+                                    ZadSubscriptionPlan.BASIC -> ZadForestEmerald
                                 }
                             )
                         }
@@ -264,7 +264,7 @@ fun ZadSubscriptionPaywallScreen(
                                 Icon(
                                     Icons.Default.CheckCircle,
                                     contentDescription = null,
-                                    tint = Color(0xFF0F9B76),
+                                    tint = ZadForestEmerald,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(Modifier.width(8.dp))
@@ -305,14 +305,14 @@ fun ZadSubscriptionPaywallScreen(
                     .pressableScale(),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF0F9B76),
+                    containerColor = ZadForestEmerald,
                     contentColor = Color.White
                 )
             ) {
                 if (isPurchasing) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
                 } else {
-                    Icon(Icons.Default.ShoppingBag, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color(0xFF6EE7B7))
+                    Icon(Icons.Default.ShoppingBag, contentDescription = null, modifier = Modifier.size(20.dp), tint = ZadEmeraldContainer)
                 }
                 Spacer(Modifier.width(8.dp))
                 Text(
@@ -353,14 +353,14 @@ fun ZadSubscriptionPaywallScreen(
                         modifier = Modifier
                             .padding(horizontal = 4.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFFF1F5F9))
+                            .background(surfaceVariant)
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
                             text = "$icon $method",
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF475569)
+                            color = textSecondary
                         )
                     }
                 }
