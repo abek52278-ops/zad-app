@@ -47,14 +47,29 @@ import androidx.compose.ui.unit.sp
  * warm neutrals (#F2F2F7) as canvas, crisp white cards, glassmorphism.
  */
 
+// ── تقليص 2026-09-05 (توحيد الثيم، خطوة ٢أ) ───────────────────────────────────
+// اتشال 25 تعريف لون **صفر استخدام** — 18 توكن + 7 توائم `tileXxxFg` كانوا متعرّفين
+// على نفس السطر مع الـBg بتوعهم (واتأكدت إن الطرفين مالهمش استخدام قبل ما أشيل السطر).
+// حذف قيمة محدش بيقراها مستحيل يغيّر بيكسل.
+//
+// ⚠️ **الـ18 الباقيين مش قابلين للتوجيه من غير تغيير بصري.** البالتة دي مش نسخة مكررة
+// من Color.kt — هي بالتة مختلفة فعلاً: أخضر ZadV3 هو #064E3B وأخضر Color.kt هو
+// #1B4332. فـ"وجّههم للمصدر الواحد بنفس القيم" مستحيلة حرفياً؛ القيم مختلفة.
+// (`canvas` و`canvasGradient` تحت هما الاستثناء الوحيد اللي اتوجّه فعلاً، وده اشتغل
+// بالظبط لأنهم كانوا صفر استخدام.)
+//
+// وهم كمان **ثوابت مش واعيين بالثيم** — مبيقلبوش في الوضع الغامق. ده الدين الحقيقي
+// الفاضل هنا، وقفله محتاج نقل نداءاتهم لتوكنات Color.kt/الموسّعة شاشة بشاشة مع مقارنة
+// لقطات Roborazzi، مش استبدال جماعي.
+//
+// ملاحظة لأي حد هيقيس الاستخدام هنا بعدين: **`grep "ZadV3.name"` وحده بيكدب.** جوّه
+// الـobject الألوان بتتنادى بالاسم المجرد (`green700` مش `ZadV3.green700`)، فالقياس
+// لازم يشمل الاتنين. القياس الناقص ده حذف 5 ألوان مستخدمة وكسر البيلد قبل كده.
 object ZadV3 {
     // ── Brand Emerald Deep Greens ──────────────────────────────────────────
-    val green900 = Color(0xFF052E16)
     val green800 = Color(0xFF064E3B)       // Primary brand color
     val green700 = Color(0xFF0B6B4E)
     val green600 = Color(0xFF0F9B76)
-    val green500 = Color(0xFF1BB383)
-    val green400 = Color(0xFF34D399)
     val mint100 = Color(0xFFD9F2E6)
     val mint50  = Color(0xFFE6F4EC)
     val mintGlow = Color(0xFF6EE7B7)       // AI accent glow
@@ -69,13 +84,10 @@ object ZadV3 {
     // بصري (مفيش حد بيقرا القيمة القديمة أصلاً).
     // (لسه صفر استخدام) — ZadV3 نظام قديم مالوش وعي بالثيم، فبيقرا نسخة الفاتح مباشرة.
     val canvas = ZadExtendedColorsLight.canvasMid
-    val canvasWarm = Color(0xFFFBFAF8)      // Splash/auth canvas
     val surface = Color(0xFFFFFFFF)         // White card surface
     val ink = Color(0xFF0F172A)             // Near-black text
     val slate = Color(0xFF374151)
-    val gray500 = Color(0xFF6B7280)
     val gray400 = Color(0xFF9CA3AF)
-    val gray300 = Color(0xFFD1D5DB)
     val hairline = Color(0x0D000000)
 
     // ── Semantic ──────────────────────────────────────────────────────────
@@ -83,21 +95,11 @@ object ZadV3 {
     val danger = Color(0xFFDC5B4B)
     val info = Color(0xFF2563EB)
     val violet = Color(0xFF7C3AED)
-    val amberDot = Color(0xFFF4A93B)
-    val coralDot = Color(0xFFFF8066)
 
     // ── Category Tile Fills (pastel, matching the vision) ────────────────
-    val tileInvBg = Color(0xFFE3F5EC);  val tileInvFg = Color(0xFF0B6B4E)
-    val tileShopBg = Color(0xFFFCEEE3); val tileShopFg = Color(0xFFC2703D)
-    val tileFamilyBg = Color(0xFFF1EAFB); val tileFamilyFg = Color(0xFF7C3AED)
-    val tileSubsBg = Color(0xFFE8F1FC); val tileSubsFg = Color(0xFF2563EB)
-    val tilePharmBg = Color(0xFFFCE8ED); val tilePharmFg = Color(0xFFDC5B4E)
-    val tileMaintBg = Color(0xFFFDF3E1); val tileMaintFg = Color(0xFFB45309)
-    val tileTasbihaBg = Color(0xFFF3E8FF); val tileTasbihaFg = Color(0xFF9333EA)
 
     // AI Plate — dark emerald for AI-generated content
     val aiPlate = Color(0xFF052E16)
-    val aiCardBg = Color(0xFF0A382C)
 
     // ── Radii ─────────────────────────────────────────────────────────────
     val rCard = RoundedCornerShape(16.dp)
@@ -119,8 +121,6 @@ object ZadV3 {
 
     // Missing palette entries from the contract table
     val coralLight = Color(0xFFFF8066)      // #FF8066
-    val neutralBg = Color(0xFFF1F4F3)       // #F1F4F3
-    val greenDeepest = Color(0xFF052E16)    // #052E16 (== aiPlate, aliased for clarity)
 
     // Screen canvas — بند 36.1: نفس تدرّج ZadCanvasBackground الحقيقي (Color.kt's
     // canvasTop/Mid/Bottom) بدل تكرار نفس الألوان كحروف مستقلة هنا.

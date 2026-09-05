@@ -84,19 +84,12 @@ val ZadDarkColorScheme = darkColorScheme(
     onErrorContainer = ZadTerracottaOnDark
 )
 
-@Composable
-fun ZadTheme(
-    content: @Composable () -> Unit
-) {
-    MaterialTheme(
-        colorScheme = ZadColorScheme,
-        typography = Typography,
-        shapes = ZadShapes
-    ) {
-        CompositionLocalProvider(
-            LocalLayoutDirection provides LayoutDirection.Rtl
-        ) {
-            content()
-        }
-    }
-}
+// ── fun ZadTheme() اتشالت 2026-09-05 ──────────────────────────────────────────
+// كانت مغلّف ثيم تاني جنب AppTheme، ومحدش بيناديها: التلات مراجع الباقية لاسمها كلها
+// في تعليقات. وكانت أخطر من مجرد كود ميت — بتمرّر `colorScheme = ZadColorScheme`
+// (الفاتح) **ثابت**، من غير أي فرع للوضع الغامق، ومن غير ما تقدّم
+// LocalZadExtendedColors. فأي شاشة تتلف بيها كانت هتفضل فاتحة في الدارك مود وتفقد
+// التوكنات الموسّعة كلها. AppTheme (Theme.kt) هي المغلّف الوحيد الصح.
+//
+// ⚠️ الملف ده **مش ميت** — هو اللي فيه ZadShapes و ZadColorScheme و ZadDarkColorScheme،
+// وAppTheme بيقرا التلاتة. الدالة بس هي اللي اتشالت.
