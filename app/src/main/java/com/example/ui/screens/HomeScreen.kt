@@ -407,7 +407,7 @@ fun HomeScreen(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    "عقل زاد نشط",
+                                    stringResource(R.string.home_brain_active),
                                     fontSize = 12.5.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = com.example.ui.theme.ZadLuxe.emerald.copy(alpha = 0.75f)

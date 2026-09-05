@@ -18,6 +18,8 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.TextStyle
 import java.util.Locale
+import androidx.compose.ui.res.stringResource
+import com.example.R
 
 /** آخر ٧ أيام من مصروفات حقيقية (zad_transactions)، مجمّعة يوميًا — لا بيانات مختلقة. */
 fun computeWeeklySpend(transactions: List<ZadTransaction>): List<Pair<String, Double>> {
@@ -59,7 +61,7 @@ fun ZadWeeklySpendChartCard(
             .padding(16.dp)
     ) {
         Text(
-            "مصروف الأسبوع",
+            stringResource(R.string.weekly_spend_chart_title),
             fontSize = 15.sp,
             fontWeight = FontWeight.ExtraBold,
             color = ZadLuxe.emerald

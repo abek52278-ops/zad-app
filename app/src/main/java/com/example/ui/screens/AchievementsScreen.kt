@@ -211,7 +211,7 @@ fun AchievementsScreen(
                     Icon(Icons.Default.ArrowBack, "Back", tint = com.example.ui.theme.ZadLuxe.emerald)
                 }
                 Text(
-                    "الإنجازات والرتب",
+                    stringResource(R.string.achievements_screen_title),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF0F172A)
@@ -240,7 +240,7 @@ fun AchievementsScreen(
                         modifier = Modifier.size(80.dp)
                     ) {
                         Text(
-                            "المستوى",
+                            stringResource(R.string.achievements_level),
                             fontSize = 11.sp,
                             color = Color.White.copy(alpha = 0.8f),
                             textAlign = TextAlign.Center
@@ -256,7 +256,7 @@ fun AchievementsScreen(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "أنت على الطريق الصحيح!",
+                            stringResource(R.string.achievements_on_track),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -342,7 +342,7 @@ fun AchievementsScreen(
                         )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                "الإنجاز التالي",
+                                stringResource(R.string.achievements_next),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = com.example.ui.theme.ZadLuxe.ochre
@@ -367,7 +367,7 @@ fun AchievementsScreen(
         // Achievements Grid
         item {
             Text(
-                "الإنجازات",
+                stringResource(R.string.achievements_list_title),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF0F172A),
@@ -471,7 +471,7 @@ private fun AchievementCard(achievement: AchievementData) {
             } else {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    "مقفول",
+                    stringResource(R.string.achievements_locked),
                     fontSize = 9.sp,
                     color = Color(0xFFA1A5AB)
                 )

@@ -126,7 +126,7 @@ fun LiveMarketTicker(
             ) {
                 Text("📊", fontSize = 12.sp)
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("ساهم بسعر", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = primary)
+                Text(stringResource(R.string.market_ticker_contribute), fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = primary)
             }
         }
     }

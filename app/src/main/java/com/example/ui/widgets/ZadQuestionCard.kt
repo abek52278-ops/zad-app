@@ -14,6 +14,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.data.ZadInsight
 import com.example.ui.theme.*
+import androidx.compose.ui.res.stringResource
+import com.example.R
 
 /**
  * zad-brain can ask (kind="question", answer_type: number|yes_no|camera — see
@@ -51,10 +53,10 @@ fun ZadQuestionCard(
             "yes_no" -> {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { onAnswer("أيوة") }, modifier = Modifier.height(32.dp)) {
-                        Text("أيوة", style = Typography.labelSmall)
+                        Text(stringResource(R.string.answer_yes), style = Typography.labelSmall)
                     }
                     OutlinedButton(onClick = { onAnswer("لأ") }, modifier = Modifier.height(32.dp)) {
-                        Text("لأ", style = Typography.labelSmall)
+                        Text(stringResource(R.string.answer_no), style = Typography.labelSmall)
                     }
                 }
             }
@@ -72,14 +74,14 @@ fun ZadQuestionCard(
                         onClick = { value.toIntOrNull()?.let { onAnswer(it.toString()) } },
                         enabled = value.toIntOrNull() != null,
                         modifier = Modifier.height(40.dp)
-                    ) { Text("إرسال", style = Typography.labelSmall) }
+                    ) { Text(stringResource(R.string.action_send), style = Typography.labelSmall) }
                 }
             }
             "camera" -> {
                 Button(onClick = { onOpenCamera?.invoke() }, modifier = Modifier.height(32.dp)) {
                     Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("افتح الكاميرا", style = Typography.labelSmall)
+                    Text(stringResource(R.string.action_open_camera), style = Typography.labelSmall)
                 }
             }
             else -> {
@@ -89,7 +91,7 @@ fun ZadQuestionCard(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(value = value, onValueChange = { value = it }, modifier = Modifier.weight(1f).height(56.dp), singleLine = true)
                     Button(onClick = { if (value.isNotBlank()) onAnswer(value) }, modifier = Modifier.height(40.dp)) {
-                        Text("إرسال", style = Typography.labelSmall)
+                        Text(stringResource(R.string.action_send), style = Typography.labelSmall)
                     }
                 }
             }

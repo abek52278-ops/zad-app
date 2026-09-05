@@ -20,6 +20,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ui.components.ZadEmptyState
 import com.example.ui.theme.primary
 import com.example.ui.viewmodels.PriceReportingViewModel
+import androidx.compose.ui.res.stringResource
+import com.example.R
 
 /**
  * UI_ARCHITECTURE_SPEC.md §7.1 — كانت `PriceReportingScreen`/`CrowdsourceDashboard`
@@ -86,7 +88,7 @@ fun PriceReportingScreen(
                     Icon(Icons.Default.ArrowBack, "Back", tint = com.example.ui.theme.ZadLuxe.emerald)
                 }
                 Text(
-                    "سجّل السعر",
+                    stringResource(R.string.price_report_submit_title),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF0F172A)
@@ -120,7 +122,7 @@ fun PriceReportingScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        "ساهم في تحديث أسعار السوق الحية. بيانات العائلة تساعد تنبؤات أفضل.",
+                        stringResource(R.string.price_report_subtitle),
                         fontSize = 12.sp,
                         color = Color(0xFF475569)
                     )
@@ -130,11 +132,11 @@ fun PriceReportingScreen(
 
         // Item Name
         item {
-            Text("اسم السلعة", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF475569))
+            Text(stringResource(R.string.price_report_item_label), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF475569))
             OutlinedTextField(
                 value = itemName,
                 onValueChange = { itemName = it },
-                placeholder = { Text("مثل: خبز، لبن، بيض") },
+                placeholder = { Text(stringResource(R.string.price_report_item_hint)) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
@@ -145,7 +147,7 @@ fun PriceReportingScreen(
 
         // Category
         item {
-            Text("الفئة", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF475569))
+            Text(stringResource(R.string.price_report_category_label), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF475569))
             var expanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(
                 expanded = expanded,
@@ -181,27 +183,29 @@ fun PriceReportingScreen(
 
         // Price
         item {
-            Text("السعر (جنيه)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF475569))
+            Text(stringResource(R.string.price_report_price_label), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF475569))
             OutlinedTextField(
                 value = price,
                 onValueChange = { if (it.isEmpty() || it.toDoubleOrNull() != null) price = it },
-                placeholder = { Text("مثل: 15.50") },
+                placeholder = { Text(stringResource(R.string.price_report_price_hint)) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
                 shape = RoundedCornerShape(8.dp),
                 singleLine = true,
-                leadingIcon = { Text("ج.م", fontSize = 12.sp) }
+                // كان "ج.م" مطبوع — نفس نوع الباج بتاع العملة المثبتة: حساب سعودي كان بيشوف رمز
+                // مصري في خانة السعر. الرمز بيتاخد من السوق الحالي زي باقي التطبيق.
+                leadingIcon = { Text(com.example.data.MarketPrefs.currentMarket.currencySymbol, fontSize = 12.sp) }
             )
         }
 
         // Location
         item {
-            Text("المنطقة", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF475569))
+            Text(stringResource(R.string.price_report_region_label), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF475569))
             OutlinedTextField(
                 value = location,
                 onValueChange = { location = it },
-                placeholder = { Text("مثل: القاهرة، الجيزة") },
+                placeholder = { Text(stringResource(R.string.price_report_region_hint)) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
@@ -212,11 +216,11 @@ fun PriceReportingScreen(
 
         // Store Name (Optional)
         item {
-            Text("اسم المتجر (اختياري)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF475569))
+            Text(stringResource(R.string.price_report_store_label), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF475569))
             OutlinedTextField(
                 value = storeName,
                 onValueChange = { storeName = it },
-                placeholder = { Text("مثل: كارفور، سبينيز") },
+                placeholder = { Text(stringResource(R.string.price_report_store_hint)) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
@@ -251,7 +255,7 @@ fun PriceReportingScreen(
                 } else {
                     Icon(Icons.Default.Check, "Submit", tint = Color.White)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("أرسل السعر", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.price_report_send), fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -285,7 +289,7 @@ fun CrowdsourceDashboard(
                     Icon(Icons.Default.ArrowBack, "Back", tint = com.example.ui.theme.ZadLuxe.emerald)
                 }
                 Text(
-                    "لوحة الأسعار",
+                    stringResource(R.string.price_board_title),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF0F172A)
@@ -315,14 +319,14 @@ fun CrowdsourceDashboard(
             ) {
                 Icon(Icons.Default.Add, "Report", tint = Color.White)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("سجّل سعر جديد", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.price_report_new), fontWeight = FontWeight.Bold)
             }
         }
 
         // Leaderboard Title
         item {
             Text(
-                "أكثر المشاركين 🏆",
+                stringResource(R.string.price_top_contributors),
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF0F172A)

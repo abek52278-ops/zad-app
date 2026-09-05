@@ -32,6 +32,8 @@ import com.example.data.CurrencyFormatter
 import com.example.ui.components.pressableScale
 import com.example.ui.components.zadCardShadow
 import com.example.ui.theme.*
+import androidx.compose.ui.res.stringResource
+import com.example.R
 
 /**
  * The mockup's Amazon rail card: a fixed 140dp-wide, 16dp-radius tile — 80dp image,
@@ -135,7 +137,7 @@ fun ZadAmazonDealCard(
                 )
             }
             Text(
-                "أمازون",
+                stringResource(R.string.amazon_label),
                 fontSize = 9.5.sp,
                 fontWeight = FontWeight.Bold,
                 color = textTertiary
@@ -143,7 +145,7 @@ fun ZadAmazonDealCard(
         }
         // إفصاح الأفلييت — مطلوب لشروط برنامج أمازون وأمانة مع العميل
         Text(
-            "رابط شراء أفلييت — عمولة لزاد بدون أي زيادة عليك",
+            stringResource(R.string.amazon_affiliate_disclosure),
             fontSize = 7.5.sp,
             color = textTertiary.copy(alpha = 0.7f),
             maxLines = 1,
@@ -251,7 +253,7 @@ fun AffiliateProductCard(
                     modifier = Modifier.align(Alignment.TopStart)
                 ) {
                     Text(
-                        "أمازون",
+                        stringResource(R.string.amazon_label),
                         color = Color.White,
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
@@ -304,7 +306,7 @@ fun BuyButton(onClick: () -> Unit) {
     ) {
         Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(16.dp))
         Spacer(modifier = Modifier.width(6.dp))
-        Text("اشترِ من أمازون", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        Text(stringResource(R.string.amazon_buy), fontWeight = FontWeight.Bold, fontSize = 13.sp)
     }
 }
 
@@ -337,7 +339,7 @@ fun AffiliateEmptyState(searchedTerm: String) {
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            "دوّر على المنتج مباشرة في أمازون",
+            stringResource(R.string.amazon_search_direct),
             style = MaterialTheme.typography.bodySmall,
             color = onSurfaceVariant.copy(alpha = 0.6f),
             textAlign = TextAlign.Center
@@ -351,7 +353,7 @@ fun AffiliateEmptyState(searchedTerm: String) {
         }) {
             Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(6.dp))
-            Text("ابحث في أمازون")
+            Text(stringResource(R.string.amazon_search_action))
         }
     }
 }
@@ -438,14 +440,14 @@ fun AffiliateConsentBanner(onAccept: () -> Unit) {
             Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(32.dp), tint = primary)
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                "ترشيحات الشراء من أمازون",
+                stringResource(R.string.amazon_picks_widget_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = onPrimaryContainer
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                "زاد بيقترح عليك منتجات من أمازون تناسب احتياجاتك. قد نحصل على عمولة من المشتريات.",
+                stringResource(R.string.amazon_picks_disclosure),
                 style = MaterialTheme.typography.bodySmall,
                 color = onPrimaryContainer.copy(alpha = 0.7f),
                 textAlign = TextAlign.Center
@@ -455,7 +457,7 @@ fun AffiliateConsentBanner(onAccept: () -> Unit) {
                 onClick = onAccept,
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("تفعيل الترشيحات")
+                Text(stringResource(R.string.amazon_picks_enable))
             }
         }
     }

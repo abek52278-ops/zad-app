@@ -24,6 +24,8 @@ import com.example.ui.components.ZadLoadingState
 import com.example.ui.theme.primary
 import com.example.ui.viewmodels.ZadViewModel
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.example.R
 
 data class RecommendationData(
     val id: String,
@@ -164,7 +166,7 @@ fun RecommendationsScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                "إجمالي التوفير",
+                                stringResource(R.string.recommendations_total_savings),
                                 fontSize = 12.sp,
                                 color = Color.White.copy(alpha = 0.8f),
                                 fontWeight = FontWeight.SemiBold
@@ -178,7 +180,7 @@ fun RecommendationsScreen(
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                "التوصيات النشطة",
+                                stringResource(R.string.recommendations_active),
                                 fontSize = 12.sp,
                                 color = Color.White.copy(alpha = 0.8f),
                                 fontWeight = FontWeight.SemiBold
@@ -192,7 +194,7 @@ fun RecommendationsScreen(
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                "منفذة",
+                                stringResource(R.string.recommendations_done),
                                 fontSize = 12.sp,
                                 color = Color.White.copy(alpha = 0.8f),
                                 fontWeight = FontWeight.SemiBold
@@ -212,7 +214,7 @@ fun RecommendationsScreen(
         // Filter Info
         item {
             Text(
-                "التوصيات المقترحة",
+                stringResource(R.string.recommendations_suggested),
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF0F172A),
@@ -381,7 +383,7 @@ private fun RecommendationCard(
                         contentColor = Color(0xFF475569)
                     )
                 ) {
-                    Text("لاحقاً", fontSize = 11.sp)
+                    Text(stringResource(R.string.recommendations_later), fontSize = 11.sp)
                 }
 
                 Button(
@@ -398,7 +400,7 @@ private fun RecommendationCard(
                         modifier = Modifier.size(14.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("أضف للسلة", fontSize = 11.sp)
+                    Text(stringResource(R.string.recommendations_add_to_cart), fontSize = 11.sp)
                 }
             }
         }

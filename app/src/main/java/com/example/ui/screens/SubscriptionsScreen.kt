@@ -211,7 +211,7 @@ fun SubscriptionsScreen(
                         TextButton(onClick = { viewModel.deleteAllDetectedSubscriptions() }) {
                             Icon(Icons.Default.AutoDelete, contentDescription = null, modifier = Modifier.size(16.dp), tint = dangerColor)
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("مسح الكل", color = dangerColor, style = Typography.labelLarge)
+                            Text(stringResource(R.string.subscriptions_clear_all), color = dangerColor, style = Typography.labelLarge)
                         }
                     }
                 }
