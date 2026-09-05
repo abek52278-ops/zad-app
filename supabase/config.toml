@@ -73,11 +73,6 @@ verify_jwt = false
 [functions.zad-billing-webhook]
 verify_jwt = false
 
-# Added 2026-08-31: Market Intelligence — جمع بيانات الأسواق الحية
-# Called by cron job (no user JWT); no internal authentication needed
-[functions.zad-market-intelligence]
-verify_jwt = false
-
 # Added 2026-09-01 (بند 33.1): relay صوتي ريل-تايم. بيتنادى مباشرة من تطبيق العميل
 # بتوكن Supabase حقيقي (مش cron ولا webhook) — نفس وضع zad-core-intelligence بالظبط،
 # true هي القيمة الصح والافتراضية أصلاً؛ متسجّلة هنا صراحة زي باقي الملف عشان مفيش
