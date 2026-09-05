@@ -132,7 +132,7 @@ fun ZadDarkPanel(
             title,
             style = Typography.labelMedium.copy(fontSize = 12.5.sp),
             fontWeight = FontWeight.Bold,
-            color = primaryFixed
+            color = primary
         )
         content()
     }

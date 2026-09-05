@@ -995,12 +995,12 @@ fun ZadProHighlightWidget(
                             .background(Color.White.copy(alpha = 0.20f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = primaryFixed, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = primary, modifier = Modifier.size(20.dp))
                     }
                     Spacer(Modifier.width(10.dp))
                     Column {
                         Text(stringResource(R.string.auto_homescreenwidgets_96665), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
-                        Text(stringResource(R.string.auto_homescreenwidgets_55260), style = Typography.labelSmall, color = primaryFixed, fontSize = 10.sp)
+                        Text(stringResource(R.string.auto_homescreenwidgets_55260), style = Typography.labelSmall, color = primary, fontSize = 10.sp)
                     }
                 }
                 Box(
@@ -1036,14 +1036,14 @@ fun ZadProHighlightWidget(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.Verified, contentDescription = null, tint = primaryFixed, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Filled.Verified, contentDescription = null, tint = primary, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
                     Text(stringResource(R.string.auto_homescreenwidgets_20825), style = Typography.labelSmall, color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.auto_homescreenwidgets_7454), style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = primaryFixed)
+                    Text(stringResource(R.string.auto_homescreenwidgets_7454), style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = primary)
                     Spacer(Modifier.width(4.dp))
-                    Icon(Icons.Filled.ChevronLeft, contentDescription = null, tint = primaryFixed, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Filled.ChevronLeft, contentDescription = null, tint = primary, modifier = Modifier.size(16.dp))
                 }
             }
         }

@@ -561,7 +561,7 @@ internal fun DomainRing(
                     .size(72.dp)
                     .clip(CircleShape)
                     .background(primary)
-                    .border(2.dp, primaryFixed.copy(alpha = 0.6f), CircleShape),
+                    .border(2.dp, primaryFixedKnowledgeMap.copy(alpha = 0.6f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Text(stringResource(R.string.auto_zadknowledgemap_65527), style = Typography.titleMedium, fontFamily = kmMono, fontWeight = FontWeight.Black, color = Color.White)

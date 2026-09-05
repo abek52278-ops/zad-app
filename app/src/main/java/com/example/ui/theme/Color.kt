@@ -25,11 +25,7 @@ import androidx.compose.ui.graphics.Color
 // LocalZadExtendedColors — see ZadExtendedColors.kt.
 //
 // Deliberately left static: Kids Mode (CLAUDE.md — don't normalise it toward
-// the adult palette), the category pastels, primaryFixed, and eight tokens
-// with zero call sites outside this file (sand/sandLight/sandDark/onSand/
-// carrotOrange/lilacLight/surfaceContainerLowest/surfaceContainerHighest),
-// which are dead rather than deliberate and should be deleted once someone
-// confirms nothing external expects them.
+// the adult palette), the category pastels, and primaryFixedKnowledgeMap.
 // =========================================================================
 
 // =========================================================================
@@ -98,30 +94,22 @@ val primaryLight: Color @Composable get() = LocalZadExtendedColors.current.prima
 val secondaryDark: Color @Composable get() = LocalZadExtendedColors.current.secondaryDark
 val secondaryLight: Color @Composable get() = LocalZadExtendedColors.current.secondaryLight
 
-// Theme-invariant on purpose: `fixed` is Material's term for a colour that must not
-// move between light and dark. Used by ZadKnowledgeMapScreen, whose palette is
-// deliberately dark in both themes. See the note in ZadExtendedColors.kt about
-// HomeScreen's four uses, which are the reason this needs a product decision.
-val primaryFixed = ZadForestEmerald
+// Theme-invariant on purpose, and named for its one legitimate caller so the intent
+// cannot be misread: ZadKnowledgeMapScreen renders a deliberately dark canvas in both
+// themes, so its node border must not follow the theme. This used to be `primaryFixed`,
+// which HomeScreen had also adopted for four ordinary brand accents — those wanted the
+// opposite behaviour and now use `primary`. Do not reach for this as a general accent.
+val primaryFixedKnowledgeMap = ZadForestEmerald
 
 // Surface Container Levels
-val surfaceContainerLowest = Color(0xFFFFFFFF)
 val surfaceContainerLow: Color @Composable get() = LocalZadExtendedColors.current.surfaceContainerLow
 val surfaceContainer: Color @Composable get() = LocalZadExtendedColors.current.surfaceContainer
 val surfaceContainerHigh: Color @Composable get() = LocalZadExtendedColors.current.surfaceContainerHigh
-val surfaceContainerHighest = Color(0xFFE2E5DC)
 
 // Neutral & Accent Tokens
-val sand = ZadIosSurfaceVariant
-val sandLight = ZadIosBackground
-val sandDark = ZadIosOutline
-val onSand = ZadNeutralDark
-
 val coral: Color @Composable get() = LocalZadExtendedColors.current.coral
 val coralLight: Color @Composable get() = LocalZadExtendedColors.current.coralLight
 val lilac: Color @Composable get() = LocalZadExtendedColors.current.lilac
-val lilacLight = Color(0xFFF2EFF7)
-val carrotOrange = Color(0xFFF06A35)
 
 val canvasTop: Color @Composable get() = LocalZadExtendedColors.current.canvasTop
 val canvasMid: Color @Composable get() = LocalZadExtendedColors.current.canvasMid

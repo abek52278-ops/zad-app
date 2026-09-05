@@ -1534,7 +1534,7 @@ fun ChartBar(label: String, heightRatio: Float, isSelected: Boolean) {
                 .clip(RoundedCornerShape(999.dp))
                 .background(
                     if (isSelected) Brush.verticalGradient(listOf(primary.copy(alpha = 0.8f), primary)) 
-                    else Brush.verticalGradient(listOf(primaryFixed.copy(alpha = 0.2f), primaryFixed.copy(alpha = 0.4f)))
+                    else Brush.verticalGradient(listOf(primary.copy(alpha = 0.2f), primary.copy(alpha = 0.4f)))
                 )
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -1853,6 +1853,8 @@ fun AgentSummaryCard(
         ),
         label = "aiBreatheScale"
     )
+    // drawBehind is not a composable scope, so the accent is read here.
+    val breatheGlowColor = primary
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1865,7 +1867,7 @@ fun AgentSummaryCard(
                 val radius = size.width * 0.35f * breatheVal
                 drawCircle(
                     brush = Brush.radialGradient(
-                        colors = listOf(primaryFixed.copy(alpha = 0.22f), Color.Transparent)
+                        colors = listOf(breatheGlowColor.copy(alpha = 0.22f), Color.Transparent)
                     ),
                     radius = radius,
                     center = Offset(size.width + 40f, -40f)
@@ -1883,12 +1885,12 @@ fun AgentSummaryCard(
                     Icon(
                         painter = androidx.compose.ui.res.painterResource(R.drawable.ic_zad_sparkle),
                         contentDescription = null,
-                        tint = primaryFixed,
+                        tint = primary,
                         modifier = Modifier.size(14.dp)
                     )
                     Text(
                         stringResource(R.string.zad_agent),
-                        color = primaryFixed,
+                        color = primary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.5.sp
                     )

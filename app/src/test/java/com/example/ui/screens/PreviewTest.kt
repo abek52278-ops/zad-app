@@ -823,7 +823,7 @@ class PreviewTest {
                         Text("82%", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
                         com.example.ui.components.ZadMeterBar(
                             progress = 0.82f,
-                            color = primaryFixed,
+                            color = primary,
                             height = 8.dp,
                             trackColor = Color.White.copy(alpha = 0.15f)
                         )

@@ -3163,7 +3163,7 @@ private fun SpendingPowerGaugeCard(power: com.example.data.ZadCentralBrain.Spend
     val pct = power.powerPct
     val meterColor = when {
         pct == null -> Color.White.copy(alpha = 0.35f)
-        pct >= 60 -> primaryFixed
+        pct >= 60 -> primary
         pct >= 35 -> Color(0xFF84CC16)
         pct >= 15 -> secondary
         else -> dangerColor
