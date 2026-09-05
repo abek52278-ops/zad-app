@@ -1676,4 +1676,34 @@
     <string name="report_section_household">2. كفاءة إدارة المنزل والعائلة</string>
     <string name="report_share">📤 مشاركة التقرير</string>
     <string name="report_close">إغلاق التقرير</string>
+
+    <!-- ═══ شاشة الكاميرا: حالات ووصف إتاحة (استُخرجت 2026-09-05) ═══ -->
+    <string name="cam_hint_initial">التقط صورة للثلاجة أو أكياس البقالة أو الفاتورة وسيستخرجها الذكاء الاصطناعي!</string>
+    <string name="cam_analyzing_ai">جاري تحليل الصورة بالذكاء الاصطناعي...</string>
+    <string name="cam_items_extracted">تم استخراج %1$d منتج! راجعها وأكّد</string>
+    <string name="cam_no_items_found">لم يتعرف AI على منتجات واضحة. جرب تصوير أقرب أو بإضاءة أفضل، أو أضفها يدوياً</string>
+    <string name="cam_receipt_extracted">تم استخراج فاتورة %1$s! راجعها وأكّد</string>
+    <string name="cam_receipt_unreadable">لم نتمكن من قراءة الفاتورة، يرجى المحاولة بصورة أوضح</string>
+    <string name="cam_analysis_error">حدث خطأ أثناء التحليل. جرب مرة أخرى</string>
+    <string name="cam_cannot_open_camera">تعذر فتح الكاميرا. ثبّت تطبيق كاميرا أو استخدم الإدخال اليدوي</string>
+    <string name="cam_permission_needed">نحتاج صلاحية الكاميرا للمسح. يمكنك الإضافة يدوياً</string>
+    <string name="cam_permission_blocked">صلاحية الكاميرا ممنوعة نهائياً — افتح الإعدادات وفعّلها حتى تتمكن من التصوير</string>
+    <string name="cam_open_app_settings">افتح إعدادات التطبيق</string>
+    <string name="cam_items_added_manual">تمت إضافة %1$d منتجات يدوياً!</string>
+    <string name="cam_injected">تم الحقن: %1$s</string>
+    <string name="cam_injecting">جاري حقن %1$d منتجات في المخزون...</string>
+    <string name="cam_add_cancelled">تم إلغاء الإضافة</string>
+    <string name="cam_receipt_cancelled">تم إلغاء الفاتورة</string>
+    <string name="cam_receipt_to_pharmacy">تم تسجيل فاتورة %1$s (%2$s) في الصيدلية!</string>
+    <string name="cam_receipt_logged">تم تسجيل فاتورة %1$s بقيمة %2$s!</string>
+    <string name="cam_receipt_summary">فاتورة %1$s: %2$s</string>
+    <string name="cam_receipt_and_stock">تم تسجيل فاتورة %1$s (%2$s) وتحديث المخزون!</string>
+    <string name="cam_receipt_full_summary">فاتورة %1$s (%2$s): %3$s</string>
+    <string name="cam_receipt_and_items">تم تسجيل فاتورة %1$s بقيمة %2$s والمنتجات في المخزون!</string>
+    <string name="cd_back">رجوع</string>
+    <string name="cd_captured_image">الصورة الملتقطة</string>
+    <string name="cd_analyzing">جاري التحليل...</string>
+    <string name="cd_delete">حذف</string>
+    <string name="cd_decrease_qty">إنقاص الكمية</string>
+    <string name="cd_increase_qty">زيادة الكمية</string>
 </resources>

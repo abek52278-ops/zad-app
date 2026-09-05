@@ -1687,4 +1687,34 @@
     <string name="report_section_household">2. Household and family efficiency</string>
     <string name="report_share">📤 Share report</string>
     <string name="report_close">Close report</string>
+
+    <!-- ═══ شاشة الكاميرا: حالات ووصف إتاحة (استُخرجت 2026-09-05) ═══ -->
+    <string name="cam_hint_initial">Photograph your fridge, grocery bags, or a receipt and AI will read it.</string>
+    <string name="cam_analyzing_ai">Analyzing the image with AI…</string>
+    <string name="cam_items_extracted">Extracted %1$d items — review and confirm</string>
+    <string name="cam_no_items_found">AI found no clear items. Try a closer shot or better light, or add them manually.</string>
+    <string name="cam_receipt_extracted">Read the %1$s receipt — review and confirm</string>
+    <string name="cam_receipt_unreadable">Couldn\'t read the receipt — try a clearer photo</string>
+    <string name="cam_analysis_error">Something went wrong during analysis. Try again.</string>
+    <string name="cam_cannot_open_camera">Couldn\'t open the camera. Install a camera app or add items manually.</string>
+    <string name="cam_permission_needed">Scanning needs camera permission. You can still add items manually.</string>
+    <string name="cam_permission_blocked">Camera permission is permanently denied — open Settings and enable it to scan</string>
+    <string name="cam_open_app_settings">Open app settings</string>
+    <string name="cam_items_added_manual">Added %1$d items manually</string>
+    <string name="cam_injected">Added: %1$s</string>
+    <string name="cam_injecting">Adding %1$d items to your pantry…</string>
+    <string name="cam_add_cancelled">Adding cancelled</string>
+    <string name="cam_receipt_cancelled">Receipt cancelled</string>
+    <string name="cam_receipt_to_pharmacy">Logged the %1$s receipt (%2$s) to the pharmacy</string>
+    <string name="cam_receipt_logged">Logged the %1$s receipt for %2$s</string>
+    <string name="cam_receipt_summary">%1$s receipt: %2$s</string>
+    <string name="cam_receipt_and_stock">Logged the %1$s receipt (%2$s) and updated your pantry</string>
+    <string name="cam_receipt_full_summary">%1$s receipt (%2$s): %3$s</string>
+    <string name="cam_receipt_and_items">Logged the %1$s receipt for %2$s and added the items</string>
+    <string name="cd_back">Back</string>
+    <string name="cd_captured_image">Captured image</string>
+    <string name="cd_analyzing">Analyzing…</string>
+    <string name="cd_delete">Delete</string>
+    <string name="cd_decrease_qty">Decrease quantity</string>
+    <string name="cd_increase_qty">Increase quantity</string>
 </resources>

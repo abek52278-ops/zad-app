@@ -71,7 +71,10 @@ fun CameraScreen(
 ) {
     var imageUri by remember { mutableStateOf<Uri?>(null) }
     var imageBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var analysisStatus by remember { mutableStateOf("التقط صورة للثلاجة أو أكياس البقالة أو الفاتورة وسيستخرجها الذكاء الاصطناعي!") }
+    // stringResource() مش context.getString() هنا: `context` لسه ما اتعرّفش عند السطر ده
+    // (تحت بشوية)، والقيمة دي بتتقرا مرة واحدة في تكوين الشاشة فالـ@Composable مناسبة.
+    val initialCameraHint = stringResource(R.string.cam_hint_initial)
+    var analysisStatus by remember { mutableStateOf(initialCameraHint) }
     var isAnalyzing by remember { mutableStateOf(false) }
     var parsedItems by remember { mutableStateOf<List<AiParsedInventoryItem>>(emptyList()) }
     var showConfirmationDialog by remember { mutableStateOf(false) }
@@ -133,7 +136,7 @@ fun CameraScreen(
             }
             imageBitmap = bitmap
             isAnalyzing = true
-            analysisStatus = "جاري تحليل الصورة بالذكاء الاصطناعي..."
+            analysisStatus = context.getString(R.string.cam_analyzing_ai)
 
             scope.launch {
                 try {
@@ -152,10 +155,10 @@ fun CameraScreen(
                                     @Suppress("DEPRECATION") vib?.vibrate(50)
                                 }
                             } catch (_: Exception) {}
-                            analysisStatus = "تم استخراج ${result.items.size} منتج! راجعها وأكّد"
+                            analysisStatus = context.getString(R.string.cam_items_extracted, result.items.size)
                         } else {
                             Log.e("CameraScreen", " AI found no items")
-                            analysisStatus = "لم يتعرف AI على منتجات واضحة. جرب تصوير أقرب أو بإضاءة أفضل، أو أضفها يدوياً"
+                            analysisStatus = context.getString(R.string.cam_no_items_found)
                         }
                     } else {
                         Log.d("CameraScreen", "Sending bitmap to analyzeReceipt")
@@ -173,15 +176,15 @@ fun CameraScreen(
                                     @Suppress("DEPRECATION") vib?.vibrate(50)
                                 }
                             } catch (_: Exception) {}
-                            analysisStatus = "تم استخراج فاتورة ${result.storeName}! راجعها وأكّد"
+                            analysisStatus = context.getString(R.string.cam_receipt_extracted, result.storeName)
                         } else {
                             showReceiptErrorDialog = true
-                            analysisStatus = "لم نتمكن من قراءة الفاتورة، يرجى المحاولة بصورة أوضح"
+                            analysisStatus = context.getString(R.string.cam_receipt_unreadable)
                         }
                     }
                 } catch (e: Exception) {
                     Log.e("CameraScreen", "AI analysis crashed: ${e.message}", e)
-                    analysisStatus = "حدث خطأ أثناء التحليل. جرب مرة أخرى"
+                    analysisStatus = context.getString(R.string.cam_analysis_error)
                 }
                 isAnalyzing = false
             }
@@ -227,7 +230,7 @@ fun CameraScreen(
             try {
                 launcher.launch(uri)
             } catch (e: Exception) {
-                analysisStatus = "تعذر فتح الكاميرا. ثبّت تطبيق كاميرا أو استخدم الإدخال اليدوي"
+                analysisStatus = context.getString(R.string.cam_cannot_open_camera)
             }
         } else {
             // `shouldShowRequestPermissionRationale` بترجع false في حالتين: الأولى قبل
@@ -241,9 +244,9 @@ fun CameraScreen(
             } ?: true
             cameraPermanentlyDenied = !canAskAgain
             analysisStatus = if (canAskAgain) {
-                "نحتاج صلاحية الكاميرا للمسح. يمكنك الإضافة يدوياً"
+                context.getString(R.string.cam_permission_needed)
             } else {
-                "صلاحية الكاميرا ممنوعة نهائياً — افتح الإعدادات وفعّلها عشان تقدر تصوّر"
+                context.getString(R.string.cam_permission_blocked)
             }
         }
     }
@@ -254,7 +257,7 @@ fun CameraScreen(
             onDismiss = { showManualEntry = false },
             onSave = { items ->
                 items.forEach { viewModel.addInventory(it) }
-                analysisStatus = "تمت إضافة ${items.size} منتجات يدوياً!"
+                analysisStatus = context.getString(R.string.cam_items_added_manual, items.size)
                 showManualEntry = false
             }
         )
@@ -313,7 +316,7 @@ fun CameraScreen(
             },
             navigationIcon = {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع")
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                 }
             },
             actions = {
@@ -352,7 +355,7 @@ fun CameraScreen(
                 if (imageBitmap != null) {
                     Image(
                         bitmap = imageBitmap!!.asImageBitmap(),
-                        contentDescription = "الصورة الملتقطة",
+                        contentDescription = stringResource(R.string.cd_captured_image),
                         modifier = Modifier.fillMaxSize()
                     )
                 } else {
@@ -389,7 +392,7 @@ fun CameraScreen(
                                 resId = R.raw.lottie_scan_receipt,
                                 iterations = LottieConstants.IterateForever,
                                 modifier = Modifier.size(96.dp),
-                                contentDescription = "جاري التحليل..."
+                                contentDescription = stringResource(R.string.cd_analyzing)
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(stringResource(R.string.cam_analyzing), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -498,7 +501,7 @@ fun CameraScreen(
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("افتح إعدادات التطبيق", fontWeight = FontWeight.Bold)
+                                Text(stringResource(R.string.cam_open_app_settings), fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -542,9 +545,9 @@ fun CameraScreen(
                                     category = item.category
                                 )
                             }
-                        ) { summary -> analysisStatus = "تم الحقن: $summary" }
+                        ) { summary -> analysisStatus = context.getString(R.string.cam_injected, summary) }
                         showConfirmationDialog = false
-                        analysisStatus = "جاري حقن ${parsedItems.size} منتجات في المخزون..."
+                        analysisStatus = context.getString(R.string.cam_injecting, parsedItems.size)
                         parsedItems = emptyList()
                         imageBitmap = null
                     },
@@ -558,7 +561,7 @@ fun CameraScreen(
             dismissButton = {
                 TextButton(onClick = {
                     showConfirmationDialog = false
-                    analysisStatus = "تم إلغاء الإضافة"
+                    analysisStatus = context.getString(R.string.cam_add_cancelled)
                 }) {
                     Text(stringResource(R.string.cam_cancel))
                 }
@@ -613,7 +616,7 @@ fun CameraScreen(
                                     IconButton(onClick = {
                                         editableList = editableList.filter { it != item }
                                     }) {
-                                        Icon(Icons.Default.Delete, contentDescription = "حذف", tint = dangerColor)
+                                        Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.cd_delete), tint = dangerColor)
                                     }
                                 }
                             }
@@ -671,7 +674,7 @@ fun CameraScreen(
                                     )
                                 )
                             }
-                            analysisStatus = "تم تسجيل فاتورة ${receipt.storeName} (${com.example.data.CurrencyFormatter.format(context, receipt.total)}) في الصيدلية!"
+                            analysisStatus = context.getString(R.string.cam_receipt_to_pharmacy, receipt.storeName, com.example.data.CurrencyFormatter.format(context, receipt.total))
                         } else if (receipt.receiptType == "pharmacy") {
                             viewModel.addTransaction(
                                 com.example.data.ZadTransaction(
@@ -681,7 +684,7 @@ fun CameraScreen(
                                     category = "الرعاية الصحية"
                                 )
                             )
-                            analysisStatus = "تم تسجيل فاتورة ${receipt.storeName} بقيمة ${com.example.data.CurrencyFormatter.format(context, receipt.total)}!"
+                            analysisStatus = context.getString(R.string.cam_receipt_logged, receipt.storeName, com.example.data.CurrencyFormatter.format(context, receipt.total))
                         } else if (receipt.items.all { it.category in setOf("تنظيف", "أدوات منزلية", "صيانة") } && receipt.items.isNotEmpty()) {
                             // فاتورة أدوات منزلية/تنظيف → الصيانة والمخزون العام معاً، ومعاملة واحدة
                             viewModel.addTransaction(
@@ -702,9 +705,9 @@ fun CameraScreen(
                                     )
                                 }
                             ) { summary ->
-                                analysisStatus = "فاتورة ${receipt.storeName}: $summary"
+                                analysisStatus = context.getString(R.string.cam_receipt_summary, receipt.storeName, summary)
                             }
-                            analysisStatus = "تم تسجيل فاتورة ${receipt.storeName} (${com.example.data.CurrencyFormatter.format(context, receipt.total)}) وتحديث المخزون!"
+                            analysisStatus = context.getString(R.string.cam_receipt_and_stock, receipt.storeName, com.example.data.CurrencyFormatter.format(context, receipt.total))
                         } else {
                             viewModel.addTransaction(
                                 com.example.data.ZadTransaction(
@@ -725,9 +728,9 @@ fun CameraScreen(
                                     )
                                 }
                             ) { summary ->
-                                analysisStatus = "فاتورة ${receipt.storeName} (${com.example.data.CurrencyFormatter.format(context, receipt.total)}): $summary"
+                                analysisStatus = context.getString(R.string.cam_receipt_full_summary, receipt.storeName, com.example.data.CurrencyFormatter.format(context, receipt.total), summary)
                             }
-                            analysisStatus = "تم تسجيل فاتورة ${receipt.storeName} بقيمة ${com.example.data.CurrencyFormatter.format(context, receipt.total)} والمنتجات في المخزون!"
+                            analysisStatus = context.getString(R.string.cam_receipt_and_items, receipt.storeName, com.example.data.CurrencyFormatter.format(context, receipt.total))
                         }
                         showReceiptConfirmationDialog = false
                         parsedReceipt = null
@@ -744,7 +747,7 @@ fun CameraScreen(
                 TextButton(onClick = {
                     showReceiptConfirmationDialog = false
                     parsedReceipt = null
-                    analysisStatus = "تم إلغاء الفاتورة"
+                    analysisStatus = context.getString(R.string.cam_receipt_cancelled)
                 }) {
                     Text(stringResource(R.string.cam_cancel))
                 }
@@ -833,7 +836,7 @@ fun CameraScreen(
                                         },
                                         modifier = Modifier.size(32.dp)
                                     ) {
-                                        Icon(Icons.Default.Remove, contentDescription = "إنقاص الكمية", modifier = Modifier.size(18.dp))
+                                        Icon(Icons.Default.Remove, contentDescription = stringResource(R.string.cd_decrease_qty), modifier = Modifier.size(18.dp))
                                     }
                                     Text(
                                         "${item.quantity.toInt()}",
@@ -848,12 +851,12 @@ fun CameraScreen(
                                         },
                                         modifier = Modifier.size(32.dp)
                                     ) {
-                                        Icon(Icons.Default.Add, contentDescription = "زيادة الكمية", modifier = Modifier.size(18.dp))
+                                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.cd_increase_qty), modifier = Modifier.size(18.dp))
                                     }
                                     IconButton(onClick = {
                                         editableReceiptItems = editableReceiptItems.filter { it != item }
                                     }) {
-                                        Icon(Icons.Default.Delete, contentDescription = "حذف", tint = dangerColor)
+                                        Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.cd_delete), tint = dangerColor)
                                     }
                                 }
                             }
@@ -927,7 +930,7 @@ private fun ManualInventoryDialog(
                                         IconButton(onClick = {
                                             items = items.toMutableList().apply { removeAt(idx) }
                                         }) {
-                                            Icon(Icons.Default.Close, contentDescription = "حذف", tint = dangerColor)
+                                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cd_delete), tint = dangerColor)
                                         }
                                     }
                                 }

@@ -40,6 +40,37 @@ Applies to every screen/composable added or touched, adapted from the `mobile-ap
 - **Tap targets** ≥ 44dp (Material default `IconButton` size already satisfies this — don't shrink below it for density).
 - Kids Mode specifically: playful gradients/emoji are intentional there (see `KidAvatar`, candy-gradient balance card) — don't "normalize" it to the adult palette.
 
+## i18n — نصوص العرض مقابل بيانات المطابقة (قاعدة قاطعة)
+
+مسح 2026-09-05 لقى **2,387 نص عربي** في الكود (بعد شطب التعليقات) عبر 89 ملف.
+**الأغلبية الساحقة منهم بيانات مش نصوص واجهة، وترجمتها بتكسر ميزات بصمت.**
+
+**ممنوع منعاً باتاً استخراج أي نص من الملفات دي:**
+
+| الملف | العدد | إيه هي ولو اتترجمت بيحصل إيه |
+|---|---|---|
+| `data/SaBankParser.kt` | 319 | `"شراء"`, `"سحب نقدي"`, `"حوالة صادرة"` — بتتطابق مع **نص رسالة البنك الواردة**. ترجمتها = الپارسر يبطل يقرا أي معاملة بنكية خالص. |
+| `data/FoodImageQuery.kt` | 197 | `"عايز"`, `"عاوز"`, `"ابغى"`, `"ابي"` — لهجات بتتطابق مع **كلام المستخدم**. ترجمتها = كشف النية يقع. |
+| `ui/components/SubscriptionBrandIcons.kt` | 37 | `"نتفلكس"`, `"نتفليكس"` — إملاءات بديلة لأسماء العلامات، بتتطابق مع عنوان الاشتراك. |
+| `data/ZadAiRepository.kt`, `data/ZadCentralBrain.kt` | 249 | نص برومبت بيتبعت للموديل. ترجمته بتغيّر سلوك الذكاء الاصطناعي نفسه. |
+| `data/MarketProfile.kt` | 54 | `dialectInstruction` — برومبت لهجة لكل بلد؛ ده **المفروض** يفضل بلغته. |
+
+**ونفس القاعدة على مستوى النص مش الملف:** أي قيمة **بتتخزن في الداتابيز** أو
+**بتتطابق بيها** تفضل عربي حتى لو كانت في ملف واجهة. أمثلة حقيقية من `CameraScreen.kt`:
+أسماء الفئات (`"خضار"`, `"ألبان"`, `"الرعاية الصحية"`) بتتكتب في `ZadInventory.category`،
+والوحدات (`"كجم"`, `"علبة"`, `"قطعة"`) في `ZadInventory.unit`. الشاشة دي فيها 61 نص:
+**30 اتنقلوا للترجمة و31 فضلوا بيانات** — الفرز ده لازم يتعمل نص بنص.
+
+**السبب إن ده خطر بالذات:** الغلط في الاتجاه ده **مابيبانش في البناء ولا في اللينت
+ولا في أي تست**. البيلد بيعدّي أخضر، والعطل بيبان لما رسالة بنك حقيقية تقف عن القراءة
+عند عميل حقيقي.
+
+**اللي اتقفل فعلاً (متحقَّق منه):** كل نصوص `Text(...)` في `ui/`، و`CameraScreen`
+بالكامل (حالات + `contentDescription`). الباقي محتاج نفس الفرز اليدوي.
+
+**فايدة جانبية تستاهل التنبيه:** `contentDescription` نصوص واجهة كمان — TalkBack
+بيقراها لضعاف البصر. كانت عربي ثابت في `CameraScreen` واتنقلت.
+
 ## Secure-coding checklist
 
 Scoped to this app's actual attack surface (Android client + Supabase backend + AI chat) — not a general pentesting checklist:

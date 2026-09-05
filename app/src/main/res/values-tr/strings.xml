@@ -1684,4 +1684,34 @@
     <string name="report_section_household">2. Ev ve aile verimliliği</string>
     <string name="report_share">📤 Raporu paylaş</string>
     <string name="report_close">Raporu kapat</string>
+
+    <!-- ═══ شاشة الكاميرا: حالات ووصف إتاحة (استُخرجت 2026-09-05) ═══ -->
+    <string name="cam_hint_initial">Buzdolabınızın, market poşetlerinizin veya bir fişin fotoğrafını çekin; yapay zekâ okusun.</string>
+    <string name="cam_analyzing_ai">Görsel yapay zekâ ile analiz ediliyor…</string>
+    <string name="cam_items_extracted">%1$d ürün çıkarıldı — gözden geçirip onaylayın</string>
+    <string name="cam_no_items_found">Yapay zekâ net ürün bulamadı. Daha yakın veya daha aydınlık çekin ya da elle ekleyin.</string>
+    <string name="cam_receipt_extracted">%1$s fişi okundu — gözden geçirip onaylayın</string>
+    <string name="cam_receipt_unreadable">Fiş okunamadı — daha net bir fotoğraf deneyin</string>
+    <string name="cam_analysis_error">Analiz sırasında bir hata oluştu. Tekrar deneyin.</string>
+    <string name="cam_cannot_open_camera">Kamera açılamadı. Bir kamera uygulaması yükleyin veya elle ekleyin.</string>
+    <string name="cam_permission_needed">Tarama için kamera izni gerekir. Yine de elle ekleyebilirsiniz.</string>
+    <string name="cam_permission_blocked">Kamera izni kalıcı olarak reddedildi — taramak için Ayarlar\'dan açın</string>
+    <string name="cam_open_app_settings">Uygulama ayarlarını aç</string>
+    <string name="cam_items_added_manual">%1$d ürün elle eklendi</string>
+    <string name="cam_injected">Eklendi: %1$s</string>
+    <string name="cam_injecting">%1$d ürün kilere ekleniyor…</string>
+    <string name="cam_add_cancelled">Ekleme iptal edildi</string>
+    <string name="cam_receipt_cancelled">Fiş iptal edildi</string>
+    <string name="cam_receipt_to_pharmacy">%1$s fişi (%2$s) eczaneye kaydedildi</string>
+    <string name="cam_receipt_logged">%1$s fişi %2$s tutarıyla kaydedildi</string>
+    <string name="cam_receipt_summary">%1$s fişi: %2$s</string>
+    <string name="cam_receipt_and_stock">%1$s fişi (%2$s) kaydedildi ve kiler güncellendi</string>
+    <string name="cam_receipt_full_summary">%1$s fişi (%2$s): %3$s</string>
+    <string name="cam_receipt_and_items">%1$s fişi %2$s tutarıyla kaydedildi ve ürünler eklendi</string>
+    <string name="cd_back">Geri</string>
+    <string name="cd_captured_image">Çekilen görsel</string>
+    <string name="cd_analyzing">Analiz ediliyor…</string>
+    <string name="cd_delete">Sil</string>
+    <string name="cd_decrease_qty">Miktarı azalt</string>
+    <string name="cd_increase_qty">Miktarı artır</string>
 </resources>
