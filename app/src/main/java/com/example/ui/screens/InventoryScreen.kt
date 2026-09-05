@@ -83,6 +83,14 @@ private fun stockColor(item: ZadInventory): Color {
     }
 }
 
+/** لون خلفية الفئة — "الكل" بتتبع الثيم، الباقي باستيل ثابت مقصود. */
+@androidx.compose.runtime.Composable
+private fun CategoryDef.bgColor(): Color = if (key == "الكل") primary else bg
+
+/** لون المقدمة المقابل، بنفس المنطق. */
+@androidx.compose.runtime.Composable
+private fun CategoryDef.fgColor(): Color = if (key == "الكل") onPrimary else fg
+
 private data class CategoryDef(
     val key: String,
     val label: String,
@@ -140,6 +148,9 @@ private fun emojiForCategory(categoryKey: String): String = when (categoryKey) {
 }
 
 private val categoryDefs = listOf(
+    // "الكل" هي الوحيدة اللي بتاخد لون الثيم؛ الباقي باستيل مقصود ثابت. القيم هنا
+    // خام لأن القايمة top-level (بتتقري كمان من دوال مش composable)، والقراءة
+    // الواعية بالثيم بتحصل في bgColor()/fgColor() تحت.
     CategoryDef("الكل", "الكل", Icons.Default.Apps, ZadForestEmerald, ZadOnAccent),
     CategoryDef("البقالة", "البقالة", Icons.Default.ShoppingBasket, Color(0xFFFFF3E0), Color(0xFFF57C00)),
     CategoryDef("الخضار", "الخضار", Icons.Default.Eco, Color(0xFFE8F5E9), Color(0xFF43A047)),
@@ -796,7 +807,7 @@ private fun InventoryItemCard(
                 modifier = Modifier
                     .size(46.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(catDef.bg),
+                    .background(catDef.bgColor()),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -948,7 +959,7 @@ private fun ShortageItemCard(
                     modifier = Modifier
                         .size(28.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(catDef.bg),
+                        .background(catDef.bgColor()),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -1201,7 +1212,7 @@ private fun AddInventoryDialog(
                             DropdownMenuItem(
                                 text = {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(def.icon, contentDescription = null, tint = def.fg, modifier = Modifier.size(18.dp))
+                                        Icon(def.icon, contentDescription = null, tint = def.fgColor(), modifier = Modifier.size(18.dp))
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(def.label)
                                     }

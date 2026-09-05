@@ -840,6 +840,7 @@ fun LiveSpendingLineGraphWidget(
                 // DrawScope is not a composable context, so the theme-aware token is read
                 // here and passed in. Reading `primary` inside the lambda does not compile.
                 val lineColor = primary
+                val selectedDotColor = successColor
                 androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
                     val canvasWidth = size.width
                     val canvasHeight = size.height - 24f
@@ -905,7 +906,7 @@ fun LiveSpendingLineGraphWidget(
                             center = p
                         )
                         drawCircle(
-                            color = if (isSel) successColor else lineColor,
+                            color = if (isSel) selectedDotColor else lineColor,
                             radius = if (isSel) 4.5.dp.toPx() else 2.5.dp.toPx(),
                             center = p
                         )

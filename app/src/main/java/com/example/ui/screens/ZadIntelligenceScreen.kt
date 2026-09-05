@@ -1399,6 +1399,7 @@ fun WeeklyTrendCard(transactions: List<ZadTransaction>) {
                 val maxVal = maxOf(currentWeek.maxOfOrNull { it.second } ?: 0.0, lastWeek.maxOfOrNull { it.second } ?: 0.0, 1.0)
                 val barMutedColor = onSurfaceVariant
                 val barPrimaryColor = primary
+                val barPrimaryDeep = primaryDark
                 Canvas(modifier = Modifier.fillMaxWidth().height(140.dp)) {
                     val groupWidth = size.width / 7
                     val barWidth = groupWidth * 0.28f
@@ -1416,7 +1417,7 @@ fun WeeklyTrendCard(transactions: List<ZadTransaction>) {
                             cornerRadius = CornerRadius(4.dp.toPx())
                         )
                         drawRoundRect(
-                            brush = Brush.verticalGradient(listOf(barPrimaryColor, primaryDark)),
+                            brush = Brush.verticalGradient(listOf(barPrimaryColor, barPrimaryDeep)),
                             topLeft = Offset(cx + gap / 2, size.height - curH),
                             size = Size(barWidth, curH),
                             cornerRadius = CornerRadius(4.dp.toPx())

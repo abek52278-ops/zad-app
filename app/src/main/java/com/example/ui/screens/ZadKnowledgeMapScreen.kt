@@ -480,6 +480,8 @@ internal fun DomainRing(
                     translationY = panOffset.y
                 }
         ) {
+             // DrawScope is not composable — read the token outside the canvas.
+             val edgeParticleColor = primaryLight
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val centerPx = Offset(centerX.toPx(), centerY.toPx())
                 val radiusPx = radius.toPx()
@@ -529,7 +531,7 @@ internal fun DomainRing(
                         val epX = start.x + (end.x - start.x) * particleProgress
                         val epY = start.y + (end.y - start.y) * particleProgress
                         drawCircle(
-                            color = primaryLight,
+                            color = edgeParticleColor,
                             radius = 2.8.dp.toPx(),
                             center = Offset(epX, epY)
                         )
@@ -537,7 +539,7 @@ internal fun DomainRing(
 
                     if (e in activeEdges) {
                         drawLine(
-                            color = primaryLight.copy(alpha = liveAlpha),
+                            color = edgeParticleColor.copy(alpha = liveAlpha),
                             start = start,
                             end = end,
                             strokeWidth = 3.dp.toPx()

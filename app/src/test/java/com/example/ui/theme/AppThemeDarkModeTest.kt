@@ -66,6 +66,55 @@ class AppThemeDarkModeTest {
     }
 
     @Test
+    fun `extended colours follow the theme too`() {
+        // The ColorScheme has no slot for these, so they ride LocalZadExtendedColors.
+        // If AppTheme ever stops providing it, the light values leak into dark mode —
+        // which is the exact bug this mechanism exists to prevent.
+        assertNotEquals(ZadExtendedColorsLight.success, ZadExtendedColorsDark.success)
+        assertNotEquals(ZadExtendedColorsLight.textTertiary, ZadExtendedColorsDark.textTertiary)
+        assertNotEquals(ZadExtendedColorsLight.info, ZadExtendedColorsDark.info)
+        assertNotEquals(ZadExtendedColorsLight.canvasTop, ZadExtendedColorsDark.canvasTop)
+        assertNotEquals(
+            ZadExtendedColorsLight.surfaceContainerLow,
+            ZadExtendedColorsDark.surfaceContainerLow
+        )
+    }
+
+    @Test
+    @Config(qualifiers = "night")
+    fun `system dark mode provides the dark extended colours`() {
+        lateinit var captured: ZadExtendedColors
+        composeTestRule.setContent {
+            AppTheme { captured = LocalZadExtendedColors.current }
+        }
+        assertEquals(ZadExtendedColorsDark, captured)
+    }
+
+    @Test
+    @Config(qualifiers = "notnight")
+    fun `system light mode provides the light extended colours`() {
+        lateinit var captured: ZadExtendedColors
+        composeTestRule.setContent {
+            AppTheme { captured = LocalZadExtendedColors.current }
+        }
+        assertEquals(ZadExtendedColorsLight, captured)
+    }
+
+    @Test
+    fun `extended text weights keep their order in dark`() {
+        // tertiary must stay dimmer than secondary, or the three text weights collapse.
+        fun luminance(c: androidx.compose.ui.graphics.Color) = c.red + c.green + c.blue
+        assert(
+            luminance(ZadExtendedColorsDark.textTertiary) <
+                luminance(ZadDarkColorScheme.onSurfaceVariant)
+        )
+        assert(
+            luminance(ZadExtendedColorsDark.textTertiary) >
+                luminance(ZadDarkColorScheme.surface)
+        )
+    }
+
+    @Test
     fun `dark text is light and dark surfaces are dark`() {
         // Cheap contrast sanity check: on-colours must be lighter than the surfaces they
         // sit on, otherwise the palette is internally inconsistent regardless of taste.

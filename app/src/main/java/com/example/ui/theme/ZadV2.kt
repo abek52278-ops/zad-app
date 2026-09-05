@@ -67,7 +67,8 @@ object ZadV3 {
     // canvasTop/Mid/Bottom عبر ZadCanvasBackground. فبدل ما نمسح القيمة أو نغيّر أي
     // بيكسل فعلي، ZadV3 بقت بترجع لنفس مصدر Color.kt — مصدر واحد حقيقي، صفر تغيير
     // بصري (مفيش حد بيقرا القيمة القديمة أصلاً).
-    val canvas = canvasMid
+    // (لسه صفر استخدام) — ZadV3 نظام قديم مالوش وعي بالثيم، فبيقرا نسخة الفاتح مباشرة.
+    val canvas = ZadExtendedColorsLight.canvasMid
     val canvasWarm = Color(0xFFFBFAF8)      // Splash/auth canvas
     val surface = Color(0xFFFFFFFF)         // White card surface
     val ink = Color(0xFF0F172A)             // Near-black text
@@ -124,7 +125,11 @@ object ZadV3 {
     // Screen canvas — بند 36.1: نفس تدرّج ZadCanvasBackground الحقيقي (Color.kt's
     // canvasTop/Mid/Bottom) بدل تكرار نفس الألوان كحروف مستقلة هنا.
     val canvasGradient = Brush.linearGradient(
-        colors = listOf(canvasTop, canvasMid, canvasBottom),
+        colors = listOf(
+            ZadExtendedColorsLight.canvasTop,
+            ZadExtendedColorsLight.canvasMid,
+            ZadExtendedColorsLight.canvasBottom,
+        ),
         start = Offset(0f, 0f),
         end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
     )

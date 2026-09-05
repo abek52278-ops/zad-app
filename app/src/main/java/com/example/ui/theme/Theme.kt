@@ -26,6 +26,8 @@ fun AppTheme(
         shapes = ZadShapes,
         content = {
             androidx.compose.runtime.CompositionLocalProvider(
+                LocalZadExtendedColors provides
+                    if (darkTheme) ZadExtendedColorsDark else ZadExtendedColorsLight,
                 androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Rtl
             ) {
                 content()

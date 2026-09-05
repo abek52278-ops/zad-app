@@ -20,11 +20,16 @@ import androidx.compose.ui.graphics.Color
 // ZadColorScheme sets that exact slot to the same value — otherwise it would
 // silently fall back to a Material default and change colour.
 //
+// Tokens Material has no slot for (success/info/textTertiary/coral/lilac/
+// canvas*/surfaceContainer*) are theme-aware too, but via
+// LocalZadExtendedColors — see ZadExtendedColors.kt.
+//
 // Deliberately left static: Kids Mode (CLAUDE.md — don't normalise it toward
-// the adult palette), the category pastels, and the tokens with no
-// ColorScheme slot to read from (successColor/infoColor/textTertiary/
-// sand/coral/lilac/canvas*/surfaceContainer*). Those need an extended-colour
-// mechanism before they can follow a theme; they are light-only for now.
+// the adult palette), the category pastels, primaryFixed, and eight tokens
+// with zero call sites outside this file (sand/sandLight/sandDark/onSand/
+// carrotOrange/lilacLight/surfaceContainerLowest/surfaceContainerHighest),
+// which are dead rather than deliberate and should be deleted once someone
+// confirms nothing external expects them.
 // =========================================================================
 
 // =========================================================================
@@ -87,18 +92,23 @@ val onSurfaceVariant: Color @Composable get() = MaterialTheme.colorScheme.onSurf
 val outline: Color @Composable get() = MaterialTheme.colorScheme.outline
 val outlineVariant: Color @Composable get() = MaterialTheme.colorScheme.outlineVariant
 
-// No ColorScheme slot — static until an extended-colour mechanism exists.
-val primaryDark = ZadForestEmeraldDark
-val primaryLight = ZadForestEmeraldLight
+// No ColorScheme slot — carried by LocalZadExtendedColors instead (ZadExtendedColors.kt).
+val primaryDark: Color @Composable get() = LocalZadExtendedColors.current.primaryDark
+val primaryLight: Color @Composable get() = LocalZadExtendedColors.current.primaryLight
+val secondaryDark: Color @Composable get() = LocalZadExtendedColors.current.secondaryDark
+val secondaryLight: Color @Composable get() = LocalZadExtendedColors.current.secondaryLight
+
+// Theme-invariant on purpose: `fixed` is Material's term for a colour that must not
+// move between light and dark. Used by ZadKnowledgeMapScreen, whose palette is
+// deliberately dark in both themes. See the note in ZadExtendedColors.kt about
+// HomeScreen's four uses, which are the reason this needs a product decision.
 val primaryFixed = ZadForestEmerald
-val secondaryDark = ZadMustardDark
-val secondaryLight = ZadMustardLight
 
 // Surface Container Levels
 val surfaceContainerLowest = Color(0xFFFFFFFF)
-val surfaceContainerLow = Color(0xFFFBFBFA)
-val surfaceContainer = ZadIosBackground
-val surfaceContainerHigh = ZadIosSurfaceVariant
+val surfaceContainerLow: Color @Composable get() = LocalZadExtendedColors.current.surfaceContainerLow
+val surfaceContainer: Color @Composable get() = LocalZadExtendedColors.current.surfaceContainer
+val surfaceContainerHigh: Color @Composable get() = LocalZadExtendedColors.current.surfaceContainerHigh
 val surfaceContainerHighest = Color(0xFFE2E5DC)
 
 // Neutral & Accent Tokens
@@ -107,15 +117,15 @@ val sandLight = ZadIosBackground
 val sandDark = ZadIosOutline
 val onSand = ZadNeutralDark
 
-val coral = ZadTerracottaRust
-val coralLight = ZadTerracottaContainer
-val lilac = Color(0xFF7C6F93)
+val coral: Color @Composable get() = LocalZadExtendedColors.current.coral
+val coralLight: Color @Composable get() = LocalZadExtendedColors.current.coralLight
+val lilac: Color @Composable get() = LocalZadExtendedColors.current.lilac
 val lilacLight = Color(0xFFF2EFF7)
 val carrotOrange = Color(0xFFF06A35)
 
-val canvasTop = Color(0xFFF8F9FA)
-val canvasMid = Color(0xFFF4F6F2)
-val canvasBottom = Color(0xFFEDEFE9)
+val canvasTop: Color @Composable get() = LocalZadExtendedColors.current.canvasTop
+val canvasMid: Color @Composable get() = LocalZadExtendedColors.current.canvasMid
+val canvasBottom: Color @Composable get() = LocalZadExtendedColors.current.canvasBottom
 
 // Category Colors (Soft pastels with heritage accents)
 val catBillsBg = Color(0x1AD95726)
@@ -138,13 +148,13 @@ val catHealthIcon = Color(0xFF135841)
 // Typography Text Colors — same values the scheme carries, so they can follow it.
 val textPrimary: Color @Composable get() = MaterialTheme.colorScheme.onSurface
 val textSecondary: Color @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
-val textTertiary = Color(0xFF9EA197)   // no slot — static
+val textTertiary: Color @Composable get() = LocalZadExtendedColors.current.textTertiary
 
 // Semantic Colors
-val successColor = Color(0xFF238652)   // no slot — static
+val successColor: Color @Composable get() = LocalZadExtendedColors.current.success
 val dangerColor: Color @Composable get() = MaterialTheme.colorScheme.error
 val warningColor: Color @Composable get() = MaterialTheme.colorScheme.secondary
-val infoColor = Color(0xFF2B6CB0)      // no slot — static
+val infoColor: Color @Composable get() = LocalZadExtendedColors.current.info
 
 // Kids Mode Colors
 val kidsPrimary = Color(0xFF6B46C1)
