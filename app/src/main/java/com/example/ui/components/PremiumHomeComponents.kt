@@ -283,7 +283,7 @@ fun BudgetSetupPromptCard(onSetBudget: () -> Unit) {
             Icon(
                 Icons.Default.AccountBalanceWallet,
                 contentDescription = null,
-                tint = Color.White,
+                tint = onPrimary,
                 modifier = Modifier.size(36.dp)
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -291,18 +291,18 @@ fun BudgetSetupPromptCard(onSetBudget: () -> Unit) {
                 stringResource(R.string.budget_setup_prompt_title),
                 style = Typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = onPrimary
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 stringResource(R.string.budget_setup_prompt_subtitle),
                 style = Typography.bodySmall,
-                color = Color.White.copy(alpha = 0.8f)
+                color = onPrimary.copy(alpha = 0.8f)
             )
             Spacer(modifier = Modifier.height(16.dp))
             Button(
                 onClick = onSetBudget,
-                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = primary),
+                colors = ButtonDefaults.buttonColors(containerColor = onPrimary, contentColor = primary),
                 shape = RoundedCornerShape(999.dp)
             ) {
                 Text(stringResource(R.string.budget_setup_prompt_action), style = Typography.labelMedium.copy(fontWeight = FontWeight.Bold))
