@@ -23,6 +23,9 @@ testsprite_tests\tmp\config.json
 *.txt
 !sources.jar
 !app/proguard-rules.pro
+# Tracked on purpose: checkNoRawColorsInScreens reads this and the build fails
+# without it. The blanket *.txt above is meant for scratch logs, not this.
+!app/raw-color-baseline.txt
 *.log
 deploy_result.txt
 local.properties
