@@ -837,6 +837,9 @@ fun LiveSpendingLineGraphWidget(
                     .fillMaxWidth()
                     .height(120.dp)
             ) {
+                // DrawScope is not a composable context, so the theme-aware token is read
+                // here and passed in. Reading `primary` inside the lambda does not compile.
+                val lineColor = primary
                 androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
                     val canvasWidth = size.width
                     val canvasHeight = size.height - 24f
@@ -882,14 +885,14 @@ fun LiveSpendingLineGraphWidget(
                     drawPath(
                         path = fillPath,
                         brush = Brush.verticalGradient(
-                            colors = listOf(primary.copy(alpha = 0.28f), primary.copy(alpha = 0.0f))
+                            colors = listOf(lineColor.copy(alpha = 0.28f), lineColor.copy(alpha = 0.0f))
                         )
                     )
 
                     // Stroke line
                     drawPath(
                         path = path,
-                        color = primary,
+                        color = lineColor,
                         style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
                     )
 
@@ -902,7 +905,7 @@ fun LiveSpendingLineGraphWidget(
                             center = p
                         )
                         drawCircle(
-                            color = if (isSel) successColor else primary,
+                            color = if (isSel) successColor else lineColor,
                             radius = if (isSel) 4.5.dp.toPx() else 2.5.dp.toPx(),
                             center = p
                         )

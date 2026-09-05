@@ -59,6 +59,7 @@ fun daysUntilExpiry(expiryDate: String?): Int? {
     }
 }
 
+@androidx.compose.runtime.Composable
 fun expiryColor(days: Int?): Color = when {
     days == null -> Color(0xFFBDBDBD)
     days <= 3 -> dangerColor
@@ -72,6 +73,7 @@ private fun stockRatio(item: ZadInventory): Float {
     return (item.quantity.toFloat() / (threshold * 3f)).coerceIn(0f, 1f)
 }
 
+@androidx.compose.runtime.Composable
 private fun stockColor(item: ZadInventory): Color {
     val threshold = (item.lowStockThreshold ?: 2).coerceAtLeast(1)
     return when {
@@ -138,7 +140,7 @@ private fun emojiForCategory(categoryKey: String): String = when (categoryKey) {
 }
 
 private val categoryDefs = listOf(
-    CategoryDef("الكل", "الكل", Icons.Default.Apps, primary, onPrimary),
+    CategoryDef("الكل", "الكل", Icons.Default.Apps, ZadForestEmerald, ZadOnAccent),
     CategoryDef("البقالة", "البقالة", Icons.Default.ShoppingBasket, Color(0xFFFFF3E0), Color(0xFFF57C00)),
     CategoryDef("الخضار", "الخضار", Icons.Default.Eco, Color(0xFFE8F5E9), Color(0xFF43A047)),
     CategoryDef("الفواكه", "الفواكه", Icons.Default.Fastfood, Color(0xFFFCE4EC), Color(0xFFD81B60)),

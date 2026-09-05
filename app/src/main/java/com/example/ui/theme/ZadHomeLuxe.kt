@@ -1,6 +1,9 @@
 package com.example.ui.theme
 
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 /**
@@ -18,12 +21,12 @@ import androidx.compose.ui.unit.dp
  * على توكن Heritage نفسه، فمصدر الحقيقة واحد: `Color.kt`.
  */
 object ZadLuxe {
-    val emerald = ZadForestEmerald
-    val ochre = ZadMustardOchre
-    val terracotta = ZadTerracottaRust
-    val canvasBackground = ZadIosBackground
-    val cardWhite = ZadIosSurface
-    val hairline = ZadIosOutline
+    val emerald: Color @Composable get() = MaterialTheme.colorScheme.primary
+    val ochre: Color @Composable get() = MaterialTheme.colorScheme.secondary
+    val terracotta: Color @Composable get() = MaterialTheme.colorScheme.tertiary
+    val canvasBackground: Color @Composable get() = MaterialTheme.colorScheme.background
+    val cardWhite: Color @Composable get() = MaterialTheme.colorScheme.surface
+    val hairline: Color @Composable get() = MaterialTheme.colorScheme.outline
 
     /** زوايا Squircle ناعمة للكروت الفاخرة — 20.dp حسب المواصفة. */
     val squircle = RoundedCornerShape(20.dp)

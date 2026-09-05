@@ -1,6 +1,31 @@
 package com.example.ui.theme
 
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+
+// =========================================================================
+// Static palette vs theme-aware aliases — read this before adding a token.
+//
+// The `Zad*` values below are the raw palette: fixed hex, the source the
+// ColorScheme is built from. They never vary by theme, and ZadColorScheme
+// (ZadTheme.kt) must be built from *these* — scheme construction is not a
+// composable context, so it cannot read the aliases further down.
+//
+// The lowercase Material-alias tokens are `@Composable get()` instead of
+// plain vals, so they resolve through MaterialTheme.colorScheme at use site
+// and follow the active theme. That indirection is what lets dark mode reach
+// the ~900 call sites that name these tokens directly instead of going
+// through MaterialTheme themselves. A token may only be converted if
+// ZadColorScheme sets that exact slot to the same value — otherwise it would
+// silently fall back to a Material default and change colour.
+//
+// Deliberately left static: Kids Mode (CLAUDE.md — don't normalise it toward
+// the adult palette), the category pastels, and the tokens with no
+// ColorScheme slot to read from (successColor/infoColor/textTertiary/
+// sand/coral/lilac/canvas*/surfaceContainer*). Those need an extended-colour
+// mechanism before they can follow a theme; they are light-only for now.
+// =========================================================================
 
 // =========================================================================
 // ZAD Design System — "Zad Culinary & Wealth Heritage" (Apple iOS Cupertino HIG)
@@ -32,34 +57,42 @@ val ZadIosOutline = Color(0xFFE0E3DA)      // Thin hairline borders (0.5.dp)
 val ZadNeutralDark = Color(0xFF1F1F14)     // High-contrast, pure text legibility
 val ZadNeutralMuted = Color(0xFF6E7166)    // Secondary muted labels
 
-// --- 3. Material 3 / App Theme Aliases (Backwards Compatibility) ---
-val primary = ZadForestEmerald
+// --- 3. Raw values the ColorScheme is built from (never theme-aware) ---
+// ZadTheme.kt builds ZadColorScheme outside any composable, so it must use these,
+// not the aliases below.
+val ZadOnAccent = Color(0xFFFFFFFF)        // onPrimary / onSecondary / onTertiary / onError
+val ZadOutlineVariant = Color(0xFFE8EBE2)
+
+// --- 3b. Material 3 aliases — theme-aware, resolve via MaterialTheme.colorScheme ---
+val primary: Color @Composable get() = MaterialTheme.colorScheme.primary
+val primaryContainer: Color @Composable get() = MaterialTheme.colorScheme.primaryContainer
+val onPrimary: Color @Composable get() = MaterialTheme.colorScheme.onPrimary
+val onPrimaryContainer: Color @Composable get() = MaterialTheme.colorScheme.onPrimaryContainer
+
+val secondary: Color @Composable get() = MaterialTheme.colorScheme.secondary
+val secondaryContainer: Color @Composable get() = MaterialTheme.colorScheme.secondaryContainer
+val onSecondary: Color @Composable get() = MaterialTheme.colorScheme.onSecondary
+val onSecondaryContainer: Color @Composable get() = MaterialTheme.colorScheme.onSecondaryContainer
+
+val tertiary: Color @Composable get() = MaterialTheme.colorScheme.tertiary
+val tertiaryContainer: Color @Composable get() = MaterialTheme.colorScheme.tertiaryContainer
+val onTertiaryContainer: Color @Composable get() = MaterialTheme.colorScheme.onTertiaryContainer
+
+val background: Color @Composable get() = MaterialTheme.colorScheme.background
+val onBackground: Color @Composable get() = MaterialTheme.colorScheme.onBackground
+val surface: Color @Composable get() = MaterialTheme.colorScheme.surface
+val onSurface: Color @Composable get() = MaterialTheme.colorScheme.onSurface
+val surfaceVariant: Color @Composable get() = MaterialTheme.colorScheme.surfaceVariant
+val onSurfaceVariant: Color @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+val outline: Color @Composable get() = MaterialTheme.colorScheme.outline
+val outlineVariant: Color @Composable get() = MaterialTheme.colorScheme.outlineVariant
+
+// No ColorScheme slot — static until an extended-colour mechanism exists.
 val primaryDark = ZadForestEmeraldDark
 val primaryLight = ZadForestEmeraldLight
-val primaryContainer = ZadEmeraldContainer
 val primaryFixed = ZadForestEmerald
-val onPrimary = Color(0xFFFFFFFF)
-val onPrimaryContainer = ZadForestEmerald
-
-val secondary = ZadMustardOchre
 val secondaryDark = ZadMustardDark
 val secondaryLight = ZadMustardLight
-val secondaryContainer = ZadMustardContainer
-val onSecondary = Color(0xFFFFFFFF)
-val onSecondaryContainer = ZadMustardDark
-
-val tertiary = ZadTerracottaRust
-val tertiaryContainer = ZadTerracottaContainer
-val onTertiaryContainer = ZadTerracottaDark
-
-val background = ZadIosBackground
-val onBackground = ZadNeutralDark
-val surface = ZadIosSurface
-val onSurface = ZadNeutralDark
-val surfaceVariant = ZadIosSurfaceVariant
-val onSurfaceVariant = ZadNeutralMuted
-val outline = ZadIosOutline
-val outlineVariant = Color(0xFFE8EBE2)
 
 // Surface Container Levels
 val surfaceContainerLowest = Color(0xFFFFFFFF)
@@ -102,16 +135,16 @@ val catEntertainIcon = Color(0xFF2C5961)
 val catHealthBg = Color(0x1A1F6E54)
 val catHealthIcon = Color(0xFF135841)
 
-// Typography Text Colors
-val textPrimary = ZadNeutralDark
-val textSecondary = ZadNeutralMuted
-val textTertiary = Color(0xFF9EA197)
+// Typography Text Colors — same values the scheme carries, so they can follow it.
+val textPrimary: Color @Composable get() = MaterialTheme.colorScheme.onSurface
+val textSecondary: Color @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
+val textTertiary = Color(0xFF9EA197)   // no slot — static
 
 // Semantic Colors
-val successColor = Color(0xFF238652)
-val dangerColor = ZadTerracottaRust
-val warningColor = ZadMustardOchre
-val infoColor = Color(0xFF2B6CB0)
+val successColor = Color(0xFF238652)   // no slot — static
+val dangerColor: Color @Composable get() = MaterialTheme.colorScheme.error
+val warningColor: Color @Composable get() = MaterialTheme.colorScheme.secondary
+val infoColor = Color(0xFF2B6CB0)      // no slot — static
 
 // Kids Mode Colors
 val kidsPrimary = Color(0xFF6B46C1)
@@ -122,7 +155,7 @@ val kidsBackground = Color(0xFF0F0A2E)
 val kidsSurface = Color(0xFF1E0A4A)
 
 // Error Colors
-val error = ZadTerracottaRust
-val onError = Color(0xFFFFFFFF)
-val errorContainer = ZadTerracottaContainer
-val onErrorContainer = ZadTerracottaDark
+val error: Color @Composable get() = MaterialTheme.colorScheme.error
+val onError: Color @Composable get() = MaterialTheme.colorScheme.onError
+val errorContainer: Color @Composable get() = MaterialTheme.colorScheme.errorContainer
+val onErrorContainer: Color @Composable get() = MaterialTheme.colorScheme.onErrorContainer

@@ -1196,6 +1196,7 @@ fun ZadDonutChart(
             start to angle
         }
     }
+     val arcFallbackColor = onSurfaceVariant
     Canvas(
         modifier = modifier.pointerInput(segments) {
             detectTapGestures { offset ->
@@ -1223,7 +1224,7 @@ fun ZadDonutChart(
             val (start, end) = boundaries[i]
             val sweep = (end - start) * animatedProgress
             drawArc(
-                color = colors.getOrElse(i) { onSurfaceVariant }.copy(alpha = if (isDimmed) 0.3f else 1f),
+                color = colors.getOrElse(i) { arcFallbackColor }.copy(alpha = if (isDimmed) 0.3f else 1f),
                 startAngle = start,
                 sweepAngle = sweep - 2f,
                 useCenter = false,
@@ -1396,6 +1397,8 @@ fun WeeklyTrendCard(transactions: List<ZadTransaction>) {
                 )
             } else {
                 val maxVal = maxOf(currentWeek.maxOfOrNull { it.second } ?: 0.0, lastWeek.maxOfOrNull { it.second } ?: 0.0, 1.0)
+                val barMutedColor = onSurfaceVariant
+                val barPrimaryColor = primary
                 Canvas(modifier = Modifier.fillMaxWidth().height(140.dp)) {
                     val groupWidth = size.width / 7
                     val barWidth = groupWidth * 0.28f
@@ -1407,13 +1410,13 @@ fun WeeklyTrendCard(transactions: List<ZadTransaction>) {
                         val curH = (((curVal / maxVal) * drawProgress).toFloat().coerceIn(0f, 1f)) * size.height
                         val lastH = (((lastVal / maxVal) * drawProgress).toFloat().coerceIn(0f, 1f)) * size.height
                         drawRoundRect(
-                            color = onSurfaceVariant.copy(alpha = 0.25f),
+                            color = barMutedColor.copy(alpha = 0.25f),
                             topLeft = Offset(cx - barWidth - gap / 2, size.height - lastH),
                             size = Size(barWidth, lastH),
                             cornerRadius = CornerRadius(4.dp.toPx())
                         )
                         drawRoundRect(
-                            brush = Brush.verticalGradient(listOf(primary, primaryDark)),
+                            brush = Brush.verticalGradient(listOf(barPrimaryColor, primaryDark)),
                             topLeft = Offset(cx + gap / 2, size.height - curH),
                             size = Size(barWidth, curH),
                             cornerRadius = CornerRadius(4.dp.toPx())

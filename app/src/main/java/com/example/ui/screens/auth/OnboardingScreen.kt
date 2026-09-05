@@ -49,12 +49,17 @@ fun OnboardingScreen(
     onNavigateToLogin: () -> Unit,
     onNavigateToSignUp: () -> Unit
 ) {
-    val features = remember {
+    // remember's calculation lambda is not a composable context, so the theme-aware
+    // tokens are read here and keyed into it — reading them inside does not compile.
+    val featurePrimary = primary
+    val featureSecondary = secondary
+    val featureTertiary = tertiary
+    val features = remember(featurePrimary, featureSecondary, featureTertiary) {
         listOf(
-            OnboardingFeature(Icons.Default.Inventory2, "إدارة المخزين", "تتبع كل ما في مطبخك وبيتك بذكاء", primary),
-            OnboardingFeature(Icons.Default.FamilyRestroom, "العائلة كلها", "شارك الميزانية والمهام مع عائلتك", secondary),
+            OnboardingFeature(Icons.Default.Inventory2, "إدارة المخزين", "تتبع كل ما في مطبخك وبيتك بذكاء", featurePrimary),
+            OnboardingFeature(Icons.Default.FamilyRestroom, "العائلة كلها", "شارك الميزانية والمهام مع عائلتك", featureSecondary),
             OnboardingFeature(Icons.Default.SmartToy, "مساعد ذكي", "ذكاء اصطناعي يتنبأ باحتياجاتك ويتعلم منك", Color(0xFF7C3AED)),
-            OnboardingFeature(Icons.Default.AccountBalanceWallet, "الميزانية بذكاء", "حلل إنفاقك ووفّر أكثر باقتراحات ذكية", tertiary)
+            OnboardingFeature(Icons.Default.AccountBalanceWallet, "الميزانية بذكاء", "حلل إنفاقك ووفّر أكثر باقتراحات ذكية", featureTertiary)
         )
     }
 

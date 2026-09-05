@@ -22,17 +22,20 @@ val ZadShapes = Shapes(
     extraLarge = RoundedCornerShape(32.dp)
 )
 
+// Built from the raw Zad* palette only. The lowercase aliases in Color.kt are
+// `@Composable get()` accessors onto *this* scheme, so naming one here would be
+// both circular and impossible — scheme construction is not a composable context.
 val ZadColorScheme = lightColorScheme(
     primary = ZadForestEmerald,
-    onPrimary = onPrimary,
+    onPrimary = ZadOnAccent,
     primaryContainer = ZadEmeraldContainer,
     onPrimaryContainer = ZadForestEmerald,
     secondary = ZadMustardOchre,
-    onSecondary = onSecondary,
+    onSecondary = ZadOnAccent,
     secondaryContainer = ZadMustardContainer,
     onSecondaryContainer = ZadMustardDark,
     tertiary = ZadTerracottaRust,
-    onTertiary = onPrimary,
+    onTertiary = ZadOnAccent,
     tertiaryContainer = ZadTerracottaContainer,
     onTertiaryContainer = ZadTerracottaDark,
     background = ZadIosBackground,
@@ -42,9 +45,9 @@ val ZadColorScheme = lightColorScheme(
     surfaceVariant = ZadIosSurfaceVariant,
     onSurfaceVariant = ZadNeutralMuted,
     outline = ZadIosOutline,
-    outlineVariant = outlineVariant,
+    outlineVariant = ZadOutlineVariant,
     error = ZadTerracottaRust,
-    onError = onError,
+    onError = ZadOnAccent,
     errorContainer = ZadTerracottaContainer,
     onErrorContainer = ZadTerracottaDark
 )
