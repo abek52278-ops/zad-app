@@ -1667,4 +1667,21 @@
     <string name="family_pending_groceries">Ailenin eksikleri: %1$s</string>
     <string name="paywall_current_plan">Şu anki aboneliğiniz: %1$s</string>
     <string name="paywall_watch_free_ad">Ücretsiz reklam izle (%1$d/3)</string>
+
+    <!-- ═══ نصوص كارت اللمحة والتقرير (استُخرجت 2026-09-05) ═══ -->
+    <string name="glance_inventory_health_title">Stok durumu ve eksikler</string>
+    <string name="glance_inventory_health_sub">Bozulmayı ve gerçek ihtiyacı takip eder</string>
+    <string name="glance_open_inventory">Kileri aç ←</string>
+    <string name="glance_expiring_soon">Yakında bitiyor</string>
+    <string name="glance_add_to_cart">Listeye ekle</string>
+    <string name="glance_monthly_subscriptions">Aylık abonelikler</string>
+    <string name="glance_view_all">Tümünü gör ←</string>
+    <string name="glance_family_pharmacy_title">Aile eczanesi ve dozlar</string>
+    <string name="glance_open_pharmacy">Eczaneyi aç ←</string>
+    <string name="glance_next_dose">Sonraki doz</string>
+    <string name="glance_dose_taken">Doz alındı</string>
+    <string name="report_section_forecast">2. Tahmin ve gelecek ayın nakit akışı</string>
+    <string name="report_section_household">2. Ev ve aile verimliliği</string>
+    <string name="report_share">📤 Raporu paylaş</string>
+    <string name="report_close">Raporu kapat</string>
 </resources>

@@ -229,43 +229,8 @@ fun Modifier.zadV2Card(shape: Shape = ZadV3.rCard): Modifier = this
 
 // ── Reusable composables ──────────────────────────────────────────────────────
 
-/** Glass pill chip (spent/committed indicators) */
-@Composable
-fun ZadGlassChip(
-    label: String,
-    value: String,
-    dotColor: Color,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier
-            .clip(ZadV3.rPill)
-            .background(Color.White.copy(alpha = 0.14f))
-            .border(1.dp, Color.White.copy(alpha = 0.14f), ZadV3.rPill)
-            .padding(horizontal = 13.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
-    ) {
-        Box(Modifier.size(7.dp).clip(CircleShape).background(dotColor))
-        Text(
-            "$label: $value",
-            fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1,
-        )
-    }
-}
 
-@Composable
-fun ZadSectionTitle(text: String, modifier: Modifier = Modifier) {
-    Text(text, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = ZadV3.ink, modifier = modifier)
-}
 
-@Composable
-fun ZadStatCell(caption: String, value: String, modifier: Modifier = Modifier, valueSize: TextUnit = 24.sp) {
-    Column(modifier.zadV2Card().padding(horizontal = 14.dp, vertical = 14.dp)) {
-        Text(caption, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = ZadV3.gray500)
-        Text(value, fontSize = valueSize, fontWeight = FontWeight.Bold, color = ZadV3.ink)
-    }
-}
 
 /** Page padding for non-home screens */
 val V3ScreenPadding = androidx.compose.foundation.layout.PaddingValues(

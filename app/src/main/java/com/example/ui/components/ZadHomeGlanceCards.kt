@@ -387,15 +387,15 @@ fun ZadFoodShortagesGlanceCard(
                     Icon(Icons.Default.Inventory2, contentDescription = null, tint = primary, modifier = Modifier.size(16.dp))
                 }
                 Column {
-                    Text("صحة المخزون والنواقص", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = textPrimary)
-                    Text("مراقبة التلف والاحتياج الفعلي", fontSize = 11.5.sp, color = textSecondary)
+                    Text(stringResource(R.string.glance_inventory_health_title), fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = textPrimary)
+                    Text(stringResource(R.string.glance_inventory_health_sub), fontSize = 11.5.sp, color = textSecondary)
                 }
             }
             TextButton(
                 onClick = onViewAllClick,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
             ) {
-                Text("فتح المخزون ←", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = primary)
+                Text(stringResource(R.string.glance_open_inventory), fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = primary)
             }
         }
 
@@ -453,7 +453,7 @@ private fun FoodGlanceTile(
                         .background(Color(0xFFFEE2E2))
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
-                    Text("قارب ينتهي", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = dangerColor)
+                    Text(stringResource(R.string.glance_expiring_soon), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = dangerColor)
                 }
             }
         }
@@ -504,7 +504,7 @@ private fun FoodGlanceTile(
             ) {
                 Icon(Icons.Default.AddShoppingCart, contentDescription = null, tint = primary, modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("أضف للسلة", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = primary)
+                Text(stringResource(R.string.glance_add_to_cart), fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = primary)
             }
         }
     }
@@ -562,7 +562,7 @@ fun ZadSubscriptionsGlanceCard(
                     Icon(Icons.Default.CreditCard, contentDescription = null, tint = infoColor, modifier = Modifier.size(16.dp))
                 }
                 Column {
-                    Text("الاشتراكات الشهرية", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = textPrimary)
+                    Text(stringResource(R.string.glance_monthly_subscriptions), fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = textPrimary)
                     Text(
                         text = if (activeSubs.isEmpty()) "مفيش اشتراكات مسجّلة"
                                else "إجمالي شهري: ${com.example.data.CurrencyFormatter.format(context, totalAmount)}",
@@ -575,7 +575,7 @@ fun ZadSubscriptionsGlanceCard(
                 onClick = onViewAllClick,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
             ) {
-                Text("عرض الكل ←", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = infoColor)
+                Text(stringResource(R.string.glance_view_all), fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = infoColor)
             }
         }
 
@@ -667,7 +667,7 @@ fun ZadPharmacyGlanceCard(
                     Icon(Icons.Default.LocalPharmacy, contentDescription = null, tint = dangerColor, modifier = Modifier.size(16.dp))
                 }
                 Column {
-                    Text("صيدلية العائلة والجرعات", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = textPrimary)
+                    Text(stringResource(R.string.glance_family_pharmacy_title), fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = textPrimary)
                     val adherenceLabel = when {
                         pharmacyItems.isEmpty() -> "مفيش أدوية مسجّلة"
                         adherencePercent != null -> "الالتزام بالجرعات: $adherencePercent% • " +
@@ -693,7 +693,7 @@ fun ZadPharmacyGlanceCard(
                 onClick = onViewAllClick,
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
             ) {
-                Text("فتح الصيدلية ←", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = dangerColor)
+                Text(stringResource(R.string.glance_open_pharmacy), fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = dangerColor)
             }
         }
 
@@ -709,7 +709,7 @@ fun ZadPharmacyGlanceCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("الجرعة التالية", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = dangerColor)
+                    Text(stringResource(R.string.glance_next_dose), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = dangerColor)
                     Text("${nextDoseItem.name} • $nextDoseTime", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
                 }
                 Row(
@@ -722,7 +722,7 @@ fun ZadPharmacyGlanceCard(
                 ) {
                     Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("خدت الجرعة", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(stringResource(R.string.glance_dose_taken), fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
         }
@@ -1368,7 +1368,7 @@ fun ZadExecutiveDossierSheet(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("🔮", fontSize = 18.sp)
-                    Text("2. التنبؤات والتدفق المالي للشهر القادم", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24))
+                    Text(stringResource(R.string.report_section_forecast), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24))
                 }
                 Text(
                     text = "• إجمالي الصرف الفعلي للدورة الحالية: ${com.example.data.CurrencyFormatter.format(context, totalSpent)}.\n" +
@@ -1394,7 +1394,7 @@ fun ZadExecutiveDossierSheet(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("🏡", fontSize = 18.sp)
-                    Text("2. كفاءة إدارة المنزل والعائلة", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF34D399))
+                    Text(stringResource(R.string.report_section_household), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF34D399))
                 }
                 Text(
                     text = "• عقل العائلة المشترك: $familyMembersCount أفراد متصلين ومزامنين لحظياً.\n" +
@@ -1432,7 +1432,7 @@ fun ZadExecutiveDossierSheet(
                         contentColor = Color.White
                     )
                 ) {
-                    Text("📤 مشاركة التقرير", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text(stringResource(R.string.report_share), fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
 
                 OutlinedButton(
@@ -1441,7 +1441,7 @@ fun ZadExecutiveDossierSheet(
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFCBD5E1))
                 ) {
-                    Text("إغلاق التقرير", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text(stringResource(R.string.report_close), fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
             }
         }

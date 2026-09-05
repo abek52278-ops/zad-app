@@ -1670,4 +1670,21 @@
     <string name="family_pending_groceries">نواقص العائلة المطلوبة: %1$s</string>
     <string name="paywall_current_plan">أنت مشترك حالياً في باقة: %1$s</string>
     <string name="paywall_watch_free_ad">مشاهدة إعلان مجاني (%1$d/3)</string>
+
+    <!-- ═══ نصوص كارت اللمحة والتقرير (استُخرجت 2026-09-05) ═══ -->
+    <string name="glance_inventory_health_title">صحة المخزون والنواقص</string>
+    <string name="glance_inventory_health_sub">مراقبة التلف والاحتياج الفعلي</string>
+    <string name="glance_open_inventory">فتح المخزون ←</string>
+    <string name="glance_expiring_soon">قارب ينتهي</string>
+    <string name="glance_add_to_cart">أضف للسلة</string>
+    <string name="glance_monthly_subscriptions">الاشتراكات الشهرية</string>
+    <string name="glance_view_all">عرض الكل ←</string>
+    <string name="glance_family_pharmacy_title">صيدلية العائلة والجرعات</string>
+    <string name="glance_open_pharmacy">فتح الصيدلية ←</string>
+    <string name="glance_next_dose">الجرعة التالية</string>
+    <string name="glance_dose_taken">خدت الجرعة</string>
+    <string name="report_section_forecast">2. التنبؤات والتدفق المالي للشهر القادم</string>
+    <string name="report_section_household">2. كفاءة إدارة المنزل والعائلة</string>
+    <string name="report_share">📤 مشاركة التقرير</string>
+    <string name="report_close">إغلاق التقرير</string>
 </resources>

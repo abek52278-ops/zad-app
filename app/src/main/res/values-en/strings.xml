@@ -1670,4 +1670,21 @@
     <string name="family_pending_groceries">Family shopping needs: %1$s</string>
     <string name="paywall_current_plan">You\'re currently subscribed to: %1$s</string>
     <string name="paywall_watch_free_ad">Watch a free ad (%1$d/3)</string>
+
+    <!-- ═══ نصوص كارت اللمحة والتقرير (استُخرجت 2026-09-05) ═══ -->
+    <string name="glance_inventory_health_title">Stock health &amp; shortages</string>
+    <string name="glance_inventory_health_sub">Tracking spoilage and what you actually need</string>
+    <string name="glance_open_inventory">Open pantry ←</string>
+    <string name="glance_expiring_soon">Expiring soon</string>
+    <string name="glance_add_to_cart">Add to list</string>
+    <string name="glance_monthly_subscriptions">Monthly subscriptions</string>
+    <string name="glance_view_all">View all ←</string>
+    <string name="glance_family_pharmacy_title">Family pharmacy &amp; doses</string>
+    <string name="glance_open_pharmacy">Open pharmacy ←</string>
+    <string name="glance_next_dose">Next dose</string>
+    <string name="glance_dose_taken">Dose taken</string>
+    <string name="report_section_forecast">2. Forecast and next month\'s cash flow</string>
+    <string name="report_section_household">2. Household and family efficiency</string>
+    <string name="report_share">📤 Share report</string>
+    <string name="report_close">Close report</string>
 </resources>
