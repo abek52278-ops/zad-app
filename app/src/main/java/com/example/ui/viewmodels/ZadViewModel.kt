@@ -2651,19 +2651,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * تفعيل وترقية اشتراك المستخدم بعد إتمام الدفع بنجاح عبر بوابة الدفع الآمنة
-     */
-    suspend fun activateSubscription(tierId: String, isAnnual: Boolean, provider: String = "google_play"): Boolean {
-        val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return false
-        val success = SupabaseRepo.upgradeUserTier(userId, tierId, isAnnual, provider)
-        if (success) {
-            val prefs = getApplication<Application>().getSharedPreferences("zad_prefs", android.content.Context.MODE_PRIVATE)
-            prefs.edit().putString("user_tier", tierId).apply()
-            maybeAutoRefreshAgentSummary(force = true)
-        }
-        return success
-    }
+    // activateSubscription() اتشالت من هنا (٢٠٢٦-٠٩-٠٥) — مكانش ليها أي نداء، لا من
+    // الواجهة ولا من جوّه الـViewModel، وكانت بتنده SupabaseRepo.upgradeUserTier
+    // المتشالة (شوف التعليق مكانها في SupabaseRepo.kt). المسار الحي للشراء بالكامل
+    // في GooglePlayBillingManager، ومابيمرّش من هنا خالص.
 
     /**
      * تبديل عملة على حساب فيه بادجت متسجل بالفعل (تبديل يدوي من البروفايل، أو قبول

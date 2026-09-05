@@ -748,91 +748,22 @@ object SupabaseRepo {
         }
     }
 
-    suspend fun upgradeUserTier(
-        userId: String,
-        tier: String,
-        isAnnual: Boolean,
-        provider: String = "google_play"
-    ): Boolean {
-        return try {
-            val now = java.time.Instant.now()
-            val expiry = if (isAnnual) now.plus(365, java.time.temporal.ChronoUnit.DAYS)
-                         else now.plus(30, java.time.temporal.ChronoUnit.DAYS)
-
-            client.postgrest["zad_users"].update(
-                mapOf(
-                    "tier" to tier,
-                    "subscription_status" to "active",
-                    "subscription_expires_at" to expiry.toString()
-                )
-            ) {
-                filter { eq("id", userId) }
-            }
-
-            client.postgrest["zad_entitlements"].update(
-                mapOf(
-                    "tier" to tier,
-                    "tier_expires_at" to expiry.toString()
-                )
-            ) {
-                filter { eq("user_id", userId) }
-            }
-
-            val subRow = mapOf(
-                "user_id" to userId,
-                "tier" to tier,
-                "provider" to provider,
-                "status" to "active",
-                "current_period_start" to now.toString(),
-                "current_period_end" to expiry.toString()
-            )
-            client.postgrest["subscriptions"].insert(subRow)
-            Log.d(TAG, "upgradeUserTier() SUCCESS -> user=$userId upgraded to $tier")
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "upgradeUserTier() FAILED: ${e.message}")
-            false
-        }
-    }
-
-    suspend fun verifyGooglePlayPurchase(
-        tier: String,
-        isAnnual: Boolean,
-        purchaseToken: String,
-        orderId: String
-    ): Boolean {
-        // التحقق server-side عبر Edge Function verify-purchase — العميل مبيرفعش tier
-        // بنفسه (كانت ثغرة: أي جهاز معدّل يقدر يفتح Pro ببلاش). السيرفر هو اللي
-        // بيتحقق من Google Play Developer API وبكتب tier لو الاشتراك فعلاً صالح.
-        return try {
-            val productId = when (tier.lowercase()) {
-                "pro" -> if (isAnnual) "zad_pro_sub_annual" else "zad_pro_sub"
-                "starter" -> "zad_starter_sub"
-                else -> "zad_plus_sub"
-            }
-            val res = callEdgeFunction(
-                "verify-purchase",
-                mapOf(
-                    "tier" to tier.lowercase(),
-                    "isAnnual" to isAnnual,
-                    "purchaseToken" to purchaseToken,
-                    "orderId" to orderId,
-                    "productId" to productId,
-                )
-            )
-            val valid = res["valid"] == true
-            if (valid) {
-                Log.d(TAG, "verifyGooglePlayPurchase SUCCESS (server-verified) -> tier=$tier")
-            } else {
-                Log.w(TAG, "verifyGooglePlayPurchase REJECTED by server: $res")
-            }
-            valid
-        } catch (e: Exception) {
-            Log.e(TAG, "verifyGooglePlayPurchase FAILED: ${e.message}")
-            false
-        }
-    }
-
+    // upgradeUserTier() و verifyGooglePlayPurchase() اتشالوا من هنا (٢٠٢٦-٠٩-٠٥).
+    //
+    // الاتنين كانوا كود ميت: مفيش أي نداء ليهم في التطبيق. المسار الحي للشراء هو
+    // GooglePlayBillingManager.handlePurchase() → verifyWithServer() → إيدج فانكشن
+    // verify-purchase، اللي بيسأل Google Play Developer API وبيكتب tier في
+    // zad_entitlements بمفتاح الخدمة.
+    //
+    // upgradeUserTier كان كمان **مكسور من تلات نواحي** لو حد وصّله تاني:
+    //   1. update على zad_users.tier — صلاحيات مستوى العمود لـauthenticated بتسمح بـ١٧
+    //      عمود آمن بس، وtier/subscription_status/subscription_expires_at مش منهم، فبترمي.
+    //   2. update على zad_entitlements — الجدول عنده سياسة SELECT بس، فالتحديث بيأثّر
+    //      على صفر صفوف بصمت.
+    //   3. insert في جدول اسمه "subscriptions" — **مش موجود** أصلاً (الحي zad_subscriptions).
+    //
+    // ماكانتش ثغرة (الصلاحيات كانت بتمنع رفع الـtier فعلاً)، بس سيبان كود بيحاول يكتب
+    // tier من ناحية العميل جنب المسار الآمن بيغري أي حد يوصّله تاني.
     // ─── Pharmacy ──────────────────────────────────────────────────────────────
     suspend fun getPharmacyItems(): List<ZadPharmacyItem> {
         return getPharmacyItemsSnapshot().items
