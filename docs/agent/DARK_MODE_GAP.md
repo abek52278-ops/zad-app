@@ -101,14 +101,50 @@ two kinds, on the app's most-visited screen. `CategoryIllustrations.kt` and
 `SubscriptionBrandIcons.kt` are probably fine as-is — brand marks and illustrations are
 legitimately fixed-colour, the same exemption CLAUDE.md grants Kids Mode.
 
-## A blind spot in the ratchet
+## Two bug classes, one of them still open
 
-`checkNoRawColorsInScreens` matches `Color(0x…)` only. **Bare `Color.White` and
-`Color.Black` are invisible to it**, and there are at least 90 of them across
-components. This is not academic: `ZadDrawerContent` used `Color.White` and was the
-single worst dark-mode breakage in the app — the check would not have caught it at any
-scope. Widening the regex is a candidate, but `Color.White` is often correct (text on a
-coloured button), so it would need a smarter rule than a blanket ban.
+### Class 1 — opaque white/black **surface**. Gated as of `4d3ca2f`.
+
+`.background(Color.White)` on a card, pill or sheet. It stays white in dark mode.
+`ZadDrawerContent` was this, and it was the worst breakage in the app.
+
+The ratchet now catches it, deliberately narrowly. Of **324** bare `Color.White`/`Black`
+across screens and components, 127 are text `color =`, 60 are `tint`/`contentColor`, and
+40 more are `.copy(alpha = …)` scrims over coloured cards — all legitimately
+theme-independent. Only an **opaque** `Color.White`/`Black` passed straight to
+`.background(...)` is flagged, which leaves **12**. Seven were fixed in `4d3ca2f`; five
+are baselined with their reasons in `app/raw-color-baseline.txt`.
+
+### Class 2 — white/black **content on a surface that flips**. OPEN. Not caught by anything.
+
+`Color.White` as `color =`, `tint =` or `contentColor =` on a surface painted with a
+theme-aware token. In light the surface is dark so white content is correct; in dark the
+surface becomes light and the content stays white, so it washes out. The colour that is
+"wrong" is not itself hardcoded to a *surface* — it is hardcoded relative to one.
+
+**Live example, now fixed (`b0250e1`):** `BudgetSetupPromptCard` in
+`PremiumHomeComponents.kt`. Background was `listOf(primaryDark, primary, primaryDark)` —
+theme-aware and correct. Icon, heading, body and CTA were `Color.White`. Light: white on
+deep forest `#1B4332`, correct. Dark: white on mint `#74C69D`, with the body line barely
+legible. Fix was `onPrimary`, which flips `#FFFFFF` → `#0B1710`.
+
+Note this scored only **1.5% bright pixels** — the brightness metric used for the ranking
+above does **not** find this class, because the failure is a mid-tone surface with
+wrong-contrast content rather than bright blocks. Its mean luminance of 140 was the only
+hint.
+
+**Why no lint rule closes this.** A regex sees `tint = Color.White` and cannot tell
+whether it sits on `primary` (breaks in dark), on a fixed brand colour (fine), or on a
+photo (fine). Deciding requires knowing the surface the content is drawn on — data flow,
+not text matching. Even a custom Lint Detector with type resolution would need to trace
+the enclosing modifier chain, which is a real piece of work with a real false-positive
+risk.
+
+**Status: a future manual-review item, not a task in progress.** The practical approach
+is a targeted read of files that pair a themed background with hardcoded white content —
+`ZadWalletHeroCard`, `PremiumHomeComponents`, `ZadHomeGlanceCards` are the likely
+candidates, since all three paint cards with `primary`/`primaryDark` gradients. Nobody
+should assume this class is clean because the ratchet is green.
 
 ## What this pass does not prove
 
