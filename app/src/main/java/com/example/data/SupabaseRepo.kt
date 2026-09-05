@@ -22,6 +22,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -2068,6 +2069,50 @@ object SupabaseRepo {
         } catch (e: Exception) {
             Log.e(TAG, "sendAppNotification() FAILED: ${e.message}")
             e.printStackTrace()
+        }
+    }
+
+    /**
+     * تسجيل وقوع لفة الوكيل على المسار القديم في `agent_logs`.
+     *
+     * الجدول اتعمل أصلاً بكاتب واحد بس: `zad-core-intelligence` بمفتاح service-role
+     * (migration 20260814152758). لما مسار الشات في التطبيق بقى بيقع على الرد القرائي
+     * القديم — واللي مايقدرش يسجّل مصروف أصلاً — الفشل ده مكانش بيسيب أثر في أي مكان:
+     * لا هنا ولا في `agent_actions` (اللي بيتكتب وقت النجاح بس). النتيجة إن `app_chat`
+     * عنده إجراء واحد مقابل ٤٤ لتليجرام، ومفيش طريقة تعرف بيها ده استخدام قليل ولا
+     * قناة واقعة من أسابيع. migration 20260904230000 فتحت INSERT للمستخدم عشان السطر
+     * ده بالظبط.
+     *
+     * حدّين مقصودين:
+     *  - `user_id` بيتحط صراحة — السياسة `WITH CHECK (auth.uid() = user_id)` بترفض NULL،
+     *    ومن غير جلسة مفيش صف يتكتب (بنسكت بدل ما نرمي).
+     *  - الـ payload بيتقفل على السبب والقناة. ممنوع أي نص برومبت أو رسالة عميل أو رقم
+     *    مالي: القراءة من الجدول ده اتقفلت على الأدمن في 20260814211944 بعد ما اتكتشف
+     *    إن الـpayload بيسرّب بيانات العملاء المالية، ومانرجعش نفس التسريب من ناحية تانية.
+     *
+     * fire-and-forget: فشل التسجيل عمره ما يكسر الشات.
+     */
+    suspend fun logAgentFallback(reason: String, channel: String = "app_chat") {
+        try {
+            val userId = client.auth.currentUserOrNull()?.id ?: run {
+                Log.d(TAG, "logAgentFallback() skipped: no session")
+                return
+            }
+            client.postgrest["agent_logs"].insert(
+                buildJsonObject {
+                    put("user_id", userId)
+                    put("agent_name", channel)
+                    put("tool_used", "agent_turn")
+                    put("status", "warning")
+                    putJsonObject("payload") {
+                        put("reason", reason)
+                        put("channel", channel)
+                    }
+                }
+            )
+            Log.d(TAG, "logAgentFallback() recorded: $reason")
+        } catch (e: Exception) {
+            Log.w(TAG, "logAgentFallback() FAILED (non-fatal): ${e.message}")
         }
     }
 

@@ -1671,6 +1671,9 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             // فشل — نشيل الرسالة الفارغة ونرجع false عشان الـ fallback القديم يشتغل
             lastAgentFallbackReason = "agent turn unavailable (network, timeout, or model)"
             Log.w(TAG, "tryAgentTurn() fell back to legacy chat: $lastAgentFallbackReason")
+            // نفس السطر بيتسجّل على السيرفر كمان: اللوج المحلي بيموت مع الجهاز، وبدونه
+            // مافيش فرق بين "القناة مش مستخدمة" و"القناة واقعة" في أي داتا.
+            SupabaseRepo.logAgentFallback(lastAgentFallbackReason!!)
             _aiChatMessages.value = _aiChatMessages.value.dropLast(1)
             return false
         }
@@ -1699,6 +1702,9 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             // العميل دي نفس حالة الوكيل الواقع بالظبط، فلازم تحمل نفس التحذير.
             lastAgentFallbackReason = "agent returned an empty turn (no reply, no executed tool, no proposal)"
             Log.w(TAG, "tryAgentTurn() fell back to legacy chat: $lastAgentFallbackReason")
+            // نفس السطر بيتسجّل على السيرفر كمان: اللوج المحلي بيموت مع الجهاز، وبدونه
+            // مافيش فرق بين "القناة مش مستخدمة" و"القناة واقعة" في أي داتا.
+            SupabaseRepo.logAgentFallback(lastAgentFallbackReason!!)
             _aiChatMessages.value = _aiChatMessages.value.dropLast(1)
             return false
         }
