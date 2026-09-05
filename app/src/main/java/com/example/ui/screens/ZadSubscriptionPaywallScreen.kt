@@ -148,7 +148,7 @@ fun ZadSubscriptionPaywallScreen(
                     ) {
                         Text("👑", fontSize = 22.sp)
                         Column {
-                            Text("أنت مشترك حالياً في باقة: ${activePlan?.titleAr}", fontWeight = FontWeight.Bold, color = ZadForestEmerald, fontSize = 13.5.sp)
+                            Text(stringResource(R.string.paywall_current_plan, activePlan?.titleAr ?: ""), fontWeight = FontWeight.Bold, color = ZadForestEmerald, fontSize = 13.5.sp)
                             Text("جميع المزايا مفعلة ونشطة في حسابك", fontSize = 11.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
@@ -448,7 +448,7 @@ fun ZadSubscriptionPaywallScreen(
                             Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                "مشاهدة إعلان مجاني (${adWatchCount}/3)",
+                                stringResource(R.string.paywall_watch_free_ad, adWatchCount),
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold
                             )

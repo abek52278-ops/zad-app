@@ -827,7 +827,7 @@ private fun ManualInventoryDialog(
             ) {
                 Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("   حفظ (${items.count { it.itemName.isNotBlank() }})")
+                Text(stringResource(R.string.camera_save_count, items.count { it.itemName.isNotBlank() }))
             }
         },
         dismissButton = {

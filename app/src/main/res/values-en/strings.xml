@@ -1657,4 +1657,17 @@
     <string name="answer_no">No</string>
     <string name="action_send">Send</string>
     <string name="action_open_camera">Open camera</string>
+
+    <!-- ═══ نصوص بمتغيرات كانت مطبوعة في الكود (استُخرجت 2026-09-05) ═══ -->
+    <string name="recipe_prep_minutes">%1$d min</string>
+    <string name="achievements_points_progress">%1$d of %2$d points</string>
+    <string name="budget_predicted_next_month">Predicted next month: %1$s</string>
+    <string name="camera_save_count">Save (%1$d)</string>
+    <string name="tasbiha_challenge_progress">%1$d of %2$d dhikr</string>
+    <string name="price_contributions_count">%1$d contributions</string>
+    <string name="shopping_item_bought">Bought %1$s</string>
+    <string name="family_child_task_summary">Completed %1$d of %2$d tasks · Allowance: %3$s %4$s</string>
+    <string name="family_pending_groceries">Family shopping needs: %1$s</string>
+    <string name="paywall_current_plan">You\'re currently subscribed to: %1$s</string>
+    <string name="paywall_watch_free_ad">Watch a free ad (%1$d/3)</string>
 </resources>

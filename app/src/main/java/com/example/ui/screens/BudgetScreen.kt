@@ -765,7 +765,7 @@ private fun CategoryInsightDialog(
                             Text(trendLabel, style = Typography.labelMedium, color = primary)
                         }
                         if (result.predictedNext > 0) {
-                            Text("المتوقع الشهر القادم: ${com.example.data.CurrencyFormatter.format(context, result.predictedNext)}", style = Typography.bodySmall, color = onSurfaceVariant)
+                            Text(stringResource(R.string.budget_predicted_next_month, com.example.data.CurrencyFormatter.format(context, result.predictedNext)), style = Typography.bodySmall, color = onSurfaceVariant)
                         }
                         if (result.tip.isNotBlank()) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {

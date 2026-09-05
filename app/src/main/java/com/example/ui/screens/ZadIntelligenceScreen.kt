@@ -3991,7 +3991,7 @@ fun FamilyNeuralReportBottomSheet(
                                 Spacer(Modifier.width(8.dp))
                                 Column {
                                     Text(child.alias ?: "ابن", style = Typography.bodyMedium, fontWeight = FontWeight.Bold)
-                                    Text("أنجز $done من $total مهام · رصيد المصروف: ${child.balance ?: 0} $currency", style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
+                                    Text(stringResource(R.string.family_child_task_summary, done, total, (child.balance ?: 0).toString(), currency), style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 10.sp)
                                 }
                             }
                             Box(
@@ -4015,7 +4015,7 @@ fun FamilyNeuralReportBottomSheet(
                     Text(stringResource(R.string.auto_zadintelligence_22228), style = Typography.bodySmall, color = onSurfaceVariant)
                 } else {
                     Text(
-                        "نواقص العائلة المطلوبة: ${pendingGroceries.take(5).joinToString("، ") { it.itemName }}",
+                        stringResource(R.string.family_pending_groceries, pendingGroceries.take(5).joinToString("، ") { it.itemName }),
                         style = Typography.bodyMedium,
                         color = onSurface
                     )

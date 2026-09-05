@@ -147,7 +147,7 @@ private fun ChefRecipeCard(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Schedule, null, tint = onSurfaceVariant, modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("${recipe.prepTimeMinutes} د", style = Typography.labelSmall, color = onSurfaceVariant)
+                        Text(stringResource(R.string.recipe_prep_minutes, recipe.prepTimeMinutes), style = Typography.labelSmall, color = onSurfaceVariant)
                     }
                 }
                 if (recipe.costEstimate > 0) {

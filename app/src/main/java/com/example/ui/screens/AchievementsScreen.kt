@@ -278,7 +278,7 @@ fun AchievementsScreen(
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            "${stats.totalPoints} من ${stats.level * 100} نقطة",
+                            stringResource(R.string.achievements_points_progress, stats.totalPoints, stats.level * 100),
                             fontSize = 12.sp,
                             color = Color.White.copy(alpha = 0.9f)
                         )

@@ -337,7 +337,7 @@ fun TasbihaHomeWidget(
                     Column {
                         Text(activeChallenge.title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = textPrimary, maxLines = 1)
                         Text(
-                            "$challengeCurrentClicks من ${activeChallenge.targetClicks} تسبيحة",
+                            stringResource(R.string.tasbiha_challenge_progress, challengeCurrentClicks, activeChallenge.targetClicks),
                             fontSize = 11.sp,
                             color = onSurfaceVariant
                         )

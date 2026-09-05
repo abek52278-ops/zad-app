@@ -440,7 +440,7 @@ private fun LeaderboardCard(entry: com.example.ui.viewmodels.LeaderboardEntryDat
                     color = Color(0xFF0F172A)
                 )
                 Text(
-                    "${entry.contributionCount} مساهمات",
+                    stringResource(R.string.price_contributions_count, entry.contributionCount),
                     fontSize = 12.sp,
                     color = Color(0xFF475569)
                 )

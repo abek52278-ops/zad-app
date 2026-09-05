@@ -1654,4 +1654,17 @@
     <string name="answer_no">Hayır</string>
     <string name="action_send">Gönder</string>
     <string name="action_open_camera">Kamerayı aç</string>
+
+    <!-- ═══ نصوص بمتغيرات كانت مطبوعة في الكود (استُخرجت 2026-09-05) ═══ -->
+    <string name="recipe_prep_minutes">%1$d dk</string>
+    <string name="achievements_points_progress">%2$d puandan %1$d</string>
+    <string name="budget_predicted_next_month">Gelecek ay tahmini: %1$s</string>
+    <string name="camera_save_count">Kaydet (%1$d)</string>
+    <string name="tasbiha_challenge_progress">%2$d zikirden %1$d</string>
+    <string name="price_contributions_count">%1$d katkı</string>
+    <string name="shopping_item_bought">%1$s satın alındı</string>
+    <string name="family_child_task_summary">%2$d görevden %1$d tamamlandı · Harçlık: %3$s %4$s</string>
+    <string name="family_pending_groceries">Ailenin eksikleri: %1$s</string>
+    <string name="paywall_current_plan">Şu anki aboneliğiniz: %1$s</string>
+    <string name="paywall_watch_free_ad">Ücretsiz reklam izle (%1$d/3)</string>
 </resources>

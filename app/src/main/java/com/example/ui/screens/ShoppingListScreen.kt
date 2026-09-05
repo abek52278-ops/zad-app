@@ -320,7 +320,7 @@ fun ShoppingListScreen(
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        "تم شراء ${justCheckedItemName.orEmpty()}",
+                        stringResource(R.string.shopping_item_bought, justCheckedItemName.orEmpty()),
                         style = Typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
                         color = onSurface

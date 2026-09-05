@@ -1657,4 +1657,17 @@
     <string name="answer_no">لأ</string>
     <string name="action_send">إرسال</string>
     <string name="action_open_camera">افتح الكاميرا</string>
+
+    <!-- ═══ نصوص بمتغيرات كانت مطبوعة في الكود (استُخرجت 2026-09-05) ═══ -->
+    <string name="recipe_prep_minutes">%1$d د</string>
+    <string name="achievements_points_progress">%1$d من %2$d نقطة</string>
+    <string name="budget_predicted_next_month">المتوقع الشهر القادم: %1$s</string>
+    <string name="camera_save_count">حفظ (%1$d)</string>
+    <string name="tasbiha_challenge_progress">%1$d من %2$d تسبيحة</string>
+    <string name="price_contributions_count">%1$d مساهمات</string>
+    <string name="shopping_item_bought">تم شراء %1$s</string>
+    <string name="family_child_task_summary">أنجز %1$d من %2$d مهام · رصيد المصروف: %3$s %4$s</string>
+    <string name="family_pending_groceries">نواقص العائلة المطلوبة: %1$s</string>
+    <string name="paywall_current_plan">أنت مشترك حالياً في باقة: %1$s</string>
+    <string name="paywall_watch_free_ad">مشاهدة إعلان مجاني (%1$d/3)</string>
 </resources>
