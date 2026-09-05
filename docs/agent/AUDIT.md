@@ -1,5 +1,26 @@
 # AUDIT.md — Full-app consistency audit (Task 24)
 
+> ⚠️ **ARCHIVED 2026-09-05 — describes an app structure that no longer exists.**
+> Do not use the screen table below to decide anything about the current code.
+>
+> This audit was run 2026-07-26. Since then the per-screen navigation it documents
+> was merged into tab hubs, and **four of the screens named in its table are gone
+> from the repo entirely**: `TransactionsScreen`, `WeeklyReportScreen`,
+> `AssistantScreen`, `ZadScreens`. Their rows describe files that cannot be opened.
+> What replaced them: `FinancesScreen`, `PantryShoppingScreen`, `BrainFamilyScreen`.
+>
+> Two of its findings were closed and should not be re-investigated:
+>   * the `anon`-callable `zad_behavior_patterns(p_user uuid)` hole — revoked;
+>     verified 2026-09-05 that no SECURITY DEFINER function is executable by `anon`.
+>   * `HomeScreen`'s screen-entry LLM calls — now cooldown-guarded (`3b12078`),
+>     see the CLAUDE.md standing rule for the current, measured decision.
+>
+> It is kept for the methodology (the six rules) and for history, not as a
+> statement about today's code. The file said "re-run each epic, don't just append
+> to it"; that did not happen for six weeks, and a stale living document is worse
+> than an absent one because it reads as current. A fresh full-stack audit was run
+> 2026-09-04/05 — that one, not this, reflects the code.
+
 > Living document — re-run each epic, don't just append to it. This run: 2026-07-26,
 > after Epic 1+4 (Tasks 19–24). Built by reading code directly (three parallel
 > code-reading passes covering all ~24 live screens + independent verification of the

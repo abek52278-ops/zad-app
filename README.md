@@ -1,8 +1,8 @@
 # زاد (Zad) — مساعد العائلة الذكي
 
-تطبيق أندرويد لإدارة المخزون المنزلي، المصاريف، والعائلة، مدعوم بذكاء اصطناعي (Groq / Llama) بيتعلم من سلوكك ويتنبأ باحتياجاتك.
+تطبيق أندرويد لإدارة المخزون المنزلي، المصاريف، والعائلة، مدعوم بذكاء اصطناعي (Gemini أساسي، وGroq احتياطي للنصوص) بيتعلم من سلوكك ويتنبأ باحتياجاتك.
 
-**التقنيات:** Kotlin · Jetpack Compose (Material 3) · Supabase (Postgres, Auth, Realtime, Edge Functions) · Room · Groq (Llama 3.3 70B + رؤية بالصور)
+**التقنيات:** Kotlin · Jetpack Compose (Material 3) · Supabase (Postgres, Auth, Realtime, Edge Functions) · Room · Gemini (نصوص + رؤية بالصور، مسبح ٥ مفاتيح) مع Groq كاحتياطي للنصوص فقط
 
 ## أهم الميزات
 - مخزون منزلي بدورة مغلقة: مسح الفواتير/الرف بالكاميرا → يحدّث المخزون → ينزّل النواقص تلقائياً في قائمة التسوق
@@ -19,7 +19,10 @@
 2. أنشئ ملف `.env` في جذر المشروع (انسخ من `.env.example`) وحط فيه:
    - `SUPABASE_URL` و `SUPABASE_ANON_KEY` — **مطلوبين** (من إعدادات مشروعك في Supabase)
    - `GEMINI_API_KEY` — **اختياري**، سيبه زي ما هو. كل ميزات الذكاء الاصطناعي (شات، تحليل، مسح فواتير بالصور) شغالة بمفاتيح مُسجّلة سيرفر-سايد في Supabase Secrets (`ZAD_API_KEY_1..5` لـ Gemini، و`GROQ_API_KEY` كـ fallback للنصوص) — مش هنا. راجع CLAUDE.md لتفاصيل توزيع المزوّدين.
-3. شغّل قاعدة البيانات: نفّذ ملفات `supabase/migrations/*.sql` بالترتيب في Supabase SQL Editor.
+3. شغّل قاعدة البيانات بـ`supabase db push` (أو سيب CI يعملها — الـmigrations بتتنشر من
+   `.github/workflows/edge-functions.yml`). **ماتنفّذش الملفات بالإيد في SQL Editor:** أي مسار
+   بيسجّل نسخته الخاصة من غير ما يضيف ملف مقابل في الريبو بيكسر `supabase db push` للكل
+   بـ"Remote migration versions not found in local migrations directory".
 4. شغّل التطبيق على محاكي أو جهاز حقيقي (`minSdk 24`).
 
 ## بناء APK بدون Android Studio

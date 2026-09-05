@@ -22,7 +22,20 @@ import com.example.ui.components.ZadListCard
 import com.example.ui.components.pressableScale
 import com.example.ui.theme.*
 
-// شاشة "زاد القريب" (NearbyDealsScreen) نفسها اتشالت من الناف (درج + قائمة المزيد) —
+// ⚠️ تصحيح 2026-09-05: التعليق اللي كان هنا كان بيقول إن الشاشة "اتشالت من الناف".
+// ده **مش صحيح**: `ZadRoutes.DEALS` مسجّلة في NavHost (MainScreen.kt) وموجودة في درج
+// التنقّل (ZadShell.kt، zadDrawerEntries)، والشاشة نفسها معرّفة في
+// NearbyDealsScreenFull.kt وشغّالة.
+//
+// التصحيح ده مش تفصيلة تحرير: التعليق الغلط ده هو المبرّر المكتوب لصلاحية
+// ACCESS_BACKGROUND_LOCATION في المانيفست — وهي من أكتر الصلاحيات تدقيقاً عند Play
+// (محتاجة استمارة إقرار + فيديو، ومراجعة بأسابيع). قرار "نقدّم الإقرار ولا نشيل
+// الميزة" لازم يتاخد على أساس إن الشاشة **حيّة**، مش على أساس إنها اتشالت.
+// المسودة الكاملة للإقرار في docs/agent/PLAY_CONSOLE_BACKGROUND_LOCATION.md.
+//
+// (السطر الأصلي، للتاريخ: الشاشة كانت غالباً بتفضل فاضية — مفيش أسعار/عروض حقيقية، بس
+// بحث جغرافي عبر Overpass — وتحكم إيقاف تنبيهات الموقع نقل لـLocationAlertsCard على
+// الهوم. الـgeofencing نفسه (GroceryGeofenceManager) فاضل شغال زي ما هو تماماً.)
 // كانت غالباً بتفضل فاضية (مفيش أسعار/عروض حقيقية، بس بحث جغرافي عبر Overpass)، وتحكم
 // إيقاف تنبيهات الموقع بعد التفعيل نقل لـ LocationAlertsCard على الهوم. الـ geofencing
 // نفسه (GroceryGeofenceManager) فاضل شغال زي ما هو تماماً — مالوش أي علاقة بالشاشة دي.

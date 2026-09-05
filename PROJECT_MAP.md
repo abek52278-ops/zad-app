@@ -3,7 +3,7 @@
 ## TECH_STACK
 - **Frontend:** Android (Kotlin, Compose UI, Material3)
 - **Backend:** Supabase (PostgreSQL, PostgREST, Realtime, Auth, Edge Functions)
-- **AI:** Edge Function `zad-core-intelligence` for per-action AI, and `zad-brain` for the tool-calling agent (`agent_turn`/`agent_confirm`, the path both the in-app chat and the Telegram bot now go through). `zad-ai-proxy` no longer exists in this repo — the directory is gone; if you find it named anywhere else, that reference is stale. `OPENROUTER_API_KEY` runs nearly every AI feature — chat, insights, predictions, recipes, vision/OCR (`openai/gpt-oss-20b:free` text/JSON, `nvidia/nemotron-nano-12b-v2-vl:free` vision). `GROQ_API_KEY` is Whisper audio transcription + `groq/compound-mini` web-search actions only (Deal Matcher, Price Shock Predictor, Zad Live Market Ticker). Corrects an earlier version of this file that said "Groq only" — see git history `d478a97`/`8a9e950` for the migration. (This line was previously stale/wrong here despite CLAUDE.md already flagging the correction — fixed 2026-07-24.)
+- **AI:** Edge Function `zad-core-intelligence` for per-action AI, and `zad-brain` for the tool-calling agent (`agent_turn`/`agent_confirm`, the path both the in-app chat and the Telegram bot now go through). `zad-ai-proxy` no longer exists in this repo — the directory is gone; if you find it named anywhere else, that reference is stale. **The provider is Gemini, not OpenRouter** — `zad-core-intelligence` runs every text/JSON action through `callGeminiPool()` on `ZAD_API_KEY_1..5` first, and only falls out to Groq (`openai/gpt-oss-120b`) when every Gemini key fails; `callVisionModel()` has no Groq fallback at all, because Groq rejects JSON mode on any request carrying an image. `GROQ_API_KEY` (singular) is still used directly by Whisper transcription and the two `groq/compound-mini` web-search actions (Deal Matcher, Price Radar). **`OPENROUTER_API_KEY` is inert** — verified 2026-09-05 by grepping `Deno.env.get` across all 13 edge functions: zero hits. CLAUDE.md's first bullet is the authority on provider routing; this line has now been wrong twice (OpenRouter → Groq-primary → Gemini-primary), so prefer CLAUDE.md over this file if they ever disagree again.
 - **AI Client SDK:** none — all AI calls go through `ZadAiRepository`/`SupabaseRepo.callEdgeFunction` (raw `HttpURLConnection`) to the Edge Function, never a client-side AI SDK
 - **Local DB:** Room (SQLite, cache layer)
 - **Build:** Gradle (Kotlin DSL, KSP, Secrets Gradle Plugin)
@@ -41,7 +41,7 @@ FamilyScreen → FamilyViewModel → SupabaseRepo (PostgREST)
 
 ### AI Proxy Flow
 ```
-App (ZadAiRepository.callAction) → Edge Function `zad-core-intelligence` → OpenRouter (text/vision) or Groq (Whisper + compound-mini search)
+App (ZadAiRepository.callAction) → Edge Function `zad-core-intelligence` → Gemini pool (ZAD_API_KEY_1..5, text/JSON + vision) → Groq fallback for text/JSON only (openai/gpt-oss-120b); GROQ_API_KEY also serves Whisper + compound-mini search
      ↓                                                                            ↓
   {action, user_id, dialect, payload}                                    {text|insights|prices|..., ok}
 ```
