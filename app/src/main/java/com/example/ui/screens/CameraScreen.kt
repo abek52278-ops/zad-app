@@ -188,11 +188,36 @@ fun CameraScreen(
         }
     }
 
+    // لما الصلاحية تتمنع نهائياً، `launch()` بترجع false فوراً من غير ما تعرض أي حوار
+    // نظام. من غير الفلاج ده كان العميل يدوس الزرار ومايحصلش حاجة غير سطر حالة —
+    // ومفيش أي طريق يرجع منه. نفس فئة الباج اللي اتصلحت قبل كده في صف "قراءة الرسايل"
+    // (شوف CLAUDE.md §الخطة)، والحل الموجود أصلاً في LocationAlertsCard.
+    var cameraPermanentlyDenied by remember { mutableStateOf(false) }
+
+    val settingsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        // رجع من الإعدادات — نصفّر الحالة عشان الزرار يشتغل عادي لو اداها الصلاحية.
+        cameraPermanentlyDenied = androidx.core.content.ContextCompat.checkSelfPermission(
+            context, Manifest.permission.CAMERA
+        ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+    }
+
+    fun openAppSettings() {
+        settingsLauncher.launch(
+            android.content.Intent(
+                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                android.net.Uri.fromParts("package", context.packageName, null),
+            ),
+        )
+    }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         Log.d("CameraScreen", " Camera permission: $isGranted")
         if (isGranted) {
+            cameraPermanentlyDenied = false
             val dir = File(context.cacheDir, "images")
             if (!dir.exists()) dir.mkdirs()
             Log.d("CameraScreen", "Cache dir: ${dir.absolutePath}, exists: ${dir.exists()}")
@@ -205,7 +230,21 @@ fun CameraScreen(
                 analysisStatus = "تعذر فتح الكاميرا. ثبّت تطبيق كاميرا أو استخدم الإدخال اليدوي"
             }
         } else {
-            analysisStatus = "نحتاج صلاحية الكاميرا للمسح. يمكنك الإضافة يدوياً"
+            // `shouldShowRequestPermissionRationale` بترجع false في حالتين: الأولى قبل
+            // أي طلب خالص، والتانية بعد المنع النهائي. إحنا هنا بعد رد فعلي بالرفض،
+            // فـfalse معناها المنع النهائي — يعني الطلب تاني مش هيعرض أي حوار.
+            val activity = context as? android.app.Activity
+            val canAskAgain = activity?.let {
+                androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(
+                    it, Manifest.permission.CAMERA
+                )
+            } ?: true
+            cameraPermanentlyDenied = !canAskAgain
+            analysisStatus = if (canAskAgain) {
+                "نحتاج صلاحية الكاميرا للمسح. يمكنك الإضافة يدوياً"
+            } else {
+                "صلاحية الكاميرا ممنوعة نهائياً — افتح الإعدادات وفعّلها عشان تقدر تصوّر"
+            }
         }
     }
 
@@ -433,13 +472,36 @@ fun CameraScreen(
                     shape = RoundedCornerShape(16.dp),
                     color = surfaceVariant
                 ) {
-                    Text(
-                        text = analysisStatus,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = onSurface,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(16.dp)
-                    )
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = analysisStatus,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = onSurface,
+                            textAlign = TextAlign.Center
+                        )
+                        // مخرج من الطريق المسدود. من غيره، عميل منع الصلاحية مرة يفضل
+                        // يدوس على زرار المسح ومايحصلش حاجة للأبد: النظام مش بيعرض
+                        // حوار تاني، والتطبيق مكانش بيوفر أي طريق للإعدادات.
+                        if (cameraPermanentlyDenied) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = { openAppSettings() },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = primary)
+                            ) {
+                                Icon(
+                                    Icons.Default.Settings,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("افتح إعدادات التطبيق", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                 }
             }
         }
