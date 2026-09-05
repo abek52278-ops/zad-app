@@ -66,14 +66,35 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.ParameterizedRobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.time.LocalDate
 
-@RunWith(AndroidJUnit4::class)
+/**
+ * Every capture is recorded twice — once per theme — so the dark set can be diffed
+ * against the light one. Parameterised rather than duplicated because
+ * `composeTestRule.setContent` may only be called once per test, so one method
+ * cannot render both.
+ *
+ * darkTheme is passed explicitly instead of relying on a `night` qualifier: the
+ * qualifier path is already proven in AppThemeDarkModeTest, and being explicit keeps
+ * each capture deterministic regardless of the class-level @Config.
+ */
+@RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [33], qualifiers = "w1080dp-h2400dp-xxhdpi")
-class PreviewTest {
+class PreviewTest(private val dark: Boolean) {
+
+    companion object {
+        @JvmStatic
+        @ParameterizedRobolectricTestRunner.Parameters(name = "dark={0}")
+        fun themes(): List<Array<Any>> = listOf(arrayOf(false), arrayOf(true))
+    }
+
+    /** Light keeps the original filename so existing references stay valid. */
+    private fun shot(name: String) =
+        "build/outputs/roborazzi/$name${if (dark) "_dark" else ""}.png"
 
     @get:Rule
     val composeTestRule = createComposeRule()
@@ -81,7 +102,7 @@ class PreviewTest {
     @Test
     fun captureOnboardingScreen() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 OnboardingScreen(
                     onNavigateToLogin = {},
                     onNavigateToSignUp = {}
@@ -90,7 +111,7 @@ class PreviewTest {
         }
         
         composeTestRule.onRoot().captureRoboImage(
-            filePath = "build/outputs/roborazzi/onboarding_screen.png"
+            filePath = shot("onboarding_screen")
         )
     }
 
@@ -98,7 +119,7 @@ class PreviewTest {
     @Test
     fun captureTelegramBotCard() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.background(background).padding(20.dp)) {
                     TelegramBotCard(onClick = {})
                 }
@@ -106,7 +127,7 @@ class PreviewTest {
         }
 
         composeTestRule.onRoot().captureRoboImage(
-            filePath = "build/outputs/roborazzi/telegram_bot_card.png"
+            filePath = shot("telegram_bot_card")
         )
     }
 
@@ -114,7 +135,7 @@ class PreviewTest {
     @Test
     fun captureChefCardWithSuggestion() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.background(background).padding(20.dp)) {
                     ZadChefCard(suggestion = "دجاج بالبطاطس بالفرن", onClick = {})
                 }
@@ -122,14 +143,14 @@ class PreviewTest {
         }
 
         composeTestRule.onRoot().captureRoboImage(
-            filePath = "build/outputs/roborazzi/chef_card_suggestion.png"
+            filePath = shot("chef_card_suggestion")
         )
     }
 
     @Test
     fun captureZadQuestionCard_numberType() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 ZadQuestionCard(
                     insight = ZadInsight(
                         id = "preview-1",
@@ -145,14 +166,14 @@ class PreviewTest {
         }
 
         composeTestRule.onRoot().captureRoboImage(
-            filePath = "build/outputs/roborazzi/zad_question_card_number.png"
+            filePath = shot("zad_question_card_number")
         )
     }
 
     @Test
     fun captureZadQuestionCard_yesNoType() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 ZadQuestionCard(
                     insight = ZadInsight(
                         id = "preview-2",
@@ -168,7 +189,7 @@ class PreviewTest {
         }
 
         composeTestRule.onRoot().captureRoboImage(
-            filePath = "build/outputs/roborazzi/zad_question_card_yes_no.png"
+            filePath = shot("zad_question_card_yes_no")
         )
     }
 
@@ -178,7 +199,7 @@ class PreviewTest {
     @Test
     fun captureZadQuestionCard_liveBrainQuestion() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 ZadQuestionCard(
                     insight = ZadInsight(
                         id = "2312b7d4-c87c-4a6f-97ca-e1a24f81c295",
@@ -196,7 +217,7 @@ class PreviewTest {
         }
 
         composeTestRule.onRoot().captureRoboImage(
-            filePath = "build/outputs/roborazzi/zad_question_card_live_eggs.png"
+            filePath = shot("zad_question_card_live_eggs")
         )
     }
 
@@ -208,21 +229,21 @@ class PreviewTest {
     @Test
     fun captureZadCardHero_confident() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.padding(16.dp)) {
                     ZadCardHero(balance = Figure(value = 2300.0, confident = true))
                 }
             }
         }
         composeTestRule.onRoot().captureRoboImage(
-            filePath = "build/outputs/roborazzi/zad_card_hero_glass.png"
+            filePath = shot("zad_card_hero_glass")
         )
     }
 
     @Test
     fun captureZadCardHero_approximate() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.padding(16.dp)) {
                     ZadCardHero(
                         balance = Figure(
@@ -235,7 +256,7 @@ class PreviewTest {
             }
         }
         composeTestRule.onRoot().captureRoboImage(
-            filePath = "build/outputs/roborazzi/zad_card_hero_approximate.png"
+            filePath = shot("zad_card_hero_approximate")
         )
     }
 
@@ -244,14 +265,14 @@ class PreviewTest {
     @Test
     fun captureZadCardHero_negative() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.padding(16.dp)) {
                     ZadCardHero(balance = Figure(value = -420.0, confident = true))
                 }
             }
         }
         composeTestRule.onRoot().captureRoboImage(
-            filePath = "build/outputs/roborazzi/zad_card_hero_negative.png"
+            filePath = shot("zad_card_hero_negative")
         )
     }
 
@@ -260,13 +281,13 @@ class PreviewTest {
     @Test
     fun captureBudgetSetupPromptCard_glassmorphism() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.padding(16.dp)) {
                     BudgetSetupPromptCard(onSetBudget = {})
                 }
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/budget_setup_prompt_glass.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("budget_setup_prompt_glass"))
     }
 
     // مرحلة ٥ب-٢ — كروت اللوكيشن (docs/agent/PLAN_2026_08_06_rebuild.md): نفس عائلة
@@ -274,13 +295,13 @@ class PreviewTest {
     @Test
     fun captureLocationAlertsCard_glassmorphism() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.background(background).padding(16.dp)) {
                     com.example.ui.components.LocationAlertsCard(dismissed = false, onDismiss = {})
                 }
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/location_alerts_card_glass.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("location_alerts_card_glass"))
     }
 
     // Kids Mode crash fix — HomeScreen.kt wraps KidsModeContent in its own
@@ -309,7 +330,7 @@ class PreviewTest {
             )
         )
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                     KidsModeContent(
                         familyState = familyState,
@@ -318,13 +339,13 @@ class PreviewTest {
                 }
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/kids_mode_content_no_crash.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("kids_mode_content_no_crash"))
     }
 
     @Test
     fun captureNearbyStoreCard_supermarket() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.background(background).padding(16.dp)) {
                     NearbyStoreCard(
                         store = com.example.data.NearbyStore(name = "كارفور المرجان", lat = 24.7, lon = 46.6, distanceMeters = 450),
@@ -334,13 +355,13 @@ class PreviewTest {
                 }
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/nearby_store_card_supermarket.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("nearby_store_card_supermarket"))
     }
 
     @Test
     fun captureNearbyStoreCard_pharmacy() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.background(background).padding(16.dp)) {
                     NearbyStoreCard(
                         store = com.example.data.NearbyStore(name = "صيدلية النهدي", lat = 24.7, lon = 46.6, distanceMeters = 1800),
@@ -350,7 +371,7 @@ class PreviewTest {
                 }
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/nearby_store_card_pharmacy.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("nearby_store_card_pharmacy"))
     }
 
     // مرحلة ٥ب-٣ — كارت المخزون التفاعلي (docs/agent/PLAN_2026_08_06_rebuild.md): نفس
@@ -358,7 +379,7 @@ class PreviewTest {
     @Test
     fun captureInventoryCheckInCard_glassmorphism() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.background(background).padding(16.dp)) {
                     com.example.ui.components.InventoryCheckInCard(
                         candidate = com.example.data.InventoryFlowEngine.CheckInCandidate(
@@ -372,7 +393,7 @@ class PreviewTest {
                 }
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/inventory_checkin_card_glass.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("inventory_checkin_card_glass"))
     }
 
     // مرحلة ٥ب-٤ — شاشة الاشتراكات وأيقونات البراندات (docs/agent/PLAN_2026_08_06_rebuild.md):
@@ -380,7 +401,7 @@ class PreviewTest {
     @Test
     fun captureSubscriptionCard_recognizedBrand() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.background(background).padding(16.dp)) {
                     SubScreenSubscriptionCardFull(
                         sub = com.example.data.ZadSubscription(
@@ -395,13 +416,13 @@ class PreviewTest {
                 }
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/subscription_card_netflix.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("subscription_card_netflix"))
     }
 
     @Test
     fun captureSubscriptionCard_unrecognizedBrand() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.background(background).padding(16.dp)) {
                     SubScreenSubscriptionCardFull(
                         sub = com.example.data.ZadSubscription(
@@ -416,7 +437,7 @@ class PreviewTest {
                 }
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/subscription_card_generic.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("subscription_card_generic"))
     }
 
     // مرحلة ٥ب-٥ — البروفايل (docs/agent/PLAN_2026_08_06_rebuild.md): ZadMenuGroup بقت
@@ -425,7 +446,7 @@ class PreviewTest {
     @Test
     fun captureZadMenuGroup_newCornerRadius() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.background(background).padding(16.dp)) {
                     com.example.ui.components.ZadMenuGroup {
                         com.example.ui.components.ZadMenuRow(title = "تعديل الملف الشخصي", subtitle = "الاسم والصورة", onClick = {})
@@ -434,7 +455,7 @@ class PreviewTest {
                 }
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/zad_menu_group_24dp.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("zad_menu_group_24dp"))
     }
 
     /**
@@ -454,7 +475,7 @@ class PreviewTest {
     @Test
     fun captureHomeMockupSequence() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     ZadCanvasBackground(modifier = Modifier.fillMaxSize())
                     Column(
@@ -596,7 +617,7 @@ class PreviewTest {
         }
 
         composeTestRule.onRoot().captureRoboImage(
-            filePath = "build/outputs/roborazzi/home_mockup_sequence.png"
+            filePath = shot("home_mockup_sequence")
         )
     }
 
@@ -609,7 +630,7 @@ class PreviewTest {
     @Test
     fun captureZadShellChrome() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     ZadCanvasBackground(modifier = Modifier.fillMaxSize())
                     Column(modifier = Modifier.fillMaxSize()) {
@@ -631,14 +652,14 @@ class PreviewTest {
         }
 
         composeTestRule.onRoot().captureRoboImage(
-            filePath = "build/outputs/roborazzi/zad_shell_chrome.png"
+            filePath = shot("zad_shell_chrome")
         )
     }
 
     @Test
     fun captureZadShellDrawer() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.fillMaxWidth(0.78f).fillMaxSize()) {
                     ZadDrawerContent(
                         currentRoute = ZadRoutes.HOME,
@@ -653,7 +674,7 @@ class PreviewTest {
         }
 
         composeTestRule.onRoot().captureRoboImage(
-            filePath = "build/outputs/roborazzi/zad_shell_drawer.png"
+            filePath = shot("zad_shell_drawer")
         )
     }
 
@@ -665,7 +686,7 @@ class PreviewTest {
     @Test
     fun captureBudgetObligations() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     ZadCanvasBackground(modifier = Modifier.fillMaxSize())
                     Column(
@@ -703,7 +724,7 @@ class PreviewTest {
         }
 
         composeTestRule.onRoot().captureRoboImage(
-            filePath = "build/outputs/roborazzi/budget_obligations.png"
+            filePath = shot("budget_obligations")
         )
     }
 
@@ -715,7 +736,7 @@ class PreviewTest {
     @Test
     fun captureAuthHeaderAndCta() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 com.example.ui.components.ZadAuthBackground {
                     Column(
                         modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -749,7 +770,7 @@ class PreviewTest {
             }
         }
         composeTestRule.onRoot().captureRoboImage(
-            filePath = "build/outputs/roborazzi/auth_header_and_cta.png"
+            filePath = shot("auth_header_and_cta")
         )
     }
 
@@ -757,7 +778,7 @@ class PreviewTest {
     @Test
     fun captureProfileMenuAndPrimitives() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 ZadCanvasBackground()
                 Column(
                     modifier = Modifier.fillMaxSize().padding(20.dp),
@@ -805,7 +826,7 @@ class PreviewTest {
             }
         }
         composeTestRule.onRoot().captureRoboImage(
-            filePath = "build/outputs/roborazzi/profile_menu_and_primitives.png"
+            filePath = shot("profile_menu_and_primitives")
         )
     }
 
@@ -813,7 +834,7 @@ class PreviewTest {
     @Test
     fun captureSpendingPowerPanel() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 ZadCanvasBackground()
                 Column(
                     modifier = Modifier.fillMaxSize().padding(20.dp),
@@ -846,7 +867,7 @@ class PreviewTest {
             }
         }
         composeTestRule.onRoot().captureRoboImage(
-            filePath = "build/outputs/roborazzi/spending_power_panel.png"
+            filePath = shot("spending_power_panel")
         )
     }
 
@@ -855,7 +876,7 @@ class PreviewTest {
     @Test
     fun captureMiniPharmacyWidget_withLowStock() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.background(background).padding(20.dp)) {
                     MiniPharmacyWidget(
                         pharmacyItems = listOf(
@@ -867,25 +888,25 @@ class PreviewTest {
                 }
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/mini_pharmacy_widget_low_stock.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("mini_pharmacy_widget_low_stock"))
     }
 
     @Test
     fun captureMiniPharmacyWidget_empty() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.background(background).padding(20.dp)) {
                     MiniPharmacyWidget(pharmacyItems = emptyList(), onNavigateToPharmacy = {})
                 }
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/mini_pharmacy_widget_empty.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("mini_pharmacy_widget_empty"))
     }
 
     @Test
     fun captureMiniSubscriptionsWidget_withUpcoming() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.background(background).padding(20.dp)) {
                     MiniSubscriptionsWidget(
                         subscriptions = listOf(
@@ -897,30 +918,30 @@ class PreviewTest {
                 }
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/mini_subscriptions_widget_upcoming.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("mini_subscriptions_widget_upcoming"))
     }
 
     @Test
     fun captureMiniSubscriptionsWidget_empty() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.background(background).padding(20.dp)) {
                     MiniSubscriptionsWidget(subscriptions = emptyList(), onNavigateToSubscriptions = {})
                 }
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/mini_subscriptions_widget_empty.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("mini_subscriptions_widget_empty"))
     }
 
     /** الصيدلية — حوار "إضافة دواء بالكلام" الجديد بدل الانتقال لشاشة عقل زاد. */
     @Test
     fun captureSmartAddMedicationDialog() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 SmartAddMedicationDialog(onDismiss = {}, onSubmit = {})
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/smart_add_medication_dialog.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("smart_add_medication_dialog"))
     }
 
     /** Companion orb — the four emotion states side by side, so eye shape and color read
@@ -928,7 +949,7 @@ class PreviewTest {
     @Test
     fun captureCompanionOrbStates() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.background(background).padding(24.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                         com.example.ui.components.CompanionOrb(com.example.ui.components.CompanionState.Idle)
@@ -940,7 +961,7 @@ class PreviewTest {
             }
         }
         composeTestRule.onRoot().captureRoboImage(
-            filePath = "build/outputs/roborazzi/companion_orb_states.png"
+            filePath = shot("companion_orb_states")
         )
     }
 
@@ -948,7 +969,7 @@ class PreviewTest {
     @Test
     fun captureObligationCard() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.background(background).padding(16.dp)) {
                     ObligationCard(
                         obligation = com.example.data.ZadObligation(
@@ -964,25 +985,25 @@ class PreviewTest {
                 }
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/obligation_card.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("obligation_card"))
     }
 
     /** حوار إضافة/تعديل التزام — وضع الإضافة (مفيش obligation ممرر). */
     @Test
     fun captureAddObligationDialog() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 AddEditObligationDialog(obligation = null, onDismiss = {}, onSave = { _, _, _, _, _ -> })
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/add_obligation_dialog.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("add_obligation_dialog"))
     }
 
     /** عقل زاد — كارت التقرير الشهري، الحالة الابتدائية (قبل التوليد). */
     @Test
     fun captureMonthlyReportCard_empty() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.background(background).padding(16.dp)) {
                     MonthlyReportCard(
                         transactions = emptyList(),
@@ -995,7 +1016,7 @@ class PreviewTest {
                 }
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/monthly_report_card_empty.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("monthly_report_card_empty"))
     }
 
     /** البروفايل — قسم حالة قراءة البنك بعد الدمج (كان مكرر 3 مرات، بقى مكان واحد جوا
@@ -1003,13 +1024,13 @@ class PreviewTest {
     @Test
     fun captureBankReadingStatusSection() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.background(background).padding(16.dp)) {
                     BankReadingStatusSection()
                 }
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/bank_reading_status_section.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("bank_reading_status_section"))
     }
 
     /** البروفايل — تنبيهات المساعد الذكي بعد ما اتشال منها قسم البنك المكرر، وبعد إضافة
@@ -1017,40 +1038,40 @@ class PreviewTest {
     @Test
     fun captureAssistantAlertsScreen() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 AssistantAlertsScreen(onBack = {})
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/assistant_alerts_screen.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("assistant_alerts_screen"))
     }
 
     /** شروط الاستخدام — بعد الترجمة الكاملة للعربي (كانت إنجليزي بالكامل). */
     @Test
     fun captureTermsOfServiceScreen() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 TermsOfServiceScreen(onBack = {})
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/terms_of_service_screen.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("terms_of_service_screen"))
     }
 
     /** مساعدة استخدام التطبيق — بعد ما بقت صريحة إنها مش دعم متصل بحسابك الفعلي. */
     @Test
     fun captureHelpSupportScreen() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 HelpSupportScreen(onBack = {})
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/help_support_screen.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("help_support_screen"))
     }
 
     /** خريطة زاد — حلقة المجالات الرئيسية بعلاقاتها (خطوط متصلة/منقطة) وبيانات نموذجية. */
     @Test
     fun captureKnowledgeMapDomainRing() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 val domains = listOf(
                     MapDomain("budget", "الميزانية", Icons.Default.AccountBalanceWallet, catBankingIcon, 0, 3000.0),
                     MapDomain("obligations", "الالتزامات", Icons.Default.EventRepeat, catBillsIcon, 2, 3500.0),
@@ -1074,14 +1095,14 @@ class PreviewTest {
                 }
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/knowledge_map_domain_ring.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("knowledge_map_domain_ring"))
     }
 
     /** خريطة زاد — الغوص جوا مجال واحد (الالتزامات) وعرض عناصره الحقيقية. */
     @Test
     fun captureKnowledgeMapItemRing() {
         composeTestRule.setContent {
-            AppTheme {
+            AppTheme(darkTheme = dark) {
                 Box(modifier = Modifier.fillMaxSize().background(background)) {
                     ItemRing(
                         domain = MapDomain("obligations", "الالتزامات", Icons.Default.EventRepeat, catBillsIcon, 2, 3500.0),
@@ -1093,6 +1114,6 @@ class PreviewTest {
                 }
             }
         }
-        composeTestRule.onRoot().captureRoboImage(filePath = "build/outputs/roborazzi/knowledge_map_item_ring.png")
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("knowledge_map_item_ring"))
     }
 }
