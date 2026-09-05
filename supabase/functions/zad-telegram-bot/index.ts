@@ -55,40 +55,54 @@ const WEBHOOK_SECRET_ENV = Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ?? undefined;
 // live on zad-telegram-bot because Telegram's own webhook needs verify_jwt=false on this
 // function, so the platform-level JWT check that gates every other function doesn't apply
 // here — without this, anyone on the internet could POST ?job=daily_checkins and spam
-// every bound user. Deliberately a plain literal (matching the same value in this repo's
-// telegram_checkin_pipeline migration) rather than a project secret: it authorizes nothing
-// beyond triggering this one job (no data access of its own), so committing it is a much
-// smaller blast radius than a leaked service-role key, and there is no tool available in
-// this environment to provision a new Supabase project secret remotely.
-const CHECKIN_CRON_SECRET = "5bbebc0b2acb1099e758e822be15144f9bf30175da67a459dd8511b0139c8ec5";
+// every bound user.
+//
+// ── 2026-09-05: these moved from plain literals to project secrets ───────────────
+// The original comment justified the literals by saying "there is no tool available in
+// this environment to provision a new Supabase project secret remotely". That is no
+// longer true, and the justification was weak anyway: a value committed to git is
+// permanently valid for anyone who can read the history, and rotating it required a code
+// deploy. The names below are set as project secrets.
+//
+// `LEGACY_*` are the pre-rotation values, kept ONLY for the length of the rotation
+// window. They exist because the database half of this rotation is a separate step: the
+// cron jobs and the three Postgres triggers that call this function still send the old
+// value until their own migration lands. Accepting both keeps every path working through
+// the changeover instead of turning a mismatch into a silent 401 — which is exactly the
+// failure that left zad_parent_digests empty for two months (see config.toml, بند 34.3).
+//
+// Every legacy acceptance logs a warning, so "rotation not finished" is visible in the
+// function logs rather than assumed. Once the DB side is rotated and verified, delete the
+// LEGACY_ constants and the second arm of secretMatches().
+const LEGACY_CHECKIN_CRON_SECRET = "5bbebc0b2acb1099e758e822be15144f9bf30175da67a459dd8511b0139c8ec5";
+const LEGACY_SUBSCRIPTION_CRON_SECRET = "2ceb272a5a1b12cce797b99f3e6d07a79b540cb95a5823ac9155588269214d55";
+const LEGACY_REALTIME_PUSH_CRON_SECRET = "7e78ce0aa8d2e83f67fbe48c39b5c39c17e54d32f781ccf79a1bd1000aaa7094";
+const LEGACY_LIVE_CHECKIN_CRON_SECRET = "58dda37fa693d2351ab038f07303fb9b621ce983c597046de7c7edc2b6d283a6";
+const LEGACY_CONFIRM_TRANSACTION_SECRET = "b1f0a4c7d29e63581c0a7f4e2b9d8c3a65e07f14d8b2c96035ae7143f0d92b68";
 
-// Same rationale as CHECKIN_CRON_SECRET immediately above (plain literal, not a project
-// secret — this endpoint runs with verify_jwt=false so it needs its own gate) but its own
-// distinct value, not reused: a leaked secret here should only ever be able to trigger
-// subscription alerts, not the check-in job too. Gates ?job=subscription_alerts below.
-const SUBSCRIPTION_CRON_SECRET = "2ceb272a5a1b12cce797b99f3e6d07a79b540cb95a5823ac9155588269214d55";
-
-// Same rationale again, own distinct value. Gates ?job=realtime_push below — fired by a
-// Postgres trigger (not cron) the moment a transaction is inserted or a budget threshold
-// is crossed, matching this repo's existing pattern of the client/DB detecting the
-// real-world event and this function only doing delivery (see GeofenceBroadcastReceiver's
-// zad-brain call for the same split on the Android side). This endpoint does NOT recompute
-// anything — the caller (a SQL trigger) sends pre-formatted title/body text, so no budget
-// math is duplicated here or in SQL beyond what notify_parents_on_child_spend() already does.
-const REALTIME_PUSH_CRON_SECRET = "7e78ce0aa8d2e83f67fbe48c39b5c39c17e54d32f781ccf79a1bd1000aaa7094";
-
-// Same rationale again, own distinct value. Gates ?job=live_checkin below — fired by a
-// zad_inventory AFTER UPDATE trigger the instant an item crosses into low-stock/predicted-
-// depletion territory, instead of waiting for the once-daily runDailyCheckins cron. Shares
-// sendCheckInPrompt()/MAX_CHECKINS_PER_USER_PER_DAY with the daily job so the two paths
-// can't double the user's daily prompt budget between them.
-const LIVE_CHECKIN_CRON_SECRET = "58dda37fa693d2351ab038f07303fb9b621ce983c597046de7c7edc2b6d283a6";
-
-// Same rationale again, own distinct value. Gates ?job=confirm_transaction below — called
-// by zad-brain after it creates a shared bank proposal. This endpoint only renders that
-// proposal in Telegram; the callback resolves it through the database RPC used by Android
-// too. zad-brain holds the same literal — keep the two in step.
-const CONFIRM_TRANSACTION_SECRET = "b1f0a4c7d29e63581c0a7f4e2b9d8c3a65e07f14d8b2c96035ae7143f0d92b68";
+/**
+ * Constant-time-ish comparison against the configured secret, falling back to the
+ * pre-rotation literal while the database half catches up.
+ *
+ * Returns false for a missing header rather than throwing, so an unauthenticated caller
+ * gets the same 401 as a wrong one and learns nothing from the difference.
+ */
+function secretMatches(received: string | null, envName: string, legacy: string): boolean {
+  if (!received) return false;
+  const expected = Deno.env.get(envName);
+  if (expected && received === expected) return true;
+  if (received === legacy) {
+    console.warn(
+      `[auth] ${envName}: accepted the pre-rotation value. The caller (cron job or ` +
+      `Postgres trigger) has not been rotated yet, or ${envName} is unset on this project.`,
+    );
+    return true;
+  }
+  if (!expected) {
+    console.error(`[auth] ${envName} is not set and the received value is not the legacy one.`);
+  }
+  return false;
+}
 
 function toGrammyKeyboard(rows: InlineKeyboardButton[][]): InlineKeyboard {
   const kb = new InlineKeyboard();
@@ -1720,12 +1734,12 @@ Deno.serve(async (req: Request) => {
       { headers: { "Content-Type": "application/json" } },
     );
   }
-  // Daily check-in cron trigger — see CHECKIN_CRON_SECRET's comment above for why this
+  // Daily check-in cron trigger — see the secrets block at the top for why this
   // needs its own auth instead of relying on verify_jwt. Checked before BOT_CONFIGURED so
   // a misconfigured bot token still reports a clear reason instead of falling through to
   // "bot not configured" below, which would otherwise read as this branch not existing.
   if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "daily_checkins") {
-    if (req.headers.get("X-Checkin-Cron-Secret") !== CHECKIN_CRON_SECRET) {
+    if (!secretMatches(req.headers.get("X-Checkin-Cron-Secret"), "ZAD_CHECKIN_CRON_SECRET", LEGACY_CHECKIN_CRON_SECRET)) {
       return new Response("unauthorized", { status: 401 });
     }
     if (!BOT_CONFIGURED) {
@@ -1741,9 +1755,9 @@ Deno.serve(async (req: Request) => {
     }
   }
   // Daily subscription/bill renewal cron trigger — same shape as daily_checkins above,
-  // own secret (SUBSCRIPTION_CRON_SECRET).
+  // own secret (ZAD_SUBSCRIPTION_CRON_SECRET).
   if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "subscription_alerts") {
-    if (req.headers.get("X-Subscription-Cron-Secret") !== SUBSCRIPTION_CRON_SECRET) {
+    if (!secretMatches(req.headers.get("X-Subscription-Cron-Secret"), "ZAD_SUBSCRIPTION_CRON_SECRET", LEGACY_SUBSCRIPTION_CRON_SECRET)) {
       return new Response("unauthorized", { status: 401 });
     }
     if (!BOT_CONFIGURED) {
@@ -1764,7 +1778,7 @@ Deno.serve(async (req: Request) => {
   // chat_id and delivers, no calculation happens here. Missing binding is a silent
   // no-op (200), not an error — most rows won't belong to a Telegram-linked user.
   if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "realtime_push") {
-    if (req.headers.get("X-Realtime-Push-Secret") !== REALTIME_PUSH_CRON_SECRET) {
+    if (!secretMatches(req.headers.get("X-Realtime-Push-Secret"), "ZAD_REALTIME_PUSH_SECRET", LEGACY_REALTIME_PUSH_CRON_SECRET)) {
       return new Response("unauthorized", { status: 401 });
     }
     if (!BOT_CONFIGURED) {
@@ -1792,7 +1806,7 @@ Deno.serve(async (req: Request) => {
   // yet. Telegram asks for the missing amount/direction in free text; the normal chat agent
   // will parse that reply and still require its usual financial confirmation.
   if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "review_notification") {
-    if (req.headers.get("X-Confirm-Transaction-Secret") !== CONFIRM_TRANSACTION_SECRET) {
+    if (!secretMatches(req.headers.get("X-Confirm-Transaction-Secret"), "ZAD_CONFIRM_TRANSACTION_SECRET", LEGACY_CONFIRM_TRANSACTION_SECRET)) {
       return new Response("unauthorized", { status: 401 });
     }
     if (!BOT_CONFIGURED) {
@@ -1847,7 +1861,7 @@ Deno.serve(async (req: Request) => {
   // resolves the linked chat and renders that same proposal; it never copies the amount
   // into a second pending table, so app and Telegram cannot disagree.
   if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "confirm_transaction") {
-    if (req.headers.get("X-Confirm-Transaction-Secret") !== CONFIRM_TRANSACTION_SECRET) {
+    if (!secretMatches(req.headers.get("X-Confirm-Transaction-Secret"), "ZAD_CONFIRM_TRANSACTION_SECRET", LEGACY_CONFIRM_TRANSACTION_SECRET)) {
       return new Response("unauthorized", { status: 401 });
     }
     if (!BOT_CONFIGURED) {
@@ -1915,7 +1929,7 @@ Deno.serve(async (req: Request) => {
   // waiting for runDailyCheckins' once-a-day pass. Reuses the exact same prompt-sending
   // path and daily budget as the cron job — this is not a second, unlimited channel.
   if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "live_checkin") {
-    if (req.headers.get("X-Live-Checkin-Secret") !== LIVE_CHECKIN_CRON_SECRET) {
+    if (!secretMatches(req.headers.get("X-Live-Checkin-Secret"), "ZAD_LIVE_CHECKIN_SECRET", LEGACY_LIVE_CHECKIN_CRON_SECRET)) {
       return new Response("unauthorized", { status: 401 });
     }
     if (!BOT_CONFIGURED) {
