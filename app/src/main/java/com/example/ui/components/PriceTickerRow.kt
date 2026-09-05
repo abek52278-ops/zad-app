@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ui.theme.surface
 
 /**
  * Ticker أسعار متحرك — نسخة حرفية من البروتوتايب (zad_premium_v5 `.ticker`):
@@ -101,7 +102,7 @@ private fun TickerPill(tick: PriceTick) {
     }
     Row(
         modifier = Modifier
-            .background(Color.White, RoundedCornerShape(9999.dp))
+            .background(surface, RoundedCornerShape(9999.dp))
             .padding(horizontal = 13.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {

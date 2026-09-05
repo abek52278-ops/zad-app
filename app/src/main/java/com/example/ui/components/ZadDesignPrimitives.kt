@@ -159,7 +159,7 @@ fun ZadRowCard(
             .fillMaxWidth()
             .zadCardShadow(shape)
             .clip(shape)
-            .background(Color.White)
+            .background(surface)
             .then(
                 if (onClick != null) Modifier.clickable(
                     interactionSource = remember { MutableInteractionSource() },

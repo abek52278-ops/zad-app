@@ -29,6 +29,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.CurrencyFormatter
+import com.example.ui.theme.surface
 
 /**
  * High-fidelity Catmull-Rom Bezier Smooth Curve Chart.
@@ -63,7 +64,7 @@ fun ZadBezierSpendChart(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
-            .background(Color.White)
+            .background(surface)
             .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(24.dp))
             .shadow(elevation = 2.dp, shape = RoundedCornerShape(24.dp), spotColor = Color.Black.copy(alpha = 0.04f))
             .padding(18.dp)

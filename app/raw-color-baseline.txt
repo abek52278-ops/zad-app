@@ -1,10 +1,27 @@
-# Baseline of pre-existing raw Color(0x...) literals in ui/screens/ and ui/components/.
-# One line per occurrence: <path>|<hex>. Regenerated 2026-09-05 when the check was
-# widened to components, which hold the larger share and the worst dark-mode offenders.
-# This file may SHRINK, never grow: checkNoRawColorsInScreens fails on any occurrence
-# not covered here. Fix a file -> regenerate to lock the gain in.
-# NOTE: bare `Color.White`/`Color.Black` are NOT matched by this check — ZadDrawerContent
-# used Color.White and was the worst dark-mode breakage in the app (see DARK_MODE_GAP.md).
+# Baseline of pre-existing raw colours in ui/screens/ and ui/components/.
+# One line per occurrence: <path>|<hex>  or  <path>|opaque-background:Color.White|Black.
+# This file may SHRINK, never grow: checkNoRawColorsInScreens fails on anything not here.
+#
+# The `opaque-background:` entries are an OPAQUE Color.White/Black passed to
+# `.background(...)` — the pattern behind the app's worst dark-mode bug
+# (ZadDrawerContent, fixed in 49ae3b3). Five remain, and each is here for a reason:
+#
+#   ZadCupertinoControls.kt  — LEGITIMATE, do not 'fix'. It is the iOS switch THUMB
+#     (.size(thumbSize) + CircleShape + shadow). A Cupertino toggle thumb is white in
+#     both light and dark; theming it would make the control wrong, not consistent.
+#
+#   AchievementsScreen.kt    — LEGITIMATE-BY-INSPECTION. A progress-bar FILL
+#     (.fillMaxWidth(fraction = …)) sitting on a tinted track, not a surface. Left as
+#     white deliberately rather than changed blind; revisit if the track is ever
+#     restyled so that white stops contrasting.
+#
+#   ZadHomeGlanceCards.kt x3 — REAL BUGS, DEFERRED. Card surfaces that will stay white
+#     in dark mode. Held back only so they land with that file's dedicated pass
+#     (132 hex + 25 bare white); see docs/agent/DARK_MODE_GAP.md.
+#
+# NOT caught by this check: Color.White/Black used as a CONTENT colour (text, tint,
+# icon) on a surface whose lightness flips with the theme. That is a separate open bug
+# class — see DARK_MODE_GAP.md. A regex cannot see what surface content sits on.
 com/example/ui/components/BankListeningPill.kt|0xFF00897B
 com/example/ui/components/BankListeningPill.kt|0xFF00BFA6
 com/example/ui/components/BankListeningPill.kt|0xFFE65100
@@ -172,6 +189,7 @@ com/example/ui/components/ZadBezierSpendChart.kt|0xFFE6F4EC
 com/example/ui/components/ZadBezierSpendChart.kt|0xFFF1F5F9
 com/example/ui/components/ZadCategoryGridPicker.kt|0xFF6B46C1
 com/example/ui/components/ZadCategoryGridPicker.kt|0xFFF3E8FF
+com/example/ui/components/ZadCupertinoControls.kt|opaque-background:Color.White
 com/example/ui/components/ZadDesignPrimitives.kt|0xFFF1F4F3
 com/example/ui/components/ZadGlanceCard.kt|0x05000000
 com/example/ui/components/ZadGlanceCard.kt|0x0A000000
@@ -327,6 +345,9 @@ com/example/ui/components/ZadHomeGlanceCards.kt|0xFFFCEAEA
 com/example/ui/components/ZadHomeGlanceCards.kt|0xFFFDBA74
 com/example/ui/components/ZadHomeGlanceCards.kt|0xFFFEE2E2
 com/example/ui/components/ZadHomeGlanceCards.kt|0xFFFFEBEE
+com/example/ui/components/ZadHomeGlanceCards.kt|opaque-background:Color.White
+com/example/ui/components/ZadHomeGlanceCards.kt|opaque-background:Color.White
+com/example/ui/components/ZadHomeGlanceCards.kt|opaque-background:Color.White
 com/example/ui/components/ZadQuickExpenseSheet.kt|0xFFE5E7EB
 com/example/ui/components/ZadQuickExpenseSheet.kt|0xFFE5E7EB
 com/example/ui/components/ZadQuickExpenseSheet.kt|0xFFF3F4F6
@@ -440,6 +461,7 @@ com/example/ui/screens/AchievementsScreen.kt|0xFF475569
 com/example/ui/screens/AchievementsScreen.kt|0xFF475569
 com/example/ui/screens/AchievementsScreen.kt|0xFFA1A5AB
 com/example/ui/screens/AchievementsScreen.kt|0xFFF1F5F9
+com/example/ui/screens/AchievementsScreen.kt|opaque-background:Color.White
 com/example/ui/screens/BudgetScreen.kt|0xFFF1F4F3
 com/example/ui/screens/FamilyScreen.kt|0xFF25D366
 com/example/ui/screens/HomeScreen.kt|0xFF0A382C

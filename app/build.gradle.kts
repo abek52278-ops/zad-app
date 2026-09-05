@@ -123,13 +123,27 @@ val rawColorBaseline = file("raw-color-baseline.txt")
 
 fun collectRawScreenColors(): List<String> {
   val rx = Regex("""Color\((0x[0-9A-Fa-f]{6,8})\)""")
+  // Second pattern, added after ZadDrawerContent's `.background(Color.White)` turned out
+  // to be the app's worst dark-mode bug while being invisible to the hex regex above.
+  // Deliberately narrow: only an OPAQUE Color.White/Black passed straight to
+  // `.background(...)`. Of 324 bare White/Black in these directories, 127 are text
+  // `color =`, 60 are `tint`/`contentColor`, and 40 more are `.copy(alpha = …)` scrims
+  // over coloured cards — all legitimately theme-independent. Excluding those leaves 12,
+  // which is a gateable signal rather than noise. A `.copy(` immediately after the token
+  // means translucent, so it is skipped.
+  val bgRx = Regex("""\.background\(\s*(?:color\s*=\s*)?Color\.(White|Black)\b(\s*\.copy\()?""")
   val sourceRoot = file("src/main/java")
   return rawColorDirs.asSequence()
     .flatMap { it.walkTopDown() }
     .filter { it.isFile && it.extension == "kt" }
     .flatMap { f ->
       val rel = f.toRelativeString(sourceRoot).replace('\\', '/')
-      rx.findAll(f.readText()).map { "$rel|${it.groupValues[1].replaceRange(0, 2, "0x")}" }
+      val text = f.readText()
+      val hex = rx.findAll(text).map { "$rel|${it.groupValues[1].replaceRange(0, 2, "0x")}" }
+      val bg = bgRx.findAll(text)
+        .filter { it.groupValues[2].isEmpty() }
+        .map { "$rel|opaque-background:Color.${it.groupValues[1]}" }
+      hex + bg
     }
     .sorted()
     .toList()
@@ -156,7 +170,8 @@ val checkNoRawColorsInScreens = tasks.register("checkNoRawColorsInScreens") {
           appendLine("Raw Color(0x...) literal(s) added to ui/screens/ or ui/components/:")
           added.sorted().forEach { appendLine("    $it") }
           appendLine()
-          appendLine("Use a token from ui/theme/Color.kt instead.")
+          appendLine("Use a token from ui/theme/Color.kt instead — `surface` for a card or")
+          appendLine("pill, `onPrimary`/`onSurface` for content sitting on one.")
           appendLine("If a raw literal is genuinely right here — Kids Mode or an illustrative")
           appendLine("one-off, which CLAUDE.md allows — regenerate app/raw-color-baseline.txt")
           appendLine("and say why in the commit message.")

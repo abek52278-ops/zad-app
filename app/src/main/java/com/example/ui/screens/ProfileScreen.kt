@@ -354,7 +354,7 @@ fun ProfileScreen(
                                 .align(Alignment.BottomEnd)
                                 .size(24.dp)
                                 .clip(CircleShape)
-                                .background(Color.White)
+                                .background(surface)
                                 .clickable(enabled = !isUploadingAvatar) {
                                     avatarPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                                 },

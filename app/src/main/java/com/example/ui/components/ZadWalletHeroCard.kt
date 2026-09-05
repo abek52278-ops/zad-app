@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.CurrencyFormatter
 import kotlinx.coroutines.delay
+import com.example.ui.theme.surface
 
 /**
  * Re-imagined Apple Wallet-style dynamic balance card.
@@ -321,7 +322,7 @@ fun ZadMinimalMetricsDuo(
             modifier = Modifier
                 .weight(1f)
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color.White)
+                .background(surface)
                 .shadow(elevation = 2.dp, shape = RoundedCornerShape(20.dp), spotColor = Color.Black.copy(alpha = 0.04f))
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -345,7 +346,7 @@ fun ZadMinimalMetricsDuo(
             modifier = Modifier
                 .weight(1f)
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color.White)
+                .background(surface)
                 .shadow(elevation = 2.dp, shape = RoundedCornerShape(20.dp), spotColor = Color.Black.copy(alpha = 0.04f))
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)

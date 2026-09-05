@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.voice.ZadCutePetSoundFx
 import kotlinx.coroutines.delay
+import com.example.ui.theme.surface
 
 /**
  * Tasbiha Garden component translating garden and tree mechanics into native Jetpack Compose.
@@ -51,7 +52,7 @@ fun ZadTasbihaMiniGarden(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(22.dp))
-            .background(Color.White)
+            .background(surface)
             .shadow(elevation = 2.dp, shape = RoundedCornerShape(22.dp), spotColor = Color.Black.copy(alpha = 0.04f))
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
