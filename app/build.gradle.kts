@@ -112,13 +112,20 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 // Keyed per occurrence, not per line — several screens put multiple literals on one
 // line (TasbihaScreen's gradient lists), and a per-line key would let a new literal
 // hide on an already-listed line.
-val rawColorScreensDir = file("src/main/java/com/example/ui/screens")
+// Widened to components 2026-09-05: they hold 431 of the literals against screens' 231,
+// and the three worst dark-mode offenders were all in components — the original
+// screens-only scope guarded the smaller and less damaging half.
+val rawColorDirs = listOf(
+  file("src/main/java/com/example/ui/screens"),
+  file("src/main/java/com/example/ui/components"),
+)
 val rawColorBaseline = file("raw-color-baseline.txt")
 
 fun collectRawScreenColors(): List<String> {
   val rx = Regex("""Color\((0x[0-9A-Fa-f]{6,8})\)""")
   val sourceRoot = file("src/main/java")
-  return rawColorScreensDir.walkTopDown()
+  return rawColorDirs.asSequence()
+    .flatMap { it.walkTopDown() }
     .filter { it.isFile && it.extension == "kt" }
     .flatMap { f ->
       val rel = f.toRelativeString(sourceRoot).replace('\\', '/')
@@ -130,8 +137,8 @@ fun collectRawScreenColors(): List<String> {
 
 val checkNoRawColorsInScreens = tasks.register("checkNoRawColorsInScreens") {
   group = "verification"
-  description = "Fails on any raw Color(0x...) in ui/screens/ that is not in raw-color-baseline.txt"
-  inputs.dir(rawColorScreensDir)
+  description = "Fails on any raw Color(0x...) in ui/screens/ or ui/components/ not in raw-color-baseline.txt"
+  inputs.files(rawColorDirs)
   inputs.file(rawColorBaseline)
   outputs.upToDateWhen { false }
   doLast {
@@ -146,7 +153,7 @@ val checkNoRawColorsInScreens = tasks.register("checkNoRawColorsInScreens") {
     if (added.isNotEmpty()) {
       throw GradleException(
         buildString {
-          appendLine("Raw Color(0x...) literal(s) added to ui/screens/:")
+          appendLine("Raw Color(0x...) literal(s) added to ui/screens/ or ui/components/:")
           added.sorted().forEach { appendLine("    $it") }
           appendLine()
           appendLine("Use a token from ui/theme/Color.kt instead.")
