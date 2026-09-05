@@ -46,54 +46,54 @@ jobs:
 
       # نفس الترتيب اللي بيتعمل محليًا: التحقق من الأنواع الأول، وبعدين الاختبارات.
       # فشل التحقق بيوقّف الشغل قبل ما الاختبارات تدّي رسالة أقل وضوحًا.
-      - name: Type-check zad-brain
-        working-directory: supabase/functions/zad-brain
-        run: deno check index.ts callModel.ts validators.ts shared.ts audit.ts
+      # ── بوابة الأنواع: بتعدّ الفانكشنز بنفسها، مش قايمة مكتوبة بالإيد ─────────
+      # القايمة اليدوية القديمة هي **السبب الجذري** مش العَرَض: كانت بتفحص ٦ فانكشنز
+      # من ١٣، فـ amazon-creators-search و update-behavior-profile فضلوا بره البوابة،
+      # ورسّبوا `deno check` بـTS18046 من غير ما حد يعرف، وفضلت النسخة المنشورة من
+      # amazon-creators-search بتنده llama-3.3-70b-versatile (بيرجّع 404 من 2026-08-31)
+      # لأن إصلاح الموديل الموجود في git ماكانش ليه طريق ينشر أصلاً.
+      #
+      # اللوب دي بتفحص كل ملف .ts في جذر كل فانكشن (ما عدا ملفات الاختبار، ليها خطوة
+      # `deno test` تحت). فحص كل ملف لوحده مش بس index.ts مقصود: `deno check index.ts`
+      # بيغطي اللي index بيستوردهم بس، فملف موجود ومش مستورد كان هيفضل غير مفحوص.
+      - name: Type-check every edge function
+        working-directory: supabase/functions
+        run: |
+          set -e
+          failed=""
+          for dir in */; do
+            fn="${dir%/}"
+            [ "$fn" = "_schema" ] && continue
+            files=$(find "$fn" -maxdepth 1 -name '*.ts' ! -name '*_test.ts' | sort | tr '\n' ' ')
+            [ -z "$files" ] && continue
+            echo "::group::deno check $fn"
+            if ! deno check $files; then failed="$failed $fn"; fi
+            echo "::endgroup::"
+          done
+          if [ -n "$failed" ]; then
+            echo "::error title=Type-check failed::$failed"
+            exit 1
+          fi
+          echo "All edge functions type-check."
 
+      # الاختبارات بتفضل صريحة: مش كل فانكشن عندها اختبارات، و`deno test` على مجلد
+      # من غير ملفات اختبار بيرجع نجاح فاضي — اللي بيخفي اختفاء ملف اختبار.
       - name: Test zad-brain
         working-directory: supabase/functions/zad-brain
         run: deno test --allow-all
-
-      - name: Type-check zad-core-intelligence
-        working-directory: supabase/functions/zad-core-intelligence
-        run: deno check index.ts redact.ts
 
       - name: Test zad-core-intelligence
         working-directory: supabase/functions/zad-core-intelligence
         run: deno test --allow-all
 
-      - name: Type-check delete-account
-        working-directory: supabase/functions/delete-account
-        run: deno check index.ts
-
-      - name: Type-check zad-telegram-bot
-        working-directory: supabase/functions/zad-telegram-bot
-        run: deno check index.ts context.ts telegram.ts
-
       - name: Test zad-telegram-bot
         working-directory: supabase/functions/zad-telegram-bot
         run: deno test --allow-all
-
-      - name: Type-check zad-market-intelligence
-        working-directory: supabase/functions/zad-market-intelligence
-        run: deno check index.ts
-
-      # بند 33.1/33.3 — relay صوتي + شخصية. index.ts نفسه I/O بحت (WebSocket relay)
-      # وصحته اتحقّقت حي ضد بروتوكول Gemini Live الحقيقي وقت الكتابة، مش بمحاكاة
-      # WebSocket؛ persona.ts منطق نقي وله اختبارات فعلية (نفس نمط zad-brain/persona_test.ts).
-      - name: Type-check zad-voice-live
-        working-directory: supabase/functions/zad-voice-live
-        run: deno check index.ts persona.ts tools.ts
 
       - name: Test zad-voice-live
         working-directory: supabase/functions/zad-voice-live
         run: deno test --allow-all
 
-      # بند 30.1 — عقد السكيما بين الكود وschema.json (لقطة من الداتابيز الحي). بيمنع
-      # بالظبط النمط اللي رجع تلات مرات في الجلسة دي: .select()/.eq()/.insert() على
-      # عمود مش موجود، بيرجع 42703 بصمت لأن حد من غير { error } destructuring. اتبنى
-      # 2026-08-31 بس فضل مش متوصّل بأي CI لغاية دلوقتي — تشغيله أول مرة لقى 11 مرجع
-      # كسير حقيقي (فضلوا يتصلحوا في نفس الكوميت اللي وصله).
       - name: Schema contract (.from/.select/.insert vs live schema)
         working-directory: supabase/functions/_schema
         run: deno test --allow-all
@@ -197,7 +197,13 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          for fn in zad-brain zad-core-intelligence zad-telegram-bot delete-account verify-purchase zad-billing-webhook parent-digest zad-market-intelligence zad-voice-live; do
+          # نفس مبدأ خطوة الفحص: بنعدّ المجلدات مش بنكتب قايمة. القايمة اليدوية
+          # القديمة كانت بتنشر ٩ من ١٣، فأربع فانكشنز (amazon-creators-search،
+          # update-behavior-profile، affiliate-price-refresh، voice-selftest) عمرها
+          # ما وصلت الإنتاج من CI — اتنين منهم آخر نشر ليهم كان بالإيد في يوليو.
+          for dir in supabase/functions/*/; do
+            fn=$(basename "$dir")
+            [ "$fn" = "_schema" ] && continue
             echo "::group::deploy $fn"
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF"
             echo "::endgroup::"

@@ -53,7 +53,7 @@ Preferences: ${shoppingContext.preferences.join(", ") || "none"}
 Location: ${shoppingContext.locationLat}, ${shoppingContext.locationLng}
 
 Current Market Data:
-- Prices: ${shoppingContext.currentPrices.map((p) => `${p.item}: ${p.price} EGP (${p.trend})`).join(", ")}
+- Prices: ${marketContext.currentPrices.map((p) => `${p.item}: ${p.price} EGP (${p.trend})`).join(", ")}
 - Weather: ${marketContext.weatherForecast}
 - Inflation Outlook: ${marketContext.inflationOutlook}%
 - Nearby Stores: ${marketContext.nearbyStores.map((s) => `${s.name} (${s.distance}km)`).join(", ")}

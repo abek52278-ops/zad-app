@@ -94,7 +94,10 @@ Deno.serve(async (req: Request) => {
       headers: { "Content-Type": "application/json" },
     });
   } catch (e) {
-    console.error(`[BehaviorProfile] Error: ${e.message}`);
-    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { "Content-Type": "application/json" } });
+    // See the note in amazon-creators-search: `unknown` catch binding, narrowed
+    // with the same helper shape the CI-gated functions use.
+    const msg = String((e as { message?: string })?.message ?? e);
+    console.error(`[BehaviorProfile] Error: ${msg}`);
+    return new Response(JSON.stringify({ error: msg }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
 });

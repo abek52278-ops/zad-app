@@ -68,16 +68,40 @@ Deno.serve(async (req: Request) => {
             }),
           });
 
-          const groqData = await groqResp.json();
-          const content = JSON.parse(groqData.choices?.[0]?.message?.content || "{}");
-          return jsonResponse({ match: content.matched_id || null });
+          // Every failure below falls through to the keyword matcher instead of
+          // returning. Before this, the branch returned unconditionally, so the
+          // keyword fallback under it was unreachable code — and because a failed
+          // Groq call still parsed to `{}`, the customer saw `{match: null}`,
+          // which is indistinguishable from "no such product". That is exactly how
+          // the llama-3.3-70b-versatile 404 (Groq dropped every Llama chat model on
+          // 2026-08-31) stayed invisible: the deployed copy of this function was
+          // outside CI, so the model fix could not ship, and the symptom was silence.
+          if (!groqResp.ok) {
+            console.error(`[AmazonCreators] match_product: Groq HTTP ${groqResp.status} — falling back to keywords`);
+          } else {
+            try {
+              const groqData = await groqResp.json();
+              const raw = groqData.choices?.[0]?.message?.content;
+              if (raw) {
+                const matchedId = JSON.parse(raw).matched_id;
+                // A deliberate null from the model means "no match" and is a real
+                // answer, so return it. Only a missing/!ok/unparseable reply falls through.
+                if (matchedId !== undefined) return jsonResponse({ match: matchedId || null });
+              }
+              console.error("[AmazonCreators] match_product: Groq reply had no usable content — falling back to keywords");
+            } catch (e) {
+              const msg = String((e as { message?: string })?.message ?? e);
+              console.error(`[AmazonCreators] match_product: could not parse Groq reply (${msg}) — falling back to keywords`);
+            }
+          }
         }
 
-        // Fallback: simple keyword matching
+        // Keyword matching — the fallback when there is no key, or the model call
+        // failed. Reachable now.
         const query = product_name.toLowerCase();
         for (const item of catalog) {
           if (item.name.toLowerCase().includes(query)) return jsonResponse({ match: item.id });
-          for (const kw of item.keywords) {
+          for (const kw of item.keywords ?? []) {
             if (query.includes(kw.toLowerCase()) || kw.toLowerCase().includes(query)) {
               return jsonResponse({ match: item.id });
             }
@@ -129,7 +153,12 @@ Deno.serve(async (req: Request) => {
         return jsonResponse({ error: `Unknown action: ${action}` }, 400);
     }
   } catch (e) {
-    console.error(`[AmazonCreators] Error: ${e.message}`);
-    return jsonResponse({ error: e.message }, 500);
+    // `catch` binds `unknown` under Deno's strict config, so `.message` does not
+    // type-check. Same narrowing the CI-gated functions already use
+    // (zad-core-intelligence/index.ts:901) — kept identical on purpose so this
+    // file can finally join the same `deno check` gate.
+    const msg = String((e as { message?: string })?.message ?? e);
+    console.error(`[AmazonCreators] Error: ${msg}`);
+    return jsonResponse({ error: msg }, 500);
   }
 });
