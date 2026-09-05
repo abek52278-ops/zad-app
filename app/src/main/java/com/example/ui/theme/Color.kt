@@ -154,6 +154,27 @@ val kidsAccentPink = Color(0xFFED64A6)
 val kidsBackground = Color(0xFF0F0A2E)
 val kidsSurface = Color(0xFF1E0A4A)
 
+// --- 6. Dark theme palette (static raw values — ZadDarkColorScheme is built from these) ---
+// Not a mechanical inversion. The brand triad is dark by design (ZadForestEmerald is
+// tone ~20), so using it as `primary` on a dark canvas would be nearly invisible; the
+// accents move to their light tones and the "on" colours flip dark to match. Surfaces
+// are a near-black with a slight green cast rather than pure black, which is what keeps
+// this reading as the same product in the dark — iOS-style elevated greys, not #000.
+val ZadEmeraldOnDark = Color(0xFF74C69D)          // primary on dark
+val ZadEmeraldContainerOnDark = Color(0xFF1E4534)
+val ZadMustardOnDark = ZadMustardLight            // 0xFFE9A844 already reads well on dark
+val ZadMustardContainerOnDark = Color(0xFF4A3712)
+val ZadTerracottaOnDark = ZadTerracottaLight      // 0xFFEA764B
+val ZadTerracottaContainerOnDark = Color(0xFF5A2A16)
+
+val ZadIosBackgroundDark = Color(0xFF10130F)      // canvas
+val ZadIosSurfaceDark = Color(0xFF191D17)         // cards
+val ZadIosSurfaceVariantDark = Color(0xFF262B24)  // pills, icon backdrops
+val ZadIosOutlineDark = Color(0xFF363C33)         // hairlines
+val ZadNeutralOnDark = Color(0xFFE9ECE4)          // primary text on dark
+val ZadNeutralMutedOnDark = Color(0xFFA6AB9C)     // secondary text on dark
+val ZadOnAccentDark = Color(0xFF0B1710)           // text ON the light accents above
+
 // Error Colors
 val error: Color @Composable get() = MaterialTheme.colorScheme.error
 val onError: Color @Composable get() = MaterialTheme.colorScheme.onError

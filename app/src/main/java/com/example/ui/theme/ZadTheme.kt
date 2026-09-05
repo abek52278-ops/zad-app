@@ -3,6 +3,7 @@ package com.example.ui.theme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -50,6 +51,37 @@ val ZadColorScheme = lightColorScheme(
     onError = ZadOnAccent,
     errorContainer = ZadTerracottaContainer,
     onErrorContainer = ZadTerracottaDark
+)
+
+// Same slots as ZadColorScheme, so every `@Composable get()` alias in Color.kt follows
+// the theme automatically. Tokens with no slot here (successColor, textTertiary, the
+// canvas/surfaceContainer family) are still static and stay light — that gap is the
+// extended-colour work, not this scheme.
+val ZadDarkColorScheme = darkColorScheme(
+    primary = ZadEmeraldOnDark,
+    onPrimary = ZadOnAccentDark,
+    primaryContainer = ZadEmeraldContainerOnDark,
+    onPrimaryContainer = ZadEmeraldOnDark,
+    secondary = ZadMustardOnDark,
+    onSecondary = ZadOnAccentDark,
+    secondaryContainer = ZadMustardContainerOnDark,
+    onSecondaryContainer = ZadMustardOnDark,
+    tertiary = ZadTerracottaOnDark,
+    onTertiary = ZadOnAccentDark,
+    tertiaryContainer = ZadTerracottaContainerOnDark,
+    onTertiaryContainer = ZadTerracottaOnDark,
+    background = ZadIosBackgroundDark,
+    onBackground = ZadNeutralOnDark,
+    surface = ZadIosSurfaceDark,
+    onSurface = ZadNeutralOnDark,
+    surfaceVariant = ZadIosSurfaceVariantDark,
+    onSurfaceVariant = ZadNeutralMutedOnDark,
+    outline = ZadIosOutlineDark,
+    outlineVariant = ZadIosOutlineDark,
+    error = ZadTerracottaOnDark,
+    onError = ZadOnAccentDark,
+    errorContainer = ZadTerracottaContainerOnDark,
+    onErrorContainer = ZadTerracottaOnDark
 )
 
 @Composable
