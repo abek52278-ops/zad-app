@@ -21,25 +21,21 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 // سيكريت مخصص plain literal (مش project secret — مفيش أداة هنا تضيف سيكريت مشروع عن بعد)،
 // blast radius صغير (بيشغّل التقرير بس، مفيش وصول بيانات خاص بيه)، وconfig.toml اتظبط
 // verify_jwt=false ليها عشان الهيدر ده يبقى كفاية.
-// Moved to a project secret 2026-09-05. LEGACY_ is the pre-rotation value, accepted only
-// until the cron job that calls this is rotated in its own migration. A mismatch here is a
-// silent 401 — the exact failure that left zad_parent_digests empty for two months before
-// بند 34.3, so the changeover accepts both rather than flipping in one step.
-const LEGACY_PARENT_DIGEST_CRON_SECRET =
-  "3302c068f8ce3057f9122ebc90b19113f1dbb0d7417e49848daee1122b530cfec5";
-
+// Project secret since 2026-09-05 (بند BE-03). The cron job that calls this reads the
+// same value out of Supabase Vault — see migration 20260905150000 — so the literal that
+// used to live here is inert and is gone.
+//
+// An unset secret rejects and logs rather than failing open. This endpoint runs with
+// verify_jwt = false, so this check is the only thing standing between it and the
+// internet.
 function digestSecretMatches(received: string | null): boolean {
   if (!received) return false;
   const expected = Deno.env.get("ZAD_PARENT_DIGEST_CRON_SECRET");
-  if (expected && received === expected) return true;
-  if (received === LEGACY_PARENT_DIGEST_CRON_SECRET) {
-    console.warn(
-      "[auth] ZAD_PARENT_DIGEST_CRON_SECRET: accepted the pre-rotation value — the cron " +
-        "job has not been rotated yet, or the secret is unset on this project.",
-    );
-    return true;
+  if (!expected) {
+    console.error("[auth] ZAD_PARENT_DIGEST_CRON_SECRET is not set on this project — rejecting.");
+    return false;
   }
-  return false;
+  return received === expected;
 }
 
 const CORS = {

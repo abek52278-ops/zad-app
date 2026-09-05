@@ -82,13 +82,14 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 // they are in-file constants because their other callers are SQL triggers with the value
 // embedded. Keep this in step with CONFIRM_TRANSACTION_SECRET there; a mismatch shows up
 // as every notification silently falling back to an in-app question.
-// Shared with zad-telegram-bot, which checks it on ?job=confirm_transaction. Moved to a
-// project secret 2026-09-05; the literal below is the pre-rotation fallback and is only
-// reached while ZAD_CONFIRM_TRANSACTION_SECRET is unset. Both sides must agree — if you
-// change one, change the other in the same deploy.
-const NOTIFICATION_CONFIRM_SECRET =
-  Deno.env.get("ZAD_CONFIRM_TRANSACTION_SECRET") ??
-  "b1f0a4c7d29e63581c0a7f4e2b9d8c3a65e07f14d8b2c96035ae7143f0d92b68";
+// Shared with zad-telegram-bot, which checks it on ?job=confirm_transaction. Project
+// secret since 2026-09-05 (بند BE-03); the pre-rotation literal is gone and no longer
+// authenticates anywhere.
+//
+// Empty string rather than a fallback when unset: sending an empty header makes
+// zad-telegram-bot reject with a 401 that shows up in its logs, which is a far better
+// failure than silently reaching for a value from git history.
+const NOTIFICATION_CONFIRM_SECRET = Deno.env.get("ZAD_CONFIRM_TRANSACTION_SECRET") ?? "";
 // The agent loop's model, deliberately NOT ZAD_MODEL_ROUTINE any more.
 //
 // ZAD_MODEL_ROUTINE is a shared secret that zad-core-intelligence also reads for vision /

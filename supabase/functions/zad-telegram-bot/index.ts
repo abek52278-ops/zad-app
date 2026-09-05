@@ -57,51 +57,40 @@ const WEBHOOK_SECRET_ENV = Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ?? undefined;
 // here — without this, anyone on the internet could POST ?job=daily_checkins and spam
 // every bound user.
 //
-// ── 2026-09-05: these moved from plain literals to project secrets ───────────────
-// The original comment justified the literals by saying "there is no tool available in
-// this environment to provision a new Supabase project secret remotely". That is no
-// longer true, and the justification was weak anyway: a value committed to git is
-// permanently valid for anyone who can read the history, and rotating it required a code
-// deploy. The names below are set as project secrets.
+// ── 2026-09-05: moved from plain literals to project secrets (بند BE-03) ────────
+// The original comment defended the literals with "there is no tool available in this
+// environment to provision a new Supabase project secret remotely". That stopped being
+// true, and the defence was thin anyway: a value in git is permanently valid to anyone
+// who can read the history, and rotating it required a code deploy.
 //
-// `LEGACY_*` are the pre-rotation values, kept ONLY for the length of the rotation
-// window. They exist because the database half of this rotation is a separate step: the
-// cron jobs and the three Postgres triggers that call this function still send the old
-// value until their own migration lands. Accepting both keeps every path working through
-// the changeover instead of turning a mismatch into a silent 401 — which is exactly the
-// failure that left zad_parent_digests empty for two months (see config.toml, بند 34.3).
+// Both halves of the rotation are now done, so there is no fallback left. The callers
+// (three cron jobs and four SECURITY DEFINER trigger functions) read their value from
+// Supabase Vault via public.zad_cron_secret() — see migration 20260905150000. The old
+// literals no longer authenticate anywhere, which is the point: the values still sitting
+// in git history are now inert.
 //
-// Every legacy acceptance logs a warning, so "rotation not finished" is visible in the
-// function logs rather than assumed. Once the DB side is rotated and verified, delete the
-// LEGACY_ constants and the second arm of secretMatches().
-const LEGACY_CHECKIN_CRON_SECRET = "5bbebc0b2acb1099e758e822be15144f9bf30175da67a459dd8511b0139c8ec5";
-const LEGACY_SUBSCRIPTION_CRON_SECRET = "2ceb272a5a1b12cce797b99f3e6d07a79b540cb95a5823ac9155588269214d55";
-const LEGACY_REALTIME_PUSH_CRON_SECRET = "7e78ce0aa8d2e83f67fbe48c39b5c39c17e54d32f781ccf79a1bd1000aaa7094";
-const LEGACY_LIVE_CHECKIN_CRON_SECRET = "58dda37fa693d2351ab038f07303fb9b621ce983c597046de7c7edc2b6d283a6";
-const LEGACY_CONFIRM_TRANSACTION_SECRET = "b1f0a4c7d29e63581c0a7f4e2b9d8c3a65e07f14d8b2c96035ae7143f0d92b68";
+// A missing secret is a hard 401 plus an error log. That is deliberate. During the
+// changeover this function accepted the pre-rotation literal as well, because a hard
+// switch there would have been a silent 401 across every check-in, subscription alert,
+// Telegram push and the weekly parent digest — the same failure that left
+// zad_parent_digests empty for two months (config.toml, بند 34.3). That window is closed
+// and the dual-accept is gone; keeping it would mean the git-history values still worked.
 
 /**
- * Constant-time-ish comparison against the configured secret, falling back to the
- * pre-rotation literal while the database half catches up.
+ * Compares a received header against the secret configured for this project.
  *
  * Returns false for a missing header rather than throwing, so an unauthenticated caller
- * gets the same 401 as a wrong one and learns nothing from the difference.
+ * gets the same 401 as a wrong one and learns nothing from the difference. An unset
+ * secret is logged as an error and rejects, rather than failing open.
  */
-function secretMatches(received: string | null, envName: string, legacy: string): boolean {
+function secretMatches(received: string | null, envName: string): boolean {
   if (!received) return false;
   const expected = Deno.env.get(envName);
-  if (expected && received === expected) return true;
-  if (received === legacy) {
-    console.warn(
-      `[auth] ${envName}: accepted the pre-rotation value. The caller (cron job or ` +
-      `Postgres trigger) has not been rotated yet, or ${envName} is unset on this project.`,
-    );
-    return true;
-  }
   if (!expected) {
-    console.error(`[auth] ${envName} is not set and the received value is not the legacy one.`);
+    console.error(`[auth] ${envName} is not set on this project — rejecting.`);
+    return false;
   }
-  return false;
+  return received === expected;
 }
 
 function toGrammyKeyboard(rows: InlineKeyboardButton[][]): InlineKeyboard {
@@ -1739,7 +1728,7 @@ Deno.serve(async (req: Request) => {
   // a misconfigured bot token still reports a clear reason instead of falling through to
   // "bot not configured" below, which would otherwise read as this branch not existing.
   if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "daily_checkins") {
-    if (!secretMatches(req.headers.get("X-Checkin-Cron-Secret"), "ZAD_CHECKIN_CRON_SECRET", LEGACY_CHECKIN_CRON_SECRET)) {
+    if (!secretMatches(req.headers.get("X-Checkin-Cron-Secret"), "ZAD_CHECKIN_CRON_SECRET")) {
       return new Response("unauthorized", { status: 401 });
     }
     if (!BOT_CONFIGURED) {
@@ -1757,7 +1746,7 @@ Deno.serve(async (req: Request) => {
   // Daily subscription/bill renewal cron trigger — same shape as daily_checkins above,
   // own secret (ZAD_SUBSCRIPTION_CRON_SECRET).
   if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "subscription_alerts") {
-    if (!secretMatches(req.headers.get("X-Subscription-Cron-Secret"), "ZAD_SUBSCRIPTION_CRON_SECRET", LEGACY_SUBSCRIPTION_CRON_SECRET)) {
+    if (!secretMatches(req.headers.get("X-Subscription-Cron-Secret"), "ZAD_SUBSCRIPTION_CRON_SECRET")) {
       return new Response("unauthorized", { status: 401 });
     }
     if (!BOT_CONFIGURED) {
@@ -1778,7 +1767,7 @@ Deno.serve(async (req: Request) => {
   // chat_id and delivers, no calculation happens here. Missing binding is a silent
   // no-op (200), not an error — most rows won't belong to a Telegram-linked user.
   if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "realtime_push") {
-    if (!secretMatches(req.headers.get("X-Realtime-Push-Secret"), "ZAD_REALTIME_PUSH_SECRET", LEGACY_REALTIME_PUSH_CRON_SECRET)) {
+    if (!secretMatches(req.headers.get("X-Realtime-Push-Secret"), "ZAD_REALTIME_PUSH_SECRET")) {
       return new Response("unauthorized", { status: 401 });
     }
     if (!BOT_CONFIGURED) {
@@ -1806,7 +1795,7 @@ Deno.serve(async (req: Request) => {
   // yet. Telegram asks for the missing amount/direction in free text; the normal chat agent
   // will parse that reply and still require its usual financial confirmation.
   if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "review_notification") {
-    if (!secretMatches(req.headers.get("X-Confirm-Transaction-Secret"), "ZAD_CONFIRM_TRANSACTION_SECRET", LEGACY_CONFIRM_TRANSACTION_SECRET)) {
+    if (!secretMatches(req.headers.get("X-Confirm-Transaction-Secret"), "ZAD_CONFIRM_TRANSACTION_SECRET")) {
       return new Response("unauthorized", { status: 401 });
     }
     if (!BOT_CONFIGURED) {
@@ -1861,7 +1850,7 @@ Deno.serve(async (req: Request) => {
   // resolves the linked chat and renders that same proposal; it never copies the amount
   // into a second pending table, so app and Telegram cannot disagree.
   if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "confirm_transaction") {
-    if (!secretMatches(req.headers.get("X-Confirm-Transaction-Secret"), "ZAD_CONFIRM_TRANSACTION_SECRET", LEGACY_CONFIRM_TRANSACTION_SECRET)) {
+    if (!secretMatches(req.headers.get("X-Confirm-Transaction-Secret"), "ZAD_CONFIRM_TRANSACTION_SECRET")) {
       return new Response("unauthorized", { status: 401 });
     }
     if (!BOT_CONFIGURED) {
@@ -1929,7 +1918,7 @@ Deno.serve(async (req: Request) => {
   // waiting for runDailyCheckins' once-a-day pass. Reuses the exact same prompt-sending
   // path and daily budget as the cron job — this is not a second, unlimited channel.
   if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "live_checkin") {
-    if (!secretMatches(req.headers.get("X-Live-Checkin-Secret"), "ZAD_LIVE_CHECKIN_SECRET", LEGACY_LIVE_CHECKIN_CRON_SECRET)) {
+    if (!secretMatches(req.headers.get("X-Live-Checkin-Secret"), "ZAD_LIVE_CHECKIN_SECRET")) {
       return new Response("unauthorized", { status: 401 });
     }
     if (!BOT_CONFIGURED) {
