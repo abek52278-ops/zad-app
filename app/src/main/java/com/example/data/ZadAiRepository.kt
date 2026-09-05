@@ -842,12 +842,29 @@ object ZadAiRepository {
      * لو السيرفر رجّع JSON عادي (أدوات/أخطاء/رد قصير) بنرجعه كامل في onChunk
      * واحدة — نفس النتيجة، مفيش فرق سلوكي.
      */
+    /**
+     * سبب فشل آخر نداء لـ[agentTurnStreaming]، أو null لو نجح.
+     *
+     * الدالة دي كانت بترجّع `null` على تلات حالات مختلفة تماماً — استثناء شبكة، ورد
+     * السيرفر بـ`ok:false`، ورد HTTP فاشل — والتلاتة كانوا بيوصلوا للـViewModel بنفس
+     * الشكل. النتيجة إن السبب المسجَّل في `agent_logs` كان "network, timeout, or model"،
+     * وهي جملة مش بتفرّق بين انقطاع نت و401 و`model_unavailable`. المعلومة كانت موجودة
+     * وبتتدمر هنا.
+     *
+     * `@Volatile` لأن الكتابة بتحصل على IO والقراءة على مسار الـViewModel. المُنادي
+     * واحد بس ([ZadViewModel.tryAgentTurn])، فمفيش تسابق على القيمة.
+     */
+    @Volatile
+    var lastAgentFailureReason: String? = null
+        private set
+
     suspend fun agentTurnStreaming(
         message: String,
         history: List<Pair<String, String>>,
         voiceMode: Boolean = false,
         onChunk: (String) -> Unit,
     ): AgentTurnResult? {
+        lastAgentFailureReason = null
         return try {
             val bodyJson = org.json.JSONObject().apply {
                 put("action", "agent_turn_stream")
@@ -873,6 +890,21 @@ object ZadAiRepository {
             connection.connectTimeout = 15_000
             connection.doOutput = true
             connection.outputStream.use { os -> os.write(bodyJson.toString().toByteArray()) }
+
+            // كان مفيش قراءة لـresponseCode خالص: رد 401 أو 429 أو 500 بيخلي
+            // `connection.inputStream` يرمي، فيتقفش في الـcatch تحت ويرجع null — نفس
+            // شكل انقطاع النت بالظبط. دلوقتي الحالة دي ليها سبب خاص بيها.
+            val httpStatus = connection.responseCode
+            if (httpStatus !in 200..299) {
+                val errBody = try {
+                    connection.errorStream?.bufferedReader()?.use { it.readText() }?.take(200).orEmpty()
+                } catch (_: Exception) {
+                    ""
+                }
+                lastAgentFailureReason = "http_$httpStatus" + if (errBody.isNotBlank()) ": $errBody" else ""
+                Log.e(TAG_REPO, "agentTurnStreaming() HTTP $httpStatus: $errBody")
+                return null
+            }
 
             val contentType = connection.contentType ?: ""
             if (contentType.contains("text/event-stream")) {
@@ -924,7 +956,17 @@ object ZadAiRepository {
                 val response = org.json.JSONObject(raw).let { obj ->
                     obj.keys().asSequence().map { k -> k to obj.get(k) }.toMap()
                 }
-                if (response["ok"] != true) return null
+                if (response["ok"] != true) {
+                    // السيرفر بيبعت `error` صريح (زي "model_unavailable") و`reason` في
+                    // بعض المسارات — الكود كان بيرمي الاتنين ويرجع null. دي أوضح إشارة
+                    // ممكن نحصل عليها عن سبب وقوع اللفة، فمينفعش تتضيع.
+                    val serverErr = (response["error"] as? String)
+                        ?: (response["reason"] as? String)
+                        ?: "unknown"
+                    lastAgentFailureReason = "server_not_ok: $serverErr"
+                    Log.e(TAG_REPO, "agentTurnStreaming() server returned ok=false: $serverErr")
+                    return null
+                }
                 val executed = (response["executed"] as? List<Map<String, Any?>> ?: emptyList()).mapNotNull { row ->
                     val summary = row["summary"] as? String ?: return@mapNotNull null
                     AgentExecuted(tool = row["tool"] as? String ?: "", summary = summary)
@@ -947,7 +989,12 @@ object ZadAiRepository {
                 )
             }
         } catch (e: Exception) {
-            Log.e(TAG_REPO, "agentTurnStreaming() FAILED: ${e.message}")
+            // نوع الاستثناء هو المعلومة المهمة هنا: SocketTimeoutException معناها العقل
+            // بطيء، UnknownHostException معناها مفيش نت، JSONException معناها الرد نفسه
+            // متغيّر شكله. الرسالة لوحدها بتبقى null كتير، فالنوع بيتسجّل معاها.
+            lastAgentFailureReason = "exception: ${e.javaClass.simpleName}" +
+                (e.message?.take(150)?.let { ": $it" } ?: "")
+            Log.e(TAG_REPO, "agentTurnStreaming() FAILED: ${e.javaClass.simpleName}: ${e.message}")
             null
         }
     }

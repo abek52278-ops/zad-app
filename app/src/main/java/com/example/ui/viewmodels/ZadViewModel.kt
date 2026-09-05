@@ -1669,7 +1669,11 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
         if (result == null) {
             // فشل — نشيل الرسالة الفارغة ونرجع false عشان الـ fallback القديم يشتغل
-            lastAgentFallbackReason = "agent turn unavailable (network, timeout, or model)"
+            // السبب الحقيقي جاي من الطبقة اللي تحت دلوقتي (http_401، server_not_ok:
+            // model_unavailable، exception: SocketTimeoutException...) بدل جملة عامة
+            // مابتفرقش بين انقطاع نت وفشل توثيق وموديل واقع.
+            lastAgentFallbackReason = com.example.data.ZadAiRepository.lastAgentFailureReason
+                ?: "agent turn unavailable (no reason reported)"
             Log.w(TAG, "tryAgentTurn() fell back to legacy chat: $lastAgentFallbackReason")
             // نفس السطر بيتسجّل على السيرفر كمان: اللوج المحلي بيموت مع الجهاز، وبدونه
             // مافيش فرق بين "القناة مش مستخدمة" و"القناة واقعة" في أي داتا.

@@ -232,7 +232,15 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
     val pendingAppCommand by viewModel.pendingAppCommand.collectAsState()
     LaunchedEffect(pendingAppCommand) {
         val cmd = pendingAppCommand ?: return@LaunchedEffect
-        val route = when (cmd.screen) {
+        // الكاميرا بتتفتح كـroute بمود صريح مش كشيت، عشان "صوّر الفاتورة" توديه على
+        // طول لوضع الفاتورة بدل ما تسيبه يختار. ده أهم أمر في القايمة: مدخل المخزون
+        // كله بيمرّ من هنا، وهو أقل مسار مستخدم في التطبيق.
+        val cameraRoute = when (cmd.screen) {
+            "camera_receipt" -> "${ZadRoutes.CAMERA}/RECEIPT"
+            "camera" -> "${ZadRoutes.CAMERA}/INVENTORY"
+            else -> null
+        }
+        val route = cameraRoute ?: when (cmd.screen) {
             "inventory" -> ZadRoutes.INVENTORY
             "shopping" -> ZadRoutes.SHOPPING
             "pharmacy" -> ZadRoutes.PHARMACY
@@ -241,8 +249,21 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
             "maintenance" -> ZadRoutes.MAINTENANCE
             "subscriptions", "obligations", "debts" -> ZadRoutes.SUBS
             "tasks", "insights" -> ZadRoutes.ASSISTANT
+            "home" -> ZadRoutes.HOME
+            "tasbiha" -> ZadRoutes.TASBIHA
+            "notifications" -> ZadRoutes.NOTIFICATIONS
+            "profile" -> ZadRoutes.PROFILE
+            "statement" -> ZadRoutes.STATEMENT
             else -> null
         }
+        // القايمة البيضا دي تالت حارس بعد validators.ts والـrepo، فأي شاشة السيرفر
+        // يسمح بيها ومش متعرّفة هنا بتتجاهل بصمت — وده صح أمنياً وغلط تشخيصياً، لأن
+        // الأمر بيضيع من غير أثر. اللوج ده بيخلّي أي فجوة بين القايمتين مرئية.
+        if (route == null) {
+            android.util.Log.w("ZadNav", "app_command: شاشة غير معروفة للعميل: ${cmd.screen}")
+        }
+        // وضع الأطفال بيلغي التنقّل بالكامل: الطفل مايوصلش لشاشة مالية بأمر من العقل
+        // أكتر من ما بيوصلها بإيده.
         if (route != null && !kidsModeEffective) go(route)
         viewModel.consumePendingAppCommand()
     }
