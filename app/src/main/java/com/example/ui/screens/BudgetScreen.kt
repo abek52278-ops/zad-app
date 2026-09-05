@@ -837,7 +837,7 @@ private fun CategoryBudgetCard(category: String, budget: Double, spent: Double, 
         }
         Spacer(modifier = Modifier.width(10.dp))
         IconButton(onClick = onInsightClick, modifier = Modifier.size(28.dp).pressableScale()) {
-            Icon(Icons.Default.AutoAwesome, contentDescription = "تحليل ذكي", tint = primary, modifier = Modifier.size(16.dp))
+            Icon(Icons.Default.AutoAwesome, contentDescription = stringResource(R.string.budget_smart_analysis), tint = primary, modifier = Modifier.size(16.dp))
         }
         Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.edit_cd), tint = onSurfaceVariant, modifier = Modifier.size(16.dp))
     }

@@ -96,14 +96,14 @@ fun SignUpScreen(
         AppearOnEntry(delayMs = 80) {
             Column {
                 Text(
-                    text = "إنشاء حساب",
+                    text = stringResource(R.string.auth_signup_action),
                     style = Typography.displayMedium.copy(fontSize = 28.sp),
                     color = MaterialTheme.colorScheme.onBackground,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "أدخل بياناتك للمتابعة",
+                    text = stringResource(R.string.auth_signup_subtitle),
                     style = Typography.bodyMedium,
                     color = onSurfaceVariant
                 )
@@ -115,16 +115,16 @@ fun SignUpScreen(
         AppearOnEntry(delayMs = 150) {
             Column {
                 AuthTextField(
-                    label = "اسم المستخدم",
+                    label = stringResource(R.string.auth_username_label),
                     value = username,
                     onValueChange = { username = it },
-                    placeholder = "محمد أحمد"
+                    placeholder = stringResource(R.string.auth_username_hint)
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 AuthTextField(
-                    label = "البريد الإلكتروني",
+                    label = stringResource(R.string.auth_email_label),
                     value = email,
                     onValueChange = { email = it },
                     placeholder = "your.email@gmail.com"
@@ -133,7 +133,7 @@ fun SignUpScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 AuthTextField(
-                    label = "كلمة المرور",
+                    label = stringResource(R.string.auth_password_label),
                     value = password,
                     onValueChange = { password = it },
                     isPassword = !passwordVisible,
@@ -179,11 +179,11 @@ fun SignUpScreen(
                     resId = R.raw.lottie_success_check,
                     iterations = 1,
                     modifier = Modifier.size(72.dp),
-                    contentDescription = "تم التسجيل بنجاح"
+                    contentDescription = stringResource(R.string.auth_signup_done_title)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "تم التسجيل بنجاح! جاري التوجيه...",
+                    text = stringResource(R.string.auth_signup_done_body),
                     color = primary,
                     style = Typography.bodyMedium,
                     fontWeight = FontWeight.Bold
@@ -202,7 +202,7 @@ fun SignUpScreen(
         
         // same fix as LoginScreen: the label was `onSurface` on a green container
         com.example.ui.components.ZadPrimaryButton(
-            text = "إنشاء حساب",
+            text = stringResource(R.string.auth_signup_action),
             onClick = { viewModel.signUp(email, password, username) },
             modifier = Modifier.fillMaxWidth(),
             enabled = email.isNotBlank() && password.isNotBlank() && termsAgreed,
@@ -216,12 +216,12 @@ fun SignUpScreen(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = "لديك حساب بالفعل؟ ", color = onSurface, fontSize = 14.sp)
+            Text(text = stringResource(R.string.auth_have_account), color = onSurface, fontSize = 14.sp)
             TextButton(
                 onClick = onNavigateToLogin,
                 contentPadding = PaddingValues(0.dp)
             ) {
-                Text(text = "تسجيل الدخول", color = primary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(text = stringResource(R.string.auth_login_title), color = primary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

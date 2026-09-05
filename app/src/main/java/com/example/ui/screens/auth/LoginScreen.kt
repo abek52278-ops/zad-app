@@ -106,7 +106,7 @@ fun LoginScreen(
             Column {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "تسجيل الدخول",
+                        text = stringResource(R.string.auth_login_title),
                         style = androidx.compose.material3.MaterialTheme.typography.displaySmall,
                         color = MaterialTheme.colorScheme.onBackground,
                         fontWeight = FontWeight.Bold
@@ -128,7 +128,7 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "أدخل بريدك الإلكتروني وكلمة المرور",
+                    text = stringResource(R.string.auth_login_subtitle),
                     style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                     color = onSurfaceVariant
                 )
@@ -191,7 +191,7 @@ fun LoginScreen(
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = { showForgotPasswordDialog = true }) {
-                        Text(text = "نسيت كلمة المرور؟", color = MaterialTheme.colorScheme.onBackground, fontSize = 14.sp)
+                        Text(text = stringResource(R.string.auth_forgot_password), color = MaterialTheme.colorScheme.onBackground, fontSize = 14.sp)
                     }
                 }
             }
@@ -211,7 +211,7 @@ fun LoginScreen(
         // Was a Button whose label color was `colorScheme.onSurface` — near-black text on
         // the deep-green container, which read as a disabled button.
         com.example.ui.components.ZadPrimaryButton(
-            text = "دخول",
+            text = stringResource(R.string.auth_login_action),
             onClick = { viewModel.signIn(email, password) },
             modifier = Modifier.fillMaxWidth(),
             enabled = email.isNotBlank() && password.isNotBlank(),
@@ -225,12 +225,12 @@ fun LoginScreen(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = "ليس لديك حساب؟ ", color = onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(text = stringResource(R.string.auth_no_account), color = onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             TextButton(
                 onClick = onNavigateToSignUp,
                 contentPadding = PaddingValues(0.dp)
             ) {
-                Text(text = "سجل الآن", color = primary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(text = stringResource(R.string.auth_register_now), color = primary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -239,10 +239,10 @@ fun LoginScreen(
     if (showForgotPasswordDialog) {
         AlertDialog(
             onDismissRequest = { showForgotPasswordDialog = false },
-            title = { Text(text = "استعادة كلمة المرور") },
+            title = { Text(text = stringResource(R.string.auth_reset_title)) },
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()) {
-                    Text(text = "أدخل بريدك الإلكتروني. سنرسل لك رابطاً لاستعادة كلمة المرور.")
+                    Text(text = stringResource(R.string.auth_reset_body))
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = resetEmail,
@@ -252,7 +252,7 @@ fun LoginScreen(
                     )
                     if (authState is AuthState.PasswordResetSent) {
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = "تم إرسال الرابط بنجاح!", color = primary, fontWeight = FontWeight.Bold)
+                        Text(text = stringResource(R.string.auth_reset_sent), color = primary, fontWeight = FontWeight.Bold)
                     }
                 }
             },

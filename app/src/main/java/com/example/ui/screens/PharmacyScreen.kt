@@ -734,20 +734,20 @@ private fun PharmacyItemGridCard(
                     },
                     modifier = Modifier.size(30.dp).clip(CircleShape).background(primary.copy(alpha = 0.12f)).pressableScale()
                 ) {
-                    Icon(Icons.Default.Check, contentDescription = "أخذ الجرعة", tint = primary, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Check, contentDescription = stringResource(R.string.pharm_take_dose), tint = primary, modifier = Modifier.size(16.dp))
                 }
             }
             IconButton(
                 onClick = onRefill,
                 modifier = Modifier.size(30.dp).clip(CircleShape).background(Color(0xFF0F172A).copy(alpha = 0.06f)).pressableScale()
             ) {
-                Icon(Icons.Default.Refresh, contentDescription = "إعادة طلب", tint = onSurfaceVariant, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.pharm_reorder), tint = onSurfaceVariant, modifier = Modifier.size(16.dp))
             }
             IconButton(
                 onClick = { showConfirmDialog = true },
                 modifier = Modifier.size(30.dp).clip(CircleShape).background(Color(0xFF0F172A).copy(alpha = 0.06f)).pressableScale()
             ) {
-                Icon(Icons.Default.Edit, contentDescription = "تعديل الكمية", tint = onSurfaceVariant, modifier = Modifier.size(14.dp))
+                Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.pharm_edit_quantity), tint = onSurfaceVariant, modifier = Modifier.size(14.dp))
             }
         }
     }

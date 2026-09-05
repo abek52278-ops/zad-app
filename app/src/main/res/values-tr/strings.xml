@@ -1714,4 +1714,31 @@
     <string name="cd_delete">Sil</string>
     <string name="cd_decrease_qty">Miktarı azalt</string>
     <string name="cd_increase_qty">Miktarı artır</string>
+
+    <!-- ═══ شاشات الدخول والصيدلية والميزانية (استُخرجت 2026-09-05) ═══ -->
+    <string name="budget_smart_analysis">Akıllı analiz</string>
+    <string name="pharm_take_dose">Dozu al</string>
+    <string name="pharm_reorder">Yeniden sipariş</string>
+    <string name="pharm_edit_quantity">Miktarı düzenle</string>
+    <string name="auth_login_title">Giriş yap</string>
+    <string name="auth_login_subtitle">E-postanızı ve şifrenizi girin</string>
+    <string name="auth_forgot_password">Şifrenizi mi unuttunuz?</string>
+    <string name="auth_login_action">Giriş</string>
+    <string name="auth_no_account">Hesabınız yok mu? </string>
+    <string name="auth_register_now">Kayıt ol</string>
+    <string name="auth_reset_title">Şifrenizi sıfırlayın</string>
+    <string name="auth_reset_body">E-postanızı girin, size bir sıfırlama bağlantısı gönderelim.</string>
+    <string name="auth_reset_sent">Bağlantı gönderildi</string>
+    <string name="auth_signup_title">Hesap oluştur</string>
+    <string name="auth_signup_subtitle">Devam etmek için bilgilerinizi girin</string>
+    <string name="auth_username_label">Ad</string>
+    <string name="auth_username_hint">örn. Mehmet Ahmet</string>
+    <string name="auth_email_label">E-posta</string>
+    <string name="auth_password_label">Şifre</string>
+    <string name="auth_signup_done_title">Kaydınız tamamlandı</string>
+    <string name="auth_signup_done_body">Kaydınız tamamlandı — yönlendiriliyorsunuz…</string>
+    <string name="auth_signup_action">Hesap oluştur</string>
+    <string name="auth_have_account">Zaten hesabınız var mı? </string>
+    <string name="onboarding_next">İleri</string>
+    <string name="market_continue">Devam</string>
 </resources>

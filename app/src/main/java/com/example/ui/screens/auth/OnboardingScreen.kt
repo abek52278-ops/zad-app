@@ -169,7 +169,7 @@ fun OnboardingScreen(
             // fully-rounded pill with a white label, like every other CTA in the design
             // (this one was an 18dp-radius button with near-black text on green)
             com.example.ui.components.ZadPrimaryButton(
-                text = if (currentPage < features.size - 1) "التالي" else stringResource(R.string.cta_enter),
+                text = if (currentPage < features.size - 1) stringResource(R.string.onboarding_next) else stringResource(R.string.cta_enter),
                 onClick = {
                     if (currentPage < features.size - 1) {
                         scope.launch { pagerState.animateScrollToPage(currentPage + 1) }

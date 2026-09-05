@@ -1706,4 +1706,31 @@
     <string name="cd_delete">حذف</string>
     <string name="cd_decrease_qty">إنقاص الكمية</string>
     <string name="cd_increase_qty">زيادة الكمية</string>
+
+    <!-- ═══ شاشات الدخول والصيدلية والميزانية (استُخرجت 2026-09-05) ═══ -->
+    <string name="budget_smart_analysis">تحليل ذكي</string>
+    <string name="pharm_take_dose">أخذ الجرعة</string>
+    <string name="pharm_reorder">إعادة طلب</string>
+    <string name="pharm_edit_quantity">تعديل الكمية</string>
+    <string name="auth_login_title">تسجيل الدخول</string>
+    <string name="auth_login_subtitle">أدخل بريدك الإلكتروني وكلمة المرور</string>
+    <string name="auth_forgot_password">نسيت كلمة المرور؟</string>
+    <string name="auth_login_action">دخول</string>
+    <string name="auth_no_account">ليس لديك حساب؟ </string>
+    <string name="auth_register_now">سجل الآن</string>
+    <string name="auth_reset_title">استعادة كلمة المرور</string>
+    <string name="auth_reset_body">أدخل بريدك الإلكتروني. سنرسل لك رابطاً لاستعادة كلمة المرور.</string>
+    <string name="auth_reset_sent">تم إرسال الرابط بنجاح!</string>
+    <string name="auth_signup_title">إنشاء حساب</string>
+    <string name="auth_signup_subtitle">أدخل بياناتك للمتابعة</string>
+    <string name="auth_username_label">اسم المستخدم</string>
+    <string name="auth_username_hint">محمد أحمد</string>
+    <string name="auth_email_label">البريد الإلكتروني</string>
+    <string name="auth_password_label">كلمة المرور</string>
+    <string name="auth_signup_done_title">تم التسجيل بنجاح</string>
+    <string name="auth_signup_done_body">تم التسجيل بنجاح! جاري التوجيه...</string>
+    <string name="auth_signup_action">إنشاء حساب</string>
+    <string name="auth_have_account">لديك حساب بالفعل؟ </string>
+    <string name="onboarding_next">التالي</string>
+    <string name="market_continue">متابعة</string>
 </resources>

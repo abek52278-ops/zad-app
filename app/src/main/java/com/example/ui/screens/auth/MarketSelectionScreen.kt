@@ -75,7 +75,7 @@ fun MarketSelectionScreen(onContinue: () -> Unit) {
             Spacer(Modifier.weight(1f))
 
             com.example.ui.components.ZadPrimaryButton(
-                text = "متابعة",
+                text = stringResource(R.string.market_continue),
                 onClick = {
                     selected?.let { market ->
                         MarketPrefs.setMarket(context, market)

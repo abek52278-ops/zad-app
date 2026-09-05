@@ -1717,4 +1717,31 @@
     <string name="cd_delete">Delete</string>
     <string name="cd_decrease_qty">Decrease quantity</string>
     <string name="cd_increase_qty">Increase quantity</string>
+
+    <!-- ═══ شاشات الدخول والصيدلية والميزانية (استُخرجت 2026-09-05) ═══ -->
+    <string name="budget_smart_analysis">Smart analysis</string>
+    <string name="pharm_take_dose">Take dose</string>
+    <string name="pharm_reorder">Reorder</string>
+    <string name="pharm_edit_quantity">Edit quantity</string>
+    <string name="auth_login_title">Sign in</string>
+    <string name="auth_login_subtitle">Enter your email and password</string>
+    <string name="auth_forgot_password">Forgot your password?</string>
+    <string name="auth_login_action">Sign in</string>
+    <string name="auth_no_account">Don\'t have an account? </string>
+    <string name="auth_register_now">Sign up</string>
+    <string name="auth_reset_title">Reset your password</string>
+    <string name="auth_reset_body">Enter your email and we\'ll send you a reset link.</string>
+    <string name="auth_reset_sent">Link sent</string>
+    <string name="auth_signup_title">Create an account</string>
+    <string name="auth_signup_subtitle">Enter your details to continue</string>
+    <string name="auth_username_label">Name</string>
+    <string name="auth_username_hint">e.g. Mohamed Ahmed</string>
+    <string name="auth_email_label">Email</string>
+    <string name="auth_password_label">Password</string>
+    <string name="auth_signup_done_title">You\'re signed up</string>
+    <string name="auth_signup_done_body">You\'re signed up — taking you in…</string>
+    <string name="auth_signup_action">Create account</string>
+    <string name="auth_have_account">Already have an account? </string>
+    <string name="onboarding_next">Next</string>
+    <string name="market_continue">Continue</string>
 </resources>
