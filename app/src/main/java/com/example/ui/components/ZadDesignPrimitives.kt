@@ -328,7 +328,7 @@ fun ZadAuthBackground(
     content: @Composable BoxScope.() -> Unit,
 ) {
     androidx.compose.foundation.layout.BoxWithConstraints(
-        modifier = modifier.fillMaxSize().background(Color(0xFFFBFAF8))
+        modifier = modifier.fillMaxSize().background(background)
     ) {
         val density = androidx.compose.ui.platform.LocalDensity.current
         val wPx = with(density) { maxWidth.toPx() }
@@ -338,7 +338,7 @@ fun ZadAuthBackground(
                 .matchParentSize()
                 .background(
                     Brush.radialGradient(
-                        colors = listOf(Color(0xFFFCD3C7).copy(alpha = 0.55f), Color.Transparent),
+                        colors = listOf(authWashWarm.copy(alpha = 0.55f), Color.Transparent),
                         center = androidx.compose.ui.geometry.Offset(wPx * 0.15f, hPx * 0.10f),
                         radius = maxOf(wPx, hPx) * 0.9f
                     )
@@ -349,7 +349,7 @@ fun ZadAuthBackground(
                 .matchParentSize()
                 .background(
                     Brush.radialGradient(
-                        colors = listOf(Color(0xFFBFE3D1).copy(alpha = 0.55f), Color.Transparent),
+                        colors = listOf(authWashCool.copy(alpha = 0.55f), Color.Transparent),
                         center = androidx.compose.ui.geometry.Offset(wPx * 0.85f, hPx * 0.90f),
                         radius = maxOf(wPx, hPx) * 0.9f
                     )

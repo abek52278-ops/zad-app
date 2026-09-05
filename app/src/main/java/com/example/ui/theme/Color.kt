@@ -115,6 +115,9 @@ val canvasTop: Color @Composable get() = LocalZadExtendedColors.current.canvasTo
 val canvasMid: Color @Composable get() = LocalZadExtendedColors.current.canvasMid
 val canvasBottom: Color @Composable get() = LocalZadExtendedColors.current.canvasBottom
 
+val authWashWarm: Color @Composable get() = LocalZadExtendedColors.current.authWashWarm
+val authWashCool: Color @Composable get() = LocalZadExtendedColors.current.authWashCool
+
 // Category Colors (Soft pastels with heritage accents)
 val catBillsBg = Color(0x1AD95726)
 val catBillsIcon = ZadTerracottaRust

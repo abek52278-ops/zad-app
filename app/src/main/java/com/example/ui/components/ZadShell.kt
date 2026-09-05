@@ -140,7 +140,7 @@ fun ZadTopHeader(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xFFF9FAFB).copy(alpha = 0.92f))
+            .background(surfaceContainerLow.copy(alpha = 0.92f))
             .statusBarsPadding()
             .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -859,7 +859,7 @@ fun ZadDrawerContent(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(surface)
     ) {
         Row(
             modifier = Modifier

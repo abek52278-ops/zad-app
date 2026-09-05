@@ -35,6 +35,9 @@ data class ZadExtendedColors(
     val surfaceContainerLow: Color,
     val surfaceContainer: Color,
     val surfaceContainerHigh: Color,
+    /** Decorative radial washes behind the auth/onboarding canvas. */
+    val authWashWarm: Color,
+    val authWashCool: Color,
 )
 
 /** Exactly the values these tokens held before the extended-colour mechanism existed. */
@@ -55,6 +58,8 @@ val ZadExtendedColorsLight = ZadExtendedColors(
     surfaceContainerLow = Color(0xFFFBFBFA),
     surfaceContainer = ZadIosBackground,
     surfaceContainerHigh = ZadIosSurfaceVariant,
+    authWashWarm = Color(0xFFFCD3C7),
+    authWashCool = Color(0xFFBFE3D1),
 )
 
 /**
@@ -83,6 +88,10 @@ val ZadExtendedColorsDark = ZadExtendedColors(
     surfaceContainerLow = Color(0xFF151813),
     surfaceContainer = ZadIosSurfaceDark,
     surfaceContainerHigh = Color(0xFF22261F),
+    // Same role at dark luminance: a warm and a cool tint over the near-black canvas,
+    // not the pastels — those wash out to a light screen, which is the bug being fixed.
+    authWashWarm = Color(0xFF3A1E16),
+    authWashCool = Color(0xFF14302A),
 )
 
 val LocalZadExtendedColors = staticCompositionLocalOf { ZadExtendedColorsLight }
