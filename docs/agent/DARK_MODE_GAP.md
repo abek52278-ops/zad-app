@@ -55,6 +55,61 @@ Two consequences:
 2. **Extend `checkNoRawColorsInScreens` to `ui/components/`** and regenerate the
    baseline, or the larger half stays unguarded and this recurs.
 
+## Status after the first wave (`49ae3b3`, `c1c622f`)
+
+The top three are fixed and the ranking above is history — kept because it is the
+evidence for why components were prioritised over screens. Re-measured after the fix:
+
+| Capture | Before | After |
+|---|---|---|
+| `zad_shell_drawer` | 100.0% | **0.0%** |
+| `auth_header_and_cta` | 98.2% | **0.6%** |
+| `onboarding_screen` | 83.1% | **0.6%** |
+| `zad_shell_chrome` | 6.9% | **1.6%** |
+
+The ratchet now covers `ui/components/` as well, baseline regenerated at 658
+occurrences.
+
+## Second wave — is there more worth doing?
+
+Short answer: **no urgent third wave.** After the fix the worst capture is 8.6%, and
+that one is not a bug. Nothing left is a "light screen in dark mode"; what remains is
+scattered elements.
+
+| Capture | Bright | Assessment |
+|---|---|---|
+| `kids_mode_content_no_crash` | 8.6% | **Not a bug.** Kids Mode is deliberately excluded (CLAUDE.md). |
+| `home_mockup_sequence` | 8.2% | Worth doing — see `ZadHomeGlanceCards.kt` below. |
+| `profile_menu_and_primitives` | 6.0% | `ZadDesignPrimitives.kt`, scattered literals. |
+| `companion_orb_states` | 5.9% | `CompanionOrb.kt`; decorative gradients, may be intentional. |
+| `budget_setup_prompt_glass` | 1.5% | Low bright% but **mean luminance 140** — a washed-out mid-grey glass surface rather than bright blocks. The metric under-rates this one. |
+
+Where the remaining literals are concentrated, worst first:
+
+| File | `Color(0x…)` | bare `Color.White/Black` |
+|---|---|---|
+| `ZadHomeGlanceCards.kt` | **132** | **25** |
+| `CategoryIllustrations.kt` | 67 | — |
+| `ZadShell.kt` | 19 | 10 |
+| `SubscriptionBrandIcons.kt` | 18 | — |
+| `ZadVoiceBottomSheet.kt` | 15 | 13 |
+| `ZadBezierSpendChart.kt` | 15 | — |
+| `ZadWalletHeroCard.kt` | 13 | 18 |
+
+`ZadHomeGlanceCards.kt` is the one file worth a dedicated pass: 157 literals between the
+two kinds, on the app's most-visited screen. `CategoryIllustrations.kt` and
+`SubscriptionBrandIcons.kt` are probably fine as-is — brand marks and illustrations are
+legitimately fixed-colour, the same exemption CLAUDE.md grants Kids Mode.
+
+## A blind spot in the ratchet
+
+`checkNoRawColorsInScreens` matches `Color(0x…)` only. **Bare `Color.White` and
+`Color.Black` are invisible to it**, and there are at least 90 of them across
+components. This is not academic: `ZadDrawerContent` used `Color.White` and was the
+single worst dark-mode breakage in the app — the check would not have caught it at any
+scope. Widening the regex is a candidate, but `Color.White` is often correct (text on a
+coloured button), so it would need a smarter rule than a blanket ban.
+
 ## What this pass does not prove
 
 Roborazzi renders Compose on the JVM, so it says nothing about the real system UI —
@@ -62,3 +117,10 @@ status-bar contrast in dark mode, navigation-bar scrim, or the API-31-gated
 `Modifier.blur` glass effects, which no-op below that level. The canvas is also
 3240×7200, far taller than any phone, so vertical rhythm and spacing in these images are
 not representative. Colour and composition are what it verifies.
+
+**Do not mistake this pass for dark-mode verification.** A green Roborazzi run means the
+theme reaches the composables and the colours are right. It does not mean dark mode
+works on a phone. Status-bar and navigation-bar contrast, the blur/glass surfaces above
+API 31, and anything involving real device chrome have **never been checked in any
+theme** and require a real device — Robolectric cannot answer them. Dark mode stays
+open until someone runs the app on hardware.
