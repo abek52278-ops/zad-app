@@ -870,69 +870,11 @@ class PreviewTest(private val dark: Boolean) {
             filePath = shot("spending_power_panel")
         )
     }
-
-    /** الويدجتين الجداد (صيدلية/اشتراكات) — حالة فيها بيانات وحالة فاضية، عشان نتأكد
-     *  الشكل صح قبل ما ينزل على جهاز حقيقي (مفيش emulator هنا). */
-    @Test
-    fun captureMiniPharmacyWidget_withLowStock() {
-        composeTestRule.setContent {
-            AppTheme(darkTheme = dark) {
-                Box(modifier = Modifier.background(background).padding(20.dp)) {
-                    MiniPharmacyWidget(
-                        pharmacyItems = listOf(
-                            com.example.data.ZadPharmacyItem(name = "دواء الضغط", remainingQuantity = 2, dailyDoseCount = 1, unit = "قرص"),
-                            com.example.data.ZadPharmacyItem(name = "فيتامين د", remainingQuantity = 1, dailyDoseCount = 1, unit = "كبسولة")
-                        ),
-                        onNavigateToPharmacy = {}
-                    )
-                }
-            }
-        }
-        composeTestRule.onRoot().captureRoboImage(filePath = shot("mini_pharmacy_widget_low_stock"))
-    }
-
-    @Test
-    fun captureMiniPharmacyWidget_empty() {
-        composeTestRule.setContent {
-            AppTheme(darkTheme = dark) {
-                Box(modifier = Modifier.background(background).padding(20.dp)) {
-                    MiniPharmacyWidget(pharmacyItems = emptyList(), onNavigateToPharmacy = {})
-                }
-            }
-        }
-        composeTestRule.onRoot().captureRoboImage(filePath = shot("mini_pharmacy_widget_empty"))
-    }
-
-    @Test
-    fun captureMiniSubscriptionsWidget_withUpcoming() {
-        composeTestRule.setContent {
-            AppTheme(darkTheme = dark) {
-                Box(modifier = Modifier.background(background).padding(20.dp)) {
-                    MiniSubscriptionsWidget(
-                        subscriptions = listOf(
-                            com.example.data.ZadSubscription(title = "نتفليكس", amount = 55.0, renewalDate = LocalDate.now().plusDays(2).toString(), isActive = true),
-                            com.example.data.ZadSubscription(title = "شاهد VIP", amount = 30.0, renewalDate = LocalDate.now().plusDays(5).toString(), isActive = true)
-                        ),
-                        onNavigateToSubscriptions = {}
-                    )
-                }
-            }
-        }
-        composeTestRule.onRoot().captureRoboImage(filePath = shot("mini_subscriptions_widget_upcoming"))
-    }
-
-    @Test
-    fun captureMiniSubscriptionsWidget_empty() {
-        composeTestRule.setContent {
-            AppTheme(darkTheme = dark) {
-                Box(modifier = Modifier.background(background).padding(20.dp)) {
-                    MiniSubscriptionsWidget(subscriptions = emptyList(), onNavigateToSubscriptions = {})
-                }
-            }
-        }
-        composeTestRule.onRoot().captureRoboImage(filePath = shot("mini_subscriptions_widget_empty"))
-    }
-
+    // اتشالت 2026-09-05: لقطات MiniPharmacyWidget و MiniSubscriptionsWidget.
+    // المكوّنين اتحذفوا في e53134c كجزء من تنضيف HomeScreenWidgets (ماكانش ليهم أي
+    // نداء في التطبيق)، بس فحص الموت وقتها كان على `app/src/main` بس — فالتستات دي
+    // فضلت بتشاور عليهم و`compileDebugUnitTestKotlin` بقى بيفشل. لقطة شاشة لمكوّن
+    // محدش بيعرضه مالهاش قيمة، فالتستات بتتشال معاه.
     /** الصيدلية — حوار "إضافة دواء بالكلام" الجديد بدل الانتقال لشاشة عقل زاد. */
     @Test
     fun captureSmartAddMedicationDialog() {

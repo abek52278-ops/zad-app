@@ -54,9 +54,15 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      # كانت continue-on-error: true، يعني الخطوة دي **ماكانتش بوابة**. اتكشفت
+      # 2026-09-05: كوميت e53134c ساب `compileDebugUnitTestKotlin FAILED` في اللوج
+      # والـjob اتسجّل success ووصل main. CLAUDE.md بيوصف CI بإنه "the source of truth
+      # for testDebugUnitTest/lintDebug" — وده ماكانش صحيح طول ما السطر ده موجود.
+      #
+      # مهم: assembleDebug **مابيكومبلش** مصدر التستات، فكسر في app/src/test بيعدّي
+      # البناء المحلي والـAPK كمان. الخطوة دي هي المكان الوحيد اللي بيمسكه.
       - name: Run unit tests
         run: ./gradlew testDebugUnitTest --no-daemon
-        continue-on-error: true
 
       - name: Upload test results
         if: always()
@@ -67,9 +73,10 @@ jobs:
           path: app/build/reports/tests/testDebugUnitTest/
           retention-days: 1
 
+      # نفس السبب. لينت مايبوّبش مالوش معنى — وCLAUDE.md بيقول صراحة إن NewApi و
+      # MissingPermission **ممنوع** يتعملهم baseline لأنهم أعطال تشغيل مش ملاحظات شكل.
       - name: Lint
         run: ./gradlew lintDebug --no-daemon
-        continue-on-error: true
 
       - name: Upload lint report
         if: always()
