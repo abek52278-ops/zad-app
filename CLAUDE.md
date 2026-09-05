@@ -23,7 +23,7 @@ Default to terse, high-signal replies once a plan is executing — state what ch
 
 - **Deno**: `curl -fsSL https://deno.land/install.sh | DENO_INSTALL=$HOME/.deno sh`. Then `deno check`/`deno test` on `supabase/functions/` run locally, and there is no excuse for pushing an edge-function change unverified.
 - **Android SDK**: `commandlinetools-linux` → `sdkmanager --sdk_root=$HOME/android-sdk "platform-tools" "platforms;android-36" "build-tools;36.0.0"` (matching `compileSdk = 36`), then write `local.properties` with `sdk.dir=$HOME/android-sdk` (gitignored). **AGP 9.1.1 needs JDK 17+** — a JDK 21 already sits at `/usr/local/sdkman/candidates/java/21.0.10-ms` and Gradle picks it up on its own; `java -version` may still report the JDK 11 on `PATH`, which is not what the build uses.
-- **Heap**: `gradle.properties` declares `org.gradle.jvmargs` **twice** (lines 2 and 15) and the later one wins at `-Xmx4096m`. A container with ~2.3 GB free kills the daemon ("Gradle build daemon disappeared unexpectedly"). Override per-invocation rather than editing the shared file: `./gradlew compileDebugKotlin -Dorg.gradle.jvmargs="-Xmx1400m -XX:MaxMetaspaceSize=512m" -Dkotlin.daemon.jvmargs="-Xmx900m" --no-daemon`. That combination produced a real `BUILD SUCCESSFUL` in ~8 minutes on 2026-09-04.
+- **Heap**: `gradle.properties` declares `org.gradle.jvmargs` **twice** (lines 2 and 15) and the later one wins at `-Xmx4096m`, which a container with ~2-3 GB free cannot honour — the daemon is OOM-killed and Gradle reports "Gradle build daemon disappeared unexpectedly" or "Connection to the Kotlin daemon has been unexpectedly lost". Neither message names memory; both mean it. Override per-invocation rather than editing the shared file. Use **two small JVMs, not one large one** — the split survives a tight container where a single big heap does not: `./gradlew compileDebugKotlin -Dorg.gradle.jvmargs="-Xmx1100m -XX:MaxMetaspaceSize=450m" -Dkotlin.daemon.jvmargs="-Xmx800m -XX:MaxMetaspaceSize=350m" --no-daemon`. That produced real `BUILD SUCCESSFUL` runs repeatedly on 2026-09-04/05 (`compileDebugKotlin` ~3 min, `assembleDebug` ~5 min). Two things that look like fixes and are not: `-Pkotlin.compiler.execution.strategy=in-process` needs one *larger* heap and failed more often than it worked, and a bigger `-Xmx` makes the OOM more likely, not less. If a build dies repeatedly, check `free -h` first — an orphaned Kotlin daemon from a killed build holds ~1 GB and will starve the next run; find it with `ps -eo pid,rss,args --sort=-rss | grep java` and kill it **by PID**. Do not `pkill -f GradleDaemon`: the pattern matches the shell running it and kills your own command (exit 144).
 
 **`./gradlew compileDebugKotlin` and `./gradlew assembleDebug` are mandatory before reporting any Kotlin/Compose task complete or committing it** — run both (or `assembleDebug` alone, since it includes compilation) and quote the actual `BUILD SUCCESSFUL`/`BUILD FAILED` result; a task is not done on the strength of "the edit looks right." `compileDebugKotlin` is the fast check for iterating; `assembleDebug` is the fuller one (also runs resource merging/packaging) and is the one to run right before a commit. Never claim a compile succeeded without having actually run one this session, and never skip straight to "let CI be the check" now that local compilation works — CI remains the source of truth for `testDebugUnitTest`/`lintDebug` and for anything this sandbox can't reproduce (no emulator/KVM — see `run-zad-app` skill for the Robolectric/Roborazzi screenshot-test workaround), but it is a supplement to a local build now, not a replacement for one.
 
@@ -138,16 +138,34 @@ Standing rules:
 - **Never report a task complete without build output from a run that happened AFTER
   the changes.** This has already failed once: Task 9 and 17.2 were reported complete
   while the build was broken by three missing imports.
-- No LLM call on the UI thread or on screen open. **Explicit exception: `HomeScreen`**
-  (`LaunchedEffect(Unit)` firing `refreshAgentSummary`/`refreshAutoSuggestions`/
-  `predictNextMonthExpenses`/`refreshLiveMarketPrices` on every open) — flagged in
-  `docs/agent/AUDIT.md` as this rule's worst violation by call frequency, but the user
-  explicitly decided (2026-07-30, closing Epic 2) to keep it: instant/live AI cards on
-  the app's most-visited screen are the intended UX, not an oversight. Don't "fix" this
-  without asking first. The other five screens AUDIT.md flagged for the same rule
+- No LLM call on the UI thread or on screen open. **Qualified exception: `HomeScreen`
+  is live on first open and cooldown-guarded on re-entry (changed 2026-09-04, `3b12078`
+  — supersedes the 2026-07-30 decision below; both were deliberate, neither was an
+  oversight).** The 2026-07-30 decision closing Epic 2 was that `LaunchedEffect(Unit)`
+  firing `refreshAgentSummary`/`refreshAutoSuggestions`/`predictNextMonthExpenses`/
+  `refreshLiveMarketPrices` **on every open** was intended UX — instant/live AI cards on
+  the app's most-visited screen — despite `docs/agent/AUDIT.md` flagging it as this
+  rule's worst violation by call frequency. What that decision did not have was the cost
+  measurement. Measured 2026-09-04: **313 `zad-brain` invocations in 24h against zero
+  recorded agent turns in the same window** — i.e. the entire spend was screen-entry
+  refreshes, not customer intent — while one user reached **192,841 of the 200,000
+  daily token cap (96%) in a single day**, at ~12,700-14,800 tokens per chat turn. Note
+  `LaunchedEffect(Unit)` re-runs on every re-entry into composition, so "every open"
+  meant every return to the tab, not the first open of a session. The five calls now go
+  through `autoRefresh*` wrappers over `autoRefreshBlocked` (`ZadViewModel`, 5-minute
+  window keyed per call, covered by `AutoRefreshCooldownTest`): **first open fires
+  everything unchanged; a return inside 5 minutes shows the last-fetched values and
+  fires nothing; after the window it refreshes again; a user-tapped refresh/retry always
+  fires, guard bypassed.** So the live-cards intent is intact where the customer
+  actually perceives it, and only silent re-entry churn was removed. Do not widen this
+  back to unguarded calls, and do not narrow it to a cache-only screen, without new
+  evidence and asking first. The other five screens AUDIT.md flagged for the same rule
   (`ZadIntelligenceScreen`, `ShoppingListScreen`, `WeeklyReportScreen`,
   `NearbyDealsScreen`, and `SubscriptionsScreen`'s/`ZadIntelligenceScreen`'s
-  `detectSubscriptions()`) are unaffected by this exception — `detectSubscriptions()`
+  `detectSubscriptions()`) are unaffected by this exception — they were never exempt, so
+  `3b12078` also routed `ZadIntelligenceScreen`'s two screen-entry calls
+  (`refreshAgentSummary`/`predictNextMonthExpenses`) through the same guard, which
+  enforces this rule there rather than excusing it. `detectSubscriptions()`
   specifically got its own confirm-before-write fix (2026-07-30) and still shouldn't
   auto-fire destructively even though it may still fire the read-only detection call.
 - Money stays `Double` with `asMoney()` rounding — no minor-units migration.
