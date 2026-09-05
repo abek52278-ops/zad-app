@@ -1,23 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   قاعدة الأمان: بيانات زاد المالية (قاعدة البيانات المشفرة + مفتاحها + كل
-  SharedPreferences) **عمرها ما تتنقل** للـ cloud backup أو نقل جهاز —
-  لأن مفتاح التشفير محلي، ولو الداتا سافرت من غير المفتاح هتبقى عديمة
-  الفايدة، ولو المفتاح سافر معاها يبقى التشفير شكلي.
+  SharedPreferences) **عمرها ما تتنقل** للـ cloud backup أو نقل جهاز — لأن
+  مفتاح التشفير محلي، ولو الداتا سافرت من غير المفتاح هتبقى عديمة الفايدة،
+  ولو المفتاح سافر معاها يبقى التشفير شكلي.
+
+  الملف ده كان بيقول الكلام ده وبيستثني **٤ ملفات من ١٩** بس. الباقي — وفيهم
+  `zad_prefs` (بيحمل `gemini_api_key` اللي المستخدم بيلزقه في شاشة الكاميرا،
+  و`user_tier` و`cached_budget` و`monthly_limit_captured`) و`zad_kids_mode_pin`
+  (هاش SHA-256 بلا salt على PIN قصير، يعني رجوعه بجدول قوس قزح لحظي) — كانوا
+  بيروحوا Google Drive فعلاً.
+
+  الاستثناء بقى على مستوى الـ**domain** مش قايمة أسماء، لأن قايمة الأسماء هي
+  اللي فشلت: أول ما حد يضيف ملف تفضيلات جديد كان بيتسرّب بصمت من غير ما حد
+  ياخد باله. `path` اختيارية في data-extraction-rules، فاستثناء الـdomain
+  بيغطي أي ملف حالي أو جاي.
+
+  التطبيق مايخسرش حاجة: كل الداتا الحقيقية بترجع من Supabase عند تسجيل الدخول.
+
+  ⚠️ استمارة Data Safety في Play بتسأل صراحة عن النسخ الاحتياطي — املاها من
+  الملف ده بعد التصحيح، مش من التعليق القديم اللي كان بيوعد بحاجة مابتحصلش.
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <exclude domain="database" path="zad_database"/>
-        <exclude domain="sharedpref" path="zad_db_key.xml"/>
-        <exclude domain="sharedpref" path="zad_consumption.xml"/>
-        <exclude domain="sharedpref" path="zad_bank_reading_status.xml"/>
-        <exclude domain="sharedpref" path="zad_voice_persona.xml"/>
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="file" />
+        <exclude domain="external" />
+        <exclude domain="root" />
     </cloud-backup>
     <device-transfer>
-        <exclude domain="database" path="zad_database"/>
-        <exclude domain="sharedpref" path="zad_db_key.xml"/>
-        <exclude domain="sharedpref" path="zad_consumption.xml"/>
-        <exclude domain="sharedpref" path="zad_bank_reading_status.xml"/>
-        <exclude domain="sharedpref" path="zad_voice_persona.xml"/>
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="file" />
+        <exclude domain="external" />
+        <exclude domain="root" />
     </device-transfer>
 </data-extraction-rules>

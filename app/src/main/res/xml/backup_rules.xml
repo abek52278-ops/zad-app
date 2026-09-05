@@ -1,9 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- نفس قاعدة الأمان للـ backup القديم (pre-Android 12) -->
+<!--
+  نفس قاعدة الأمان للـ backup القديم (pre-Android 12، وminSdk هنا 24 فالمسار ده
+  حي فعلاً). الفرق إن `path` **مطلوبة** في full-backup-content، فمينفعش استثناء
+  domain كامل زي data-extraction-rules — `path="."` بتغطي المجلد كله، وهي الطريقة
+  الموثّقة للمعنى ده.
+
+  شوف data_extraction_rules.xml للسبب الكامل: القايمة القديمة كانت بتستثني ٤ من
+  ١٩ ملف تفضيلات بينما التعليق بيقول إنها بتستثني الكل.
+-->
 <full-backup-content>
-    <exclude domain="database" path="zad_database"/>
-    <exclude domain="sharedpref" path="zad_db_key.xml"/>
-    <exclude domain="sharedpref" path="zad_consumption.xml"/>
-    <exclude domain="sharedpref" path="zad_bank_reading_status.xml"/>
-    <exclude domain="sharedpref" path="zad_voice_persona.xml"/>
+    <exclude domain="database" path="." />
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="file" path="." />
+    <exclude domain="external" path="." />
+    <exclude domain="root" path="." />
 </full-backup-content>
