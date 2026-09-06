@@ -348,11 +348,14 @@ class UnifiedBankListener : NotificationListenerService() {
      * safe: a chat that merely says "دفعت" produces no amount and is dropped
      * before it ever reaches `SaBankParser`.
      */
+    /** حزمة في قايمة التتبع — مطابقة `contains` عشان الجزء المجرد يمسك نسخ الحزمة الإقليمية. */
+    private fun isTrackedFinancialApp(packageName: String): Boolean =
+        trackedPackages.any { packageName.contains(it, ignoreCase = true) }
+
     private fun isFinancialNotification(packageName: String, title: String, text: String): Boolean {
         val content = "$title $text"
         if (content.isBlank()) return false
-        val isFinancialApp = trackedPackages.any { packageName.contains(it, ignoreCase = true) }
-        if (isFinancialApp) return true
+        if (isTrackedFinancialApp(packageName)) return true
 
         val hasKeyword = moneyKeywords.any { content.contains(it, ignoreCase = true) }
         if (!hasKeyword) return false
@@ -379,7 +382,15 @@ class UnifiedBankListener : NotificationListenerService() {
             //
             // بوابة الكتابة نفسها ما اتغيّرتش: السيرفر لسه مايكتبش معاملة إلا لو العميل قال
             // "completed" والثقة ≥0.9. إرسال الغامض بيخلّيه يتسجّل ويتسأل عنه، مش يتكتب.
-            val serverDecisionEarly = if (result.classification != NotificationClassification.COMPLETED_TRANSACTION) {
+            // البوابة نفسها في SaBankParser.shouldSendToBrain عشان تكون قابلة للاختبار من
+            // غير Service — الشرح والقاعدتين هناك.
+            val serverDecisionEarly = if (
+                SaBankParser.shouldSendToBrain(
+                    classification = result.classification,
+                    rejectionReason = result.rejectionReason,
+                    isTrackedFinancialApp = isTrackedFinancialApp(packageName),
+                )
+            ) {
                 sendNotificationToSharedBrain(packageName, title, text, result.classification, result.transaction)
             } else null
 

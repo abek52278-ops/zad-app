@@ -171,6 +171,46 @@ object SaBankParser {
      */
     enum class RejectReason { OTP, DECLINED, EXPIRED, PROMO, PENDING, UNPARSED }
 
+    /**
+     * هل الإشعار ده يستاهل نداء لـ zad-brain قبل ما العميل يرميه؟
+     *
+     * كان كل حاجة مش COMPLETED بتتبعت. الحجة وقتها كانت إن السيرفر عنده ذكاء ومسار
+     * تأكيد، وإن `zad_notification_ingest_events` الفاضي مابيفرقش بين "المستمع ميت"
+     * و"المستمع شغال وكله اترفض". الأولى لسه صح للغامض. التانية اتغطّت محليًا من
+     * زمان: BankReadingStatus بيسجّل lastSawNotificationAt **قبل أي فلترة** وبيعرضه
+     * جنب lastConnectedAt و lastParsedAt في شاشة تشخيص في البروفايل.
+     *
+     * التكلفة كانت حقيقية ومقاسة: إشعار من تطبيق الصور فيه رقم شبه مبلغ كان بيوصل
+     * السيرفر، والسيرفر مايقدرش يستخرج مبلغ منه هو كمان، فبيكتب سؤال في zad_insights
+     * اسمه "معاملة بنكية محتاجة تأكيد" بـ"المبلغ التقريبي: غير واضح" ويبعته للعميل.
+     * يعني كوتة موديل متحروقة **وسؤال مزعج عن حاجة مالهاش علاقة بالفلوس**.
+     *
+     * قاعدتان بيمنعوا ده:
+     *
+     * 1. [INFORMATIONAL_ONLY][NotificationClassification.INFORMATIONAL_ONLY] ومعاه سبب
+     *    رفض (OTP/إعلان/منتهي) — العميل عنده **دليل إيجابي** إنها مش معاملة.
+     *    DECLINED/PENDING مش هنا: دول بيتصنّفوا FAILED_OR_PENDING وبيفضلوا يتبعتوا
+     *    لأنهم أحداث مالية حصلت فعلًا.
+     *
+     * 2. INFORMATIONAL_ONLY من غير سبب رفض ومن حزمة **مش** في قايمة التتبع. ده ذيل
+     *    الالتقاط الشامل. حد الأمان هنا هو المهم: التصنيف ده معناه إن extractAmount
+     *    رجّع null، **يعني مفيش مبلغ في النص أصلًا** — فالسيرفر مكانش عنده حاجة
+     *    يشتغل عليها هو كمان. لو كان فيه مبلغ واضح، التصنيف كان هيبقى AMBIGUOUS
+     *    وبيعدّي عادي. وأي حزمة بنكية من الـ170 بتعدّي في الحالتين.
+     */
+    fun shouldSendToBrain(
+        classification: NotificationClassification,
+        rejectionReason: RejectReason?,
+        isTrackedFinancialApp: Boolean,
+    ): Boolean = when (classification) {
+        // المكتملة ليها نداء منفصل بعد كده — مش من نصيب البوابة دي
+        NotificationClassification.COMPLETED_TRANSACTION -> false
+        NotificationClassification.AMBIGUOUS -> true
+        NotificationClassification.FAILED_OR_PENDING_TRANSACTION -> true
+        NotificationClassification.INFORMATIONAL_ONLY ->
+            rejectionReason == null && isTrackedFinancialApp
+    }
+
     fun rejectionReason(text: String): RejectReason? {
         val t = text.lowercase()
         return when {
