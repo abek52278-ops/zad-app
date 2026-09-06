@@ -419,6 +419,73 @@ class PreviewTest(private val dark: Boolean) {
         composeTestRule.onRoot().captureRoboImage(filePath = shot("subscription_card_netflix"))
     }
 
+    /**
+     * نافذة التحذير (٤–٧ أيام) — الفرع الوحيد اللي بيستخدم لون التنبيه.
+     *
+     * اللقطتين التانيتين بيستخدموا plusDays(3) و plusDays(15)، فبيروحوا لفرعَي
+     * dangerColor و primary وبيعدّوا على فرع التحذير من غير ما يرسموه. يعني أي تغيير
+     * في لون التحذير كان هيطلع "صفر فرق" في المقارنة — مش لأنه آمن، لأنه مش متغطّى.
+     * اللقطة دي بتقفل الثغرة دي.
+     */
+    @Test
+    fun captureSubscriptionCard_dueWithinWeek() {
+        composeTestRule.setContent {
+            AppTheme(darkTheme = dark) {
+                Box(modifier = Modifier.background(background).padding(16.dp)) {
+                    SubScreenSubscriptionCardFull(
+                        sub = com.example.data.ZadSubscription(
+                            title = "Spotify",
+                            amount = 20.0,
+                            renewalDate = LocalDate.now().plusDays(5).toString(),
+                            isActive = true,
+                            autoDeduct = false
+                        ),
+                        onToggleActive = {}, onToggleAutoDeduct = {}, onDelete = {}
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("subscription_card_due_within_week"))
+    }
+
+    /**
+     * كارت صيانة في فرع "قربت" (0..14 يوم) — الفرع الوحيد اللي بيرسم لون التحذير هنا.
+     * lastServiceDate بيترجّع لورا 355 يوم على فاصل 365، فالباقي 10 أيام.
+     */
+    @Test
+    fun captureMaintenanceCard_dueSoon() {
+        composeTestRule.setContent {
+            AppTheme(darkTheme = dark) {
+                Box(modifier = Modifier.background(background).padding(16.dp)) {
+                    MaintenanceItemCard(
+                        item = com.example.data.ZadMaintenanceItem(
+                            name = "تكييف الصالة",
+                            category = "تكييف",
+                            lastServiceDate = LocalDate.now().minusDays(355).toString(),
+                            serviceIntervalDays = 365,
+                            estimatedCost = 350.0
+                        ),
+                        onMarkServiced = {}, onDelete = {}
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("maintenance_card_due_soon"))
+    }
+
+    /** بوتوم-شيت إضافة معاملة — فيه شرايح الاختيار وزرار الحفظ اللي بيستخدموا لون البراند. */
+    @Test
+    fun captureAddTransactionSheet() {
+        composeTestRule.setContent {
+            AppTheme(darkTheme = dark) {
+                Box(modifier = Modifier.background(background)) {
+                    AddTransactionDialog(onDismiss = {}, onSave = { _, _, _, _ -> })
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("add_transaction_sheet"))
+    }
+
     @Test
     fun captureSubscriptionCard_unrecognizedBrand() {
         composeTestRule.setContent {

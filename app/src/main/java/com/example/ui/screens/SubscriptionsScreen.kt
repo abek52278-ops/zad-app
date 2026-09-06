@@ -324,7 +324,11 @@ internal fun SubScreenSubscriptionCardFull(
     val accent = when {
         !sub.isActive -> outlineVariant
         daysLeft != null && daysLeft <= 3 -> dangerColor
-        daysLeft != null && daysLeft <= 7 -> ZadV2.warn
+        // كان ZadV2.warn (#B45309 ثابت). الفروع التلاتة التانية في الـwhen ده كلها
+        // واعية بالثيم، وده كان الشاذ الوحيد — فكان بيفضل بنفس درجته في الوضع الغامق
+        // بينما جيرانه بيقلبوا. `secondary` هو المكافئ الدلالي كمان: Color.kt موصّفه
+        // بالنص كـ"Due dates, budget warnings, pending actions".
+        daysLeft != null && daysLeft <= 7 -> warningColor
         else -> primary
     }
     Box(

@@ -161,8 +161,10 @@ private fun MaintenanceSummaryStat(
     }
 }
 
+// internal مش private: PreviewTest بيلتقط الكارت ده لتغطية فرع "قربت الصيانة" — نفس
+// السبب اللي خلى ZadIntelligenceScreen يفتح مكوّناته للقطات. مفيش أثر بصري.
 @Composable
-private fun MaintenanceItemCard(
+internal fun MaintenanceItemCard(
     item: ZadMaintenanceItem,
     onMarkServiced: () -> Unit,
     onDelete: () -> Unit
@@ -212,12 +214,12 @@ private fun MaintenanceItemCard(
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 val (pillBg, pillFg) = when {
                     isOverdue -> dangerColor.copy(alpha = 0.12f) to dangerColor
-                    isDueSoon -> ZadV2.warn.copy(alpha = 0.10f) to ZadV2.warn
+                    isDueSoon -> warningColor.copy(alpha = 0.10f) to warningColor
                     else -> primary.copy(alpha = 0.06f) to primary
                 }
                 Box(
                     modifier = Modifier
-                        .clip(ZadV2.rPill)
+                        .clip(CircleShape)
                         .background(pillBg)
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
@@ -240,7 +242,7 @@ private fun MaintenanceItemCard(
                             fontWeight = FontWeight.Bold,
                             color = primary,
                             modifier = Modifier
-                                .clip(ZadV2.rPill)
+                                .clip(CircleShape)
                                 .clickable { onMarkServiced() }
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         )

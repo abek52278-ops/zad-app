@@ -2144,7 +2144,7 @@ fun AddTransactionDialog(
                     onClick = { isExpense = true },
                     label = { Text(stringResource(R.string.expense_deduction)) },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = ZadV2.green800,
+                        selectedContainerColor = primary,
                         selectedLabelColor = Color.White
                     ),
                     modifier = Modifier.weight(1f)
@@ -2154,7 +2154,7 @@ fun AddTransactionDialog(
                     onClick = { isExpense = false },
                     label = { Text(stringResource(R.string.income_deposit)) },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = ZadV2.green800,
+                        selectedContainerColor = primary,
                         selectedLabelColor = Color.White
                     ),
                     modifier = Modifier.weight(1f)
@@ -2217,7 +2217,7 @@ fun AddTransactionDialog(
                     onSave(parsedAmount, finalTitle, isExpense, finalCategory)
                 },
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = ZadV2.green800),
+                colors = ButtonDefaults.buttonColors(containerColor = primary),
                 modifier = Modifier.fillMaxWidth().height(52.dp).pressableScale()
             ) {
                 Text(
