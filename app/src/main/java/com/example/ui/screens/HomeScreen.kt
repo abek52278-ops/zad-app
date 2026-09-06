@@ -2103,7 +2103,7 @@ fun AddTransactionDialog(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color.White,
+        containerColor = surface,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
     ) {
         Column(
@@ -2145,7 +2145,7 @@ fun AddTransactionDialog(
                     label = { Text(stringResource(R.string.expense_deduction)) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = primary,
-                        selectedLabelColor = Color.White
+                        selectedLabelColor = onPrimary
                     ),
                     modifier = Modifier.weight(1f)
                 )
@@ -2155,7 +2155,7 @@ fun AddTransactionDialog(
                     label = { Text(stringResource(R.string.income_deposit)) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = primary,
-                        selectedLabelColor = Color.White
+                        selectedLabelColor = onPrimary
                     ),
                     modifier = Modifier.weight(1f)
                 )
