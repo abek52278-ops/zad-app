@@ -59,13 +59,14 @@ fun ZadVoiceBottomSheet(
     val voiceState by voiceManager.voiceState.collectAsState()
     val isListeningState by voiceManager.isListening.collectAsState()
     val soundLevel by voiceManager.soundLevel.collectAsState()
+    val mood by viewModel.companionMood.collectAsState()
 
     // بند 33.1/33.2/33.3 — مكالمة حية حقيقية (Gemini Live API عبر zad-voice-live)، بديل
     // اختياري للمسار دور-بدور (STT محلي → نداء شات → TTS) اللي فوق. افتراضياً off عشان
     // المسار المُتحقق منه يفضل هو الافتراضي — ده أول اتصال WebSocket خام في التطبيق،
     // ومعملش عليه اختبار جهاز حقيقي (شوف تحذير ZadLiveVoiceSession.kt عن شكل الفريمات).
     var isLiveMode by remember { mutableStateOf(initialLiveMode) }
-    val liveSession = remember { ZadLiveVoiceSession(context) }
+    val liveSession = remember { ZadLiveVoiceSession.apply { init(context) } }
     val liveState by liveSession.state.collectAsState()
     val liveMicLevel by liveSession.micLevel.collectAsState()
 
@@ -185,7 +186,10 @@ fun ZadVoiceBottomSheet(
         onDispose {
             voiceManager.stopListening()
             voiceManager.stopSpeaking()
-            liveSession.release()
+            // stop() مش release(): الاتنين بيحرروا المايك والسماعة وتركيز الصوت
+            // ويقفلوا الـWebSocket — الفرق الوحيد إن release بتلغي الـscope كمان،
+            // وده كان بيقتل السينجلتون للأبد فتبقى الفتحة التانية صامتة.
+            liveSession.stop()
         }
     }
 
@@ -278,21 +282,10 @@ fun ZadVoiceBottomSheet(
             // Central SmartBot Agent with Dynamic Listening Emotion
             ZadSmartBotAgent(
                 sizeDp = 96.dp,
-                // مؤقتًا لسه بيترجم محليًا: ZadLiveVoiceSession دلوقتي instance
-                // بتتولد بـ remember جوه الشيت ده، فالـViewModel مالوش مقبض عليها
-                // يراقبه. المسار دور-بدور (voiceState) موحّد فعلاً في
-                // ZadViewModel.companionMood؛ السطرين دول بيتشالوا لما الجلسة الحية
-                // تبقى singleton زي ZadVoiceManager.
-                state = if (isLiveMode) {
-                    when (liveState) {
-                        is LiveVoiceState.Listening -> CompanionState.Listening
-                        is LiveVoiceState.ModelSpeaking -> CompanionState.Speaking
-                        is LiveVoiceState.Connecting -> CompanionState.Focused
-                        else -> CompanionState.Idle
-                    }
-                } else {
-                    companionMoodForVoice(voiceState) ?: CompanionState.Idle
-                }
+                // مفيش ترجمة هنا خالص دلوقتي — نفس المزاج اللي الكورة العايمة في
+                // HomeScreen بتقراه. كان فيه نسختين من الـ when ده، واحدة هنا وواحدة
+                // في HomeScreen، والاتنين كانوا لازم يفضلوا متطابقين يدويًا.
+                state = mood
             )
 
             // Dynamic Audio Waveform Bars responsive to soundLevel

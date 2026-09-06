@@ -95,6 +95,7 @@ fun ZadIntelligenceScreen(
     val insights by viewModel.insights.collectAsState()
     val messages by viewModel.aiChatMessages.collectAsState()
     val isTyping by viewModel.isAiTyping.collectAsState()
+    val mood by viewModel.companionMood.collectAsState()
     val lastSpecialist by viewModel.lastActiveSpecialist.collectAsState()
     val patterns by viewModel.behaviorPatterns.collectAsState()
     val serverBehaviorProfile by viewModel.behaviorProfile.collectAsState()
@@ -281,7 +282,10 @@ fun ZadIntelligenceScreen(
                     // 3D Living Orb with Interactive Tap
                     ZadSmartBotAgent(
                         sizeDp = 96.dp,
-                        state = if (isTyping) CompanionState.Focused else CompanionState.Idle,
+                        // المزاج الموحّد بدل اشتقاق محلي من isTyping: الـViewModel
+                        // بيحط Focused أصلاً أول ما الشات يبدأ، وكمان بيعرف عن الصوت
+                        // والتنبيهات اللي isTyping لوحده أعمى عنها.
+                        state = mood,
                         onClick = {
                             chatExpanded = true
                         }

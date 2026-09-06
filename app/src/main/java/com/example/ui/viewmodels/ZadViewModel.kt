@@ -594,9 +594,14 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     val companionMood: StateFlow<com.example.ui.components.CompanionState> =
         kotlinx.coroutines.flow.combine(
             _companionState,
-            com.example.voice.ZadVoiceManager.voiceState
-        ) { agentMood, voice ->
-            com.example.ui.components.companionMoodForVoice(voice) ?: agentMood
+            com.example.voice.ZadVoiceManager.voiceState,
+            com.example.voice.ZadLiveVoiceSession.state
+        ) { agentMood, voice, live ->
+            // المكالمة الحية لها الأسبقية على المسار دور-بدور: لو الاتنين شغالين
+            // فالحية هي اللي المستخدم شايفها قدامه.
+            com.example.ui.components.companionMoodForLiveVoice(live)
+                ?: com.example.ui.components.companionMoodForVoice(voice)
+                ?: agentMood
         }
             .stateIn(
                 viewModelScope,

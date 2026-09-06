@@ -1,5 +1,6 @@
 package com.example.ui.components
 
+import com.example.voice.LiveVoiceState
 import com.example.voice.VoiceState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -47,5 +48,32 @@ class CompanionMoodTest {
         )
         assertEquals(4, all.count { companionMoodForVoice(it) != null })
         assertEquals(2, all.count { companionMoodForVoice(it) == null })
+    }
+
+    @Test
+    fun liveCallMapsToItsOwnMood() {
+        assertEquals(CompanionState.Listening, companionMoodForLiveVoice(LiveVoiceState.Listening))
+        assertEquals(CompanionState.Speaking, companionMoodForLiveVoice(LiveVoiceState.ModelSpeaking))
+        assertEquals(CompanionState.Focused, companionMoodForLiveVoice(LiveVoiceState.Connecting))
+    }
+
+    /** نفس قاعدة null: مكالمة مقفولة ما تدهسش تنبيه حقيقي. */
+    @Test
+    fun silentLiveCallYieldsToo() {
+        assertNull(companionMoodForLiveVoice(LiveVoiceState.Idle))
+        assertNull(companionMoodForLiveVoice(LiveVoiceState.Error("اتقطع الاتصال")))
+    }
+
+    @Test
+    fun everyLiveStateIsAccountedFor() {
+        val all = listOf(
+            LiveVoiceState.Idle,
+            LiveVoiceState.Connecting,
+            LiveVoiceState.Listening,
+            LiveVoiceState.ModelSpeaking,
+            LiveVoiceState.Error("x"),
+        )
+        assertEquals(3, all.count { companionMoodForLiveVoice(it) != null })
+        assertEquals(2, all.count { companionMoodForLiveVoice(it) == null })
     }
 }

@@ -23,6 +23,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -68,11 +69,40 @@ sealed class LiveVoiceState {
  * يدوي. Gemini نفسه عنده Voice Activity Detection سيرفر-سايد: لو العميل قاطع، بيرجع
  * `serverContent.interrupted=true` ونوقف تشغيل صوت الموديل بس (مش الميكروفون ولا الجلسة).
  */
-class ZadLiveVoiceSession(private val context: Context) {
+object ZadLiveVoiceSession {
+
+    private var appContext: Context? = null
+
+    /**
+     * لازم تتنادى مرة قبل أي استخدام — نفس نمط ZadVoiceManager.init، idempotent.
+     *
+     * بقى object مش class للسبب اللي خلّى ZadVoiceManager يبقى object قبله بالحرف:
+     * كانت بتتعمل بـ `remember { ZadLiveVoiceSession(context) }` جوه
+     * ZadVoiceBottomSheet، يعني نسخة جديدة كل فتحة وحالة مالهاش وجود والشيت مقفول،
+     * ومحدش بره الشيت — ولا الـViewModel — يقدر يعرف حالة المكالمة الحقيقية.
+     */
+    fun init(context: Context) {
+        if (appContext == null) appContext = context.applicationContext
+    }
+
+    private val context: Context
+        get() = appContext ?: error("ZadLiveVoiceSession.init(context) لازم تتنادى الأول")
 
     private val tag = "ZadLiveVoiceSession"
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // الـ scope بيترجّع لو اتلغى. كان `val` ثابت، وده كان بيبقى فخ قاتل بمجرد ما
+    // الكلاس يبقى singleton: release() بتنادي scope.cancel()، وCoroutineScope متلغي
+    // مايترجعش — فأول قفلة للشيت كانت هتقتل السينجلتون للأبد، وأي فتحة بعدها تبقى
+    // صامتة من غير أي رسالة خطأ لأن الـ launch بيعدّي بلا أثر. ZadVoiceManager
+    // مافيهوش الفخ ده لأنه مامسكش scope خاص بيه أصلاً، فالسابقة مكانتش كافية لوحدها.
+    @Volatile private var _scope: CoroutineScope? = null
+    // internal مش private عشان LiveVoiceSessionLifecycleTest يقدر يثبت إن الـscope
+    // بيرجع شغال بعد release — الفخ ده مابيظهرش في أي بناء ناجح.
+    internal val scope: CoroutineScope
+        get() = synchronized(this) {
+            _scope?.takeIf { it.isActive }
+                ?: CoroutineScope(SupervisorJob() + Dispatchers.IO).also { _scope = it }
+        }
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private val _state = MutableStateFlow<LiveVoiceState>(LiveVoiceState.Idle)
@@ -419,8 +449,19 @@ class ZadLiveVoiceSession(private val context: Context) {
         }
     }
 
+    /**
+     * تحرير نهائي — للخروج من التطبيق، مش لقفل الشيت.
+     *
+     * قفل الشيت بينادي stop()، وهي بتحرر كل مورد فعلاً: audioRecord.release()،
+     * audioTrack.release()، abandonAudioFocus()، وقفل الـWebSocket. الفرق الوحيد
+     * هنا هو إلغاء scope خامل مش ماسك ولا مورد. يعني نقل الشيت من release لـ stop
+     * مابيسيبش المايك مفتوح ولا الاتصال شغال.
+     */
     fun release() {
         stop()
-        scope.cancel()
+        synchronized(this) {
+            _scope?.cancel()
+            _scope = null
+        }
     }
 }

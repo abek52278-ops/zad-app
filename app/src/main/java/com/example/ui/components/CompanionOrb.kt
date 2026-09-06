@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.R
+import com.example.voice.LiveVoiceState
 import com.example.voice.VoiceState
 import kotlinx.coroutines.delay
 import kotlin.math.cos
@@ -76,6 +77,17 @@ fun companionMoodForVoice(voice: VoiceState): CompanionState? = when (voice) {
     is VoiceState.Speaking -> CompanionState.Speaking
     is VoiceState.Recognized -> CompanionState.Happy
     is VoiceState.Idle, is VoiceState.Error -> null
+}
+
+/**
+ * نفس القاعدة للمكالمة الحية. Connecting → Focused لأن الاتصال شغل بيحصل ورا
+ * الكواليس والمستخدم مستني — نفس معنى "بيفكر" بالظبط.
+ */
+fun companionMoodForLiveVoice(live: LiveVoiceState): CompanionState? = when (live) {
+    is LiveVoiceState.Listening -> CompanionState.Listening
+    is LiveVoiceState.ModelSpeaking -> CompanionState.Speaking
+    is LiveVoiceState.Connecting -> CompanionState.Focused
+    is LiveVoiceState.Idle, is LiveVoiceState.Error -> null
 }
 
 /**
