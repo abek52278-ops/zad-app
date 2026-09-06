@@ -3,6 +3,8 @@ package com.example.data
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
 /**
  * استخراج التاجر — كان أضعف حلقة في خط الإشعارات وبصفر تغطية.
@@ -116,5 +118,115 @@ class MerchantExtractionTest {
     @Test
     fun aliasDoesNotMatchInsideALongerWord() {
         assertEquals("سبوتيفاي", SaBankParser.extractMerchant("اشتراك سبوتيفاي الشهري"))
+    }
+}
+
+/**
+ * التصنيف بالتاجر أولاً.
+ *
+ * `classify` بيقرا **الرسالة كلها**، وده بيخلّيه يتلخبط من نص إعلاني وأسماء بنوك
+ * وسطور عروض جوه نفس الإشعار. التاجر حقيقة أضيق وأصدق عن العملية نفسها، فلما يكون
+ * معروف بيحسم الفئة قبل ما الكلمات المفتاحية تتكلم.
+ */
+@RunWith(RobolectricTestRunner::class)
+class MerchantFirstClassificationTest {
+
+    // ── التضارب: كلمة من فئة تانية جوه نص العملية ──────────────────────────
+
+    @Test
+    fun merchantBeatsAConflictingKeywordInTheSameText() {
+        // "صيدلية" بتوقع في الرعاية الصحية لو الكلمات المفتاحية اتكلمت الأول
+        val text = "شراء من هنقرستيشن بمبلغ 78 ريال - بجوار صيدلية النهدي"
+        assertEquals("المطاعم", SaBankParser.classify(text, TxType.PURCHASE, "هنقرستيشن"))
+    }
+
+    @Test
+    fun promotionalNoiseDoesNotHijackTheCategory() {
+        val text = "شراء من بنده. عرض خاص على المطاعم والكافيهات هذا الأسبوع"
+        assertEquals("البقالة", SaBankParser.classify(text, TxType.PURCHASE, "بنده"))
+    }
+
+    @Test
+    fun rideHailingIsNotFoodEvenWhenTheTextMentionsIt() {
+        val text = "خصم لدى كريم - رحلة إلى مطعم الشرق"
+        assertEquals("المواصلات", SaBankParser.classify(text, TxType.PURCHASE, "كريم"))
+    }
+
+    // ── الرجوع للتحليل النصي ───────────────────────────────────────────────
+
+    @Test
+    fun unknownMerchantFallsBackToTextAnalysis() {
+        val text = "شراء من مطعم الشرق بمبلغ 60 ريال"
+        assertEquals("المطاعم", SaBankParser.classify(text, TxType.PURCHASE, "مطعم الشرق"))
+    }
+
+    @Test
+    fun nullMerchantBehavesExactlyAsBefore() {
+        val text = "شراء من سوبرماركت بمبلغ 60 ريال"
+        assertEquals(SaBankParser.classify(text, TxType.PURCHASE), SaBankParser.classify(text, TxType.PURCHASE, null))
+    }
+
+    /**
+     * التجارة الإلكترونية مقصود إنها بترجع للتحليل النصي: مفيش فئة "تسوق" معتمدة،
+     * وشراء من نون ممكن يكون أي حاجة.
+     */
+    @Test
+    fun ecommerceIsLeftToTheText() {
+        assertEquals("أخرى", SaBankParser.classify("شراء من نون بمبلغ 250 ريال", TxType.PURCHASE, "نون"))
+    }
+
+    // ── النوع بيفضل أقوى من التاجر ─────────────────────────────────────────
+
+    /**
+     * الحد اللي وقفت عنده "التاجر أولاً" عن قصد: النوع بيقول دخل ولا مصروف، والتاجر
+     * بيقول نوع الإنفاق بس. راتب من شركة اسمها في القاموس لازم يفضل راتب.
+     */
+    @Test
+    fun transactionTypeStillOutranksTheMerchantForIncome() {
+        val text = "تم إيداع راتب بمبلغ 8,500 ريال من بنده"
+        assertEquals("الراتب", SaBankParser.classify(text, TxType.SALARY, "بنده"))
+    }
+
+    @Test
+    fun billPaymentStaysABill() {
+        assertEquals("الفواتير", SaBankParser.classify("سداد فاتورة لدى كارفور", TxType.BILL_PAYMENT, "كارفور"))
+    }
+
+    // ── تناسق القاموسين ────────────────────────────────────────────────────
+
+    /**
+     * كل تاجر في جدول الفئات لازم يكون اسم معتمد بيرجّعه extractMerchant فعلاً.
+     * مفتاح مكتوب غلط بيبقى مدخل ميت مابيتنفّذش أبداً ومحدش بياخد باله.
+     */
+    @Test
+    fun everyCategorisedMerchantIsReachableFromExtraction() {
+        val samples = mapOf(
+            "هنقرستيشن" to "لدى hungerstation", "جاهز" to "لدى jahez",
+            "مرسول" to "لدى mrsool", "طلبات" to "لدى talabat",
+            "بنده" to "لدى panda", "كارفور" to "لدى carrefour",
+            "لولو" to "لدى lulu", "العثيم" to "لدى othaim",
+            "أوبر" to "لدى uber", "كريم" to "لدى careem",
+            "تابي" to "لدى tabby", "تمارا" to "لدى tamara",
+            "نتفليكس" to "لدى netflix", "سبوتيفاي" to "لدى spotify",
+        )
+        samples.forEach { (canonical, text) ->
+            assertEquals("الاستخراج لازم يرجّع الاسم المعتمد لـ $canonical",
+                canonical, SaBankParser.extractMerchant(text))
+        }
+    }
+
+    /**
+     * الفئة المتخصصة لازم تفرض نفسها عبر المسار الكامل مش بس في classify.
+     *
+     * النص فيه "صيدلية" كتضارب مقصود، بس **من غير** أي كلمة إعلانية: "عروض" مثلاً
+     * كلمة promo وبترمي الإشعار كله كضجيج قبل ما يوصل للاستخراج أصلاً، فالتضارب
+     * لازم يتبني من كلمة فئة حقيقية مش من نص عرض.
+     */
+    @Test
+    fun endToEndKeepsTheMerchantCategory() {
+        val text = "مصرف الراجحي: تم خصم بمبلغ 78.00 ريال لدى hungerstation بجوار صيدلية النهدي"
+        val parsed = SaBankParser.detectAndParse("com.alrajhi.bank", "شراء", text)
+        assertEquals("هنقرستيشن", parsed?.merchantName)
+        assertEquals("المطاعم", parsed?.category)
     }
 }
