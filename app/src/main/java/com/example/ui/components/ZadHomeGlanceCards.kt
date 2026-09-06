@@ -245,7 +245,7 @@ fun ZadHorizontalShortcutsRail(
                     text = item.title,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = Color(0xFF1E293B),
+                    color = textPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -254,7 +254,7 @@ fun ZadHorizontalShortcutsRail(
                     text = item.subtitle,
                     fontSize = 9.5.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF64748B),
+                    color = textSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -338,17 +338,20 @@ fun ZadFoodShortagesGlanceCard(
     onAddToShoppingList: (ZadInventory) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val sampleItems = remember(inventory) {
+    // البالتة والتينت المحايد بيتقروا برّه الـ remember: دول `@Composable get()`
+    // ومينفعش يتنادوا جوه لامبدا مش كومبوزابل. وبيدخلوا كمفاتيح عشان اللستة
+    // تتحسب من أول وجديد لما الثيم يتبدّل.
+    val categoryPalette = chartCategorical
+    val neutralTint = outlineVariant
+    val sampleItems = remember(inventory, categoryPalette, neutralTint) {
         if (inventory.isNotEmpty()) {
             inventory.map {
                 val catBg = when (it.category) {
-                    "فاكهة" -> Color(0xFFFCEAEA)
-                    "خضار" -> Color(0xFFE9F5E9)
-                    "ألبان" -> Color(0xFFEAF2FB)
-                    "مخبوزات" -> Color(0xFFFBF1E3)
-                    "لحوم" -> Color(0xFFFFEBEE)
-                    "مشروبات" -> Color(0xFFE3F2FD)
-                    else -> Color(0xFFF1F5F9)
+                    "خضار" -> categoryPalette[0].copy(alpha = 0.14f)
+                    "ألبان", "مشروبات" -> categoryPalette[1].copy(alpha = 0.14f)
+                    "مخبوزات" -> categoryPalette[2].copy(alpha = 0.14f)
+                    "فاكهة", "لحوم" -> categoryPalette[3].copy(alpha = 0.14f)
+                    else -> neutralTint
                 }
                 FoodItemSample(
                     name = it.itemName,
@@ -381,7 +384,7 @@ fun ZadFoodShortagesGlanceCard(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(
-                    modifier = Modifier.size(32.dp).clip(CircleShape).background(Color(0xFFE3F5EC)),
+                    modifier = Modifier.size(32.dp).clip(CircleShape).background(primary.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Default.Inventory2, contentDescription = null, tint = primary, modifier = Modifier.size(16.dp))
@@ -431,7 +434,7 @@ private fun FoodGlanceTile(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
             .background(surfaceContainerLow)
-            .border(1.dp, Color(0xFFF1F5F9), RoundedCornerShape(16.dp))
+            .border(1.dp, outlineVariant, RoundedCornerShape(16.dp))
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -450,7 +453,7 @@ private fun FoodGlanceTile(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(99.dp))
-                        .background(Color(0xFFFEE2E2))
+                        .background(dangerColor.copy(alpha = 0.12f))
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Text(stringResource(R.string.glance_expiring_soon), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = dangerColor)
@@ -556,7 +559,7 @@ fun ZadSubscriptionsGlanceCard(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(
-                    modifier = Modifier.size(32.dp).clip(CircleShape).background(Color(0xFFE8F1FC)),
+                    modifier = Modifier.size(32.dp).clip(CircleShape).background(infoColor.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Default.CreditCard, contentDescription = null, tint = infoColor, modifier = Modifier.size(16.dp))
@@ -588,7 +591,7 @@ fun ZadSubscriptionsGlanceCard(
                 title = "مفيش اشتراكات لسه",
                 subtitle = "ضيف اشتراكاتك الشهرية عشان زاد يحسبها في المتاح ويفكّرك بمواعيد التجديد",
                 iconTint = infoColor.copy(alpha = 0.55f),
-                iconBackground = Color(0xFFE8F1FC),
+                iconBackground = infoColor.copy(alpha = 0.12f),
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
             )
         } else {
@@ -661,7 +664,7 @@ fun ZadPharmacyGlanceCard(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(
-                    modifier = Modifier.size(32.dp).clip(CircleShape).background(Color(0xFFFCE8ED)),
+                    modifier = Modifier.size(32.dp).clip(CircleShape).background(dangerColor.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Default.LocalPharmacy, contentDescription = null, tint = dangerColor, modifier = Modifier.size(16.dp))
@@ -720,9 +723,9 @@ fun ZadPharmacyGlanceCard(
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.Check, contentDescription = null, tint = onError, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(stringResource(R.string.glance_dose_taken), fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(stringResource(R.string.glance_dose_taken), fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = onError)
                 }
             }
         }
@@ -747,7 +750,7 @@ fun ZadPharmacyGlanceCard(
                 title = "الصيدلية فاضية",
                 subtitle = "صوّر شريط الدواء أو ضيفه يدوي، وزاد هيفكّرك بمواعيد الجرعات وينبّهك قبل ما يخلص",
                 iconTint = dangerColor.copy(alpha = 0.55f),
-                iconBackground = Color(0xFFFCE8ED),
+                iconBackground = dangerColor.copy(alpha = 0.12f),
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
             )
         } else {
