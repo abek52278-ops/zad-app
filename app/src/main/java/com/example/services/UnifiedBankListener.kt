@@ -329,40 +329,6 @@ class UnifiedBankListener : NotificationListenerService() {
      * (AED/KWD/QAR/BHD/OMR/JOD/LBP/IQD/SYP/YER/ILS/LYD/SDG/MAD/TND/DZD)، ومفردات فرنساوية
      * — بنوك المغرب/الجزائر/تونس كتير بتبعت رسائلها بالفرنساوي بدل العربي.
      */
-    private val moneyKeywords = listOf(
-        // عربي — بنوك (فصحى، مشتركة بين كل الأسواق العربية)
-        "ر.س", "رس", "ريال", "SAR", "خصم", "شراء", "دفع", "تم الدفع",
-        "رصيد", "إيداع", "تحويل", "مبلغ", "بطاقة", "مشتريات", "سحب",
-        "راتب", "مرتب", "مدين", "دائن", "قسط", "فاتورة", "اشتراك",
-        // خصومات الاشتراكات والأقساط والفواتير — العميل بيسأل "الخصم ده ليه؟"
-        // فالكلمات دي هي اللي تخلّي الإشعار يوصل للعقل يصنفه (اشتراك/قسط/فاتورة)
-        "تم الخصم", "خصم دوري", "تجديد تلقائي", "التزام شهري", "قسط شهري",
-        "سداد", "تم السداد", "استحقاق", "مستحق", "دفعة", "أقساط",
-        "تجديد اشتراك", "إشعار خصم", "auto debit", "recurring",
-        "إيجار", "قسط إيجار", "تم التحويل من", "أمر خصم",
-        "فاتورة كهربا", "فاتورة مياه", "فاتورة نت", "فاتورة الجوال",
-        "الكهرباء", "المياه", "الاتصالات", "الإنترنت",
-        // عربي — محافظ وتجارة
-        "محفظة", "تم استلام", "تم إرسال", "تم تحويل", "عملية", "معاملة",
-        "طلبك", "استرجاع", "استرداد", "كاش باك", "نقاط", "تم الشراء",
-        // إنجليزي
-        "pay", "paid", "purchase", "amount", "debit", "credit", "transfer",
-        "balance", "deposit", "withdraw", "refund", "cashback", "receipt",
-        "transaction", "charged", "order total", "salary",
-        // تركي
-        "TL", "₺", "TRY", "ödeme", "harcama", "bakiye", "kartınızdan",
-        "fatura", "maaş", "iade", "havale", "eft", "işlem",
-        // مصري
-        "EGP", "ج.م", "جنيه",
-        // مرحلة ٢ — رموز/أكواد عملات الأسواق الجديدة (خليجي/شامي/عراقي/مغاربي)
-        "AED", "د.إ", "KWD", "د.ك", "QAR", "ر.ق", "BHD", "د.ب", "OMR", "ر.ع",
-        "JOD", "د.أ", "LBP", "ل.ل", "IQD", "د.ع", "SYP", "ل.س", "YER", "ر.ي",
-        "ILS", "₪", "LYD", "د.ل", "SDG", "ج.س", "MAD", "د.م", "TND", "د.ت",
-        "DZD", "د.ج", "دينار", "درهم",
-        // فرنساوي — بنوك المغرب/الجزائر/تونس غالباً بتبعت رسايلها بالفرنساوي
-        "paiement", "achat", "solde", "virement", "retrait", "carte bancaire", "montant", "débit", "crédit"
-    )
-
     /**
      * A notification is worth parsing when it comes from a financial app, or —
      * for everything else, messaging apps included — when it both talks about
@@ -381,8 +347,7 @@ class UnifiedBankListener : NotificationListenerService() {
         if (content.isBlank()) return false
         if (isTrackedFinancialApp(packageName)) return true
 
-        val hasKeyword = moneyKeywords.any { content.contains(it, ignoreCase = true) }
-        if (!hasKeyword) return false
+        if (!SaBankParser.mentionsMoney(content)) return false
         return SaBankParser.extractAmount(content) != null
     }
 
