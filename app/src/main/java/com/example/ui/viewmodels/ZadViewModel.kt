@@ -2187,7 +2187,10 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return@launch
             val fresh = SupabaseRepo.getPendingInsights(userId)
             val alreadyKnown = _zadInsights.value.map { it.id }.toSet()
-            _zadInsights.value = fresh
+            // نفس السطح للاتنين عن قصد: العميل لازم يبص في مكان واحد بس عشان يعرف
+            // "فيه حاجة مستنياني؟". سطح تاني منفصل هو بالظبط نوع الفجوة اللي بتتنسى
+            // — زي ما الطابور ده نفسه فضل منسي لحد ما اتفحص.
+            _zadInsights.value = fresh + localExhaustedInsights()
             fresh.filter { it.surface == "voice" && it.id !in alreadyKnown }.forEach { insight ->
                 speakInsight(insight)
                 SupabaseRepo.updateInsightStatus(insight.id, "seen")
@@ -2233,9 +2236,80 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         super.onCleared()
     }
 
+    /** بادئة بتفرّق الكارت المحلي عن صف السيرفر في نفس القايمة. */
+    private val outboxInsightPrefix = "local_outbox_"
+
+    /**
+     * الإشعارات اللي استنفدت محاولات التسليم، كأسئلة على نفس سطح رؤى زاد.
+     *
+     * الپارسر بيتنادى تاني على النص الخام: لو لقى مبلغ (حتى بثقة أقل من عتبة الكتابة
+     * التلقائية) الكارت بيبقى سؤال نعم/لا بمبلغ حقيقي. لو مالقاش، بيبقى كارت خبري
+     * بالنص الخام — العميل يشوفه ويضيف يدوي. الحالتين مش صامتين.
+     */
+    private suspend fun localExhaustedInsights(): List<com.example.data.ZadInsight> =
+        com.example.data.SyncOutbox.exhaustedNotifications(getApplication()).map { n ->
+            val parsed = runCatching {
+                com.example.data.SaBankParser.detectAndParse(n.packageName, n.title, n.text)
+            }.getOrNull()
+            val amountText = parsed?.let { "${it.amount.asMoney()} ${it.currency ?: ""}".trim() }
+            com.example.data.ZadInsight(
+                id = "$outboxInsightPrefix${n.opId}",
+                kind = "question",
+                surface = "home_card",
+                priority = "normal",
+                title = getApplication<android.app.Application>().getString(R.string.outbox_stuck_title),
+                body = if (amountText != null) {
+                    getApplication<android.app.Application>()
+                        .getString(R.string.outbox_stuck_body_with_amount, amountText, n.title)
+                } else {
+                    getApplication<android.app.Application>()
+                        .getString(R.string.outbox_stuck_body_no_amount, n.title)
+                },
+                // من غير مبلغ مفيش حاجة نعم/لا تسجّلها — الكارت بيبقى خبري وبيتقفل بالرفض بس
+                actionType = if (amountText != null) "yes_no" else null,
+                aboutItem = n.text.take(200),
+                status = "pending",
+            )
+        }
+
+    /** مدخل طابور محلي مش صف سيرفر؟ */
+    private fun isLocalOutboxInsight(id: String) = id.startsWith(outboxInsightPrefix)
+
+    private fun outboxOpIdOf(id: String) = id.removePrefix(outboxInsightPrefix).ifBlank { null }
+
+    /**
+     * العميل أكّد إشعار عالق — بيتسجّل من مسار الإضافة العادي (اللي بيصفّ في الطابور
+     * لوحده لو لسه أوفلاين)، وبعدين المدخل بيتشال.
+     */
+    private suspend fun acceptExhaustedNotification(insight: com.example.data.ZadInsight) {
+        val opId = outboxOpIdOf(insight.id) ?: return
+        val stuck = com.example.data.SyncOutbox.exhaustedNotifications(getApplication())
+            .firstOrNull { it.opId == opId }
+        stuck?.let { n ->
+            runCatching {
+                com.example.data.SaBankParser.detectAndParse(n.packageName, n.title, n.text)
+            }.getOrNull()?.let { parsed ->
+                addTransaction(
+                    amount = parsed.amount,
+                    title = parsed.title,
+                    isExpense = parsed.isExpense,
+                    category = parsed.category,
+                )
+            }
+        }
+        com.example.data.SyncOutbox.dropExhaustedNotification(getApplication(), opId)
+        _zadInsights.value = _zadInsights.value.filterNot { it.id == insight.id }
+    }
+
     fun dismissInsight(id: String) {
         viewModelScope.launch {
-            SupabaseRepo.updateInsightStatus(id, "dismissed")
+            if (isLocalOutboxInsight(id)) {
+                outboxOpIdOf(id)?.let {
+                    com.example.data.SyncOutbox.dropExhaustedNotification(getApplication(), it)
+                }
+            } else {
+                SupabaseRepo.updateInsightStatus(id, "dismissed")
+            }
             _zadInsights.value = _zadInsights.value.filterNot { it.id == id }
         }
     }
@@ -2258,6 +2332,12 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun answerBrainQuestion(insight: com.example.data.ZadInsight, answerText: String) {
         viewModelScope.launch {
+            // الكارت المحلي عمره ما وصل السيرفر، فمفيش صف هناك يتحدّث ولا حدث يتبعت.
+            if (isLocalOutboxInsight(insight.id)) {
+                if (answerText.trim() == "أيوة") acceptExhaustedNotification(insight)
+                else dismissInsight(insight.id)
+                return@launch
+            }
             SupabaseRepo.updateInsightStatus(insight.id, "acted")
             _zadInsights.value = _zadInsights.value.filterNot { it.id == insight.id }
             val context = buildString {

@@ -28,6 +28,30 @@ object SyncOutbox {
     private const val TAG = "SyncOutbox"
     private val json = Json { ignoreUnknownKeys = true }
 
+    /**
+     * سقف محاولات التسليم قبل ما نبطّل نعيد ونسأل العميل.
+     *
+     * كان `attempts` بيتزوّد وما بيتقراش في أي مكان — فمدخل ما بيوصلش السيرفر يفضل
+     * يتعاد كل ٣ ساعات (TransactionSyncWorker) + كل رجوع شبكة + كل مزامنة، للأبد.
+     *
+     * ١٢ محاولة = ~٣٦ ساعة على مدار الـ٣ ساعات لوحده، وأكتر بكتير مع محفزات الشبكة.
+     * انقطاع أطول من كده مش انقطاع مؤقت. مفيش backoff: المحفزات نفسها متباعدة أصلاً
+     * وbackoff فوقها هيوصل لأيام.
+     */
+    const val MAX_DELIVERY_ATTEMPTS = 12
+
+    /**
+     * المدخل استنفد محاولاته؟
+     *
+     * دقة مهمة في التسمية: ده **مش** "السيرفر رفضه". أي رد دلالي من السيرفر
+     * (logged/ignored/ambiguous/needs_classification/awaiting_confirmation) بيمسح
+     * المدخل فوراً. اللي بيوصل للسقف هو اللي **ما وصلش السيرفر أصلاً**: مفيش نت، أو
+     * `currentUserOrNull()` بترجع null (المستخدم مسجّل خروج)، أو حالة راجعة مش
+     * معروفة للعميل. من منظور العميل السؤال واحد — "هل ده معاملة؟" — بغض النظر عن
+     * السبب التقني.
+     */
+    fun isExhausted(attempts: Int): Boolean = attempts >= MAX_DELIVERY_ATTEMPTS
+
     suspend fun enqueueTransaction(context: Context, transaction: ZadTransaction) {
         try {
             val dao = ZadDatabase.getDatabase(context).zadDao()
@@ -253,7 +277,9 @@ object SyncOutbox {
 
     suspend fun flush(context: Context) {
         val dao = ZadDatabase.getDatabase(context).zadDao()
-        val pending = dao.getAllPendingSyncOps()
+        // المستنفد مابيتعادش — بقى سؤال للعميل مش عملية تسليم. بيفضل في الجدول عشان
+        // dropExhaustedNotification هي الطريقة الوحيدة لمسحه، فمفيش بيانات بتتبلع صامت.
+        val pending = dao.getAllPendingSyncOps().filterNot { isExhausted(it.attempts) }
         if (pending.isEmpty()) return
         Log.d(TAG, "flush: ${pending.size} pending op(s)")
         pending.forEach { op ->
@@ -399,6 +425,45 @@ object SyncOutbox {
     /** بدل التسجيل التلقائي بتخمين الـ AI — بيبعت للعقل المشترك (zad-brain) يكتب سؤال
      * حقيقي ("سحب ولا إيداع؟") يظهر في "رؤى زاد" على الرئيسية، بدل ما يتسجل بتخمين ثقته
      * أقل من العتبة المعتمدة في كل مسار تسجيل تلقائي تاني في التطبيق. */
+    /** إشعار استنفد محاولاته ومستني رد العميل. */
+    data class ExhaustedNotification(
+        val opId: String,
+        val packageName: String,
+        val title: String,
+        val text: String,
+    )
+
+    /**
+     * الإشعارات اللي وقفنا نحاول نسلّمها ومحتاجة العميل يقرر فيها.
+     *
+     * أنواع العمليات التانية (معاملة، مخزون، ديون...) لو استنفدت بتفضل واقفة من غير
+     * سؤال: دي بيانات العميل كتبها بنفسه وهو عارف بيها، مش إشعار جاي من برّه محتاج
+     * تفسير. السؤال هنا خاص بالإشعارات بالذات.
+     */
+    suspend fun exhaustedNotifications(context: Context): List<ExhaustedNotification> = try {
+        ZadDatabase.getDatabase(context).zadDao().getAllPendingSyncOps()
+            .filter { it.opType == "analyze_unparsed_notification" && isExhausted(it.attempts) }
+            .mapNotNull { op ->
+                runCatching {
+                    val p = json.decodeFromString<UnparsedNotificationPayload>(op.payloadJson)
+                    ExhaustedNotification(op.id, p.source, p.title, p.text)
+                }.getOrNull()
+            }
+    } catch (e: Exception) {
+        Log.e(TAG, "exhaustedNotifications failed: ${e.message}")
+        emptyList()
+    }
+
+    /** العميل قرر — سجّلها أو رفضها. الحالتين بيشيلوا المدخل. */
+    suspend fun dropExhaustedNotification(context: Context, opId: String) {
+        try {
+            val dao = ZadDatabase.getDatabase(context).zadDao()
+            dao.getAllPendingSyncOps().firstOrNull { it.id == opId }?.let { dao.deletePendingSyncOp(it.id) }
+        } catch (e: Exception) {
+            Log.e(TAG, "dropExhaustedNotification failed: ${e.message}")
+        }
+    }
+
     private suspend fun askServerToConfirmAmbiguous(
         payload: UnparsedNotificationPayload,
         parsed: ZadTransaction?

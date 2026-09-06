@@ -1740,4 +1740,7 @@
     <string name="companion_state_happy">زاد: مبسوط</string>
     <string name="companion_state_alert">زاد: تنبيه</string>
     <string name="companion_state_celebrating">زاد: يحتفل</string>
+    <string name="outbox_stuck_title">إشعار لم يصل إلى زاد</string>
+    <string name="outbox_stuck_body_with_amount">وصل إشعار بمبلغ %1$s (%2$s) ولم نتمكن من إيصاله. هل نسجّله؟</string>
+    <string name="outbox_stuck_body_no_amount">وصل إشعار (%1$s) ولم نتمكن من قراءة مبلغ منه. راجعه وأضفه يدوياً إن كان معاملة.</string>
 </resources>

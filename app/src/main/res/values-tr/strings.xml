@@ -1748,4 +1748,7 @@
     <string name="companion_state_happy">Zad: mutlu</string>
     <string name="companion_state_alert">Zad: uyarı</string>
     <string name="companion_state_celebrating">Zad: kutluyor</string>
+    <string name="outbox_stuck_title">Bir bildirim Zad’a ulaşmadı</string>
+    <string name="outbox_stuck_body_with_amount">%1$s tutarındaki bildirim (%2$s) iletilemedi. Kaydedilsin mi?</string>
+    <string name="outbox_stuck_body_no_amount">Bir bildirim (%1$s) geldi ancak tutar okunamadı. İşlemse elle ekleyin.</string>
 </resources>
