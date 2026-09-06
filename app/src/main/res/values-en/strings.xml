@@ -1744,4 +1744,11 @@
     <string name="auth_have_account">Already have an account? </string>
     <string name="onboarding_next">Next</string>
     <string name="market_continue">Continue</string>
+    <string name="companion_state_idle">Zad: idle</string>
+    <string name="companion_state_listening">Zad: listening</string>
+    <string name="companion_state_focused">Zad: thinking</string>
+    <string name="companion_state_speaking">Zad: speaking</string>
+    <string name="companion_state_happy">Zad: happy</string>
+    <string name="companion_state_alert">Zad: alert</string>
+    <string name="companion_state_celebrating">Zad: celebrating</string>
 </resources>

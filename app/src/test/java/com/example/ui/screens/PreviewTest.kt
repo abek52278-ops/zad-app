@@ -994,12 +994,14 @@ class PreviewTest(private val dark: Boolean) {
     fun captureCompanionOrbStates() {
         composeTestRule.setContent {
             AppTheme(darkTheme = dark) {
+                // السبع حالات كلها، عشان لو اتغير لون واحدة يبان في المقارنة.
+                // animated = false عن قصد: الرمشة بتتجدول بـ Random.nextLong، فاللقطة
+                // المتحركة ممكن تقع وسط رمشة وتخلي أي فرق بكسل بعد كده ضوضاء.
                 Box(modifier = Modifier.background(background).padding(24.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                        com.example.ui.components.CompanionOrb(com.example.ui.components.CompanionState.Idle)
-                        com.example.ui.components.CompanionOrb(com.example.ui.components.CompanionState.Focused)
-                        com.example.ui.components.CompanionOrb(com.example.ui.components.CompanionState.Happy)
-                        com.example.ui.components.CompanionOrb(com.example.ui.components.CompanionState.Alert)
+                        com.example.ui.components.CompanionState.entries.forEach { state ->
+                            com.example.ui.components.CompanionOrb(state = state, animated = false)
+                        }
                     }
                 }
             }

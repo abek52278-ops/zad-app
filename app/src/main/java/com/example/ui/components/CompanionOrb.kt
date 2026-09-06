@@ -27,7 +27,9 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.example.R
 import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.sin
@@ -35,24 +37,46 @@ import kotlin.random.Random
 
 /**
  * حالة الأيجنت العاطفية — كل حالة بتحدد لون الكورة وشكل العيون.
- * أزرق: عادي/هادئ. بنفسجي: مركّز/بيحلل. أخضر: سعيد/إنجاز. أحمر: تنبيه. دهبي: احتفال.
+ * زمردي: عادي/هادئ. سماوي: بيسمع. بنفسجي: مركّز/بيحلل. أزرق: بيتكلم.
+ * أخضر فاتح: سعيد/إنجاز. أحمر: تنبيه. دهبي: احتفال.
+ *
+ * الألوان دي **هوية**، مش توكنات ثيم، ومقصود إنها ثابتة بين اللايت والدارك:
+ * "أحمر = تنبيه" لازم يفضل أحمر زي ما شعار مابيتغيّرش. اللي بيتجاوب مع الثيم هو
+ * الهالة حوالين الكورة، لأنها مرسومة بشفافية فبتتركّب فوق أرضية الصفحة.
+ *
+ * Listening/Speaking اتضافوا وقت توحيد الأفاتار (كانوا في ZadBotEmotion المتوازي).
+ * سماوي وأزرق لأنهم لازم يتفرقوا عن الخمسة اللي فاتوا وعن بعض — دول لحظتا الإدخال
+ * والإخراج في نفس المكالمة والمستخدم بيفرّق بينهم بالنظر.
  */
 enum class CompanionState(val skyColor: Color, val deepColor: Color) {
     Idle(Color(0xFF34D399), Color(0xFF064E3B)),
+    Listening(Color(0xFF67E8F9), Color(0xFF0E7490)),
     Focused(Color(0xFFB388FF), Color(0xFF4A148C)),
+    Speaking(Color(0xFF93C5FD), Color(0xFF1D4ED8)),
     Happy(Color(0xFF7CFFB2), Color(0xFF00B26A)),
     Alert(Color(0xFFFF8A80), Color(0xFFD32F2F)),
     Celebrating(Color(0xFFFFE066), Color(0xFFF59E0B))
 }
 
-/** الوصف المسموع لحالة الأيجنت — لقارئ الشاشة، الشكل واللون بصريين بس. */
-fun companionStateDescription(state: CompanionState): String = when (state) {
-    CompanionState.Idle -> "زاد: هادئ"
-    CompanionState.Focused -> "زاد: بيفكر"
-    CompanionState.Happy -> "زاد: مبسوط"
-    CompanionState.Alert -> "زاد: تنبيه"
-    CompanionState.Celebrating -> "زاد: بيحتفل"
-}
+/**
+ * الوصف المسموع لحالة الأيجنت — لقارئ الشاشة، الشكل واللون بصريين بس.
+ *
+ * اتحوّلت لـ stringResource وقت إضافة Listening/Speaking: دي نصوص contentDescription
+ * وTalkBack بيقراها لضعاف البصر، فهي نصوص واجهة بحسب قاعدة i18n في CLAUDE.md.
+ * كانت عربي ثابت؛ إضافة اتنين جداد بنفس الشكل كانت هتزوّد المخالفة مش تقفلها.
+ */
+@Composable
+fun companionStateDescription(state: CompanionState): String = stringResource(
+    when (state) {
+        CompanionState.Idle -> R.string.companion_state_idle
+        CompanionState.Listening -> R.string.companion_state_listening
+        CompanionState.Focused -> R.string.companion_state_focused
+        CompanionState.Speaking -> R.string.companion_state_speaking
+        CompanionState.Happy -> R.string.companion_state_happy
+        CompanionState.Alert -> R.string.companion_state_alert
+        CompanionState.Celebrating -> R.string.companion_state_celebrating
+    }
+)
 
 /**
  * الكورة الهلامية — أفتار الأيجنت.

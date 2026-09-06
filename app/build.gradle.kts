@@ -192,6 +192,21 @@ val checkNoRawColorsInScreens = tasks.register("checkNoRawColorsInScreens") {
   }
 }
 
+// الحارس فوق بيقول "regenerate app/raw-color-baseline.txt" ومكانش فيه طريقة تعملها.
+// كل واحد بيقع في الحارس كان لازم يعدّل ٦٨٧ سطر بإيده أو يعيد بناء المنطق بره جرادل.
+// التاسك ده بيكتب الأساس من نفس collectRawScreenColors() اللي الفحص بيقرا منها، فمفيش
+// فرصة إن الاتنين يختلفوا.
+tasks.register("regenerateRawColorBaseline") {
+  group = "verification"
+  description = "Rewrites raw-color-baseline.txt from the current sources. Justify the growth in the commit message."
+  outputs.upToDateWhen { false }
+  doLast {
+    val header = rawColorBaseline.readLines().takeWhile { it.startsWith("#") }
+    rawColorBaseline.writeText((header + collectRawScreenColors()).joinToString("\n") + "\n")
+    println("raw-color-baseline.txt rewritten: ${collectRawScreenColors().size} entries")
+  }
+}
+
 // lintDebug is what CI runs, so hanging the check there is what makes it a real gate.
 // `check` covers local runs.
 tasks.matching { it.name == "lintDebug" || it.name == "check" }

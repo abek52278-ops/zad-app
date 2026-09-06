@@ -1747,4 +1747,11 @@
     <string name="auth_have_account">لديك حساب بالفعل؟ </string>
     <string name="onboarding_next">التالي</string>
     <string name="market_continue">متابعة</string>
+    <string name="companion_state_idle">زاد: هادئ</string>
+    <string name="companion_state_listening">زاد: بيسمع</string>
+    <string name="companion_state_focused">زاد: بيفكر</string>
+    <string name="companion_state_speaking">زاد: بيتكلم</string>
+    <string name="companion_state_happy">زاد: مبسوط</string>
+    <string name="companion_state_alert">زاد: تنبيه</string>
+    <string name="companion_state_celebrating">زاد: بيحتفل</string>
 </resources>

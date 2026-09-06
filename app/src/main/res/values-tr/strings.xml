@@ -1741,4 +1741,11 @@
     <string name="auth_have_account">Zaten hesabınız var mı? </string>
     <string name="onboarding_next">İleri</string>
     <string name="market_continue">Devam</string>
+    <string name="companion_state_idle">Zad: sakin</string>
+    <string name="companion_state_listening">Zad: dinliyor</string>
+    <string name="companion_state_focused">Zad: düşünüyor</string>
+    <string name="companion_state_speaking">Zad: konuşuyor</string>
+    <string name="companion_state_happy">Zad: mutlu</string>
+    <string name="companion_state_alert">Zad: uyarı</string>
+    <string name="companion_state_celebrating">Zad: kutluyor</string>
 </resources>
