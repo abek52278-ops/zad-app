@@ -430,17 +430,147 @@ object SaBankParser {
 
     // ─── 5) استخراج اسم التاجر ───────────────────────────────────
 
-    private val merchantPatterns = listOf(
-        Regex("""(?:لدى|شراء من|من متجر|عند|في متجر|at|purchase at|payment to|to)\s+([^\n,،.]{2,35})""", RegexOption.IGNORE_CASE),
-        Regex("""(?:مع|لـ|إلى)\s+([^\n,،.\d]{3,30})""")
+    /**
+     * تجار معروفين — الاسم المعتمد مقابل كل الأشكال اللي بيتكتب بيها في الإشعارات.
+     *
+     * ⚠️ بيانات مطابقة، مش نصوص واجهة. الأشكال دي بتتطابق مع **نص الإشعار الوارد**
+     * زي ما هو، فترجمة أي واحد فيها بتكسر الاستخراج بصمت (شوف قاعدة i18n في
+     * CLAUDE.md). الاسم المعتمد (المفتاح) هو الوحيد اللي بيتعرض للمستخدم.
+     *
+     * القاموس بيتفحص **الأول** لأنه أدق من الأنماط: إشعار زي
+     * "شراء\nلدى:NOON.COM\nفي:RIYADH\nنقطة بيع:4471" بيرجع "نون" على طول من غير ما
+     * نحتاج نفكّك التداخل بين التاجر والمدينة ورقم النقطة.
+     */
+    private val knownMerchants: List<Pair<String, List<String>>> = listOf(
+        // ── تجارة إلكترونية ──
+        "نون" to listOf("noon.com", "noon", "نون"),
+        "أمازون" to listOf("amazon", "amzn", "أمازون", "امازون"),
+        "علي إكسبريس" to listOf("aliexpress", "علي اكسبريس"),
+        "شي إن" to listOf("shein", "شي ان", "شين"),
+        "نمشي" to listOf("namshi", "نمشي"),
+        "جرير" to listOf("jarir", "جرير"),
+        // "extra" المجردة مقصود إنها مش هنا: كلمة إنجليزية شائعة في نص العروض
+        "إكسترا" to listOf("extra stores", "اكسترا", "إكسترا"),
+        // ── توصيل طعام ──
+        "هنقرستيشن" to listOf("hungerstation", "hunger station", "هنقرستيشن", "هنقر ستيشن"),
+        "جاهز" to listOf("jahez", "جاهز"),
+        "مرسول" to listOf("mrsool", "مرسول"),
+        "طلبات" to listOf("talabat", "طلبات"),
+        "ذا شيفز" to listOf("thechefz", "the chefz", "ذا شيفز"),
+        // ── نقل ──
+        "أوبر" to listOf("uber", "أوبر", "اوبر"),
+        "كريم" to listOf("careem", "كريم"),
+        // ── تجزئة وبقالة ──
+        "بنده" to listOf("panda", "بنده", "بندة"),
+        "كارفور" to listOf("carrefour", "كارفور"),
+        "لولو" to listOf("lulu", "لولو"),
+        "العثيم" to listOf("othaim", "العثيم", "عثيم"),
+        "الدانوب" to listOf("danube", "الدانوب", "دانوب"),
+        "التميمي" to listOf("tamimi", "التميمي"),
+        "نستو" to listOf("nesto", "نستو"),
+        "المزرعة" to listOf("almarai", "المزرعة"),
+        // ── شراء آجل ──
+        "تابي" to listOf("tabby", "تابي"),
+        "تمارا" to listOf("tamara", "تمارا"),
+        "مدفوع" to listOf("madfu", "مدفوع"),
+        "سبوتي" to listOf("spotii", "سبوتي"),
+        "فاليو" to listOf("valu", "فاليو"),
+        // ── اشتراكات ──
+        "نتفليكس" to listOf("netflix", "نتفليكس", "نتفلكس"),
+        "سبوتيفاي" to listOf("spotify", "سبوتيفاي"),
+        "شاهد" to listOf("shahid", "شاهد"),
+        "أنغامي" to listOf("anghami", "أنغامي", "انغامي"),
+        "يوتيوب بريميوم" to listOf("youtube premium", "youtubepremium"),
+        // ── وقود ومطاعم سلسلة ──
+        "ماكدونالدز" to listOf("mcdonald", "ماكدونالدز"),
+        "ستاربكس" to listOf("starbucks", "ستاربكس"),
+        "هرفي" to listOf("herfy", "هرفي"),
+        "البيك" to listOf("albaik", "al baik", "البيك"),
+        "دنكن" to listOf("dunkin", "دنكن"),
     )
 
+    /**
+     * مدن ولواحق بتلزق باسم التاجر في إشعارات نقاط البيع.
+     *
+     * إشعار الراجحي بيجي "لدى:بنده الرياض" أو "TAMIMI MARKETS RIYADH SA"، فمن غير
+     * القص ده كان الاسم بيتخزن "بنده الرياض" و"بنده جدة" كتاجرين مختلفين، وده بيفتّت
+     * التصنيف وتحليل الإنفاق على نفس المتجر.
+     */
+    private val merchantTrailingNoise = Regex(
+        """[\s\-–—|]+(?:""" +
+            """الرياض|جده|جدة|مكة|المدينة المنورة|المدينه|الدمام|الخبر|الظهران|تبوك|أبها|ابها|""" +
+            """الطائف|بريدة|بريده|حائل|نجران|جازان|ينبع|الجبيل|الأحساء|الاحساء|القصيم|""" +
+            """القاهرة|القاهره|الاسكندرية|الإسكندرية|الجيزة|الجيزه|دبي|أبوظبي|ابوظبي|الشارقة|""" +
+            """riyadh|jeddah|jedah|makkah|madinah|dammam|khobar|dhahran|tabuk|abha|taif|""" +
+            """buraidah|hail|najran|jazan|yanbu|jubail|ahsa|qassim|cairo|alexandria|giza|""" +
+            """dubai|abu\s*dhabi|sharjah|ksa|uae""" +
+            """)(?![\p{L}\p{N}]).*${'$'}""",
+        setOf(RegexOption.IGNORE_CASE)
+    )
+
+    /** رقم نقطة بيع/طرفية/مرجع لازق في آخر الاسم — "بنده 4471"، "PANDA POS 88213". */
+    private val posTailRegex = Regex(
+        """\s*(?:نقطة\s*بيع|نقطه\s*بيع|جهاز|طرفية|طرفيه|pos|terminal|term|ref|trx)?\s*[#:]?\s*\d{3,}\s*${'$'}""",
+        RegexOption.IGNORE_CASE
+    )
+
+    /**
+     * الفاصل بين الكلمة الدالة والقيمة ممكن يكون مسافة أو نقطتين أو شرطة.
+     *
+     * الشكل السطري اللي بنوك السعودية بتستخدمه ("لدى:بنده") مكانش بيتمسك خالص قبل
+     * كده، لأن النمط القديم كان بيطلب `\s+` بعد الكلمة الدالة والنقطتين مش مسافة.
+     */
+    private val merchantPatterns = listOf(
+        // كلمات دالة صريحة على التاجر — أعلى ثقة
+        Regex("""(?:لدى|التاجر|اسم المتجر|شراء من|من متجر|في متجر|عند|merchant|at|purchase at|payment to)\s*[:\-–]?\s*([^\n,،.;؛]{2,40})""", RegexOption.IGNORE_CASE),
+        // أضعف: حروف جر بتظبط في صيغ الحوالات (المستفيد = التاجر عملياً).
+        // "مع" اتشالت عن قصد: "لا تشاركه مع أحد" جملة ثابتة في كل رسائل رمز التحقق،
+        // وكانت بتطلّع تاجر اسمه "أحد" من إشعار مش معاملة أصلاً.
+        Regex("""(?:لـ|إلى|to)\s*[:\-–]?\s*([^\n,،.;؛\d]{3,30})""", RegexOption.IGNORE_CASE)
+    )
+
+    /** لواحق بنكية بتتلزق بالاسم لما الإشعار يكون سطر واحد. */
+    private val merchantInlineTail =
+        Regex("""(?:بمبلغ|مبلغ|رصيد|الرصيد|بطاقة|البطاقة|بواسطة|حسابك|في تاريخ|بتاريخ|card|amount|balance).*""")
+
+    /**
+     * تنضيف اسم التاجر من كل اللي بيلزق بيه في نص الإشعار.
+     *
+     * الترتيب مقصود: اللاحقة البنكية الأول (بتقص أطول جزء)، بعدين المدينة، بعدين رقم
+     * نقطة البيع، وآخر حاجة الترقيم اللي بيفضل على الأطراف.
+     */
+    internal fun cleanMerchant(raw: String): String? {
+        var m = raw.trim()
+        m = m.replace(merchantInlineTail, "").trim()
+        m = m.replace(merchantTrailingNoise, "").trim()
+        m = m.replace(posTailRegex, "").trim()
+        m = m.trim(' ', '-', '–', '—', '|', '*', ':', '/', '\\', '\t')
+        if (m.length < 2) return null
+        // اسم كله أرقام مش تاجر
+        if (m.all { it.isDigit() || it.isWhitespace() }) return null
+        return m.take(35)
+    }
+
+    /**
+     * التاجر من نص الإشعار.
+     *
+     * القاموس الأول لأنه أدق: بيلاقي "نون" في "NOON.COM RIYADH 4471" من غير ما يحتاج
+     * يفهم بنية السطر. الأنماط بعده للتجار اللي مش في القاموس.
+     */
     fun extractMerchant(text: String): String? {
+        val haystack = normalizeDigits(text).lowercase()
+        for ((canonical, aliases) in knownMerchants) {
+            for (alias in aliases) {
+                val a = Regex.escape(alias.lowercase())
+                // حدود مش حروف على الجنبين — يمنع "نون" جوه كلمة أطول و"sa" جوه "sale"
+                if (Regex("""(?<![\p{L}\p{N}])$a(?![\p{L}\p{N}])""").containsMatchIn(haystack)) {
+                    return canonical
+                }
+            }
+        }
         for (p in merchantPatterns) {
             p.find(text)?.let { m ->
-                val merchant = m.groupValues[1].trim()
-                    .replace(Regex("""(?:بمبلغ|مبلغ|رصيد|بطاقة).*"""), "").trim()
-                if (merchant.length >= 2) return merchant.take(35)
+                cleanMerchant(m.groupValues[1])?.let { return it }
             }
         }
         return null
