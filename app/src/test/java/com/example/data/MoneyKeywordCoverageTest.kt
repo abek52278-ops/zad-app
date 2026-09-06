@@ -119,4 +119,46 @@ class MoneyKeywordCoverageTest {
         assertFalse(SaBankParser.mentionsMoney("Your post was published"))
         assertFalse(SaBankParser.mentionsMoney("It is possible to continue"))
     }
+
+    // ── حدود الكلمات: كود العملة مايتطابقش جوه كلمة عادية ────────────────
+
+    /**
+     * السبع حالات دي كانت بتعدّي **البوابتين** قبل الإصلاح — الكلمة والمبلغ —
+     * فترجّع مبلغ من نص مش مالي خالص. متحقَّق منها بالتشغيل قبل التغيير.
+     *
+     * أخطرهم العربيتين: "وصلتك 3 رسائل جديدة" نص إشعار تطبيق المراسلة الحرفي،
+     * وهو القناة البنكية الأساسية — يعني إشعاراته بتتفحص فعلاً.
+     */
+    @Test
+    fun ordinaryWordsContainingACurrencyCodeNoLongerParseAsMoney() {
+        listOf(
+            "Retry 250" to "try جوه Retry",
+            "Details 250" to "ils جوه Details",
+            "Country 120" to "try جوه Country",
+            "pantry 75" to "try جوه pantry",
+            "Oils 60" to "ils جوه Oils",
+            "وصلتك 3 رسائل جديدة" to "رس جوه رسائل",
+            "أرسل 250 رسالة" to "رس جوه أرسل",
+        ).forEach { (text, why) ->
+            val passesBothGates = SaBankParser.mentionsMoney(text) && SaBankParser.extractAmount(text) != null
+            assertFalse("$text ($why) لسه بيعدّي البوابتين", passesBothGates)
+        }
+    }
+
+    /** الكلمات العادية دي كانت بتعدّي بوابة الكلمات كمان — مش المفروض. */
+    @Test
+    fun ordinaryWordsNoLongerTripTheKeywordGate() {
+        listOf("Currently open", "Frequently asked", "Ramadan Kareem", "Sarah replied", "yerine geçti")
+            .forEach { assertFalse(it, SaBankParser.mentionsMoney(it)) }
+    }
+
+    /**
+     * الحماية المضادة: العربي بياخد حد يمين بس عشان البادئات تفضل شغالة.
+     * حد يسار صارم كان هيكسر الصيغ دي.
+     */
+    @Test
+    fun arabicPrefixedCurrencyStillMatches() {
+        listOf("تم الخصم بالريال السعودي 250", "المبلغ بالجنيه 300", "تم الدفع بالدولار 45")
+            .forEach { assertTrue(it, SaBankParser.mentionsMoney(it)) }
+    }
 }
