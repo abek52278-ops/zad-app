@@ -82,7 +82,18 @@ android {
     compose = true
     buildConfig = true
   }
-  testOptions { unitTests { isIncludeAndroidResources = true } }
+  testOptions {
+    unitTests {
+      isIncludeAndroidResources = true
+      // الـ JVM المتفرّع للتستات بياخد 512m افتراضي، وده أقل من اللازم لتشغيل
+      // مجموعة لقطات Roborazzi كاملة: لقطة بملء الشاشة عند xxhdpi هي
+      // 3240×7200 ARGB ≈ 93MB كـ Bitmap، وجنبها نسخة Roborazzi ومخزن ترميز
+      // PNG وإطار أندرويد اللي Robolectric محمّله. فالرن الكامل كان بيقع بـ
+      // OutOfMemoryError جوه captureRoboImage — مش في دايمون Gradle، وزيادة
+      // هيب Gradle مكانتش بتفرق لأن الانهيار في عملية تانية خالص.
+      all { it.maxHeapSize = "2g" }
+    }
+  }
   lint {
     baseline = file("lint-baseline.xml")
     abortOnError = false
