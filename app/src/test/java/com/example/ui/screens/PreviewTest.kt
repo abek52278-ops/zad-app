@@ -331,11 +331,16 @@ class PreviewTest(private val dark: Boolean) {
         )
         composeTestRule.setContent {
             AppTheme(darkTheme = dark) {
-                Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                    KidsModeContent(
-                        familyState = familyState,
-                        onAddRequest = { _, _ -> }
-                    )
+                // KidsModeContent جزء من HomeScreen ومابيرسمش أرضية، فبياخد كانفس
+                // الثيم زي ما بياخده هناك.
+                Box(modifier = Modifier.fillMaxSize()) {
+                    ZadCanvasBackground(modifier = Modifier.fillMaxSize())
+                    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                        KidsModeContent(
+                            familyState = familyState,
+                            onAddRequest = { _, _ -> }
+                        )
+                    }
                 }
             }
         }
@@ -972,7 +977,12 @@ class PreviewTest(private val dark: Boolean) {
     fun captureSmartAddMedicationDialog() {
         composeTestRule.setContent {
             AppTheme(darkTheme = dark) {
-                SmartAddMedicationDialog(onDismiss = {}, onSubmit = {})
+                // نفس سبب اللفّ في اللقطات التانية: الديالوج/المحتوى ده مالوش
+                // أرضية خاصة به، والتطبيق بيعرضه فوق كانفس الثيم.
+                Box(modifier = Modifier.fillMaxSize()) {
+                    ZadCanvasBackground(modifier = Modifier.fillMaxSize())
+                    SmartAddMedicationDialog(onDismiss = {}, onSubmit = {})
+                }
             }
         }
         composeTestRule.onRoot().captureRoboImage(filePath = shot("smart_add_medication_dialog"))
@@ -1027,7 +1037,14 @@ class PreviewTest(private val dark: Boolean) {
     fun captureAddObligationDialog() {
         composeTestRule.setContent {
             AppTheme(darkTheme = dark) {
-                AddEditObligationDialog(obligation = null, onDismiss = {}, onSave = { _, _, _, _, _ -> })
+                // ملفوفة في الكانفس زي ما MainScreen بيركّبها بالظبط: الـNavHost
+                // قاعد جوه Scaffold شفاف فوق ZadCanvasBackground، والشاشة دي
+                // مابترسمش أرضية بنفسها. من غير اللفّة اللقطة بتطلع سودا في
+                // الثيمين، وده بيدّي إيجابية كاذبة لكاشف ثبات الألوان.
+                Box(modifier = Modifier.fillMaxSize()) {
+                    ZadCanvasBackground(modifier = Modifier.fillMaxSize())
+                    AddEditObligationDialog(obligation = null, onDismiss = {}, onSave = { _, _, _, _, _ -> })
+                }
             }
         }
         composeTestRule.onRoot().captureRoboImage(filePath = shot("add_obligation_dialog"))
@@ -1073,7 +1090,14 @@ class PreviewTest(private val dark: Boolean) {
     fun captureAssistantAlertsScreen() {
         composeTestRule.setContent {
             AppTheme(darkTheme = dark) {
-                AssistantAlertsScreen(onBack = {})
+                // ملفوفة في الكانفس زي ما MainScreen بيركّبها بالظبط: الـNavHost
+                // قاعد جوه Scaffold شفاف فوق ZadCanvasBackground، والشاشة دي
+                // مابترسمش أرضية بنفسها. من غير اللفّة اللقطة بتطلع سودا في
+                // الثيمين، وده بيدّي إيجابية كاذبة لكاشف ثبات الألوان.
+                Box(modifier = Modifier.fillMaxSize()) {
+                    ZadCanvasBackground(modifier = Modifier.fillMaxSize())
+                    AssistantAlertsScreen(onBack = {})
+                }
             }
         }
         composeTestRule.onRoot().captureRoboImage(filePath = shot("assistant_alerts_screen"))
@@ -1084,7 +1108,14 @@ class PreviewTest(private val dark: Boolean) {
     fun captureTermsOfServiceScreen() {
         composeTestRule.setContent {
             AppTheme(darkTheme = dark) {
-                TermsOfServiceScreen(onBack = {})
+                // ملفوفة في الكانفس زي ما MainScreen بيركّبها بالظبط: الـNavHost
+                // قاعد جوه Scaffold شفاف فوق ZadCanvasBackground، والشاشة دي
+                // مابترسمش أرضية بنفسها. من غير اللفّة اللقطة بتطلع سودا في
+                // الثيمين، وده بيدّي إيجابية كاذبة لكاشف ثبات الألوان.
+                Box(modifier = Modifier.fillMaxSize()) {
+                    ZadCanvasBackground(modifier = Modifier.fillMaxSize())
+                    TermsOfServiceScreen(onBack = {})
+                }
             }
         }
         composeTestRule.onRoot().captureRoboImage(filePath = shot("terms_of_service_screen"))
