@@ -1683,7 +1683,7 @@
     <string name="glance_open_pharmacy">فتح الصيدلية ←</string>
     <string name="glance_next_dose">الجرعة التالية</string>
     <string name="glance_dose_taken">خدت الجرعة</string>
-    <string name="report_section_forecast">2. التنبؤات والتدفق المالي للشهر القادم</string>
+    <string name="report_section_forecast">1. التنبؤات والتدفق المالي للشهر القادم</string>
     <string name="report_section_household">2. كفاءة إدارة المنزل والعائلة</string>
     <string name="report_share">📤 مشاركة التقرير</string>
     <string name="report_close">إغلاق التقرير</string>

@@ -1683,7 +1683,7 @@
     <string name="glance_open_pharmacy">Open pharmacy ←</string>
     <string name="glance_next_dose">Next dose</string>
     <string name="glance_dose_taken">Dose taken</string>
-    <string name="report_section_forecast">2. Forecast and next month\'s cash flow</string>
+    <string name="report_section_forecast">1. Forecast and next month\'s cash flow</string>
     <string name="report_section_household">2. Household and family efficiency</string>
     <string name="report_share">📤 Share report</string>
     <string name="report_close">Close report</string>

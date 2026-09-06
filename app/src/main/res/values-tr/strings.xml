@@ -1680,7 +1680,7 @@
     <string name="glance_open_pharmacy">Eczaneyi aç ←</string>
     <string name="glance_next_dose">Sonraki doz</string>
     <string name="glance_dose_taken">Doz alındı</string>
-    <string name="report_section_forecast">2. Tahmin ve gelecek ayın nakit akışı</string>
+    <string name="report_section_forecast">1. Tahmin ve gelecek ayın nakit akışı</string>
     <string name="report_section_household">2. Ev ve aile verimliliği</string>
     <string name="report_share">📤 Raporu paylaş</string>
     <string name="report_close">Raporu kapat</string>
