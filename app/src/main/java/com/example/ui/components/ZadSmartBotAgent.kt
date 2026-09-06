@@ -27,13 +27,6 @@ import kotlinx.coroutines.delay
 /**
  * Emotional state machine for the Zad SmartBot agent.
  */
-enum class ZadBotEmotion {
-    IDLE,
-    HAPPY,
-    LISTENING,
-    THINKING,
-    SPEAKING
-}
 
 /**
  * Zad SmartBot Agent — 3D Glassmorphic Emerald Orb with Living Expressive Eyes.
@@ -43,7 +36,7 @@ enum class ZadBotEmotion {
 fun ZadSmartBotAgent(
     modifier: Modifier = Modifier,
     sizeDp: Dp = 84.dp,
-    emotion: ZadBotEmotion = ZadBotEmotion.IDLE,
+    state: CompanionState = CompanionState.Idle,
     onClick: (() -> Unit)? = null
 ) {
     // ── Eye Blinking Animation ────────────────────────────────────────────────
@@ -51,10 +44,10 @@ fun ZadSmartBotAgent(
     var eyeLookX by remember { mutableStateOf(0f) }
     var eyeLookY by remember { mutableStateOf(0f) }
 
-    LaunchedEffect(emotion) {
+    LaunchedEffect(state) {
         while (true) {
             delay((2800..4500).random().toLong())
-            if (emotion != ZadBotEmotion.SPEAKING) {
+            if (state != CompanionState.Speaking) {
                 // Quick double or single blink
                 blinkAnim.animateTo(0.12f, tween(90, easing = LinearEasing))
                 blinkAnim.animateTo(1f, tween(110, easing = FastOutSlowInEasing))
@@ -68,8 +61,8 @@ fun ZadSmartBotAgent(
     }
 
     // Thinking glance motion
-    LaunchedEffect(emotion) {
-        if (emotion == ZadBotEmotion.THINKING) {
+    LaunchedEffect(state) {
+        if (state == CompanionState.Focused) {
             eyeLookX = -4f
             eyeLookY = -6f
         } else {
@@ -150,10 +143,13 @@ fun ZadSmartBotAgent(
             )
 
             // 2. Primary 3D Emerald Orb Body
-            val orbGradient = when (emotion) {
-                ZadBotEmotion.THINKING -> listOf(Color(0xFF8B5CF6), Color(0xFF4C1D95), Color(0xFF0A382C))
-                ZadBotEmotion.LISTENING -> listOf(Color(0xFF34D399), Color(0xFF0F9B76), Color(0xFF052E16))
-                ZadBotEmotion.HAPPY -> listOf(Color(0xFFFBBF24), Color(0xFF0F9B76), Color(0xFF052E16))
+            // الحالات اللي مالهاش تدرّج خاص بتقع على الزمردي الافتراضي — نفس سلوك
+            // الـ else القديم، بس دلوقتي Alert/Celebrating داخلين في نفس الاتفاقية
+            // بدل ما يكونوا مستحيلين لأن الـ enum القديم مكانش فيه حالات ليهم.
+            val orbGradient = when (state) {
+                CompanionState.Focused -> listOf(Color(0xFF8B5CF6), Color(0xFF4C1D95), Color(0xFF0A382C))
+                CompanionState.Listening -> listOf(Color(0xFF34D399), Color(0xFF0F9B76), Color(0xFF052E16))
+                CompanionState.Happy -> listOf(Color(0xFFFBBF24), Color(0xFF0F9B76), Color(0xFF052E16))
                 else -> listOf(Color(0xFF10B981), Color(0xFF064E3B), Color(0xFF052E16))
             }
             drawCircle(

@@ -3,7 +3,6 @@ package com.example.ui.screens
 import com.example.ui.components.ZadCategoryCard
 import com.example.ui.components.ZadCategoryType
 import com.example.ui.components.ZadSmartBotAgent
-import com.example.ui.components.ZadBotEmotion
 import com.example.voice.ZadVoiceManager
 import com.example.voice.VoiceState
 import com.example.ui.components.ZadWalletHeroCard
@@ -386,7 +385,7 @@ fun HomeScreen(
                     ) {
                         ZadSmartBotAgent(
                             sizeDp = 56.dp,
-                            emotion = ZadBotEmotion.IDLE,
+                            state = CompanionState.Idle,
                             onClick = onOpenVoice
                         )
                         Spacer(modifier = Modifier.width(14.dp))
@@ -1016,18 +1015,10 @@ fun HomeScreen(
             val maxOffsetPx = with(density) { (safeZoneDp - orbSizeDp).toPx() }
             var dragOffset by remember { mutableStateOf(Offset.Zero) }
             var isDragging by remember { mutableStateOf(false) }
-            // ZadVoiceManager بقى object مشترك (مش instance لكل شيت لوحده) — نفس الحالة
-            // اللي بتتحدث جوه ZadVoiceBottomSheet لما يكون مفتوح، فالكرة هنا بتعكسها
-            // فعليًا مش بس تعبير ثابت. القيمة عمليًا هتفضل IDLE أغلب الوقت لأن الشيت
-            // نفسه بيغطي الكرة وهو مفتوح، لكنها حقيقية مش مُلفّقة.
-            val realVoiceState by ZadVoiceManager.voiceState.collectAsState()
-            val restEmotion = when (realVoiceState) {
-                is VoiceState.Listening -> ZadBotEmotion.LISTENING
-                is VoiceState.Thinking -> ZadBotEmotion.THINKING
-                is VoiceState.Speaking -> ZadBotEmotion.SPEAKING
-                is VoiceState.Recognized -> ZadBotEmotion.HAPPY
-                is VoiceState.Idle, is VoiceState.Error -> ZadBotEmotion.IDLE
-            }
+            // المزاج بيتقرا من الـViewModel بدل ما يتحسب هنا. الترجمة دي كانت
+            // متكررة حرفيًا هنا وفي ZadVoiceBottomSheet، والنسختين كانوا بيشوفوا
+            // الصوت بس — الكورة مكانتش تعرف حاجة عن تنبيهات الميزانية ولا الشات.
+            val restMood by viewModel.companionMood.collectAsState()
 
             Box(
                 modifier = Modifier
@@ -1037,7 +1028,7 @@ fun HomeScreen(
             ) {
                 ZadSmartBotAgent(
                     sizeDp = orbSizeDp,
-                    emotion = if (isDragging) ZadBotEmotion.HAPPY else restEmotion,
+                    state = if (isDragging) CompanionState.Happy else restMood,
                     onClick = onOpenVoiceLive,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)

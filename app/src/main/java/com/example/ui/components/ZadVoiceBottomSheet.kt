@@ -278,20 +278,20 @@ fun ZadVoiceBottomSheet(
             // Central SmartBot Agent with Dynamic Listening Emotion
             ZadSmartBotAgent(
                 sizeDp = 96.dp,
-                emotion = if (isLiveMode) {
+                // مؤقتًا لسه بيترجم محليًا: ZadLiveVoiceSession دلوقتي instance
+                // بتتولد بـ remember جوه الشيت ده، فالـViewModel مالوش مقبض عليها
+                // يراقبه. المسار دور-بدور (voiceState) موحّد فعلاً في
+                // ZadViewModel.companionMood؛ السطرين دول بيتشالوا لما الجلسة الحية
+                // تبقى singleton زي ZadVoiceManager.
+                state = if (isLiveMode) {
                     when (liveState) {
-                        is LiveVoiceState.Listening -> ZadBotEmotion.LISTENING
-                        is LiveVoiceState.ModelSpeaking -> ZadBotEmotion.SPEAKING
-                        is LiveVoiceState.Connecting -> ZadBotEmotion.THINKING
-                        else -> ZadBotEmotion.IDLE
+                        is LiveVoiceState.Listening -> CompanionState.Listening
+                        is LiveVoiceState.ModelSpeaking -> CompanionState.Speaking
+                        is LiveVoiceState.Connecting -> CompanionState.Focused
+                        else -> CompanionState.Idle
                     }
                 } else {
-                    when (voiceState) {
-                        is VoiceState.Listening -> ZadBotEmotion.LISTENING
-                        is VoiceState.Thinking -> ZadBotEmotion.THINKING
-                        is VoiceState.Speaking -> ZadBotEmotion.SPEAKING
-                        else -> ZadBotEmotion.IDLE
-                    }
+                    companionMoodForVoice(voiceState) ?: CompanionState.Idle
                 }
             )
 

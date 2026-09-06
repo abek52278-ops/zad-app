@@ -578,6 +578,32 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     private val _companionState = MutableStateFlow(com.example.ui.components.CompanionState.Idle)
     val companionState: StateFlow<com.example.ui.components.CompanionState> = _companionState.asStateFlow()
 
+    /**
+     * المزاج الموحّد — المصدر الوحيد اللي كل أفاتار في التطبيق بيقرا منه.
+     *
+     * قبل كده كان فيه مصدرين: _companionState (شات/تنبيهات) و ZadBotEmotion اللي كل
+     * شاشة كانت بتحسبه لنفسها من VoiceState. يعني الكورة في HomeScreen ما تعرفش حاجة
+     * عن التنبيهات، والكورة في ZadIntelligenceScreen ما تعرفش حاجة عن الصوت.
+     *
+     * الصوت له الأولوية وهو شغال لأنه تفاعل لحظي بدأه المستخدم دلوقتي؛ لما يخلص
+     * بيرجع المزاج للمسار الذكي بدل ما يقع على "هادئ".
+     *
+     * Eagerly مش WhileSubscribed: الكورة العايمة في HomeScreen ممكن تختفي وترجع مع
+     * التمرير، وWhileSubscribed كانت هترجّع المزاج لقيمته الابتدائية كل مرة.
+     */
+    val companionMood: StateFlow<com.example.ui.components.CompanionState> =
+        kotlinx.coroutines.flow.combine(
+            _companionState,
+            com.example.voice.ZadVoiceManager.voiceState
+        ) { agentMood, voice ->
+            com.example.ui.components.companionMoodForVoice(voice) ?: agentMood
+        }
+            .stateIn(
+                viewModelScope,
+                kotlinx.coroutines.flow.SharingStarted.Eagerly,
+                com.example.ui.components.CompanionState.Idle
+            )
+
     private fun companionStateFromAgentSummary(summary: com.example.data.AiAgentSummary): com.example.ui.components.CompanionState = when {
         summary.alerts.any { it.type == "warning" } -> com.example.ui.components.CompanionState.Alert
         summary.alerts.any { it.type == "success" } -> com.example.ui.components.CompanionState.Happy

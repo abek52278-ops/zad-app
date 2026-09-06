@@ -61,10 +61,10 @@ import com.example.data.ZadSubscription
 import com.example.data.AiInsight
 import com.example.data.ZadAiRepository
 import com.example.ads.RewardedBrainAdManager
+import com.example.ui.components.CompanionState
 import com.example.ui.components.ZadSmartBotAgent
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
-import com.example.ui.components.ZadBotEmotion
 import com.example.voice.ZadCutePetSoundFx
 import kotlinx.coroutines.launch
 
@@ -281,7 +281,7 @@ fun ZadIntelligenceScreen(
                     // 3D Living Orb with Interactive Tap
                     ZadSmartBotAgent(
                         sizeDp = 96.dp,
-                        emotion = if (isTyping) ZadBotEmotion.THINKING else ZadBotEmotion.IDLE,
+                        state = if (isTyping) CompanionState.Focused else CompanionState.Idle,
                         onClick = {
                             chatExpanded = true
                         }

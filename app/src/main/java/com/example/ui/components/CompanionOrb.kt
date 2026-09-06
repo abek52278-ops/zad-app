@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.R
+import com.example.voice.VoiceState
 import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.sin
@@ -56,6 +57,25 @@ enum class CompanionState(val skyColor: Color, val deepColor: Color) {
     Happy(Color(0xFF7CFFB2), Color(0xFF00B26A)),
     Alert(Color(0xFFFF8A80), Color(0xFFD32F2F)),
     Celebrating(Color(0xFFFFE066), Color(0xFFF59E0B))
+}
+
+/**
+ * ترجمة حالة الصوت لمزاج — أو null لو الصوت مش شغال.
+ *
+ * null معناها "مالكش دعوة"، **مش** "هادئ". ساعتها المزاج بيرجع للمسار الذكي
+ * (شات/تنبيهات). لو رجّعنا Idle هنا، الصوت الخامل كان هيدهس تنبيه ميزانية متجاوزة
+ * وتقعد الكورة تقول "هادئ" — والفرق ده مابيكسرش أي بناء، عشان كده متغطّى بتست.
+ *
+ * دالة نقية على مستوى الملف مش ميثود في الـViewModel: ZadViewModel مايتعملش منه
+ * نسخة في تست JVM (SQLCipher محتاج مكتبة أصلية — نفس السبب اللي HomeScreenTest
+ * متعلّم بيه @Ignore)، فحطّها هناك كان معناه إنها مستحيلة الاختبار.
+ */
+fun companionMoodForVoice(voice: VoiceState): CompanionState? = when (voice) {
+    is VoiceState.Listening -> CompanionState.Listening
+    is VoiceState.Thinking -> CompanionState.Focused
+    is VoiceState.Speaking -> CompanionState.Speaking
+    is VoiceState.Recognized -> CompanionState.Happy
+    is VoiceState.Idle, is VoiceState.Error -> null
 }
 
 /**
