@@ -4080,13 +4080,13 @@ fun CategoryBreakdownCard(byCategory: Map<String, Double>) {
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)
     val sorted = byCategory.entries.sortedByDescending { it.value }
     val max = sorted.firstOrNull()?.value?.takeIf { it > 0 } ?: return
-    val palette = listOf(
-        com.example.ui.theme.ZadV2.green600,
-        com.example.ui.theme.ZadV2.info,
-        com.example.ui.theme.ZadV2.warn,
-        com.example.ui.theme.ZadV2.danger,
-        com.example.ui.theme.ZadV2.violet,
-    )
+    // كانت خمس ألوان ثابتة من ZadV3 — نفس القيم بالظبط، بس مش واعية بالثيم فكانت
+    // بتفضل درجات وسطى مختارة على خلفية بيضا حتى في الوضع الغامق. البالتة دي دلوقتي
+    // في ZadExtendedColors بنسختين، والنسخة الفاتحة بنفس القيم القديمة حرفياً.
+    //
+    // مقصود إنها بالتة تمييز مستقلة مش توكنات دلالية: الفئة التالتة في تفصيل المصاريف
+    // مش "تحذير" والرابعة مش "خطأ".
+    val palette = chartCategorical
     val context = androidx.compose.ui.platform.LocalContext.current
     com.example.ui.components.ZadListCard(shape = shape, contentPadding = 0.dp) {
         Column(
@@ -4108,7 +4108,7 @@ fun CategoryBreakdownCard(byCategory: Map<String, Double>) {
                             category,
                             fontSize = 12.5.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = ZadV2.slate,
+                            color = textOnCardSecondary,
                             modifier = Modifier.weight(1f)
                         )
                         Text(

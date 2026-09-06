@@ -38,6 +38,21 @@ data class ZadExtendedColors(
     /** Decorative radial washes behind the auth/onboarding canvas. */
     val authWashWarm: Color,
     val authWashCool: Color,
+    /**
+     * Categorical chart palette — colours whose only job is to tell series apart.
+     *
+     * Deliberately NOT the semantic tokens. The third slice of a spending breakdown is
+     * not "a warning" and the fourth is not "an error"; reusing `warningColor` /
+     * `dangerColor` there would attach a meaning the data does not have, and would also
+     * make two series collide the moment a semantic token is retuned.
+     *
+     * Ordered by how distinguishable adjacent entries are, because the consumer takes
+     * them in order (`palette[index % size]`) — so neighbouring categories must not look
+     * alike.
+     */
+    val chartCategorical: List<Color>,
+    /** Body text on a card that is not the primary label — dimmer than onSurface. */
+    val textOnCardSecondary: Color,
 )
 
 /** Exactly the values these tokens held before the extended-colour mechanism existed. */
@@ -60,6 +75,16 @@ val ZadExtendedColorsLight = ZadExtendedColors(
     surfaceContainerHigh = ZadIosSurfaceVariant,
     authWashWarm = Color(0xFFFCD3C7),
     authWashCool = Color(0xFFBFE3D1),
+    // Exactly the values CategoryBreakdownCard used as ZadV3.green600 / info / warn /
+    // danger / violet, in the same order — so the light rendering is unchanged.
+    chartCategorical = listOf(
+        Color(0xFF0F9B76),
+        Color(0xFF2563EB),
+        Color(0xFFB45309),
+        Color(0xFFDC5B4B),
+        Color(0xFF7C3AED),
+    ),
+    textOnCardSecondary = Color(0xFF374151),
 )
 
 /**
@@ -92,6 +117,18 @@ val ZadExtendedColorsDark = ZadExtendedColors(
     // not the pastels — those wash out to a light screen, which is the bug being fixed.
     authWashWarm = Color(0xFF3A1E16),
     authWashCool = Color(0xFF14302A),
+    // Same five hues, lifted to read on a dark ground. The light values are mid-tones
+    // chosen against white; on near-black they lose separation and #B45309 in particular
+    // goes muddy. Hue and order are preserved so a category keeps its colour identity
+    // between themes — only luminance moves.
+    chartCategorical = listOf(
+        Color(0xFF34D399),
+        Color(0xFF60A5FA),
+        Color(0xFFE9A844),
+        Color(0xFFF08A7A),
+        Color(0xFFA78BFA),
+    ),
+    textOnCardSecondary = Color(0xFFB9BDB3),
 )
 
 val LocalZadExtendedColors = staticCompositionLocalOf { ZadExtendedColorsLight }

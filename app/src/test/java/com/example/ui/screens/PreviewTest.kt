@@ -486,6 +486,31 @@ class PreviewTest(private val dark: Boolean) {
         composeTestRule.onRoot().captureRoboImage(filePath = shot("add_transaction_sheet"))
     }
 
+    /**
+     * تفصيل الفئات — بيستخدم بالتة التمييز الخماسية. خمس فئات بالظبط عشان اللقطة
+     * تغطّي الخمس ألوان كلها؛ بأقل من كده كان فيه لون مش هيترسم وأي تغيير فيه هيعدّي
+     * من المقارنة من غير ما يبان.
+     */
+    @Test
+    fun captureCategoryBreakdown() {
+        composeTestRule.setContent {
+            AppTheme(darkTheme = dark) {
+                Box(modifier = Modifier.background(background).padding(16.dp)) {
+                    CategoryBreakdownCard(
+                        byCategory = linkedMapOf(
+                            "بقالة" to 1850.0,
+                            "مواصلات" to 940.0,
+                            "فواتير" to 720.0,
+                            "صحة" to 430.0,
+                            "ترفيه" to 260.0,
+                        )
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(filePath = shot("category_breakdown"))
+    }
+
     @Test
     fun captureSubscriptionCard_unrecognizedBrand() {
         composeTestRule.setContent {

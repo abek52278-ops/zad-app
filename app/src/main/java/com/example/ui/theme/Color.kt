@@ -143,6 +143,11 @@ val textTertiary: Color @Composable get() = LocalZadExtendedColors.current.textT
 
 // Semantic Colors
 val successColor: Color @Composable get() = LocalZadExtendedColors.current.success
+
+/** Categorical chart palette — see ZadExtendedColors.chartCategorical for why these are
+ *  deliberately not the semantic tokens. */
+val chartCategorical: List<Color> @Composable get() = LocalZadExtendedColors.current.chartCategorical
+val textOnCardSecondary: Color @Composable get() = LocalZadExtendedColors.current.textOnCardSecondary
 val dangerColor: Color @Composable get() = MaterialTheme.colorScheme.error
 val warningColor: Color @Composable get() = MaterialTheme.colorScheme.secondary
 val infoColor: Color @Composable get() = LocalZadExtendedColors.current.info
