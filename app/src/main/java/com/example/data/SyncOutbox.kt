@@ -393,7 +393,17 @@ object SyncOutbox {
                     }
                     "analyze_unparsed_notification" -> {
                         val payload = json.decodeFromString<UnparsedNotificationPayload>(op.payloadJson)
-                        val parsed = ZadAiRepository.analyzeBankNotification(payload.title, payload.text)
+                        // التحليل المحلي بيتعاد **الأول**.
+                        //
+                        // قبل كده الإعادة كانت بتنادي الـAI على طول وتبعت
+                        // client_classification="ambiguous" و confidence=0.0 **ثابتين**، يعني
+                        // بتقول للسيرفر "مش عارف" في كل محاولة مهما كان الپارسر بقى يعرف.
+                        // النتيجة إن أي تحسين في SaBankParser مايقدرش ينقذ إشعار اتصفّف قبله:
+                        // صف حقيقي عمره ٢١ يوم (مشترى أمازون بـ245.24 جنيه) فضل غامض والپارسر
+                        // بقى يقراه بثقة 1.0. دلوقتي الطابور بيستفيد من كل تحسين بأثر رجعي.
+                        val localReparse = SaBankParser.classifyNotification(
+                            payload.source, payload.title, payload.text, context
+                        )
                         // كان بيسجل المعاملة على طول بمجرد ما الـ AI يرجّع أي تفسير (ثقة ≥ 0.6،
                         // أقل من الـ 0.9 المعمول بيه في باقي مسارات التسجيل التلقائي) — يعني
                         // إشعار وصل هنا أصلاً لأن التحليل المحلي فشل يفهمه، وبرضه بيتسجل من
@@ -402,10 +412,21 @@ object SyncOutbox {
                         // amount, the raw notification still goes to zad-brain so Telegram can
                         // ask the customer for the missing amount/direction. The server's
                         // durable hash owns dedupe and resumes the same proposal or review.
-                        val serverStatus = askServerToConfirmAmbiguous(payload, parsed)
+                        val reparsed = localReparse.transaction
+                        val serverStatus = if (
+                            localReparse.classification == NotificationClassification.COMPLETED_TRANSACTION &&
+                            reparsed != null
+                        ) {
+                            sendReparsedNotification(payload, reparsed)
+                        } else {
+                            askServerToConfirmAmbiguous(
+                                payload,
+                                ZadAiRepository.analyzeBankNotification(payload.title, payload.text)
+                            )
+                        }
                         if (isAcceptedNotificationIngestStatus(serverStatus)) {
                             dao.deletePendingSyncOp(op.id)
-                            Log.d(TAG, "flush: server accepted '${parsed?.title ?: payload.title}' as $serverStatus — cleared op ${op.id}")
+                            Log.d(TAG, "flush: server accepted '${reparsed?.title ?: payload.title}' as $serverStatus — cleared op ${op.id}")
                         } else {
                             dao.insertPendingSyncOp(op.copy(attempts = op.attempts + 1))
                             Log.w(TAG, "flush: confirmation handoff failed for op ${op.id} (attempt ${op.attempts + 1}) — left queued")
@@ -462,6 +483,50 @@ object SyncOutbox {
         } catch (e: Exception) {
             Log.e(TAG, "dropExhaustedNotification failed: ${e.message}")
         }
+    }
+
+    /**
+     * الإشعار بقى مقروء محليًا بعد ما كان غامض — بيتبعت بتصنيفه وثقته الحقيقيين.
+     *
+     * الفرق عن [askServerToConfirmAmbiguous] إن ده بيقول "completed" وبيبعت الثقة زي
+     * ما هي، فبوابة الكتابة عند السيرفر (completed + ثقة ≥ 0.9) تقدر تشتغل. البوابة
+     * دي **ما اتغيّرتش**: العميل بيبلّغ بالحقيقة، والسيرفر لسه هو اللي بيقرر يكتب.
+     */
+    private suspend fun sendReparsedNotification(
+        payload: UnparsedNotificationPayload,
+        parsed: ParsedBankTx,
+    ): String? = try {
+        val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
+        if (userId == null) null else {
+            val response = SupabaseRepo.callEdgeFunction(
+                "zad-brain",
+                mapOf(
+                    "action" to "notification_ingest",
+                    "user_id" to userId,
+                    "source" to "notification_listener_reparse",
+                    "package_name" to payload.source,
+                    "title" to payload.title,
+                    "text" to payload.text,
+                    "client_classification" to "completed",
+                    "parsed" to mapOf(
+                        "amount" to parsed.amount,
+                        "is_expense" to parsed.isExpense,
+                        "title" to parsed.title,
+                        "category" to parsed.category,
+                        "merchant_name" to (parsed.merchantName ?: parsed.title),
+                        "bank_name" to parsed.bankName,
+                        "txn_kind" to if (parsed.isExpense) "expense" else "income",
+                        "currency" to (parsed.currency ?: ""),
+                        "confidence" to parsed.confidence,
+                    )
+                ),
+                timeoutMs = 20_000L
+            )
+            response["status"]?.toString()
+        }
+    } catch (e: Exception) {
+        Log.e(TAG, "sendReparsedNotification failed: ${e.message}")
+        null
     }
 
     private suspend fun askServerToConfirmAmbiguous(
