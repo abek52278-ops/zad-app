@@ -71,6 +71,36 @@ Applies to every screen/composable added or touched, adapted from the `mobile-ap
 **فايدة جانبية تستاهل التنبيه:** `contentDescription` نصوص واجهة كمان — TalkBack
 بيقراها لضعاف البصر. كانت عربي ثابت في `CameraScreen` واتنقلت.
 
+## Bank notifications arrive from an UNTRACKED package — measured 2026-09-06
+
+`UnifiedBankListener.trackedPackages` (170 entries) is **not** the bank channel's
+coverage. It lists named financial apps. Bank messages themselves arrive through the
+messaging app's notification — `com.google.android.apps.messaging`, which is **not** in
+that list, and neither is any other messaging app.
+
+That follows from `757f41c` dropping `RECEIVE_SMS` for Play Store compliance and
+replacing `UnifiedSmsReceiver` with a notification listener. Bank text stopped being an
+SMS broadcast and became a notification from whichever app displays it.
+
+So a bank message reaches the pipeline either through `isFinancialNotification`'s
+keyword + amount check, or through the **broad-catch branch** when the bank's wording
+misses those keywords. The broad catch is the safety net for the primary bank channel,
+not a fringe path for unknown apps — despite looking like one (unknown packages, a daily
+cap, a comment mentioning junk notifications).
+
+Measured over the whole of `zad_notification_ingest_events` (6 rows): **all six came
+from untracked packages**, and the three that actually produced a transaction were all
+from the messaging app, all with `client_classification = "ambiguous"`. That is 100% of
+this project's recorded bank transactions arriving through the untracked path. The
+measured waste in the same sample is two Google Photos notifications, which
+`SaBankParser.shouldSendToBrain` now drops (`917ac88`).
+
+**Never tighten filtering on untracked packages without re-measuring first.** A third
+suppression rule was proposed and rejected on this evidence. Full numbers, the
+re-measurement query, and the sample's limits (one user, no traffic in the last 7 days —
+it establishes direction, not volume) are in
+[`docs/agent/BANK_NOTIFICATION_CHANNEL.md`](./docs/agent/BANK_NOTIFICATION_CHANNEL.md).
+
 ## Secure-coding checklist
 
 Scoped to this app's actual attack surface (Android client + Supabase backend + AI chat) — not a general pentesting checklist:

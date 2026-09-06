@@ -27,6 +27,11 @@ class UnifiedBankListener : NotificationListenerService() {
      *
      * Matching is `contains`, so a bare vendor token ("alrajhi") catches the
      * regional package variants without listing each one.
+     *
+     * ⚠️ القايمة دي **مش** تغطية القناة البنكية. دي تطبيقات مالية مسمّاة بس. رسايل
+     * البنك نفسها بتوصل من إشعار تطبيق المراسلة، وهو مش هنا عن قصد — شوف التحذير
+     * المقاس عند فرع الالتقاط الشامل في onNotificationPosted قبل ما تعتمد على
+     * القايمة دي كحد للتغطية.
      */
     private val trackedPackages = listOf(
         // ── السعودية: بنوك (تغطية شاملة — السوق الأساسي) ──
@@ -205,6 +210,25 @@ class UnifiedBankListener : NotificationListenerService() {
             // بيتتبعت للعقل برضه. الفلترة المحلية الصارمة كانت ممكن ترمي عمليات حقيقية من
             // بنوك/محافظ مش في القايمة — والعقل (Gemini) أحكم في التمييز بين عملية فعلية
             // وإشعار عرض ترويجي. حد أقصى يومي عشان الكوتة ما تتحرقش على إشعارات زبالة.
+            //
+            // ⚠️ ماتضيّقش الفرع ده من غير ما تقيس الأول. ده مش مسار احتياطي هامشي —
+            // ده **القناة الأساسية للرسايل البنكية**.
+            //
+            // بعد ما التطبيق شال إذن RECEIVE_SMS (757f41c، امتثال جوجل بلاي)، رسالة
+            // البنك بقت توصل من **إشعار تطبيق المراسلة**، مش من بث SMS. و
+            // com.google.android.apps.messaging **مش** في trackedPackages، ولا أي
+            // تطبيق مراسلة تاني. يعني رسالة البنك بتعدّي إما من فحص الكلمات في
+            // isFinancialNotification، وإما من هنا لما صيغة البنك ماتطابقش الكلمات.
+            //
+            // مقاس على zad_notification_ingest_events بتاريخ 2026-09-06 (الجدول كله،
+            // ٦ صفوف): **الستة كلهم من حزم غير متتبَّعة**، و٤ منهم معاملات بنكية
+            // حقيقية. التلاتة اللي اتسجّلوا فعلًا (transaction_id مش null) كلهم من
+            // com.google.android.apps.messaging وكلهم client_classification="ambiguous".
+            // يعني ١٠٠٪ من المعاملات المسجّلة في المشروع جت من المسار ده. الهدر المرصود
+            // في نفس العينة صفّين من تطبيق الصور، وهما اللي قاعدة
+            // SaBankParser.shouldSendToBrain بتمسكهم دلوقتي.
+            //
+            // أي فلترة إضافية على الحزم غير المتتبَّعة لازم تتقاس ضد الرقم ده الأول.
             if (hasUnparsedAmount(text) && dailyBroadCatchCount() < BROAD_CATCH_DAILY_CAP) {
                 serviceScope.launch {
                     incrementBroadCatchCount()
