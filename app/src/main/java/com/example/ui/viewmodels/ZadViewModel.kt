@@ -4337,10 +4337,18 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     val dealsFetchState: kotlinx.coroutines.flow.StateFlow<LiveFetchState> = _dealsFetchState
 
     fun refreshLiveDeals(shortageItems: List<String>) {
+        // نفس الحارس والسقف اللي في refreshLiveMarketPrices بالظبط. غيابهم هنا كان
+        // بيخلي الكارت يعلّق: زرار الإعادة `enabled = fetchState != Loading`، يعني
+        // Loading عالقة بتقفل المخرج الوحيد — مؤشر بيلف وزرار ميت.
+        if (_dealsFetchState.value == LiveFetchState.Loading) return
         viewModelScope.launch {
             _dealsFetchState.value = LiveFetchState.Loading
             try {
-                _liveDeals.value = ZadAiRepository.fetchLiveDealsForInventory(shortageItems)
+                // سقف صلب فوق مهلة الـHTTP: أي تعليق تحته (DNS، إعادة محاولة 429،
+                // دمج النداءات المتزامنة) لازم ينتهي لحالة نهائية.
+                _liveDeals.value = kotlinx.coroutines.withTimeout(120_000) {
+                    ZadAiRepository.fetchLiveDealsForInventory(shortageItems)
+                }
                 _dealsFetchState.value = LiveFetchState.Fetched
                 Log.d(TAG, "refreshLiveDeals() → found=${_liveDeals.value.size}")
             } catch (e: Exception) {

@@ -1762,4 +1762,5 @@
     <string name="inflation_radar_no_data_hint">سجّل مصاريفك أسبوعين وهنقارنلك أسعارك بنفسك، مش بمتوسط السوق</string>
     <string name="buying_timing_no_data_hint">ضيف أصنافك في المخزون وهنحسبلك كل صنف هيخلص إمتى</string>
     <string name="live_search_empty_state_hint">يعني مافيش قفزات أسعار في فئات صرفك دلوقتي — هنبلّغك أول ما تحصل</string>
+    <string name="live_search_error_state_hint">البحث الحي ما ردّش في الوقت. دوس تحديث تاني — وشوف النت لو الحالة اتكررت.</string>
 </resources>

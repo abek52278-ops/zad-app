@@ -809,7 +809,14 @@ fun LiveDealsCard(shortageItems: List<String>, viewModel: ZadViewModel) {
                     Text(stringResource(R.string.live_search_loading), style = Typography.labelSmall, color = onSurfaceVariant)
                 }
                 ZadViewModel.LiveFetchState.Error ->
-                    Text(stringResource(R.string.live_search_error_state), style = Typography.bodySmall, color = error)
+                    com.example.ui.components.ZadEmptyState(
+                        icon = Icons.Default.CloudOff,
+                        title = stringResource(R.string.live_search_error_state),
+                        subtitle = stringResource(R.string.live_search_error_state_hint),
+                        iconTint = error.copy(alpha = 0.6f),
+                        iconBackground = error.copy(alpha = 0.08f),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                    )
                 ZadViewModel.LiveFetchState.Fetched -> {
                     if (deals.isEmpty()) {
                         Text(stringResource(R.string.live_search_empty_state), style = Typography.bodySmall, color = onSurfaceVariant)

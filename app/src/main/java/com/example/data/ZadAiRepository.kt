@@ -1106,7 +1106,16 @@ object ZadAiRepository {
         location: String = MarketPrefs.currentMarket.displayNameAr
     ): List<LiveDeal> {
         if (shortageItems.isEmpty()) return emptyList()
-        val response = callAction("fetch_live_deals", mapOf("items" to shortageItems, "location" to location))
+        // 110s زي fetchLiveMarketPrices — البحث الحي بيعدّي الـ30 ثانية الافتراضية
+        // بسهولة. و swallowErrors=false مقصودة: مهلة الكلاينت كانت بترجع emptyMap،
+        // فشرط ok==false تحت مابيتحققش أبداً والنتيجة بتوصل للعميل كـ"مفيش عروض"
+        // بدل "البحث فشل" — نجاح كاذب.
+        val response = callAction(
+            "fetch_live_deals",
+            mapOf("items" to shortageItems, "location" to location),
+            swallowErrors = false,
+            timeoutMs = 110_000,
+        )
         // ok:false = real search failure (timeout/HTTP error/unparsable reply), not "genuinely no deals" —
         // throw so the ViewModel's existing catch surfaces LiveFetchState.Error instead of a silent empty list
         if (response["ok"] == false) throw IllegalStateException("fetch_live_deals: upstream search failed")
