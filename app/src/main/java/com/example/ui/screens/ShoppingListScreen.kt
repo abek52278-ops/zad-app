@@ -157,7 +157,12 @@ fun ShoppingListScreen(
         Column(modifier = Modifier.fillMaxSize()) {
 
             LazyColumn(
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = ZadHubListBottomPadding),
+                contentPadding = PaddingValues(
+                    start = ZadHubListHorizontalPadding,
+                    end = ZadHubListHorizontalPadding,
+                    top = 8.dp,
+                    bottom = ZadHubListBottomPadding
+                ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item { ShoppingBudgetHeader(totalPrice = totalPrice, budgetRemaining = budgetRemaining, budgetPct = budgetPct, priceKnown = basketPriceKnown) }

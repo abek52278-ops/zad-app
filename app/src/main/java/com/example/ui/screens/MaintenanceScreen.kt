@@ -92,7 +92,7 @@ fun MaintenanceScreen(
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(20.dp, 8.dp, 20.dp, ZadHubListBottomPadding),
+                contentPadding = PaddingValues(ZadHubListHorizontalPadding, 8.dp, ZadHubListHorizontalPadding, ZadHubListBottomPadding),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 if (sortedItems.isEmpty()) {

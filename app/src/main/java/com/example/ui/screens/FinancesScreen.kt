@@ -31,6 +31,7 @@ import com.example.R
 import com.example.ui.components.ZadSegmentedTabs
 import com.example.ui.theme.Typography
 import com.example.ui.theme.ZadHubListBottomPadding
+import com.example.ui.theme.ZadHubListHorizontalPadding
 import com.example.ui.theme.onSurface
 import com.example.ui.viewmodels.ZadViewModel
 
@@ -99,7 +100,7 @@ private fun FinancesDebtsBody(viewModel: ZadViewModel) {
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(20.dp, 8.dp, 20.dp, ZadHubListBottomPadding),
+        contentPadding = PaddingValues(ZadHubListHorizontalPadding, 8.dp, ZadHubListHorizontalPadding, ZadHubListBottomPadding),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item { DebtPayoffPlannerCard(debts, viewModel) }

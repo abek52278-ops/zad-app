@@ -143,7 +143,12 @@ fun RecommendationsScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(com.example.ui.theme.ZadLuxe.canvasBackground),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = com.example.ui.theme.ZadHubListBottomPadding),
+        contentPadding = PaddingValues(
+            start = com.example.ui.theme.ZadHubListHorizontalPadding,
+            end = com.example.ui.theme.ZadHubListHorizontalPadding,
+            top = 16.dp,
+            bottom = com.example.ui.theme.ZadHubListBottomPadding
+        ),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Stats Card

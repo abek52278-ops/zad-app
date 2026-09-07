@@ -318,7 +318,7 @@ fun InventoryScreen(
                 } else {
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                        contentPadding = PaddingValues(horizontal = ZadHubListHorizontalPadding, vertical = 8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         items(shortageItems, key = { "buy_${it.id}" }) { item ->
@@ -339,9 +339,14 @@ fun InventoryScreen(
                     }
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(2),
-                        contentPadding = PaddingValues(start = 6.dp, end = 6.dp, top = 2.dp, bottom = ZadHubListBottomPadding),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        contentPadding = PaddingValues(
+                            start = ZadHubListHorizontalPadding,
+                            end = ZadHubListHorizontalPadding,
+                            top = 8.dp,
+                            bottom = ZadHubListBottomPadding
+                        ),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize()
                     ) {
                         items(shortageItems, key = { it.id }) { item ->
@@ -369,9 +374,9 @@ fun InventoryScreen(
                 LazyRow(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                        .padding(vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(horizontal = 4.dp)
+                    contentPadding = PaddingValues(horizontal = ZadHubListHorizontalPadding)
                 ) {
                     items(categoryDefs) { cat ->
                         val isSel = selectedCategory == cat.key
@@ -419,8 +424,13 @@ fun InventoryScreen(
                     // قائمة المنتجات مباشرة في صفوف رأسية متتالية وأنيقة
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(start = 10.dp, end = 10.dp, top = 4.dp, bottom = ZadHubListBottomPadding),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        contentPadding = PaddingValues(
+                            start = ZadHubListHorizontalPadding,
+                            end = ZadHubListHorizontalPadding,
+                            top = 8.dp,
+                            bottom = ZadHubListBottomPadding
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         itemsIndexed(filteredItems, key = { _, item -> item.id }) { index, item ->
                             com.example.ui.components.AppearOnEntry(delayMs = (index * 20).coerceAtMost(250)) {

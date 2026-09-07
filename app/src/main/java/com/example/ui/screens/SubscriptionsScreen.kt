@@ -99,7 +99,7 @@ fun SubscriptionsScreen(
         // now items() in the one LazyColumn below so the whole screen scrolls together.
         LazyColumn(
             modifier = Modifier.fillMaxSize().navigationBarsPadding(),
-            contentPadding = PaddingValues(20.dp, 8.dp, 20.dp, ZadHubListBottomPadding),
+            contentPadding = PaddingValues(ZadHubListHorizontalPadding, 8.dp, ZadHubListHorizontalPadding, ZadHubListBottomPadding),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
