@@ -96,6 +96,29 @@ import com.example.ui.components.*
 
 private const val TAG_HOME = "HomeScreen"
 
+/**
+ * هندسة المسكوت العائم والمساحة المحجوزة ليه — **رقم واحد مشتق، مش نسختين**.
+ *
+ * قبل كده كان المحجوز `Spacer(84.dp)` مكتوب بالإيد جنب صندوق آمن 96dp فوق padding
+ * 16dp. الـ84 كانت مظبوطة للمسكوت وهو مرتاح (بيوصل 80dp) بهامش 4dp — فالشاشة
+ * بتبان سليمة أول ما تتفتح. بس السحب بيرفعه لحد 112dp، يعني بيغطي آخر كارت بـ28dp،
+ * و`dragOffset` مابيرجعش مكانه بعد `onDragEnd` فالتغطية بتفضل.
+ *
+ * التعليق اللي فوق كتلة المسكوت كان بيقول إنه بقى "مستحيل يتحرك فوق كروت" بعد
+ * `e2a4d22`. الحبس في ركن آمن اتعمل فعلاً، بس المساحة المحجوزة ماتحدّتش معاه.
+ */
+internal object HomeOrbMetrics {
+    val bottomPadding = 16.dp
+    val safeZone = 96.dp
+    val orbSize = 64.dp
+
+    /** أقصى ارتفاع يوصله المسكوت فوق قاع الشاشة — مسحوب لفوق بالكامل. */
+    val maxReach = bottomPadding + safeZone
+
+    /** اللي المحتوى بيسيبه: أقصى وصول + نفس هامش الـ4dp الأصلي. */
+    val reservedBottomSpace = maxReach + 4.dp
+}
+
 @Composable
 fun HomeScreen(
     viewModel: ZadViewModel,
@@ -1039,7 +1062,7 @@ fun HomeScreen(
                 // تتحط عليها. الـSpacer ده هو المعادل بتاعها. مساحة الشريط السفلي نفسها
                 // محجوزة خلاص في MainScreen (Scaffold's innerPadding)، فده بس المساحة
                 // اللي المسكوت العائم محتاجها عشان مايقعدش فوق آخر كارت.
-                Spacer(modifier = Modifier.height(84.dp))
+                Spacer(modifier = Modifier.height(HomeOrbMetrics.reservedBottomSpace))
             } // closes inner Column
         } // closes else block (line 125)
     } // closes outer Column (line 103)
@@ -1047,13 +1070,13 @@ fun HomeScreen(
         // المسكوت الأليف (الكرة الخضراء الحية) بدّل زر "بوت زاد" الجامد. مقفول في وضع
         // الأطفال زي ما كان الزر القديم. مساحته محجوزة في ركن ثابت (نفس مكان الزر
         // القديم بالظبط) — قابل للسحب بس *جوه* الصندوق ده بس، فمستحيل يتحرك فوق
-        // كروت الـLazyColumn زي ما كان بيحصل قبل e2a4d22 (كان zIndex(100f) عائم فوق
+        // كروت المحتوى زي ما كان بيحصل قبل e2a4d22 (كان zIndex(100f) عائم فوق
         // الشاشة كلها وبيقطع أسماء الأدوية والمخزون). الضغطة (مش السحبة) بتفتح مكالمة
         // Gemini Live مباشرة.
         if (!isChild) {
             val density = LocalDensity.current
-            val safeZoneDp = 96.dp
-            val orbSizeDp = 64.dp
+            val safeZoneDp = HomeOrbMetrics.safeZone
+            val orbSizeDp = HomeOrbMetrics.orbSize
             val maxOffsetPx = with(density) { (safeZoneDp - orbSizeDp).toPx() }
             var dragOffset by remember { mutableStateOf(Offset.Zero) }
             var isDragging by remember { mutableStateOf(false) }
@@ -1065,7 +1088,7 @@ fun HomeScreen(
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 20.dp, bottom = 16.dp)
+                    .padding(end = 20.dp, bottom = HomeOrbMetrics.bottomPadding)
                     .size(safeZoneDp)
             ) {
                 ZadSmartBotAgent(

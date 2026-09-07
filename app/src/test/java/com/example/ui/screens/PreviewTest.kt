@@ -28,6 +28,12 @@ import androidx.compose.material.icons.filled.LocalPharmacy
 import androidx.compose.material.icons.filled.Park
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Subscriptions
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import com.example.ui.components.CompanionState
+import com.example.ui.components.ZadSmartBotAgent
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -1183,4 +1189,76 @@ class PreviewTest(private val dark: Boolean) {
         }
         composeTestRule.onRoot().captureRoboImage(filePath = shot("knowledge_map_item_ring"))
     }
+
+    /**
+     * تداخل المسكوت العائم مع آخر كارت — البند #3 من تقرير الجهاز.
+     *
+     * المسكوت اتحبس في ركن آمن في `e2a4d22` بعد ما كان `zIndex(100f)` عائم فوق
+     * الشاشة كلها وبيقطع أسماء الأدوية والمخزون، والتعليق فوقه بيقول إنه بقى
+     * "مستحيل يتحرك فوق كروت". الحساب بيقول غير كده:
+     *
+     *   الصندوق الآمن  = padding 16dp + size 96dp  ← بيوصل 112dp فوق القاع
+     *   المسكوت مرتاح  = 16dp .. 80dp              ← تحت المحجوز
+     *   المسكوت مسحوب  = 48dp .. 112dp             ← فوق المحجوز بـ28dp
+     *   المحجوز للمحتوى = Spacer(84dp)
+     *
+     * و`dragOffset` مابيرجعش مكانه بعد `onDragEnd`، فالتغطية بتفضل.
+     *
+     * اللقطتين دول بيثبتوا الفرق: `_rest` نضيفة، `_dragged` المسكوت فوق الكارت.
+     */
+    @Config(sdk = [33], qualifiers = "w402dp-h874dp-xxhdpi")
+    @Test
+    fun captureHomeOrbAtRest() = captureOrb("rest", draggedUp = false)
+
+    @Config(sdk = [33], qualifiers = "w402dp-h874dp-xxhdpi")
+    @Test
+    fun captureHomeOrbDraggedUp() = captureOrb("dragged", draggedUp = true)
+
+    private fun captureOrb(label: String, draggedUp: Boolean) {
+        composeTestRule.setContent {
+            AppTheme(darkTheme = dark) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    ZadCanvasBackground(modifier = Modifier.fillMaxSize())
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
+                        verticalArrangement = Arrangement.Bottom
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth()
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(androidx.compose.ui.graphics.Color(0xFFEF4444))
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                "آخر كارت — لازم يفضل مقروء بالكامل",
+                                color = androidx.compose.ui.graphics.Color.White,
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(HomeOrbMetrics.reservedBottomSpace))
+                    }
+                    val safeZoneDp = HomeOrbMetrics.safeZone
+                    val orbSizeDp = HomeOrbMetrics.orbSize
+                    val dragUpPx = with(LocalDensity.current) {
+                        if (draggedUp) -(safeZoneDp - orbSizeDp).toPx() else 0f
+                    }
+                    Box(
+                        modifier = Modifier.align(Alignment.BottomEnd)
+                            .padding(end = 20.dp, bottom = HomeOrbMetrics.bottomPadding)
+                            .size(safeZoneDp)
+                    ) {
+                        ZadSmartBotAgent(
+                            sizeDp = orbSizeDp,
+                            state = CompanionState.Idle,
+                            modifier = Modifier.align(Alignment.BottomEnd)
+                                .offset { IntOffset(0, dragUpPx.toInt()) },
+                        )
+                    }
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(
+            filePath = "build/outputs/roborazzi/home_orb_$label${if (dark) "_dark" else "_light"}.png"
+        )
+    }
+
 }
