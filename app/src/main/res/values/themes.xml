@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar" />
+    <!--
+      windowBackground صريح لأن الأب `Theme.DeviceDefault` هو النسخة **الداكنة**
+      (مش `.Light`)، فالإطار كان بيحل `windowBackground` لـ#1A1B20 — أسود مايل
+      للرمادي — **في الوضعين الفاتح والداكن** (متقاس بـWindowBackgroundTest).
+      وده اللي بيتعرض في أي لحظة Compose مش راسمة فيها: الإقلاع البارد، و
+      `recreate()` اللي ٦ شاشات بتناديه عشان تطبّق اللغة (ComponentActivity مالهاش
+      AppCompatDelegate، فمفيش طريق تاني).
+
+      النتيجة كانت «شاشة سودا عند اختيار البلد» (P0-4): زرار «متابعة» بينادي
+      `recreate()`، والـActivity الجديدة بتعيد ١٨٠ سطر شغل متزامن في `onCreate`
+      قبل `setContent` — فالفجوة السودا بتطول كفاية إنها تبان عطل مش انتقال.
+    -->
+    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@color/zad_window_background</item>
+    </style>
 </resources>

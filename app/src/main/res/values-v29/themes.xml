@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- App is Compose-only with one light palette (ui/theme/Color.kt) — no dark scheme.
-         Without this, Android 10+ system dark mode force-inverts light colors (a light
-         8%-alpha tint reads as a near-black bg while text stays dark), which is what made
-         the IntelligenceInsightCard "Alert" tile unreadable. -->
+    <!-- forceDarkAllowed=false لأن التطبيق بيدير الوضع الداكن بنفسه
+         (`ZadDarkColorScheme` + `isSystemInDarkTheme` في ui/theme/Theme.kt)؛ من غيره
+         أندرويد ١٠+ بيقلب الألوان الفاتحة قسراً فوق سكيمنا. **ملاحظة:** الملف ده
+         بيعيد تعريف الستايل بالكامل، فلازم يكرر `windowBackground` — من غيره كل
+         جهاز على API 29+ يرجع لأسود الإطار. شوف values/themes.xml للسبب الكامل. -->
     <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar">
         <item name="android:forceDarkAllowed">false</item>
+        <item name="android:windowBackground">@color/zad_window_background</item>
     </style>
 </resources>

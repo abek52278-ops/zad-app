@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+      الوضع الداكن بيتظبط هنا كـ**لون** مش كستايل مكرر، بقصد.
+
+      لو `values-night/themes.xml` أعاد تعريف `Theme.MyApplication`، كان هيكسب على
+      `values-v29` على أي جهاز API 29+ في الوضع الداكن — لأن مؤهّل الليل أعلى أسبقية
+      من مؤهّل الإصدار — و**كان هيضيّع `forceDarkAllowed=false`** معاه، فأندرويد
+      يقلب ألوان سكيمنا الداكن فوق نفسه. اللون بيتحل حسب الإعداد وقت التشغيل،
+      فالستايل يفضل معرَّف في مكانين بس والقيمة هي اللي بتتغير.
+
+      لازم يساوي ZadIosBackgroundDark في ui/theme/Color.kt.
+    -->
+    <color name="zad_window_background">#FF10130F</color>
+</resources>

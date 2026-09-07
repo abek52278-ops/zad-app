@@ -7,4 +7,10 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- لازم يساوي ZadIosBackground / ZadIosBackgroundDark في ui/theme/Color.kt.
+         دي خلفية *النافذة* اللي بتتعرض قبل ما Compose ترسم أول إطار — يعني كل
+         إقلاع بارد وكل recreate() لتطبيق اللغة. النسخة الداكنة في
+         values-night/colors.xml. مغطّاة بـWindowBackgroundTest. -->
+    <color name="zad_window_background">#FFF8F9FA</color>
 </resources>
