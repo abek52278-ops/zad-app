@@ -549,6 +549,13 @@
     "trigger",
     "user_id"
   ],
+  "zad_chat_turns": [
+    "created_at",
+    "id",
+    "role",
+    "text",
+    "user_id"
+  ],
   "zad_consumption": [
     "avg_daily_qty",
     "item_name",

@@ -5302,10 +5302,23 @@ Deno.serve(async (req: Request) => {
             const avgDaily = totalSpent / 14;
             if (avgDaily > 0) {
               const note = `معدل الصرف التقديري اليومي للأسرة حوالي ${Math.round(avgDaily)} ${u.currency ?? ""}`;
-              const { data: existingMem } = await sbDream.from("zad_memory").select("id").eq("user_id", u.id).eq("note", note).maybeSingle();
-              if (!existingMem) {
-                await sbDream.from("zad_memory").insert({ user_id: u.id, scope: "spending_pattern", note, confidence: 0.85, evidence_count: 1 });
-              }
+              // استبدال، مش إضافة مشروطة.
+              //
+              // الحارس القديم كان `.eq("note", note)` — مطابقة على **نص الملاحظة
+              // كامل**، والنص جواه الرقم نفسه ("...حوالي 3389 ج.م"). كل دورة بتحسب
+              // متوسط جديد، فالنص بيتغيّر، فمفيش تطابق أبداً، فصف جديد كل مرة.
+              // الدليل الحي 2026-09-06: تلات صفوف spending_pattern بـ3389 و3335 و3175
+              // مكدّسين فوق بعض، والعميل شافهم في "زاد عارف عني إيه" كتلات حقائق
+              // متناقضة عن نفس الشيء.
+              //
+              // السكوب ده المفروض نسخة واحدة — نفس اللي التعليق عند financial_persona
+              // بيقوله. والاستبدال اليدوي هو النمط المعمول بيه هناك، لأن
+              // onConflict: "user_id,scope" بيرمي 42P10: مفيش unique(user_id,scope)
+              // على الجدول عن قصد (سكوبات تانية زي general بتحمل أكتر من ملاحظة).
+              await sbDream.from("zad_memory").delete().eq("user_id", u.id).eq("scope", "spending_pattern");
+              const { error: patternErr } = await sbDream.from("zad_memory")
+                .insert({ user_id: u.id, scope: "spending_pattern", note, confidence: 0.85, evidence_count: 1 });
+              if (patternErr) console.error("spending_pattern memory write failed:", patternErr);
             }
           }
 

@@ -504,7 +504,81 @@ function logAgentFallback(
  * read-only prose reply — it's what tells the Telegram user (and the logs) why their
  * "عدّل"/"ذكرني" request silently became a plain answer instead of an executed action.
  * It is an internal string: pass it through [userFacingFailure] before it reaches a chat. */
-async function agentTurn(userId: string, message: string): Promise<{ result: AgentTurnResult | null; errorReason?: string }> {
+/**
+ * آخر لفات المحادثة من zad_chat_turns، بترتيب زمني تصاعدي زي ما زاد-برين متوقع.
+ *
+ * ثمانية عشان ده بالظبط اللي handleAgentTurn بياخده (`.slice(-8)`) — سحب أكتر
+ * بيتقص هناك ويتحمّل شبكة بلا فايدة. تطبيق أندرويد بيبعت نفس الشكل من Room،
+ * فالقناتين بيدّوا العقل نفس العقد.
+ */
+const CHAT_HISTORY_TURNS = 8;
+
+/**
+ * صفوف zad_chat_turns → الشكل اللي zad-brain متوقعه.
+ *
+ * مصدَّرة عشان تتختبر: الاستعلام بينزل **تنازلي** (عشان `limit` يمسك الأحدث مش
+ * الأقدم) والعقل عايزهم **تصاعدي**، فالعكس هنا مش تجميل — من غيره المحادثة
+ * بتوصل مقلوبة والعقل يقرا الرد قبل السؤال.
+ *
+ * أي دور مش "assistant" بيتحوّل لـ"user": handleAgentTurn بيرمي أي دور تالت
+ * بصمت، فالتحويل هنا بيمنع لفة تختفي من غير ما حد ياخد باله.
+ */
+export function toBrainHistory(
+  rows: Array<{ role: string; text: string }>,
+): Array<{ role: "user" | "assistant"; text: string }> {
+  return [...rows].reverse().map((r) => ({
+    role: r.role === "assistant" ? "assistant" as const : "user" as const,
+    text: r.text,
+  }));
+}
+
+async function loadChatHistory(
+  sb: SupabaseClient,
+  userId: string,
+): Promise<Array<{ role: "user" | "assistant"; text: string }>> {
+  try {
+    const { data, error } = await sb
+      .from("zad_chat_turns")
+      .select("role,text")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(CHAT_HISTORY_TURNS);
+    if (error) {
+      console.error("loadChatHistory failed:", error);
+      return [];
+    }
+    return toBrainHistory(data ?? []);
+  } catch (e) {
+    // فشل قراءة السياق يخلي اللفة بلا ذاكرة — مش يكسرها. ده السلوك اللي كان
+    // موجود قبل الجدول ده أصلاً، فالرجوع ليه آمن.
+    console.error("loadChatHistory threw:", e);
+    return [];
+  }
+}
+
+/** تسجيل لفة. الفشل بيتسجل ومابيوقفش الرد — الذاكرة مش أهم من الرد نفسه. */
+async function recordChatTurn(
+  sb: SupabaseClient,
+  userId: string,
+  role: "user" | "assistant",
+  text: string,
+): Promise<void> {
+  const trimmed = text.trim();
+  if (!trimmed) return;
+  try {
+    const { error } = await sb.from("zad_chat_turns").insert({
+      user_id: userId,
+      role,
+      // نفس سقف العمود في المايجريشن — القص هنا يمنع رفض الكتابة كلها.
+      text: trimmed.slice(0, 4000),
+    });
+    if (error) console.error("recordChatTurn failed:", error);
+  } catch (e) {
+    console.error("recordChatTurn threw:", e);
+  }
+}
+
+async function agentTurn(userId: string, message: string, history: Array<{ role: "user" | "assistant"; text: string }> = []): Promise<{ result: AgentTurnResult | null; errorReason?: string }> {
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/zad-brain`, {
       method: "POST",
@@ -512,7 +586,11 @@ async function agentTurn(userId: string, message: string): Promise<{ result: Age
       // source: "telegram" — تصنيف عرضي بس لـ agent_actions (أي فعل يتنفّذ يتوسم إنه
       // جه من القناة دي)، مش أداة أمان: الهوية أصلاً محسومة بمفتاح service-role +
       // userId من telegram_bindings، مش من الحقل ده.
-      body: JSON.stringify({ action: "agent_turn", user_id: userId, message, source: "telegram" }),
+      // history — اللفات السابقة. من غيرها كل رسالة بتبدأ من الصفر: محادثة
+      // حقيقية 2026-09-06 راح فيها مبلغ ("اخصم 50 جنيه" ← "مصروف" ← العقل سأل عن
+      // المبلغ تاني) لأن الرسالة الأولى عمرها ما وصلت. العقل بيدعمها من زمان
+      // (handleAgentTurn بيتحقق من الأدوار وبيقص على ٨) — تليجرام بس ماكانش بيبعت.
+      body: JSON.stringify({ action: "agent_turn", user_id: userId, message, source: "telegram", history }),
     });
     if (!res.ok) {
       const bodyText = await res.text().catch(() => "");
@@ -793,7 +871,13 @@ async function agentTurnReply(
       text;
   }
 
-  const { result: turn, errorReason } = await agentTurn(userId, outgoing);
+  // السياق بيتقرا **قبل** ما رسالة اللفة دي تتسجل، عشان الرسالة الحالية تتبعت
+  // مرة واحدة (في `message`) مش مرتين.
+  const history = await loadChatHistory(sb, userId);
+  const { result: turn, errorReason } = await agentTurn(userId, outgoing, history);
+  // بتتسجل حتى لو اللفة فشلت: العميل قالها فعلاً، والرسالة الجاية محتاجة تشوفها.
+  // ده بالظبط سيناريو "اخصم 50 جنيه" ← "مصروف" — الأولى لازم تعيش عشان التانية تفهم.
+  await recordChatTurn(sb, userId, "user", outgoing);
   if (!turn) return { lines: [], errorReason: errorReason ?? "agent turn unavailable" };
 
   // لفة رجعت 200 وهي فاضية تماماً — لا رد، ولا أداة اتنفذت، ولا اقتراح — كانت بتخرج
@@ -806,6 +890,9 @@ async function agentTurnReply(
 
   const lines: string[] = [];
   if (turn.reply.trim()) lines.push(turn.reply.trim());
+  // رد العقل بيتسجل كمان — من غيره العميل يفتكر إن البوت سأله سؤال، والبوت
+  // يشوف رسالة العميل بلا السؤال اللي ردّت عليه.
+  await recordChatTurn(sb, userId, "assistant", turn.reply);
   for (const done of turn.executed) lines.push(`✅ ${isolate(sanitizeName(done.summary))}`);
 
   const money = turn.proposals.find((p) => p.tool === "log_transaction");
