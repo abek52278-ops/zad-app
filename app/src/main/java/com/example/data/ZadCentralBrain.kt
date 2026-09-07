@@ -738,6 +738,51 @@ object ZadCentralBrain {
      * التقرير الشامل — يجمع كل المحركات في مخرج واحد مهيكل:
      * BudgetTracker (كروت الفئات) + ConsumptionLearner (تنبؤ النفاد) + المعاملات + المخزون
      */
+    /**
+     * نقاط الصحة المالية (0-100) — **فلوس بس**.
+     *
+     * المخزون اتشال من الحساب ده عن قصد 2026-09-07. كان بيخصم لحد ٣٠ نقطة (نسبة
+     * النواقص + قرب الانتهاء)، وهو اللي طلّع "80/100" لحساب بصفر معاملات في أول
+     * اختبار على جهاز حقيقي. مخزن ناقص مش حالة مالية — ممكن تبقى ماشية فاضية
+     * وجيبك مليان والعكس. الإشارة ما ضاعتش: النواقص ليها كارت صحة المخزون على
+     * الرئيسية، وهو المكان اللي العميل بيتصرف منه.
+     *
+     * الاشتراكات الاختيارية فوق ربع الميزانية بتخصم ١٠؛ الإيجار والأقساط لأ —
+     * دي حقيقة مالية مش سلوك ينتقد.
+     *
+     * internal عشان تتختبر: الحكم ده بيتعرض للعميل كشهادة، والغلط فيه مابيبانش
+     * في أي بناء.
+     */
+    internal fun financialHealthScore(
+        budget: Double,
+        totalSpent: Double,
+        overBudgetCategories: Int,
+        discretionaryMonthlyCost: Double,
+    ): Int {
+        var score = 100
+        if (budget > 0) {
+            val pctUsed = (totalSpent / budget * 100).toInt()
+            score -= when {
+                pctUsed >= 100 -> 40
+                pctUsed >= 90 -> 30
+                pctUsed >= 75 -> 15
+                else -> 0
+            }
+        }
+        score -= overBudgetCategories * 8
+        if (budget > 0 && discretionaryMonthlyCost > budget * 0.25) score -= 10
+        return score.coerceIn(0, 100)
+    }
+
+    /**
+     * القيمة اللي التايل بيعرضها. "—" لما مفيش سلوك مالي نحكم عليه.
+     *
+     * internal ونقية عشان معيار القبول يبقى تست: "ميزانية موجودة + مخزون فيه
+     * نواقص + صفر معاملات ⇒ —" لازم يتقاس، مش يتقال.
+     */
+    internal fun healthTileValue(hasEnoughData: Boolean, healthScore: Int): String =
+        if (hasEnoughData) "$healthScore/100" else "—"
+
     suspend fun generateReport(
         context: Context,
         inventory: List<ZadInventory>,
@@ -832,26 +877,29 @@ object ZadCentralBrain {
         // واحد يتطبّق، فالنتيجة بتفضل 100 = "ممتاز 🌟" لحساب فاضي تماماً. النتيجة نفسها
         // سليمة كحساب، بس عرضها كتقييم كذب — hasEnoughData هي اللي بتخلي الشاشة تعرض
         // "—" بدل ما تدّي مستخدم يومه الأول شهادة صحة مالية.
-        val hasEnoughData = budget > 0 || monthTx.isNotEmpty()
-        var score = 100
-        if (budget > 0) {
-            val pctUsed = (totalSpent / budget * 100).toInt()
-            score -= when {
-                pctUsed >= 100 -> 40
-                pctUsed >= 90 -> 30
-                pctUsed >= 75 -> 15
-                else -> 0
-            }
-        }
-        score -= categoryBreakdown.count { it.isOverBudget } * 8
-        if (inventory.isNotEmpty()) {
-            score -= ((lowStock.toDouble() / inventory.size) * 20).toInt()
-            score -= (expiringSoon * 3).coerceAtMost(10)
-        }
-        // الخصم ده معناه "اشتراكاتك الاختيارية واكلة ربع الميزانية" — الإيجار والأقساط
-        // مش سلوك ينتقد، فما بيدخلوش في الحساب.
-        if (budget > 0 && discretionaryMonthlyCost > budget * 0.25) score -= 10
-        val healthScore = score.coerceIn(0, 100)
+        // الشرط بقى **معاملات فعلية**، مش وجود رقم ميزانية.
+        //
+        // كان `budget > 0 || monthTx.isNotEmpty()`، وده بيعدّي على الحالة اللي اتشافت
+        // على جهاز حقيقي 2026-09-06: مستخدم حاطط ميزانية، صفر معاملات، والشاشة
+        // بتقوله "الصحة المالية 80/100". وجود ميزانية مش سلوك مالي نحكم عليه — هو
+        // رقم كتبه المستخدم مرة. الحكم محتاج صرف نقيسه.
+        val hasEnoughData = monthTx.isNotEmpty()
+        val healthScoreRaw = financialHealthScore(
+            budget = budget,
+            totalSpent = totalSpent,
+            overBudgetCategories = categoryBreakdown.count { it.isOverBudget },
+            discretionaryMonthlyCost = discretionaryMonthlyCost,
+        )
+        // المخزون **مش** بيخصم من الصحة المالية.
+        //
+        // كان بيخصم لحد ٣٠ نقطة (نواقص + قرب انتهاء)، وده اللي طلّع 80/100 لحساب
+        // صفر معاملات في لقطة 2026-09-06. مخزن ناقص مش حالة مالية: ممكن تبقى
+        // ماشية فاضية وجيبك مليان، وممكن العكس. المؤشر ده اسمه "الصحة المالية"
+        // فالمفروض يقيس فلوس بس.
+        //
+        // الإشارة نفسها ما ضاعتش — النواقص وقرب الانتهاء ليهم مكانهم في كارت
+        // صحة المخزون على الرئيسية، وهو المكان اللي العميل بيتصرف منه فعلاً.
+        val healthScore = healthScoreRaw
         val healthLabel = when {
             healthScore >= 85 -> "ممتاز 🌟"
             healthScore >= 65 -> "جيد 👍"

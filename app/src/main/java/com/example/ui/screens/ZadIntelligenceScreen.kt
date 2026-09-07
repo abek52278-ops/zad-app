@@ -395,7 +395,16 @@ fun ZadIntelligenceScreen(
                         ZadStatTile(
                             modifier = Modifier.weight(1f),
                             label = "الصحة المالية",
-                            value = brainReport?.healthScore?.let { "$it/100" } ?: "—",
+                            // hasEnoughData بيتحسب في ZadCentralBrain من زمان وفوقه
+                            // تعليق بيشرح الخطر — وماكانش فيه سطر واحد بيقراه. النتيجة
+                            // اتشافت على جهاز حقيقي: حساب بصفر معاملات بيتعرضله
+                            // "80/100". التايل ده بقى يتصرف زي قوة الإنفاق بالظبط:
+                            // مفيش سلوك نقيسه = "—"، مش تقدير من فراغ.
+                            // نفس الدالة اللي التست بيقيس عليها معيار القبول — لو
+                            // الواجهة كتبت منطقها بنفسها، التست يفضل أخضر والشاشة تكذب.
+                            value = brainReport?.let {
+                                com.example.data.ZadCentralBrain.healthTileValue(it.hasEnoughData, it.healthScore)
+                            } ?: "—",
                             emoji = "🛡️",
                             iconBg = Color(0xFFE0F2FE)
                         )
