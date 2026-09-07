@@ -1763,4 +1763,11 @@
     <string name="buying_timing_no_data_hint">Add your items to the inventory and we\'ll work out when each one runs out</string>
     <string name="live_search_empty_state_hint">No price jumps in your spending categories right now — we\'ll tell you the moment there are</string>
     <string name="live_search_error_state_hint">The live search didn\'t answer in time. Tap refresh again — and check your connection if it keeps happening.</string>
+    <string name="auth_email_placeholder">your.email@gmail.com</string>
+    <string name="auth_toggle_password_visibility">Toggle password visibility</string>
+    <string name="auth_terms_agree_prefix">I agree to the </string>
+    <string name="auth_terms_link">Terms &amp; Privacy Policy</string>
+    <string name="auth_terms_agree_action">Agree &amp; Continue</string>
+    <string name="auth_terms_decline_action">Decline</string>
+    <string name="auth_logo_content_description">Zad logo</string>
 </resources>

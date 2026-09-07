@@ -127,7 +127,7 @@ fun SignUpScreen(
                     label = stringResource(R.string.auth_email_label),
                     value = email,
                     onValueChange = { email = it },
-                    placeholder = "your.email@gmail.com"
+                    placeholder = stringResource(R.string.auth_email_placeholder)
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -141,7 +141,7 @@ fun SignUpScreen(
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
                             Icon(
                                 imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-                                contentDescription = "Toggle password visibility",
+                                contentDescription = stringResource(R.string.auth_toggle_password_visibility),
                                 tint = onSurfaceVariant
                             )
                         }
@@ -160,9 +160,9 @@ fun SignUpScreen(
                         onCheckedChange = { termsAgreed = it },
                         colors = CheckboxDefaults.colors(checkedColor = primary)
                     )
-                    Text(text = "I agree to the ", color = onSurfaceVariant, fontSize = 13.sp)
+                    Text(text = stringResource(R.string.auth_terms_agree_prefix), color = onSurfaceVariant, fontSize = 13.sp)
                     TextButton(onClick = { showTermsDialog = true }, contentPadding = PaddingValues(0.dp)) {
-                        Text(text = "Terms & Privacy Policy", color = primary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text(text = stringResource(R.string.auth_terms_link), color = primary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -268,7 +268,7 @@ fun SignUpScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = primary)
                 ) {
-                    Text("Agree & Continue", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.auth_terms_agree_action), color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -276,7 +276,7 @@ fun SignUpScreen(
                     termsAgreed = false
                     showTermsDialog = false
                 }) {
-                    Text("Decline", color = onSurfaceVariant)
+                    Text(stringResource(R.string.auth_terms_decline_action), color = onSurfaceVariant)
                 }
             }
         )

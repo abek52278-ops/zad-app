@@ -109,7 +109,7 @@ fun OnboardingScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Image(
                     painter = painterResource(id = R.drawable.ic_carrot_logo),
-                    contentDescription = "Zad Logo",
+                    contentDescription = stringResource(R.string.auth_logo_content_description),
                     modifier = Modifier.size(52.dp)
                 )
                 Spacer(Modifier.width(14.dp))

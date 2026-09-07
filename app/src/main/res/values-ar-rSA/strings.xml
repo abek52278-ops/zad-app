@@ -1752,4 +1752,11 @@
     <string name="buying_timing_no_data_hint">ضِف أصنافك في المخزون ونحسب لك كل صنف يخلص متى</string>
     <string name="live_search_empty_state_hint">يعني ما فيه قفزات أسعار في فئات صرفك حالياً — نبلّغك أول ما تصير</string>
     <string name="live_search_error_state_hint">البحث المباشر ما رد في الوقت. اضغط تحديث مرة ثانية — وتحقق من الشبكة لو تكرر.</string>
+    <string name="auth_email_placeholder">your.email@gmail.com</string>
+    <string name="auth_toggle_password_visibility">إظهار/إخفاء كلمة المرور</string>
+    <string name="auth_terms_agree_prefix">أوافق على </string>
+    <string name="auth_terms_link">الشروط وسياسة الخصوصية</string>
+    <string name="auth_terms_agree_action">موافق ومتابعة</string>
+    <string name="auth_terms_decline_action">رفض</string>
+    <string name="auth_logo_content_description">شعار زاد</string>
 </resources>

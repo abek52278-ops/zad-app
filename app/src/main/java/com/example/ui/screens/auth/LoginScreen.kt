@@ -180,7 +180,7 @@ fun LoginScreen(
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
                             Icon(
                                 imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-                                contentDescription = "Toggle password visibility",
+                                contentDescription = stringResource(R.string.auth_toggle_password_visibility),
                                 tint = onSurfaceVariant
                             )
                         }

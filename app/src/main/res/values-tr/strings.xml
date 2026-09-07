@@ -1760,4 +1760,11 @@
     <string name="buying_timing_no_data_hint">Ürünlerini envantere ekle, her birinin ne zaman biteceğini hesaplayalım</string>
     <string name="live_search_empty_state_hint">Şu an harcama kategorilerinde fiyat sıçraması yok — olduğu anda haber vereceğiz</string>
     <string name="live_search_error_state_hint">Canlı arama zamanında yanıt vermedi. Yenile\'ye tekrar dokun — tekrarlarsa bağlantını kontrol et.</string>
+    <string name="auth_email_placeholder">your.email@gmail.com</string>
+    <string name="auth_toggle_password_visibility">Şifreyi göster/gizle</string>
+    <string name="auth_terms_agree_prefix">Kabul ediyorum: </string>
+    <string name="auth_terms_link">Şartlar ve Gizlilik Politikası</string>
+    <string name="auth_terms_agree_action">Kabul et ve devam et</string>
+    <string name="auth_terms_decline_action">Reddet</string>
+    <string name="auth_logo_content_description">Zad logosu</string>
 </resources>
