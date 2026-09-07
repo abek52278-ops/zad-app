@@ -120,7 +120,10 @@ class ChatActionParserTest {
 
         assertEquals(ChatActionParser.Type.ADD_PHARMACY, action.type)
         assertEquals("كونكور", action.itemName)
-        assertEquals("قرص كل 8 ساعات", action.dosage)
+        // كان بيتأكد إن "قرص كل 8 ساعات" بيعدّي حرفياً — والتست ده كان بيوثّق الباج:
+        // نفس الجملة بتنتج جدولين، النص الحر (كل ٨ ساعات) والحقول المهيكلة (٣ مواعيد)،
+        // والكارت بيعرض الاتنين مع بعض. التكرار دلوقتي بيتشال والمهيكل هو المصدر.
+        assertEquals("قرص", action.dosage)
         assertEquals(3, action.dailyDoseCount)
         assertEquals("08:00,16:00,00:00", action.doseTimes)
         assertEquals("مزمن", action.category)

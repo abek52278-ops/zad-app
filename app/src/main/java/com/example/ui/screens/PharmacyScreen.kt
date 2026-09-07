@@ -467,8 +467,11 @@ private fun PharmacyItemCard(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(item.name, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                        if (!item.dosage.isNullOrBlank()) {
-                            Text(item.dosage, style = Typography.labelSmall, color = onSurfaceVariant)
+                        // ملاحظة بس (تركيز/تعليمات). أي تكرار جواها بيتشال — التوقيت
+                        // تحتها بـ4dp بيتعرض من doseTimes، والاتنين كانوا بيتناقضوا.
+                        val dosageNote = com.example.data.PharmacyDoseText.sanitizeDosageNote(item.dosage)
+                        if (dosageNote != null) {
+                            Text(dosageNote, style = Typography.labelSmall, color = onSurfaceVariant)
                         }
                     }
                     IconButton(onClick = onDelete, modifier = Modifier.size(32.dp).pressableScale()) {
@@ -519,7 +522,7 @@ private fun PharmacyItemCard(
                                 style = Typography.labelSmall, color = onSurfaceVariant, fontSize = 11.sp
                             )
                         }
-                    } else if (!isExpired && !item.dosage.isNullOrBlank()) {
+                    } else if (!isExpired && (!item.dosage.isNullOrBlank() || item.doseTimesList().isNotEmpty())) {
                         // Task 17.2.1 — never show a guessed days-left number. unitsPerDose is
                         // unknown for this item (free-text dosage was never confidently parsed),
                         // so this is an honest "we don't know" the user can resolve in one tap.
@@ -709,7 +712,7 @@ private fun PharmacyItemGridCard(
                 style = Typography.labelSmall, color = statusColor, fontSize = 10.sp
             )
         }
-        if (!isExpired && supplyDays == null && !item.dosage.isNullOrBlank()) {
+        if (!isExpired && supplyDays == null && (!item.dosage.isNullOrBlank() || item.doseTimesList().isNotEmpty())) {
             Spacer(modifier = Modifier.height(4.dp))
             Box(
                 modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(warningColor.copy(alpha = 0.14f))
@@ -959,7 +962,7 @@ private fun AddPharmacyItemDialog(
                                 name = name,
                                 activeIngredient = activeIngredient.ifBlank { null },
                                 category = category,
-                                dosage = dosage.ifBlank { null },
+                                dosage = com.example.data.PharmacyDoseText.sanitizeDosageNote(dosage),
                                 remainingQuantity = quantity.toIntOrNull() ?: 1,
                                 unit = unit,
                                 dailyDoseCount = dailyDoseCount.toIntOrNull() ?: 1,
@@ -1223,9 +1226,10 @@ private fun FamilyPharmacyItemRow(item: ZadPharmacyItem) {
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(item.name, style = Typography.bodyLarge, fontWeight = FontWeight.Bold, color = onSurface)
-            if (!item.dosage.isNullOrBlank()) {
+            val dosageNote = com.example.data.PharmacyDoseText.sanitizeDosageNote(item.dosage)
+            if (dosageNote != null) {
                 Spacer(Modifier.height(2.dp))
-                Text(item.dosage, style = Typography.labelSmall, color = onSurfaceVariant)
+                Text(dosageNote, style = Typography.labelSmall, color = onSurfaceVariant)
             }
         }
         val lowStock = item.isLowStock()

@@ -68,7 +68,9 @@ object ChatActionParser {
                 amount = obj.optInt("amount", 1).coerceIn(1, MAX_QUANTITY),
                 unit = obj.optString("unit").trim().ifBlank { null },
                 category = obj.optString("category").trim().ifBlank { null },
-                dosage = obj.optString("dosage").trim().ifBlank { null },
+                // الموديل بيتقال له ما يكتبش تكرار هنا، بس التعليمة مش ضمانة —
+                // الحارس البرمجي هو اللي بيمنع الجدول التاني يتخزن أصلاً.
+                dosage = PharmacyDoseText.sanitizeDosageNote(obj.optString("dosage")),
                 dailyDoseCount = obj.optInt("daily_dose_count", 1).coerceIn(1, 12),
                 doseTimes = obj.optString("dose_times").trim().ifBlank { null }
             )

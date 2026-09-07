@@ -3259,7 +3259,7 @@ const CHAT_TOOLS: ToolDef[] = [
       type: "object",
       properties: {
         name: { type: "string" },
-        dosage: { type: "string", description: "وصف الجرعة زي ما قاله العميل" },
+        dosage: { type: "string", description: "التركيز والتعليمات بس (500mg، بعد الأكل). ممنوع التكرار هنا — مكانه daily_dose_count و dose_times" },
         daily_dose_count: { type: "number", description: "لازم يساوي عدد المواعيد في dose_times" },
         dose_times: { type: "string", description: "الساعات اللي العميل نطقها بنفسه بس، HH:MM مفصولة بفاصلة، ٢٤ ساعة. ممنوع 24:00 — استخدم 00:00. سيبها فاضية لو هو قال عدد مرات بس." },
         times_explicit: { type: "boolean", description: "true بس لو العميل نطق الساعات دي حرفياً في كلامه" },

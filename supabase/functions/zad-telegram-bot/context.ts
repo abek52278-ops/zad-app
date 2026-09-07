@@ -320,7 +320,7 @@ export function medicationIntentPrompt(nowTime: string): string {
     "حلل رسالة المستخدم وقرر: هل بيوصف دواء جديد عايز يتابعه بجدول جرعات؟",
     `الوقت دلوقتي: ${nowTime} (بنظام 24 ساعة).`,
     "رد بـ JSON بس، من غير أي نص تاني، بالشكل ده:",
-    '{"is_medication":true|false,"name":"","dosage":"","daily_dose_count":1,"dose_times":"08:00,16:00","unit":"قرص","quantity":1,"category":"عام","confidence":0.0}',
+    '{"is_medication":true|false,"name":"","dosage":"التركيز والتعليمات بس — ممنوع تكرار","daily_dose_count":1,"dose_times":"08:00,16:00","unit":"قرص","quantity":1,"category":"عام","confidence":0.0}',
     "",
     "قواعد:",
     '- is_medication=true بس لو الرسالة بتوصف دواء بيوخده أو عايز يتابعه بمواعيد (مثال: "باخد دواء ضغط كونكور قرص كل 8 ساعات وفكرني الساعة 5").',
