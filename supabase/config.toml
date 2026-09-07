@@ -64,6 +64,11 @@ verify_jwt = true
 [functions.parent-digest]
 verify_jwt = false
 
+# الكرون (net.http_post) مابيحملش JWT سوبابيز، فالتحقق بيتم بهيدر
+# X-Fx-Cron-Secret جوه الدالة نفسها — نفس نمط parent-digest بالظبط.
+[functions.zad-fx-refresh]
+verify_jwt = false
+
 # مقصود إنها false: إشعارات Google Play RTDN بتوصل من Pub/Sub وهي **مبتحملش
 # توكن سوبابيز خالص**، فـ verify_jwt = true كانت بترفضها عند البوابة قبل ما
 # الدالة تشتغل أصلاً. ده السبب الحقيقي إن تتبع التجديد/الإلغاء مكانش شغال —
