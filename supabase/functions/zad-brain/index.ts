@@ -457,40 +457,79 @@ async function writeMemoryNoteWithLinking(
   if (error) return { status: "error", message: error.message };
   const upsertStatus = data as "inserted" | "strengthened" | "conflict";
 
+  await embedAndLinkNote(sb, userId, scope, note, { link: upsertStatus !== "conflict" });
+
+  return { status: upsertStatus };
+}
+
+/**
+ * توليد الـembedding + الربط التلقائي لملاحظة **اتكتبت خلاص**.
+ *
+ * اتفصلت عن [writeMemoryNoteWithLinking] لأن الجزء ده هو اللي كان **ناقص في خمس
+ * نقط كتابة**: `financial_persona` و`salary_plan` و`active_challenge` و
+ * `spending_pattern` و`weekly_synthesis` كلهم بيكتبوا بـdelete-then-insert خام —
+ * وده مقصود وموثّق (سكوبات نسخة واحدة، ومفيش `unique(user_id,scope)` على الجدول
+ * عن قصد) — بس **مفيش ولا واحد فيهم كان بينده embedText**.
+ *
+ * الأثر المقاس 2026-09-07: من ٨ ملاحظات في الإنتاج، الاتنين الوحيدين بـ
+ * `embedding IS NULL` كانوا `weekly_synthesis` و`spending_pattern` — يعني **أنفع
+ * نطاقين للأيجنت كانوا اللي البحث الدلالي مش شايفهم**، ومش داخلين في أي ربط جراف.
+ *
+ * fail-open زي ما كان بالظبط: فشل التضمين مايبطّلش الكتابة اللي نجحت قبله.
+ */
+async function embedAndLinkNote(
+  sb: SupabaseClient, userId: string, scope: string, note: string,
+  opts: { link: boolean } = { link: true },
+): Promise<void> {
   try {
     const vec = await embedText(note);
-    if (vec) {
-      await sb.rpc("zad_memory_set_embedding", { p_user: userId, p_note: note, p_vec: vec });
+    if (!vec) return;
+    await sb.rpc("zad_memory_set_embedding", { p_user: userId, p_note: note, p_vec: vec });
 
-      // بند 31.1 — ربط تلقائي بدل ما يستنى الموديل يفتكر ينده link_memory (عمره ما بيعمل
-      // ده، صفر روابط كانت موجودة من يوم ما الجدول اتعمل). relation='co_occurs' مقصودة
-      // كأضعف علاقة ممكنة — تشابه المتجهات بيقول "الملاحظتين قريبين من بعض"، مش "دي سبب
-      // دي" أو "دي بتفسر دي". عتبة ٠.٥٥ بداية تحفظية مش مقايسة.
-      if (upsertStatus !== "conflict") {
-        const { data: ownRow } = await sb.from("zad_memory")
-          .select("id").eq("user_id", userId).eq("scope", scope).eq("note", note)
-          .maybeSingle();
-        const ownId = (ownRow as { id: string } | null)?.id;
-        if (ownId) {
-          const { data: neighbors } = await sb.rpc("zad_memory_semantic_search", {
-            p_user: userId, p_query_embedding: vec, p_limit: 4,
-          });
-          const AUTO_LINK_MIN_SIMILARITY = 0.55;
-          for (const n of (neighbors ?? []) as Array<{ id: string; similarity: number }>) {
-            if (n.id === ownId || n.similarity < AUTO_LINK_MIN_SIMILARITY) continue;
-            await sb.rpc("zad_memory_link_upsert", {
-              p_user: userId, p_from: ownId, p_to: n.id,
-              p_relation: "co_occurs", p_strength: n.similarity,
-            });
-          }
-        }
-      }
+    // بند 31.1 — ربط تلقائي بدل ما يستنى الموديل يفتكر ينده link_memory (عمره ما بيعمل
+    // ده، صفر روابط كانت موجودة من يوم ما الجدول اتعمل). relation='co_occurs' مقصودة
+    // كأضعف علاقة ممكنة — تشابه المتجهات بيقول "الملاحظتين قريبين من بعض"، مش "دي سبب
+    // دي" أو "دي بتفسر دي". عتبة ٠.٥٥ بداية تحفظية مش مقايسة.
+    if (!opts.link) return;
+    const { data: ownRow } = await sb.from("zad_memory")
+      .select("id").eq("user_id", userId).eq("scope", scope).eq("note", note)
+      .maybeSingle();
+    const ownId = (ownRow as { id: string } | null)?.id;
+    if (!ownId) return;
+    const { data: neighbors } = await sb.rpc("zad_memory_semantic_search", {
+      p_user: userId, p_query_embedding: vec, p_limit: 4,
+    });
+    const AUTO_LINK_MIN_SIMILARITY = 0.55;
+    for (const n of (neighbors ?? []) as Array<{ id: string; similarity: number }>) {
+      if (n.id === ownId || n.similarity < AUTO_LINK_MIN_SIMILARITY) continue;
+      await sb.rpc("zad_memory_link_upsert", {
+        p_user: userId, p_from: ownId, p_to: n.id,
+        p_relation: "co_occurs", p_strength: n.similarity,
+      });
     }
   } catch (e) {
     console.warn("memory embedding/auto-link skipped:", e);
   }
+}
 
-  return { status: upsertStatus };
+/**
+ * كتابة سكوب "نسخة واحدة" (استبدال) + تضمين — للسكوبات اللي المفروض تحمل ملاحظة
+ * واحدة بس لكل مستخدم.
+ *
+ * الاستبدال اليدوي (delete ثم insert) مقصود ومش قابل للتحويل لـ`zad_memory_upsert`:
+ * الأخيرة بتقارن بالتشابه فبتقوّي ملاحظة قديمة بدل ما تستبدلها، و
+ * `onConflict: "user_id,scope"` بيرمي 42P10 لأن مفيش unique(user_id,scope) على
+ * الجدول عن قصد (سكوبات زي general بتحمل أكتر من ملاحظة).
+ */
+async function writeSingleCopyMemory(
+  sb: SupabaseClient, userId: string, scope: string, note: string, confidence: number,
+): Promise<{ error: unknown }> {
+  await sb.from("zad_memory").delete().eq("user_id", userId).eq("scope", scope);
+  const { error } = await sb.from("zad_memory")
+    .insert({ user_id: userId, scope, note, confidence, evidence_count: 1 });
+  if (error) return { error };
+  await embedAndLinkNote(sb, userId, scope, note);
+  return { error: null };
 }
 
 /**
@@ -1188,11 +1227,9 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       // (زي "general"/"spending_pattern"). السكوب ده بالذات المفروض نسخة واحدة بس فباستبدلها
       // يدوي بدل onConflict: "user_id,scope" اللي كانت بترمي 42P10 (مفيش constraint تطابقه)
       // ويتبلع بصمت — فالشخصية المالية ما كانتش بتتسجل ولا مرة.
-      await sb.from("zad_memory").delete().eq("user_id", userId).eq("scope", "financial_persona");
-      const { error: personaMemErr } = await sb.from("zad_memory").insert({
-        user_id: userId, scope: "financial_persona",
-        note: personalityNote, confidence: 0.9,
-      });
+      const { error: personaMemErr } = await writeSingleCopyMemory(
+        sb, userId, "financial_persona", personalityNote, 0.9,
+      );
       if (personaMemErr) console.error("financial_persona memory write failed:", personaMemErr);
 
       ctx.counts["monthly_review"] = (ctx.counts["monthly_review"] ?? 0) + 1;
@@ -1245,11 +1282,9 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
       }
 
       const plan = points.join("\n");
-      await sb.from("zad_memory").delete().eq("user_id", userId).eq("scope", "salary_plan");
-      const { error: salaryMemErr } = await sb.from("zad_memory").insert({
-        user_id: userId, scope: "salary_plan",
-        note: plan, confidence: 0.95,
-      });
+      const { error: salaryMemErr } = await writeSingleCopyMemory(
+        sb, userId, "salary_plan", plan, 0.95,
+      );
       if (salaryMemErr) console.error("salary_plan memory write failed:", salaryMemErr);
 
       return `💰 الراتب وصل — خطتك للشهر:\n${plan}`;
@@ -1284,11 +1319,9 @@ async function executeTool(sb: SupabaseClient, userId: string, name: string, inp
           end_date: new Date(Date.now() + 7 * 86400000).toISOString(),
         });
       }
-      await sb.from("zad_memory").delete().eq("user_id", userId).eq("scope", "active_challenge");
-      const { error: challengeMemErr } = await sb.from("zad_memory").insert({
-        user_id: userId, scope: "active_challenge",
-        note: challengeText, confidence: 0.9,
-      });
+      const { error: challengeMemErr } = await writeSingleCopyMemory(
+        sb, userId, "active_challenge", challengeText, 0.9,
+      );
       if (challengeMemErr) console.error("active_challenge memory write failed:", challengeMemErr);
       ctx.counts["suggest_challenge"] = (ctx.counts["suggest_challenge"] ?? 0) + 1;
       return challengeText + " — التحدي اتسجل وهتابع التزامك تلقائياً";
@@ -5359,9 +5392,9 @@ Deno.serve(async (req: Request) => {
               // بيقوله. والاستبدال اليدوي هو النمط المعمول بيه هناك، لأن
               // onConflict: "user_id,scope" بيرمي 42P10: مفيش unique(user_id,scope)
               // على الجدول عن قصد (سكوبات تانية زي general بتحمل أكتر من ملاحظة).
-              await sbDream.from("zad_memory").delete().eq("user_id", u.id).eq("scope", "spending_pattern");
-              const { error: patternErr } = await sbDream.from("zad_memory")
-                .insert({ user_id: u.id, scope: "spending_pattern", note, confidence: 0.85, evidence_count: 1 });
+              const { error: patternErr } = await writeSingleCopyMemory(
+                sbDream, u.id, "spending_pattern", note, 0.85,
+              );
               if (patternErr) console.error("spending_pattern memory write failed:", patternErr);
             }
           }
@@ -5421,10 +5454,10 @@ Deno.serve(async (req: Request) => {
               const topCategory = [...byCategory.entries()].sort((a, b) => b[1] - a[1])[0];
               const weeklyNote = `تلخيص الأسبوع: ${weekTxns.length} معاملة بإجمالي ${Math.round(weekTotal)} ${u.currency ?? ""}.`
                 + (topCategory ? ` أعلى فئة صرف: ${topCategory[0]} (${Math.round(topCategory[1])} ${u.currency ?? ""}).` : "");
-              await sbDream.from("zad_memory").delete().eq("user_id", u.id).eq("scope", "weekly_synthesis");
-              await sbDream.from("zad_memory").insert({
-                user_id: u.id, scope: "weekly_synthesis", note: weeklyNote, confidence: 0.8, evidence_count: 1,
-              });
+              const { error: weeklyErr } = await writeSingleCopyMemory(
+                sbDream, u.id, "weekly_synthesis", weeklyNote, 0.8,
+              );
+              if (weeklyErr) console.error("weekly_synthesis memory write failed:", weeklyErr);
             }
           }
 
