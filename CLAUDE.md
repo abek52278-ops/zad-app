@@ -171,6 +171,10 @@ already knowing where things stand instead of re-deriving it from commit history
 `SESSION_2026_07_26_epic19.md` is archived (Epic 1+4, tasks 19-24, closed); Epic 2
 (`EPIC_2_ai_screen.md`) closed 2026-07-30.
 
+- `docs/agent/SESSION_2026_09_06_device_test.md` — **اقرأه قبل أي شغل جديد.** حالة الجلسة
+  الأخيرة: نتايج **أول اختبار على جهاز حقيقي** بأسبابها الجذرية، وخطة الموجات، والمؤجَّل
+  بقرار المستخدم. وفيه نمط اتكرر ٤ مرات في يوم واحد يستاهل تقراه قبل ما تبني أي حاجة:
+  آلية مبنية بالكامل ونقطة نداء واحدة بتتخطاها، فتبان كأنها مش موجودة.
 - `docs/agent/ZAD_MASTER.md` — architecture, repo facts, settled decisions, tasks 1–14
 - `docs/agent/NEXT_visible_progress.md` — current task order (supersedes the order in
   ZAD_MASTER; task contents unchanged). **Incomplete as of 2026-07-25** — truncated
