@@ -53,6 +53,44 @@ class AgentPanelContrastTest {
     }
 
     @Test
+    fun `the status pill text clears AA over its own 12 percent container`() {
+        // شريحة السلسلة كانت `Color(0xFFFF5722)` نص وحاوية — نفس الدرجة، فالتباين
+        // في اللايت كان **2.75:1**. و`coral` لوحده مابيصلحش (3.38:1) لأن المشكلة
+        // في التصميم مش في الرمز: نص بنفس درجة حاوية ١٢٪ منخفض التباين حتماً.
+        // والنص 11sp bold يعني مش «نص كبير»، فالعتبة 4.5:1 مش 3:1.
+        val cases = listOf(
+            Triple("light", ZadExtendedColorsLight.onStatusPill, ZadExtendedColorsLight.coral) to 0xFFFFFFFF,
+            Triple("dark", ZadExtendedColorsDark.onStatusPill, ZadExtendedColorsDark.coral) to 0xFF191D17,
+        )
+        for ((triple, surface) in cases) {
+            val (name, fg, container) = triple
+            val pill = blend(argb(container) and 0xFFFFFF, 0.12, surface and 0xFFFFFF)
+            val ratio = contrast(argb(fg) and 0xFFFFFF, pill)
+            assertTrue(
+                "$name: نص الشريحة تباينه ${"%.2f".format(ratio)}:1 — تحت 4.5:1",
+                ratio >= 4.5,
+            )
+        }
+    }
+
+    private fun blend(fg: Long, alpha: Double, bg: Long): Long {
+        var out = 0L
+        for (shift in listOf(16, 8, 0)) {
+            val f = (fg shr shift) and 0xFF
+            val b = (bg shr shift) and 0xFF
+            val v = Math.round(f * alpha + b * (1 - alpha))
+            out = out or (v shl shift)
+        }
+        return out
+    }
+
+    private fun contrast(a: Long, b: Long): Double {
+        val la = relativeLuminance(a)
+        val lb = relativeLuminance(b)
+        return (maxOf(la, lb) + 0.05) / (minOf(la, lb) + 0.05)
+    }
+
+    @Test
     fun `the panel is deliberately identical in light and dark`() {
         // مش سهو: الكارت لوحة ليلية، والتقليب مع الثيم هو اللي كسره أصلاً.
         assertEquals(ZadExtendedColorsLight.agentPanelStart, ZadExtendedColorsDark.agentPanelStart)

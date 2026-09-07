@@ -95,6 +95,8 @@ val secondaryDark: Color @Composable get() = LocalZadExtendedColors.current.seco
 /** لوحة الأيجنت — داكنة في الوضعين، شوف التعليق في ZadExtendedColors. */
 val agentPanelStart: Color @Composable get() = LocalZadExtendedColors.current.agentPanelStart
 val agentPanelEnd: Color @Composable get() = LocalZadExtendedColors.current.agentPanelEnd
+/** نص شريحة الحالة — أغمق من coral في اللايت عشان يعدّي AA فوق حاوية ١٢٪. */
+val onStatusPill: Color @Composable get() = LocalZadExtendedColors.current.onStatusPill
 val secondaryLight: Color @Composable get() = LocalZadExtendedColors.current.secondaryLight
 
 // Theme-invariant on purpose, and named for its one legitimate caller so the intent

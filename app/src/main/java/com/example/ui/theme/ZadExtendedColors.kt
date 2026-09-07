@@ -53,6 +53,15 @@ data class ZadExtendedColors(
     val agentPanelStart: Color,
     val agentPanelEnd: Color,
     /**
+     * نص شريحة الحالة فوق حاوية بنفس درجتها بشفافية ١٢٪.
+     *
+     * `coral` نفسه مابيعديش هنا: نص بنفس درجة لون الحاوية بيدي **٣٫٣٨:١** في
+     * الوضع الفاتح، والشريحة نصها 11sp bold يعني مش «نص كبير» فعتبتها 4.5:1 مش 3:1.
+     * القياس على الشريحة الفعلية (coral@12% فوق السطح): لايت 5.40:1، دارك 4.94:1.
+     * الرمز ده أغمق من `coral` في اللايت بس، والدارك بيفضل زي ما هو.
+     */
+    val onStatusPill: Color,
+    /**
      * Categorical chart palette — colours whose only job is to tell series apart.
      *
      * Deliberately NOT the semantic tokens. The third slice of a spending breakdown is
@@ -91,6 +100,7 @@ val ZadExtendedColorsLight = ZadExtendedColors(
     authWashCool = Color(0xFFBFE3D1),
     agentPanelStart = Color(0xFF052E16),
     agentPanelEnd = Color(0xFF0A382C),
+    onStatusPill = Color(0xFFA63F1B),
     // Exactly the values CategoryBreakdownCard used as ZadV3.green600 / info / warn /
     // danger / violet, in the same order — so the light rendering is unchanged.
     chartCategorical = listOf(
@@ -135,6 +145,7 @@ val ZadExtendedColorsDark = ZadExtendedColors(
     authWashCool = Color(0xFF14302A),
     agentPanelStart = Color(0xFF052E16),
     agentPanelEnd = Color(0xFF0A382C),
+    onStatusPill = Color(0xFFEA764B),
     // Same five hues, lifted to read on a dark ground. The light values are mid-tones
     // chosen against white; on near-black they lose separation and #B45309 in particular
     // goes muddy. Hue and order are preserved so a category keeps its colour identity

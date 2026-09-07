@@ -630,8 +630,8 @@ private fun AnimatedTreeDisplay(
                     Spacer(modifier = Modifier.width(8.dp))
                     com.example.ui.components.ZadStatusPill(
                         text = stringResource(R.string.streak_days_count, tree.streakDays),
-                        color = Color(0xFFFF5722),
-                        containerColor = Color(0xFFFF5722).copy(alpha = 0.12f)
+                        color = onStatusPill,
+                        containerColor = coral.copy(alpha = 0.12f)
                     )
                 }
             }

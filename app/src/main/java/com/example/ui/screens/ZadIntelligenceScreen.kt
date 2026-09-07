@@ -3745,7 +3745,7 @@ fun FamilyNeuralMeshCard(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF0F172A).copy(alpha = 0.04f))
+                        .background(onSurface.copy(alpha = 0.04f))
                         .padding(10.dp)
                 ) {
                     Column {
@@ -3758,7 +3758,7 @@ fun FamilyNeuralMeshCard(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF0F172A).copy(alpha = 0.04f))
+                        .background(onSurface.copy(alpha = 0.04f))
                         .padding(10.dp)
                 ) {
                     Column {
@@ -3977,7 +3977,7 @@ fun FamilyNeuralReportBottomSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFF0F172A).copy(alpha = 0.04f))
+                        .background(onSurface.copy(alpha = 0.04f))
                         .padding(20.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -4011,7 +4011,7 @@ fun FamilyNeuralReportBottomSheet(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFF0F172A).copy(alpha = 0.04f))
+                                .background(onSurface.copy(alpha = 0.04f))
                                 .padding(12.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
