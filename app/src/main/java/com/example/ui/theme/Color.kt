@@ -92,6 +92,9 @@ val outlineVariant: Color @Composable get() = MaterialTheme.colorScheme.outlineV
 val primaryDark: Color @Composable get() = LocalZadExtendedColors.current.primaryDark
 val primaryLight: Color @Composable get() = LocalZadExtendedColors.current.primaryLight
 val secondaryDark: Color @Composable get() = LocalZadExtendedColors.current.secondaryDark
+/** لوحة الأيجنت — داكنة في الوضعين، شوف التعليق في ZadExtendedColors. */
+val agentPanelStart: Color @Composable get() = LocalZadExtendedColors.current.agentPanelStart
+val agentPanelEnd: Color @Composable get() = LocalZadExtendedColors.current.agentPanelEnd
 val secondaryLight: Color @Composable get() = LocalZadExtendedColors.current.secondaryLight
 
 // Theme-invariant on purpose, and named for its one legitimate caller so the intent

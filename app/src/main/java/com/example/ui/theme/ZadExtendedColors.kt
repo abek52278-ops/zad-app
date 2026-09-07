@@ -39,6 +39,20 @@ data class ZadExtendedColors(
     val authWashWarm: Color,
     val authWashCool: Color,
     /**
+     * لوحة الأيجنت — **داكنة في الوضعين عن قصد**، مش بتتقلب مع الثيم.
+     *
+     * الكارت كله نصه `Color.White` ثابت (المخطط بيحدده كلوحة ليلية:
+     * تدرّج 135° من #052E16 لـ#0A382C). قبل كده كانت بداية التدرّج
+     * `primaryContainer` — رمز بيتقلب — فبقت #E8F0EC في اللايت مود، يعني
+     * **أبيض على شبه أبيض بتباين 1.16:1**. الطرف التاني كان ثابت داكن، فالعطل
+     * كان في النص التاني من الكارت بس والأول غير مقروء.
+     *
+     * الرمزين دول بيخلّوا القيمتين في الثيم (فيتغيّروا من مكان واحد) من غير ما
+     * يتقلبوا — لأن التقليب هو نفسه اللي كسرها.
+     */
+    val agentPanelStart: Color,
+    val agentPanelEnd: Color,
+    /**
      * Categorical chart palette — colours whose only job is to tell series apart.
      *
      * Deliberately NOT the semantic tokens. The third slice of a spending breakdown is
@@ -75,6 +89,8 @@ val ZadExtendedColorsLight = ZadExtendedColors(
     surfaceContainerHigh = ZadIosSurfaceVariant,
     authWashWarm = Color(0xFFFCD3C7),
     authWashCool = Color(0xFFBFE3D1),
+    agentPanelStart = Color(0xFF052E16),
+    agentPanelEnd = Color(0xFF0A382C),
     // Exactly the values CategoryBreakdownCard used as ZadV3.green600 / info / warn /
     // danger / violet, in the same order — so the light rendering is unchanged.
     chartCategorical = listOf(
@@ -117,6 +133,8 @@ val ZadExtendedColorsDark = ZadExtendedColors(
     // not the pastels — those wash out to a light screen, which is the bug being fixed.
     authWashWarm = Color(0xFF3A1E16),
     authWashCool = Color(0xFF14302A),
+    agentPanelStart = Color(0xFF052E16),
+    agentPanelEnd = Color(0xFF0A382C),
     // Same five hues, lifted to read on a dark ground. The light values are mid-tones
     // chosen against white; on near-black they lose separation and #B45309 in particular
     // goes muddy. Hue and order are preserved so a category keeps its colour identity

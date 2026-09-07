@@ -1778,7 +1778,7 @@ fun AgentSummaryCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(Brush.linearGradient(listOf(primaryContainer, Color(0xFF0A382C))))
+            .background(Brush.linearGradient(listOf(agentPanelStart, agentPanelEnd)))
             // ::before بتاع البروتوتايب: دائرة ضوء mint نصف قطرها 140px أعلى اليمين
             // بتنفس breathe 4s (scale 1→1.05)
             .drawBehind {
