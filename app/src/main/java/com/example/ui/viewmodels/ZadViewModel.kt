@@ -4438,10 +4438,16 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     val priceShockFetchState: kotlinx.coroutines.flow.StateFlow<LiveFetchState> = _priceShockFetchState
 
     fun refreshPriceShockWarnings(categories: List<String>) {
+        // نفس الحارس والسقف بتوع refreshLiveDeals وrefreshLiveMarketPrices. الكارت ده
+        // كمان زراره `enabled = fetchState != Loading` (ZadIntelligenceScreen:2549)،
+        // فـLoading العالقة بتعطّل المخرج الوحيد منها.
+        if (_priceShockFetchState.value == LiveFetchState.Loading) return
         viewModelScope.launch {
             _priceShockFetchState.value = LiveFetchState.Loading
             try {
-                _priceShockWarnings.value = ZadAiRepository.fetchLivePriceShockWarnings(categories)
+                _priceShockWarnings.value = kotlinx.coroutines.withTimeout(120_000) {
+                    ZadAiRepository.fetchLivePriceShockWarnings(categories)
+                }
                 _priceShockFetchState.value = LiveFetchState.Fetched
                 Log.d(TAG, "refreshPriceShockWarnings() → found=${_priceShockWarnings.value.size}")
             } catch (e: Exception) {

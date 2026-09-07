@@ -1137,7 +1137,15 @@ object ZadAiRepository {
         location: String = MarketPrefs.currentMarket.displayNameAr
     ): List<PriceShockWarning> {
         if (categories.isEmpty()) return emptyList()
-        val response = callAction("fetch_price_shock_warnings", mapOf("categories" to categories, "location" to location))
+        // نفس علاج fetch_live_deals بالظبط — البحث الحي بيعدّي الـ30 ثانية الافتراضية،
+        // وswallowErrors=true كانت بتحوّل المهلة لـemptyMap فشرط ok==false تحت
+        // مابيتحققش (null مش false) والفشل بيوصل كـ«مفيش تحذيرات».
+        val response = callAction(
+            "fetch_price_shock_warnings",
+            mapOf("categories" to categories, "location" to location),
+            swallowErrors = false,
+            timeoutMs = 110_000,
+        )
         if (response["ok"] == false) throw IllegalStateException("fetch_price_shock_warnings: upstream search failed")
         val warningsRaw = response["warnings"] as? List<*> ?: return emptyList()
         return warningsRaw.mapNotNull { entry ->
