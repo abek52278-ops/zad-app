@@ -422,7 +422,7 @@ class PreviewTest(private val dark: Boolean) {
                             isActive = true,
                             autoDeduct = true
                         ),
-                        onToggleActive = {}, onToggleAutoDeduct = {}, onDelete = {}
+                        onToggleActive = {}, onToggleAutoDeduct = {}, onEdit = {}, onDelete = {}
                     )
                 }
             }
@@ -451,7 +451,7 @@ class PreviewTest(private val dark: Boolean) {
                             isActive = true,
                             autoDeduct = false
                         ),
-                        onToggleActive = {}, onToggleAutoDeduct = {}, onDelete = {}
+                        onToggleActive = {}, onToggleAutoDeduct = {}, onEdit = {}, onDelete = {}
                     )
                 }
             }
@@ -535,7 +535,7 @@ class PreviewTest(private val dark: Boolean) {
                             isActive = true,
                             autoDeduct = false
                         ),
-                        onToggleActive = {}, onToggleAutoDeduct = {}, onDelete = {}
+                        onToggleActive = {}, onToggleAutoDeduct = {}, onEdit = {}, onDelete = {}
                     )
                 }
             }

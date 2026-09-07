@@ -875,6 +875,11 @@
     <string name="disable">Disable</string>
     <string name="delete_action">Delete</string>
     <string name="add_subscription_dialog_title">Add New Subscription</string>
+    <string name="edit_subscription_dialog_title">Edit Subscription</string>
+    <string name="billing_cycle_label">Billing cycle</string>
+    <string name="billing_cycle_monthly">Monthly</string>
+    <string name="billing_cycle_yearly">Yearly</string>
+    <string name="billing_cycle_weekly">Weekly</string>
     <string name="subscription_name_hint">Subscription Name (e.g. Netflix)</string>
     <string name="amount_with_currency_hint">Amount (%1$s)</string>
     <string name="service_provider_hint">Service Provider</string>

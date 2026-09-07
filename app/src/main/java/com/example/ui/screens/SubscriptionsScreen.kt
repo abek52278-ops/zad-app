@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -43,6 +45,7 @@ import com.example.ui.components.subscriptionBrandFor
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.FamilyViewModel
 import com.example.ui.viewmodels.ZadViewModel
+import com.example.workers.nextRenewalDate
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.launch
@@ -62,6 +65,7 @@ fun SubscriptionsScreen(
     val subscriptions by viewModel.subscriptions.collectAsState()
     val pendingSubscriptions by viewModel.pendingSubscriptions.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
+    var editingSubscription by remember { mutableStateOf<ZadSubscription?>(null) }
     var selectedTab by remember { mutableIntStateOf(0) }
     var showInactive by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -250,6 +254,7 @@ fun SubscriptionsScreen(
                                 sub = sub,
                                 onToggleActive = { viewModel.updateSubscriptionActive(sub.id, !sub.isActive) },
                                 onToggleAutoDeduct = { viewModel.updateSubscriptionAutoDeduct(sub.id, !sub.autoDeduct) },
+                                onEdit = { editingSubscription = sub },
                                 onDelete = { viewModel.deleteSubscription(sub.id) }
                             )
                         }
@@ -269,9 +274,10 @@ fun SubscriptionsScreen(
         }
 
         if (showAddDialog) {
-            AddSubscriptionDialog(
+            AddEditSubscriptionDialog(
+                subscription = null,
                 onDismiss = { showAddDialog = false },
-                onSave = { title, amount, renewalDate, provider, category ->
+                onSave = { title, amount, renewalDate, provider, category, billingCycle ->
                     viewModel.addSubscription(
                         ZadSubscription(
                             title = title,
@@ -279,10 +285,31 @@ fun SubscriptionsScreen(
                             renewalDate = renewalDate,
                             provider = provider,
                             category = category,
-                            isActive = true
+                            isActive = true,
+                            billingCycle = billingCycle
                         )
                     )
                     showAddDialog = false
+                }
+            )
+        }
+
+        editingSubscription?.let { existing ->
+            AddEditSubscriptionDialog(
+                subscription = existing,
+                onDismiss = { editingSubscription = null },
+                onSave = { title, amount, renewalDate, provider, category, billingCycle ->
+                    viewModel.updateSubscription(
+                        existing.copy(
+                            title = title,
+                            amount = amount,
+                            renewalDate = renewalDate,
+                            provider = provider,
+                            category = category,
+                            billingCycle = billingCycle
+                        )
+                    )
+                    editingSubscription = null
                 }
             )
         }
@@ -296,6 +323,7 @@ internal fun SubScreenSubscriptionCardFull(
     sub: ZadSubscription,
     onToggleActive: () -> Unit,
     onToggleAutoDeduct: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -432,6 +460,16 @@ internal fun SubScreenSubscriptionCardFull(
                                 .size(18.dp)
                         )
                         Icon(
+                            Icons.Default.EditNote,
+                            contentDescription = stringResource(R.string.edit_subscription_dialog_title),
+                            tint = onSurfaceVariant,
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .clickable { onEdit() }
+                                .padding(3.dp)
+                                .size(18.dp)
+                        )
+                        Icon(
                             Icons.Default.DeleteOutline,
                             contentDescription = stringResource(R.string.delete_action),
                             tint = onSurfaceVariant,
@@ -448,22 +486,72 @@ internal fun SubScreenSubscriptionCardFull(
     }
 }
 
+/**
+ * دورات الفوترة المخزّنة — **قيم مطابقة مش نصوص عرض**. بتتكتب في
+ * `zad_subscriptions.billing_cycle` وبيقارن بيها `nextRenewalDate` و`monthlyEquivalentCost`
+ * وكارت الاشتراك بـ`uppercase()`، فتفضل إنجليزي حتى لو الواجهة اتترجمت (قاعدة i18n في
+ * CLAUDE.md). اللي بيتترجم هو `billingCycleLabel` بس.
+ */
+private val subscriptionBillingCycles = listOf("MONTHLY", "YEARLY", "WEEKLY")
+
 @Composable
-fun AddSubscriptionDialog(onDismiss: () -> Unit, onSave: (String, Double, String, String, String) -> Unit) {
-    var title by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") }
-    var provider by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("اشتراك") }
-    var renewalDate by remember { mutableStateOf("") }
-    val context = androidx.compose.ui.platform.LocalContext.current
+private fun billingCycleLabel(cycle: String): String = when (cycle.uppercase()) {
+    "YEARLY", "ANNUAL" -> stringResource(R.string.billing_cycle_yearly)
+    "WEEKLY" -> stringResource(R.string.billing_cycle_weekly)
+    else -> stringResource(R.string.billing_cycle_monthly)
+}
+
+/**
+ * فورم واحد للإضافة والتعديل، على نفس شكل `AddEditObligationDialog` — ده بند P2
+ * "توحيد فورم الاشتراكات/الأقساط". الفورمين كانوا متفاوتين: فورم الالتزامات فيه
+ * `enabled = canSave` و`isError` وكيبورد أرقام وشرايح تكرار، وفورم الاشتراكات مالوش
+ * ولا واحدة — زرار الحفظ كان دايماً مفعّل وبيعمل `return@Button` صامت لو المبلغ غلط.
+ *
+ * **والعطل الحقيقي:** `billing_cycle` ماكانش ليه ولا كاتب واحد في التطبيق كله
+ * (`grep "billingCycle ="` = صفر)، فكل اشتراك كان بيفضل MONTHLY — قيمة الموديل
+ * الافتراضية — للأبد، ومفيش أي طريق يغيّرها. وتلات مستهلكين بيقروها:
+ * `SubscriptionAutoDeductWorker.nextRenewalDate` (اشتراك سنوي كان بيتخصم ١٢ مرة
+ * في السنة)، كارت الاشتراك (تكلفة سنوية بـ١٢×)، و`ZadViewModel.monthlyEquivalentCost`.
+ * الآلية كانت مبنية بالكامل — `nextRenewalDate` بيدعم YEARLY/ANNUAL/WEEKLY أصلاً —
+ * والفورم بس هو اللي مكانش يقدر ينتج غير MONTHLY.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun AddEditSubscriptionDialog(
+    subscription: ZadSubscription?,
+    onDismiss: () -> Unit,
+    onSave: (title: String, amount: Double, renewalDate: String, provider: String, category: String, billingCycle: String) -> Unit
+) {
+    var title by remember { mutableStateOf(subscription?.title ?: "") }
+    var amountStr by remember {
+        mutableStateOf(
+            subscription?.amount?.let {
+                if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString()
+            } ?: ""
+        )
+    }
+    var provider by remember { mutableStateOf(subscription?.provider ?: "") }
+    var category by remember { mutableStateOf(subscription?.category ?: "اشتراك") }
+    var renewalDate by remember { mutableStateOf(subscription?.renewalDate?.take(10) ?: "") }
+    var billingCycle by remember { mutableStateOf(subscription?.billingCycle?.uppercase() ?: "MONTHLY") }
+    val context = LocalContext.current
+
+    val amount = amountStr.toDoubleOrNull()
+    // تاريخ فاضي مسموح (بياخد الافتراضي عند الحفظ)، لكن تاريخ مكتوب غلط لأ: الـworker
+    // بيعمل `LocalDate.parse` جوه try/catch وبيـ`return@forEach` — يعني اشتراك بتاريخ
+    // غير صالح بيتخطى في كل تشغيل للأبد، من غير خصم ولا ترحيل ولا أي إشارة للعميل.
+    val renewalDateValid = renewalDate.isBlank() ||
+        runCatching { LocalDate.parse(renewalDate.trim()) }.isSuccess
+    val canSave = title.isNotBlank() && amount != null && amount > 0.0 && renewalDateValid
 
     // بيصنّف الفاتورة تلقائياً (نوع/مزوّد/فئة) بعد ما المستخدم يكتب اسم ومبلغ حقيقيين —
     // debounce بسيط عن طريق delay قبل النداء عشان ميبعتش طلب AI مع كل حرف يتكتب.
-    LaunchedEffect(title, amount) {
-        val parsedAmount = amount.toDoubleOrNull()
-        if (title.length >= 3 && parsedAmount != null && parsedAmount > 0) {
+    // بيشتغل في الإضافة بس — في التعديل الفئة والمزوّد اختيار المستخدم، مايتكتبش فوقهم.
+    LaunchedEffect(title, amount, subscription) {
+        if (subscription != null) return@LaunchedEffect
+        if (title.length >= 3 && amount != null && amount > 0) {
             kotlinx.coroutines.delay(600)
-            val classification = com.example.data.ZadAiRepository.classifyBill(title, parsedAmount)
+            val classification = com.example.data.ZadAiRepository.classifyBill(title, amount)
             if (classification != null) {
                 category = classification.category
                 if (provider.isBlank() && !classification.provider.isNullOrBlank()) {
@@ -475,30 +563,100 @@ fun AddSubscriptionDialog(onDismiss: () -> Unit, onSave: (String, Double, String
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.add_subscription_dialog_title), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
+        title = {
+            Text(
+                stringResource(
+                    if (subscription == null) R.string.add_subscription_dialog_title
+                    else R.string.edit_subscription_dialog_title
+                ),
+                style = Typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()
             ) {
-                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text(stringResource(R.string.subscription_name_hint)) }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text(stringResource(R.string.amount_with_currency_hint, com.example.data.CurrencyFormatter.symbol(context))) }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = provider, onValueChange = { provider = it }, label = { Text(stringResource(R.string.service_provider_hint)) }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = renewalDate, onValueChange = { renewalDate = it }, label = { Text(stringResource(R.string.renewal_date_hint)) }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text(stringResource(R.string.subscription_name_hint)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = amountStr,
+                    onValueChange = { amountStr = it },
+                    label = {
+                        Text(
+                            stringResource(
+                                R.string.amount_with_currency_hint,
+                                com.example.data.CurrencyFormatter.symbol(context)
+                            )
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    isError = amountStr.isNotBlank() && (amount == null || amount <= 0.0)
+                )
+                OutlinedTextField(
+                    value = provider,
+                    onValueChange = { provider = it },
+                    label = { Text(stringResource(R.string.service_provider_hint)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = renewalDate,
+                    onValueChange = { renewalDate = it },
+                    label = { Text(stringResource(R.string.renewal_date_hint)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    isError = !renewalDateValid
+                )
+
+                Text(
+                    stringResource(R.string.billing_cycle_label),
+                    style = Typography.labelMedium,
+                    color = onSurfaceVariant
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    subscriptionBillingCycles.forEach { cycle ->
+                        FilterChip(
+                            selected = billingCycle == cycle,
+                            onClick = { billingCycle = cycle },
+                            label = { Text(billingCycleLabel(cycle), style = Typography.labelSmall) }
+                        )
+                    }
+                }
+
                 if (title.length >= 3) {
-                    Text(stringResource(R.string.subs_suggested_category, category), style = Typography.labelSmall, color = onSurfaceVariant)
+                    Text(
+                        stringResource(R.string.subs_suggested_category, category),
+                        style = Typography.labelSmall,
+                        color = onSurfaceVariant
+                    )
                 }
             }
         },
         confirmButton = {
             Button(
+                enabled = canSave,
                 onClick = {
-                    val parsedAmount = amount.toDoubleOrNull() ?: return@Button
-                    if (title.isNotBlank()) {
-                        onSave(title, parsedAmount,
-                            if (renewalDate.isNotBlank()) renewalDate else LocalDate.now().plusMonths(1).toString(),
-                            provider, category)
-                    }
+                    onSave(
+                        title.trim(),
+                        amount ?: 0.0,
+                        // التاريخ الافتراضي بيتبع الدورة المختارة — اشتراك سنوي بيبدأ
+                        // بتجديد بعد سنة، مش بعد شهر زي ما كان ثابت قبل كده.
+                        renewalDate.trim().ifBlank {
+                            nextRenewalDate(LocalDate.now(), billingCycle).toString()
+                        },
+                        provider.trim(),
+                        category,
+                        billingCycle
+                    )
                 },
                 modifier = Modifier.pressableScale(),
                 shape = RoundedCornerShape(50)

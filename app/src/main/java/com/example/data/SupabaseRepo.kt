@@ -703,6 +703,32 @@ object SupabaseRepo {
         }
     }
 
+    /**
+     * تحديث الحقول اللي الفورم الموحّد بيعدّلها. `billing_cycle` تحديداً ماكانش ليه أي
+     * مسار كتابة قبل كده — لا هنا ولا في الفورم — فكل اشتراك كان بيفضل MONTHLY للأبد.
+     */
+    suspend fun updateSubscription(sub: ZadSubscription) {
+        try {
+            Log.d(TAG, "updateSubscription() → table=zad_subscriptions, id=${sub.id}")
+            client.postgrest["zad_subscriptions"].update(
+                buildJsonObject {
+                    put("title", sub.title)
+                    put("amount", sub.amount)
+                    put("renewal_date", sub.renewalDate)
+                    put("provider", sub.provider)
+                    put("category", sub.category)
+                    put("billing_cycle", sub.billingCycle)
+                }
+            ) {
+                filter { eq("id", sub.id) }
+            }
+            Log.d(TAG, "updateSubscription() SUCCESS")
+        } catch (e: Exception) {
+            Log.e(TAG, "updateSubscription() FAILED: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
     suspend fun updateSubscriptionActive(id: String, isActive: Boolean) {
         try {
             Log.d(TAG, "updateSubscriptionActive() → table=zad_subscriptions, id=$id, isActive=$isActive")

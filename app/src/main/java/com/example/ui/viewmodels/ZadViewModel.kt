@@ -3496,6 +3496,27 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * تعديل اشتراك موجود — بند P2 (توحيد فورم الاشتراكات/الأقساط). قبل كده مكانش فيه
+     * مسار تعديل خالص: بعد الإنشاء الاشتراك كان يتقفل على قيمه للأبد، وأهمها
+     * `billing_cycle` اللي ماكانش ليه ولا كاتب واحد في التطبيق. فاشتراك سنوي اتعمل
+     * قبل الإصلاح ده لازم يبقى ليه طريق يتصحّح بيه، مش الإضافة الجديدة بس.
+     */
+    fun updateSubscription(sub: ZadSubscription) {
+        viewModelScope.launch {
+            Log.d(TAG, "updateSubscription() → id=${sub.id}, title=${sub.title}, billingCycle=${sub.billingCycle}")
+            dao.insertSubscription(sub)
+            _subscriptions.value = _subscriptions.value.map { if (it.id == sub.id) sub else it }
+            try {
+                SupabaseRepo.updateSubscription(sub)
+                Log.d(TAG, "updateSubscription() → synced to Supabase table=zad_subscriptions")
+            } catch (e: Exception) {
+                Log.e(TAG, "updateSubscription() Supabase sync FAILED: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+    }
+
     fun deleteSubscription(id: String) {
         viewModelScope.launch {
             Log.d(TAG, "deleteSubscription() → id=$id")

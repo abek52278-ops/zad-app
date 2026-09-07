@@ -827,6 +827,11 @@
     <string name="disable">تعطيل</string>
     <string name="delete_action">حذف</string>
     <string name="add_subscription_dialog_title">إضافة اشتراك جديد</string>
+    <string name="edit_subscription_dialog_title">تعديل الاشتراك</string>
+    <string name="billing_cycle_label">دورة الفوترة</string>
+    <string name="billing_cycle_monthly">شهري</string>
+    <string name="billing_cycle_yearly">سنوي</string>
+    <string name="billing_cycle_weekly">أسبوعي</string>
     <string name="subscription_name_hint">اسم الاشتراك (مثال: Netflix)</string>
     <string name="amount_with_currency_hint">المبلغ (%1$s)</string>
     <string name="service_provider_hint">مزود الخدمة</string>
