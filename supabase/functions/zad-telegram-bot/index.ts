@@ -19,6 +19,7 @@ import { Bot, InlineKeyboard, webhookCallback } from "npm:grammy@1";
 import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { mediaGate } from "./entitlement.ts";
 import {
+  adCreditKeyboard,
   InlineKeyboardButton, mainMenuKeyboard, dismissKeyboard,
   reasonForCode, parseDismissCallback, normalizeBindingCode, memoryNoteForDismissal,
   formatBalanceMessage, type BudgetStateRow, formatTransactionsMessage, formatInsightTitle,
@@ -97,7 +98,10 @@ function toGrammyKeyboard(rows: InlineKeyboardButton[][]): InlineKeyboard {
   const kb = new InlineKeyboard();
   for (const row of rows) {
     row.forEach((btn, i) => {
-      kb.text(btn.text, btn.callback_data);
+      // زر رابط مقابل زر callback. من غير الفرع ده، btn.url بيتجاهَل و
+      // kb.text بتتنادى بـcallback_data = undefined فالزر بيطلع ميت.
+      if (btn.url) kb.url(btn.text, btn.url);
+      else kb.text(btn.text, btn.callback_data ?? "");
       if (i < row.length - 1) kb.row();
     });
     kb.row();
@@ -434,6 +438,8 @@ interface AgentTurnResult {
   reply: string;
   executed: AgentExecuted[];
   proposals: AgentProposal[];
+  /** العقل رفض اللفة لنفاد رصيد الإعلانات — الرد بياخد زر شحن بدل نص وبس. */
+  needs_ad_credit?: boolean;
 }
 
 /**
@@ -836,7 +842,7 @@ async function agentTurnReply(
   userId: string,
   chatId: number,
   text: string,
-): Promise<{ lines: string[]; pendingId?: string; toolPendingId?: string; errorReason?: string }> {
+): Promise<{ lines: string[]; pendingId?: string; toolPendingId?: string; errorReason?: string; needsAdCredit?: boolean }> {
   // ── ربط الإجابة بالسؤال ──────────────────────────────────────────────────
   // زاد بيبعت أسئلة على تليجرام ("راتبك بيجي يوم ١٦ من كل شهر — أظبط الشهر عندك على
   // كده؟") والرد بييجي كرسالة عادية مالهاش أي علاقة بالسؤال. حصل فعلاً: السؤال كان عن
@@ -886,6 +892,13 @@ async function agentTurnReply(
   // "الوكيل مش متاح" بالظبط، فلازم تحمل نفس السبب الصريح.
   if (!turn.reply?.trim() && !turn.executed?.length && !turn.proposals?.length) {
     return { lines: [], errorReason: "zad-brain returned an empty turn (HTTP 200, no reply, no executed tool, no proposal)" };
+  }
+
+  // نفاد رصيد الإعلانات: الرد بياخد زر شحن. لو رجعنا بنص وبس، العميل واقف في
+  // تليجرام ومش عارف يعمل إيه — والحل جوه التطبيق.
+  if (turn.needs_ad_credit) {
+    await recordChatTurn(sb, userId, "assistant", turn.reply);
+    return { lines: [turn.reply.trim()], needsAdCredit: true };
   }
 
   const lines: string[] = [];
@@ -1101,7 +1114,9 @@ bot.on("message:text", async (ctx) => {
 
   if (turnReply.lines.length > 0) {
     const body = clampForTelegram(turnReply.lines.join("\n\n"));
-    if (turnReply.pendingId) {
+    if (turnReply.needsAdCredit) {
+      await ctx.reply(body, { reply_markup: toGrammyKeyboard(adCreditKeyboard()) });
+    } else if (turnReply.pendingId) {
       await ctx.reply(body, { reply_markup: toGrammyKeyboard(confirmSpendKeyboard(turnReply.pendingId)) });
     } else if (turnReply.toolPendingId) {
       await ctx.reply(body, { reply_markup: toGrammyKeyboard(confirmToolKeyboard(turnReply.toolPendingId)) });
@@ -1193,7 +1208,9 @@ bot.on("message:voice", async (ctx) => {
 
   if (turnReply.lines.length > 0) {
     const body = clampForTelegram(heard + turnReply.lines.join("\n\n"));
-    if (turnReply.pendingId) {
+    if (turnReply.needsAdCredit) {
+      await ctx.reply(body, { reply_markup: toGrammyKeyboard(adCreditKeyboard()) });
+    } else if (turnReply.pendingId) {
       await ctx.reply(body, { reply_markup: toGrammyKeyboard(confirmSpendKeyboard(turnReply.pendingId)) });
     } else if (turnReply.toolPendingId) {
       await ctx.reply(body, { reply_markup: toGrammyKeyboard(confirmToolKeyboard(turnReply.toolPendingId)) });

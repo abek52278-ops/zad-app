@@ -1743,4 +1743,9 @@
     <string name="outbox_stuck_title">إشعار لم يصل إلى زاد</string>
     <string name="outbox_stuck_body_with_amount">وصل إشعار بمبلغ %1$s (%2$s) ولم نتمكن من إيصاله. هل نسجّله؟</string>
     <string name="outbox_stuck_body_no_amount">وصل إشعار (%1$s) ولم نتمكن من قراءة مبلغ منه. راجعه وأضفه يدوياً إن كان معاملة.</string>
+    <string name="ad_credit_title">رصيد المحادثة</string>
+    <string name="ad_credit_left">متبقي %1$d رسالة</string>
+    <string name="ad_credit_watch">شاهد إعلاناً واحصل على %1$d رسائل</string>
+    <string name="ad_credit_daily_cap">أكملت %1$d إعلانات اليوم — الباقي غداً</string>
+    <string name="ad_credit_progress">%1$d من %2$d إعلانات اليوم</string>
 </resources>

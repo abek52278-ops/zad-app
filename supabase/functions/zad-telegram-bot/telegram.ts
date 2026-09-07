@@ -3,7 +3,23 @@
 // token to construct in some code paths); index.ts is the only place that touches
 // grammY or Supabase.
 
-export interface InlineKeyboardButton { text: string; callback_data: string }
+/**
+ * زر إما بـcallback_data (بيرجع للبوت) أو بـurl (بيفتح رابط عند العميل).
+ *
+ * ⚠️ تليجرام بيقبل http/https/tg:// في url وبيرفض أي مخطط مخصص — يعني
+ * `zad://rewards` مش هيتبعت أصلاً. عشان كده رابط الشحن https://zad.app/rewards
+ * وفيه intent-filter مقابل في المانيفست.
+ */
+export interface InlineKeyboardButton {
+  text: string;
+  callback_data?: string;
+  url?: string;
+}
+
+/** زر "اشحن رصيدك" لرسالة نفاد الرصيد. */
+export function adCreditKeyboard(): InlineKeyboardButton[][] {
+  return [[{ text: "🎬 اشحن رصيدك من التطبيق", url: "https://zad.app/rewards" }]];
+}
 
 export function mainMenuKeyboard(): InlineKeyboardButton[][] {
   return [

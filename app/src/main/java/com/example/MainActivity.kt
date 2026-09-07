@@ -85,6 +85,15 @@ class MainActivity : ComponentActivity() {
         var pendingInviteCode = mutableStateOf<String?>(null)
         var openChatFromNotification = mutableStateOf(false)
 
+        /**
+         * zad://rewards — بيفتح شاشة الشحن بالإعلانات.
+         *
+         * البوت بيبعت الزر ده في رسالة نفاد الرصيد: العميل واقف في تليجرام والرصيد
+         * خلص، والحل جوه التطبيق. من غير الرابط ده الرسالة بتقوله "روح التطبيق"
+         * وبس، وده احتكاك كفاية إنه ما يروحش.
+         */
+        var openRewardsFromDeepLink = mutableStateOf(false)
+
         /** "Hey Zad" — الخدمة طلبت فتح شاشة الصوت (wake word اتكشف). */
         var openVoiceRequest = mutableStateOf(false)
 
@@ -313,6 +322,14 @@ class MainActivity : ComponentActivity() {
         val explicitCode = intent?.getStringExtra("invite_code")
         if (!explicitCode.isNullOrBlank()) {
             pendingInviteCode.value = explicitCode.trim()
+        }
+        // الشكلين: zad://rewards (من جوه التطبيق) و https://zad.app/rewards (من
+        // تليجرام — بيرفض المخططات المخصصة في أزرار الروابط).
+        val wantsRewards = (uri?.scheme == "zad" && uri.host == "rewards") ||
+            (uri?.host == "zad.app" && uri.path?.startsWith("/rewards") == true)
+        if (wantsRewards) {
+            Log.d("ZAD_DEEPLINK", "Opening rewards screen from deep link")
+            openRewardsFromDeepLink.value = true
         }
         if (intent?.getBooleanExtra("open_family_chat", false) == true) {
             Log.d("ZAD_NOTIF", "Opening family chat from notification")

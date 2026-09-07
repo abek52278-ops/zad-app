@@ -206,6 +206,15 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
         }
     }
 
+    // zad://rewards من زر تليجرام لما الرصيد يخلص. الاستهلاك مرة واحدة عشان
+    // العودة للتطبيق بعدين ما تفتحش الشاشة تاني.
+    LaunchedEffect(MainActivity.openRewardsFromDeepLink.value) {
+        if (MainActivity.openRewardsFromDeepLink.value) {
+            MainActivity.openRewardsFromDeepLink.value = false
+            go(ZadRoutes.PREMIUM_PLANS)
+        }
+    }
+
     // بند 32.2 — دوس على إشعار المعاملة البنكية (FCM fallback لما تيليجرام مش مربوط)
     // يرجّع العميل للرئيسية عشان يشوف الكارت، بدل ما يفضل واقف في أي شاشة تانية كان فيها.
     val transactionProposalNotifRequest = MainActivity.openTransactionProposalsRequest.value

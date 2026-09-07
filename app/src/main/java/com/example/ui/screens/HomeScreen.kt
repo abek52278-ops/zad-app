@@ -522,6 +522,48 @@ fun HomeScreen(
                         kotlinx.coroutines.delay(30_000L)
                     }
                 }
+                // ── كارت شحن الرصيد ──────────────────────────────────────
+                // بيظهر لما الرصيد يقل عن ٥ بس. كارت دائم بيطلب مشاهدة إعلانات على
+                // الشاشة الرئيسية بيتقري إلحاح، والإلحاح بيتجاهَل — والعرض في لحظة
+                // الحاجة هو اللي بيخليه مفيد.
+                var adCredit by remember { mutableStateOf<com.example.data.SupabaseRepo.ZadEntitlementState?>(null) }
+                var adReady by remember { mutableStateOf(false) }
+                LaunchedEffect(Unit) {
+                    adCredit = com.example.ads.RewardedBrainAdManager.syncServerState(context)
+                    adReady = com.example.ads.RewardedBrainAdManager.isAdReady()
+                }
+                adCredit?.let { ent ->
+                    if (ent.tier == "free" && ent.chatLeft < 5) {
+                        com.example.ui.components.AdCreditCard(
+                            chatLeft = ent.chatLeft,
+                            // ٣ + عدد إعلانات اليوم، بسقف ١٠ — نفس معادلة
+                            // zad_ad_reward_grant. الرقم بيتعرض عشان التصاعد يشتغل
+                            // كحافز: العميل لازم يشوف إن الجاية أحسن من اللي فاتت.
+                            nextReward = minOf(3 + ent.adWatchCount, 10),
+                            adsToday = ent.adWatchCount,
+                            dailyCap = 10,
+                            isAdReady = adReady,
+                            onWatch = {
+                                val refresh: () -> Unit = {
+                                    scope.launch {
+                                        adCredit = com.example.ads.RewardedBrainAdManager.syncServerState(context)
+                                        adReady = com.example.ads.RewardedBrainAdManager.isAdReady()
+                                    }
+                                }
+                                com.example.ads.RewardedBrainAdManager.showRewardedEnergyAd(
+                                    context = context,
+                                    // بعد المشاهدة بنعيد القراءة من السيرفر مش بنزوّد
+                                    // محليًا — نفس سبب شيل الـfallback في 5563354: الرصيد
+                                    // بيتحدد عند السيرفر وبس.
+                                    onAdWatched = { _, _ -> refresh() },
+                                    onFailed = refresh,
+                                )
+                            },
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                    }
+                }
+
                 com.example.ui.components.BankListeningPill(
                     alive = bankListenerAlive,
                     lastSeenAt = com.example.data.BankReadingStatus.lastSawNotificationAt(context),

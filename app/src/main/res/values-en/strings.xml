@@ -1754,4 +1754,9 @@
     <string name="outbox_stuck_title">A notification never reached Zad</string>
     <string name="outbox_stuck_body_with_amount">A notification for %1$s (%2$s) could not be delivered. Log it?</string>
     <string name="outbox_stuck_body_no_amount">A notification (%1$s) arrived but no amount could be read. Review it and add it manually if it was a transaction.</string>
+    <string name="ad_credit_title">Chat credit</string>
+    <string name="ad_credit_left">%1$d messages left</string>
+    <string name="ad_credit_watch">Watch an ad for %1$d messages</string>
+    <string name="ad_credit_daily_cap">%1$d ads done today — more tomorrow</string>
+    <string name="ad_credit_progress">%1$d of %2$d ads today</string>
 </resources>

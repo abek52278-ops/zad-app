@@ -84,6 +84,11 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                <!-- /rewards — زر تليجرام لما رصيد المحادثة يخلص. لازم https مش
+                     zad://: تليجرام بيقبل http/https/tg:// بس في أزرار الروابط
+                     وبيرفض أي مخطط مخصص، فالزر نفسه ماكانش هيتبعت أصلاً. -->
+                <data android:scheme="https" android:host="zad.app" android:pathPrefix="/rewards" />
+                <data android:scheme="http" android:host="zad.app" android:pathPrefix="/rewards" />
                 <data android:scheme="https" android:host="zad.app" android:pathPrefix="/invite" />
                 <data android:scheme="https" android:host="zad.app" android:pathPrefix="/family" />
                 <data android:scheme="http" android:host="zad.app" android:pathPrefix="/invite" />

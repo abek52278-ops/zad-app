@@ -1751,4 +1751,9 @@
     <string name="outbox_stuck_title">Bir bildirim Zad’a ulaşmadı</string>
     <string name="outbox_stuck_body_with_amount">%1$s tutarındaki bildirim (%2$s) iletilemedi. Kaydedilsin mi?</string>
     <string name="outbox_stuck_body_no_amount">Bir bildirim (%1$s) geldi ancak tutar okunamadı. İşlemse elle ekleyin.</string>
+    <string name="ad_credit_title">Sohbet kredisi</string>
+    <string name="ad_credit_left">%1$d mesaj kaldı</string>
+    <string name="ad_credit_watch">Reklam izle, %1$d mesaj kazan</string>
+    <string name="ad_credit_daily_cap">Bugün %1$d reklam tamamlandı — yarın devam</string>
+    <string name="ad_credit_progress">Bugün %2$d reklamdan %1$d tanesi</string>
 </resources>

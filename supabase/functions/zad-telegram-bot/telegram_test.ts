@@ -6,6 +6,7 @@ import {
   confirmToolKeyboard, parseToolCallback,
   transactionProposalKeyboard, parseTransactionProposalCallback,
   notificationReviewMessage,
+  adCreditKeyboard,
 } from "./telegram.ts";
 
 Deno.test("normalizeBindingCode uppercases a valid code", () => {
@@ -195,8 +196,8 @@ Deno.test("confirmToolKeyboard stays inside Telegram's 64-byte callback_data cap
     assert(new TextEncoder().encode(b.callback_data).length <= 64);
   }
   // والأهم: الرد بيرجع مفكوك لنفس الـ id، فالزرار والراوتر متفقين.
-  assertEquals(parseToolCallback(buttons[0].callback_data)?.action, "confirm");
-  assertEquals(parseToolCallback(buttons[1].callback_data)?.action, "cancel");
+  assertEquals(parseToolCallback(buttons[0].callback_data ?? "")?.action, "confirm");
+  assertEquals(parseToolCallback(buttons[1].callback_data ?? "")?.action, "cancel");
 });
 
 // ── shared bank-transaction proposals ──────────────────────────────────────
@@ -219,7 +220,7 @@ Deno.test("parseTransactionProposalCallback rejects malformed and unrelated call
 Deno.test("classification proposal keyboard is complete and within Telegram callback limit", () => {
   const id = "3f1a2b4c-5d6e-4f70-8a91-b2c3d4e5f607";
   const buttons = transactionProposalKeyboard(id, "needs_classification").flat();
-  assertEquals(buttons.map((button) => parseTransactionProposalCallback(button.callback_data)?.decision), [
+  assertEquals(buttons.map((button) => parseTransactionProposalCallback(button.callback_data ?? "")?.decision), [
     "expense", "income", "transfer", "reject",
   ]);
   for (const button of buttons) {
@@ -231,7 +232,7 @@ Deno.test("confirmation proposal keyboard offers confirmation, rejection, and co
   const id = "3f1a2b4c-5d6e-4f70-8a91-b2c3d4e5f607";
   const decisions = transactionProposalKeyboard(id, "awaiting_confirmation", "expense")
     .flat()
-    .map((button) => parseTransactionProposalCallback(button.callback_data)?.decision);
+    .map((button) => parseTransactionProposalCallback(button.callback_data ?? "")?.decision);
   assertEquals(decisions, ["confirm", "reject", "income", "transfer"]);
 });
 
@@ -246,4 +247,17 @@ Deno.test("notification review message asks for amount and direction without cla
   assert(message.includes("إيداع 1000"));
   assert(message.includes("للتأكيد"));
   assert(!message.includes("اتسجلت"));
+});
+
+// الزر ده لازم يفضل زر رابط. لو رجع callback_data بدل url، تليجرام هيبعت
+// callback للبوت والعميل مش هيتنقل للتطبيق أصلاً.
+Deno.test("adCreditKeyboard is a single link button, not a callback button", () => {
+  const rows = adCreditKeyboard();
+  assertEquals(rows.length, 1);
+  assertEquals(rows[0].length, 1);
+  const button = rows[0][0];
+  assert(button.url !== undefined, "ad credit button must carry a url");
+  assertEquals(button.callback_data, undefined);
+  // تليجرام بيرفض السكيمات المخصصة (zad://) في أزرار الروابط، فلازم https.
+  assert(button.url!.startsWith("https://"), `expected https url, got ${button.url}`);
 });
