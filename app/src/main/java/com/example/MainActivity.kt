@@ -33,6 +33,13 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavOptionsBuilder
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -371,11 +378,26 @@ fun AppNavigation(pendingInviteCode: String? = null) {
     }
 
     val coroutineScope = rememberCoroutineScope()
+    // بيتحط true طول ما getMarketProfile شغال. من غيره الشاشة بتفضل سودا لثواني
+    // على شبكة بطيئة: navigateAfterSplash بيعمل launch وبيرجع من غير ما ينقل حاجة،
+    // فالـNavHost يفضل على وجهة اتفضّى مكدسها ومفيش حاجة معروضة.
+    // اتشاف في أول اختبار على جهاز حقيقي 2026-09-06.
+    var resolvingMarket by remember { mutableStateOf(false) }
+
+    /**
+     * تفضية المكدس من **بداية الجراف** بدل popUpTo(0).
+     *
+     * الصفر بيشيل الجذر نفسه كمان، فبيفضل جزء من إطار مفيش فيه وجهة مركّبة —
+     * ومحصلته وميض أسود. البداية بتدي نفس النتيجة (مفيش رجوع للتسجيل) من غير
+     * ما تفضّي الجراف نفسه.
+     */
+    fun NavOptionsBuilder.clearBackStack() {
+        popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
+    }
+
     fun goToMainOrOnboarding() {
         val session = SupabaseRepo.client.auth.currentSessionOrNull()
-        navController.navigate(if (session != null) "main" else "onboarding") {
-            popUpTo(0) { inclusive = true }
-        }
+        navController.navigate(if (session != null) "main" else "onboarding") { clearBackStack() }
     }
     val navigateAfterSplash: () -> Unit = navigate@{
         if (!MarketPrefs.hasSelectedMarket(context)) {
@@ -384,22 +406,42 @@ fun AppNavigation(pendingInviteCode: String? = null) {
             // السيرفر الأول قبل ما نجبره يختار تاني.
             val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
             if (userId != null) {
+                resolvingMarket = true
                 coroutineScope.launch {
-                    val (_, serverCountry) = SupabaseRepo.getMarketProfile(userId)
-                    val serverMarket = serverCountry?.let { code -> Market.entries.find { it.countryCode == code } }
-                    if (serverMarket != null) {
-                        MarketPrefs.setMarket(context, serverMarket)
-                        goToMainOrOnboarding()
-                    } else {
-                        navController.navigate("market_selection") { popUpTo(0) { inclusive = true } }
+                    try {
+                        val (_, serverCountry) = SupabaseRepo.getMarketProfile(userId)
+                        val serverMarket = serverCountry?.let { code -> Market.entries.find { it.countryCode == code } }
+                        if (serverMarket != null) {
+                            MarketPrefs.setMarket(context, serverMarket)
+                            goToMainOrOnboarding()
+                        } else {
+                            navController.navigate("market_selection") { clearBackStack() }
+                        }
+                    } finally {
+                        // finally مش بعد الانتقال: لو النداء رمى، الشاشة لازم ترجع
+                        // من التحميل بدل ما تعلّق فيه للأبد.
+                        resolvingMarket = false
                     }
                 }
                 return@navigate
             }
-            navController.navigate("market_selection") { popUpTo(0) { inclusive = true } }
+            navController.navigate("market_selection") { clearBackStack() }
             return@navigate
         }
         goToMainOrOnboarding()
+    }
+
+    // الغطاء فوق الـNavHost: بيغطي اللحظة اللي مفيش فيها وجهة معروضة بخلفية
+    // المصادقة نفسها + مؤشر، فالانتقال يبان "بيحمّل" مش "اتكسر".
+    if (resolvingMarket) {
+        com.example.ui.components.ZadAuthBackground {
+            androidx.compose.foundation.layout.Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = androidx.compose.ui.Alignment.Center,
+            ) {
+                androidx.compose.material3.CircularProgressIndicator()
+            }
+        }
     }
 
     NavHost(navController = navController, startDestination = "splash") {
