@@ -24,9 +24,8 @@ const CORS = {
   "access-control-allow-headers": "authorization, content-type, x-fx-cron-secret",
 };
 
-// نفس نمط parent-digest: الدالة بتشتغل بـ`verify_jwt = false` عشان الكرون
-// (net.http_post) مابيحملش JWT سوبابيز، فالهيدر ده هو الحاجة الوحيدة بينها وبين
-// الإنترنت. سر مش متظبط = رفض وتسجيل، **مش فتح**.
+// الدالة بتشتغل بـ`verify_jwt = false` عشان الكرون (net.http_post) مابيحملش JWT
+// سوبابيز — الحارس في `_shared/cronSecret.ts`.
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
