@@ -508,6 +508,13 @@
     "id",
     "user_id"
   ],
+  "zad_ad_ssv_receipts": [
+    "ad_unit",
+    "created_at",
+    "reward_amount",
+    "transaction_id",
+    "user_id"
+  ],
   "zad_agent_messages": [
     "created_at",
     "detail",

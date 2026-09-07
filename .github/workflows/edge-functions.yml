@@ -94,6 +94,10 @@ jobs:
         working-directory: supabase/functions/zad-voice-live
         run: deno test --allow-all
 
+      - name: Test admob-ssv
+        working-directory: supabase/functions/admob-ssv
+        run: deno test --allow-all
+
       - name: Schema contract (.from/.select/.insert vs live schema)
         working-directory: supabase/functions/_schema
         run: deno test --allow-all

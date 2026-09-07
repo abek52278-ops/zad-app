@@ -20,7 +20,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 object RewardedBrainAdManager {
     private const val TAG = "RewardedBrainAdManager"
-    const val AD_UNIT_ID = "ca-app-pub-4433736715872551/5974535887"
+    // وحدة جوجل التجريبية الرسمية للمكافآت أثناء التطوير. الوحدة الحقيقية
+    // (ca-app-pub-4433736715872551/5974535887) اتشالت مؤقتاً 2026-09-07: الاختبار
+    // على وحدة إنتاج بيسجّل انطباعات غير صالحة، وده سبب معروف لإغلاق حسابات
+    // AdMob. ترجع عند بناء نسخة الإنتاج.
+    const val AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917"
     const val TOTAL_ADS_REQUIRED = 3
 
     private const val PREF_NAME = "rewarded_brain_unlock"
@@ -141,12 +145,17 @@ object RewardedBrainAdManager {
                         null
                     }
                     if (state == null) {
-                        // Fallback محلي: زوّد العد محلياً. المزامنة الجاية مع السيرفر
-                        // هتتصحح لو المنح اتسجل هناك فعلاً.
-                        val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-                        val count = prefs.getInt(KEY_AD_WATCH_COUNT, 0) + 1
-                        prefs.edit().putInt(KEY_AD_WATCH_COUNT, count).apply()
-                        settleOnce(true, count, count >= TOTAL_ADS_REQUIRED)
+                        // المنح من السيرفر بس. كان هنا fallback بيزوّد العد في
+                        // SharedPreferences ويفتح الجلسة لما السيرفر يقع — يعني رصيد
+                        // بيتمنح **من غير أي تحقق**، وقابل للتلاعب بتعديل الملف على
+                        // جهاز مفتوح. النية كانت إن العميل شاف الإعلان فعلاً وميضيعش
+                        // حقه، بس التكلفة إن أي حد يقدر يشحن نفسه بلا حد.
+                        //
+                        // البديل: نفشل بوضوح ونسيب المزامنة الجاية تصلّح. المنحة
+                        // الحقيقية محفوظة عند السيرفر (zad_ad_grants)، فلو المنح نجح
+                        // والرد ضاع، syncServerState هيرجّعها.
+                        Log.w(TAG, "Reward grant failed — no local credit granted")
+                        settleOnce(false)
                         return@launch
                     }
                     persistServerState(context.applicationContext, state)

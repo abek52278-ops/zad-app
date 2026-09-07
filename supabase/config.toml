@@ -79,3 +79,8 @@ verify_jwt = false
 # فانكشن يفضل "غير معرَّف" ويعتمد على افتراض ضمني.
 [functions.zad-voice-live]
 verify_jwt = true
+
+# جوجل بتنادي الـcallback من غير أي Authorization header — verify_jwt لازم تفضل
+# false، زي zad-telegram-bot بالظبط. الأمان هنا من توقيع جوجل نفسه مش من JWT.
+[functions.admob-ssv]
+verify_jwt = false
