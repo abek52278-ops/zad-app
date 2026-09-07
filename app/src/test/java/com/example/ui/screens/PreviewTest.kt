@@ -33,7 +33,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import com.example.ui.components.CompanionState
-import com.example.ui.components.ZadSmartBotAgent
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -1246,8 +1245,8 @@ class PreviewTest(private val dark: Boolean) {
                             .padding(end = 20.dp, bottom = HomeOrbMetrics.bottomPadding)
                             .size(safeZoneDp)
                     ) {
-                        ZadSmartBotAgent(
-                            sizeDp = orbSizeDp,
+                        com.example.ui.components.CompanionOrb(
+                            size = orbSizeDp,
                             state = CompanionState.Idle,
                             modifier = Modifier.align(Alignment.BottomEnd)
                                 .offset { IntOffset(0, dragUpPx.toInt()) },

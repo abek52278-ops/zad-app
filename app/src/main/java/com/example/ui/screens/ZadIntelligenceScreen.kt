@@ -62,7 +62,6 @@ import com.example.data.AiInsight
 import com.example.data.ZadAiRepository
 import com.example.ads.RewardedBrainAdManager
 import com.example.ui.components.CompanionState
-import com.example.ui.components.ZadSmartBotAgent
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import com.example.voice.ZadCutePetSoundFx
@@ -280,8 +279,8 @@ fun ZadIntelligenceScreen(
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     // 3D Living Orb with Interactive Tap
-                    ZadSmartBotAgent(
-                        sizeDp = 96.dp,
+                    com.example.ui.components.CompanionOrb(
+                        size = 96.dp,
                         // المزاج الموحّد بدل اشتقاق محلي من isTyping: الـViewModel
                         // بيحط Focused أصلاً أول ما الشات يبدأ، وكمان بيعرف عن الصوت
                         // والتنبيهات اللي isTyping لوحده أعمى عنها.

@@ -10,6 +10,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -19,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -31,6 +34,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.voice.LiveVoiceState
+import com.example.voice.ZadCutePetSoundFx
 import com.example.voice.VoiceState
 import kotlinx.coroutines.delay
 import kotlin.math.cos
@@ -111,6 +115,52 @@ fun companionStateDescription(state: CompanionState): String = stringResource(
 )
 
 /**
+ * خطوة الفلتر الأسّي للسعة — دالة نقية عشان تكون قابلة للاختبار.
+ *
+ * **الصعود أسرع من الهبوط بقصد:** 0.45 طالع عشان أول مقطع نطق يبان فوراً، و0.12
+ * نازل عشان الكورة ماترجعش لصفر في كل سكتة بين كلمتين. لو الاتنين اتساووا، الحركة
+ * بتتقري إما "بطيئة ومتأخرة" أو "مرتعشة" — والفرق ده هو كل الفرق بين كورة بتتجاوب
+ * وكورة بتتنطط.
+ */
+internal fun smoothOrbLevel(current: Float, raw: Float): Float {
+    val target = raw.coerceIn(0f, 1f)
+    val factor = if (target > current) 0.45f else 0.12f
+    return current + (target - current) * factor
+}
+
+/**
+ * مصدر السعة الموحّد للكورة — بيجمّع الفلو بنفسه وبينعّمه.
+ *
+ * **بياخد الـflow مش القيمة، وده جوهر الحارس.** لو المستدعي عمل
+ * `micLevel.collectAsState()` وبعت الـ`Float`، **المستدعي نفسه** كان هيعيد التركيب
+ * مع كل انبعاث — والمصدر بيبعت مرة لكل بافر صوت (`ZadLiveVoiceSession.updateMicLevel`
+ * جوه لوب القراءة، و`ZadVoiceManager` من `onRmsChanged`)، يعني عشرات المرات في
+ * الثانية طول المكالمة. بالجمع هنا، الانبعاث بيكتب في `MutableFloatState` واللي
+ * بيقراها هو **الـdraw scope بس** عن طريق اللامبدا اللي بترجع — فبيتبطّل الرسم
+ * لوحده (`invalidateDraw`) ومفيش ولا recomposition واحدة من الصوت.
+ *
+ * **والتنعيم مش تجميل:** RMS خام بيقفز بين بافر وبافر فبيتقري "ارتعاش". فلتر أسّي
+ * بصعود أسرع من الهبوط بيدي إحساس "بتتجاوب": بتلحق أول مقطع نطق فوراً، وماترجعش
+ * لصفر في كل سكتة بين كلمتين.
+ *
+ * [levelFlow] = `null` معناها مفيش صوت شغال، فبترجع صفر والكورة تكمّل تنفسها العادي.
+ */
+@Composable
+fun rememberOrbAudioLevel(levelFlow: kotlinx.coroutines.flow.StateFlow<Float>?): () -> Float {
+    val smoothed = remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    LaunchedEffect(levelFlow) {
+        if (levelFlow == null) {
+            smoothed.floatValue = 0f
+            return@LaunchedEffect
+        }
+        levelFlow.collect { raw ->
+            smoothed.floatValue = smoothOrbLevel(smoothed.floatValue, raw)
+        }
+    }
+    return remember(smoothed) { { smoothed.floatValue } }
+}
+
+/**
  * الكورة الهلامية — أفتار الأيجنت.
  *
  * [animated] بيتحكم في كل الحركة المستمرة (نبض + تموّج السائل + الرمش العشوائي). خليه true
@@ -128,10 +178,38 @@ fun CompanionOrb(
     // بدل ما ينتظر الرمشة العشوائية العادية (٢٫٢-٥ ثواني).
     blinkTrigger: Long = 0L,
     // نفس اتفاقية blinkTrigger: التغيير هو الإشارة. بيولّع هالة حوالين الكورة وبتخبي
-    // في ٤٥٠ms. القفزة (tapScale في FloatingMascot) بتحرّك الحجم، ودي بتحرّك الضوء —
-    // الاتنين مع بعض هما اللي بيخلوا اللمسة تحس إنها اترددت، مش اتسجلت وخلاص.
-    glowTrigger: Long = 0L
+    // في ٤٥٠ms. القفزة (tapScale) بتحرّك الحجم، ودي بتحرّك الضوء — الاتنين مع بعض
+    // هما اللي بيخلوا اللمسة تحس إنها اترددت، مش اتسجلت وخلاص.
+    glowTrigger: Long = 0L,
+    /**
+     * سعة الصوت اللحظية 0..1 — الكورة بتنبض بيها وهي بتسمع.
+     *
+     * **لامبدا مش `Float`، والسبب أدائي مش أسلوبي.** المصدر
+     * (`ZadLiveVoiceSession.updateMicLevel`) بيحدّث القيمة **مرة لكل بافر مايك** —
+     * عشرات المرات في الثانية على 16kHz mono PCM16. لو البارامتر كان `Float`،
+     * كل انبعاث كان هيعمل recomposition لشجرة الكورة كلها بنفس المعدل، طول المكالمة.
+     * كلامبدا، القراءة بتحصل **جوه الـdraw scope** فبتبطّل الرسم لوحده
+     * (`invalidateDraw`) من غير إعادة تركيب. استخدم [rememberOrbAudioLevel] كمصدر —
+     * هي كمان بتنعّم القيمة عشان الحركة تتقري "حية" مش "مرتعشة".
+     *
+     * الافتراضي `{ 0f }` يعني كل نقطة نداء ماتمرّرهاش بتفضل زي ما هي بالظبط.
+     */
+    audioLevel: () -> Float = { 0f },
+    /**
+     * لمسة على الكورة. بتشغّل قفزة + زقزقة + رمشتين + هالة مع بعض.
+     *
+     * الرمش والهالة كان ليهم آلية كاملة (`blinkTrigger`/`glowTrigger`) و**صفر نقط
+     * نداء** — التعليق فوقهم كان بيشاور على `FloatingMascotCompanion` وهو مابقاش
+     * موجود. البارامتر ده بيوصّلهم.
+     */
+    onClick: (() -> Unit)? = null
 ) {
+    // اللمسة بتولّد نفس الإشارتين اللي البارامترات الخارجية بتولّدهم، فالمسارين
+    // بيروحوا لنفس المكان ومفيش منطق متكرر.
+    var tapPulse by remember { mutableStateOf(0L) }
+    val effectiveBlink = if (tapPulse != 0L) tapPulse else blinkTrigger
+    val effectiveGlow = if (tapPulse != 0L) tapPulse else glowTrigger
+
     val skyColor by animateColorAsState(state.skyColor, tween(500), label = "orbSky")
     val deepColor by animateColorAsState(state.deepColor, tween(500), label = "orbDeep")
 
@@ -177,8 +255,8 @@ fun CompanionOrb(
                 eyeOpen = 1f
             }
         }
-        LaunchedEffect(blinkTrigger) {
-            if (blinkTrigger != 0L) {
+        LaunchedEffect(effectiveBlink) {
+            if (effectiveBlink != 0L) {
                 repeat(2) {
                     eyeOpen = 0.08f
                     delay(90)
@@ -204,7 +282,7 @@ fun CompanionOrb(
         val lidTarget = if (drowsy) 0.45f else 1f
         val sleepyLid by animateFloatAsState(lidTarget, tween(900, easing = FastOutSlowInEasing), label = "orbSleepyLid")
 
-        LaunchedEffect(blinkTrigger, glowTrigger, state) {
+        LaunchedEffect(effectiveBlink, effectiveGlow, state) {
             drowsy = false
             yawn = 0f
             if (!canDoze) return@LaunchedEffect
@@ -229,13 +307,21 @@ fun CompanionOrb(
 
     var glowTarget by remember { mutableFloatStateOf(0f) }
     val glow by animateFloatAsState(glowTarget, tween(450, easing = FastOutSlowInEasing), label = "orbGlow")
-    LaunchedEffect(glowTrigger) {
-        if (glowTrigger != 0L) {
+    LaunchedEffect(effectiveGlow) {
+        if (effectiveGlow != 0L) {
             glowTarget = 1f
             delay(120)
             glowTarget = 0f
         }
     }
+
+    // القفزة: نفس إحساس ZadSmartBotAgent اللي المكوّن ده حلّ محله — نابية وسريعة،
+    // فبتستخدم ZadSprings.Press بدل tween مكتوب بالإيد (قاعدة zad-compose-motion).
+    val tapScale by animateFloatAsState(
+        targetValue = if (glowTarget > 0f) 0.92f else 1f,
+        animationSpec = ZadSprings.Press,
+        label = "orbTapScale"
+    )
 
     // الوصف الصوتي بس على النسخ البارزة (animated=true — رأس الشاشة/الشات). نسخ فقاعات
     // الشات (animated=false) عمداً من غير semantics عشان قارئ الشاشة ميكررش "زاد: ..." قبل كل
@@ -246,13 +332,34 @@ fun CompanionOrb(
     } else {
         modifier.size(size)
     }
-    Canvas(modifier = orbModifier) {
-        val radius = (this.size.minDimension / 2f) * breathScale
+    val clickableModifier = if (onClick != null) {
+        orbModifier
+            .scale(tapScale)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                tapPulse = System.currentTimeMillis()
+                ZadCutePetSoundFx.play(ZadCutePetSoundFx.PetSound.HappyChirp)
+                onClick()
+            }
+    } else {
+        orbModifier
+    }
+    Canvas(modifier = clickableModifier) {
+        // **القراءة الوحيدة للسعة، وهي هنا بقصد.** جوه الـdraw scope التغيير بيبطّل
+        // الرسم لوحده؛ لو اتقرت فوق في جسم الـcomposable كانت هتعمل recomposition
+        // مع كل بافر مايك (عشرات المرات في الثانية).
+        val level = audioLevel().coerceIn(0f, 1f)
+
+        // النبض بيتضاف على التنفس مش بيستبدله: الكورة بتفضل بتتنفس وهي ساكتة،
+        // وبتكبر مع الصوت لما تسمع. 12% سقف — أكبر من كده بيتقري "بتتزنق" مش "بتنبض".
+        val radius = (this.size.minDimension / 2f) * breathScale * (1f + 0.12f * level)
         val center = Offset(this.size.width / 2f, this.size.height / 2f)
 
         // glow behind the body — a few widening, fading rings instead of a real blur
-        drawCircle(color = skyColor.copy(alpha = 0.18f), radius = radius * 1.35f, center = center)
-        drawCircle(color = skyColor.copy(alpha = 0.28f), radius = radius * 1.15f, center = center)
+        drawCircle(color = skyColor.copy(alpha = 0.18f + 0.14f * level), radius = radius * (1.35f + 0.22f * level), center = center)
+        drawCircle(color = skyColor.copy(alpha = 0.28f + 0.12f * level), radius = radius * (1.15f + 0.12f * level), center = center)
 
         // هالة اللمسة — بترسم فوق الهالة الساكنة وبتخبي لوحدها. صفر وقت السكون، فمفيش
         // أي رسم زيادة إلا في نص الثانية اللي بعد الضغطة.
@@ -273,7 +380,7 @@ fun CompanionOrb(
             }
         }) {
             drawPath(
-                path = blobPath(center, radius, blobPhase),
+                path = blobPath(center, radius, blobPhase, level),
                 brush = Brush.radialGradient(
                     colors = listOf(skyColor, deepColor),
                     center = center - Offset(radius * 0.3f, radius * 0.3f),
@@ -372,11 +479,16 @@ private const val BLOB_AMPLITUDE = 0.045f
  * بمعدل وطور مختلف عن التانية (موجات جيبية غير متزامنة)، متوصلة بمنحنيات ناعمة (quadratic
  * لكل نقطة نص المسافة للنقطة الجاية) بدل خطوط مستقيمة — نفس أسلوب "blob shape" الشائع.
  */
-private fun blobPath(center: Offset, baseRadius: Float, phase: Float): Path {
+/**
+ * [level] = سعة الصوت 0..1؛ بتزوّد عمق التموّج لحد الضعف. الطور نفسه مابيتسرّعش —
+ * تسريع الطور مع الصوت بيتقري "عصبية"، وزيادة العمق بتتقري "بتتجاوب".
+ */
+private fun blobPath(center: Offset, baseRadius: Float, phase: Float, level: Float = 0f): Path {
+    val amplitude = BLOB_AMPLITUDE * (1f + level)
     val points = (0 until BLOB_POINTS).map { i ->
         val angle = (i.toFloat() / BLOB_POINTS) * 2 * Math.PI.toFloat()
         val freq = 1.5f + (i % 3) * 0.7f
-        val wobble = 1f + BLOB_AMPLITUDE * sin(phase * freq + i * 1.1f)
+        val wobble = 1f + amplitude * sin(phase * freq + i * 1.1f)
         val r = baseRadius * wobble
         Offset(center.x + r * cos(angle), center.y + r * sin(angle))
     }

@@ -2,7 +2,6 @@ package com.example.ui.screens
 
 import com.example.ui.components.ZadCategoryCard
 import com.example.ui.components.ZadCategoryType
-import com.example.ui.components.ZadSmartBotAgent
 import com.example.voice.ZadVoiceManager
 import com.example.voice.VoiceState
 import com.example.ui.components.ZadWalletHeroCard
@@ -388,7 +387,7 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // ── 0b. مساعد زاد الذكي الحية — ZadSmartBotAgent بمشاعر وعيون مضيئة 3D ──
+                // ── 0b. مساعد زاد الذكي الحي — CompanionOrb بمشاعر وعيون ونوم وتثاؤب ──
                 // + زر الكاميرا العائم (onNavigateToCamera الحقيقي، بيفتح ZadCameraSheet) +
                 // شارة "عقل زاد نشط" — هيدر الرئيسية الفاخر (UI_ARCHITECTURE_SPEC.md §2.1/§4.1)
                 com.example.ui.components.AppearOnEntry {
@@ -406,8 +405,10 @@ fun HomeScreen(
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        ZadSmartBotAgent(
-                            sizeDp = 56.dp,
+                        // كورة الترحيب: زخرفية وحالتها ثابتة، فمش مربوطة بالسعة —
+                        // تشغيل جمع فلو لكورة مالهاش علاقة بمكالمة شغالة هدر.
+                        com.example.ui.components.CompanionOrb(
+                            size = 56.dp,
                             state = CompanionState.Idle,
                             onClick = onOpenVoice
                         )
@@ -1111,6 +1112,10 @@ fun HomeScreen(
             // متكررة حرفيًا هنا وفي ZadVoiceBottomSheet، والنسختين كانوا بيشوفوا
             // الصوت بس — الكورة مكانتش تعرف حاجة عن تنبيهات الميزانية ولا الشات.
             val restMood by viewModel.companionMood.collectAsState()
+            // نفس حارس الأداء: الفلو بيتجمّع جوه الهيلبر والقراءة في طور الرسم بس.
+            val homeOrbLevel = com.example.ui.components.rememberOrbAudioLevel(
+                com.example.voice.ZadLiveVoiceSession.micLevel
+            )
 
             Box(
                 modifier = Modifier
@@ -1118,9 +1123,14 @@ fun HomeScreen(
                     .padding(end = 20.dp, bottom = HomeOrbMetrics.bottomPadding)
                     .size(safeZoneDp)
             ) {
-                ZadSmartBotAgent(
-                    sizeDp = orbSizeDp,
+                // الكورة العايمة هي "الأليف" اللي المستخدم بيتعامل معاه، فهي اللي
+                // بتنبض مع الصوت. وبتكسب كمان النوم والتثاؤب والخدود اللي كانوا
+                // موجودين في CompanionOrb ومحدش شايفهم — كانت مستخدمة في شاشة
+                // عقل زاد بس، والرئيسية كانت على المكوّن الأفقر.
+                com.example.ui.components.CompanionOrb(
+                    size = orbSizeDp,
                     state = if (isDragging) CompanionState.Happy else restMood,
+                    audioLevel = homeOrbLevel,
                     onClick = onOpenVoiceLive,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)

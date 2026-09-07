@@ -69,6 +69,10 @@ fun ZadVoiceBottomSheet(
     val liveSession = remember { ZadLiveVoiceSession.apply { init(context) } }
     val liveState by liveSession.state.collectAsState()
     val liveMicLevel by liveSession.micLevel.collectAsState()
+    // بياخد الـflow مش القيمة — شوف rememberOrbAudioLevel لسبب ده بالتفصيل.
+    val orbLevel = rememberOrbAudioLevel(
+        if (isLiveMode) liveSession.micLevel else com.example.voice.ZadVoiceManager.soundLevel
+    )
 
     LaunchedEffect(isLiveMode) {
         if (isLiveMode) {
@@ -280,12 +284,17 @@ fun ZadVoiceBottomSheet(
             }
 
             // Central SmartBot Agent with Dynamic Listening Emotion
-            ZadSmartBotAgent(
-                sizeDp = 96.dp,
+            // الكورة بقت تنبض مع الصوت اللي بتسمعه فعلاً. قبل كده كانت الأعمدة تحت
+            // بترقص مع `soundLevel` والكورة فوقها بتتنفس على تايمر ثابت 2400ms مش
+            // سامعة حاجة — الحالة كانت بتغيّر اللون بس. السعة كانت متحسبة من زمان،
+            // ومحدش وصّلها للكورة.
+            CompanionOrb(
+                size = 96.dp,
                 // مفيش ترجمة هنا خالص دلوقتي — نفس المزاج اللي الكورة العايمة في
                 // HomeScreen بتقراه. كان فيه نسختين من الـ when ده، واحدة هنا وواحدة
                 // في HomeScreen، والاتنين كانوا لازم يفضلوا متطابقين يدويًا.
-                state = mood
+                state = mood,
+                audioLevel = orbLevel
             )
 
             // Dynamic Audio Waveform Bars responsive to soundLevel
