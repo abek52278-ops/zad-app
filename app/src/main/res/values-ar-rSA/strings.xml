@@ -1748,4 +1748,7 @@
     <string name="ad_credit_watch">شاهد إعلاناً واحصل على %1$d رسائل</string>
     <string name="ad_credit_daily_cap">أكملت %1$d إعلانات اليوم — الباقي غداً</string>
     <string name="ad_credit_progress">%1$d من %2$d إعلانات اليوم</string>
+    <string name="inflation_radar_no_data_hint">سجّل مصاريفك أسبوعين ونقارن لك أسعارك بنفسها، مو بمتوسط السوق</string>
+    <string name="buying_timing_no_data_hint">ضِف أصنافك في المخزون ونحسب لك كل صنف يخلص متى</string>
+    <string name="live_search_empty_state_hint">يعني ما فيه قفزات أسعار في فئات صرفك حالياً — نبلّغك أول ما تصير</string>
 </resources>

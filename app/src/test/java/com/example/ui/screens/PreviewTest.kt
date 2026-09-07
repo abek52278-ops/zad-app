@@ -1261,4 +1261,36 @@ class PreviewTest(private val dark: Boolean) {
         )
     }
 
+
+    /**
+     * البند #2 — الكروت الفاضية في «عقل زاد» على حساب بصفر معاملات.
+     *
+     * الخمس كروت دي متركّبة في الـLazyColumn من غير أي شرط (`item { XCard(...) }`
+     * على طول)، وكلها بتتغذّى من `transactions` أو من مشتقاتها. اللقطة بتقول
+     * مين فيهم بيعرض حالة فراغ حقيقية ومين بيرسم إطار كارت فاضي.
+     */
+    @Config(sdk = [33], qualifiers = "w402dp-h874dp-xxhdpi")
+    @Test
+    fun captureIntelligenceCardsWithNoData() {
+        composeTestRule.setContent {
+            AppTheme(darkTheme = dark) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    ZadCanvasBackground(modifier = Modifier.fillMaxSize())
+                    Column(
+                        modifier = Modifier.fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        SmartBuyingTimingCard(inventory = emptyList(), serverBehaviorProfile = null)
+                        InflationRadarCard(transactions = emptyList())
+                    }
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage(
+            filePath = "build/outputs/roborazzi/intel_empty_tail${if (dark) "_dark" else "_light"}.png"
+        )
+    }
+
 }

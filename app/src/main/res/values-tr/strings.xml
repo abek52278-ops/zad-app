@@ -1756,4 +1756,7 @@
     <string name="ad_credit_watch">Reklam izle, %1$d mesaj kazan</string>
     <string name="ad_credit_daily_cap">Bugün %1$d reklam tamamlandı — yarın devam</string>
     <string name="ad_credit_progress">Bugün %2$d reklamdan %1$d tanesi</string>
+    <string name="inflation_radar_no_data_hint">İki hafta harcama kaydet, fiyatlarını piyasa ortalamasıyla değil kendi geçmişinle karşılaştıralım</string>
+    <string name="buying_timing_no_data_hint">Ürünlerini envantere ekle, her birinin ne zaman biteceğini hesaplayalım</string>
+    <string name="live_search_empty_state_hint">Şu an harcama kategorilerinde fiyat sıçraması yok — olduğu anda haber vereceğiz</string>
 </resources>

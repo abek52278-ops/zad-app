@@ -1759,4 +1759,7 @@
     <string name="ad_credit_watch">Watch an ad for %1$d messages</string>
     <string name="ad_credit_daily_cap">%1$d ads done today — more tomorrow</string>
     <string name="ad_credit_progress">%1$d of %2$d ads today</string>
+    <string name="inflation_radar_no_data_hint">Log two weeks of spending and we\'ll compare your prices to your own, not to a market average</string>
+    <string name="buying_timing_no_data_hint">Add your items to the inventory and we\'ll work out when each one runs out</string>
+    <string name="live_search_empty_state_hint">No price jumps in your spending categories right now — we\'ll tell you the moment there are</string>
 </resources>

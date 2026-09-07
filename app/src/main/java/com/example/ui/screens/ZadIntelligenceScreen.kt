@@ -2173,7 +2173,12 @@ fun InflationRadarCard(transactions: List<ZadTransaction>) {
             Spacer(modifier = Modifier.height(16.dp))
 
             if (categories.isEmpty()) {
-                Text(stringResource(R.string.inflation_radar_no_data), style = Typography.bodySmall, color = onSurfaceVariant)
+                com.example.ui.components.ZadEmptyState(
+                    icon = Icons.Default.Radar,
+                    title = stringResource(R.string.inflation_radar_no_data),
+                    subtitle = stringResource(R.string.inflation_radar_no_data_hint),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                )
             } else {
                 categories.take(5).forEach { cat ->
                     val isIncrease = cat.deltaPct > 0
@@ -2273,7 +2278,12 @@ fun SmartBuyingTimingCard(inventory: List<ZadInventory>, serverBehaviorProfile: 
             Spacer(modifier = Modifier.height(16.dp))
 
             if (suggestions.isEmpty()) {
-                Text(stringResource(R.string.buying_timing_no_data), style = Typography.bodySmall, color = onSurfaceVariant)
+                com.example.ui.components.ZadEmptyState(
+                    icon = Icons.Default.ShoppingCart,
+                    title = stringResource(R.string.buying_timing_no_data),
+                    subtitle = stringResource(R.string.buying_timing_no_data_hint),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                )
             } else {
                 suggestions.take(5).forEach { s ->
                     val urgencyColor = if (s.daysUntil <= 7) warningColor else onSurfaceVariant
@@ -2495,7 +2505,12 @@ fun PriceShockRadarCard(categories: List<String>, viewModel: ZadViewModel) {
                     Text(stringResource(R.string.live_search_error_state), style = Typography.bodySmall, color = error)
                 ZadViewModel.LiveFetchState.Fetched -> {
                     if (warnings.isEmpty()) {
-                        Text(stringResource(R.string.live_search_empty_state), style = Typography.bodySmall, color = onSurfaceVariant)
+                        com.example.ui.components.ZadEmptyState(
+                            icon = Icons.Default.ShowChart,
+                            title = stringResource(R.string.live_search_empty_state),
+                            subtitle = stringResource(R.string.live_search_empty_state_hint),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                        )
                     } else {
                         warnings.take(6).forEach { w ->
                             val isDown = w.direction == "down"
@@ -3984,7 +3999,9 @@ fun FamilyNeuralReportBottomSheet(
                 Text(stringResource(R.string.auto_zadintelligence_1763), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = primary)
                 Spacer(Modifier.height(8.dp))
                 if (children.isEmpty()) {
-                    Text(stringResource(R.string.auto_zadintelligence_65857), style = Typography.bodySmall, color = onSurfaceVariant)
+                    com.example.ui.components.ZadEmptyState(
+                        title = stringResource(R.string.auto_zadintelligence_65857)
+                    )
                 } else {
                     children.forEach { child ->
                         val childChores = activeState.chores.filter { it.assignedTo == child.id }
@@ -4025,7 +4042,9 @@ fun FamilyNeuralReportBottomSheet(
                 Spacer(Modifier.height(8.dp))
                 val pendingGroceries = activeState.groceries.filter { !it.isPurchased }
                 if (pendingGroceries.isEmpty()) {
-                    Text(stringResource(R.string.auto_zadintelligence_22228), style = Typography.bodySmall, color = onSurfaceVariant)
+                    com.example.ui.components.ZadEmptyState(
+                        title = stringResource(R.string.auto_zadintelligence_22228)
+                    )
                 } else {
                     Text(
                         stringResource(R.string.family_pending_groceries, pendingGroceries.take(5).joinToString("، ") { it.itemName }),
@@ -4069,7 +4088,9 @@ fun FamilyNeuralReportBottomSheet(
                             }
                         }
                         if (notes.isEmpty()) {
-                            Text(stringResource(R.string.auto_zadintelligence_40342), style = Typography.bodySmall, color = onSurfaceVariant)
+                            com.example.ui.components.ZadEmptyState(
+                                title = stringResource(R.string.auto_zadintelligence_40342)
+                            )
                         } else {
                             notes.forEach { Text("• $it", style = Typography.bodySmall, color = onSurface) }
                         }
