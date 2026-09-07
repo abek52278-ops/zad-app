@@ -4118,27 +4118,43 @@ async function handleAgentTurn(sb: SupabaseClient, userId: string, body: any): P
 
   // فحص اشتراك المستخدم: المشتركون في باقات مدفوعة (starter, plus, pro) أو لديهم جلسة إعلانات نشطة يتم إعفاؤهم من السقف اليومي المجاني
   const { data: entRow } = await sb.from("zad_entitlements")
-    .select("tier,tier_expires_at,brain_session_expires_at")
+    .select("tier,tier_expires_at")
     .eq("user_id", userId).maybeSingle();
 
   const isPaidSubscriber = entRow && entRow.tier && entRow.tier !== "free" &&
     (!entRow.tier_expires_at || new Date(entRow.tier_expires_at).getTime() > Date.now());
-  const hasActiveAdSession = entRow && entRow.brain_session_expires_at &&
-    new Date(entRow.brain_session_expires_at).getTime() > Date.now();
 
   // W4 — بوابة السقف اليومي لمستخدمي الباقة المجانية فقط.
-  if (!isPaidSubscriber && !hasActiveAdSession) {
+  //
+  // brain_session_expires_at اتشال من هنا. كان إعلان واحد بيفتح **١٢ ساعة استخدام
+  // غير محدود** — تكلفة نداءات مفتوحة مقابل انطباع واحد. وchat_left، اللي المفروض
+  // هو العدّاد، ماكانش بيتقرا في أي مكان في السيرفر: بيتكتب في المنحة وبيتعرض في
+  // أندرويد وبس. فالرصيد كان اسمه موجود ومعناه مش شغال.
+  //
+  // دلوقتي: بعد ما الكوتة المجانية تخلص، كل نداء بيستهلك رصيد إعلان واحد. الاستهلاك
+  // عبر RPC ذرّية لأن قراءة-ثم-كتابة من هنا بتسمح لنداءين متوازيين ياخدوا نفس
+  // الرصيد الأخير.
+  if (!isPaidSubscriber) {
     const today = new Date().toISOString().slice(0, 10);
     const { data: usageRow } = await sb.from("agent_usage")
       .select("request_count,input_tokens,output_tokens")
       .eq("user_id", userId).eq("usage_date", today).maybeSingle();
-    if (usageRow && (usageRow.request_count >= DAILY_REQUEST_CAP ||
-        (usageRow.input_tokens + usageRow.output_tokens) >= DAILY_TOKEN_CAP)) {
-      return new Response(JSON.stringify({
-        ok: true,
-        reply: "وصلت لحد أقصى من طلباتي المجانية اليومية — عشان أفضل مستقر وما أستهلكش فوق طاقتي. جرب تاني بكرة أو اشترك في زاد بلس للاستخدام غير المحدود 🙏",
-        executed: [], proposals: [], tool_attempted: false, rate_limited: true,
-      }), { headers: CORS_HEADERS });
+    const overFreeQuota = usageRow && (usageRow.request_count >= DAILY_REQUEST_CAP ||
+      (usageRow.input_tokens + usageRow.output_tokens) >= DAILY_TOKEN_CAP);
+    if (overFreeQuota) {
+      const { data: consumed, error: consumeErr } = await sb
+        .rpc("zad_chat_credit_consume", { p_user: userId });
+      if (consumeErr) console.error("zad_chat_credit_consume failed:", consumeErr);
+      const allowed = !consumeErr && (consumed as { allowed?: boolean } | null)?.allowed === true;
+      if (!allowed) {
+        return new Response(JSON.stringify({
+          ok: true,
+          reply: "خلص رصيدي المجاني لليوم 🙏 تقدر تشوف إعلان قصير من التطبيق وتاخد رسايل زيادة على طول، أو تشترك في زاد بلس للاستخدام غير المحدود.",
+          executed: [], proposals: [], tool_attempted: false, rate_limited: true,
+          // الكلاينت بيقرا ده عشان يفتح شاشة الإعلانات بدل ما يعرض نص وبس.
+          needs_ad_credit: true,
+        }), { headers: CORS_HEADERS });
+      }
     }
   }
 
