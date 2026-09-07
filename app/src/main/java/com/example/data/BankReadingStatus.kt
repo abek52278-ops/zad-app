@@ -86,6 +86,42 @@ object BankReadingStatus {
         return System.currentTimeMillis() - saw < 10 * 60_000L
     }
 
+    /**
+     * "اضغط للإصلاح" — الإصلاح الحقيقي، مش محاولة صامتة.
+     *
+     * [requestRebindIfPermitted] بترجع فاضي لو الصلاحية اتلغت، وده **بالظبط** أشيع
+     * سيناريو فشل على MIUI/HyperOS: إدارة البطارية بتقتل الخدمة وبتسحب صلاحية
+     * NotificationListener معاها. يعني الزر كان لا يعمل شيئاً في الحالة اللي اتعمل
+     * عشانها — العميل يضغط، مفيش رد فعل، والبانر يفضل مكانه.
+     *
+     * اتشاف في أول اختبار على جهاز حقيقي 2026-09-06 (Xiaomi): بانر "الاستماع لرسايل
+     * البنك وقف — اضغط للإصلاح" على جهاز معاملة بنكية اتلقطت عليه فعلاً قبلها.
+     *
+     * المنطق هنا مش في الواجهة عن قصد: HomeActivationCard كان بيعمل الفرع ده صح
+     * و BankListeningPill لأ — نفس القرار متكرر في مكانين وواحد بس صح. مكان واحد
+     * يمنع الافتراق ده.
+     *
+     * @return true لو اتعمل rebind فعلي، false لو اتحوّل للإعدادات.
+     */
+    fun repairListening(context: Context): Boolean {
+        if (isNotificationListenerEnabled(context)) {
+            requestRebindIfPermitted(context)
+            return true
+        }
+        // الصلاحية مش موجودة — مفيش rebind ينفع. الحل الوحيد إن العميل يرجّعها بإيده،
+        // فبنوديه المكان مباشرة بدل ما نفضل صامتين.
+        try {
+            context.startActivity(
+                android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                    // لازم لو الـcontext مش Activity — من غيرها بترمي.
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "openNotificationListenerSettings failed: ${e.message}")
+        }
+        return false
+    }
+
     fun requestRebindIfPermitted(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
         if (!isNotificationListenerEnabled(context)) return

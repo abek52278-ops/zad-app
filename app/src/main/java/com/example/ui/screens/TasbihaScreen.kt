@@ -169,7 +169,13 @@ private fun TasbihaSplashScreen(onEnter: () -> Unit) {
 
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.scale(enterScale)
+            // حشو سفلي بارتفاع شريط التنقل العايم (74.dp في ZadShell) + هامش.
+            // المحتوى متوسّط في Box بملء الشاشة، والشريط بيعوم فوقه — فزر "ادخل
+            // البستان" كان بيتقص تحته. اتشاف في أول اختبار على جهاز حقيقي
+            // 2026-09-06: الشاشة بتفتح والزر شبه مختفي، فالعميل يفتكر إنه مش موجود.
+            modifier = Modifier
+                .scale(enterScale)
+                .padding(bottom = 90.dp)
         ) {
             // Rotating ring behind tree
             Box(
@@ -642,7 +648,7 @@ private fun AnimatedTreeDisplay(
                             Brush.radialGradient(
                                 colors = when (tree.treeType) {
                                     "golden" -> listOf(Color(0xFFFFD700).copy(alpha = animatedGlow), Color.Transparent)
-                                    "special" -> listOf(Color(0xFF9C27B0).copy(alpha = animatedGlow), Color.Transparent)
+                                    "special" -> listOf(lilac.copy(alpha = animatedGlow), Color.Transparent)
                                     else -> listOf(primary.copy(alpha = animatedGlow), Color.Transparent)
                                 }
                             )
@@ -759,7 +765,7 @@ private fun AnimatedTreeDisplay(
             LinearProgressIndicator(
                 progress = { progress },
                 modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
-                color = when (tree.treeType) { "golden" -> Color(0xFFFFD700); "special" -> Color(0xFF9C27B0); else -> primary },
+                color = when (tree.treeType) { "golden" -> Color(0xFFFFD700); "special" -> lilac; else -> primary },
                 trackColor = onSurface.copy(alpha = 0.1f)
             )
             Spacer(Modifier.height(4.dp))

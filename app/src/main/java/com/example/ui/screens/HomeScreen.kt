@@ -441,13 +441,10 @@ fun HomeScreen(
                     com.example.ui.components.HomeActivationCard(
                         progress = activationProgress,
                         onSetBalance = { viewModel.showBudgetDialog() },
-                        onEnableBankReading = {
-                            if (isNotificationAccessGranted) {
-                                com.example.data.BankReadingStatus.requestRebindIfPermitted(context)
-                            } else {
-                                context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                            }
-                        },
+                        // نفس المنطق اللي كان مكتوب هنا، بس من مكان واحد — كان صح
+                        // هنا وناقص في BankListeningPill، ودي بالظبط طريقة افتراق
+                        // القرارات المتكررة.
+                        onEnableBankReading = { com.example.data.BankReadingStatus.repairListening(context) },
                         onAddInventoryItem = onNavigateToInventory,
                     )
                     Spacer(modifier = Modifier.height(16.dp))
@@ -529,7 +526,10 @@ fun HomeScreen(
                     alive = bankListenerAlive,
                     lastSeenAt = com.example.data.BankReadingStatus.lastSawNotificationAt(context),
                     onClick = {
-                        com.example.data.BankReadingStatus.requestRebindIfPermitted(context)
+                        // repairListening مش requestRebindIfPermitted: التانية بترجع
+                        // فاضي لما الصلاحية تكون اتلغت — وهي الحالة اللي البانر ده
+                        // بيظهر فيها أصلاً على MIUI.
+                        com.example.data.BankReadingStatus.repairListening(context)
                         bankListenerAlive = com.example.data.BankReadingStatus.isListenerAlive(context)
                     }
                 )
