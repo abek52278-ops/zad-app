@@ -1757,7 +1757,15 @@ async function ensureWebhook(force = false): Promise<Record<string, unknown>> {
     const info = await infoRes.json();
     const current = info?.result?.url ?? "";
     if (!force && current === FUNCTION_URL) {
-      return { ok: true, changed: false, url: current, pending: info?.result?.pending_update_count ?? 0 };
+      return {
+        ok: true, changed: false, url: current,
+        pending: info?.result?.pending_update_count ?? 0,
+        // آخر خطأ تسليم من تليجرام. مش سر — بس هو الفرق بين "تليجرام مش قادر
+        // يسلّم" و"تليجرام مستلمش حاجة أصلاً"، والاتنين شكلهم واحد من برّه.
+        last_error: info?.result?.last_error_message ?? null,
+        last_error_at: info?.result?.last_error_date
+          ? new Date(info.result.last_error_date * 1000).toISOString() : null,
+      };
     }
     const setRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook`, {
       method: "POST",
@@ -1789,6 +1797,20 @@ if (BOT_CONFIGURED) {
 
 const handleUpdate = webhookCallback(bot, "std/http", { secretToken: WEBHOOK_SECRET });
 
+/** اسم البوت المسجّل بالتوكن ده — تشخيص، ومعلومة عامة مش سر. */
+async function identifyBot(): Promise<Record<string, unknown>> {
+  if (!BOT_CONFIGURED) return { ok: false, reason: "no token" };
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getMe`);
+    const j = await res.json();
+    return j?.ok
+      ? { ok: true, username: j.result?.username, id: j.result?.id, name: j.result?.first_name }
+      : { ok: false, telegram: j?.description ?? "getMe failed" };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
 Deno.serve(async (req: Request) => {
   // GET is not a Telegram update — it's the health/registration probe. Reports whether
   // the webhook is wired up, without ever echoing the token or the secret itself.
@@ -1806,6 +1828,11 @@ Deno.serve(async (req: Request) => {
           service_role_key: Boolean(SERVICE_ROLE_KEY),
         },
         webhook: status,
+        // اسم البوت من getMe — معلومة عامة (أي حد يقدر يشوفها في تليجرام)، مش سر.
+        // بتجاوب على السؤال الوحيد اللي مافيش طريقة تانية تجاوبه: هل التوكن
+        // المسجّل هنا بتاع نفس البوت اللي العميل بيبعتله؟ لو لأ، كل حاجة تانية
+        // هتبان سليمة (webhook مظبوط، صفر معلّق) والرسايل تروح لمكان تاني.
+        bot: await identifyBot(),
       }, null, 2),
       { headers: { "Content-Type": "application/json" } },
     );
