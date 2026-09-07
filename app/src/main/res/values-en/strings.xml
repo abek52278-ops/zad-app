@@ -1770,4 +1770,5 @@
     <string name="auth_terms_agree_action">Agree &amp; Continue</string>
     <string name="auth_terms_decline_action">Decline</string>
     <string name="auth_logo_content_description">Zad logo</string>
+    <string name="fx_excluded_notice">%1$d transaction(s) left out of the total — no exchange rate for their currency</string>
 </resources>

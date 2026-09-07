@@ -41,13 +41,35 @@ object BudgetMath {
      * دلوقتي لأن العمود null في كل الصفوف، بس أول ما تتسجّل معاملة بعملة أجنبية هيبقى
      * فيه فرق بين الرقم المحلي ورقم السيرفر — والـ drift log في ZadViewModel هيقوله.
      */
-    fun normalizedToCurrency(transactions: List<ZadTransaction>, homeCurrency: String?): List<ZadTransaction> {
-        if (homeCurrency.isNullOrBlank()) return transactions
-        return transactions.map { tx ->
+    /**
+     * نتيجة التوحيد: اللي اتحوّل، واللي **اتستبعد** عشان مافيش سعر صرف ليه.
+     *
+     * الاستبعاد مقصود. قبل كده `CurrencyExchange.convert` كانت بترجّع المبلغ زي ما هو
+     * (١:١) لأي عملة مش معروفة، فالمعاملة كانت بتدخل الإجمالي بقيمة غلط من غير أي أثر.
+     * إجمالي ناقص بند **معلوم عدده** أصدق من إجمالي بيخلط عملتين على إنهم واحدة.
+     */
+    data class Normalized(
+        val transactions: List<ZadTransaction>,
+        val excluded: List<ZadTransaction> = emptyList(),
+    ) {
+        val excludedCount: Int get() = excluded.size
+    }
+
+    fun normalizedToCurrency(transactions: List<ZadTransaction>, homeCurrency: String?): Normalized {
+        if (homeCurrency.isNullOrBlank()) return Normalized(transactions)
+        val home = homeCurrency.uppercase()
+        val kept = ArrayList<ZadTransaction>(transactions.size)
+        val dropped = ArrayList<ZadTransaction>()
+        for (tx in transactions) {
             val code = tx.currency?.trim()?.uppercase()
-            if (code.isNullOrBlank() || code == homeCurrency.uppercase()) tx
-            else tx.copy(amount = CurrencyExchange.convert(tx.amount, code, homeCurrency.uppercase()).asMoney())
+            if (code.isNullOrBlank() || code == home) {
+                kept.add(tx)
+                continue
+            }
+            val converted = CurrencyExchange.convert(tx.amount, code, home)
+            if (converted == null) dropped.add(tx) else kept.add(tx.copy(amount = converted.asMoney()))
         }
+        return Normalized(kept, dropped)
     }
 
     /** مش private — ZadIntelligenceScreen's category donut محتاج نفس منطق الفلترة بالتاريخ

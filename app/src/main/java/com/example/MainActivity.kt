@@ -174,6 +174,14 @@ class MainActivity : ComponentActivity() {
         // نفس السبب: صار object مشترك بدل instance منفصل لكل شاشة (ZadVoiceBottomSheet،
         // ZadIntelligenceScreen كانوا كل واحد بيعمل نسخته بنفسه). init() هنا يضمن إنه
         // جاهز قبل أي مكان يقرا voiceState بتاعه (زي مسكوت HomeScreen).
+        // أسعار الصرف المتخزّنة لازم تبقى محمّلة قبل أول حسبة ميزانية، وإلا أول شاشة
+        // بتشتغل على البذرة المطبوعة — وهي اللي كانت غلط بـ٩٩٪ في الليرة السورية.
+        try {
+            com.example.data.CurrencyExchange.loadCache(applicationContext)
+        } catch (e: Throwable) {
+            android.util.Log.e("MainActivity", "CurrencyExchange.loadCache failed: ${e.message}", e)
+        }
+
         try {
             com.example.voice.ZadVoiceManager.init(applicationContext)
         } catch (e: Throwable) {

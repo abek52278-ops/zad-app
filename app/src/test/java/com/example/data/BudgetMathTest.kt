@@ -399,14 +399,14 @@ class BudgetMathTest {
     fun `a transaction with no currency is treated as the account currency, never as SAR`() {
         // العمود null في كل الصفوف الموجودة. لو اتفسّر ريال، حساب مصري كان هيتضرب في ١٣.
         val txs = listOf(tx(amount = 100.0, txnKind = "expense", currency = null))
-        val out = BudgetMath.normalizedToCurrency(txs, "EGP")
+        val out = BudgetMath.normalizedToCurrency(txs, "EGP").transactions
         assertEquals(100.0, out.single().amount, 0.001)
     }
 
     @Test
     fun `a foreign-currency transaction is converted before it joins the total`() {
         val txs = listOf(tx(amount = 100.0, txnKind = "expense", currency = "USD"))
-        val out = BudgetMath.normalizedToCurrency(txs, "EGP")
+        val out = BudgetMath.normalizedToCurrency(txs, "EGP").transactions
         // 100 USD عند 0.0204 دولار للجنيه = حوالي 4,902 جنيه — المهم إنه مش فاضل 100.
         assertTrue("expected a real conversion, got ${out.single().amount}", out.single().amount > 4000.0)
     }
@@ -414,13 +414,13 @@ class BudgetMathTest {
     @Test
     fun `same-currency rows are left exactly alone`() {
         val txs = listOf(tx(amount = 250.0, txnKind = "expense", currency = "egp"))
-        assertEquals(250.0, BudgetMath.normalizedToCurrency(txs, "EGP").single().amount, 0.001)
+        assertEquals(250.0, BudgetMath.normalizedToCurrency(txs, "EGP").transactions.single().amount, 0.001)
     }
 
     @Test
     fun `an unknown account currency disables conversion rather than guessing a rate`() {
         val txs = listOf(tx(amount = 100.0, txnKind = "expense", currency = "USD"))
-        assertEquals(100.0, BudgetMath.normalizedToCurrency(txs, null).single().amount, 0.001)
+        assertEquals(100.0, BudgetMath.normalizedToCurrency(txs, null).transactions.single().amount, 0.001)
     }
 
     // ── التجديد الجاي لاشتراك (nextRenewalDate) ───────────────────────────────────

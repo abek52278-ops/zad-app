@@ -587,6 +587,33 @@ fun HomeScreen(
                     }
                 }
 
+                // بند استُبعد من الإجمالي عشان مافيش سعر صرف لعملته. الرقم اللي بينقص
+                // في صمت بيتقري «التطبيق غلطان»؛ العدد الصريح بيتقري «فيه سبب معروف».
+                val excludedTxCount by viewModel.unconvertibleTxCount.collectAsState()
+                if (excludedTxCount > 0) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(com.example.ui.theme.warningColor.copy(alpha = 0.10f))
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            Icons.Default.CurrencyExchange,
+                            contentDescription = null,
+                            tint = com.example.ui.theme.warningColor,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            stringResource(R.string.fx_excluded_notice, excludedTxCount),
+                            style = Typography.bodySmall,
+                            color = com.example.ui.theme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
+
                 com.example.ui.components.BankListeningPill(
                     alive = bankListenerAlive,
                     lastSeenAt = com.example.data.BankReadingStatus.lastSawNotificationAt(context),

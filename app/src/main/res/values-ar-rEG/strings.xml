@@ -1770,4 +1770,5 @@
     <string name="auth_terms_agree_action">موافق وكمّل</string>
     <string name="auth_terms_decline_action">رفض</string>
     <string name="auth_logo_content_description">شعار زاد</string>
+    <string name="fx_excluded_notice">شيلنا %1$d معاملة من الإجمالي — عملتها مالهاش سعر صرف</string>
 </resources>

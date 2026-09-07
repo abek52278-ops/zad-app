@@ -2132,6 +2132,42 @@ object SupabaseRepo {
      * مع فشل شبكة عابر على جهاز جديد (مفيش كاش محلي بعد) كأنه "مفيش ميزانية مسجلة"،
      * ويعرض ٠ ج.م لمستخدم عنده سقف حقيقي على السيرفر.
      */
+    @kotlinx.serialization.Serializable
+    private data class FxRateRow(
+        val code: String,
+        @kotlinx.serialization.SerialName("usd_rate") val usdRate: Double,
+        @kotlinx.serialization.SerialName("updated_at") val updatedAt: String? = null,
+    )
+
+    data class FxRates(val rates: Map<String, Double>, val updatedAtMs: Long)
+
+    /**
+     * أسعار الصرف من `zad_fx_rates`. الجدول عام للقراءة (مرجع، مش بيانات مستخدم).
+     *
+     * بيرجّع `null` على أي فشل بدل خريطة ناقصة — نقطة النداء بتفضل على آخر كاش سليم،
+     * لأن خليط من دفعتين بتاريخين مختلفين أسوأ من دفعة واحدة قديمة.
+     */
+    suspend fun getFxRates(): FxRates? {
+        return try {
+            val rows = client.postgrest["zad_fx_rates"]
+                .select(Columns.list("code", "usd_rate", "updated_at"))
+                .decodeList<FxRateRow>()
+            if (rows.isEmpty()) return null
+            val newest = rows.mapNotNull { row ->
+                row.updatedAt?.let {
+                    runCatching { java.time.OffsetDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull()
+                }
+            }.maxOrNull() ?: 0L
+            FxRates(
+                rates = rows.filter { it.usdRate > 0.0 }.associate { it.code.uppercase() to it.usdRate },
+                updatedAtMs = newest,
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "getFxRates() FAILED: ${e.message}")
+            null
+        }
+    }
+
     suspend fun getMonthlyLimit(userId: String): Triple<Double?, String?, Boolean> {
         return try {
             val row = client.postgrest["zad_users"]

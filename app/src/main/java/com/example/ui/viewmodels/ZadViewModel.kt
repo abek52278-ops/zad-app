@@ -992,6 +992,13 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             syncMutex.withLock {
                 Log.d(TAG, "syncData() → starting Supabase sync")
+                // أسعار الصرف بتتجدد مع المزامنة. الفشل مايوقفش المزامنة — بنفضل على
+                // آخر كاش سليم، و`CurrencyExchange.isStale` هي اللي بتقول إنه قديم.
+                try {
+                    com.example.data.CurrencyExchange.refreshFromServer(getApplication())
+                } catch (e: Exception) {
+                    Log.w(TAG, "fx refresh failed, keeping cached rates: ${e.message}")
+                }
                 // الطابور الأول، قبل أي قراءة. أي حاجة اتعملت أوفلاين لازم تبقى على
                 // السيرفر قبل ما نعتبر السيرفر هو المرجع — وإلا التنضيف تحت هيمسحها.
                 try {
@@ -2725,7 +2732,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             val market = MarketPrefs.getMarket(getApplication())
-            val txs = BudgetMath.normalizedToCurrency(_transactions.value, market.currencyCode)
+            val txs = BudgetMath.normalizedToCurrency(_transactions.value, market.currencyCode).transactions
             val asOf = LocalDate.now()
             val cycleStart = CycleMath.cycleStart(asOf, cycleStartDay, cycleAnchor, market)
             val cycleEnd = CycleMath.cycleEnd(asOf, cycleStartDay, cycleAnchor, market)
@@ -2780,7 +2787,13 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun convertLimitsForMarketChange(context: android.content.Context, from: Market, to: Market) {
         if (from.currencyCode == to.currencyCode) return
+        // من غير سعر، تحويل الحدود مستحيل. سيبها زي ما هي وسجّل — الرقم القديم بعملة
+        // جديدة هو بالظبط الباج اللي الدالة دي اتعملت عشانه، فمانكرروش بصيغة تانية.
         val rate = CurrencyExchange.convert(1.0, from.currencyCode, to.currencyCode)
+        if (rate == null) {
+            Log.w(TAG, "convertLimitsForMarketChange() → no fx rate ${from.currencyCode}→${to.currencyCode}; limits left untouched")
+            return
+        }
         if (_budget.value > 0) {
             updateBudget(_budget.value * rate)
         }
@@ -2929,7 +2942,14 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         val market = MarketPrefs.getMarket(getApplication())
         // معاملة بعملة تانية لازم تتحوّل قبل ما تتجمع مع الباقي — الجمع الخام كان بيعامل
         // ١٠٠ دولار على إنهم ١٠٠ جنيه. صف من غير عملة = عملة الحساب، مش تحويل.
-        val txs = BudgetMath.normalizedToCurrency(rawTxs, market.currencyCode)
+        val normalized = BudgetMath.normalizedToCurrency(rawTxs, market.currencyCode)
+        val txs = normalized.transactions
+        // معاملة من غير سعر صرف بتتشال من الإجمالي، والعدد بيتعرض للعميل. الرقم اللي
+        // بينقص من غير ما حد يقول أسوأ من رقم ناقص ومعروف إنه ناقص.
+        if (normalized.excludedCount > 0) {
+            Log.w(TAG, "recalculateLocalBudgetFigures() → excluded ${normalized.excludedCount} tx with no fx rate")
+        }
+        _unconvertibleTxCount.value = normalized.excludedCount
         val asOf = LocalDate.now()
         val cycleStart = CycleMath.cycleStart(asOf, cycleStartDay, cycleAnchor, market)
         val cycleEnd = CycleMath.cycleEnd(asOf, cycleStartDay, cycleAnchor, market)
@@ -4433,6 +4453,13 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _priceShockWarnings = kotlinx.coroutines.flow.MutableStateFlow<List<com.example.data.PriceShockWarning>>(emptyList())
     val priceShockWarnings: kotlinx.coroutines.flow.StateFlow<List<com.example.data.PriceShockWarning>> = _priceShockWarnings
+
+    /**
+     * معاملات اتشالت من الإجمالي عشان عملتها مالهاش سعر صرف. صفر = الإجمالي كامل.
+     * الواجهة بتعرض العدد بدل ما الرقم ينقص في صمت.
+     */
+    private val _unconvertibleTxCount = kotlinx.coroutines.flow.MutableStateFlow(0)
+    val unconvertibleTxCount: kotlinx.coroutines.flow.StateFlow<Int> = _unconvertibleTxCount
 
     private val _priceShockFetchState = kotlinx.coroutines.flow.MutableStateFlow(LiveFetchState.NotFetchedYet)
     val priceShockFetchState: kotlinx.coroutines.flow.StateFlow<LiveFetchState> = _priceShockFetchState
