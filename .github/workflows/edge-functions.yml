@@ -63,7 +63,8 @@ jobs:
           failed=""
           for dir in */; do
             fn="${dir%/}"
-            [ "$fn" = "_schema" ] && continue
+            # أي مجلد ببادئة _ مش فانكشن — مكتبة مشتركة أو أدوات (_shared، _schema).
+            case "$fn" in _*) continue ;; esac
             files=$(find "$fn" -maxdepth 1 -name '*.ts' ! -name '*_test.ts' | sort | tr '\n' ' ')
             [ -z "$files" ] && continue
             echo "::group::deno check $fn"
@@ -100,6 +101,10 @@ jobs:
 
       - name: Test zad-fx-refresh
         working-directory: supabase/functions/zad-fx-refresh
+        run: deno test --allow-all
+
+      - name: Test _shared
+        working-directory: supabase/functions/_shared
         run: deno test --allow-all
 
       - name: Schema contract (.from/.select/.insert vs live schema)
@@ -211,7 +216,8 @@ jobs:
           # ما وصلت الإنتاج من CI — اتنين منهم آخر نشر ليهم كان بالإيد في يوليو.
           for dir in supabase/functions/*/; do
             fn=$(basename "$dir")
-            [ "$fn" = "_schema" ] && continue
+            # زي حلقة الفحص: _shared و_schema مكتبات، مش فانكشنز تتنشر.
+            case "$fn" in _*) continue ;; esac
             echo "::group::deploy $fn"
             supabase functions deploy "$fn" --project-ref "$PROJECT_REF"
             echo "::endgroup::"

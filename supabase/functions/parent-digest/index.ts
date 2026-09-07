@@ -9,6 +9,7 @@
 // الخصوصية بالتصميم: مجمعات فقط، مفيش وصف معاملات فردية.
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { secretMatches } from "../_shared/cronSecret.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -28,15 +29,6 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 // An unset secret rejects and logs rather than failing open. This endpoint runs with
 // verify_jwt = false, so this check is the only thing standing between it and the
 // internet.
-function digestSecretMatches(received: string | null): boolean {
-  if (!received) return false;
-  const expected = Deno.env.get("ZAD_PARENT_DIGEST_CRON_SECRET");
-  if (!expected) {
-    console.error("[auth] ZAD_PARENT_DIGEST_CRON_SECRET is not set on this project — rejecting.");
-    return false;
-  }
-  return received === expected;
-}
 
 const CORS = {
   "access-control-allow-origin": "*",
@@ -46,7 +38,7 @@ const CORS = {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
-  if (!digestSecretMatches(req.headers.get("X-Parent-Digest-Cron-Secret"))) {
+  if (!(await secretMatches(req.headers.get("X-Parent-Digest-Cron-Secret"), "ZAD_PARENT_DIGEST_CRON_SECRET"))) {
     return new Response(JSON.stringify({ error: "unauthorized" }), {
       status: 401, headers: { ...CORS, "content-type": "application/json" },
     });

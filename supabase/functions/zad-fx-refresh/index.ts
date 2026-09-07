@@ -13,6 +13,7 @@
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { parseProviderPayload, significantMoves } from "./fx.ts";
+import { secretMatches } from "../_shared/cronSecret.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -26,36 +27,6 @@ const CORS = {
 // نفس نمط parent-digest: الدالة بتشتغل بـ`verify_jwt = false` عشان الكرون
 // (net.http_post) مابيحملش JWT سوبابيز، فالهيدر ده هو الحاجة الوحيدة بينها وبين
 // الإنترنت. سر مش متظبط = رفض وتسجيل، **مش فتح**.
-/** بصمة قصيرة للمقارنة في اللوج من غير كشف القيمة — ٨ حروف من SHA-256. */
-async function fingerprint(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest).slice(0, 4))
-    .map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-async function cronSecretMatches(received: string | null): Promise<boolean> {
-  const expected = Deno.env.get("ZAD_FX_CRON_SECRET");
-  if (!expected) {
-    console.error("[auth] ZAD_FX_CRON_SECRET is not set on this project — rejecting.");
-    return false;
-  }
-  if (!received) {
-    console.error("[auth] no X-Fx-Cron-Secret header on the request — rejecting.");
-    return false;
-  }
-  if (received === expected) return true;
-
-  // رفض من غير أي معلومة بيخلي الفرق بين «مسافة زايدة في النسخ» و«قيمة تانية خالص»
-  // تخمين. الطول والبصمة بيفصلوا بينهم من غير ما القيمة نفسها تتسجّل: بصمة ٨ حروف
-  // من SHA-256 لسر عشوائي ٦٤ حرف مش قابلة للعكس.
-  console.error(
-    `[auth] secret mismatch — received len=${received.length} fp=${await fingerprint(received)}, ` +
-    `expected len=${expected.length} fp=${await fingerprint(expected)}. ` +
-    `trimmed match=${received.trim() === expected.trim()}`,
-  );
-  return false;
-}
-
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -66,7 +37,7 @@ function json(body: unknown, status = 200): Response {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
-  if (!(await cronSecretMatches(req.headers.get("X-Fx-Cron-Secret")))) {
+  if (!(await secretMatches(req.headers.get("X-Fx-Cron-Secret"), "ZAD_FX_CRON_SECRET"))) {
     return json({ error: "unauthorized" }, 401);
   }
 

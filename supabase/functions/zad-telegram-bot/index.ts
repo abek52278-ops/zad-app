@@ -15,6 +15,7 @@
 // chat_id null); this function only trusts a chat_id once it's bound to that exact
 // code via /start <code>. Every subsequent request is authorized by chat_id → user_id
 // through that table, never by anything the client claims about itself.
+import { secretMatches } from "../_shared/cronSecret.ts";
 import { Bot, InlineKeyboard, webhookCallback } from "npm:grammy@1";
 import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { mediaGate } from "./entitlement.ts";
@@ -84,15 +85,6 @@ const WEBHOOK_SECRET_ENV = Deno.env.get("TELEGRAM_WEBHOOK_SECRET") ?? undefined;
  * gets the same 401 as a wrong one and learns nothing from the difference. An unset
  * secret is logged as an error and rejects, rather than failing open.
  */
-function secretMatches(received: string | null, envName: string): boolean {
-  if (!received) return false;
-  const expected = Deno.env.get(envName);
-  if (!expected) {
-    console.error(`[auth] ${envName} is not set on this project — rejecting.`);
-    return false;
-  }
-  return received === expected;
-}
 
 function toGrammyKeyboard(rows: InlineKeyboardButton[][]): InlineKeyboard {
   const kb = new InlineKeyboard();
@@ -1859,7 +1851,7 @@ Deno.serve(async (req: Request) => {
   // a misconfigured bot token still reports a clear reason instead of falling through to
   // "bot not configured" below, which would otherwise read as this branch not existing.
   if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "daily_checkins") {
-    if (!secretMatches(req.headers.get("X-Checkin-Cron-Secret"), "ZAD_CHECKIN_CRON_SECRET")) {
+    if (!(await secretMatches(req.headers.get("X-Checkin-Cron-Secret"), "ZAD_CHECKIN_CRON_SECRET"))) {
       return new Response("unauthorized", { status: 401 });
     }
     if (!BOT_CONFIGURED) {
@@ -1877,7 +1869,7 @@ Deno.serve(async (req: Request) => {
   // Daily subscription/bill renewal cron trigger — same shape as daily_checkins above,
   // own secret (ZAD_SUBSCRIPTION_CRON_SECRET).
   if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "subscription_alerts") {
-    if (!secretMatches(req.headers.get("X-Subscription-Cron-Secret"), "ZAD_SUBSCRIPTION_CRON_SECRET")) {
+    if (!(await secretMatches(req.headers.get("X-Subscription-Cron-Secret"), "ZAD_SUBSCRIPTION_CRON_SECRET"))) {
       return new Response("unauthorized", { status: 401 });
     }
     if (!BOT_CONFIGURED) {
@@ -1898,7 +1890,7 @@ Deno.serve(async (req: Request) => {
   // chat_id and delivers, no calculation happens here. Missing binding is a silent
   // no-op (200), not an error — most rows won't belong to a Telegram-linked user.
   if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "realtime_push") {
-    if (!secretMatches(req.headers.get("X-Realtime-Push-Secret"), "ZAD_REALTIME_PUSH_SECRET")) {
+    if (!(await secretMatches(req.headers.get("X-Realtime-Push-Secret"), "ZAD_REALTIME_PUSH_SECRET"))) {
       return new Response("unauthorized", { status: 401 });
     }
     if (!BOT_CONFIGURED) {
@@ -1926,7 +1918,7 @@ Deno.serve(async (req: Request) => {
   // yet. Telegram asks for the missing amount/direction in free text; the normal chat agent
   // will parse that reply and still require its usual financial confirmation.
   if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "review_notification") {
-    if (!secretMatches(req.headers.get("X-Confirm-Transaction-Secret"), "ZAD_CONFIRM_TRANSACTION_SECRET")) {
+    if (!(await secretMatches(req.headers.get("X-Confirm-Transaction-Secret"), "ZAD_CONFIRM_TRANSACTION_SECRET"))) {
       return new Response("unauthorized", { status: 401 });
     }
     if (!BOT_CONFIGURED) {
@@ -1981,7 +1973,7 @@ Deno.serve(async (req: Request) => {
   // resolves the linked chat and renders that same proposal; it never copies the amount
   // into a second pending table, so app and Telegram cannot disagree.
   if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "confirm_transaction") {
-    if (!secretMatches(req.headers.get("X-Confirm-Transaction-Secret"), "ZAD_CONFIRM_TRANSACTION_SECRET")) {
+    if (!(await secretMatches(req.headers.get("X-Confirm-Transaction-Secret"), "ZAD_CONFIRM_TRANSACTION_SECRET"))) {
       return new Response("unauthorized", { status: 401 });
     }
     if (!BOT_CONFIGURED) {
@@ -2049,7 +2041,7 @@ Deno.serve(async (req: Request) => {
   // waiting for runDailyCheckins' once-a-day pass. Reuses the exact same prompt-sending
   // path and daily budget as the cron job — this is not a second, unlimited channel.
   if (req.method === "POST" && new URL(req.url).searchParams.get("job") === "live_checkin") {
-    if (!secretMatches(req.headers.get("X-Live-Checkin-Secret"), "ZAD_LIVE_CHECKIN_SECRET")) {
+    if (!(await secretMatches(req.headers.get("X-Live-Checkin-Secret"), "ZAD_LIVE_CHECKIN_SECRET"))) {
       return new Response("unauthorized", { status: 401 });
     }
     if (!BOT_CONFIGURED) {
