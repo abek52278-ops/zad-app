@@ -717,7 +717,8 @@ fun AddEditSubscriptionDialog(
 
     val amount = amountStr.toDoubleOrNull()
     val parsedDate = remember(renewalDate) { parseFlexibleRenewalDate(renewalDate) }
-    val canSave = title.isNotBlank() && amount != null && amount > 0.0
+    val renewalDateValid = parsedDate != null
+    val canSave = title.isNotBlank() && amount != null && amount > 0.0 && renewalDateValid
 
     // Auto-calculate monthly installment amount if total and count are entered
     LaunchedEffect(totalInstallmentStr, remainingInstallmentsStr) {
@@ -930,7 +931,7 @@ fun AddEditSubscriptionDialog(
                     placeholder = { Text("YYYY-MM-DD") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    isError = false,
+                    isError = renewalDate.isNotBlank() && !renewalDateValid,
                     trailingIcon = {
                         IconButton(onClick = { showDatePicker = true }) {
                             Icon(Icons.Default.CalendarMonth, contentDescription = stringResource(R.string.pick_date_action), tint = primary)
