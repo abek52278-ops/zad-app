@@ -421,7 +421,6 @@ fun ZadVoiceBottomSheet(
                                 .background(Color.White.copy(alpha = 0.08f))
                                 .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(9999.dp))
                                 .clickable {
-                                    ZadCutePetSoundFx.play(ZadCutePetSoundFx.PetSound.HappyChirp)
                                     recognizedLiveText = chip
                                     viewModel.sendAiChatMessage(chip, voiceMode = true)
                                 }

@@ -10,6 +10,8 @@ import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
+import android.media.audiofx.AcousticEchoCanceler
+import android.media.audiofx.NoiseSuppressor
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -124,6 +126,8 @@ object ZadLiveVoiceSession {
     private var webSocket: WebSocket? = null
     @Volatile private var audioRecord: AudioRecord? = null
     @Volatile private var audioTrack: AudioTrack? = null
+    private var echoCanceler: AcousticEchoCanceler? = null
+    private var noiseSuppressor: NoiseSuppressor? = null
     private val sessionActive = AtomicBoolean(false)
     private val recordingActive = AtomicBoolean(false)
     private var audioFocusRequest: AudioFocusRequest? = null
@@ -151,6 +155,26 @@ object ZadLiveVoiceSession {
         }
         if (sessionActive.getAndSet(true)) return // جلسة شغالة أصلاً
         _state.value = LiveVoiceState.Connecting
+
+        // 1. ضبط AudioManager لوضع الاتصال الصوتي لمنع الصدى وتوجيه الصوت للسماعة
+        try {
+            audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+            audioManager.isSpeakerphoneOn = true
+        } catch (e: Exception) {
+            Log.w(tag, "AudioManager mode error: ${e.message}")
+        }
+
+        requestAudioFocus()
+
+        // 2. تجهيز AudioTrack وبدء تشغيله فوراً (MODE_STREAM) حتى لا تضيع الحزم الصوتية
+        try {
+            val track = buildPlaybackTrack()
+            audioTrack = track
+            track.play()
+        } catch (e: Exception) {
+            Log.w(tag, "Early AudioTrack play error: ${e.message}")
+        }
+
         scope.launch { connect(onError) }
     }
 
@@ -188,8 +212,6 @@ object ZadLiveVoiceSession {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.d(tag, "zad-voice-live connected")
                 mainHandler.post { _state.value = LiveVoiceState.Listening }
-                val initialSilentChunk = ByteArray(inputSampleRate / 10)
-                sendAudioChunk(initialSilentChunk)
                 startMicStreaming()
             }
 
@@ -222,8 +244,7 @@ object ZadLiveVoiceSession {
     }
 
     /** full-duplex حقيقي: الميكروفون بيفضل شغال طول عمر الجلسة، حتى وقت كلام الموديل —
-     *  VOICE_COMMUNICATION عشان echo cancellation الهاردوير (لو متاح) يمنع الميكروفون
-     *  يسمع سماعة الجهاز نفسه كمقاطعة وهمية، مع بديل MIC تلقائي لو فشل التجهيز. */
+     *  يفتح مرة واحدة فقط عند بدء الجلسة مع تفعيل AEC لمنع التقاط صوت السماعة. */
     private fun startMicStreaming() {
         if (recordingActive.getAndSet(true)) return
         scope.launch {
@@ -265,12 +286,39 @@ object ZadLiveVoiceSession {
                 return@launch
             }
             audioRecord = record
+
+            // تفعيل مانع الصدى وعازل الضوضاء على جلسة المايك
+            val sessionId = record.audioSessionId
+            if (sessionId != 0) {
+                if (AcousticEchoCanceler.isAvailable()) {
+                    try {
+                        echoCanceler = AcousticEchoCanceler.create(sessionId)?.apply {
+                            enabled = true
+                        }
+                    } catch (e: Exception) {
+                        Log.w(tag, "AEC enable failed: ${e.message}")
+                    }
+                }
+                if (NoiseSuppressor.isAvailable()) {
+                    try {
+                        noiseSuppressor = NoiseSuppressor.create(sessionId)?.apply {
+                            enabled = true
+                        }
+                    } catch (e: Exception) {
+                        Log.w(tag, "NoiseSuppressor enable failed: ${e.message}")
+                    }
+                }
+            }
+
             val buffer = ByteArray(minBuf)
             try {
                 record.startRecording()
                 while (sessionActive.get() && recordingActive.get()) {
                     val read = record.read(buffer, 0, buffer.size)
-                    if (read <= 0) continue
+                    if (read <= 0) {
+                        if (read < 0) kotlinx.coroutines.delay(10)
+                        continue
+                    }
                     val chunk = if (read == buffer.size) buffer else buffer.copyOf(read)
                     updateMicLevel(chunk)
                     sendAudioChunk(chunk)
@@ -278,6 +326,10 @@ object ZadLiveVoiceSession {
             } catch (e: Exception) {
                 Log.w(tag, "mic loop failed: ${e.message}")
             } finally {
+                try { echoCanceler?.release() } catch (_: Exception) {}
+                echoCanceler = null
+                try { noiseSuppressor?.release() } catch (_: Exception) {}
+                noiseSuppressor = null
                 try { record.stop() } catch (_: Exception) {}
                 try { record.release() } catch (_: Exception) {}
                 if (audioRecord === record) audioRecord = null
@@ -334,11 +386,16 @@ object ZadLiveVoiceSession {
                 return
             }
             val parts = serverContent.optJSONObject("modelTurn")?.optJSONArray("parts")
+                ?: serverContent.optJSONArray("parts")
             if (parts != null) {
                 for (i in 0 until parts.length()) {
-                    val inline = parts.optJSONObject(i)?.optJSONObject("inlineData") ?: continue
-                    val data = inline.optString("data", "")
-                    if (data.isNotEmpty()) playAudioChunk(Base64.decode(data, Base64.DEFAULT))
+                    val part = parts.optJSONObject(i) ?: continue
+                    val inline = part.optJSONObject("inlineData")
+                    val data = inline?.optString("data", "") ?: ""
+                    if (data.isNotEmpty()) {
+                        val pcm = Base64.decode(data, Base64.DEFAULT)
+                        playAudioChunk(pcm)
+                    }
                 }
             }
             if (serverContent.optBoolean("turnComplete", false)) {
@@ -352,13 +409,12 @@ object ZadLiveVoiceSession {
     private fun playAudioChunk(pcm: ByteArray) {
         mainHandler.post { if (sessionActive.get()) _state.value = LiveVoiceState.ModelSpeaking }
         var track = audioTrack
-        if (track == null) {
+        if (track == null || track.state != AudioTrack.STATE_INITIALIZED) {
             track = buildPlaybackTrack()
             audioTrack = track
-            if (!requestAudioFocus()) {
-                Log.w(tag, "Audio focus denied — playing at reduced priority")
-            }
             track.play()
+        } else if (track.playState != AudioTrack.PLAYSTATE_PLAYING) {
+            try { track.play() } catch (_: Exception) {}
         }
         try {
             track.write(pcm, 0, pcm.size, AudioTrack.WRITE_BLOCKING)
@@ -367,16 +423,14 @@ object ZadLiveVoiceSession {
         }
     }
 
-    /** مقاطعة اكتشفها Gemini نفسه (VAD سيرفر-سايد) — نوقف صوت الموديل بس، الميكروفون
-     *  فاضل شغال (full-duplex حقيقي، مش إعادة تشغيل جلسة). */
+    /** مقاطعة اكتشفها Gemini نفسه (VAD سيرفر-سايد) — تفريغ المسار دون إعادة إنشائه لمنع الطقطقة والتأخير */
     private fun stopModelPlaybackOnly() {
         val track = audioTrack
-        audioTrack = null
         try {
-            track?.pause(); track?.flush(); track?.stop(); track?.release()
-        } catch (_: Exception) {
-        }
-        abandonAudioFocus()
+            track?.pause()
+            track?.flush()
+            track?.play()
+        } catch (_: Exception) {}
         mainHandler.post { if (sessionActive.get()) _state.value = LiveVoiceState.Listening }
     }
 
@@ -387,7 +441,7 @@ object ZadLiveVoiceSession {
         return AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ASSISTANT)
+                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                     .build()
             )
@@ -408,7 +462,7 @@ object ZadLiveVoiceSession {
             val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
                 .setAudioAttributes(
                     AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ASSISTANT)
+                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                         .build()
                 )
@@ -418,7 +472,7 @@ object ZadLiveVoiceSession {
             return audioManager.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
         }
         @Suppress("DEPRECATION")
-        return audioManager.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN) ==
+        return audioManager.requestAudioFocus(null, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN) ==
             AudioManager.AUDIOFOCUS_REQUEST_GRANTED
     }
 
@@ -452,6 +506,10 @@ object ZadLiveVoiceSession {
 
     private fun teardown(toIdle: Boolean) {
         recordingActive.set(false)
+        try { echoCanceler?.release() } catch (_: Exception) {}
+        echoCanceler = null
+        try { noiseSuppressor?.release() } catch (_: Exception) {}
+        noiseSuppressor = null
         try { audioRecord?.stop() } catch (_: Exception) {}
         try { audioRecord?.release() } catch (_: Exception) {}
         audioRecord = null
@@ -459,9 +517,12 @@ object ZadLiveVoiceSession {
         audioTrack = null
         try {
             track?.pause(); track?.flush(); track?.stop(); track?.release()
-        } catch (_: Exception) {
-        }
+        } catch (_: Exception) {}
         abandonAudioFocus()
+        try {
+            audioManager.mode = AudioManager.MODE_NORMAL
+            audioManager.isSpeakerphoneOn = false
+        } catch (_: Exception) {}
         _micLevel.value = 0f
         if (toIdle) {
             mainHandler.post {

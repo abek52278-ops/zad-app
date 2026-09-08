@@ -254,4 +254,32 @@ val ZadDarkSlate = Color(0xFF0F172A)
 val ZadHeartYellow = Color(0xFFFFF176)
 val ZadHeartRed = Color(0xFFDC2626)
 
+// =========================================================================
+// 3D Glassmorphic Companion Orb & CompanionState Tokens
+// =========================================================================
+val ZadOrbIdleSky = Color(0xFF34D399)
+val ZadOrbIdleDeep = Color(0xFF064E3B)
+val ZadOrbListeningSky = Color(0xFF00E5FF)
+val ZadOrbListeningDeep = Color(0xFF0E7490)
+val ZadOrbFocusedSky = Color(0xFFB388FF)
+val ZadOrbFocusedDeep = Color(0xFF4A148C)
+val ZadOrbSpeakingSky = Color(0xFF38BDF8)
+val ZadOrbSpeakingDeep = Color(0xFF1D4ED8)
+val ZadOrbHappySky = Color(0xFF7CFFB2)
+val ZadOrbHappyDeep = Color(0xFF00B26A)
+val ZadOrbAlertSky = Color(0xFFFF8A80)
+val ZadOrbAlertDeep = Color(0xFFD32F2F)
+val ZadOrbCelebratingSky = Color(0xFFFFE066)
+val ZadOrbCelebratingDeep = Color(0xFFF59E0B)
+
+val ZadOrbNeonCyan = Color(0xFF00E5FF)
+val ZadOrbNeonMint = Color(0xFF6EE7B7)
+val ZadOrbDeepTeal = Color(0xFF042F2E)
+val ZadOrbCoreDark = Color(0xFF05181B)
+val ZadOrbGlassSpecular = Color(0xFFE0F7FA)
+val ZadOrbSlitGlow = Color(0xFF80DEEA)
+val ZadOrbSlitCore = Color(0xFFF0FDFA)
+val ZadOrbRingAura = Color(0x3300E5FF)
+val ZadOrbRingOuter = Color(0x1A6EE7B7)
+
 
