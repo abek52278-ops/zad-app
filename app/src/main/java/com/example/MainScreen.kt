@@ -516,7 +516,9 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                             PharmacyScreen(
                                 viewModel = viewModel,
                                 familyViewModel = familyViewModel,
-                                onNavigateToCamera = { showCameraSheet = true }
+                                onNavigateToCamera = {
+                                    navController.navigate("${ZadRoutes.CAMERA}/INVENTORY") { launchSingleTop = true }
+                                }
                             )
                         }
                         composable(ZadRoutes.MAINTENANCE) {
