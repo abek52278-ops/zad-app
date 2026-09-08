@@ -271,6 +271,48 @@ object ZadAiGeminiClient {
         }
     }
 
+    suspend fun analyzeMedicineImage(apiKey: String, bitmap: Bitmap): AiParsedMedicine? {
+        val base64 = encodeBitmap(bitmap)
+        Log.d(TAG, "analyzeMedicineImage: image base64 size = ${base64.length * 3 / 4} bytes")
+        val prompt = """
+            You are a medicine package scanning AI for a family health app called ZAD.
+            Examine this medicine box or pack carefully and extract:
+            - name: Brand / trade name of the medication (in Arabic or English, e.g. "Panadol Extra", "Augmentin 1g", "كونكور").
+            - activeIngredient: Active pharmaceutical ingredient if legible (e.g. "Paracetamol", "Amoxicillin").
+            - dosage: Strength or dosage instructions (e.g. "500 mg", "قرص بعد الأكل").
+            - category: Exactly one of: "عام", "مسكن", "مضاد حيوي", "فيتامين", "مزمن".
+            - quantity: Number of pills/units in the pack (integer number, default 1).
+            - unit: Unit in Arabic ("قرص", "حبة", "كبسولة", "شراب", "مل", "بخاخ", "نقطة", "كريم", "كيس", "أمبول", "علبة").
+            - expiryDate: Expiry date in YYYY-MM-DD or YYYY-MM format if visible, otherwise null.
+            - dailyDoseCount: Recommended daily dose count if printed (integer, default 1).
+            - doseTimes: Comma separated 24h times if inferred (e.g. "08:00,20:00").
+            Output ONLY a JSON object:
+            {
+              "name": "Panadol Extra",
+              "activeIngredient": "Paracetamol + Caffeine",
+              "dosage": "500mg",
+              "category": "مسكن",
+              "quantity": 24,
+              "unit": "قرص",
+              "expiryDate": null,
+              "dailyDoseCount": 1,
+              "doseTimes": "08:00"
+            }
+        """.trimIndent()
+
+        val text = generate(apiKey, VISION_MODEL, prompt, imageBase64 = base64) ?: return null
+        val cleanJson = extractJsonObject(text) ?: run {
+            Log.e(TAG, "analyzeMedicineImage: no JSON object in model reply: $text")
+            return null
+        }
+        return try {
+            json.decodeFromString<AiParsedMedicine>(cleanJson)
+        } catch (e: Exception) {
+            Log.e(TAG, "analyzeMedicineImage decode failed: ${e.message}")
+            null
+        }
+    }
+
     suspend fun generateText(apiKey: String, prompt: String, jsonFormat: Boolean = false): String? {
         val text = generate(
             rawKeys = apiKey,

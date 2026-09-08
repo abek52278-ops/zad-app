@@ -1820,4 +1820,18 @@
     <string name="companion_bubble_happy">يومك سعيد وكل أمورك مرتبة 🌿</string>
     <string name="companion_bubble_alert">انتبه لميزانيتك ومواعيدك 👀</string>
     <string name="companion_bubble_celebrating">إنجاز رائع! استمر كذا 🎉</string>
+    <string name="subscriptions_presets_title">الخدمات والاشتراكات المقترحة:</string>
+    <string name="subscription_obligation_type_title">تصنيف الالتزام:</string>
+    <string name="installment_remaining_suffix">%1$s (%2$s أقساط)</string>
+    <string name="subscriptions_auto_detected_count">%1$d اشتراك مكتشف تلقائياً</string>
+    <string name="medicine_scanning_ai">جاري قراءة علبة الدواء بالذكاء الاصطناعي...</string>
+    <string name="medicine_scan_success">تم استخراج بيانات الدواء بنجاح</string>
+    <string name="medicine_scan_error">تعذر قراءة العلبة بدقة، يرجى المحاولة بزاوية أوضح</string>
+    <string name="dose_slot_morning">صباحاً</string>
+    <string name="dose_slot_afternoon">ظهراً</string>
+    <string name="dose_slot_evening">مساءً</string>
+    <string name="dose_slot_bedtime">قبل النوم</string>
+    <string name="cam_scan_medicine">مسح علبة دواء</string>
+    <string name="cam_medicine_extracted">تم التعرف على: %1$s</string>
+    <string name="cam_save_to_pharmacy">حفظ في الصيدلية</string>
 </resources>

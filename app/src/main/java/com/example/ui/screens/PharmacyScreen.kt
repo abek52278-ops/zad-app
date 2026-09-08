@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -777,7 +778,50 @@ private fun AddPharmacyItemDialog(
     var selectedMemberId by remember { mutableStateOf<String?>(null) }
     var memberMenuExpanded by remember { mutableStateOf(false) }
     var showAdditionalDetails by remember { mutableStateOf(false) }
+    var isScanningMedicine by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
+
+    val takePictureLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.TakePicturePreview()
+    ) { capturedBitmap ->
+        if (capturedBitmap != null) {
+            isScanningMedicine = true
+            coroutineScope.launch {
+                try {
+                    val result = com.example.data.ZadAiRepository.analyzeMedicineImage(capturedBitmap)
+                    if (result != null && result.name.isNotBlank()) {
+                        name = result.name
+                        if (!result.activeIngredient.isNullOrBlank()) activeIngredient = result.activeIngredient
+                        if (!result.dosage.isNullOrBlank()) dosage = result.dosage
+                        if (!result.category.isNullOrBlank() && PHARMACY_CATEGORIES.contains(result.category)) {
+                            category = result.category
+                        }
+                        quantity = result.quantity.coerceAtLeast(1).toString()
+                        if (PHARMACY_UNITS.contains(result.unit)) {
+                            unit = result.unit
+                        }
+                        if (!result.expiryDate.isNullOrBlank()) expiryDate = result.expiryDate
+                        dailyDoseCount = result.dailyDoseCount.coerceAtLeast(1).toString()
+                        if (!result.doseTimes.isNullOrBlank()) {
+                            doseTimesList = result.doseTimes.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                        }
+                        val est = com.example.data.PharmacyPricingEstimator.estimatePrice(result.name)
+                        if (est != null && est > 0.0) {
+                            price = if (est == est.toLong().toDouble()) est.toLong().toString() else "%.1f".format(est)
+                        }
+                        android.widget.Toast.makeText(context, context.getString(R.string.medicine_scan_success), android.widget.Toast.LENGTH_SHORT).show()
+                    } else {
+                        android.widget.Toast.makeText(context, context.getString(R.string.medicine_scan_error), android.widget.Toast.LENGTH_LONG).show()
+                    }
+                } catch (_: Exception) {
+                    android.widget.Toast.makeText(context, context.getString(R.string.medicine_scan_error), android.widget.Toast.LENGTH_SHORT).show()
+                } finally {
+                    isScanningMedicine = false
+                }
+            }
+        }
+    }
 
     LaunchedEffect(name) {
         if (name.length >= 2 && price.isBlank()) {
@@ -797,17 +841,21 @@ private fun AddPharmacyItemDialog(
                 modifier = Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()).imePadding()
             ) {
                 OutlinedButton(
-                    onClick = {
-                        onDismiss()
-                        onNavigateToCamera()
-                    },
+                    onClick = { takePictureLauncher.launch(null) },
+                    enabled = !isScanningMedicine,
                     modifier = Modifier.fillMaxWidth().pressableScale(),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = primary)
                 ) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.scan_medicine_box_action), style = Typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    if (isScanningMedicine) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = primary)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.medicine_scanning_ai), style = Typography.labelMedium)
+                    } else {
+                        Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.scan_medicine_box_action), style = Typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    }
                 }
 
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.medicine_name_hint)) }, modifier = Modifier.fillMaxWidth())
@@ -840,8 +888,13 @@ private fun AddPharmacyItemDialog(
 
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(stringResource(R.string.dose_times_hint), style = Typography.labelSmall, color = onSurfaceVariant)
+                    val presets = listOf(
+                        "08:00" to ("🌅 " + stringResource(R.string.dose_slot_morning)),
+                        "14:00" to ("☀️ " + stringResource(R.string.dose_slot_afternoon)),
+                        "20:00" to ("🌙 " + stringResource(R.string.dose_slot_evening)),
+                        "23:00" to ("🛌 " + stringResource(R.string.dose_slot_bedtime))
+                    )
                     androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        val presets = listOf("08:00" to "🌅 صباحاً", "14:00" to "☀️ ظهراً", "20:00" to "🌙 مساءً", "23:00" to "🛌 قبل النوم")
                         items(presets) { (slot, label) ->
                             val selected = doseTimesList.contains(slot)
                             FilterChip(

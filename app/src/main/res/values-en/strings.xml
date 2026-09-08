@@ -1831,4 +1831,18 @@
     <string name="companion_bubble_happy">Great day, all on track 🌿</string>
     <string name="companion_bubble_alert">Watch your budget &amp; schedule 👀</string>
     <string name="companion_bubble_celebrating">Awesome job! Keep it up 🎉</string>
+    <string name="subscriptions_presets_title">Suggested Services &amp; Subscriptions:</string>
+    <string name="subscription_obligation_type_title">Obligation Type:</string>
+    <string name="installment_remaining_suffix">%1$s (%2$s installments)</string>
+    <string name="subscriptions_auto_detected_count">%1$d auto-detected subscriptions</string>
+    <string name="medicine_scanning_ai">Scanning medicine box with AI...</string>
+    <string name="medicine_scan_success">Medicine details extracted successfully</string>
+    <string name="medicine_scan_error">Could not read package clearly, please try in better lighting</string>
+    <string name="dose_slot_morning">Morning</string>
+    <string name="dose_slot_afternoon">Afternoon</string>
+    <string name="dose_slot_evening">Evening</string>
+    <string name="dose_slot_bedtime">Bedtime</string>
+    <string name="cam_scan_medicine">Scan Medicine Box</string>
+    <string name="cam_medicine_extracted">Identified: %1$s</string>
+    <string name="cam_save_to_pharmacy">Save to Pharmacy</string>
 </resources>

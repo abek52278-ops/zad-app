@@ -162,6 +162,18 @@ function normalizeInventoryCategory(raw: unknown): string {
   return "أخرى";
 }
 
+const PHARMACY_CATEGORIES = ["عام", "مسكن", "مضاد حيوي", "فيتامين", "مزمن"];
+
+export function normalizePharmacyCategory(raw: unknown): string {
+  const v = typeof raw === "string" ? raw.trim() : "";
+  if (!v) return "عام";
+  if (PHARMACY_CATEGORIES.includes(v)) return v;
+  const stripped = v.replace(/^ال/, "");
+  const near = PHARMACY_CATEGORIES.find((c) => c === stripped || c.replace(/^ال/, "") === stripped);
+  if (near) return near;
+  return "عام";
+}
+
 /**
  * صور الأكلات من Pexels.
  *
@@ -1369,6 +1381,54 @@ Deno.serve(async (req: Request) => {
         }
         console.error("[CoreIntel] analyze_inventory_image: no JSON object or array found in response:", visionResult);
         return jsonResponse({ items: [] });
+      }
+
+      // ──────────────────────────────────────────────────────────
+      // ANALYZE_MEDICINE_IMAGE — Vision: extract medicine details from pack/box
+      // ──────────────────────────────────────────────────────────
+      case "analyze_medicine_image": {
+        const { image_base64, mime_type } = payload || {};
+        if (!image_base64) return jsonResponse({ medicine: null });
+        const systemPrompt = "You are a specialized medical package / prescription scanner AI for a Saudi family health app called ZAD. " +
+          "Carefully examine the medicine packaging, box, blister pack, or bottle in the image and extract: " +
+          "1. `name`: Trade / brand name (e.g. 'Panadol Extra', 'Augmentin 1g', 'Concor 5mg', 'بنادول'). " +
+          "2. `active_ingredient`: Scientific / active substance if legible (e.g. 'Paracetamol + Caffeine', 'Bisoprolol'). " +
+          "3. `dosage`: Dosage strength or directions printed (e.g. '500 mg', 'قرص بعد الأكل'). " +
+          "4. `category`: One of: 'عام'، 'مسكن'، 'مضاد حيوي'، 'فيتامين'، 'مزمن'. " +
+          "5. `quantity`: Number of pills/units in the pack (integer, default 1). " +
+          "6. `unit`: Unit in Arabic (e.g. 'قرص', 'حبة', 'كبسولة', 'مل', 'بخاخ', 'نقطة', 'كريم', 'كيس', 'أمبول', 'علبة'). " +
+          "7. `expiry_date`: Expiry date in YYYY-MM-DD or YYYY-MM format if visible on pack, or null. " +
+          "8. `daily_dose_count`: Recommended daily dose frequency if stated (e.g. 1, 2, 3), default 1. " +
+          "9. `suggested_times`: Array of 24-hour time strings (e.g. ['08:00', '20:00']). " +
+          "Return ONLY a JSON object: " +
+          "{\"name\":\"\",\"active_ingredient\":\"\",\"dosage\":\"\",\"category\":\"مسكن\",\"quantity\":20,\"unit\":\"قرص\",\"expiry_date\":null,\"daily_dose_count\":1,\"suggested_times\":[\"08:00\"]}";
+        const userPrompt = "Extract the medicine information from this box or package.";
+        const visionResult = await logged(user_id, action, "callVisionModel", { args: [systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg"] }, () => callVisionModel(systemPrompt, userPrompt, image_base64, mime_type || "image/jpeg"));
+        if (!visionResult) {
+          return jsonResponse({ medicine: null });
+        }
+        const objectMatch = visionResult.match(/\{[\s\S]*\}/);
+        if (objectMatch) {
+          try {
+            const parsed = JSON.parse(objectMatch[0]);
+            const med = parsed.medicine || parsed;
+            const normalized = {
+              name: typeof med.name === "string" ? med.name.trim() : "",
+              active_ingredient: typeof med.active_ingredient === "string" ? med.active_ingredient.trim() : null,
+              dosage: typeof med.dosage === "string" ? med.dosage.trim() : null,
+              category: normalizePharmacyCategory(med.category),
+              quantity: typeof med.quantity === "number" && med.quantity > 0 ? Math.round(med.quantity) : 1,
+              unit: typeof med.unit === "string" && med.unit.trim() ? med.unit.trim() : "قرص",
+              expiry_date: typeof med.expiry_date === "string" && med.expiry_date.trim() ? med.expiry_date.trim() : null,
+              daily_dose_count: typeof med.daily_dose_count === "number" && med.daily_dose_count > 0 ? Math.round(med.daily_dose_count) : 1,
+              suggested_times: Array.isArray(med.suggested_times) ? med.suggested_times : ["09:00"],
+            };
+            return jsonResponse({ medicine: normalized });
+          } catch (e) {
+            console.error("[CoreIntel] analyze_medicine_image JSON parse error:", e);
+          }
+        }
+        return jsonResponse({ medicine: null });
       }
 
       // ──────────────────────────────────────────────

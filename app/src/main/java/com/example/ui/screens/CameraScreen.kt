@@ -78,6 +78,8 @@ fun CameraScreen(
     var isAnalyzing by remember { mutableStateOf(false) }
     var parsedItems by remember { mutableStateOf<List<AiParsedInventoryItem>>(emptyList()) }
     var showConfirmationDialog by remember { mutableStateOf(false) }
+    var parsedMedicine by remember { mutableStateOf<com.example.data.AiParsedMedicine?>(null) }
+    var showMedicineConfirmationDialog by remember { mutableStateOf(false) }
     var parsedReceipt by remember { mutableStateOf<AiParsedReceipt?>(null) }
     var showReceiptConfirmationDialog by remember { mutableStateOf(false) }
     var showReceiptErrorDialog by remember { mutableStateOf(false) }
@@ -140,7 +142,27 @@ fun CameraScreen(
 
             scope.launch {
                 try {
-                    if (scanMode == "INVENTORY") {
+                    if (scanMode == "PHARMACY") {
+                        Log.d("CameraScreen", "Sending bitmap to analyzeMedicineImage")
+                        val result = ZadAiRepository.analyzeMedicineImage(bitmap)
+                        if (result != null && result.name.isNotBlank()) {
+                            Log.d("CameraScreen", " AI found medicine: ${result.name}")
+                            parsedMedicine = result
+                            showMedicineConfirmationDialog = true
+                            try {
+                                val vib = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? Vibrator
+                                if (Build.VERSION.SDK_INT >= 26) {
+                                    vib?.vibrate(VibrationEffect.createOneShot(50, 200))
+                                } else {
+                                    @Suppress("DEPRECATION") vib?.vibrate(50)
+                                }
+                            } catch (_: Exception) {}
+                            analysisStatus = context.getString(R.string.cam_medicine_extracted, result.name)
+                        } else {
+                            Log.e("CameraScreen", " AI found no medicine")
+                            analysisStatus = context.getString(R.string.medicine_scan_error)
+                        }
+                    } else if (scanMode == "INVENTORY") {
                         Log.d("CameraScreen", "Sending bitmap to analyzeInventoryImage")
                         val result = ZadAiRepository.analyzeInventoryImage(bitmap)
                         if (result != null && result.items.isNotEmpty()) {
@@ -408,39 +430,58 @@ fun CameraScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Inventory scan button
-                Button(
-                    onClick = {
-                        scanMode = "INVENTORY"
-                        permissionLauncher.launch(Manifest.permission.CAMERA)
-                    },
-                    enabled = !isAnalyzing,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(60.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = primary)
-                ) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(22.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("   " + stringResource(R.string.cam_scan_inventory), fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                }
+                if (scanMode == "PHARMACY" || initialMode == "PHARMACY") {
+                    Button(
+                        onClick = {
+                            scanMode = "PHARMACY"
+                            permissionLauncher.launch(Manifest.permission.CAMERA)
+                        },
+                        enabled = !isAnalyzing,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(60.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = primary)
+                    ) {
+                        Icon(Icons.Default.Medication, contentDescription = null, modifier = Modifier.size(22.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("   " + stringResource(R.string.cam_scan_medicine), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
+                } else {
+                    // Inventory scan button
+                    Button(
+                        onClick = {
+                            scanMode = "INVENTORY"
+                            permissionLauncher.launch(Manifest.permission.CAMERA)
+                        },
+                        enabled = !isAnalyzing,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(60.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = primary)
+                    ) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(22.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("   " + stringResource(R.string.cam_scan_inventory), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
 
-                // Receipt scan button
-                OutlinedButton(
-                    onClick = {
-                        scanMode = "RECEIPT"
-                        permissionLauncher.launch(Manifest.permission.CAMERA)
-                    },
-                    enabled = !isAnalyzing,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(60.dp),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Icon(Icons.Default.Receipt, contentDescription = null, modifier = Modifier.size(22.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("   " + stringResource(R.string.cam_scan_receipt), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    // Receipt scan button
+                    OutlinedButton(
+                        onClick = {
+                            scanMode = "RECEIPT"
+                            permissionLauncher.launch(Manifest.permission.CAMERA)
+                        },
+                        enabled = !isAnalyzing,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(60.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Icon(Icons.Default.Receipt, contentDescription = null, modifier = Modifier.size(22.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("   " + stringResource(R.string.cam_scan_receipt), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
                 }
             }
 
@@ -625,6 +666,74 @@ fun CameraScreen(
 
                     LaunchedEffect(editableList) {
                         parsedItems = editableList
+                    }
+                }
+            }
+        )
+    }
+
+    if (showMedicineConfirmationDialog && parsedMedicine != null) {
+        val med = parsedMedicine!!
+        AlertDialog(
+            onDismissRequest = { showMedicineConfirmationDialog = false },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val estPrice = if (med.price > 0.0) med.price else (com.example.data.PharmacyPricingEstimator.estimatePrice(med.name) ?: 0.0)
+                        viewModel.addPharmacyItem(
+                            com.example.data.ZadPharmacyItem(
+                                name = med.name,
+                                activeIngredient = med.activeIngredient,
+                                category = med.category,
+                                dosage = med.dosage,
+                                remainingQuantity = med.quantity,
+                                unit = med.unit,
+                                dailyDoseCount = med.dailyDoseCount,
+                                doseTimes = med.doseTimes,
+                                expiryDate = med.expiryDate,
+                                price = estPrice
+                            )
+                        )
+                        showMedicineConfirmationDialog = false
+                        analysisStatus = context.getString(R.string.cam_medicine_extracted, med.name)
+                        parsedMedicine = null
+                        imageBitmap = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = primary)
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("   " + stringResource(R.string.cam_save_to_pharmacy))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showMedicineConfirmationDialog = false
+                    analysisStatus = context.getString(R.string.cam_add_cancelled)
+                }) {
+                    Text(stringResource(R.string.cam_cancel))
+                }
+            },
+            icon = { Icon(Icons.Default.Medication, contentDescription = null, tint = primary, modifier = Modifier.size(28.dp)) },
+            title = {
+                Text(
+                    stringResource(R.string.cam_scan_medicine),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(med.name, style = Typography.titleMedium, fontWeight = FontWeight.Bold)
+                    if (!med.activeIngredient.isNullOrBlank()) {
+                        Text(med.activeIngredient, style = Typography.bodySmall, color = onSurfaceVariant)
+                    }
+                    Text("${med.quantity} ${med.unit}  •  ${med.category}", style = MaterialTheme.typography.bodySmall)
+                    if (!med.dosage.isNullOrBlank()) {
+                        Text(med.dosage, style = Typography.bodySmall)
+                    }
+                    if (!med.expiryDate.isNullOrBlank()) {
+                        Text("${stringResource(R.string.expiry_date_hint)}: ${med.expiryDate}", style = Typography.labelSmall, color = textTertiary)
                     }
                 }
             }

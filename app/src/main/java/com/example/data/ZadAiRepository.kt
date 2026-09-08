@@ -63,6 +63,20 @@ data class AiParsedReceipt(
 )
 
 @kotlinx.serialization.Serializable
+data class AiParsedMedicine(
+    val name: String,
+    val activeIngredient: String? = null,
+    val dosage: String? = null,
+    val category: String = "عام",
+    val quantity: Int = 1,
+    val unit: String = "قرص",
+    val expiryDate: String? = null,
+    val price: Double = 0.0,
+    val dailyDoseCount: Int = 1,
+    val doseTimes: String? = null
+)
+
+@kotlinx.serialization.Serializable
 data class AiInsight(
     val title: String,
     val description: String,
@@ -159,6 +173,35 @@ object ZadAiRepository {
                 AiInventoryScanResult(items)
             } else null
         } as? AiInventoryScanResult
+    }
+
+    suspend fun analyzeMedicineImage(bitmap: Bitmap): AiParsedMedicine? {
+        val fromEdge = callVisionEdge("analyze_medicine_image", bitmap) { response ->
+            Log.d(TAG_REPO, "analyzeMedicineImage Edge RAW response: $response")
+            @Suppress("UNCHECKED_CAST")
+            val med = response["medicine"] as? Map<*, *> ?: return@callVisionEdge null
+            val name = (med["name"] as? String)?.trim().orEmpty()
+            if (name.isBlank()) return@callVisionEdge null
+            AiParsedMedicine(
+                name = name,
+                activeIngredient = med["active_ingredient"] as? String,
+                dosage = med["dosage"] as? String,
+                category = med["category"] as? String ?: "عام",
+                quantity = (med["quantity"] as? Number)?.toInt() ?: 1,
+                unit = med["unit"] as? String ?: "قرص",
+                expiryDate = med["expiry_date"] as? String,
+                dailyDoseCount = (med["daily_dose_count"] as? Number)?.toInt() ?: 1,
+                doseTimes = (med["suggested_times"] as? List<*>)?.joinToString(",") ?: (med["dose_times"] as? String)
+            )
+        } as? AiParsedMedicine
+
+        if (fromEdge != null && fromEdge.name.isNotBlank()) return fromEdge
+
+        val geminiKey = geminiApiKey
+        if (!geminiKey.isNullOrBlank()) {
+            return ZadAiGeminiClient.analyzeMedicineImage(geminiKey, bitmap)
+        }
+        return null
     }
 
     suspend fun suggestMeals(inventory: List<ZadInventory>): ChefSuggestion {

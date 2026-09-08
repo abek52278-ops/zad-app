@@ -223,7 +223,7 @@ fun SubscriptionsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "${autoDetectedCount} اشتراك مكتشف تلقائياً",
+                            text = stringResource(R.string.subscriptions_auto_detected_count, autoDetectedCount),
                             style = Typography.labelMedium,
                             color = onSurfaceVariant
                         )
@@ -784,7 +784,7 @@ fun AddEditSubscriptionDialog(
             ) {
                 // 1. شريط الخدمات الشهيرة السريع
                 Text(
-                    text = "الخدمات والاشتراكات المقترحة:",
+                    text = stringResource(R.string.subscriptions_presets_title),
                     style = Typography.labelSmall,
                     color = onSurfaceVariant,
                     fontWeight = FontWeight.SemiBold
@@ -845,7 +845,7 @@ fun AddEditSubscriptionDialog(
 
                 // 2. الفصل الصريح بين الأنواع (Segmented Type Selector)
                 Text(
-                    text = "تصنيف الالتزام:",
+                    text = stringResource(R.string.subscription_obligation_type_title),
                     style = Typography.labelSmall,
                     color = onSurfaceVariant,
                     fontWeight = FontWeight.SemiBold
@@ -976,7 +976,7 @@ fun AddEditSubscriptionDialog(
                         else -> if (category.isBlank()) "اشتراك" else category
                     }
                     val finalTitle = if (selectedType == "installment" && remainingInstallmentsStr.isNotBlank() && !title.contains("قسط")) {
-                        "$title ($remainingInstallmentsStr أقساط)"
+                        context.getString(R.string.installment_remaining_suffix, title.trim(), remainingInstallmentsStr.trim())
                     } else title.trim()
 
                     onSave(

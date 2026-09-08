@@ -517,7 +517,7 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                                 viewModel = viewModel,
                                 familyViewModel = familyViewModel,
                                 onNavigateToCamera = {
-                                    navController.navigate("${ZadRoutes.CAMERA}/INVENTORY") { launchSingleTop = true }
+                                    navController.navigate("${ZadRoutes.CAMERA}/PHARMACY") { launchSingleTop = true }
                                 }
                             )
                         }

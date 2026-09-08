@@ -1828,4 +1828,18 @@
     <string name="companion_bubble_happy">Harika bir gün, her şey yolunda 🌿</string>
     <string name="companion_bubble_alert">Bütçene ve planına dikkat et 👀</string>
     <string name="companion_bubble_celebrating">Harika iş! Aynen devam 🎉</string>
+    <string name="subscriptions_presets_title">Önerilen Servisler ve Abonelikler:</string>
+    <string name="subscription_obligation_type_title">Yükümlülük Türü:</string>
+    <string name="installment_remaining_suffix">%1$s (%2$s taksit)</string>
+    <string name="subscriptions_auto_detected_count">%1$d otomatik tespit edilen abonelik</string>
+    <string name="medicine_scanning_ai">Yapay zeka ile ilaç kutusu taranıyor...</string>
+    <string name="medicine_scan_success">İlaç bilgileri başarıyla okundu</string>
+    <string name="medicine_scan_error">İlaç kutusu net okunamadı, lütfen daha iyi ışıkta tekrar deneyin</string>
+    <string name="dose_slot_morning">Sabah</string>
+    <string name="dose_slot_afternoon">Öğle</string>
+    <string name="dose_slot_evening">Akşam</string>
+    <string name="dose_slot_bedtime">Yatmadan önce</string>
+    <string name="cam_scan_medicine">İlaç Kutusu Tara</string>
+    <string name="cam_medicine_extracted">Tespit edildi: %1$s</string>
+    <string name="cam_save_to_pharmacy">Eczaneye Kaydet</string>
 </resources>

@@ -153,20 +153,26 @@ fun DraggableFloatingCompanion(
                                 val downTime = System.currentTimeMillis()
                                 val startPos = down.position
                                 var hasExceededSlop = false
+                                var isLongPressed = false
+
+                                val longPressJob = scope.launch {
+                                    delay(viewConfiguration.longPressTimeoutMillis)
+                                    if (!hasExceededSlop && !isDragging) {
+                                        isLongPressed = true
+                                        showBubble = false
+                                        fireHaptic(40, 240)
+                                        ZadCutePetSoundFx.play(ZadCutePetSoundFx.PetSound.HappyChirp, 0.50f)
+                                        onOpenVoice()
+                                    }
+                                }
 
                                 while (true) {
                                     val event = awaitPointerEvent()
                                     val change = event.changes.firstOrNull { it.id == down.id } ?: break
                                     if (!change.pressed) {
-                                        if (!hasExceededSlop) {
-                                            val pressDuration = System.currentTimeMillis() - downTime
-                                            if (pressDuration >= viewConfiguration.longPressTimeoutMillis) {
-                                                // ضغطة مطولة: مساعد صوتي مباشر
-                                                showBubble = false
-                                                fireHaptic(40, 240)
-                                                ZadCutePetSoundFx.play(ZadCutePetSoundFx.PetSound.HappyChirp, 0.50f)
-                                                onOpenVoice()
-                                            } else {
+                                        longPressJob.cancel()
+                                        if (!isLongPressed) {
+                                            if (!hasExceededSlop) {
                                                 val now = System.currentTimeMillis()
                                                 if (now - lastTapTime < viewConfiguration.doubleTapTimeoutMillis) {
                                                     // نقر مزدوج: فتح المحادثة الذكية
@@ -194,29 +200,29 @@ fun DraggableFloatingCompanion(
                                                         showBubble = false
                                                     }
                                                 }
-                                            }
-                                        } else {
-                                            // إفلات السحب: ارتداد زنبركي مرن (Spring Physics)
-                                            isDragging = false
-                                            fireHaptic(15, 100)
-                                            scope.launch {
-                                                launch {
-                                                    animOffsetX.animateTo(
-                                                        targetValue = 0f,
-                                                        animationSpec = spring(
-                                                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                                                            stiffness = Spring.StiffnessLow
+                                            } else {
+                                                // إفلات السحب: ارتداد زنبركي مرن (Spring Physics)
+                                                isDragging = false
+                                                fireHaptic(15, 100)
+                                                scope.launch {
+                                                    launch {
+                                                        animOffsetX.animateTo(
+                                                            targetValue = 0f,
+                                                            animationSpec = spring(
+                                                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                                stiffness = Spring.StiffnessLow
+                                                            )
                                                         )
-                                                    )
-                                                }
-                                                launch {
-                                                    animOffsetY.animateTo(
-                                                        targetValue = 0f,
-                                                        animationSpec = spring(
-                                                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                                                            stiffness = Spring.StiffnessLow
+                                                    }
+                                                    launch {
+                                                        animOffsetY.animateTo(
+                                                            targetValue = 0f,
+                                                            animationSpec = spring(
+                                                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                                stiffness = Spring.StiffnessLow
+                                                            )
                                                         )
-                                                    )
+                                                    }
                                                 }
                                             }
                                         }
@@ -226,6 +232,7 @@ fun DraggableFloatingCompanion(
                                     val delta = change.position - startPos
                                     if (!hasExceededSlop && delta.getDistance() > viewConfiguration.touchSlop) {
                                         hasExceededSlop = true
+                                        longPressJob.cancel()
                                         isDragging = true
                                         showBubble = false
                                         fireHaptic(20, 140)
