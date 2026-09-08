@@ -269,6 +269,35 @@ fun CompanionOrb(
         sheenProgress = 0.3f
     }
 
+    var eyeOpen by remember { mutableFloatStateOf(1f) }
+    val eyeOpenAnimated by animateFloatAsState(
+        targetValue = eyeOpen,
+        animationSpec = tween(85, easing = FastOutSlowInEasing),
+        label = "orbBlink"
+    )
+
+    LaunchedEffect(effectiveBlink) {
+        if (effectiveBlink != 0L) {
+            eyeOpen = 0.08f
+            delay(90)
+            eyeOpen = 1f
+            delay(70)
+            eyeOpen = 0.08f
+            delay(90)
+            eyeOpen = 1f
+        }
+    }
+
+    LaunchedEffect(animated) {
+        if (!animated) return@LaunchedEffect
+        while (true) {
+            delay(Random.nextLong(2400, 5200))
+            eyeOpen = 0.08f
+            delay(100)
+            eyeOpen = 1f
+        }
+    }
+
     var glowTarget by remember { mutableFloatStateOf(0f) }
     val glow by animateFloatAsState(glowTarget, tween(450, easing = FastOutSlowInEasing), label = "orbGlow")
     LaunchedEffect(effectiveGlow) {
@@ -421,7 +450,199 @@ fun CompanionOrb(
                 width = (1.5.dp.toPx() * (1f + 0.5f * level))
             )
         )
+
+        // 6. Dynamic Expressive Living Eyes (Interactive Companion Orb)
+        drawCompanionEyes(
+            state = state,
+            center = center,
+            radius = radius,
+            openAmount = eyeOpenAnimated,
+            audioLevel = level,
+            sheenProgress = sheenProgress
+        )
     }
+}
+
+/**
+ * رسم العيون التعبيرية الحية للكائن التفاعلي حسب الحالة والمشاعر ونبرة الصوت
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawCompanionEyes(
+    state: CompanionState,
+    center: Offset,
+    radius: Float,
+    openAmount: Float,
+    audioLevel: Float,
+    sheenProgress: Float
+) {
+    val eyeSpacing = radius * 0.38f
+    val eyeWidth = radius * 0.22f
+    val baseEyeY = center.y - radius * 0.08f
+    val leftCenter = Offset(center.x - eyeSpacing, baseEyeY)
+    val rightCenter = Offset(center.x + eyeSpacing, baseEyeY)
+
+    when (state) {
+        CompanionState.Happy, CompanionState.Celebrating -> {
+            val heartHeight = radius * 0.44f * openAmount
+            val heartColor = if (state == CompanionState.Celebrating) Color(0xFFFFF176) else Color.White
+            if (openAmount > 0.25f) {
+                drawHeart(leftCenter, eyeWidth * 1.25f, heartHeight, heartColor)
+                drawHeart(rightCenter, eyeWidth * 1.25f, heartHeight, heartColor)
+            } else {
+                drawSmilingArc(leftCenter, eyeWidth, radius * 0.12f)
+                drawSmilingArc(rightCenter, eyeWidth, radius * 0.12f)
+            }
+        }
+        CompanionState.Listening -> {
+            val eyeHeight = (radius * 0.42f + radius * 0.14f * audioLevel) * openAmount
+            val pupilOffset = Offset(0f, -radius * 0.03f)
+            drawExpressiveEye(leftCenter, eyeWidth, eyeHeight, pupilOffset, openAmount)
+            drawExpressiveEye(rightCenter, eyeWidth, eyeHeight, pupilOffset, openAmount)
+        }
+        CompanionState.Speaking -> {
+            val eyeHeight = (radius * 0.38f + radius * 0.12f * audioLevel) * openAmount
+            val pupilOffset = Offset(0f, radius * 0.02f * sin(sheenProgress * Math.PI.toFloat()))
+            drawExpressiveEye(leftCenter, eyeWidth, eyeHeight, pupilOffset, openAmount)
+            drawExpressiveEye(rightCenter, eyeWidth, eyeHeight, pupilOffset, openAmount)
+        }
+        CompanionState.Focused -> {
+            val eyeHeight = radius * 0.28f * openAmount
+            drawFocusedEye(leftCenter, eyeWidth * 1.15f, eyeHeight)
+            drawFocusedEye(rightCenter, eyeWidth * 1.15f, eyeHeight)
+        }
+        CompanionState.Alert -> {
+            val eyeHeight = radius * 0.45f * openAmount
+            drawAlertEye(leftCenter, eyeWidth, eyeHeight)
+            drawAlertEye(rightCenter, eyeWidth, eyeHeight)
+        }
+        CompanionState.Idle -> {
+            val eyeHeight = radius * 0.38f * openAmount
+            drawExpressiveEye(leftCenter, eyeWidth, eyeHeight, Offset.Zero, openAmount)
+            drawExpressiveEye(rightCenter, eyeWidth, eyeHeight, Offset.Zero, openAmount)
+        }
+    }
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawExpressiveEye(
+    center: Offset,
+    width: Float,
+    height: Float,
+    pupilOffset: Offset,
+    openAmount: Float
+) {
+    if (height < 2f) return
+    val cornerRadius = androidx.compose.ui.geometry.CornerRadius(width / 2f, minOf(width / 2f, height / 2f))
+    // Outer white sclera
+    drawRoundRect(
+        color = Color.White,
+        topLeft = Offset(center.x - width / 2f, center.y - height / 2f),
+        size = androidx.compose.ui.geometry.Size(width, height.coerceAtLeast(3f)),
+        cornerRadius = cornerRadius
+    )
+    // Dark expressive pupil
+    if (openAmount > 0.35f) {
+        val pupilRadius = minOf(width, height) * 0.36f
+        val pCenter = center + pupilOffset
+        drawCircle(
+            color = Color(0xFF0F172A),
+            radius = pupilRadius,
+            center = pCenter
+        )
+        // Specular reflection glint
+        drawCircle(
+            color = Color.White,
+            radius = pupilRadius * 0.38f,
+            center = pCenter - Offset(pupilRadius * 0.32f, pupilRadius * 0.32f)
+        )
+    }
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFocusedEye(
+    center: Offset,
+    width: Float,
+    height: Float
+) {
+    if (height < 2f) return
+    val cornerRadius = androidx.compose.ui.geometry.CornerRadius(width / 2f, height / 2f)
+    drawRoundRect(
+        color = Color.White,
+        topLeft = Offset(center.x - width / 2f, center.y - height / 2f),
+        size = androidx.compose.ui.geometry.Size(width, height.coerceAtLeast(3f)),
+        cornerRadius = cornerRadius
+    )
+    drawCircle(
+        color = Color(0xFF4A148C),
+        radius = minOf(width, height) * 0.32f,
+        center = center
+    )
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawAlertEye(
+    center: Offset,
+    width: Float,
+    height: Float
+) {
+    if (height < 2f) return
+    val cornerRadius = androidx.compose.ui.geometry.CornerRadius(width / 2f, height / 2f)
+    drawRoundRect(
+        color = Color.White,
+        topLeft = Offset(center.x - width / 2f, center.y - height / 2f),
+        size = androidx.compose.ui.geometry.Size(width, height.coerceAtLeast(3f)),
+        cornerRadius = cornerRadius
+    )
+    drawCircle(
+        color = Color(0xFFDC2626),
+        radius = minOf(width, height) * 0.38f,
+        center = center
+    )
+    drawCircle(
+        color = Color.White,
+        radius = minOf(width, height) * 0.16f,
+        center = center - Offset(width * 0.1f, height * 0.1f)
+    )
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSmilingArc(
+    center: Offset,
+    width: Float,
+    height: Float
+) {
+    val path = Path().apply {
+        moveTo(center.x - width / 2f, center.y + height / 2f)
+        quadraticTo(center.x, center.y - height / 2f, center.x + width / 2f, center.y + height / 2f)
+    }
+    drawPath(
+        path = path,
+        color = Color.White,
+        style = androidx.compose.ui.graphics.drawscope.Stroke(
+            width = 3.5f,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round
+        )
+    )
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawHeart(
+    at: Offset,
+    width: Float,
+    height: Float,
+    color: Color = Color.White
+) {
+    if (height < 3f) return
+    val hw = width / 2f
+    val path = Path().apply {
+        moveTo(at.x, at.y - height * 0.35f)
+        cubicTo(
+            at.x - hw * 1.1f, at.y - height * 0.85f,
+            at.x - hw * 1.3f, at.y + height * 0.05f,
+            at.x, at.y + height * 0.55f
+        )
+        cubicTo(
+            at.x + hw * 1.3f, at.y + height * 0.05f,
+            at.x + hw * 1.1f, at.y - height * 0.85f,
+            at.x, at.y - height * 0.35f
+        )
+        close()
+    }
+    drawPath(path, color = color)
 }
 
 /**

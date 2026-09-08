@@ -1776,4 +1776,6 @@
     <string name="auth_terms_decline_action">Decline</string>
     <string name="auth_logo_content_description">Zad logo</string>
     <string name="fx_excluded_notice">%1$d transaction(s) left out of the total — no exchange rate for their currency</string>
+    <string name="reset_counter_action">Reset</string>
+    <string name="brain_gate_bypass">Skip and continue to reports ⚡</string>
 </resources>

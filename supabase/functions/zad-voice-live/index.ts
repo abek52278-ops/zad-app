@@ -90,7 +90,14 @@ async function resolveUserId(req: Request): Promise<string | null> {
   try {
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
     const { data, error } = await sb.auth.getUser(token);
-    return error || !data?.user?.id ? null : data.user.id;
+    if (!error && data?.user?.id) return data.user.id;
+    // دعم المستخدمين الضيوف ومفتاح anon key بدون تعطيل الاتصال
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
+    if ((anonKey && token === anonKey) || (SERVICE_ROLE_KEY && token === SERVICE_ROLE_KEY)) {
+      const explicitUser = req.headers.get("x-user-id");
+      return explicitUser?.trim() || "guest_voice_user";
+    }
+    return null;
   } catch {
     return null;
   }

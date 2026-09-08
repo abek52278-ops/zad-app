@@ -78,34 +78,15 @@ fun MarketSelectionScreen(onContinue: () -> Unit) {
                 text = stringResource(R.string.market_continue),
                 onClick = {
                     selected?.let { market ->
-                        MarketPrefs.setMarket(context, market)
-                        // العملة/البلد بتترفع للسيرفر فوراً — العقل والبوت بيلاقوها بدل
-                        // الافتراض الخاطئ "ر.س" (مشكلة "قالي مفيش ولا ريال وأنا بالمصري").
-                        // مبنعطلش onContinue على النتيجة — مستخدم جديد من غير نت لسه لازم
-                        // يقدر يكمل التسجيل، بس بيتبلغ لو الرفع فشل بدل ما يفشل بصمت.
-                        scope.launch {
+                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            MarketPrefs.setMarket(context, market)
                             val synced = com.example.data.SupabaseRepo.syncMarketProfile(market)
                             if (!synced) {
                                 android.util.Log.i("MarketSelectionScreen", "Market profile sync offline — enqueued to SyncOutbox")
                                 com.example.data.SyncOutbox.enqueueMarketProfile(context, market.currencyCode, market.countryCode)
                             }
                         }
-                        // باج حقيقي حصل هنا (٢٠٢٦-٠٩-٠٣): recreate() كان بدل onContinue()
-                        // مش بعده، على افتراض غلط إن NavHost بيرجع لـ"splash" بعد أي
-                        // recreate. مايرجعش — rememberNavController() بيحفظ الـbackstack
-                        // عبر rememberSaveable، فبعد recreate الشاشة الحالية (market_
-                        // selection نفسها، لسه ما اتنقلناش منها) هي اللي بترجع، مش splash.
-                        // النتيجة: زرار "متابعة" كان بيعمل recreate ويرجّع نفس الشاشة —
-                        // قفلة كاملة، محدش يقدر يعدّي الخطوة دي خالص.
-                        //
-                        // الترتيب الصح: onContinue() الأول (بيحرّك الـbackstack فعلياً —
-                        // نفس اللي كل الشاشات التانية اللي فيها recreate() بتعتمد عليه
-                        // ضمنياً، لأنها هي نفسها اللي المستخدم واقف فيها ومش بتتحرك).
-                        // بعدين recreate() على الـActivity الجديدة يلاقي الـbackstack
-                        // بالفعل واقف على الشاشة التالية، فبتترسم هي مش market_selection،
-                        // ونفس الوقت attachBaseContext بيتلف بلغة السوق الجديدة.
                         onContinue()
-                        context.findActivity()?.recreate()
                     }
                 },
                 enabled = selected != null,

@@ -13,7 +13,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -123,6 +126,15 @@ internal data class MapDomain(
 internal data class MapEdge(val from: String, val to: String, val solid: Boolean)
 
 internal data class MapItem(val label: String, val sublabel: String)
+
+internal data class ProjectedDomainNode(
+    val domain: MapDomain,
+    val screenX: Float,
+    val screenY: Float,
+    val depthZ: Float,
+    val scale: Float,
+    val alpha: Float
+)
 
 @Composable
 fun ZadKnowledgeMapScreen(
@@ -610,333 +622,364 @@ internal fun DomainRing(
     val particleProgress by livePulse.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(2400, easing = androidx.compose.animation.core.LinearEasing), RepeatMode.Restart),
+        animationSpec = infiniteRepeatable(tween(2400, easing = LinearEasing), RepeatMode.Restart),
         label = "kmParticleProgress"
     )
 
-    // دوران رادار ثلاثي الأبعاد خفيف في الخلفية
-    val orbitAngle by livePulse.animateFloat(
+    // دوران كوني مستمر تلقائي خفيف
+    val cosmicOrbitAngle by livePulse.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(36000, easing = androidx.compose.animation.core.LinearEasing), RepeatMode.Restart),
-        label = "kmOrbitAngle"
+        animationSpec = infiniteRepeatable(tween(28000, easing = LinearEasing), RepeatMode.Restart),
+        label = "kmCosmicOrbit"
     )
 
-    var zoomScale by remember { mutableStateOf(1f) }
-    var panOffset by remember { mutableStateOf(Offset.Zero) }
+    var manualRotX by remember { mutableFloatStateOf(14f) }
+    var manualRotY by remember { mutableFloatStateOf(0f) }
+    var zoomScale by remember { mutableFloatStateOf(1f) }
 
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .pointerInput(Unit) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    zoomScale = (zoomScale * zoom).coerceIn(0.65f, 2.8f)
-                    panOffset += pan
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    manualRotY += dragAmount.x * 0.45f
+                    manualRotX = (manualRotX - dragAmount.y * 0.45f).coerceIn(-75f, 75f)
                 }
             }
     ) {
         val centerX = maxWidth / 2
         val centerY = maxHeight / 2
-        val radius = (minOf(maxWidth, maxHeight) / 2) - 64.dp
-        val nodeSize = 56.dp
+        val radius = (minOf(maxWidth, maxHeight) / 2) - 48.dp
 
-        val positions = remember(domains, maxWidth, maxHeight) {
+        val rotX = manualRotX
+        val rotY = (manualRotY + cosmicOrbitAngle) % 360f
+
+        val radX = Math.toRadians(rotX.toDouble())
+        val radY = Math.toRadians(rotY.toDouble())
+        val cosX = cos(radX).toFloat()
+        val sinX = sin(radX).toFloat()
+        val cosY = cos(radY).toFloat()
+        val sinY = sin(radY).toFloat()
+
+        // 3D sphere radius in px
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val radiusPx = with(density) { radius.toPx() } * zoomScale
+        val cameraDist = radiusPx * 2.5f
+
+        // 3D rotation + perspective projection function
+        fun project3D(x: Float, y: Float, z: Float): Triple<Float, Float, Float> {
+            val y1 = y * cosX - z * sinX
+            val z1 = y * sinX + z * cosX
+            val x2 = x * cosY + z1 * sinY
+            val z2 = -x * sinY + z1 * cosY
+            val y2 = y1
+
+            val factor = cameraDist / (cameraDist + z2)
+            val projX = with(density) { centerX.toPx() } + x2 * factor
+            val projY = with(density) { centerY.toPx() } + y2 * factor
+            return Triple(projX, projY, z2)
+        }
+
+        // Ambient Neural Particle Cloud (40 particles on the sphere)
+        val ambientParticles = remember {
+            List(40) { i ->
+                val phi = Math.acos(1.0 - 2.0 * (i + 0.5) / 40.0)
+                val theta = Math.PI * (1.0 + Math.sqrt(5.0)) * (i + 0.5)
+                Triple(
+                    (Math.sin(phi) * Math.cos(theta)).toFloat(),
+                    Math.cos(phi).toFloat(),
+                    (Math.sin(phi) * Math.sin(theta)).toFloat()
+                )
+            }
+        }
+
+        // Domain 3D positions distributed on the sphere
+        val domain3DPositions = remember(domains) {
             domains.mapIndexed { i, d ->
-                val angle = Math.toRadians(-90.0 + i * (360.0 / domains.size))
-                val x = centerX + radius * cos(angle).toFloat()
-                val y = centerY + radius * sin(angle).toFloat()
-                d.key to (x to y)
+                val phi = Math.acos(1.0 - 2.0 * (i + 0.5) / domains.size.toDouble())
+                val theta = Math.PI * (1.0 + Math.sqrt(5.0)) * (i + 0.5)
+                val x = (Math.sin(phi) * Math.cos(theta)).toFloat()
+                val y = Math.cos(phi).toFloat()
+                val z = (Math.sin(phi) * Math.sin(theta)).toFloat()
+                d.key to Triple(x, y, z)
             }.toMap()
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    scaleX = zoomScale
-                    scaleY = zoomScale
-                    translationX = panOffset.x
-                    translationY = panOffset.y
-                }
-        ) {
-             // DrawScope is not composable — read the token outside the canvas.
-             val edgeParticleColor = primaryLight
-             val primaryColor = primary
-             val primaryLightColor = primaryLight
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val centerPx = Offset(centerX.toPx(), centerY.toPx())
-                val radiusPx = radius.toPx()
+        // Calculate projected coordinates for each domain
+        val projectedDomains = domains.map { d ->
+            val (ux, uy, uz) = domain3DPositions.getValue(d.key)
+            val (px, py, pz) = project3D(ux * radiusPx, uy * radiusPx, uz * radiusPx)
+            val depthRatio = (pz / radiusPx).coerceIn(-1f, 1f)
+            val scale = (1.0f - depthRatio * 0.35f).coerceIn(0.65f, 1.35f)
+            val alpha = (0.65f - depthRatio * 0.35f).coerceIn(0.25f, 1.0f)
+            ProjectedDomainNode(
+                domain = d,
+                screenX = px,
+                screenY = py,
+                depthZ = pz,
+                scale = scale,
+                alpha = alpha
+            )
+        }
 
-                // نجوم الكوكبة النجمية التفاعلية في الخلفية (Constellation background stars)
-                val starCount = 32
-                for (s in 0 until starCount) {
-                    val angle = (s * 47.3f + orbitAngle * 0.1f) % 360f
-                    val dist = (0.25f + 0.75f * ((s * 17) % 100) / 100f) * radiusPx * 1.3f
-                    val rad = Math.toRadians(angle.toDouble())
-                    val sX = centerPx.x + dist * cos(rad).toFloat()
-                    val sY = centerPx.y + dist * sin(rad).toFloat()
-                    val starAlpha = (0.2f + 0.25f * sin((s * 3.14f + orbitAngle * 0.05f).toDouble()).toFloat()).coerceIn(0.1f, 0.6f)
-                    drawCircle(
-                        color = ZadSciFiCyanSoft.copy(alpha = starAlpha),
-                        radius = if (s % 3 == 0) 2.2.dp.toPx() else 1.4.dp.toPx(),
-                        center = Offset(sX, sY)
-                    )
-                }
+        val projectedMap = projectedDomains.associateBy { it.domain.key }
+        val centerScreen = Offset(with(density) { centerX.toPx() }, with(density) { centerY.toPx() })
 
-                // وهج رادار نيون إشعاعي نابض في الخلفية (Pulsing Ambient Radial Glow)
+        val edgeParticleColor = primaryLight
+        val primaryColor = primary
+
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            // 1. 3D Rotating Ambient Neural Particle Cloud
+            ambientParticles.forEach { (ux, uy, uz) ->
+                val (px, py, pz) = project3D(ux * radiusPx, uy * radiusPx, uz * radiusPx)
+                val pAlpha = (0.5f - (pz / radiusPx) * 0.35f).coerceIn(0.08f, 0.65f)
+                val pRadius = if (pz < 0) 2.4.dp.toPx() else 1.4.dp.toPx()
                 drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            primaryColor.copy(alpha = 0.20f * liveAlpha),
-                            primaryColor.copy(alpha = 0.05f * liveAlpha),
-                            Color.Transparent
-                        ),
-                        center = centerPx,
-                        radius = radiusPx * 1.35f
-                    ),
-                    radius = radiusPx * 1.35f,
-                    center = centerPx
+                    color = ZadSciFiCyanSoft.copy(alpha = pAlpha),
+                    radius = pRadius,
+                    center = Offset(px, py)
                 )
+            }
 
-                // خطوط رادار متحدة المركز بتأثير إشعاعي ثلاثي الأبعاد
-                listOf(0.34f, 0.67f, 1f).forEach { fraction ->
-                    drawCircle(
-                        color = kmGrid.copy(alpha = 0.6f),
-                        radius = radiusPx * fraction,
-                        center = centerPx,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.2f)
-                    )
-                }
+            // 2. Glowing Core Ambient Halo
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        primaryColor.copy(alpha = 0.22f * liveAlpha),
+                        kmCyanElectric.copy(alpha = 0.06f * liveAlpha),
+                        Color.Transparent
+                    ),
+                    center = centerScreen,
+                    radius = radiusPx * 0.95f
+                ),
+                radius = radiusPx * 0.95f,
+                center = centerScreen
+            )
 
-                // شعاع مسح الرادار الدوار (Rotating Radar Sweep Ray)
-                val sweepRad = Math.toRadians(orbitAngle.toDouble())
-                val sweepEnd = Offset(
-                    centerPx.x + radiusPx * cos(sweepRad).toFloat(),
-                    centerPx.y + radiusPx * sin(sweepRad).toFloat()
+            // 3. 3D Concentric Orbit Guide Rings
+            listOf(0.4f, 0.7f, 1.0f).forEach { frac ->
+                drawCircle(
+                    color = kmGrid.copy(alpha = 0.35f),
+                    radius = radiusPx * frac,
+                    center = centerScreen,
+                    style = Stroke(width = 1.dp.toPx())
+                )
+            }
+
+            // 4. Draw 3D Neural Filaments between Core and Nodes
+            projectedDomains.forEach { node ->
+                val end = Offset(node.screenX, node.screenY)
+                val lineAlpha = (node.alpha * 0.55f).coerceIn(0.12f, 0.85f)
+                drawLine(
+                    color = node.domain.color.copy(alpha = lineAlpha * 0.4f),
+                    start = centerScreen,
+                    end = end,
+                    strokeWidth = 4.dp.toPx() * node.scale
                 )
                 drawLine(
-                    color = primaryLightColor.copy(alpha = 0.20f * liveAlpha),
-                    start = centerPx,
-                    end = sweepEnd,
-                    strokeWidth = 1.5.dp.toPx()
+                    color = node.domain.color.copy(alpha = lineAlpha),
+                    start = centerScreen,
+                    end = end,
+                    strokeWidth = 1.5.dp.toPx() * node.scale
                 )
 
-                // رسم الأعصاب وحركة الجسيمات
-                domains.forEach { d ->
-                    val (x, y) = positions.getValue(d.key)
-                    val end = Offset(x.toPx(), y.toPx())
-                    drawLine(color = d.color.copy(alpha = 0.18f), start = centerPx, end = end, strokeWidth = 6.dp.toPx())
-                    drawLine(color = d.color.copy(alpha = 0.55f), start = centerPx, end = end, strokeWidth = 1.5.dp.toPx())
+                // Energy particle flowing along filament
+                val pX = centerScreen.x + (end.x - centerScreen.x) * particleProgress
+                val pY = centerScreen.y + (end.y - centerScreen.y) * particleProgress
+                drawCircle(
+                    color = node.domain.color,
+                    radius = 3.2.dp.toPx() * node.scale,
+                    center = Offset(pX, pY)
+                )
+            }
 
-                    // جزيء نبض يسري من زاد نحو العقدة
-                    val pX = centerPx.x + (end.x - centerPx.x) * particleProgress
-                    val pY = centerPx.y + (end.y - centerPx.y) * particleProgress
+            // 5. Draw 3D Neural Filaments between Edges
+            edges.forEach { e ->
+                val fromNode = projectedMap[e.from] ?: return@forEach
+                val toNode = projectedMap[e.to] ?: return@forEach
+                val start = Offset(fromNode.screenX, fromNode.screenY)
+                val end = Offset(toNode.screenX, toNode.screenY)
+                val avgAlpha = ((fromNode.alpha + toNode.alpha) / 2f).coerceIn(0.15f, 0.9f)
+
+                drawLine(
+                    color = kmTextSecondary.copy(alpha = if (e.solid) avgAlpha * 0.75f else avgAlpha * 0.35f),
+                    start = start,
+                    end = end,
+                    strokeWidth = (if (e.solid) 2.dp else 1.2.dp).toPx(),
+                    pathEffect = if (!e.solid) PathEffect.dashPathEffect(floatArrayOf(12f, 10f)) else null
+                )
+
+                if (e.solid) {
+                    val epX = start.x + (end.x - start.x) * particleProgress
+                    val epY = start.y + (end.y - start.y) * particleProgress
                     drawCircle(
-                        color = d.color,
-                        radius = 3.5.dp.toPx(),
-                        center = Offset(pX, pY)
+                        color = edgeParticleColor,
+                        radius = 2.4.dp.toPx(),
+                        center = Offset(epX, epY)
                     )
                 }
 
-                edges.forEach { e ->
-                    val from = positions[e.from] ?: return@forEach
-                    val to = positions[e.to] ?: return@forEach
-                    val start = Offset(from.first.toPx(), from.second.toPx())
-                    val end = Offset(to.first.toPx(), to.second.toPx())
+                if (e in activeEdges) {
                     drawLine(
-                        color = kmTextSecondary.copy(alpha = if (e.solid) 0.8f else 0.45f),
+                        color = edgeParticleColor.copy(alpha = liveAlpha * avgAlpha),
                         start = start,
                         end = end,
-                        strokeWidth = 2.dp.toPx(),
-                        pathEffect = if (!e.solid) PathEffect.dashPathEffect(floatArrayOf(14f, 12f)) else null
+                        strokeWidth = 2.8.dp.toPx()
                     )
-
-                    // سريان بيانات بين العقد المشتركة
-                    if (e.solid) {
-                        val epX = start.x + (end.x - start.x) * particleProgress
-                        val epY = start.y + (end.y - start.y) * particleProgress
-                        drawCircle(
-                            color = edgeParticleColor,
-                            radius = 2.8.dp.toPx(),
-                            center = Offset(epX, epY)
-                        )
-                    }
-
-                    if (e in activeEdges) {
-                        drawLine(
-                            color = edgeParticleColor.copy(alpha = liveAlpha),
-                            start = start,
-                            end = end,
-                            strokeWidth = 3.dp.toPx()
-                        )
-                    }
-                }
-
-                // كواكب وميكرو-جسيمات دوارة حول مركز عقل زاد (Orbiting Micro-Particles)
-                val o1Rad = Math.toRadians((orbitAngle * 2.2f).toDouble())
-                val o1Dist = 48.dp.toPx()
-                val o1X = centerPx.x + o1Dist * cos(o1Rad).toFloat()
-                val o1Y = centerPx.y + o1Dist * sin(o1Rad).toFloat()
-                drawCircle(color = kmCyanElectric, radius = 3.2.dp.toPx(), center = Offset(o1X, o1Y))
-
-                val o2Rad = Math.toRadians((-orbitAngle * 1.6f + 120f).toDouble())
-                val o2Dist = 58.dp.toPx()
-                val o2X = centerPx.x + o2Dist * cos(o2Rad).toFloat()
-                val o2Y = centerPx.y + o2Dist * sin(o2Rad).toFloat()
-                drawCircle(color = kmNeonEmerald, radius = 2.6.dp.toPx(), center = Offset(o2X, o2Y))
-
-                val o3Rad = Math.toRadians((orbitAngle * 1.1f + 240f).toDouble())
-                val o3Dist = 66.dp.toPx()
-                val o3X = centerPx.x + o3Dist * cos(o3Rad).toFloat()
-                val o3Y = centerPx.y + o3Dist * sin(o3Rad).toFloat()
-                drawCircle(color = kmAmberAlert, radius = 2.2.dp.toPx(), center = Offset(o3X, o3Y))
-            }
-
-            // مركز عقل زاد — نواة مشعة (Pulsing Core with Radial Glow & Orbiting Particles)
-            Box(
-                modifier = Modifier
-                    .offset(centerX - 68.dp, centerY - 68.dp)
-                    .size(136.dp)
-                    .background(
-                        Brush.radialGradient(
-                            listOf(
-                                kmNeonEmerald.copy(alpha = 0.35f * liveAlpha),
-                                kmCyanElectric.copy(alpha = 0.12f * liveAlpha),
-                                Color.Transparent
-                            )
-                        )
-                    ),
-            )
-            Box(
-                modifier = Modifier
-                    .offset(centerX - 40.dp, centerY - 40.dp)
-                    .size(80.dp)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.radialGradient(
-                            listOf(
-                                kmCyanElectric,
-                                kmNeonEmerald,
-                                ZadSciFiEmeraldDark
-                            )
-                        )
-                    )
-                    .border(2.dp, kmCyanElectric.copy(alpha = 0.85f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = stringResource(R.string.auto_zadknowledgemap_65527),
-                        style = Typography.titleMedium,
-                        fontFamily = kmMono,
-                        fontWeight = FontWeight.Black,
-                        color = kmBg
-                    )
-                    Text(
-                        text = "CORE.v2",
-                        style = Typography.labelSmall,
-                        fontFamily = kmMono,
-                        fontWeight = FontWeight.Bold,
-                        color = kmBg.copy(alpha = 0.8f),
-                        fontSize = 8.sp
-                    )
-                }
-            }
-
-            domains.forEach { d ->
-                val (x, y) = positions.getValue(d.key)
-                val isLive = d.key in activeDomains
-                val cardWidth = 92.dp
-
-                Column(
-                    modifier = Modifier
-                        .offset(x - cardWidth / 2, y - 50.dp)
-                        .width(cardWidth)
-                        .pressableScale(pressedScale = 0.92f)
-                        .clickable { onSelect(d.key) },
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        // وهج نيون إشعاعي محيطي (Ambient Neon Glow Aura)
-                        Box(
-                            modifier = Modifier
-                                .size(76.dp)
-                                .then(if (isLive) Modifier.pulseGlow(minScale = 1f, maxScale = 1.25f) else Modifier)
-                                .background(
-                                    Brush.radialGradient(
-                                        listOf(
-                                            d.color.copy(alpha = if (isLive) 0.50f * liveAlpha else 0.26f),
-                                            Color.Transparent
-                                        )
-                                    )
-                                )
-                        )
-
-                        // كارت العقدة الزجاجي المتوهج بحواف نيون دقيقة (Glassmorphic Glowing Node Card)
-                        Box(
-                            modifier = Modifier
-                                .size(58.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(ZadSciFiNodeBg.copy(alpha = 0.90f))
-                                .border(
-                                    width = if (isLive) 1.5.dp else 1.dp,
-                                    color = d.color.copy(alpha = if (isLive) 0.95f else 0.55f),
-                                    shape = RoundedCornerShape(16.dp)
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(d.icon, contentDescription = null, tint = d.color, modifier = Modifier.size(26.dp))
-                        }
-
-                        // عداد العمليات الفرعية للسيبربانك (Cyber Counter Badge)
-                        if (d.count > 0) {
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .offset(x = 4.dp, y = (-4).dp)
-                                    .size(20.dp)
-                                    .clip(CircleShape)
-                                    .background(d.color)
-                                    .border(1.5.dp, kmBg, CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "${d.count}",
-                                    fontSize = 10.sp,
-                                    fontFamily = kmMono,
-                                    fontWeight = FontWeight.Bold,
-                                    color = kmBg
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // تسمية مونوسبيس تقنية مصفوفة (Technical Monospace Pill Label)
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(ZadSciFiSheetBg.copy(alpha = 0.92f))
-                            .border(1.dp, d.color.copy(alpha = 0.45f), RoundedCornerShape(6.dp))
-                            .padding(horizontal = 7.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = d.label,
-                            style = Typography.labelSmall,
-                            fontFamily = kmMono,
-                            fontWeight = FontWeight.Bold,
-                            color = d.color,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1,
-                            fontSize = 10.sp
-                        )
-                    }
                 }
             }
         }
 
-        // أزرار التحكم والتكبير/التصغير العائمة (Floating 3D Zoom Controls)
+        // Center Core — عقل زاد
+        Box(
+            modifier = Modifier
+                .offset {
+                    IntOffset(
+                        (centerScreen.x - with(density) { 36.dp.toPx() }).roundToInt(),
+                        (centerScreen.y - with(density) { 36.dp.toPx() }).roundToInt()
+                    )
+                }
+                .size(72.dp)
+                .clip(CircleShape)
+                .background(
+                    Brush.radialGradient(
+                        listOf(
+                            kmCyanElectric,
+                            kmNeonEmerald,
+                            ZadSciFiEmeraldDark
+                        )
+                    )
+                )
+                .border(2.dp, kmCyanElectric.copy(alpha = 0.85f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = stringResource(R.string.auto_zadknowledgemap_65527),
+                    style = Typography.titleSmall,
+                    fontFamily = kmMono,
+                    fontWeight = FontWeight.Black,
+                    color = kmBg
+                )
+                Text(
+                    text = "CORE.3D",
+                    style = Typography.labelSmall,
+                    fontFamily = kmMono,
+                    fontWeight = FontWeight.Bold,
+                    color = kmBg.copy(alpha = 0.85f),
+                    fontSize = 7.5.sp
+                )
+            }
+        }
+
+        // Sort nodes by depth (back to front) for proper 3D stacking
+        val sortedNodes = remember(projectedDomains) {
+            projectedDomains.sortedBy { it.depthZ }
+        }
+
+        // Draw interactive nodes with depth projection
+        sortedNodes.forEach { node ->
+            val d = node.domain
+            val isLive = d.key in activeDomains
+            val cardWidth = (88 * node.scale).dp
+            val offsetX = (node.screenX - with(density) { (cardWidth / 2).toPx() }).roundToInt()
+            val offsetY = (node.screenY - with(density) { 36.dp.toPx() * node.scale }).roundToInt()
+
+            Column(
+                modifier = Modifier
+                    .offset { IntOffset(offsetX, offsetY) }
+                    .width(cardWidth)
+                    .graphicsLayer {
+                        scaleX = node.scale
+                        scaleY = node.scale
+                        alpha = node.alpha
+                    }
+                    .pressableScale(pressedScale = 0.92f)
+                    .clickable { onSelect(d.key) },
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    // Ambient Neon Glow Aura
+                    Box(
+                        modifier = Modifier
+                            .size(68.dp)
+                            .then(if (isLive) Modifier.pulseGlow(minScale = 1f, maxScale = 1.25f) else Modifier)
+                            .background(
+                                Brush.radialGradient(
+                                    listOf(
+                                        d.color.copy(alpha = if (isLive) 0.50f * liveAlpha else 0.25f),
+                                        Color.Transparent
+                                    )
+                                )
+                            )
+                    )
+
+                    // Glassmorphic Glowing Node Card
+                    Box(
+                        modifier = Modifier
+                            .size(54.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(ZadSciFiNodeBg.copy(alpha = 0.90f))
+                            .border(
+                                width = if (isLive) 1.5.dp else 1.dp,
+                                color = d.color.copy(alpha = if (isLive) 0.95f else 0.55f),
+                                shape = RoundedCornerShape(16.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(d.icon, contentDescription = null, tint = d.color, modifier = Modifier.size(24.dp))
+                    }
+
+                    // Cyber Counter Badge
+                    if (d.count > 0) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 4.dp, y = (-4).dp)
+                                .size(18.dp)
+                                .clip(CircleShape)
+                                .background(d.color)
+                                .border(1.2.dp, kmBg, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "${d.count}",
+                                fontSize = 9.sp,
+                                fontFamily = kmMono,
+                                fontWeight = FontWeight.Bold,
+                                color = kmBg
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Technical Monospace Label
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(ZadSciFiSheetBg.copy(alpha = 0.92f))
+                        .border(1.dp, d.color.copy(alpha = 0.45f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = d.label,
+                        style = Typography.labelSmall,
+                        fontFamily = kmMono,
+                        fontWeight = FontWeight.Bold,
+                        color = d.color,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        fontSize = 9.5.sp
+                    )
+                }
+            }
+        }
+
+        // 3D Controls
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -944,37 +987,38 @@ internal fun DomainRing(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             IconButton(
-                onClick = { zoomScale = (zoomScale * 1.25f).coerceAtMost(2.8f) },
+                onClick = { zoomScale = (zoomScale * 1.2f).coerceAtMost(2.2f) },
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
                     .background(ZadSciFiButtonBg.copy(alpha = 0.85f))
-                    .border(1.dp, kmTextSecondary.copy(alpha = 0.3f), CircleShape)
+                    .border(1.dp, kmCyanElectric.copy(alpha = 0.5f), CircleShape)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "تكبير", tint = kmTextPrimary, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Add, contentDescription = "تكبير", tint = kmCyanElectric, modifier = Modifier.size(18.dp))
             }
             IconButton(
-                onClick = { zoomScale = (zoomScale / 1.25f).coerceAtLeast(0.65f) },
+                onClick = { zoomScale = (zoomScale / 1.2f).coerceAtLeast(0.7f) },
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
                     .background(ZadSciFiButtonBg.copy(alpha = 0.85f))
-                    .border(1.dp, kmTextSecondary.copy(alpha = 0.3f), CircleShape)
+                    .border(1.dp, kmCyanElectric.copy(alpha = 0.5f), CircleShape)
             ) {
-                Icon(Icons.Default.Remove, contentDescription = "تصغير", tint = kmTextPrimary, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Remove, contentDescription = "تصغير", tint = kmCyanElectric, modifier = Modifier.size(18.dp))
             }
             IconButton(
                 onClick = {
+                    manualRotX = 14f
+                    manualRotY = 0f
                     zoomScale = 1f
-                    panOffset = Offset.Zero
                 },
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
                     .background(ZadSciFiButtonBg.copy(alpha = 0.85f))
-                    .border(1.dp, kmTextSecondary.copy(alpha = 0.3f), CircleShape)
+                    .border(1.dp, kmNeonEmerald.copy(alpha = 0.5f), CircleShape)
             ) {
-                Icon(Icons.Default.RestartAlt, contentDescription = "إعادة ضبط", tint = primaryLight, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.RestartAlt, contentDescription = "إعادة ضبط", tint = kmNeonEmerald, modifier = Modifier.size(18.dp))
             }
         }
     }

@@ -101,8 +101,10 @@ fun ZadVoiceBottomSheet(
 
     // إعادة الاستماع التلقائي: أخطاء التعرف (مهلة صمت/لا تطابق/تعرف مشغول) شائعة جداً —
     // من غير retry العميل يشوف "خطأ" والشيت يبان ميت (معلق) رغم إنه سليم.
-    fun listen(onHeard: (String) -> Unit) {
-        voiceManager.startListening { result ->
+    // إعادة الاستماع التلقائي: أخطاء التعرف (مهلة صمت/لا تطابق) —
+    // صامت تماماً بدون صوت رنين أو إزعاج مع مؤشر بصري فقط.
+    fun listen(silent: Boolean = false, onHeard: (String) -> Unit) {
+        voiceManager.startListening(silent = silent) { result ->
             if (result.isNotBlank()) onHeard(result)
         }
     }
@@ -112,8 +114,6 @@ fun ZadVoiceBottomSheet(
     ) { isGranted ->
         hasAudioPermission = isGranted
         if (isGranted) {
-            // كان بينده listen() (دور-بدور) على طول بغض النظر مين طلب الإذن — لو
-            // isLiveMode كان مستني الإذن، الموافقة كانت بتشغّل الوضع الغلط.
             if (isLiveMode) {
                 liveSession.start { }
             } else {
@@ -125,8 +125,7 @@ fun ZadVoiceBottomSheet(
         }
     }
 
-    // بدء الاستماع فور فتح النافذة (مسار دور-بدور بس — المكالمة الحية ليها LaunchedEffect
-    // منفصل فوق، وبتتحكم في voiceManager بنفسها لو الوضعين اتبدّلوا).
+    // بدء الاستماع فور فتح النافذة
     LaunchedEffect(hasAudioPermission, isLiveMode) {
         if (isLiveMode) return@LaunchedEffect
         if (hasAudioPermission) {
@@ -141,7 +140,6 @@ fun ZadVoiceBottomSheet(
 
     // "مش بيرد": الرد كان بيتعرض نصاً بس — مفيش نطق نهائياً في النافذة دي.
     // آخر رد من الوكيل ينطق بصوت سارة البشري، وبعد انتهاء الرّد يرجع يستمع تلقائياً
-    // (محادثة حية مستمرة بدل ما العميل يدوس المايك كل مرة).
     val isTyping by viewModel.isAiTyping.collectAsState()
     val messages by viewModel.aiChatMessages.collectAsState()
     var lastSpokenMessageId by remember { mutableStateOf<String?>(null) }
@@ -152,7 +150,6 @@ fun ZadVoiceBottomSheet(
         }
     }
     LaunchedEffect(isTyping, messages, isLiveMode) {
-        // ننطق لما التايبينغ يخلص وظهر رد جديد (عدد الردود زاد عن لحظة بدء اللفة)
         if (isLiveMode) return@LaunchedEffect
         if (isTyping) return@LaunchedEffect
         val lastReply = messages.lastOrNull { !it.isUser } ?: return@LaunchedEffect
@@ -162,7 +159,6 @@ fun ZadVoiceBottomSheet(
         lastSpokenMessageId = lastReply.id
         voiceManager.stopListening()
         voiceManager.speakHumanLike(lastReply.text) {
-            // رجعنا نسمع تلقائياً — محادثة مستمرة
             if (hasAudioPermission) {
                 listen { result ->
                     recognizedLiveText = result
@@ -172,18 +168,24 @@ fun ZadVoiceBottomSheet(
         }
     }
 
-    // إنشاء المحادثة الصوتية: لو التعرف فشل (مهلة/ضوضاء) نعيد الاستماع تلقائياً
-    // بحد أقصى 3 محاولات بدل إن الشيت يبقى ميت.
+    // إعادة الاستماع التلقائي بصمت وبدون أي صوت إزعاج: مؤشر بصري فقط
+    var autoRetryCount by remember { mutableIntStateOf(0) }
     LaunchedEffect(voiceState, isLiveMode) {
         if (isLiveMode) return@LaunchedEffect
         if (voiceState is VoiceState.Error) {
-            kotlinx.coroutines.delay(1200)
-            if (hasAudioPermission && voiceState is VoiceState.Error) {
-                listen { result ->
-                    recognizedLiveText = result
-                    viewModel.sendAiChatMessage(result, voiceMode = true)
+            if (autoRetryCount < 2) {
+                autoRetryCount++
+                kotlinx.coroutines.delay(1200)
+                if (hasAudioPermission && voiceState is VoiceState.Error) {
+                    listen(silent = true) { result ->
+                        autoRetryCount = 0
+                        recognizedLiveText = result
+                        viewModel.sendAiChatMessage(result, voiceMode = true)
+                    }
                 }
             }
+        } else if (voiceState is VoiceState.Recognized || voiceState is VoiceState.Listening) {
+            autoRetryCount = 0
         }
     }
 

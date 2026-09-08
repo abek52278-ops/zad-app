@@ -5,6 +5,11 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import com.example.ui.components.pressableScale
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -59,27 +64,12 @@ fun TasbihaScreen(viewModel: FamilyViewModel) {
         viewModel.loadTasbiha()
     }
 
-    var showSplash by remember { mutableStateOf(true) }
-
-    AnimatedContent(
-        targetState = showSplash,
-        transitionSpec = {
-            (fadeIn(animationSpec = tween(600)) + scaleIn(initialScale = 0.8f, animationSpec = tween(600)))
-                .togetherWith(fadeOut(animationSpec = tween(400)))
-        },
-        label = "splash"
-    ) { isSplash ->
-        if (isSplash) {
-            TasbihaSplashScreen(onEnter = { showSplash = false })
-        } else {
-            TasbihaMainContent(
-                viewModel = viewModel,
-                selectedTree = selectedTree,
-                myAllTrees = myAllTrees,
-                familyMembers = familyMembers
-            )
-        }
-    }
+    TasbihaMainContent(
+        viewModel = viewModel,
+        selectedTree = selectedTree,
+        myAllTrees = myAllTrees,
+        familyMembers = familyMembers
+    )
 }
 
 @Composable
@@ -338,14 +328,24 @@ private fun TasbihaMainContent(
             )
 
             when (selectedTabIndex) {
-                0 -> MyGardenTab(
-                    selectedTree = selectedTree,
-                    myAllTrees = myAllTrees,
-                    onSelectTree = { viewModel.selectTree(it) },
-                    onTap = { viewModel.tasbihaClick() },
-                    onRename = { viewModel.renameTasbiha(it) },
-                    onCreateNew = { viewModel.createNewTree(it) }
-                )
+                0 -> {
+                    val activeTree = selectedTree ?: myAllTrees.firstOrNull() ?: TasbihaTree(
+                        id = "default",
+                        treeName = "سبحان الله",
+                        score = 0,
+                        level = 1,
+                        totalClicks = 0
+                    )
+                    MyGardenTab(
+                        selectedTree = activeTree,
+                        myAllTrees = myAllTrees.ifEmpty { listOf(activeTree) },
+                        onSelectTree = { viewModel.selectTree(it) },
+                        onTap = { viewModel.tasbihaClick() },
+                        onReset = { viewModel.resetTasbiha() },
+                        onRename = { viewModel.renameTasbiha(it) },
+                        onCreateNew = { viewModel.createNewTree(it) }
+                    )
+                }
                 1 -> FamilyGardenTab(familyMembers = familyMembers)
                 2 -> ChallengesTab(viewModel = viewModel)
             }
@@ -359,23 +359,74 @@ private fun MyGardenTab(
     myAllTrees: List<TasbihaTree>,
     onSelectTree: (TasbihaTree) -> Unit,
     onTap: () -> Unit,
+    onReset: () -> Unit,
     onRename: (String) -> Unit,
     onCreateNew: (String) -> Unit
 ) {
     var showRename by remember { mutableStateOf(false) }
     var showCreateDialog by remember { mutableStateOf(false) }
+    val quickDhikrs = remember {
+        listOf(
+            "سبحان الله",
+            "الحمد لله",
+            "لا إله إلا الله",
+            "الله أكبر",
+            "أستغفر الله",
+            "لا حول ولا قوة إلا بالله",
+            "اللهم صل وسلم على نبينا محمد"
+        )
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(bottom = ZadHubListBottomPadding),
+        contentPadding = PaddingValues(bottom = 120.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         item {
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(8.dp))
+            // شريط اختيار الأذكار السريعة
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                contentPadding = PaddingValues(horizontal = 4.dp)
+            ) {
+                items(quickDhikrs) { dhikr ->
+                    val isSelected = selectedTree?.treeName == dhikr
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { onRename(dhikr) },
+                        label = {
+                            Text(
+                                text = dhikr,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = primary,
+                            selectedLabelColor = Color.White,
+                            containerColor = surface,
+                            labelColor = onSurface
+                        ),
+                        shape = RoundedCornerShape(20.dp),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isSelected,
+                            borderColor = if (isSelected) primary else outline.copy(alpha = 0.3f),
+                            selectedBorderColor = primary
+                        )
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+
+        item {
             if (selectedTree != null) {
                 AnimatedTreeDisplay(
                     tree = selectedTree,
                     onTap = onTap,
+                    onReset = onReset,
                     onRenameClick = { showRename = true }
                 )
             }
@@ -466,10 +517,21 @@ private fun MyGardenTab(
 private fun AnimatedTreeDisplay(
     tree: TasbihaTree,
     onTap: () -> Unit,
+    onReset: () -> Unit,
     onRenameClick: () -> Unit
 ) {
     val context = LocalContext.current
     var tapCount by remember { mutableIntStateOf(0) }
+    var targetCount by remember { mutableIntStateOf(33) }
+    val cycleProgress = remember(tree.score, targetCount) {
+        if (targetCount <= 0) (tree.score % 100) / 100f
+        else ((tree.score % targetCount).toFloat() / targetCount.toFloat())
+    }
+    val animatedCycleProgress by animateFloatAsState(
+        targetValue = cycleProgress,
+        animationSpec = tween(250, easing = FastOutSlowInEasing),
+        label = "cycleProgress"
+    )
 
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
 
@@ -712,6 +774,30 @@ private fun AnimatedTreeDisplay(
                     )
                 }
 
+                // Interactive Circular Progress Counter Ring
+                val ringPrimary = primary
+                Canvas(modifier = Modifier.size(220.dp)) {
+                    val strokeW = 8.dp.toPx()
+                    drawArc(
+                        color = ringPrimary.copy(alpha = 0.12f),
+                        startAngle = -90f,
+                        sweepAngle = 360f,
+                        useCenter = false,
+                        style = Stroke(width = strokeW, cap = StrokeCap.Round)
+                    )
+                    if (animatedCycleProgress > 0f) {
+                        drawArc(
+                            brush = Brush.sweepGradient(
+                                listOf(ringPrimary, Color(0xFF10B981), Color(0xFFFFD700), ringPrimary)
+                            ),
+                            startAngle = -90f,
+                            sweepAngle = (animatedCycleProgress * 360f).coerceIn(0.5f, 360f),
+                            useCenter = false,
+                            style = Stroke(width = strokeW, cap = StrokeCap.Round)
+                        )
+                    }
+                }
+
                 // The Tree
                 Box(
                     modifier = Modifier
@@ -784,6 +870,88 @@ private fun AnimatedTreeDisplay(
                     Icon(Icons.Default.Celebration, contentDescription = null, modifier = Modifier.size(20.dp), tint = primary)
                     Spacer(Modifier.width(6.dp))
                     Text(stringResource(R.string.tree_level_up_celebration), fontWeight = FontWeight.Bold, color = primary)
+                }
+            }
+
+            Spacer(Modifier.height(18.dp))
+
+            // Dedicated Interactive Action Controls
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // زر تصفير العداد
+                OutlinedButton(
+                    onClick = {
+                        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                        onReset()
+                    },
+                    shape = RoundedCornerShape(20.dp),
+                    border = BorderStroke(1.dp, coral.copy(alpha = 0.7f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = coral),
+                    modifier = Modifier.height(48.dp).pressableScale(0.95f)
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.reset_counter_action), fontWeight = FontWeight.Bold)
+                }
+
+                // زر الزيادة الكبير (+)
+                Button(
+                    onClick = {
+                        scaleAnim = 1.4f
+                        tapRotation += 8f
+                        glowPulse = 0.8f
+                        tapCount++
+                        spawnParticles()
+                        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                        try {
+                            val vib = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+                            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                                vib?.vibrate(android.os.VibrationEffect.createOneShot(30, 200))
+                            } else {
+                                @Suppress("DEPRECATION") vib?.vibrate(30)
+                            }
+                        } catch (_: Exception) {}
+                        onTap()
+                    },
+                    shape = CircleShape,
+                    modifier = Modifier.size(68.dp).pressableScale(0.92f),
+                    colors = ButtonDefaults.buttonColors(containerColor = primary),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "تسبيح", tint = Color.White, modifier = Modifier.size(36.dp))
+                }
+
+                // محدد الدورة (٣٣ / ١٠٠)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        stringResource(R.string.stat_level_label),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf(33 to "٣٣", 100 to "١٠٠").forEach { (target, label) ->
+                            val isSel = targetCount == target
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isSel) primary else surface)
+                                    .border(1.dp, if (isSel) primary else outline.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                    .clickable { targetCount = target }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSel) Color.White else onSurface
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

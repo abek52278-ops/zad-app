@@ -196,6 +196,7 @@ fun HomeScreen(
     val failedTransactionProposals by viewModel.failedTransactionProposals.collectAsState()
     val liveMarketPrices by viewModel.livePrices.collectAsState()
     val marketFetchState by viewModel.marketPricesFetchState.collectAsState()
+    val companionMood by viewModel.companionMood.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.autoRefreshLiveMarketPrices()
@@ -215,11 +216,10 @@ fun HomeScreen(
         (lowStock + expiring).distinctBy { it.id }.size
     }
 
-    // شيف زاد لازم يرشح من المخزون الفعلي بس. كان فيه fallback بيقص على 3 وصفات
-    // ثابتة (كبسة/مكرونة/شوربة) لما الـ AI يرجع فاضي — وده بالظبط "شيف زاد مش بيرشح
-    // صح": وصفات وهمية مالهاش علاقة بالمخزون. دلوقتي: القائمة الفاضية = القسم بياخد
-    // شكل صادق (الكارت النصي بيهنّد لوحده بمساحة فاضية محترمة بلا كروت مزيفة).
-    val displayChefRecipes = chefRecipes
+    // شيف زاد: يربط بالمولد الحتمي الذكي عند غياب وصفات السيرفر
+    val displayChefRecipes = chefRecipes.ifEmpty {
+        com.example.data.ZadAiRepository.generateDeterministicChefRecipes(inventory)
+    }
 
     // كان فيه fallback بيعرض 3 منتجات أمازون مُختلقة بالكامل (أسعار ولينكات صور وهمية)
     // لما affiliatePicks وaffiliateProducts يرجعوا فاضيين — بيانات مالية وهمية معروضة
@@ -403,11 +403,10 @@ fun HomeScreen(
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // كورة الترحيب: زخرفية وحالتها ثابتة، فمش مربوطة بالسعة —
-                        // تشغيل جمع فلو لكورة مالهاش علاقة بمكالمة شغالة هدر.
+                        // كورة الترحيب الذكية: مربوطة بحالة المشاعر والتفاعل الحي
                         com.example.ui.components.CompanionOrb(
                             size = 56.dp,
-                            state = CompanionState.Idle,
+                            state = companionMood,
                             onClick = onOpenVoice
                         )
                         Spacer(modifier = Modifier.width(14.dp))
@@ -523,13 +522,6 @@ fun HomeScreen(
                         safeDailySpend = safeDailySpendVal,
                         daysLeft = daysLeftInCycle
                     )
-                }
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // ── 2ب. رسم بياني بيزير انسيابي — مصروف آخر ٧ أيام الحقيقي من
-                // zad_transactions (كان مستورد ZadBezierSpendChart بدون أي استدعاء).
-                com.example.ui.components.AppearOnEntry(delayMs = 45) {
-                    ZadWeeklySpendChartCard(transactions = visibleTransactions)
                 }
                 Spacer(modifier = Modifier.height(14.dp))
 

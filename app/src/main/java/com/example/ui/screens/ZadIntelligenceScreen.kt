@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -4185,16 +4186,19 @@ private fun ZadBrainAdGate(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    // العد بيتزامن من التخزين المحلي + السيرفر عند الفتح — كان بيبدأ صفر دايماً
-    // فالبطارية بتظهر فاضية حتى لو العميل شاف إعلانين قبل كده.
     var adsWatched by remember { mutableStateOf(com.example.ads.RewardedBrainAdManager.getAdWatchCount(context)) }
     var isShowingAd by remember { mutableStateOf(false) }
+    var showBypassButton by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
         scope.launch {
             com.example.ads.RewardedBrainAdManager.syncServerState(context)?.let {
                 adsWatched = it.adWatchCount
             }
         }
+        // 3.5s timeout fallback: if ad takes too long or fails, offer immediate bypass
+        delay(3500)
+        showBypassButton = true
     }
     val adsRequired = com.example.ads.RewardedBrainAdManager.TOTAL_ADS_REQUIRED
 
@@ -4240,6 +4244,12 @@ private fun ZadBrainAdGate(
             Button(
                 onClick = {
                     if (isShowingAd) return@Button
+                    if (!com.example.ads.RewardedBrainAdManager.isAdReady()) {
+                        // لو الإعلان مش جاهز فوراً، نفعّل التخطي والمتابعة فوراً لعدم تعليق المستخدم
+                        showBypassButton = true
+                        onUnlocked()
+                        return@Button
+                    }
                     isShowingAd = true
                     com.example.ads.RewardedBrainAdManager.showRewardedEnergyAd(
                         context = context,
@@ -4247,7 +4257,10 @@ private fun ZadBrainAdGate(
                             adsWatched = newCount
                             if (fullyUnlocked) onUnlocked()
                         },
-                        onFailed = { isShowingAd = false }
+                        onFailed = {
+                            isShowingAd = false
+                            showBypassButton = true
+                        }
                     )
                 },
                 enabled = !isShowingAd,
@@ -4257,12 +4270,28 @@ private fun ZadBrainAdGate(
                 Text(
                     text = when {
                         isShowingAd -> stringResource(R.string.brain_gate_loading)
-                        RewardedBrainAdManager.isAdReady().not() -> "جاري تحميل الإعلان… ثواني وجرب تاني ⏳"
+                        RewardedBrainAdManager.isAdReady().not() -> "جاري تجهيز التقرير أو الإعلان… ⚡"
                         else -> stringResource(R.string.brain_gate_watch_ad)
                     },
                     color = Color.White,
                     fontWeight = FontWeight.Bold
                 )
+            }
+
+            // زر تجاوز مباشر وفوري عند غياب الإعلان أو مرور المهلة
+            if (showBypassButton || !RewardedBrainAdManager.isAdReady()) {
+                OutlinedButton(
+                    onClick = onUnlocked,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF6EE7B7)),
+                    border = BorderStroke(1.dp, Color(0xFF10B981)),
+                    modifier = Modifier.fillMaxWidth().height(50.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.brain_gate_bypass),
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF6EE7B7)
+                    )
+                }
             }
 
             TextButton(onClick = onSubscribe) {

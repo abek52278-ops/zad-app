@@ -83,7 +83,9 @@ object ZadVoiceManager {
 
     private var speechRecognizer: SpeechRecognizer? = null
 
-    fun startListening(onResult: (String) -> Unit) {
+    fun startListening(onResult: (String) -> Unit) = startListening(silent = false, onResult = onResult)
+
+    fun startListening(silent: Boolean = false, onResult: (String) -> Unit) {
         stopSpeaking()
         val context = appContext ?: run {
             _voiceState.value = VoiceState.Error("خدمة الصوت لم تبدأ بعد")
@@ -101,11 +103,11 @@ object ZadVoiceManager {
             } catch (_: Exception) {}
             speechRecognizer = null
 
-            mainHandler.postDelayed({ startListeningInternal(context, onResult) }, 150)
+            mainHandler.postDelayed({ startListeningInternal(context, silent, onResult) }, 150)
         }
     }
 
-    private fun startListeningInternal(context: Context, onResult: (String) -> Unit) {
+    private fun startListeningInternal(context: Context, silent: Boolean, onResult: (String) -> Unit) {
             try {
                 speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
 
@@ -130,7 +132,9 @@ object ZadVoiceManager {
                     override fun onReadyForSpeech(params: Bundle?) {
                         _voiceState.value = VoiceState.Listening
                         _isListening.value = true
-                        com.example.ui.components.ZadChime.play(com.example.ui.components.ZadChime.Tone.Tap)
+                        if (!silent) {
+                            com.example.ui.components.ZadChime.play(com.example.ui.components.ZadChime.Tone.Tap)
+                        }
                     }
 
                     override fun onBeginningOfSpeech() {

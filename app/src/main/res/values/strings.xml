@@ -1779,4 +1779,6 @@
     <string name="auth_terms_decline_action">رفض</string>
     <string name="auth_logo_content_description">شعار زاد</string>
     <string name="fx_excluded_notice">استُبعدت %1$d معاملة من الإجمالي — عملتها مالهاش سعر صرف</string>
+    <string name="reset_counter_action">تصفير</string>
+    <string name="brain_gate_bypass">تخطي ومتابعة للتقارير مباشرة ⚡</string>
 </resources>

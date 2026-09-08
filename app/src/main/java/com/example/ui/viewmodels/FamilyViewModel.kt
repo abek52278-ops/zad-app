@@ -1201,6 +1201,14 @@ class FamilyViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun resetTasbiha() {
+        val tree = _selectedTree ?: _myAllTrees.firstOrNull() ?: _myTasbiha ?: return
+        val updated = tree.copy(score = 0, level = 1)
+        _selectedTree = updated
+        _myAllTrees = _myAllTrees.map { if (it.id == tree.id) updated else it }
+        if (_myTasbiha?.id == tree.id) _myTasbiha = updated
+    }
+
     // Daily reminder — call from HomeScreen
     fun checkTasbihaToday(): Boolean {
         val tree = _myTasbiha ?: return false

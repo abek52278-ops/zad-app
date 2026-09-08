@@ -1773,4 +1773,6 @@
     <string name="auth_terms_decline_action">Reddet</string>
     <string name="auth_logo_content_description">Zad logosu</string>
     <string name="fx_excluded_notice">%1$d işlem toplamdan çıkarıldı — para birimi için kur yok</string>
+    <string name="reset_counter_action">Sıfırla</string>
+    <string name="brain_gate_bypass">Atla ve doğrudan raporlara devam et ⚡</string>
 </resources>

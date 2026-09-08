@@ -48,42 +48,45 @@ fun ZadCategoryChip(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val cardShape = RoundedCornerShape(18.dp)
     Row(
         modifier = modifier
-            .pressableScale(pressedScale = 0.94f)
-            .clip(RoundedCornerShape(9999.dp))
-            .background(category.bgPastel.copy(alpha = 0.70f))
+            .pressableScale(pressedScale = 0.93f)
+            .zadCardShadow(cardShape)
+            .clip(cardShape)
+            .background(category.bgPastel.copy(alpha = 0.85f))
             .border(
                 width = 1.dp,
-                color = category.borderTint.copy(alpha = 0.85f),
-                shape = RoundedCornerShape(9999.dp)
+                color = category.borderTint.copy(alpha = 0.70f),
+                shape = cardShape
             )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 14.dp, vertical = 9.dp),
+            .padding(horizontal = 14.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(9.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(28.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.88f)),
+                .size(32.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color.White.copy(alpha = 0.92f))
+                .border(0.5.dp, category.borderTint.copy(alpha = 0.4f), RoundedCornerShape(10.dp)),
             contentAlignment = Alignment.Center
         ) {
             ZadCategory3DIcon(
                 category = category,
-                modifier = Modifier.size(19.dp)
+                modifier = Modifier.size(20.dp)
             )
         }
 
         Text(
             text = category.titleAr,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
+            fontSize = 13.5.sp,
+            fontWeight = FontWeight.Bold,
             color = textPrimary,
             maxLines = 1
         )

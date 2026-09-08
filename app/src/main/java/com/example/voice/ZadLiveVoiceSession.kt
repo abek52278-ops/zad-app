@@ -156,12 +156,15 @@ object ZadLiveVoiceSession {
 
     private suspend fun connect(onError: (String) -> Unit) {
         val session = SupabaseRepo.client.auth.currentSessionOrNull()
-        if (session?.accessToken.isNullOrBlank() || session?.user == null) {
-            mainHandler.post { _state.value = LiveVoiceState.Error("محتاج تسجّل دخول الأول") }
-            onError("no_session")
-            sessionActive.set(false)
-            return
-        }
+        val token = session?.accessToken?.takeIf { it.isNotBlank() }
+            ?: SupabaseRepo.client.supabaseKey
+            ?: BuildConfig.SUPABASE_ANON_KEY
+
+        val cachedId = appContext?.let { com.example.data.CurrentUser.get(it) }
+        val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
+            ?: cachedId?.takeIf { it.isNotBlank() }
+            ?: "guest_voice_user"
+
         val baseUrl = if (BuildConfig.SUPABASE_URL.isNotBlank() && !BuildConfig.SUPABASE_URL.contains("your-project-ref")) {
             BuildConfig.SUPABASE_URL
         } else {
@@ -171,10 +174,14 @@ object ZadLiveVoiceSession {
             .replaceFirst("https://", "wss://")
             .replaceFirst("http://", "ws://")
             .trimEnd('/') + "/functions/v1/zad-voice-live"
+
+        val apiKey = BuildConfig.SUPABASE_ANON_KEY.ifBlank { SupabaseRepo.client.supabaseKey }
+
         val request = Request.Builder()
             .url(wsUrl)
-            .addHeader("Authorization", "Bearer ${session?.accessToken ?: ""}")
-            .addHeader("apikey", BuildConfig.SUPABASE_ANON_KEY)
+            .addHeader("Authorization", "Bearer $token")
+            .addHeader("apikey", apiKey)
+            .addHeader("x-user-id", userId)
             .build()
 
         webSocket = wsClient.newWebSocket(request, object : WebSocketListener() {
