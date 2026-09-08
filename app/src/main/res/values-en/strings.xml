@@ -1794,4 +1794,24 @@
     <string name="recipe_loading_hint">Chef Zad is preparing the recipe…</string>
     <string name="recipe_error_load">Sorry, an error occurred while loading the recipe</string>
     <string name="recipe_missing_label">Missing: %1$s</string>
+    <string name="shortcut_inventory">Inventory</string>
+    <string name="shortcut_inventory_sub">Food Security</string>
+    <string name="shortcut_shopping">Shopping</string>
+    <string name="shortcut_shopping_sub">Smart List</string>
+    <string name="shortcut_family">Family</string>
+    <string name="shortcut_family_sub">Shared Mind</string>
+    <string name="shortcut_subscriptions">Subscriptions</string>
+    <string name="shortcut_subscriptions_sub">VIP &amp; Bills</string>
+
+    <!-- Zad Intelligence Consolidated Dashboard -->
+    <string name="ai_intel_empty_title">Record your first 3 expenses to activate Zad Intelligence</string>
+    <string name="ai_intel_empty_desc">Zad Intelligence needs at least 3 expenses to accurately analyze your financial behavior and generate resilience reports.</string>
+    <string name="ai_intel_empty_progress">%1$d of %2$d expenses recorded</string>
+    <string name="ai_intel_generate_report_title">Generate Comprehensive AI Report</string>
+    <string name="ai_intel_generate_report_desc">Instant AI-powered analysis of all your transactions and spending</string>
+    <string name="ai_intel_generating_report">Analyzing transactions and generating AI report...</string>
+    <string name="ai_intel_category_distribution_title">Expense Distribution &amp; Behavioral Notes</string>
+    <string name="ai_intel_category_distribution_subtitle">Actual category percentages and smart behavioral observations</string>
+    <string name="ai_intel_talk_to_zad">Chat with Zad now 💬</string>
+    <string name="ai_intel_daily_spend_label">Avg. daily spend</string>
 </resources>

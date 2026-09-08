@@ -9,7 +9,6 @@ import com.example.ui.components.ZadMinimalMetricsDuo
 import com.example.ui.components.ZadBezierSpendChart
 import com.example.ui.components.ZadQuickExpenseSheet
 import com.example.ui.components.LiveMarketTicker
-import com.example.ui.components.ZadHorizontalShortcutsRail
 import com.example.ui.components.ZadFoodShortagesGlanceCard
 import com.example.ui.components.ZadSubscriptionsGlanceCard
 import com.example.ui.components.ZadPharmacyGlanceCard
@@ -294,11 +293,6 @@ fun HomeScreen(
     var selectedRecipeTitle by remember { mutableStateOf<String?>(null) }
     var showRecipeDialog by remember { mutableStateOf(false) }
     var showTasbihaReminder by remember { mutableStateOf(false) }
-    // أدوات الرئيسية الإضافية (اشتراكات/اختصارات/تليجرام/بريميوم/ملخص العقل/توقعات)
-    // — مطوية افتراضيًا خلف زرار إفصاح حقيقي (شوف "المزيد من أدوات زاد" تحت)، عشان
-    // الرئيسية تفضل نظيفة ومركّزة على الكروت الحية الأساسية (UI_ARCHITECTURE_SPEC.md
-    // §2.1/§4.1). شيف زاد نفسه مش هنا — فضل كارت أساسي دايمًا ظاهر.
-    var showHomeTools by rememberSaveable { mutableStateOf(false) }
 
     // Use FamilyViewModel's tasbiha data instead of direct SupabaseRepo call
     val myTasbiha = familyViewModel.myTasbiha
@@ -618,26 +612,13 @@ fun HomeScreen(
                 )
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // ── 3. منتقي الأقسام السريع — بيفتح البوابة الصح مباشرة لكل قسم،
-                // مفيش فلترة تصنيف دقيقة جوه شاشة التسوق نفسها (برة نطاق التاسك).
+                // ── 3. مربعات الاختصارات الأربعة (المخزون، التسوق، العائلة، الاشتراكات) ──
                 com.example.ui.components.AppearOnEntry(delayMs = 50) {
                     ZadQuickCategoryGrid(
-                        onCategoryClick = { category ->
-                            when (category) {
-                                ZadCategoryType.PHARMACY -> onNavigateToPharmacy()
-                                ZadCategoryType.SUBSCRIPTIONS -> onNavigateToSubscriptions()
-                                ZadCategoryType.FAMILY -> onNavigateToFamily()
-                                ZadCategoryType.TASBIHA -> onNavigateToTasbiha()
-                                ZadCategoryType.MAINTENANCE -> {
-                                    com.example.ui.screens.PantryShoppingNavState.pendingTab = com.example.ui.screens.PantryShoppingTab.MAINTENANCE
-                                    onNavigateToShopping()
-                                }
-                                else -> {
-                                    com.example.ui.screens.PantryShoppingNavState.pendingTab = com.example.ui.screens.PantryShoppingTab.SHOPPING
-                                    onNavigateToShopping()
-                                }
-                            }
-                        }
+                        onNavigateToInventory = onNavigateToInventory,
+                        onNavigateToShopping = onNavigateToShopping,
+                        onNavigateToFamily = onNavigateToFamily,
+                        onNavigateToSubscriptions = onNavigateToSubscriptions
                     )
                 }
                 Spacer(modifier = Modifier.height(18.dp))
@@ -999,104 +980,6 @@ fun HomeScreen(
                     .sortedBy { if (it.type == "Alert") 0 else 1 }
                 if (alerts.isNotEmpty()) {
                     AiAlertBanner(title = alerts.first().title, description = alerts.first().description)
-                    Spacer(modifier = Modifier.height(18.dp))
-                }
-
-                // ── المزيد من أدوات زاد — كروت تحليلية/ترويجية إضافية، حقيقية بالكامل
-                // (StateFlows موجودة أصلاً) بس مش جزء من العقد الأساسي §2.1 — بتفضل
-                // موصولة عبر إفصاح واحد واضح بدل ما تزاحم الكروت الحية فوق. القيمة
-                // الافتراضية اتغيّرت لـfalse (كانت true وبلا زرار إظهار خالص — يعني
-                // بتظهر دايمًا زي كارت تاني، مش "المزيد" فعلي) — دلوقتي زرار حقيقي.
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .clickable { showHomeTools = !showHomeTools }
-                        .padding(vertical = 10.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        if (showHomeTools) "إخفاء أدوات زاد الإضافية" else "عرض المزيد من أدوات زاد",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = com.example.ui.theme.ZadLuxe.emerald
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        if (showHomeTools) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                        contentDescription = null,
-                        tint = com.example.ui.theme.ZadLuxe.emerald,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.height(10.dp))
-
-                if (showHomeTools) {
-                    ZadHorizontalShortcutsRail(
-                        onNavigateToInventory = onNavigateToInventory,
-                        onNavigateToShopping = onNavigateToShopping,
-                        onNavigateToFamily = onNavigateToFamily,
-                        onNavigateToSubscriptions = onNavigateToSubscriptions,
-                        onNavigateToPharmacy = onNavigateToPharmacy,
-                        onNavigateToMaintenance = onNavigateToMaintenance,
-                        onNavigateToTasbiha = onNavigateToTasbiha
-                    )
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    com.example.ui.components.TelegramBotCard(onClick = { showTelegramSheet = true })
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    com.example.ui.components.ZadPremiumPromoCard(onUpgradeClick = onNavigateToPlans)
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    // كانت فيه كورة تانية هنا فوق كارت الملخص. `FloatingMascotCompanion`
-                    // (MainScreen) عايمة فوق كل الشاشات، فلما المحتوى بيتمرر النسخة دي كانت
-                    // بتوصل جنبها وتبان كورتين فوق بعض. كورة واحدة، هي اللي بتتفاعل.
-                    agentSummary?.let { summary ->
-                        AgentSummaryCard(
-                            agentSummary = summary,
-                            isLoading = isAgentLoading,
-                            onRefresh = { viewModel.refreshAgentSummary() },
-                            onNavigateToAssistant = onNavigateToAssistant,
-                            onNavigateToShopping = onNavigateToShopping,
-                            onNavigateToInventory = onNavigateToInventory
-                        )
-                        Spacer(modifier = Modifier.height(18.dp))
-                    }
-                }
-
-                if (showHomeTools && autoSuggestions.isNotEmpty()) {
-                    AutoSuggestionsCard(suggestions = autoSuggestions)
-                    Spacer(modifier = Modifier.height(18.dp))
-                }
-
-                // رادار المناسبات (family-only: needs cross-member transaction history)
-                if (showHomeTools && familyState is FamilyState.Active && seasonalForecasts.isNotEmpty()) {
-                    EventsRadarCard(forecasts = seasonalForecasts)
-                    Spacer(modifier = Modifier.height(18.dp))
-                }
-
-                // PredictionCard بيقارن توقّع الشهر الجاي بالسقف نفسه (budget)، مش بمتبقي
-                // الدورة — سقف <= 0 يبقى "غير معروف" أصلاً فمفيش كارت يتعرض من غير معنى.
-                if (showHomeTools && expensePrediction != null && budget > 0) {
-                    PredictionCard(expensePrediction!!, budget)
-                    Spacer(modifier = Modifier.height(18.dp))
-                }
-
-                // زاد مش رقيب مالي بس — لو المتاح لسه صحي، بيرشح خروجة قريبة (OutingSuggestionCard
-                // بتتخفي تلقائياً لو مفيش اقتراح، مافيش حالة "فاضي" تتعرض هنا).
-                if (showHomeTools) {
-                    outingSuggestion?.let { spot ->
-                        OutingSuggestionCard(spot = spot)
-                        Spacer(modifier = Modifier.height(18.dp))
-                    }
-                }
-
-                // (المخزون السريع نقل لكتلة ٣c فوق)
-
-                if (showHomeTools) {
-                    MiniShoppingWidget(shoppingList = shoppingList, onNavigateToShopping = onNavigateToShopping)
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 

@@ -282,4 +282,20 @@ val ZadOrbSlitCore = Color(0xFFF0FDFA)
 val ZadOrbRingAura = Color(0x3300E5FF)
 val ZadOrbRingOuter = Color(0x1A6EE7B7)
 
+// =========================================================================
+// 3D Luxury Quick Shortcuts Tokens
+// =========================================================================
+val ZadShortcutInventoryGradient = listOf(Color(0xFF065F46), Color(0xFF059669), Color(0xFF34D399))
+val ZadShortcutInventoryGlow = Color(0xFF10B981)
+
+val ZadShortcutShoppingGradient = listOf(Color(0xFF9A3412), Color(0xFFEA580C), Color(0xFFFDBA74))
+val ZadShortcutShoppingGlow = Color(0xFFF97316)
+
+val ZadShortcutFamilyGradient = listOf(Color(0xFF1E40AF), Color(0xFF3B82F6), Color(0xFF93C5FD))
+val ZadShortcutFamilyGlow = Color(0xFF2563EB)
+
+val ZadShortcutSubscriptionsGradient = listOf(Color(0xFF5B21B6), Color(0xFF8B5CF6), Color(0xFFDDD6FE))
+val ZadShortcutSubscriptionsGlow = Color(0xFF7C3AED)
+
+
 

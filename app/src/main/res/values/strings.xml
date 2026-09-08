@@ -1797,4 +1797,24 @@
     <string name="recipe_loading_hint">شيف زاد يجهز لك الوصفة…</string>
     <string name="recipe_error_load">عذراً، حدث خطأ أثناء تحميل الوصفة</string>
     <string name="recipe_missing_label">ناقصك: %1$s</string>
+    <string name="shortcut_inventory">المخزون</string>
+    <string name="shortcut_inventory_sub">تأمين الغذاء</string>
+    <string name="shortcut_shopping">التسوق</string>
+    <string name="shortcut_shopping_sub">قائمة ذكية</string>
+    <string name="shortcut_family">العائلة</string>
+    <string name="shortcut_family_sub">عقل مشترك</string>
+    <string name="shortcut_subscriptions">الاشتراكات</string>
+    <string name="shortcut_subscriptions_sub">VIP وفواتير</string>
+
+    <!-- Zad Intelligence Consolidated Dashboard -->
+    <string name="ai_intel_empty_title">سجل أول 3 مصاريف لتفعيل عقل زاد التحليلي</string>
+    <string name="ai_intel_empty_desc">يحتاج عقل زاد إلى 3 مصاريف على الأقل لتحليل سلوكك المالي بدقة وتوليد تقارير الصمود المالي.</string>
+    <string name="ai_intel_empty_progress">تم تسجيل %1$d من %2$d مصاريف</string>
+    <string name="ai_intel_generate_report_title">توليد تقرير الذكاء الاصطناعي الشامل</string>
+    <string name="ai_intel_generate_report_desc">تحليل فوري دقيق لجميع حركاتك ومصروفاتك عبر نماذج الذكاء الاصطناعي</string>
+    <string name="ai_intel_generating_report">جاري تحليل الحركات وتوليد التقرير بالذكاء الاصطناعي...</string>
+    <string name="ai_intel_category_distribution_title">توزيع المصروفات والملاحظات السلوكية</string>
+    <string name="ai_intel_category_distribution_subtitle">تحليل نسب الصرف على الفئات والملاحظات السلوكية الذكية</string>
+    <string name="ai_intel_talk_to_zad">تحدث مع زاد الآن 💬</string>
+    <string name="ai_intel_daily_spend_label">متوسط الصرف اليومي</string>
 </resources>

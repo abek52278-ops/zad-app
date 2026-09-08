@@ -223,6 +223,11 @@ fun ZadIntelligenceScreen(
     }
     val allInsights = brainNotes + insights
 
+    val expenseTransactions = remember(transactions) {
+        transactions.filter { it.txnKind == "expense" || (it.txnKind == null && it.isExpense) }
+    }
+    val hasEnoughData = expenseTransactions.size >= 3
+
     if (showExecutiveDossier) {
         val activeFamily = familyState as? com.example.ui.viewmodels.FamilyState.Active
         com.example.ui.components.ZadExecutiveDossierSheet(
@@ -346,149 +351,7 @@ fun ZadIntelligenceScreen(
                 }
             }
 
-            // ── 1. منحنى نبض الإنفاق الحي (Live Spending Bezier Sparkline) ──
-            item {
-                val weeklySpendData = remember(transactions) {
-                    val arabicDays = listOf("أحد", "إثن", "ثلا", "أرب", "خمس", "جمع", "سبت")
-                    val nowDay = java.time.LocalDate.now()
-                    (6 downTo 0).map { daysAgo ->
-                        val date = nowDay.minusDays(daysAgo.toLong())
-                        val datePrefix = date.toString()
-                        val dayOfWeekIndex = (date.dayOfWeek.value % 7)
-                        val dayLabel = arabicDays.getOrElse(dayOfWeekIndex) { "يوم" }
-                        val sum = transactions
-                            .asSequence()
-                            .filter { it.isExpense && it.createdAt?.startsWith(datePrefix) == true }
-                            .sumOf { it.amount }
-                        dayLabel to sum
-                    }
-                }
-                ZadBezierSpendChart(
-                    weeklySpend = weeklySpendData
-                )
-            }
-
-            // ── 2. شبكة إحصائيات الميزانية الفاخرة (2x2 Stat Tiles) ──
-            item {
-                val last7 = remember(transactions) {
-                    val now = java.time.LocalDate.now()
-                    val sevenDaysAgo = now.minusDays(7).toString()
-                    transactions.filter { it.isExpense && it.createdAt != null && it.createdAt >= sevenDaysAgo }.sumOf { it.amount }
-                }
-                val prev7 = remember(transactions) {
-                    val now = java.time.LocalDate.now()
-                    val sevenDaysAgo = now.minusDays(7).toString()
-                    val fourteenDaysAgo = now.minusDays(14).toString()
-                    transactions.filter { it.isExpense && it.createdAt != null && it.createdAt >= fourteenDaysAgo && it.createdAt < sevenDaysAgo }.sumOf { it.amount }
-                }
-                val deltaPct = if (prev7 > 0.0) ((last7 - prev7) / prev7 * 100).toInt() else null
-
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        ZadStatTile(
-                            modifier = Modifier.weight(1f),
-                            label = "قوة الإنفاق",
-                            value = brainReport?.spendingPower?.powerPct?.let { "$it%" } ?: "—",
-                            emoji = "⚡",
-                            iconBg = Color(0xFFFEF3C7)
-                        )
-                        ZadStatTile(
-                            modifier = Modifier.weight(1f),
-                            label = "الصحة المالية",
-                            // hasEnoughData بيتحسب في ZadCentralBrain من زمان وفوقه
-                            // تعليق بيشرح الخطر — وماكانش فيه سطر واحد بيقراه. النتيجة
-                            // اتشافت على جهاز حقيقي: حساب بصفر معاملات بيتعرضله
-                            // "80/100". التايل ده بقى يتصرف زي قوة الإنفاق بالظبط:
-                            // مفيش سلوك نقيسه = "—"، مش تقدير من فراغ.
-                            // نفس الدالة اللي التست بيقيس عليها معيار القبول — لو
-                            // الواجهة كتبت منطقها بنفسها، التست يفضل أخضر والشاشة تكذب.
-                            value = brainReport?.let {
-                                com.example.data.ZadCentralBrain.healthTileValue(it.hasEnoughData, it.healthScore)
-                            } ?: "—",
-                            emoji = "🛡️",
-                            iconBg = Color(0xFFE0F2FE)
-                        )
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        ZadStatTile(
-                            modifier = Modifier.weight(1f),
-                            label = "صرف الشهر",
-                            value = com.example.data.CurrencyFormatter.format(context, totalExpense),
-                            emoji = "💳",
-                            iconBg = Color(0xFFE6F4EC)
-                        )
-                        ZadStatTile(
-                            modifier = Modifier.weight(1f),
-                            label = "اتجاه 7 أيام",
-                            value = when {
-                                deltaPct == null -> "—"
-                                deltaPct > 0 -> "↑ $deltaPct%"
-                                deltaPct < 0 -> "↓ ${-deltaPct}%"
-                                else -> "0%"
-                            },
-                            emoji = "📈",
-                            iconBg = Color(0xFFF3E8FF)
-                        )
-                    }
-                }
-            }
-
-            // لوحة الشركة الحية — أول ما العميل يدخل يشوف الوكلاء شغالين بأرقام حقيقية
-            item { NeuralMeshLivePanelItem(transactions, inventory, pharmacyItems, subscriptions) }
-
-            // ── العقل الثاني: الكرة العصبية المجسمة ثلاثية الأبعاد (3D Holographic Neural Sphere) ──
-            item {
-                // بند 35.1 (تكملة) — الـ9 سطور حالة كانت كلها نصوص مكتوبة يدويًا. كل سطر
-                // دلوقتي من مصدر حقيقي فعلي، وبيرجع صياغة صادقة ("لسه بيدرس...") لو
-                // البيانات مش كفاية بدل رقم مخترع. مقاسات/ألوان/تخطيط العقد الأصلية
-                // (initialX/Y/Z، layerName) متلمستش — التغيير في statusText بس.
-                val activeFamilyForNodes = familyState as? com.example.ui.viewmodels.FamilyState.Active
-                val chefReadyMeals = remember(inventory) {
-                    com.example.data.ZadAiRepository.generateDeterministicChefRecipes(inventory).size
-                }
-                val realNodes = remember(
-                    brainStats, activeFamilyForNodes, weeklyAdherencePercent, subscriptions,
-                    chefReadyMeals, maintenanceItemsForNodes, expensePrediction,
-                ) {
-                    val today = java.time.LocalDate.now()
-                    val underWarranty = maintenanceItemsForNodes.count { m ->
-                        m.warrantyExpiryDate?.let {
-                            runCatching { java.time.LocalDate.parse(it) > today }.getOrDefault(false)
-                        } ?: false
-                    }
-                    val forecastConfidence = expensePrediction?.confidence?.takeIf { it > 0.0 }
-                    listOf(
-                        com.example.ui.components.Node3D("budget", "المصاريف والتدفق", "💳", Color(0xFF0F9B76), -0.72f, -0.45f, 0.45f, "ROOT - FINANCIAL",
-                            resilienceAvailableFigure?.value?.let { "المتاح: ${Math.round(it)} ${budgetState?.currency ?: ""}" } ?: "لسه بيحسب الرصيد المتاح"),
-                        com.example.ui.components.Node3D("family", "عقل العائلة", "👨‍👩‍👧‍👦", Color(0xFF2563EB), 0.75f, -0.42f, 0.40f, "AREAS - FAMILY",
-                            activeFamilyForNodes?.members?.size?.let { "مزامنة نشطة • $it أفراد" } ?: "مش منضم لعيلة"),
-                        com.example.ui.components.Node3D("inventory", "المخزون وتأمين الغذاء", "📦", Color(0xFFF59E0B), 0.85f, 0.15f, -0.35f, "PROJECTS - PANTRY",
-                            brainStats?.nextShortageItem?.let { "أول نقص متوقع: $it خلال ${brainStats?.nextShortageDays ?: 0} يوم" } ?: "لسه بيدرس نمط استهلاكك"),
-                        com.example.ui.components.Node3D("pharmacy", "صيدلية الأسرة", "💊", Color(0xFFDC2626), -0.80f, 0.20f, -0.38f, "KNOWLEDGE - HEALTH",
-                            weeklyAdherencePercent?.let { "الالتزام الدوائي هذا الأسبوع: $it%" } ?: "لسه مفيش جرعات كفاية مسجّلة"),
-                        com.example.ui.components.Node3D("subs", "الاشتراكات والفواتير", "⚡", Color(0xFF8B5CF6), 0.05f, -0.85f, 0.25f, "ROOT - COMMITMENTS",
-                            "${subscriptions.count { it.isActive }} اشتراكات نشطة"),
-                        com.example.ui.components.Node3D("chef", "شيف زاد الذكي", "🍲", Color(0xFF10B981), -0.55f, 0.65f, 0.35f, "RESOURCES - NUTRITION",
-                            if (chefReadyMeals > 0) "جاهز لـ$chefReadyMeals وجبة فورية من مخزونك" else "المخزون محتاج تعزيز لوجبات جاهزة"),
-                        com.example.ui.components.Node3D("maintenance", "الصيانة والضمانات", "🔧", Color(0xFF64748B), 0.50f, 0.68f, 0.38f, "PROJECTS - HOME",
-                            "$underWarranty أجهزة تحت الضمان"),
-                        com.example.ui.components.Node3D("forecast", "التنبؤات السلوكية", "🔮", Color(0xFFEC4899), 0.10f, 0.82f, -0.42f, "AI PREDICTIVE",
-                            forecastConfidence?.let { "ثقة توقع الذكاء الاصطناعي: ${Math.round(it * 100)}%" } ?: "لسه مفيش توقع كفاية"),
-                        com.example.ui.components.Node3D("tasbiha", "بستان التسبيح والبركة", "🌿", Color(0xFF34D399), 0.0f, -0.30f, -0.85f, "SPIRITUAL - ZAD",
-                            familyViewModel.familyTasbiha.sumOf { it.totalClicks }.let { clicks ->
-                                if (clicks > 0) "$clicks تسبيحة • مستوى ${familyViewModel.familyTasbiha.maxOfOrNull { t -> t.level } ?: 1}" else "لسه ما بدأتوش التسبيح"
-                            }),
-                    )
-                }
-                com.example.ui.components.Zad3DNeuralSphereWidget(
-                    stats = brainStats,
-                    nodes = realNodes,
-                    onNodeClick = { onNavigateToKnowledgeMap() },
-                    onViewFullMapClick = { onNavigateToKnowledgeMap() },
-                    onOpenDossierClick = { showExecutiveDossier = true }
-                )
-            }
-
+            // ── بطارية طاقة الإعلانات (للحفاظ على سياسة التمويل والذكاء الاصطناعي المجاني) ──
             item {
                 var adWatchCount by remember { mutableStateOf(RewardedBrainAdManager.getAdWatchCount(context)) }
                 var isSessionUnlocked by remember { mutableStateOf(RewardedBrainAdManager.isSessionUnlocked(context)) }
@@ -517,7 +380,6 @@ fun ZadIntelligenceScreen(
                                     isSessionUnlocked = isFullyUnlocked
                                 },
                                 onFailed = {
-                                    // إعادة محاولة واحدة بعد ثانيتين — الإعلان ممكن يكون لسه بيتحمل
                                     coroutineScope.launch {
                                         android.widget.Toast.makeText(
                                             context,
@@ -550,266 +412,146 @@ fun ZadIntelligenceScreen(
                         },
                         isLoading = isAdLoading
                     )
-                } else {
-                    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(20.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                }
+            }
+
+            // ── فحص كفاية العمليات للتحليل (Empty State Policy) ──
+            if (!hasEnoughData) {
+                // بطاقة واحدة أنيقة ومحفزة بدون تكرار الكروت الفارغة
+                item {
+                    com.example.ui.components.ZadListCard(
+                        shape = RoundedCornerShape(22.dp),
+                        contentPadding = 22.dp
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(60.dp)
+                                    .clip(CircleShape)
+                                    .background(primary.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Icon(
-                                    Icons.Default.Star,
+                                    Icons.Default.AutoAwesome,
                                     contentDescription = null,
                                     tint = primary,
-                                    modifier = Modifier.size(24.dp)
+                                    modifier = Modifier.size(30.dp)
                                 )
-                                Spacer(modifier = Modifier.width(10.dp))
+                            }
+
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
-                                    stringResource(R.string.ad_energy_unlocked_session),
-                                    style = Typography.bodyMedium,
+                                    text = stringResource(R.string.ai_intel_empty_title),
+                                    style = Typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = primary
+                                    color = onSurface,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = stringResource(R.string.ai_intel_empty_desc),
+                                    style = Typography.bodySmall,
+                                    color = onSurfaceVariant,
+                                    textAlign = TextAlign.Center
                                 )
                             }
-                            TextButton(onClick = { showSubscriptionPaywall = true }) {
-                                Text(stringResource(R.string.auto_zadintelligence_74185), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(surfaceVariant.copy(alpha = 0.5f))
+                                    .padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.ai_intel_empty_progress, expenseTransactions.size, 3),
+                                        style = Typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = onSurface
+                                    )
+                                    Text(
+                                        text = "${(expenseTransactions.size * 100 / 3).coerceIn(0, 100)}%",
+                                        style = Typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = primary
+                                    )
+                                }
+                                LinearProgressIndicator(
+                                    progress = { (expenseTransactions.size.toFloat() / 3f).coerceIn(0f, 1f) },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(8.dp)
+                                        .clip(RoundedCornerShape(4.dp)),
+                                    color = primary,
+                                    trackColor = primary.copy(alpha = 0.15f)
+                                )
                             }
-                        }
-                    }
-                }
-            }
 
-            // ═══ شبكة عقل العائلة العصبية المشتركة (Multi-Agent Family Mesh) ═══
-            item {
-                FamilyNeuralMeshCard(
-                    familyState = familyState,
-                    onOpenReport = { showFamilyNeuralSheet = true },
-                    onNavigateToFamily = onNavigateToFamily
-                )
-            }
-
-            // ═══ TOP: executive financial health + daily spend velocity ═══
-            item { SectionHeader(Icons.Default.Speed, stringResource(R.string.intel_section_executive)) }
-            val resolvedBrainReport = brainReport
-            if (resolvedBrainReport != null) {
-                item { HealthScoreCard(resolvedBrainReport) }
-                item { DailySpendVelocityCard(resolvedBrainReport.spendingPower) }
-                item { SpendingPowerGaugeCard(resolvedBrainReport.spendingPower) }
-            } else if (brainReportError != null) {
-                // كان سبينر أبدي هنا. التقرير حساب محلي بحت — لو وقع، مفيش أي سبب يخلي
-                // العميل يستنى حاجة مش جاية، ولا يخلي سبع كروت تحته تختفي بصمت.
-                item {
-                    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(20.dp)) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                            Icon(
-                                Icons.Default.ErrorOutline,
-                                contentDescription = null,
-                                tint = dangerColor,
-                                modifier = Modifier.size(32.dp)
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                stringResource(R.string.brain_report_failed_title),
-                                style = Typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = onSurface
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                stringResource(R.string.brain_report_failed_subtitle),
-                                style = Typography.bodySmall,
-                                color = onSurfaceVariant,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            Button(onClick = { viewModel.generateBrainReport() }) {
-                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text(stringResource(R.string.retry_action))
+                            Button(
+                                onClick = { chatExpanded = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(stringResource(R.string.ai_intel_talk_to_zad))
                             }
                         }
                     }
                 }
             } else {
+                // ── لوحة تحليلية حقيقية ومركزة (3 عناصر أساسية وتفاعلية فقط) ──
+
+                // 1. زر علوي واضح: توليد تقرير الذكاء الاصطناعي الشامل
                 item {
-                    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(20.dp), contentPadding = 0.dp) {
-                        com.example.ui.components.ZadLoadingState(modifier = Modifier.fillMaxWidth().height(140.dp))
-                    }
-                }
-            }
-            item {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    MiniStatCard(
-                        modifier = Modifier.weight(1f),
-                        label = stringResource(R.string.expense_label),
-                        value = com.example.data.CurrencyFormatter.format(context, totalExpense),
-                        icon = Icons.Default.TrendingDown,
-                        iconColor = dangerColor,
-                        bgColor = dangerColor.copy(alpha = 0.08f)
-                    )
-                    MiniStatCard(
-                        modifier = Modifier.weight(1f),
-                        label = stringResource(R.string.income_label),
-                        value = com.example.data.CurrencyFormatter.format(context, totalIncome),
-                        icon = Icons.Default.TrendingUp,
-                        iconColor = successColor,
-                        bgColor = successColor.copy(alpha = 0.08f)
+                    ComprehensiveAiReportCard(
+                        transactions = transactions,
+                        budget = budget,
+                        totalIncome = totalIncome,
+                        totalExpense = totalExpense,
+                        topCategories = categoryMap.take(5),
+                        cycleStart = cycleStart,
+                        onTriggerBrainReport = { viewModel.generateBrainReport() },
+                        onNavigateToStatementImport = onNavigateToStatementImport
                     )
                 }
-            }
-            item {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    MiniStatCard(
-                        modifier = Modifier.weight(1f),
-                        label = stringResource(R.string.nav_inventory),
-                        value = stringResource(R.string.inventory_items_count_pill, inventory.size),
-                        icon = Icons.Default.Inventory2,
-                        iconColor = catTransportIcon,
-                        bgColor = catTransportBg
-                    )
-                    MiniStatCard(
-                        modifier = Modifier.weight(1f),
-                        label = stringResource(R.string.active_subscriptions_label),
-                        value = "${subscriptions.count { it.isActive }}",
-                        icon = Icons.Default.Subscriptions,
-                        iconColor = catBillsIcon,
-                        bgColor = catBillsBg
-                    )
-                }
-            }
 
-            // ═══ التقرير الشهري — ملخص مكتوب + نصايح، مش رقم لوحده. البيانات (المتحصّل/
-            // المصروف/أعلى الفئات) نفسها المستخدمة في كروت الـ Executive فوق، فأي معاملة
-            // اتسجلت يدوي أو جات من استيراد كشف حساب (StatementImportScreen) داخلة هنا
-            // زي أي معاملة تانية — نفس مصدر transactions. ═══
-            item { SectionHeader(Icons.Default.Assessment, stringResource(R.string.nav_reports)) }
-            item {
-                MonthlyReportCard(
-                    transactions = transactions,
-                    budget = budget,
-                    totalIncome = totalIncome,
-                    totalExpense = totalExpense,
-                    topCategories = categoryMap.take(5),
-                    cycleStart = cycleStart,
-                    onNavigateToStatementImport = onNavigateToStatementImport
-                )
-            }
+                // 2. بطاقة اختبار الصمود المالي
+                val openingBalance = budgetState?.openingBalance ?: budgetState?.monthlyLimit ?: 0.0
+                val roomCalculatedBalance = budgetState?.balance ?: (openingBalance + totalIncome - totalExpense).coerceAtLeast(0.0)
+                val resolvedAvailableBalance = resilienceAvailableFigure?.value ?: resilienceRemainingBalance ?: roomCalculatedBalance
 
-            // ═══ MIDDLE: interactive charts + expense radar ═══
-            item { SectionHeader(Icons.Default.BarChart, stringResource(R.string.intel_section_charts_radar)) }
-            item { WeeklyTrendCard(transactions) }
-            item { ExpenseDonutCard(categoryMap = categoryMap, total = totalExpense) }
-            item { ConsumptionTickerCard(transactions) }
-            brainReport?.monthComparison?.let { mc ->
-                item { MonthComparisonCard(mc) }
-            }
-            item { InflationRadarCard(transactions) }
-            item { PriceShockRadarCard(topExpenseCategories, viewModel) }
-            if (detectWeekdaySpike(serverBehaviorProfile) != null) {
-                item { BehavioralNudgeCard(serverBehaviorProfile) }
-            }
-
-            // ═══ BOTTOM: AI projections + smart tools ═══
-            item { SectionHeader(Icons.Default.AutoAwesome, stringResource(R.string.intel_section_ai_tools)) }
-            // نفس شرط HomeScreen بالظبط (توقع AI حقيقي + سقف معروف) — لو التوقع الحقيقي
-            // مش جاهز لسه، الكارت المحلي (متوسط مرجّح بسيط) هو اللي بيظهر بدل ما الكارت يفضى.
-            forecast?.let { prediction ->
-                item {
-                    PredictionCard(
-                        predictedAmount = prediction.predictedTotal,
-                        currentMonthAmount = monthlyData.lastOrNull()?.second ?: 0.0,
-                        lowStockCount = lowStockCount,
-                        subscriptionsCount = subscriptions.count { it.isActive }
-                    )
-                }
-            }
-            item { MonthlyBarChartCard(monthlyData = monthlyData, forecast = forecast) }
-            // توزيع الصرف حسب الفئة (من مرجع "new ui ux" — renderAssistant):
-            // كارت أبيض بعنوان "التوزيع حسب الفئة" وبارات ملوّنة لكل فئة.
-            budgetState?.byCategory?.takeIf { it.isNotEmpty() }?.let { byCategory ->
-                item { CategoryBreakdownCard(byCategory) }
-            }
-            // resilienceAvailableFigure/resilienceRemainingBalance بيرجعوا null لحد ما
-            // يتحمّلوا من السيرفر — null مش نفس معنى "الرصيد صفر". كان بيتحوّل لـ0.0 على
-            // طول، فالكارت كان بيعرض "0 يوم تغطية / حرجة" لحظيًا لمستخدم رصيده سليم بس
-            // البيانات لسه بتتحمّل.
-            val resilienceValue = resilienceAvailableFigure?.value ?: resilienceRemainingBalance
-            if (resilienceValue != null) {
                 item {
                     FinancialStressTestCard(
-                        transactions,
-                        emergencyFund,
-                        availableBalance = resilienceValue,
-                        onUpdateEmergencyFund = { viewModel.updateEmergencyFund(it) },
+                        transactions = transactions,
+                        emergencyFund = emergencyFund,
+                        availableBalance = resolvedAvailableBalance,
+                        onUpdateEmergencyFund = { viewModel.updateEmergencyFund(it) }
                     )
                 }
-            }
-            brainReport?.depletionForecasts?.takeIf { it.isNotEmpty() }?.let { forecasts ->
-                item { DepletionForecastCard(forecasts) }
-            }
-            item { SmartBuyingTimingCard(inventory, serverBehaviorProfile) }
-            if (patterns.isNotEmpty()) {
-                items(patterns.take(5)) { pattern ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                            .background(surface).padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(catBillsBg),
-                            contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Schedule, contentDescription = null, tint = catBillsIcon, modifier = Modifier.size(20.dp))
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(pattern.category, style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
-                            Text(stringResource(R.string.avg_every_days, com.example.data.CurrencyFormatter.format(context, pattern.avgAmount), pattern.frequencyDays), style = Typography.bodySmall, color = onSurfaceVariant)
-                        }
-                    }
-                }
-            }
-            forecast?.let { item { WhatIfSimulatorCard(viewModel = viewModel, predictedMonthlySpend = it.predictedTotal) } }
-            item {
-                ServerBehaviorProfileCard(
-                    profile = serverBehaviorProfile,
-                    isRefreshing = isRefreshingBehaviorProfile,
-                    onRefresh = { viewModel.refreshBehaviorProfile() }
-                )
-            }
-            brainReport?.behaviorProfile?.let { bp ->
-                item { BehaviorAnalysisCard(bp) }
-            }
-            // كان القسم كله (العنوان كمان) بيختفي تماماً لما allInsights فاضية — ميزة
-            // اسمها "رؤى زاد الذكية" بتختفي بدل ما تقول "لسه مفيش" كانت بتقرا كأنها مش
-            // موجودة أصلاً، مش كأنها لسه محتاجة بيانات أكتر.
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Lightbulb, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        stringResource(R.string.zad_smart_insights_title),
-                        style = Typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = onSurface
-                    )
-                }
-            }
-            if (allInsights.isNotEmpty()) {
-                items(allInsights.take(8)) { insight -> IntelligenceInsightCard(insight, viewModel) }
-            } else {
+
+                // 3. بطاقة توزيع المصروفات والملاحظات السلوكية
                 item {
-                    com.example.ui.components.ZadEmptyState(
-                        icon = Icons.Default.Lightbulb,
-                        title = stringResource(R.string.no_insights_yet_title),
-                        subtitle = stringResource(R.string.no_insights_yet_subtitle),
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp)
+                    ExpenseDistributionAndBehaviorCard(
+                        transactions = transactions,
+                        totalSpent = totalExpense,
+                        categoryMap = categoryMap
                     )
                 }
-            }
-            item { TasbihaSummaryCard(familyViewModel) }
-            item { AmazonPicksSummaryCard(viewModel) }
-            brainReport?.let { report ->
-                item { ExportReportButton(report) }
+
+                brainReport?.let { report ->
+                    item { ExportReportButton(report) }
+                }
             }
 
             item {
@@ -1923,9 +1665,17 @@ fun calculateStressTest(
     val now = java.time.Instant.now()
     val cutoff = now.minusSeconds(windowDays * 86400L)
     val recentExpenses = transactions
-        .filter { it.txnKind == "expense" }
+        .filter { it.txnKind == "expense" || (it.txnKind == null && it.isExpense) }
         .mapNotNull { tx ->
-            val at = try { java.time.Instant.parse(tx.createdAt ?: "") } catch (e: Exception) { null }
+            val at = try {
+                java.time.Instant.parse(tx.createdAt ?: "")
+            } catch (e: Exception) {
+                try {
+                    java.time.LocalDate.parse((tx.createdAt ?: "").take(10))
+                        .atStartOfDay(java.time.ZoneId.systemDefault())
+                        .toInstant()
+                } catch (e2: Exception) { null }
+            }
             if (at != null && at >= cutoff) at to tx.amount else null
         }
     val recentExpenseTotal = recentExpenses.sumOf { it.second }
@@ -2042,14 +1792,33 @@ fun FinancialStressTestCard(transactions: List<ZadTransaction>, emergencyFund: D
     var aiNarrative by remember(result) { mutableStateOf<String?>(null) }
     var isLoadingNarrative by remember { mutableStateOf(false) }
 
-    val (statusColor, statusLabel) = when (result.status) {
-        StressTestStatus.UNKNOWN -> onSurfaceVariant to stringResource(R.string.stress_test_status_unknown)
-        StressTestStatus.CRITICAL -> dangerColor to stringResource(R.string.stress_test_status_critical)
+    val allExpenses = remember(transactions) {
+        transactions.filter { it.txnKind == "expense" || (it.txnKind == null && it.isExpense) }
+    }
+    val totalExpenseSum = remember(allExpenses) { allExpenses.sumOf { it.amount } }
+    val safeDailySpend = if (result.avgDailySpend > 0.0) {
+        result.avgDailySpend
+    } else if (totalExpenseSum > 0.0) {
+        (totalExpenseSum / 30.0).coerceAtLeast(1.0)
+    } else {
+        1.0
+    }
+    val effectiveCoverageDays = result.coverageDays ?: (effectiveSavings / safeDailySpend).toInt().coerceAtLeast(0)
+    val effectiveStatus = if (result.status != StressTestStatus.UNKNOWN) {
+        result.status
+    } else when {
+        effectiveCoverageDays < 30 -> StressTestStatus.CRITICAL
+        effectiveCoverageDays < result.targetDays -> StressTestStatus.LOW
+        else -> StressTestStatus.HEALTHY
+    }
+
+    val (statusColor, statusLabel) = when (effectiveStatus) {
+        StressTestStatus.UNKNOWN, StressTestStatus.CRITICAL -> dangerColor to stringResource(R.string.stress_test_status_critical)
         StressTestStatus.LOW -> warningColor to stringResource(R.string.stress_test_status_low)
         StressTestStatus.HEALTHY -> successColor to stringResource(R.string.stress_test_status_healthy)
     }
 
-    com.example.ui.components.ZadListCard(shape = com.example.ui.theme.ZadLuxe.squircle, contentPadding = 0.dp) {
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(22.dp), contentPadding = 0.dp) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.HealthAndSafety, contentDescription = null, modifier = Modifier.size(22.dp), tint = onSurface)
@@ -2062,30 +1831,20 @@ fun FinancialStressTestCard(transactions: List<ZadTransaction>, emergencyFund: D
             Text(stringResource(R.string.stress_test_subtitle), style = Typography.bodySmall, color = onSurfaceVariant)
             Spacer(modifier = Modifier.height(16.dp))
 
-            val coverage = result.coverageDays
-            if (coverage == null) {
-                // مفيش معدل صرف معروف — نقول كده صراحة بدل ما نعرض "0 يوم تغطية"، اللي كان
-                // بيقرا كإفلاس لمستخدم رصيد طوارئه مليان.
-                Text(stringResource(R.string.stress_test_coverage_unknown), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = statusColor)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(stringResource(R.string.stress_test_coverage_unknown_hint), style = Typography.bodySmall, color = onSurfaceVariant)
-                Spacer(modifier = Modifier.height(12.dp))
-            } else {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(stringResource(R.string.stress_test_coverage_days, coverage), style = Typography.displaySmall, fontWeight = FontWeight.Bold, color = statusColor)
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(stringResource(R.string.stress_test_target_label, result.targetDays), style = Typography.labelSmall, color = onSurfaceVariant)
-                Spacer(modifier = Modifier.height(10.dp))
-
-                LinearProgressIndicator(
-                    progress = { (coverage.toFloat() / result.targetDays.toFloat()).coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
-                    color = statusColor,
-                    trackColor = statusColor.copy(alpha = 0.15f)
-                )
-                Spacer(modifier = Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(stringResource(R.string.stress_test_coverage_days, effectiveCoverageDays), style = Typography.displaySmall, fontWeight = FontWeight.Bold, color = statusColor)
             }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(stringResource(R.string.stress_test_target_label, result.targetDays), style = Typography.labelSmall, color = onSurfaceVariant)
+            Spacer(modifier = Modifier.height(10.dp))
+
+            LinearProgressIndicator(
+                progress = { (effectiveCoverageDays.toFloat() / result.targetDays.toFloat()).coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+                color = statusColor,
+                trackColor = statusColor.copy(alpha = 0.15f)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
@@ -2093,11 +1852,17 @@ fun FinancialStressTestCard(transactions: List<ZadTransaction>, emergencyFund: D
                         stringResource(if (usingFallbackBalance) R.string.stress_test_available_balance_label else R.string.stress_test_emergency_fund_label),
                         style = Typography.labelSmall, color = onSurfaceVariant
                     )
-                    Text(com.example.data.CurrencyFormatter.format(context, result.liquidSavings), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface)
+                    Text(com.example.data.CurrencyFormatter.format(context, effectiveSavings), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onSurface)
                 }
                 Surface(shape = RoundedCornerShape(10.dp), color = statusColor.copy(alpha = 0.12f)) {
                     Text(statusLabel, style = Typography.labelMedium, fontWeight = FontWeight.Bold, color = statusColor, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
                 }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(stringResource(R.string.ai_intel_daily_spend_label), style = Typography.labelSmall, color = onSurfaceVariant)
+                Text(com.example.data.CurrencyFormatter.format(context, safeDailySpend), style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = onSurface)
             }
 
             if (result.suggestedMonthlySaving > 0) {
@@ -2117,8 +1882,8 @@ fun FinancialStressTestCard(transactions: List<ZadTransaction>, emergencyFund: D
                     scope.launch {
                         aiNarrative = try {
                             ZadAiRepository.narrateStressTest(
-                                result.coverageDays, result.avgDailySpend, result.liquidSavings,
-                                result.targetDays, result.suggestedMonthlySaving, result.status.name
+                                effectiveCoverageDays, safeDailySpend, effectiveSavings,
+                                result.targetDays, result.suggestedMonthlySaving, effectiveStatus.name
                             )
                         } catch (e: Exception) { null } finally { isLoadingNarrative = false }
                     }
@@ -3415,6 +3180,337 @@ private fun ExportReportButton(report: com.example.data.ZadCentralBrain.BrainRep
             }
             Spacer(modifier = Modifier.width(8.dp))
             Text(stringResource(R.string.export_monthly_report), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = onPrimaryContainer)
+        }
+    }
+}
+
+@Composable
+fun ComprehensiveAiReportCard(
+    transactions: List<ZadTransaction>,
+    budget: Double,
+    totalIncome: Double,
+    totalExpense: Double,
+    topCategories: List<Pair<String, Double>>,
+    cycleStart: java.time.LocalDate,
+    onTriggerBrainReport: () -> Unit,
+    onNavigateToStatementImport: () -> Unit = {}
+) {
+    val context = LocalContext.current
+    var report by remember { mutableStateOf<com.example.data.ZadAiRepository.MonthlyExpenseReport?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+    var loadError by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val cycleLabel = remember(cycleStart) {
+        cycleStart.format(java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy", java.util.Locale("ar")))
+    }
+
+    fun generate() {
+        scope.launch {
+            isLoading = true
+            loadError = false
+            try {
+                onTriggerBrainReport()
+                report = com.example.data.ZadAiRepository.generateMonthlyExpenseReport(
+                    transactions = transactions,
+                    budget = budget,
+                    totalIncome = totalIncome,
+                    totalExpense = totalExpense,
+                    topCategories = topCategories,
+                    cycleLabel = cycleLabel
+                )
+            } catch (e: Exception) {
+                loadError = true
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(22.dp), contentPadding = 18.dp) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(primary.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.ai_intel_generate_report_title),
+                        style = Typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = onSurface
+                    )
+                    Text(
+                        stringResource(R.string.ai_intel_generate_report_desc),
+                        style = Typography.bodySmall,
+                        color = onSurfaceVariant
+                    )
+                }
+                val current = report
+                if (current != null) {
+                    IconButton(onClick = {
+                        val shareText = buildString {
+                            append(current.summary)
+                            if (current.insights.isNotEmpty()) {
+                                append("\n\n")
+                                current.insights.forEach { append("• $it\n") }
+                            }
+                            if (current.recommendations.isNotEmpty()) {
+                                append("\n")
+                                current.recommendations.forEach { append("✓ $it\n") }
+                            }
+                        }
+                        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(android.content.Intent.EXTRA_TEXT, shareText)
+                        }
+                        context.startActivity(android.content.Intent.createChooser(intent, context.getString(R.string.share_zad_report_title)))
+                    }) {
+                        Icon(Icons.Default.IosShare, contentDescription = stringResource(R.string.share_zad_report_title), tint = primary)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            when {
+                isLoading -> {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(surfaceVariant.copy(alpha = 0.4f))
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        com.example.ui.components.CompanionOrb(
+                            state = com.example.ui.components.CompanionState.Focused,
+                            size = 28.dp,
+                            animated = true
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            stringResource(R.string.ai_intel_generating_report),
+                            style = Typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = primary
+                        )
+                    }
+                }
+                loadError -> {
+                    Text(
+                        stringResource(R.string.changes_save_failed),
+                        style = Typography.bodySmall,
+                        color = dangerColor
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(onClick = { generate() }, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.retry_action))
+                    }
+                }
+                report == null -> {
+                    Button(
+                        onClick = { generate() },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.ai_intel_generate_report_title))
+                    }
+                }
+                else -> {
+                    val current = report!!
+                    if (current.healthLabel.isNotBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = primary.copy(alpha = 0.12f)
+                        ) {
+                            Text(
+                                current.healthLabel,
+                                style = Typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = primary,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+                    if (current.summary.isNotBlank()) {
+                        Text(current.summary, style = Typography.bodyMedium, color = onSurface)
+                    }
+                    if (current.insights.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        current.insights.forEach { insight ->
+                            Row(modifier = Modifier.padding(vertical = 2.dp)) {
+                                Text("• ", color = primary, fontWeight = FontWeight.Bold)
+                                Text(insight, style = Typography.bodySmall, color = onSurfaceVariant, modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                    if (current.recommendations.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(stringResource(R.string.recommendations_label), style = Typography.labelMedium, fontWeight = FontWeight.Bold, color = onSurface)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        current.recommendations.forEach { rec ->
+                            Row(modifier = Modifier.padding(vertical = 2.dp)) {
+                                Text("✓ ", color = successColor, fontWeight = FontWeight.Bold)
+                                Text(rec, style = Typography.bodySmall, color = onSurfaceVariant, modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = { generate() },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("تحديث التقرير 🔄")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ExpenseDistributionAndBehaviorCard(
+    transactions: List<ZadTransaction>,
+    totalSpent: Double,
+    categoryMap: List<Pair<String, Double>>
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var aiNarrative by remember { mutableStateOf<String?>(null) }
+    var isLoadingNarrative by remember { mutableStateOf(false) }
+
+    val palette = chartCategorical
+    val safeTotal = if (totalSpent > 0.0) totalSpent else categoryMap.sumOf { it.second }.coerceAtLeast(1.0)
+    val maxCategoryAmount = categoryMap.firstOrNull()?.second?.takeIf { it > 0 } ?: 1.0
+
+    com.example.ui.components.ZadListCard(shape = RoundedCornerShape(22.dp), contentPadding = 18.dp) {
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(primary.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.PieChart, contentDescription = null, tint = primary, modifier = Modifier.size(22.dp))
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.ai_intel_category_distribution_title),
+                        style = Typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = onSurface
+                    )
+                    Text(
+                        stringResource(R.string.ai_intel_category_distribution_subtitle),
+                        style = Typography.bodySmall,
+                        color = onSurfaceVariant
+                    )
+                }
+                Text(
+                    com.example.data.CurrencyFormatter.format(context, totalSpent),
+                    style = Typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = primary
+                )
+            }
+
+            // Top category highlight
+            categoryMap.firstOrNull()?.let { (topCat, topAmount) ->
+                val topPct = ((topAmount / safeTotal) * 100).toInt()
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = surfaceVariant.copy(alpha = 0.4f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("💡 ", fontSize = 14.sp)
+                        Text(
+                            text = "أعلى استهلاك في فئة [$topCat] بنسبة $topPct% من إجمالي مصروفاتك",
+                            style = Typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = onSurface
+                        )
+                    }
+                }
+            }
+
+            // Category bars
+            categoryMap.take(5).forEachIndexed { idx, (category, amount) ->
+                val pct = ((amount / safeTotal) * 100).toInt()
+                val color = palette[idx % palette.size]
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            category,
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = onSurface,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            "$pct% • ${com.example.data.CurrencyFormatter.format(context, amount)}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = onSurfaceVariant
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(7.dp)
+                            .clip(RoundedCornerShape(99.dp))
+                            .background(onSurface.copy(alpha = 0.08f))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth((amount / maxCategoryAmount).toFloat().coerceIn(0f, 1f))
+                                .height(7.dp)
+                                .clip(RoundedCornerShape(99.dp))
+                                .background(color)
+                        )
+                    }
+                }
+            }
+
+            // AI Explain Button
+            AiNarrativeSection(
+                narrative = aiNarrative,
+                isLoading = isLoadingNarrative,
+                onExplain = {
+                    isLoadingNarrative = true
+                    scope.launch {
+                        val summary = categoryMap.take(5).joinToString(", ") { "${it.first}: ${it.second}" }
+                        aiNarrative = try {
+                            com.example.data.ZadAiRepository.narrateExpenseDistribution(summary, totalSpent)
+                        } catch (e: Exception) { null } finally { isLoadingNarrative = false }
+                    }
+                }
+            )
         }
     }
 }

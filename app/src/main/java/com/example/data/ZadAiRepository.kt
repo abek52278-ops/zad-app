@@ -1151,6 +1151,18 @@ object ZadAiRepository {
         return callGeminiText(systemPrompt, userPrompt)
     }
 
+    suspend fun narrateExpenseDistribution(categoriesSummary: String, totalSpent: Double): String? {
+        val systemPrompt = "أنت خبير تحليل سلوك مالي داخل تطبيق زاد. حلل توزيع المصروفات أدناه وقدم ملاحظة سلوكية ذكية وودودة في جملة أو جملتين بالعربي، مع توجيه واقعي لتحسين الصرف."
+        val userPrompt = """
+            === بيانات توزيع المصروفات ===
+            إجمالي المصروفات: $totalSpent
+            توزيع الفئات:
+            $categoriesSummary
+            === نهاية البيانات ===
+        """.trimIndent()
+        return callGeminiText(systemPrompt, userPrompt)
+    }
+
     // ── Deal Matcher / Price Shock Predictor: live web search only, zero mock data.
     // Edge function uses groq/compound (Tavily-backed web_search tool) — every result
     // here is grounded in a real page or it doesn't appear at all; no fallback figures
