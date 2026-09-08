@@ -91,8 +91,14 @@ fun PharmacyScreen(
     LaunchedEffect(showFamilyView) {
         if (showFamilyView) {
             familyItemsLoading = true
-            familyItems = com.example.data.SupabaseRepo.getFamilyPharmacyItems()
-            familyItemsLoading = false
+            try {
+                familyItems = com.example.data.SupabaseRepo.getFamilyPharmacyItems()
+            } catch (e: Exception) {
+                android.util.Log.e("PharmacyScreen", "Failed to fetch family pharmacy items: ${e.message}")
+                familyItems = emptyList()
+            } finally {
+                familyItemsLoading = false
+            }
         }
     }
     val familyItemsByMember = remember(familyItems, familyMembers) {
@@ -203,9 +209,10 @@ fun PharmacyScreen(
                         PharmacyStatCard(
                             modifier = Modifier.weight(1f),
                             label = stringResource(R.string.dose_adherence_label),
-                            value = weeklyAdherence?.let { "$it%" } ?: "100%",
+                            value = weeklyAdherence?.let { "$it%" } ?: stringResource(R.string.dose_adherence_waiting),
                             valueColor = when {
-                                weeklyAdherence == null || weeklyAdherence!! >= 80 -> primary
+                                weeklyAdherence == null -> onSurfaceVariant
+                                weeklyAdherence!! >= 80 -> primary
                                 weeklyAdherence!! >= 50 -> warningColor
                                 else -> dangerColor
                             }
@@ -336,6 +343,7 @@ fun PharmacyScreen(
                 AddPharmacyItemDialog(
                     familyMembers = familyMembers,
                     onDismiss = { showAddDialog = false },
+                    onNavigateToCamera = onNavigateToCamera,
                     onSave = { item ->
                         viewModel.addPharmacyItem(item)
                         showAddDialog = false
@@ -750,6 +758,7 @@ private fun formatExpiryForDisplay(iso: String): String {
 private fun AddPharmacyItemDialog(
     familyMembers: List<com.example.data.FamilyMember>,
     onDismiss: () -> Unit,
+    onNavigateToCamera: () -> Unit = {},
     onSave: (ZadPharmacyItem) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
@@ -770,6 +779,15 @@ private fun AddPharmacyItemDialog(
     var showAdditionalDetails by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
+    LaunchedEffect(name) {
+        if (name.length >= 2 && price.isBlank()) {
+            val est = com.example.data.PharmacyPricingEstimator.estimatePrice(name)
+            if (est != null && est > 0.0) {
+                price = if (est == est.toLong().toDouble()) est.toLong().toString() else "%.1f".format(est)
+            }
+        }
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.add_medicine_dialog_title), style = Typography.titleLarge, fontWeight = FontWeight.Bold) },
@@ -778,6 +796,20 @@ private fun AddPharmacyItemDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()).imePadding()
             ) {
+                OutlinedButton(
+                    onClick = {
+                        onDismiss()
+                        onNavigateToCamera()
+                    },
+                    modifier = Modifier.fillMaxWidth().pressableScale(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = primary)
+                ) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.scan_medicine_box_action), style = Typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                }
+
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.medicine_name_hint)) }, modifier = Modifier.fillMaxWidth())
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -860,7 +892,17 @@ private fun AddPharmacyItemDialog(
                     trailingIcon = { Icon(Icons.Default.CalendarMonth, contentDescription = null) },
                     modifier = Modifier.fillMaxWidth().clickable { showDatePicker = true }
                 )
-                OutlinedTextField(value = price, onValueChange = { price = it }, label = { Text(stringResource(R.string.amount_with_currency_hint, com.example.data.CurrencyFormatter.symbol(context))) }, modifier = Modifier.fillMaxWidth())
+                val estimatedPlaceholder = remember(name) { com.example.data.PharmacyPricingEstimator.estimatePrice(name) }
+                OutlinedTextField(
+                    value = price,
+                    onValueChange = { price = it },
+                    label = { Text(stringResource(R.string.amount_with_currency_hint, com.example.data.CurrencyFormatter.symbol(context))) },
+                    placeholder = estimatedPlaceholder?.let {
+                        { Text(stringResource(R.string.estimated_price_hint, com.example.data.CurrencyFormatter.format(context, it))) }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal)
+                )
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                 Row(
@@ -935,7 +977,7 @@ private fun AddPharmacyItemDialog(
                                 dailyDoseCount = dailyDoseCount.toIntOrNull() ?: 1,
                                 doseTimes = finalDoseTimes,
                                 expiryDate = expiryDate.ifBlank { null },
-                                price = price.toDoubleOrNull() ?: 0.0,
+                                price = price.toDoubleOrNull() ?: com.example.data.PharmacyPricingEstimator.estimatePrice(name) ?: 0.0,
                                 isRecurring = isRecurring,
                                 familyMemberId = selectedMemberId
                             )

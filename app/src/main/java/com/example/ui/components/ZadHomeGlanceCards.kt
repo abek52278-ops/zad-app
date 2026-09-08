@@ -42,6 +42,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -186,7 +187,9 @@ fun ZadHorizontalShortcutsRail(
                 // 3D Metallic Glass Capsule with ambient lighting & specular sheen
                 Box(
                     modifier = Modifier
-                        .offset(y = (floatOffset * 0.7f).dp)
+                        .graphicsLayer {
+                            translationY = floatOffset * 0.7f * density
+                        }
                         .size(58.dp)
                         .shadow(
                             elevation = 10.dp,

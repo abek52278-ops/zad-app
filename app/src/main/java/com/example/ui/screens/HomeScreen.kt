@@ -612,20 +612,40 @@ fun HomeScreen(
                 )
                 Spacer(modifier = Modifier.height(18.dp))
 
+                val pendingShoppingCount = remember(shoppingList) { shoppingList.count { !it.isPurchased } }
+                val familyMembersCount = remember(familyState) {
+                    (familyState as? com.example.ui.viewmodels.FamilyState.Active)?.members?.size ?: 0
+                }
+                val subscriptionsDueCount = remember(subscriptions) {
+                    val now = java.time.LocalDate.now()
+                    subscriptions.count { sub ->
+                        if (!sub.isActive) return@count false
+                        val d = sub.renewalDate?.take(10)?.let {
+                            try { java.time.LocalDate.parse(it) } catch (_: Exception) { null }
+                        }
+                        if (d != null) {
+                            val days = java.time.temporal.ChronoUnit.DAYS.between(now, d)
+                            days in 0..7
+                        } else {
+                            val due = sub.dueDay ?: return@count false
+                            val dayDiff = due - now.dayOfMonth
+                            dayDiff in 0..7
+                        }
+                    }
+                }
+
                 // ── 3. مربعات الاختصارات الأربعة (المخزون، التسوق، العائلة، الاشتراكات) ──
                 com.example.ui.components.AppearOnEntry(delayMs = 50) {
                     ZadQuickCategoryGrid(
                         onNavigateToInventory = onNavigateToInventory,
                         onNavigateToShopping = onNavigateToShopping,
                         onNavigateToFamily = onNavigateToFamily,
-                        onNavigateToSubscriptions = onNavigateToSubscriptions
+                        onNavigateToSubscriptions = onNavigateToSubscriptions,
+                        inventoryShortageCount = shortageCount,
+                        shoppingCartCount = pendingShoppingCount,
+                        familyMembersCount = familyMembersCount,
+                        subscriptionsDueCount = subscriptionsDueCount
                     )
-                }
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // ── كارت مجتمع وقناة تليجرام ──
-                com.example.ui.components.AppearOnEntry(delayMs = 55) {
-                    com.example.ui.components.ZadTelegramCommunityCard()
                 }
                 Spacer(modifier = Modifier.height(18.dp))
 
@@ -918,7 +938,7 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             contentPadding = PaddingValues(vertical = 4.dp)
                         ) {
-                            items(displayAffiliatePicks) { pick ->
+                            items(displayAffiliatePicks, key = { it.product.id }) { pick ->
                                 com.example.ui.widgets.ZadAmazonDealCard(
                                     product = pick.product,
                                     reason = pick.reason,
@@ -936,7 +956,7 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(vertical = 4.dp)
                         ) {
-                            items(effectiveSearchNeeds) { need ->
+                            items(effectiveSearchNeeds, key = { it.itemName }) { need ->
                                 com.example.ui.widgets.ZadAmazonSearchChip(
                                     itemName = need.itemName,
                                     reason = need.reason,
@@ -996,6 +1016,10 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
+                // ── كارت مجتمع وقناة تليجرام في أسفل الشاشة (Quiet Footer) ──
+                com.example.ui.components.AppearOnEntry(delayMs = 120) {
+                    com.example.ui.components.ZadTelegramCommunityCard()
+                }
                 Spacer(modifier = Modifier.height(24.dp))
             } // closes inner Column
         } // closes else block (line 125)
@@ -1058,7 +1082,7 @@ fun HomeScreen(
             title = { Text(stringResource(R.string.recent_transactions_full_log)) },
             text = {
                 androidx.compose.foundation.lazy.LazyColumn {
-                    items(visibleTransactions.reversed()) { tx ->
+                    items(visibleTransactions.reversed(), key = { it.id }) { tx ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()

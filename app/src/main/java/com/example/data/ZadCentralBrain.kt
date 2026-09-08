@@ -460,32 +460,46 @@ object ZadCentralBrain {
         val item = dao.getAllPharmacyItemsOnce().find { it.id == itemId } ?: return@withContext false
         val nowIso = Instant.now().toString()
 
-        val mutation = SupabaseRepo.logPharmacyDoseAtomic(itemId, scheduledAt, nowIso)
-        if (mutation == null || !mutation.ok) {
-            Log.e(TAG, "markPharmacyDoseTaken() atomic mutation failed: ${mutation?.reason ?: "network"}")
-            return@withContext false
-        }
-        if (mutation.duplicate) {
+        val mutation = try {
+            SupabaseRepo.logPharmacyDoseAtomic(itemId, scheduledAt, nowIso)
+        } catch (_: Exception) { null }
+
+        if (mutation != null && mutation.duplicate) {
             Log.d(TAG, "markPharmacyDoseTaken() → already logged for scheduledAt=$scheduledAt, skipping stock deduction")
             return@withContext false
         }
-        // The server row lock is the authority. Updating Room with the returned value avoids
-        // a second client-side calculation drifting across two phones or the Telegram bot.
-        dao.insertPharmacyItem(item.copy(remainingQuantity = mutation.remainingQuantity))
+
+        val newQuantity = if (mutation != null && mutation.ok) {
+            mutation.remainingQuantity
+        } else {
+            // وضع عدم الاتصال: خصم الجرعة محلياً في Room وتطويف المزامنة في SyncOutbox
+            SyncOutbox.enqueuePharmacyDose(context, itemId, scheduledAt, nowIso)
+            (item.remainingQuantity - 1).coerceAtLeast(0)
+        }
+
+        // The server row lock is the authority when online. Updating Room avoids drift.
+        dao.insertPharmacyItem(item.copy(remainingQuantity = newQuantity))
 
         if (doseLogId != null) {
             val log = dao.getDoseLogById(doseLogId)
             if (log != null) {
-                dao.insertDoseLog(log.copy(takenAt = nowIso))
-                try { SupabaseRepo.markDoseLogTaken(doseLogId, nowIso) } catch (e: Exception) {
+                val updatedLog = log.copy(takenAt = nowIso)
+                dao.insertDoseLog(updatedLog)
+                try {
+                    SupabaseRepo.markDoseLogTaken(doseLogId, nowIso)
+                } catch (e: Exception) {
                     Log.e(TAG, "markPharmacyDoseTaken() dose log sync failed: ${e.message}")
+                    SyncOutbox.enqueueDoseLog(context, updatedLog)
                 }
             }
         } else {
             val log = ZadDoseLog(pharmacyItemId = itemId, itemName = item.name, scheduledAt = scheduledAt ?: nowIso, takenAt = nowIso, createdAt = nowIso)
             dao.insertDoseLog(log)
-            try { SupabaseRepo.addDoseLog(log) } catch (e: Exception) {
+            try {
+                SupabaseRepo.addDoseLog(log)
+            } catch (e: Exception) {
                 Log.e(TAG, "markPharmacyDoseTaken() ad-hoc dose log sync failed: ${e.message}")
+                SyncOutbox.enqueueDoseLog(context, log)
             }
         }
         sendFamilyAlert("✅ ${item.name} — تم أخذ الجرعة")

@@ -11,6 +11,7 @@ import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
+import com.example.BuildConfig
 import com.example.data.SupabaseRepo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,11 +21,13 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 object RewardedBrainAdManager {
     private const val TAG = "RewardedBrainAdManager"
-    // وحدة جوجل التجريبية الرسمية للمكافآت أثناء التطوير. الوحدة الحقيقية
-    // (ca-app-pub-4433736715872551/5974535887) اتشالت مؤقتاً 2026-09-07: الاختبار
-    // على وحدة إنتاج بيسجّل انطباعات غير صالحة، وده سبب معروف لإغلاق حسابات
-    // AdMob. ترجع عند بناء نسخة الإنتاج.
-    const val AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917"
+    
+    val AD_UNIT_ID: String
+        get() = if (BuildConfig.DEBUG) {
+            "ca-app-pub-3940256099942544/5224354917" // Google Official Rewarded Video Test Unit
+        } else {
+            "ca-app-pub-4433736715872551/5974535887" // Zad Production Rewarded Ad Unit
+        }
     const val TOTAL_ADS_REQUIRED = 3
 
     private const val PREF_NAME = "rewarded_brain_unlock"

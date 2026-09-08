@@ -1818,4 +1818,17 @@
     <string name="sub_type_installment_clean">Installment</string>
     <string name="sub_type_bill_clean">Bill</string>
     <string name="sub_type_obligation_clean">Obligation</string>
+    <string name="shortcut_inventory_shortages_fmt">%d shortages</string>
+    <string name="shortcut_shopping_items_fmt">%d items</string>
+    <string name="shortcut_family_members_fmt">%d members</string>
+    <string name="shortcut_subscriptions_due_fmt">%d due</string>
+    <string name="sub_mark_as_paid">Mark as Paid ✓</string>
+    <string name="sub_paid_success">Recorded payment for %s and renewed for next cycle</string>
+    <string name="dose_adherence_waiting">Waiting for first dose</string>
+    <string name="scan_medicine_box_action">Scan box with camera</string>
+    <string name="estimated_price_hint">Estimated price: %1$s</string>
+    <string name="companion_bubble_idle">Ready to help anytime 👋</string>
+    <string name="companion_bubble_happy">Great day, all on track 🌿</string>
+    <string name="companion_bubble_alert">Watch your budget &amp; schedule 👀</string>
+    <string name="companion_bubble_celebrating">Awesome job! Keep it up 🎉</string>
 </resources>

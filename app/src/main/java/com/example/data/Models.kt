@@ -607,6 +607,19 @@ data class UserProfileUpdatePayload(val name: String? = null, val avatarUri: Str
 @Serializable
 data class InventoryDeletePayload(val id: String)
 
+@Serializable
+data class PharmacyDeletePayload(val id: String)
+
+@Serializable
+data class SubscriptionDeletePayload(val id: String)
+
+@Serializable
+data class PharmacyDoseMutationPayload(
+    val itemId: String,
+    val scheduledAt: String? = null,
+    val takenAt: String
+)
+
 /** Payload for opType "inventory_observation" — mirrors SupabaseRepo.recordInventoryObservation()'s
  * params so a failed rpc call can be replayed verbatim by SyncOutbox.flush(). */
 @Serializable

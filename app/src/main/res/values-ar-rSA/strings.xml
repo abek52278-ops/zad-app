@@ -1807,4 +1807,17 @@
     <string name="sub_type_installment_clean">قسط</string>
     <string name="sub_type_bill_clean">فاتورة</string>
     <string name="sub_type_obligation_clean">التزام</string>
+    <string name="shortcut_inventory_shortages_fmt">%d نواقص</string>
+    <string name="shortcut_shopping_items_fmt">%d عناصر</string>
+    <string name="shortcut_family_members_fmt">%d أفراد</string>
+    <string name="shortcut_subscriptions_due_fmt">%d مستحقة</string>
+    <string name="sub_mark_as_paid">تم الدفع ✓</string>
+    <string name="sub_paid_success">تم تسجيل سداد %s وترحيل الموعد للشهر القادم بنجاح</string>
+    <string name="dose_adherence_waiting">في انتظار أول جرعة</string>
+    <string name="scan_medicine_box_action">مسح العبوة بالكاميرا</string>
+    <string name="estimated_price_hint">السعر التقديري: %1$s</string>
+    <string name="companion_bubble_idle">جاهز لمساعدتك في أي وقت 👋</string>
+    <string name="companion_bubble_happy">يومك سعيد وكل أمورك مرتبة 🌿</string>
+    <string name="companion_bubble_alert">انتبه لميزانيتك ومواعيدك 👀</string>
+    <string name="companion_bubble_celebrating">إنجاز رائع! استمر كذا 🎉</string>
 </resources>

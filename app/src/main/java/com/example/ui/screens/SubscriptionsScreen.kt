@@ -84,12 +84,22 @@ fun SubscriptionsScreen(
     val activeSubs = subscriptions.filter { it.isActive }
     val totalMonthly = activeSubs.sumOf { it.amount }
 
-    val filtered: List<ZadSubscription> = when (selectedTab) {
+    val today = LocalDate.now()
+    val rawFiltered: List<ZadSubscription> = when (selectedTab) {
         0 -> if (showInactive) subscriptions else activeSubs
         1 -> (if (showInactive) subscriptions else activeSubs).filter { it.type == "subscription" || it.category == "اشتراك" }
         2 -> (if (showInactive) subscriptions else activeSubs).filter { it.category == "فواتير" || it.type == "bill" || it.type == "utility" }
         3 -> (if (showInactive) subscriptions else activeSubs).filter { it.category == "الأقساط" || it.category == "أقساط" || it.category == "التزامات" || it.type == "installment" || it.type == "rent" }
         else -> activeSubs
+    }
+    val filtered = remember(rawFiltered, today) {
+        rawFiltered.sortedWith(
+            compareBy<ZadSubscription> { if (!it.isActive) 1 else 0 }
+                .thenBy { sub ->
+                    val next = com.example.data.BudgetMath.nextRenewalDate(sub, today)
+                    next?.let { ChronoUnit.DAYS.between(today, it).toInt() } ?: 999
+                }
+        )
     }
 
     // Auto-detect subscriptions on load
@@ -260,7 +270,15 @@ fun SubscriptionsScreen(
                                 onToggleActive = { viewModel.updateSubscriptionActive(sub.id, !sub.isActive) },
                                 onToggleAutoDeduct = { viewModel.updateSubscriptionAutoDeduct(sub.id, !sub.autoDeduct) },
                                 onEdit = { editingSubscription = sub },
-                                onDelete = { viewModel.deleteSubscription(sub.id) }
+                                onDelete = { viewModel.deleteSubscription(sub.id) },
+                                onMarkAsPaid = {
+                                    viewModel.markSubscriptionAsPaid(sub)
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        context.getString(R.string.sub_paid_success, sub.title),
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                }
                             )
                         }
                     }
@@ -283,11 +301,13 @@ fun SubscriptionsScreen(
                 subscription = null,
                 onDismiss = { showAddDialog = false },
                 onSave = { title, amount, renewalDate, provider, category, billingCycle, type ->
+                    val calculatedDueDay = try { LocalDate.parse(renewalDate).dayOfMonth } catch (e: Exception) { null }
                     viewModel.addSubscription(
                         ZadSubscription(
                             title = title,
                             amount = amount,
                             renewalDate = renewalDate,
+                            dueDay = calculatedDueDay,
                             provider = provider,
                             category = category,
                             isActive = true,
@@ -305,11 +325,13 @@ fun SubscriptionsScreen(
                 subscription = existing,
                 onDismiss = { editingSubscription = null },
                 onSave = { title, amount, renewalDate, provider, category, billingCycle, type ->
+                    val calculatedDueDay = try { LocalDate.parse(renewalDate).dayOfMonth } catch (e: Exception) { null }
                     viewModel.updateSubscription(
                         existing.copy(
                             title = title,
                             amount = amount,
                             renewalDate = renewalDate,
+                            dueDay = calculatedDueDay,
                             provider = provider,
                             category = category,
                             billingCycle = billingCycle,
@@ -331,7 +353,8 @@ internal fun SubScreenSubscriptionCardFull(
     onToggleActive: () -> Unit,
     onToggleAutoDeduct: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onMarkAsPaid: () -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val today = LocalDate.now()
@@ -339,7 +362,8 @@ internal fun SubScreenSubscriptionCardFull(
         if (!sub.renewalDate.isNullOrBlank()) LocalDate.parse(sub.renewalDate.take(10)) else null
     } catch (e: Exception) { null }
 
-    val daysLeft = renewal?.let { ChronoUnit.DAYS.between(today, it).toInt() }
+    val nextRenewal = com.example.data.BudgetMath.nextRenewalDate(sub, today) ?: renewal
+    val daysLeft = nextRenewal?.let { ChronoUnit.DAYS.between(today, it).toInt() }
     val daysColor = when {
         daysLeft == null -> onSurfaceVariant
         daysLeft <= 3 -> dangerColor
@@ -444,6 +468,34 @@ internal fun SubScreenSubscriptionCardFull(
                             fontSize = 10.sp,
                             color = Color(0xFF94A3B8)
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = primary.copy(alpha = 0.12f),
+                            modifier = Modifier
+                                .border(0.8.dp, primary.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onMarkAsPaid() }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = primary,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text = stringResource(R.string.sub_mark_as_paid),
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = primary
+                                )
+                            }
+                        }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         Icon(

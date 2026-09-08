@@ -42,10 +42,6 @@ object PharmacyReminderScheduler {
      */
     fun rescheduleAll(context: Context, items: List<ZadPharmacyItem>): List<String> {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        if (!canScheduleExact(context)) {
-            Log.w(TAG, "rescheduleAll() → SCHEDULE_EXACT_ALARM not granted, skipping")
-            return emptyList()
-        }
 
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val previousKeys = prefs.getStringSet(KEY_SCHEDULED, emptySet()) ?: emptySet()
@@ -73,19 +69,25 @@ object PharmacyReminderScheduler {
     /** بيعيد جدولة جرعة واحدة لبكرة نفس الميعاد — بيتنادى من الـ receiver بعد كل تنبيه يطلق */
     fun rescheduleForTomorrow(context: Context, itemId: String, itemName: String, timeStr: String) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        if (!canScheduleExact(context)) return
         scheduleOne(context, alarmManager, itemId, itemName, timeStr, forceNextDay = true)
     }
 
     fun scheduleSnooze(context: Context, itemId: String, itemName: String, timeStr: String, minutesFromNow: Int) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        if (!canScheduleExact(context)) return
         val triggerAt = System.currentTimeMillis() + minutesFromNow * 60_000L
         val pendingIntent = buildPendingIntent(context, itemId, itemName, timeStr)
         try {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
+            if (canScheduleExact(context)) {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
+            } else {
+                alarmManager.setWindow(AlarmManager.RTC_WAKEUP, triggerAt, 5 * 60 * 1000L, pendingIntent)
+            }
         } catch (e: SecurityException) {
-            Log.e(TAG, "scheduleSnooze() FAILED: ${e.message}")
+            try {
+                alarmManager.setWindow(AlarmManager.RTC_WAKEUP, triggerAt, 5 * 60 * 1000L, pendingIntent)
+            } catch (e2: Exception) {
+                Log.e(TAG, "scheduleSnooze() FAILED: ${e2.message}")
+            }
         }
     }
 
@@ -121,11 +123,22 @@ object PharmacyReminderScheduler {
 
         val pendingIntent = buildPendingIntent(context, itemId, itemName, timeStr)
         return try {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+            if (canScheduleExact(context)) {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+            } else {
+                // بديل آمن متوافق مع سياسات Google Play لأندرويد 14+ عند غياب إذن المنبه الدقيق
+                alarmManager.setWindow(AlarmManager.RTC_WAKEUP, triggerAtMillis, 10 * 60 * 1000L, pendingIntent)
+            }
             true
         } catch (e: SecurityException) {
-            Log.e(TAG, "scheduleOne() FAILED (permission revoked mid-flight?): ${e.message}")
-            true // parsed fine, just couldn't schedule — not a "malformed dose_time" case
+            Log.e(TAG, "scheduleOne() exact alarm denied, attempting setWindow fallback: ${e.message}")
+            try {
+                alarmManager.setWindow(AlarmManager.RTC_WAKEUP, triggerAtMillis, 10 * 60 * 1000L, pendingIntent)
+                true
+            } catch (e2: Exception) {
+                Log.e(TAG, "scheduleOne() fallback also failed: ${e2.message}")
+                true // parsed fine, just couldn't schedule
+            }
         }
     }
 

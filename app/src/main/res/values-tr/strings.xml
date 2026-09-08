@@ -1815,4 +1815,17 @@
     <string name="sub_type_installment_clean">Taksit</string>
     <string name="sub_type_bill_clean">Fatura</string>
     <string name="sub_type_obligation_clean">Yükümlülük</string>
+    <string name="shortcut_inventory_shortages_fmt">%d eksik</string>
+    <string name="shortcut_shopping_items_fmt">%d ürün</string>
+    <string name="shortcut_family_members_fmt">%d üye</string>
+    <string name="shortcut_subscriptions_due_fmt">%d vadesi gelen</string>
+    <string name="sub_mark_as_paid">Ödendi ✓</string>
+    <string name="sub_paid_success">%s için ödeme kaydedildi ve bir sonraki döneme yenilendi</string>
+    <string name="dose_adherence_waiting">İlk doz bekleniyor</string>
+    <string name="scan_medicine_box_action">Kutuyu kamerayla tara</string>
+    <string name="estimated_price_hint">Tahmini fiyat: %1$s</string>
+    <string name="companion_bubble_idle">Her an yardıma hazırım 👋</string>
+    <string name="companion_bubble_happy">Harika bir gün, her şey yolunda 🌿</string>
+    <string name="companion_bubble_alert">Bütçene ve planına dikkat et 👀</string>
+    <string name="companion_bubble_celebrating">Harika iş! Aynen devam 🎉</string>
 </resources>

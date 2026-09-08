@@ -3109,7 +3109,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             try { Instant.parse(it.scheduledAt).isAfter(weekAgo) } catch (e: Exception) { false }
         }
         if (recentLogs.isEmpty()) {
-            return if (_pharmacyItems.value.isNotEmpty()) 100 else null
+            return null
         }
         val takenCount = recentLogs.count { it.takenAt != null }
         return ((takenCount.toDouble() / recentLogs.size) * 100).toInt().coerceIn(0, 100)
@@ -3493,7 +3493,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.d(TAG, "addSubscription() → synced to Supabase table=zad_subscriptions")
             } catch (e: Exception) {
                 Log.e(TAG, "addSubscription() Supabase sync FAILED: ${e.message}")
-                e.printStackTrace()
+                com.example.data.SyncOutbox.enqueueSubscriptionUpsert(getApplication(), sub)
             }
         }
     }
@@ -3514,7 +3514,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.d(TAG, "updateSubscription() → synced to Supabase table=zad_subscriptions")
             } catch (e: Exception) {
                 Log.e(TAG, "updateSubscription() Supabase sync FAILED: ${e.message}")
-                e.printStackTrace()
+                com.example.data.SyncOutbox.enqueueSubscriptionUpsert(getApplication(), sub)
             }
         }
     }
@@ -3529,7 +3529,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.d(TAG, "deleteSubscription() → synced to Supabase table=zad_subscriptions")
             } catch (e: Exception) {
                 Log.e(TAG, "deleteSubscription() Supabase sync FAILED: ${e.message}")
-                e.printStackTrace()
+                com.example.data.SyncOutbox.enqueueSubscriptionDelete(getApplication(), id)
             }
         }
     }
@@ -3563,6 +3563,51 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 com.example.ui.components.ZadChime.play(com.example.ui.components.ZadChime.Tone.Success)
                 Log.i(TAG, "deleteAllDetectedSubscriptions: removed $deleted subscriptions")
             }
+        }
+    }
+
+    fun markSubscriptionAsPaid(sub: ZadSubscription) {
+        viewModelScope.launch {
+            Log.d(TAG, "markSubscriptionAsPaid() → title=${sub.title}, amount=${sub.amount}")
+            val currentRenewal = try {
+                if (!sub.renewalDate.isNullOrBlank()) java.time.LocalDate.parse(sub.renewalDate.take(10)) else java.time.LocalDate.now()
+            } catch (_: Exception) {
+                java.time.LocalDate.now()
+            }
+            val nextRenewal = com.example.workers.nextRenewalDate(currentRenewal, sub.billingCycle)
+
+            var newTitle = sub.title
+            var newIsActive = sub.isActive
+            val installmentMatch = Regex("""\((\d+)\s*(?:أقساط|قسط|installments?)\)""", RegexOption.IGNORE_CASE).find(sub.title)
+            if (installmentMatch != null) {
+                val remaining = installmentMatch.groupValues[1].toIntOrNull() ?: 1
+                if (remaining > 1) {
+                    newTitle = sub.title.replace(installmentMatch.value, "(${remaining - 1} أقساط)")
+                } else {
+                    newTitle = sub.title.replace(installmentMatch.value, "").trim()
+                    newIsActive = false
+                }
+            }
+
+            val updatedSub = sub.copy(
+                title = newTitle,
+                renewalDate = nextRenewal.toString(),
+                isActive = newIsActive
+            )
+            updateSubscription(updatedSub)
+
+            val txn = com.example.data.ZadTransaction(
+                title = sub.title,
+                amount = sub.amount,
+                isExpense = true,
+                category = if (sub.category.isNullOrBlank()) "اشتراكات" else sub.category,
+                sourceType = "subscription",
+                createdAt = java.time.Instant.now().toString()
+            )
+            addTransaction(txn)
+            try {
+                com.example.ui.components.ZadChime.play(com.example.ui.components.ZadChime.Tone.Success)
+            } catch (_: Exception) {}
         }
     }
 
@@ -3613,7 +3658,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.d(TAG, "addPharmacyItem() → synced to Supabase table=zad_pharmacy_items")
             } catch (e: Exception) {
                 Log.e(TAG, "addPharmacyItem() Supabase sync FAILED: ${e.message}")
-                e.printStackTrace()
+                com.example.data.SyncOutbox.enqueuePharmacyUpsert(getApplication(), item)
             }
             // شراء دواء = مصروف حقيقي — لازم يدخل في نفس مسار المعاملات عشان الميزانية
             // والرصيد المتبقي يتأثروا فعلياً، مش بس رقم منفصل معروض في شاشة الصيدلية
@@ -3646,6 +3691,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 SupabaseRepo.updatePharmacyRefill(id, updated.remainingQuantity, updated.price, newExpiryDate?.ifBlank { null })
             } catch (e: Exception) {
                 Log.e(TAG, "refillPharmacyItem() Supabase sync FAILED: ${e.message}")
+                com.example.data.SyncOutbox.enqueuePharmacyUpsert(getApplication(), updated)
             }
             if (newPrice != null && newPrice > 0) {
                 addTransaction(ZadTransaction(
@@ -3672,7 +3718,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
                 Log.d(TAG, "deletePharmacyItem() → synced to Supabase table=zad_pharmacy_items")
             } catch (e: Exception) {
                 Log.e(TAG, "deletePharmacyItem() Supabase sync FAILED: ${e.message}")
-                e.printStackTrace()
+                com.example.data.SyncOutbox.enqueuePharmacyDelete(getApplication(), id)
             }
         }
     }

@@ -48,8 +48,13 @@ fun AgentActionLogScreen(onBack: () -> Unit) {
 
     suspend fun refresh() {
         loading = true
-        actions = SupabaseRepo.getAgentActions()
-        loading = false
+        try {
+            actions = SupabaseRepo.getAgentActions()
+        } catch (e: Exception) {
+            android.util.Log.e("AgentActionLogScreen", "Failed to get agent actions: ${e.message}")
+        } finally {
+            loading = false
+        }
     }
 
     LaunchedEffect(Unit) { refresh() }

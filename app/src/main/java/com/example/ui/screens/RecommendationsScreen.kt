@@ -79,9 +79,15 @@ fun RecommendationsRoute(viewModel: ZadViewModel) {
 
     LaunchedEffect(Unit) {
         loading = true
-        recommendations = SupabaseRepo.getShoppingRecommendations()
-        actionedCount = SupabaseRepo.getActedOnRecommendationsCount()
-        loading = false
+        try {
+            recommendations = SupabaseRepo.getShoppingRecommendations()
+            actionedCount = SupabaseRepo.getActedOnRecommendationsCount()
+        } catch (e: Exception) {
+            android.util.Log.e("RecommendationsScreen", "Failed to load shopping recommendations: ${e.message}")
+            recommendations = emptyList()
+        } finally {
+            loading = false
+        }
     }
 
     if (loading) {

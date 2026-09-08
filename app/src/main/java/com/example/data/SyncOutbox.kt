@@ -258,6 +258,102 @@ object SyncOutbox {
         }
     }
 
+    suspend fun enqueuePharmacyUpsert(context: Context, item: ZadPharmacyItem) {
+        try {
+            val dao = ZadDatabase.getDatabase(context).zadDao()
+            dao.insertPendingSyncOp(
+                PendingSyncOp(
+                    opType = "pharmacy_upsert",
+                    payloadJson = json.encodeToString(item),
+                    createdAt = java.time.Instant.now().toString()
+                )
+            )
+            Log.d(TAG, "enqueuePharmacyUpsert: queued '${item.name}' for retry")
+        } catch (e: Exception) {
+            Log.e(TAG, "enqueuePharmacyUpsert failed: ${e.message}")
+        }
+    }
+
+    suspend fun enqueuePharmacyDelete(context: Context, id: String) {
+        try {
+            val dao = ZadDatabase.getDatabase(context).zadDao()
+            dao.insertPendingSyncOp(
+                PendingSyncOp(
+                    opType = "pharmacy_delete",
+                    payloadJson = json.encodeToString(PharmacyDeletePayload(id)),
+                    createdAt = java.time.Instant.now().toString()
+                )
+            )
+            Log.d(TAG, "enqueuePharmacyDelete: queued '$id' for retry")
+        } catch (e: Exception) {
+            Log.e(TAG, "enqueuePharmacyDelete failed: ${e.message}")
+        }
+    }
+
+    suspend fun enqueuePharmacyDose(context: Context, itemId: String, scheduledAt: String?, takenAt: String) {
+        try {
+            val dao = ZadDatabase.getDatabase(context).zadDao()
+            dao.insertPendingSyncOp(
+                PendingSyncOp(
+                    opType = "pharmacy_dose",
+                    payloadJson = json.encodeToString(PharmacyDoseMutationPayload(itemId, scheduledAt, takenAt)),
+                    createdAt = java.time.Instant.now().toString()
+                )
+            )
+            Log.d(TAG, "enqueuePharmacyDose: queued dose for item '$itemId' for retry")
+        } catch (e: Exception) {
+            Log.e(TAG, "enqueuePharmacyDose failed: ${e.message}")
+        }
+    }
+
+    suspend fun enqueueDoseLog(context: Context, log: ZadDoseLog) {
+        try {
+            val dao = ZadDatabase.getDatabase(context).zadDao()
+            dao.insertPendingSyncOp(
+                PendingSyncOp(
+                    opType = "dose_log",
+                    payloadJson = json.encodeToString(log),
+                    createdAt = java.time.Instant.now().toString()
+                )
+            )
+            Log.d(TAG, "enqueueDoseLog: queued dose log for '${log.itemName}' for retry")
+        } catch (e: Exception) {
+            Log.e(TAG, "enqueueDoseLog failed: ${e.message}")
+        }
+    }
+
+    suspend fun enqueueSubscriptionUpsert(context: Context, sub: ZadSubscription) {
+        try {
+            val dao = ZadDatabase.getDatabase(context).zadDao()
+            dao.insertPendingSyncOp(
+                PendingSyncOp(
+                    opType = "subscription_upsert",
+                    payloadJson = json.encodeToString(sub),
+                    createdAt = java.time.Instant.now().toString()
+                )
+            )
+            Log.d(TAG, "enqueueSubscriptionUpsert: queued '${sub.title}' for retry")
+        } catch (e: Exception) {
+            Log.e(TAG, "enqueueSubscriptionUpsert failed: ${e.message}")
+        }
+    }
+
+    suspend fun enqueueSubscriptionDelete(context: Context, id: String) {
+        try {
+            val dao = ZadDatabase.getDatabase(context).zadDao()
+            dao.insertPendingSyncOp(
+                PendingSyncOp(
+                    opType = "subscription_delete",
+                    payloadJson = json.encodeToString(SubscriptionDeletePayload(id)),
+                    createdAt = java.time.Instant.now().toString()
+                )
+            )
+            Log.d(TAG, "enqueueSubscriptionDelete: queued '$id' for retry")
+        } catch (e: Exception) {
+            Log.e(TAG, "enqueueSubscriptionDelete failed: ${e.message}")
+        }
+    }
+
     /** يقيّد نص/عنوان بنكي فشل تحليله الفوري (SaBankParser + AI) — retry في [flush] القادم */
     suspend fun enqueueUnparsedNotification(context: Context, source: String, title: String, text: String) {
         try {
@@ -389,6 +485,70 @@ object SyncOutbox {
                             Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
                         } else {
                             Log.w(TAG, "flush: op ${op.id} (${op.opType}) still failing — left queued for next run")
+                        }
+                    }
+                    "pharmacy_upsert" -> {
+                        val payload = json.decodeFromString<ZadPharmacyItem>(op.payloadJson)
+                        try {
+                            SupabaseRepo.addPharmacyItem(payload)
+                            dao.deletePendingSyncOp(op.id)
+                            Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
+                        } catch (e: Exception) {
+                            Log.w(TAG, "flush: op ${op.id} (${op.opType}) still failing: ${e.message}")
+                        }
+                    }
+                    "pharmacy_delete" -> {
+                        val payload = json.decodeFromString<PharmacyDeletePayload>(op.payloadJson)
+                        try {
+                            SupabaseRepo.deletePharmacyItem(payload.id)
+                            dao.deletePendingSyncOp(op.id)
+                            Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
+                        } catch (e: Exception) {
+                            Log.w(TAG, "flush: op ${op.id} (${op.opType}) still failing: ${e.message}")
+                        }
+                    }
+                    "pharmacy_dose" -> {
+                        val payload = json.decodeFromString<PharmacyDoseMutationPayload>(op.payloadJson)
+                        try {
+                            val res = SupabaseRepo.logPharmacyDoseAtomic(payload.itemId, payload.scheduledAt, payload.takenAt)
+                            if (res != null) {
+                                dao.deletePendingSyncOp(op.id)
+                                Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
+                            } else {
+                                Log.w(TAG, "flush: op ${op.id} (${op.opType}) atomic mutation null — left queued")
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "flush: op ${op.id} (${op.opType}) threw: ${e.message}")
+                        }
+                    }
+                    "dose_log" -> {
+                        val payload = json.decodeFromString<ZadDoseLog>(op.payloadJson)
+                        try {
+                            SupabaseRepo.addDoseLog(payload)
+                            dao.deletePendingSyncOp(op.id)
+                            Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
+                        } catch (e: Exception) {
+                            Log.w(TAG, "flush: op ${op.id} (${op.opType}) still failing: ${e.message}")
+                        }
+                    }
+                    "subscription_upsert" -> {
+                        val payload = json.decodeFromString<ZadSubscription>(op.payloadJson)
+                        try {
+                            SupabaseRepo.addSubscription(payload)
+                            dao.deletePendingSyncOp(op.id)
+                            Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
+                        } catch (e: Exception) {
+                            Log.w(TAG, "flush: op ${op.id} (${op.opType}) still failing: ${e.message}")
+                        }
+                    }
+                    "subscription_delete" -> {
+                        val payload = json.decodeFromString<SubscriptionDeletePayload>(op.payloadJson)
+                        try {
+                            SupabaseRepo.deleteSubscription(payload.id)
+                            dao.deletePendingSyncOp(op.id)
+                            Log.d(TAG, "flush: synced+cleared op ${op.id} (${op.opType})")
+                        } catch (e: Exception) {
+                            Log.w(TAG, "flush: op ${op.id} (${op.opType}) still failing: ${e.message}")
                         }
                     }
                     "analyze_unparsed_notification" -> {

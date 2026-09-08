@@ -378,7 +378,7 @@ fun InventoryScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(horizontal = ZadHubListHorizontalPadding)
                 ) {
-                    items(categoryDefs) { cat ->
+                    items(categoryDefs, key = { it.key }) { cat ->
                         val isSel = selectedCategory == cat.key
                         FilterChip(
                             selected = isSel,
@@ -708,7 +708,7 @@ private fun ExpiringSoonSection(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             contentPadding = PaddingValues(vertical = 2.dp)
         ) {
-            items(items) { item ->
+            items(items, key = { it.id }) { item ->
                 val days = daysUntilExpiry(item.expiryDate)
                 com.example.ui.components.ZadListCard(
                     modifier = Modifier.padding(vertical = 1.dp),

@@ -50,8 +50,13 @@ fun ZadMemoryScreen(onBack: () -> Unit) {
 
     suspend fun refresh() {
         loading = true
-        notes = SupabaseRepo.getMemoryNotes(limit = 200)
-        loading = false
+        try {
+            notes = SupabaseRepo.getMemoryNotes(limit = 200)
+        } catch (e: Exception) {
+            android.util.Log.e("ZadMemoryScreen", "Failed to get memory notes: ${e.message}")
+        } finally {
+            loading = false
+        }
     }
 
     LaunchedEffect(Unit) { refresh() }

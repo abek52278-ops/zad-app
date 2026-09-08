@@ -37,8 +37,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -114,7 +117,8 @@ fun ZadCategoryChip(
 
 /**
  * شريط مربعات الاختصارات الأربعة (المخزون، التسوق، العائلة، الاشتراكات)
- * بتصميم ثلاثي الأبعاد فاخر ولمعة زجاجية وحركة تعويم وانضغاط تفاعلية.
+ * بتصميم ثلاثي الأبعاد فاخر ولمعة زجاجية وحركة تعويم وانضغاط تفاعلية
+ * مع عزل الحركة في مرحلة الرسم (graphicsLayer) وربط الشارات ببيانات حية.
  */
 @Composable
 fun ZadQuickCategoryGrid(
@@ -122,7 +126,11 @@ fun ZadQuickCategoryGrid(
     onNavigateToShopping: () -> Unit,
     onNavigateToFamily: () -> Unit,
     onNavigateToSubscriptions: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    inventoryShortageCount: Int = 0,
+    shoppingCartCount: Int = 0,
+    familyMembersCount: Int = 0,
+    subscriptionsDueCount: Int = 0
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "quickShortcutsFloat")
     val floatOffset by infiniteTransition.animateFloat(
@@ -135,6 +143,30 @@ fun ZadQuickCategoryGrid(
         label = "quickShortcutsBobbing"
     )
 
+    val inventorySubtitle = if (inventoryShortageCount > 0) {
+        stringResource(R.string.shortcut_inventory_shortages_fmt, inventoryShortageCount)
+    } else {
+        stringResource(R.string.shortcut_inventory_sub)
+    }
+
+    val shoppingSubtitle = if (shoppingCartCount > 0) {
+        stringResource(R.string.shortcut_shopping_items_fmt, shoppingCartCount)
+    } else {
+        stringResource(R.string.shortcut_shopping_sub)
+    }
+
+    val familySubtitle = if (familyMembersCount > 0) {
+        stringResource(R.string.shortcut_family_members_fmt, familyMembersCount)
+    } else {
+        stringResource(R.string.shortcut_family_sub)
+    }
+
+    val subscriptionsSubtitle = if (subscriptionsDueCount > 0) {
+        stringResource(R.string.shortcut_subscriptions_due_fmt, subscriptionsDueCount)
+    } else {
+        stringResource(R.string.shortcut_subscriptions_sub)
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -144,41 +176,49 @@ fun ZadQuickCategoryGrid(
     ) {
         QuickShortcutItem(
             title = stringResource(R.string.shortcut_inventory),
-            subtitle = stringResource(R.string.shortcut_inventory_sub),
+            subtitle = inventorySubtitle,
             icon = Icons.Default.Inventory2,
             gradientColors = ZadShortcutInventoryGradient,
             glowColor = ZadShortcutInventoryGlow,
             floatOffset = floatOffset,
+            badgeCount = inventoryShortageCount,
+            badgeColor = dangerColor,
             modifier = Modifier.weight(1f),
             onClick = onNavigateToInventory
         )
         QuickShortcutItem(
             title = stringResource(R.string.shortcut_shopping),
-            subtitle = stringResource(R.string.shortcut_shopping_sub),
+            subtitle = shoppingSubtitle,
             icon = Icons.Default.ShoppingCart,
             gradientColors = ZadShortcutShoppingGradient,
             glowColor = ZadShortcutShoppingGlow,
             floatOffset = -floatOffset,
+            badgeCount = shoppingCartCount,
+            badgeColor = warningColor,
             modifier = Modifier.weight(1f),
             onClick = onNavigateToShopping
         )
         QuickShortcutItem(
             title = stringResource(R.string.shortcut_family),
-            subtitle = stringResource(R.string.shortcut_family_sub),
+            subtitle = familySubtitle,
             icon = Icons.Default.FamilyRestroom,
             gradientColors = ZadShortcutFamilyGradient,
             glowColor = ZadShortcutFamilyGlow,
             floatOffset = floatOffset,
+            badgeCount = 0,
+            badgeColor = primary,
             modifier = Modifier.weight(1f),
             onClick = onNavigateToFamily
         )
         QuickShortcutItem(
             title = stringResource(R.string.shortcut_subscriptions),
-            subtitle = stringResource(R.string.shortcut_subscriptions_sub),
+            subtitle = subscriptionsSubtitle,
             icon = Icons.Default.CreditCard,
             gradientColors = ZadShortcutSubscriptionsGradient,
             glowColor = ZadShortcutSubscriptionsGlow,
             floatOffset = -floatOffset,
+            badgeCount = subscriptionsDueCount,
+            badgeColor = dangerColor,
             modifier = Modifier.weight(1f),
             onClick = onNavigateToSubscriptions
         )
@@ -211,14 +251,19 @@ private fun QuickShortcutItem(
     glowColor: Color,
     floatOffset: Float,
     modifier: Modifier = Modifier,
+    badgeCount: Int = 0,
+    badgeColor: Color = dangerColor,
     onClick: () -> Unit
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
         modifier = modifier
             .pressableScale()
             .clip(RoundedCornerShape(16.dp))
+            .semantics {
+                contentDescription = if (badgeCount > 0) "$title, $subtitle, $badgeCount" else "$title, $subtitle"
+            }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -227,9 +272,12 @@ private fun QuickShortcutItem(
             .padding(vertical = 4.dp)
     ) {
         // 3D Metallic Glass Capsule with ambient lighting & specular sheen
+        // عزل حركة التعويم داخل graphicsLayer يمنع إعادة رسم وتكوين الودجت في مرحلة التكوين
         Box(
             modifier = Modifier
-                .offset(y = (floatOffset * 0.7f).dp)
+                .graphicsLayer {
+                    translationY = floatOffset * 0.7f * density
+                }
                 .size(58.dp)
                 .shadow(
                     elevation = 10.dp,
@@ -271,18 +319,42 @@ private fun QuickShortcutItem(
             // 3D Vector Icon with drop shadow
             Icon(
                 imageVector = icon,
-                contentDescription = title,
+                contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier
                     .size(26.dp)
                     .shadow(elevation = 3.dp, shape = CircleShape, spotColor = Color.Black.copy(alpha = 0.4f))
             )
+
+            // Live Notification Badge Pill
+            if (badgeCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 3.dp, y = (-3).dp)
+                        .shadow(elevation = 4.dp, shape = RoundedCornerShape(10.dp), spotColor = badgeColor.copy(alpha = 0.5f))
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(badgeColor)
+                        .border(1.dp, Color.White, RoundedCornerShape(10.dp))
+                        .padding(horizontal = 4.dp, vertical = 1.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (badgeCount > 99) "+99" else badgeCount.toString(),
+                        fontSize = 9.sp,
+                        lineHeight = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White
+                    )
+                }
+            }
         }
 
-        // Title Label
+        // Title Label with accessibility font-scaling protection
         Text(
             text = title,
-            fontSize = 12.sp,
+            fontSize = 11.sp,
+            lineHeight = 13.sp,
             fontWeight = FontWeight.ExtraBold,
             color = textPrimary,
             maxLines = 1,
@@ -293,8 +365,9 @@ private fun QuickShortcutItem(
         Text(
             text = subtitle,
             fontSize = 9.5.sp,
+            lineHeight = 12.sp,
             fontWeight = FontWeight.Bold,
-            color = textSecondary,
+            color = if (badgeCount > 0) badgeColor else textSecondary,
             maxLines = 1,
             textAlign = TextAlign.Center,
             overflow = TextOverflow.Ellipsis
