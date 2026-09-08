@@ -3485,15 +3485,17 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
 
     fun addSubscription(sub: ZadSubscription) {
         viewModelScope.launch {
-            Log.d(TAG, "addSubscription() → title=${sub.title}, amount=${sub.amount}")
-            dao.insertSubscription(sub)
-            Log.d(TAG, "addSubscription() → saved to Room DB, id=${sub.id}")
+            val resolvedDueDay = sub.dueDay ?: try { java.time.LocalDate.parse(sub.renewalDate?.take(10)).dayOfMonth } catch (_: Exception) { null }
+            val normalizedSub = if (resolvedDueDay != sub.dueDay) sub.copy(dueDay = resolvedDueDay) else sub
+            Log.d(TAG, "addSubscription() → title=${normalizedSub.title}, amount=${normalizedSub.amount}, dueDay=${normalizedSub.dueDay}")
+            dao.insertSubscription(normalizedSub)
+            Log.d(TAG, "addSubscription() → saved to Room DB, id=${normalizedSub.id}")
             try {
-                SupabaseRepo.addSubscription(sub)
+                SupabaseRepo.addSubscription(normalizedSub)
                 Log.d(TAG, "addSubscription() → synced to Supabase table=zad_subscriptions")
             } catch (e: Exception) {
                 Log.e(TAG, "addSubscription() Supabase sync FAILED: ${e.message}")
-                com.example.data.SyncOutbox.enqueueSubscriptionUpsert(getApplication(), sub)
+                com.example.data.SyncOutbox.enqueueSubscriptionUpsert(getApplication(), normalizedSub)
             }
         }
     }
@@ -3506,15 +3508,17 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun updateSubscription(sub: ZadSubscription) {
         viewModelScope.launch {
-            Log.d(TAG, "updateSubscription() → id=${sub.id}, title=${sub.title}, billingCycle=${sub.billingCycle}")
-            dao.insertSubscription(sub)
-            _subscriptions.value = _subscriptions.value.map { if (it.id == sub.id) sub else it }
+            val resolvedDueDay = sub.dueDay ?: try { java.time.LocalDate.parse(sub.renewalDate?.take(10)).dayOfMonth } catch (_: Exception) { null }
+            val normalizedSub = if (resolvedDueDay != sub.dueDay) sub.copy(dueDay = resolvedDueDay) else sub
+            Log.d(TAG, "updateSubscription() → id=${normalizedSub.id}, title=${normalizedSub.title}, billingCycle=${normalizedSub.billingCycle}")
+            dao.insertSubscription(normalizedSub)
+            _subscriptions.value = _subscriptions.value.map { if (it.id == normalizedSub.id) normalizedSub else it }
             try {
-                SupabaseRepo.updateSubscription(sub)
+                SupabaseRepo.updateSubscription(normalizedSub)
                 Log.d(TAG, "updateSubscription() → synced to Supabase table=zad_subscriptions")
             } catch (e: Exception) {
                 Log.e(TAG, "updateSubscription() Supabase sync FAILED: ${e.message}")
-                com.example.data.SyncOutbox.enqueueSubscriptionUpsert(getApplication(), sub)
+                com.example.data.SyncOutbox.enqueueSubscriptionUpsert(getApplication(), normalizedSub)
             }
         }
     }
@@ -3592,6 +3596,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             val updatedSub = sub.copy(
                 title = newTitle,
                 renewalDate = nextRenewal.toString(),
+                dueDay = nextRenewal.dayOfMonth,
                 isActive = newIsActive
             )
             updateSubscription(updatedSub)
