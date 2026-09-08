@@ -168,7 +168,7 @@ object ZadLiveVoiceSession {
             .trimEnd('/') + "/functions/v1/zad-voice-live"
         val request = Request.Builder()
             .url(wsUrl)
-            .addHeader("Authorization", "Bearer ${session.accessToken}")
+            .addHeader("Authorization", "Bearer ${session?.accessToken ?: ""}")
             .addHeader("apikey", BuildConfig.SUPABASE_ANON_KEY)
             .build()
 
