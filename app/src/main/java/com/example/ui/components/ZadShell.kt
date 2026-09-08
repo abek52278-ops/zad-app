@@ -401,8 +401,8 @@ fun ZadBottomNavBar(
                             onClick = { onNavigate(item.route) }
                         )
                     }
-                    // Central mic placeholder (actual button floats above)
-                    Spacer(Modifier.width(56.dp))
+                    // Central action placeholder (actual buttons float above)
+                    Spacer(Modifier.width(108.dp))
                     // Right 2 tabs
                     items.drop(2).forEach { item ->
                         val isSelected = if (item.route == "more") {
@@ -427,14 +427,60 @@ fun ZadBottomNavBar(
             }
         }
 
-        // ── Central raised Mic orb (adult only) ───────────────────────────────
+        // ── Central raised Action Cluster (Mic Orb + Camera FAB) ───────────────
         if (!kidsMode) {
-            ZadMicOrbButton(
-                onClick = onOpenVoice,
-                onLongClick = onOpenCamera,
-                modifier = Modifier.align(Alignment.TopCenter)
-            )
+            Row(
+                modifier = Modifier.align(Alignment.TopCenter),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ZadMicOrbButton(
+                    onClick = onOpenVoice,
+                    onLongClick = onOpenCamera
+                )
+                ZadCameraFabButton(
+                    onClick = onOpenCamera
+                )
+            }
         }
+    }
+}
+
+/** Circular camera FAB button positioned next to the mic orb. */
+@Composable
+private fun ZadCameraFabButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .size(46.dp)
+            .shadow(
+                elevation = 16.dp,
+                shape = CircleShape,
+                ambientColor = Color(0xFF0F172A).copy(alpha = 0.15f),
+                spotColor = primary.copy(alpha = 0.25f)
+            )
+            .clip(CircleShape)
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        surface,
+                        surfaceContainerLow
+                    )
+                )
+            )
+            .border(1.dp, primary.copy(alpha = 0.35f), CircleShape)
+            .pressableScale()
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            Icons.Default.CameraAlt,
+            contentDescription = "تصوير الفواتير والمنتجات",
+            tint = primary,
+            modifier = Modifier.size(22.dp)
+        )
     }
 }
 

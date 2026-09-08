@@ -47,7 +47,12 @@ import com.example.ui.viewmodels.FamilyViewModel
 import com.example.ui.viewmodels.ZadViewModel
 import com.example.workers.nextRenewalDate
 import java.time.LocalDate
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import kotlinx.coroutines.launch
 
 /**
@@ -277,7 +282,7 @@ fun SubscriptionsScreen(
             AddEditSubscriptionDialog(
                 subscription = null,
                 onDismiss = { showAddDialog = false },
-                onSave = { title, amount, renewalDate, provider, category, billingCycle ->
+                onSave = { title, amount, renewalDate, provider, category, billingCycle, type ->
                     viewModel.addSubscription(
                         ZadSubscription(
                             title = title,
@@ -286,7 +291,8 @@ fun SubscriptionsScreen(
                             provider = provider,
                             category = category,
                             isActive = true,
-                            billingCycle = billingCycle
+                            billingCycle = billingCycle,
+                            type = type
                         )
                     )
                     showAddDialog = false
@@ -298,7 +304,7 @@ fun SubscriptionsScreen(
             AddEditSubscriptionDialog(
                 subscription = existing,
                 onDismiss = { editingSubscription = null },
-                onSave = { title, amount, renewalDate, provider, category, billingCycle ->
+                onSave = { title, amount, renewalDate, provider, category, billingCycle, type ->
                     viewModel.updateSubscription(
                         existing.copy(
                             title = title,
@@ -306,7 +312,8 @@ fun SubscriptionsScreen(
                             renewalDate = renewalDate,
                             provider = provider,
                             category = category,
-                            billingCycle = billingCycle
+                            billingCycle = billingCycle,
+                            type = type
                         )
                     )
                     editingSubscription = null
@@ -515,14 +522,58 @@ private fun billingCycleLabel(cycle: String): String = when (cycle.uppercase()) 
  * الآلية كانت مبنية بالكامل — `nextRenewalDate` بيدعم YEARLY/ANNUAL/WEEKLY أصلاً —
  * والفورم بس هو اللي مكانش يقدر ينتج غير MONTHLY.
  */
-@OptIn(ExperimentalLayoutApi::class)
+private data class SubscriptionPresetItem(
+    val name: String,
+    val provider: String,
+    val category: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val color: Color,
+    val type: String = "subscription"
+)
+
+private val commonSubscriptionPresets = listOf(
+    SubscriptionPresetItem("Netflix", "Netflix", "ترفيه", Icons.Default.Movie, Color(0xFFE50914), "subscription"),
+    SubscriptionPresetItem("Shahid", "MBC Shahid", "ترفيه", Icons.Default.LiveTv, Color(0xFF00A651), "subscription"),
+    SubscriptionPresetItem("Spotify", "Spotify", "موسيقى", Icons.Default.MusicNote, Color(0xFF1DB954), "subscription"),
+    SubscriptionPresetItem("YouTube Premium", "Google", "ترفيه", Icons.Default.SmartDisplay, Color(0xFFFF0000), "subscription"),
+    SubscriptionPresetItem("TOD", "TOD TV", "رياضة وترفيه", Icons.Default.LiveTv, Color(0xFF10B981), "subscription"),
+    SubscriptionPresetItem("Watch IT", "Watch IT", "ترفيه", Icons.Default.Movie, Color(0xFFFF9900), "subscription"),
+    SubscriptionPresetItem("تابي Tabby", "Tabby", "أقساط", Icons.Default.ShoppingBag, Color(0xFF29E7CD), "installment"),
+    SubscriptionPresetItem("تمارا Tamara", "Tamara", "أقساط", Icons.Default.ShoppingBag, Color(0xFFFF7043), "installment"),
+    SubscriptionPresetItem("فاتورة كهرباء", "شركة الكهرباء", "فواتير", Icons.Default.Bolt, Color(0xFFF59E0B), "utility"),
+    SubscriptionPresetItem("فاتورة مياه", "شركة المياه", "فواتير", Icons.Default.WaterDrop, Color(0xFF0EA5E9), "utility"),
+    SubscriptionPresetItem("فاتورة إنترنت", "شركة الاتصالات", "اتصالات", Icons.Default.Wifi, Color(0xFF3B82F6), "utility"),
+    SubscriptionPresetItem("إيجار البيت", "إيجار المنزل", "سكن", Icons.Default.Home, Color(0xFF8B5CF6), "rent")
+)
+
+private fun parseFlexibleRenewalDate(input: String): LocalDate? {
+    val trimmed = input.trim()
+    if (trimmed.isBlank()) return null
+    val patterns = listOf(
+        "yyyy-MM-dd",
+        "dd-MM-yyyy",
+        "yyyy/MM/dd",
+        "dd/MM/yyyy",
+        "d-M-yyyy",
+        "d/M/yyyy"
+    )
+    for (pattern in patterns) {
+        try {
+            return LocalDate.parse(trimmed, DateTimeFormatter.ofPattern(pattern))
+        } catch (_: Exception) {}
+    }
+    return null
+}
+
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditSubscriptionDialog(
     subscription: ZadSubscription?,
     onDismiss: () -> Unit,
-    onSave: (title: String, amount: Double, renewalDate: String, provider: String, category: String, billingCycle: String) -> Unit
+    onSave: (title: String, amount: Double, renewalDate: String, provider: String, category: String, billingCycle: String, type: String) -> Unit
 ) {
     var title by remember { mutableStateOf(subscription?.title ?: "") }
+    var selectedType by remember { mutableStateOf(subscription?.type ?: "subscription") }
     var amountStr by remember {
         mutableStateOf(
             subscription?.amount?.let {
@@ -530,34 +581,64 @@ fun AddEditSubscriptionDialog(
             } ?: ""
         )
     }
+    var totalInstallmentStr by remember { mutableStateOf("") }
+    var remainingInstallmentsStr by remember { mutableStateOf("") }
     var provider by remember { mutableStateOf(subscription?.provider ?: "") }
     var category by remember { mutableStateOf(subscription?.category ?: "اشتراك") }
     var renewalDate by remember { mutableStateOf(subscription?.renewalDate?.take(10) ?: "") }
     var billingCycle by remember { mutableStateOf(subscription?.billingCycle?.uppercase() ?: "MONTHLY") }
+    var showDatePicker by remember { mutableStateOf(false) }
+
     val context = LocalContext.current
+    val haptics = LocalHapticFeedback.current
 
     val amount = amountStr.toDoubleOrNull()
-    // تاريخ فاضي مسموح (بياخد الافتراضي عند الحفظ)، لكن تاريخ مكتوب غلط لأ: الـworker
-    // بيعمل `LocalDate.parse` جوه try/catch وبيـ`return@forEach` — يعني اشتراك بتاريخ
-    // غير صالح بيتخطى في كل تشغيل للأبد، من غير خصم ولا ترحيل ولا أي إشارة للعميل.
-    val renewalDateValid = renewalDate.isBlank() ||
-        runCatching { LocalDate.parse(renewalDate.trim()) }.isSuccess
+    val parsedDate = remember(renewalDate) { parseFlexibleRenewalDate(renewalDate) }
+    val renewalDateValid = renewalDate.isBlank() || parsedDate != null
     val canSave = title.isNotBlank() && amount != null && amount > 0.0 && renewalDateValid
 
-    // بيصنّف الفاتورة تلقائياً (نوع/مزوّد/فئة) بعد ما المستخدم يكتب اسم ومبلغ حقيقيين —
-    // debounce بسيط عن طريق delay قبل النداء عشان ميبعتش طلب AI مع كل حرف يتكتب.
-    // بيشتغل في الإضافة بس — في التعديل الفئة والمزوّد اختيار المستخدم، مايتكتبش فوقهم.
+    // Auto-calculate monthly installment amount if total and count are entered
+    LaunchedEffect(totalInstallmentStr, remainingInstallmentsStr) {
+        val total = totalInstallmentStr.toDoubleOrNull()
+        val count = remainingInstallmentsStr.toIntOrNull()
+        if (total != null && total > 0 && count != null && count > 0 && amountStr.isBlank()) {
+            val calcMonthly = total / count
+            amountStr = if (calcMonthly == calcMonthly.toLong().toDouble()) calcMonthly.toLong().toString() else "%.2f".format(calcMonthly)
+        }
+    }
+
     LaunchedEffect(title, amount, subscription) {
         if (subscription != null) return@LaunchedEffect
         if (title.length >= 3 && amount != null && amount > 0) {
             kotlinx.coroutines.delay(600)
-            val classification = com.example.data.ZadAiRepository.classifyBill(title, amount)
+            val classification = ZadAiRepository.classifyBill(title, amount)
             if (classification != null) {
                 category = classification.category
                 if (provider.isBlank() && !classification.provider.isNullOrBlank()) {
                     provider = classification.provider
                 }
             }
+        }
+    }
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState()
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        val picked = Instant.ofEpochMilli(millis).atZone(ZoneId.of("UTC")).toLocalDate()
+                        renewalDate = picked.toString()
+                    }
+                    showDatePicker = false
+                }) { Text(stringResource(R.string.confirm_action_short)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 
@@ -578,6 +659,116 @@ fun AddEditSubscriptionDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.verticalScroll(rememberScrollState()).imePadding()
             ) {
+                // 1. شريط الخدمات الشهيرة السريع
+                Text(
+                    text = "الخدمات والاشتراكات المقترحة:",
+                    style = Typography.labelSmall,
+                    color = onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold
+                )
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(commonSubscriptionPresets) { preset ->
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (title == preset.name) preset.color.copy(alpha = 0.18f) else surfaceVariant.copy(alpha = 0.5f),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (title == preset.name) preset.color else outline.copy(alpha = 0.3f)
+                            ),
+                            modifier = Modifier
+                                .pressableScale()
+                                .clickable {
+                                    title = preset.name
+                                    provider = preset.provider
+                                    category = preset.category
+                                    selectedType = preset.type
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(22.dp)
+                                        .clip(CircleShape)
+                                        .background(preset.color.copy(alpha = 0.2f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        preset.icon,
+                                        contentDescription = null,
+                                        tint = preset.color,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                                Text(
+                                    preset.name,
+                                    style = Typography.labelSmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                // 2. الفصل الصريح بين الأنواع (Segmented Type Selector)
+                Text(
+                    text = "تصنيف الالتزام:",
+                    style = Typography.labelSmall,
+                    color = onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold
+                )
+                val typeOptions = listOf(
+                    "subscription" to stringResource(R.string.sub_type_digital),
+                    "installment" to stringResource(R.string.sub_type_installment),
+                    "rent" to stringResource(R.string.sub_type_rent),
+                    "utility" to stringResource(R.string.sub_type_utility)
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    typeOptions.forEach { (typeKey, typeLabel) ->
+                        FilterChip(
+                            selected = selectedType == typeKey,
+                            onClick = { selectedType = typeKey },
+                            label = { Text(typeLabel, style = Typography.labelSmall) }
+                        )
+                    }
+                }
+
+                // 3. حقول القسط الإضافية إذا تم اختيار "قسط"
+                if (selectedType == "installment") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = totalInstallmentStr,
+                            onValueChange = { totalInstallmentStr = it },
+                            label = { Text(stringResource(R.string.installment_total_label)) },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+                        OutlinedTextField(
+                            value = remainingInstallmentsStr,
+                            onValueChange = { remainingInstallmentsStr = it },
+                            label = { Text(stringResource(R.string.installment_remaining_label)) },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                        )
+                    }
+                }
+
+                // 4. الحقول الأساسية
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
@@ -608,13 +799,21 @@ fun AddEditSubscriptionDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
+
+                // 5. حقل التاريخ مع DatePicker Button ودعم الإدخال المرن
                 OutlinedTextField(
                     value = renewalDate,
                     onValueChange = { renewalDate = it },
                     label = { Text(stringResource(R.string.renewal_date_hint)) },
+                    placeholder = { Text("YYYY-MM-DD أو DD-MM-YYYY") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    isError = !renewalDateValid
+                    isError = !renewalDateValid,
+                    trailingIcon = {
+                        IconButton(onClick = { showDatePicker = true }) {
+                            Icon(Icons.Default.CalendarMonth, contentDescription = stringResource(R.string.pick_date_action), tint = primary)
+                        }
+                    }
                 )
 
                 Text(
@@ -645,17 +844,23 @@ fun AddEditSubscriptionDialog(
             Button(
                 enabled = canSave,
                 onClick = {
-                    onSave(
-                        title.trim(),
-                        amount ?: 0.0,
-                        // التاريخ الافتراضي بيتبع الدورة المختارة — اشتراك سنوي بيبدأ
-                        // بتجديد بعد سنة، مش بعد شهر زي ما كان ثابت قبل كده.
-                        renewalDate.trim().ifBlank {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    val finalDate = parsedDate?.toString()
+                        ?: renewalDate.trim().ifBlank {
                             nextRenewalDate(LocalDate.now(), billingCycle).toString()
-                        },
+                        }
+                    val finalTitle = if (selectedType == "installment" && remainingInstallmentsStr.isNotBlank() && !title.contains("قسط")) {
+                        "$title ($remainingInstallmentsStr أقساط)"
+                    } else title.trim()
+
+                    onSave(
+                        finalTitle,
+                        amount ?: 0.0,
+                        finalDate,
                         provider.trim(),
                         category,
-                        billingCycle
+                        billingCycle,
+                        selectedType
                     )
                 },
                 modifier = Modifier.pressableScale(),

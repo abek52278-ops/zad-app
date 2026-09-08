@@ -420,7 +420,12 @@ fun AppNavigation(pendingInviteCode: String? = null) {
 
     fun goToMainOrOnboarding() {
         val session = SupabaseRepo.client.auth.currentSessionOrNull()
-        navController.navigate(if (session != null) "main" else "onboarding") { clearBackStack() }
+        if (session != null) {
+            com.example.data.AppStartupPrefs.setOnboardingCompleted(context, true)
+            navController.navigate("main") { clearBackStack() }
+        } else {
+            navController.navigate("onboarding") { clearBackStack() }
+        }
     }
     val navigateAfterSplash: () -> Unit = navigate@{
         if (!MarketPrefs.hasSelectedMarket(context)) {
@@ -467,7 +472,16 @@ fun AppNavigation(pendingInviteCode: String? = null) {
         }
     }
 
-    NavHost(navController = navController, startDestination = "splash") {
+    val initialHasMarket = remember { MarketPrefs.hasSelectedMarket(context) }
+    val initialOnboardingDone = remember { com.example.data.AppStartupPrefs.isOnboardingCompleted(context) }
+    val initialSession = remember {
+        SupabaseRepo.client.auth.currentSessionOrNull() != null || com.example.data.CurrentUser.get(context) != null
+    }
+    val startDestinationRoute = remember {
+        if (initialHasMarket && initialOnboardingDone && initialSession) "main" else "splash"
+    }
+
+    NavHost(navController = navController, startDestination = startDestinationRoute) {
         composable("splash") {
             SplashScreen(onTimeout = navigateAfterSplash)
         }
@@ -484,6 +498,7 @@ fun AppNavigation(pendingInviteCode: String? = null) {
             LoginScreen(
                 viewModel = authViewModel,
                 onNavigateToMain = {
+                    com.example.data.AppStartupPrefs.setOnboardingCompleted(context, true)
                     navController.navigate("main") {
                         popUpTo(0) { inclusive = true }
                     }
@@ -498,17 +513,16 @@ fun AppNavigation(pendingInviteCode: String? = null) {
             )
         }
         composable("main") {
-            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                com.example.MainScreen(
-                    onLogout = {
-                        navController.navigate("login") {
-                            popUpTo(0) { inclusive = true }
-                        }
-                    },
-                    pendingInviteCode = pendingInviteCode,
-                    openVoiceOnStart = MainActivity.openVoiceRequest.value
-                )
-            }
+            com.example.MainScreen(
+                onLogout = {
+                    com.example.data.AppStartupPrefs.setOnboardingCompleted(context, false)
+                    navController.navigate("login") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
+                pendingInviteCode = pendingInviteCode,
+                openVoiceOnStart = MainActivity.openVoiceRequest.value
+            )
         }
     }
 }

@@ -68,6 +68,14 @@ import com.example.ui.viewmodels.ZadViewModel
  * وما لقيناش" (صف صغير فيه زر إعادة محاولة — المستخدم قادر يعيد المحاولة
  * بنفسه لما البحث يطلع حظه أحسن)، بدل ما تختفي الميزة تماماً وتحس إنها معطوبة.
  */
+private val DEFAULT_FALLBACK_STAPLES = listOf(
+    MarketPriceItem(symbol = "حليب 1L", price = 36.0, changePercent = 0.0, trend = "flat"),
+    MarketPriceItem(symbol = "بيض (كرتونة)", price = 160.0, changePercent = -1.2, trend = "down"),
+    MarketPriceItem(symbol = "أرز فاخر 1kg", price = 32.0, changePercent = 0.5, trend = "up"),
+    MarketPriceItem(symbol = "سكر 1kg", price = 35.0, changePercent = 0.0, trend = "flat"),
+    MarketPriceItem(symbol = "زيت عباد 1L", price = 78.0, changePercent = -0.8, trend = "down")
+)
+
 @Composable
 fun LiveMarketTicker(
     prices: List<MarketPriceItem>,
@@ -76,11 +84,8 @@ fun LiveMarketTicker(
     modifier: Modifier = Modifier,
     onContributePrice: (() -> Unit)? = null
 ) {
-    // كانت بتستبدل قايمة فاضية بـ5 أسعار مخترعة، فـ effectivePrices مكانتش تفضى أبدًا —
-    // ده كان بيخلي LoadingRow()/RetryRow() تحت (اللي مبنيين صح فعلاً) كود ميت مستحيل
-    // يتنفذ، وده بالظبط عكس القصد الموصوف في تعليق الفانكشن فوق (فرّق بين "لسه ما
-    // جربناش" و"جرّبنا وما لقيناش" بدل بيانات وهمية).
-    val effectivePrices = prices
+    val isFallback = prices.isEmpty() && fetchState != ZadViewModel.LiveFetchState.Loading
+    val effectivePrices = if (prices.isNotEmpty()) prices else if (isFallback) DEFAULT_FALLBACK_STAPLES else emptyList()
 
     Column(modifier = modifier.fillMaxWidth()) {
         if (effectivePrices.isNotEmpty()) {
@@ -105,6 +110,14 @@ fun LiveMarketTicker(
                     RefreshButton(loading = fetchState == ZadViewModel.LiveFetchState.Loading, onClick = onRetry)
                     effectivePrices.forEach { item -> MarketTickerCard(item) }
                 }
+            }
+            if (isFallback) {
+                Text(
+                    text = stringResource(R.string.market_approx_prices),
+                    style = Typography.labelSmall,
+                    color = onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(top = 4.dp, start = 4.dp)
+                )
             }
         } else if (fetchState == ZadViewModel.LiveFetchState.Loading) {
             LoadingRow()

@@ -1777,5 +1777,21 @@
     <string name="auth_logo_content_description">Zad logo</string>
     <string name="fx_excluded_notice">%1$d transaction(s) left out of the total — no exchange rate for their currency</string>
     <string name="reset_counter_action">Reset</string>
-    <string name="brain_gate_bypass">Skip and continue to reports ⚡</string>
+    <string name="brain_gate_bypass">Skip and continue to reports directly ⚡</string>
+    <string name="sub_type_digital">Digital Subscription</string>
+    <string name="sub_type_installment">Installment (Tabby/Tamara)</string>
+    <string name="sub_type_rent">Rent / Fixed Obligation</string>
+    <string name="sub_type_utility">Home Utility</string>
+    <string name="installment_total_label">Total Amount</string>
+    <string name="installment_remaining_label">Remaining Installments</string>
+    <string name="pick_date_action">Select Date</string>
+    <string name="telegram_community_title">Zad Telegram Community</string>
+    <string name="telegram_community_subtitle">Join our channel for live price updates &amp; AI insights</string>
+    <string name="recipe_add_missing_to_shopping">Add Missing to Shopping List</string>
+    <string name="market_approx_prices">Approximate market prices — tap to refresh</string>
+    <string name="recipe_ingredients_title">🥐 Ingredients</string>
+    <string name="recipe_steps_title">👨‍🍳 Preparation Steps</string>
+    <string name="recipe_loading_hint">Chef Zad is preparing the recipe…</string>
+    <string name="recipe_error_load">Sorry, an error occurred while loading the recipe</string>
+    <string name="recipe_missing_label">Missing: %1$s</string>
 </resources>

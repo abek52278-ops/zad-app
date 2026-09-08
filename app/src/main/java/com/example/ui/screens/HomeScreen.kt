@@ -642,6 +642,12 @@ fun HomeScreen(
                 }
                 Spacer(modifier = Modifier.height(18.dp))
 
+                // ── كارت مجتمع وقناة تليجرام ──
+                com.example.ui.components.AppearOnEntry(delayMs = 55) {
+                    com.example.ui.components.ZadTelegramCommunityCard()
+                }
+                Spacer(modifier = Modifier.height(18.dp))
+
                 // ── 4. إيدج صحة المخزون والنواقص الحية (Food Health & Shortages) ──
                 com.example.ui.components.AppearOnEntry(delayMs = 65) {
                     ZadFoodShortagesGlanceCard(
@@ -699,11 +705,27 @@ fun HomeScreen(
                 }
                 Spacer(modifier = Modifier.height(18.dp))
 
+                // ── 7. الاشتراكات والالتزامات القادمة — ظاهرة بوضوح في الرئيسية ──
+                com.example.ui.components.AppearOnEntry(delayMs = 100) {
+                    ZadSubscriptionsGlanceCard(
+                        subscriptions = subscriptions,
+                        onViewAllClick = onNavigateToSubscriptions
+                    )
+                }
+                Spacer(modifier = Modifier.height(18.dp))
+
                 // ── 8. شيف زاد الذكي للوجبات السريعة (Smart Chef Section) ──
                 com.example.ui.components.AppearOnEntry(delayMs = 105) {
                     SmartChefSection(
                         suggestions = mealSuggestions,
-                        onViewAll = onNavigateToAssistant,
+                        onViewAll = {
+                            if (displayChefRecipes.isNotEmpty()) {
+                                selectedRecipeTitle = displayChefRecipes.first().recipeName
+                                showRecipeDialog = true
+                            } else {
+                                onNavigateToAssistant()
+                            }
+                        },
                         onOpenRecipe = { title ->
                             selectedRecipeTitle = title
                             showRecipeDialog = true
@@ -877,7 +899,28 @@ fun HomeScreen(
                 // فقسم أمازون مابانش ولا مرة. الشرط "لازم نقص حقيقي" صح ويفضل؛ اللي اتصلح
                 // إن النقص اللي مالوش صف في الكتالوج بقى يتعرض كبحث بالتاج بدل ما يتبلع.
                 // ── 9. تسوق أمازون والعروض الموصى بها (Amazon Smart Deals Rail) ──
-                if (displayAffiliatePicks.isNotEmpty() || affiliateSearchNeeds.isNotEmpty()) {
+                val effectiveSearchNeeds = remember(affiliateSearchNeeds, shoppingList) {
+                    if (affiliateSearchNeeds.isNotEmpty()) {
+                        affiliateSearchNeeds
+                    } else if (shoppingList.isNotEmpty()) {
+                        shoppingList.take(5).map { item ->
+                            com.example.ui.viewmodels.ZadViewModel.AffiliateNeed(
+                                itemName = item.itemName,
+                                reason = "في قائمة التسوق",
+                                score = 1
+                            )
+                        }
+                    } else {
+                        listOf(
+                            com.example.ui.viewmodels.ZadViewModel.AffiliateNeed("زيت طهي عائلي", "عروض البقالة والتوفير", 1),
+                            com.example.ui.viewmodels.ZadViewModel.AffiliateNeed("منظفات ومعقمات منزلية", "أساسيات المنزل", 1),
+                            com.example.ui.viewmodels.ZadViewModel.AffiliateNeed("أرز بسمتي فاخر", "سلع تموينية مخفضة", 1),
+                            com.example.ui.viewmodels.ZadViewModel.AffiliateNeed("شاي وقهوة سريعة", "مستلزمات الضيافة", 1),
+                            com.example.ui.viewmodels.ZadViewModel.AffiliateNeed("مناديل وورقيات", "عبوات اقتصادية", 1)
+                        )
+                    }
+                }
+                if (displayAffiliatePicks.isNotEmpty() || effectiveSearchNeeds.isNotEmpty()) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -906,13 +949,13 @@ fun HomeScreen(
                             }
                         }
                     }
-                    if (affiliateSearchNeeds.isNotEmpty()) {
+                    if (effectiveSearchNeeds.isNotEmpty()) {
                         if (displayAffiliatePicks.isNotEmpty()) Spacer(modifier = Modifier.height(10.dp))
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(vertical = 4.dp)
                         ) {
-                            items(affiliateSearchNeeds) { need ->
+                            items(effectiveSearchNeeds) { need ->
                                 com.example.ui.widgets.ZadAmazonSearchChip(
                                     itemName = need.itemName,
                                     reason = need.reason,
@@ -990,12 +1033,6 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 if (showHomeTools) {
-                    ZadSubscriptionsGlanceCard(
-                        subscriptions = subscriptions,
-                        onViewAllClick = onNavigateToSubscriptions
-                    )
-                    Spacer(modifier = Modifier.height(18.dp))
-
                     ZadHorizontalShortcutsRail(
                         onNavigateToInventory = onNavigateToInventory,
                         onNavigateToShopping = onNavigateToShopping,
@@ -1168,7 +1205,14 @@ fun HomeScreen(
         RecipeDetailDialog(
             recipeTitle = selectedRecipeTitle!!,
             inventory = inventory,
-            onDismiss = { showRecipeDialog = false }
+            onDismiss = { showRecipeDialog = false },
+            onAddMissingToShopping = { missing ->
+                missing.forEach { item ->
+                    viewModel.addShoppingItem(
+                        com.example.data.ZadShoppingItem(itemName = item, quantity = 1)
+                    )
+                }
+            }
         )
     }
 
@@ -1642,7 +1686,15 @@ fun SmartChefSection(
         // الكارت بيوعد بوصفة، فيفتح الوصفة. كان بيروح لعقل زاد، و RecipeDetailDialog
         // (بكل الـ parsing وقائمة المقادير وخطوات التحضير) ما كانش ليه أي مدخل —
         // showRecipeDialog اتعرّف واتقرا وعمره ما اتعمل true.
-        onClick = { if (dish != null) onOpenRecipe(dish) else onViewAll() }
+        onClick = {
+            if (dish != null) {
+                onOpenRecipe(dish)
+            } else if (recipes.isNotEmpty()) {
+                onOpenRecipe(recipes.first().recipeName)
+            } else {
+                onViewAll()
+            }
+        }
     )
 
     // الكروت تحت الكارت النصي مش بدله: النص هو الجملة الودودة اللي شيف زاد بتفتح بيها،
@@ -1654,6 +1706,7 @@ fun SmartChefSection(
             onAddMissingToShopping = onAddMissingToShopping,
             ratedRecipes = ratedRecipes,
             onRate = onRateRecipe,
+            onRecipeClick = { recipe -> onOpenRecipe(recipe.recipeName) }
         )
     }
 }

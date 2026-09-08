@@ -62,6 +62,7 @@ fun ChefRecipeRow(
     onAddMissingToShopping: (List<String>) -> Unit,
     ratedRecipes: Map<String, Boolean> = emptyMap(),
     onRate: (String, Boolean) -> Unit = { _, _ -> },
+    onRecipeClick: ((ZadRecipe) -> Unit)? = null,
 ) {
     if (recipes.isEmpty()) return
     LazyRow(
@@ -75,6 +76,7 @@ fun ChefRecipeRow(
                 onAddMissingToShopping = onAddMissingToShopping,
                 liked = ratedRecipes[recipe.recipeName],
                 onRate = { liked -> onRate(recipe.recipeName, liked) },
+                onRecipeClick = onRecipeClick,
             )
         }
     }
@@ -86,13 +88,11 @@ private fun ChefRecipeCard(
     onAddMissingToShopping: (List<String>) -> Unit,
     liked: Boolean?,
     onRate: (Boolean) -> Unit,
+    onRecipeClick: ((ZadRecipe) -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(18.dp)
     val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
-    // الموديل أحياناً بيرجّع وصفة من غير cooking_instructions (حقل ناقص في رد الـ AI).
-    // كارت clickable ملوش حاجة يوسّعها كان بيدّي ضغطة من غير أي رد فعل — يبان معطوب.
-    // بدل ما نختلق خطوات، الكارت مش قابل للتوسيع أصلاً لو مفيش خطوات فعلاً.
     val expandable = recipe.cookingInstructions.isNotEmpty()
 
     Column(
@@ -101,7 +101,13 @@ private fun ChefRecipeCard(
             .zadCardShadow(shape)
             .clip(shape)
             .background(surface)
-            .let { if (expandable) it.clickable { expanded = !expanded } else it }
+            .clickable {
+                if (onRecipeClick != null) {
+                    onRecipeClick(recipe)
+                } else if (expandable) {
+                    expanded = !expanded
+                }
+            }
             .padding(bottom = 14.dp),
     ) {
         // الصورة بتيجي من Pexels عبر الأكشن. لو مفيش رابط (النموذج نسي image_keyword_en،
@@ -182,7 +188,7 @@ private fun ChefRecipeCard(
             if (recipe.missingIngredientsToBuy.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "ناقصك: " + recipe.missingIngredientsToBuy.joinToString("، "),
+                    stringResource(R.string.recipe_missing_label, recipe.missingIngredientsToBuy.joinToString("، ")),
                     style = Typography.labelSmall,
                     color = onSurfaceVariant,
                 )

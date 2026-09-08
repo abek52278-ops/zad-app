@@ -1774,5 +1774,21 @@
     <string name="auth_logo_content_description">Zad logosu</string>
     <string name="fx_excluded_notice">%1$d işlem toplamdan çıkarıldı — para birimi için kur yok</string>
     <string name="reset_counter_action">Sıfırla</string>
-    <string name="brain_gate_bypass">Atla ve doğrudan raporlara devam et ⚡</string>
+    <string name="brain_gate_bypass">Atla ve doğrudan raporlara geç ⚡</string>
+    <string name="sub_type_digital">Dijital Abonelik</string>
+    <string name="sub_type_installment">Taksit (Tabby/Tamara)</string>
+    <string name="sub_type_rent">Kira / Sabit Yükümlülük</string>
+    <string name="sub_type_utility">Ev Faturası</string>
+    <string name="installment_total_label">Toplam Tutar</string>
+    <string name="installment_remaining_label">Kalan Taksit Sayısı</string>
+    <string name="pick_date_action">Tarih Seç</string>
+    <string name="telegram_community_title">Zad Telegram Topluluğu</string>
+    <string name="telegram_community_subtitle">Canlı fiyat ve yapay zeka güncellemeleri için katılın</string>
+    <string name="recipe_add_missing_to_shopping">Eksikleri Alışveriş Listesine Ekle</string>
+    <string name="market_approx_prices">Yaklaşık piyasa fiyatları — yenilemek için dokunun</string>
+    <string name="recipe_ingredients_title">🥐 Malzemeler</string>
+    <string name="recipe_steps_title">👨‍🍳 Hazırlanış Adımları</string>
+    <string name="recipe_loading_hint">Şef Zad tarifi hazırlıyor…</string>
+    <string name="recipe_error_load">Üzgünüz, tarif yüklenirken bir hata oluştu</string>
+    <string name="recipe_missing_label">Eksik: %1$s</string>
 </resources>

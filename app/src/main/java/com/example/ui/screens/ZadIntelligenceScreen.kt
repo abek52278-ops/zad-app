@@ -4196,8 +4196,8 @@ private fun ZadBrainAdGate(
                 adsWatched = it.adWatchCount
             }
         }
-        // 3.5s timeout fallback: if ad takes too long or fails, offer immediate bypass
-        delay(3500)
+        // 3.0s timeout fallback: if ad takes too long or fails, offer immediate bypass
+        delay(3000)
         showBypassButton = true
     }
     val adsRequired = com.example.ads.RewardedBrainAdManager.TOTAL_ADS_REQUIRED
@@ -4270,7 +4270,7 @@ private fun ZadBrainAdGate(
                 Text(
                     text = when {
                         isShowingAd -> stringResource(R.string.brain_gate_loading)
-                        RewardedBrainAdManager.isAdReady().not() -> "جاري تجهيز التقرير أو الإعلان… ⚡"
+                        RewardedBrainAdManager.isAdReady().not() -> stringResource(R.string.brain_gate_loading)
                         else -> stringResource(R.string.brain_gate_watch_ad)
                     },
                     color = Color.White,

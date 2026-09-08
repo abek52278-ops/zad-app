@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AddShoppingCart
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -17,6 +18,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -151,8 +153,10 @@ private fun RecipeSectionCard(
 fun RecipeDetailDialog(
     recipeTitle: String,
     inventory: List<ZadInventory>,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onAddMissingToShopping: ((List<String>) -> Unit)? = null
 ) {
+    val context = LocalContext.current
     var isLoading by remember { mutableStateOf(true) }
     var recipeText by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -170,7 +174,7 @@ fun RecipeDetailDialog(
             }
             recipeText = result
         } catch (e: Exception) {
-            errorMessage = "عذراً، حدث خطأ أثناء تحميل الوصفة"
+            errorMessage = context.getString(R.string.recipe_error_load)
         } finally {
             isLoading = false
         }
@@ -278,7 +282,7 @@ fun RecipeDetailDialog(
                         )
                         Spacer(modifier = Modifier.height(20.dp))
                         Text(
-                            text = "شيف زاد يجهز لك الوصفة...",
+                            text = stringResource(R.string.recipe_loading_hint),
                             style = Typography.bodyLarge,
                             color = onSurfaceVariant
                         )
@@ -292,7 +296,7 @@ fun RecipeDetailDialog(
                         verticalArrangement = Arrangement.Center
                     ) {
                         Text(
-                            text = "\u26A0\uFE0F",
+                            text = "⚠️",
                             style = Typography.headlineLarge
                         )
                         Spacer(modifier = Modifier.height(12.dp))
@@ -320,7 +324,7 @@ fun RecipeDetailDialog(
                     ) {
                         if (parsed.ingredients.isNotEmpty()) {
                             RecipeSectionCard(
-                                title = "\uD83E\uDD50  المقادير",
+                                title = stringResource(R.string.recipe_ingredients_title),
                                 titleColor = primary
                             ) {
                                 parsed.ingredients.forEachIndexed { index, ingredient ->
@@ -354,7 +358,7 @@ fun RecipeDetailDialog(
 
                         if (parsed.steps.isNotEmpty()) {
                             RecipeSectionCard(
-                                title = "\uD83D\uDC68\u200D\uD83C\uDF73  طريقة التحضير",
+                                title = stringResource(R.string.recipe_steps_title),
                                 titleColor = tertiary
                             ) {
                                 parsed.steps.forEachIndexed { index, step ->
@@ -430,7 +434,8 @@ fun RecipeDetailDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedButton(
                             onClick = onDismiss,
@@ -440,10 +445,39 @@ fun RecipeDetailDialog(
                             border = androidx.compose.foundation.BorderStroke(1.dp, outline)
                         ) {
                             Text(
-                                text = "\u2716  \u0625\u063A\u0644\u0627\u0642",
+                                text = stringResource(R.string.close_action),
                                 style = Typography.bodyLarge,
                                 fontWeight = FontWeight.SemiBold
                             )
+                        }
+
+                        if (onAddMissingToShopping != null && parsed.ingredients.isNotEmpty()) {
+                            Button(
+                                onClick = {
+                                    val unselected = parsed.ingredients.filterIndexed { index, _ -> checkedIngredients[index] != true }
+                                    val toAdd = unselected.ifEmpty { parsed.ingredients }
+                                    onAddMissingToShopping(toAdd)
+                                    onDismiss()
+                                },
+                                modifier = Modifier.weight(1.3f).height(48.dp).pressableScale(),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = primary)
+                            ) {
+                                Icon(
+                                    Icons.Default.AddShoppingCart,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = Color.White
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = stringResource(R.string.recipe_add_missing_to_shopping),
+                                    style = Typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    maxLines = 1
+                                )
+                            }
                         }
                     }
                 }

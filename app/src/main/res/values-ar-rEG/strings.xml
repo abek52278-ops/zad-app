@@ -1777,5 +1777,21 @@
     <string name="auth_logo_content_description">شعار زاد</string>
     <string name="fx_excluded_notice">شيلنا %1$d معاملة من الإجمالي — عملتها مالهاش سعر صرف</string>
     <string name="reset_counter_action">تصفير</string>
-    <string name="brain_gate_bypass">تخطي ومتابعة للتقارير مباشرة ⚡</string>
+    <string name="brain_gate_bypass">تخطي ومتابعة للتقارير علطول ⚡</string>
+    <string name="sub_type_digital">اشتراك رقمي</string>
+    <string name="sub_type_installment">قسط تابي/تمارة</string>
+    <string name="sub_type_rent">إيجار/التزام ثابت</string>
+    <string name="sub_type_utility">فاتورة منزلية</string>
+    <string name="installment_total_label">إجمالي المبلغ</string>
+    <string name="installment_remaining_label">الأقساط المتبقية</string>
+    <string name="pick_date_action">اختر التاريخ</string>
+    <string name="telegram_community_title">مجتمع زاد على تليجرام</string>
+    <string name="telegram_community_subtitle">انضم لقناتنا لتحديثات الأسعار والذكاء الاصطناعي</string>
+    <string name="recipe_add_missing_to_shopping">إضافة النواقص لقائمة التسوق</string>
+    <string name="market_approx_prices">أسعار استرشادية تقريبية — اضغط للتحديث الحي</string>
+    <string name="recipe_ingredients_title">🥐 المقادير</string>
+    <string name="recipe_steps_title">👨‍🍳 طريقة التحضير</string>
+    <string name="recipe_loading_hint">شيف زاد بيجهزلك الوصفة…</string>
+    <string name="recipe_error_load">عذراً، حصل خطأ أثناء تحميل الوصفة</string>
+    <string name="recipe_missing_label">ناقصك: %1$s</string>
 </resources>

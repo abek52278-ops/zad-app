@@ -334,3 +334,60 @@ fun TelegramBotSheet(onDismiss: () -> Unit) {
         }
     }
 }
+
+/**
+ * كارت مجتمع وقناة تليجرام — squircle card أسفل منتقي الأقسام
+ * يفتح القناة/البوت مباشرة بأمان مع معالجة الاستثناءات.
+ */
+@Composable
+fun ZadTelegramCommunityCard(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val shape = RoundedCornerShape(18.dp)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .zadCardShadow(shape)
+            .clip(shape)
+            .background(surface)
+            .clickable {
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://t.me/ZadhApp_bot"))
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    Log.w("TelegramBinding", "Failed to open Telegram: ${e.message}")
+                }
+            }
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(RoundedCornerShape(13.dp))
+                .background(Color(0xFF229ED9).copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Default.Send, contentDescription = null, tint = Color(0xFF229ED9), modifier = Modifier.size(22.dp))
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                stringResource(R.string.telegram_community_title),
+                style = Typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                color = onSurface
+            )
+            Text(
+                stringResource(R.string.telegram_community_subtitle),
+                style = Typography.bodySmall,
+                color = onSurfaceVariant
+            )
+        }
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = textTertiary,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}

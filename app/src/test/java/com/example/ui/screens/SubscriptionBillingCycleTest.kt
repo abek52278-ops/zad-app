@@ -59,7 +59,7 @@ class SubscriptionBillingCycleTest {
                 AddEditSubscriptionDialog(
                     subscription = monthlySub,
                     onDismiss = {},
-                    onSave = { _, _, _, _, _, billingCycle -> savedCycle = billingCycle }
+                    onSave = { _, _, _, _, _, billingCycle, _ -> savedCycle = billingCycle }
                 )
             }
         }
@@ -80,7 +80,7 @@ class SubscriptionBillingCycleTest {
                 AddEditSubscriptionDialog(
                     subscription = monthlySub.copy(billingCycle = "WEEKLY"),
                     onDismiss = {},
-                    onSave = { _, _, _, _, _, billingCycle -> savedCycle = billingCycle }
+                    onSave = { _, _, _, _, _, billingCycle, _ -> savedCycle = billingCycle }
                 )
             }
         }
@@ -97,7 +97,7 @@ class SubscriptionBillingCycleTest {
                 AddEditSubscriptionDialog(
                     subscription = monthlySub,
                     onDismiss = {},
-                    onSave = { _, _, _, _, _, _ -> }
+                    onSave = { _, _, _, _, _, _, _ -> }
                 )
             }
         }
@@ -114,7 +114,7 @@ class SubscriptionBillingCycleTest {
                 AddEditSubscriptionDialog(
                     subscription = monthlySub,
                     onDismiss = {},
-                    onSave = { _, _, _, _, _, _ -> }
+                    onSave = { _, _, _, _, _, _, _ -> }
                 )
             }
         }

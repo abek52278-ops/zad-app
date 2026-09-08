@@ -188,6 +188,8 @@ object ZadLiveVoiceSession {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.d(tag, "zad-voice-live connected")
                 mainHandler.post { _state.value = LiveVoiceState.Listening }
+                val initialSilentChunk = ByteArray(inputSampleRate / 10)
+                sendAudioChunk(initialSilentChunk)
                 startMicStreaming()
             }
 
@@ -221,15 +223,16 @@ object ZadLiveVoiceSession {
 
     /** full-duplex حقيقي: الميكروفون بيفضل شغال طول عمر الجلسة، حتى وقت كلام الموديل —
      *  VOICE_COMMUNICATION عشان echo cancellation الهاردوير (لو متاح) يمنع الميكروفون
-     *  يسمع سماعة الجهاز نفسه كمقاطعة وهمية. */
+     *  يسمع سماعة الجهاز نفسه كمقاطعة وهمية، مع بديل MIC تلقائي لو فشل التجهيز. */
     private fun startMicStreaming() {
         if (recordingActive.getAndSet(true)) return
         scope.launch {
             val minBuf = AudioRecord.getMinBufferSize(
                 inputSampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
             ).coerceAtLeast(inputSampleRate / 2)
-            val record = try {
-                AudioRecord(
+            var record: AudioRecord? = null
+            try {
+                record = AudioRecord(
                     MediaRecorder.AudioSource.VOICE_COMMUNICATION,
                     inputSampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, minBuf * 2
                 )
@@ -238,19 +241,25 @@ object ZadLiveVoiceSession {
                 recordingActive.set(false)
                 failSession("محتاج إذن الميكروفون")
                 return@launch
-            } catch (e: IllegalArgumentException) {
-                // كان مش متلقّط — لو الجهاز رفض المعاملات (نادر لـ16kHz mono PCM16، لكن
-                // مش مستحيل)، الجلسة كانت تفضل "Listening" بصريًا رغم إن المايك ميت فعليًا.
-                Log.w(tag, "AudioRecord bad params: ${e.message}")
-                recordingActive.set(false)
-                failSession("تعذّر تجهيز الميكروفون")
-                return@launch
+            } catch (e: Exception) {
+                Log.w(tag, "AudioRecord VOICE_COMMUNICATION failed: ${e.message}, trying MIC fallback")
             }
-            // نفس الملاحظة — كانت بتسجّل تحذير في الـlog وتسيب الحالة على Listening، فالشاشة
-            // كانت تبان "شغالة" رغم إن المايك مقفول فعليًا من غير أي إشارة للعميل.
-            if (record.state != AudioRecord.STATE_INITIALIZED) {
-                Log.w(tag, "AudioRecord not initialized, state=${record.state}")
-                try { record.release() } catch (_: Exception) {}
+
+            if (record == null || record.state != AudioRecord.STATE_INITIALIZED) {
+                try { record?.release() } catch (_: Exception) {}
+                try {
+                    record = AudioRecord(
+                        MediaRecorder.AudioSource.MIC,
+                        inputSampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, minBuf * 2
+                    )
+                } catch (e: Exception) {
+                    Log.w(tag, "AudioRecord MIC fallback failed: ${e.message}")
+                }
+            }
+
+            if (record == null || record.state != AudioRecord.STATE_INITIALIZED) {
+                Log.w(tag, "AudioRecord not initialized, state=${record?.state}")
+                try { record?.release() } catch (_: Exception) {}
                 recordingActive.set(false)
                 failSession("تعذّر تجهيز الميكروفون")
                 return@launch
