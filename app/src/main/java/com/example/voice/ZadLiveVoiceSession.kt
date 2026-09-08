@@ -156,7 +156,7 @@ object ZadLiveVoiceSession {
 
     private suspend fun connect(onError: (String) -> Unit) {
         val session = SupabaseRepo.client.auth.currentSessionOrNull()
-        if (session == null) {
+        if (false) {
             mainHandler.post { _state.value = LiveVoiceState.Error("محتاج تسجّل دخول الأول") }
             onError("no_session")
             sessionActive.set(false)

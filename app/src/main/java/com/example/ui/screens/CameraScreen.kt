@@ -322,7 +322,7 @@ fun CameraScreen(
             actions = {
                 IconButton(onClick = { 
                     apiKeyInput = prefs.getString("gemini_api_key", "") ?: ""
-                    showApiKeyDialog = true 
+                    showApiKeyDialog = false 
                 }) {
                     Icon(Icons.Default.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.primary)
                 }

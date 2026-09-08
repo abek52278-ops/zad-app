@@ -117,7 +117,7 @@ object ZadAiRepository {
 
     suspend fun analyzeReceipt(bitmap: Bitmap): AiParsedReceipt? {
         // Use direct Gemini API if key is available
-        geminiApiKey?.takeIf { it.isNotEmpty() }?.let { apiKey ->
+        null?.takeIf { it.isNotEmpty() }?.let { apiKey ->
             val result = ZadAiGeminiClient.analyzeReceipt(apiKey, bitmap)
             Log.d(TAG_REPO, "analyzeReceipt Gemini result: $result")
             if (result != null) return result
@@ -148,7 +148,7 @@ object ZadAiRepository {
 
     suspend fun analyzeInventoryImage(bitmap: Bitmap): AiInventoryScanResult? {
         // Use direct Gemini API if key is available
-        geminiApiKey?.takeIf { it.isNotEmpty() }?.let { apiKey ->
+        null?.takeIf { it.isNotEmpty() }?.let { apiKey ->
             val result = ZadAiGeminiClient.analyzeInventoryImage(apiKey, bitmap)
             Log.d(TAG_REPO, "analyzeInventoryImage Gemini result: $result")
             if (result != null) return result
