@@ -82,7 +82,7 @@ fun ZadMeterBar(
     color: Color,
     modifier: Modifier = Modifier,
     height: Dp = 6.dp,
-    trackColor: Color = Color(0xFFF1F4F3),
+    trackColor: Color = surfaceVariant,
     animate: Boolean = true,
 ) {
     val target = progress.coerceIn(0f, 1f)

@@ -27,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -221,11 +222,14 @@ fun Modifier.zadDotPulse(periodMs: Int = 2400): Modifier {
     }
 }
 
-/** V2-compatible card style (white, shadow, clip) */
-fun Modifier.zadV2Card(shape: Shape = ZadV3.rCard): Modifier = this
-    .shadow(elevation = 12.dp, shape = shape, ambientColor = ZadV3.cardShadowAmbient, spotColor = ZadV3.cardShadowSpot)
-    .clip(shape)
-    .background(Color.White)
+/** V2-compatible card style (surface, shadow, clip) */
+fun Modifier.zadV2Card(shape: Shape = ZadV3.rCard): Modifier = this.composed {
+    val bg = surface
+    this
+        .shadow(elevation = 12.dp, shape = shape, ambientColor = ZadV3.cardShadowAmbient, spotColor = ZadV3.cardShadowSpot)
+        .clip(shape)
+        .background(bg)
+}
 
 // ── Reusable composables ──────────────────────────────────────────────────────
 
@@ -269,7 +273,7 @@ fun ZadMeterBar(
     color: Color,
     modifier: Modifier = Modifier,
     height: androidx.compose.ui.unit.Dp = 6.dp,
-    trackColor: Color = Color(0xFFF1F4F3),
+    trackColor: Color = surfaceVariant,
 ) {
     val target = progress.coerceIn(0f, 1f)
     val width: Float by androidx.compose.animation.core.animateFloatAsState(
@@ -330,7 +334,7 @@ fun ZadRowCard(
             .fillMaxWidth()
             .zadCardShadow(shape)
             .clip(shape)
-            .background(Color.White)
+            .background(surface)
             .then(if (onClick != null) Modifier.clickable(
                 interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                 indication = null,
@@ -350,9 +354,9 @@ fun ZadRowCard(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ZadV3.ink, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = onSurface, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 if (!subtitle.isNullOrBlank()) {
-                    Text(subtitle, fontSize = 11.5.sp, color = ZadV3.gray400, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Text(subtitle, fontSize = 11.5.sp, color = onSurfaceVariant, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 }
             }
             if (trailing != null) {
@@ -365,7 +369,7 @@ fun ZadRowCard(
 
 /** Row amount display */
 @Composable
-fun ZadRowAmount(text: String, color: Color = ZadV3.ink) {
+fun ZadRowAmount(text: String, color: Color = onSurface) {
     Text(text, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1)
 }
 
@@ -377,7 +381,7 @@ fun ZadMenuGroup(
 ) {
     val shape = RoundedCornerShape(24.dp)
     Column(
-        modifier = modifier.fillMaxWidth().zadCardShadow(shape).clip(shape).background(Color.White),
+        modifier = modifier.fillMaxWidth().zadCardShadow(shape).clip(shape).background(surface),
         content = content,
     )
 }
@@ -389,7 +393,7 @@ fun ZadMenuRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
-    titleColor: Color = ZadV3.ink,
+    titleColor: Color = onSurface,
     showDivider: Boolean = true,
     trailing: @Composable (() -> Unit)? = null,
 ) {
@@ -408,7 +412,7 @@ fun ZadMenuRow(
             androidx.compose.foundation.layout.Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = titleColor)
                 if (!subtitle.isNullOrBlank()) {
-                    Text(subtitle, fontSize = 11.5.sp, color = ZadV3.gray400, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    Text(subtitle, fontSize = 11.5.sp, color = onSurfaceVariant, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 }
             }
             if (trailing != null) {
@@ -417,7 +421,7 @@ fun ZadMenuRow(
             }
         }
         if (showDivider) {
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Color.Black.copy(alpha = 0.05f)))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(outlineVariant.copy(alpha = 0.5f)))
         }
     }
 }

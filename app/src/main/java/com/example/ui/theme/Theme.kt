@@ -25,10 +25,15 @@ fun AppTheme(
         typography = Typography,
         shapes = ZadShapes,
         content = {
+            val layoutDirection = if (com.example.data.LocaleHelper.isArabic()) {
+                androidx.compose.ui.unit.LayoutDirection.Rtl
+            } else {
+                androidx.compose.ui.unit.LayoutDirection.Ltr
+            }
             androidx.compose.runtime.CompositionLocalProvider(
                 LocalZadExtendedColors provides
                     if (darkTheme) ZadExtendedColorsDark else ZadExtendedColorsLight,
-                androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Rtl
+                androidx.compose.ui.platform.LocalLayoutDirection provides layoutDirection
             ) {
                 content()
             }

@@ -365,13 +365,13 @@ fun ZadBottomNavBar(
                 modifier = Modifier
                     .matchParentSize()
                     .zadGlassBlur(20.dp)
-                    .background(Color.White.copy(alpha = 0.80f))
+                    .background(surface.copy(alpha = 0.85f))
             )
             // Hairline border
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .border(1.dp, Color.Black.copy(alpha = 0.06f), pillShape)
+                    .border(0.5.dp, outline.copy(alpha = 0.35f), pillShape)
             )
 
             // Tab row — splits evenly around the central mic slot
@@ -668,7 +668,7 @@ fun ZadMoreSheet(onDismiss: () -> Unit, onNavigate: (String) -> Unit) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Color.White,
+        containerColor = surface,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
     ) {
         Column(
@@ -745,7 +745,7 @@ fun ZadCameraSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Color.White,
+        containerColor = surface,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
     ) {
         Column(

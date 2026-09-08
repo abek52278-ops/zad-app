@@ -41,6 +41,7 @@ import com.example.ui.components.zadScreenTitle
 import com.example.ui.screens.*
 import com.example.ui.theme.background
 import com.example.ui.theme.primary
+import com.example.ui.theme.surface
 import com.example.ui.viewmodels.FamilyState
 import com.example.ui.viewmodels.FamilyViewModel
 import com.example.ui.viewmodels.ZadViewModel
@@ -318,7 +319,7 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
         gesturesEnabled = chromeVisible,
         drawerContent = {
             ModalDrawerSheet(
-                drawerContainerColor = Color.White,
+                drawerContainerColor = surface,
                 drawerShape = RectangleShape,
                 modifier = Modifier.fillMaxWidth(0.78f)
             ) {
