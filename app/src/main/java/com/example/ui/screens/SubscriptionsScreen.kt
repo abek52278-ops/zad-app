@@ -532,18 +532,18 @@ private data class SubscriptionPresetItem(
 )
 
 private val commonSubscriptionPresets = listOf(
-    SubscriptionPresetItem("Netflix", "Netflix", "ترفيه", Icons.Default.Movie, Color(0xFFE50914), "subscription"),
-    SubscriptionPresetItem("Shahid", "MBC Shahid", "ترفيه", Icons.Default.LiveTv, Color(0xFF00A651), "subscription"),
-    SubscriptionPresetItem("Spotify", "Spotify", "موسيقى", Icons.Default.MusicNote, Color(0xFF1DB954), "subscription"),
-    SubscriptionPresetItem("YouTube Premium", "Google", "ترفيه", Icons.Default.SmartDisplay, Color(0xFFFF0000), "subscription"),
-    SubscriptionPresetItem("TOD", "TOD TV", "رياضة وترفيه", Icons.Default.LiveTv, Color(0xFF10B981), "subscription"),
-    SubscriptionPresetItem("Watch IT", "Watch IT", "ترفيه", Icons.Default.Movie, Color(0xFFFF9900), "subscription"),
-    SubscriptionPresetItem("تابي Tabby", "Tabby", "أقساط", Icons.Default.ShoppingBag, Color(0xFF29E7CD), "installment"),
-    SubscriptionPresetItem("تمارا Tamara", "Tamara", "أقساط", Icons.Default.ShoppingBag, Color(0xFFFF7043), "installment"),
-    SubscriptionPresetItem("فاتورة كهرباء", "شركة الكهرباء", "فواتير", Icons.Default.Bolt, Color(0xFFF59E0B), "utility"),
-    SubscriptionPresetItem("فاتورة مياه", "شركة المياه", "فواتير", Icons.Default.WaterDrop, Color(0xFF0EA5E9), "utility"),
-    SubscriptionPresetItem("فاتورة إنترنت", "شركة الاتصالات", "اتصالات", Icons.Default.Wifi, Color(0xFF3B82F6), "utility"),
-    SubscriptionPresetItem("إيجار البيت", "إيجار المنزل", "سكن", Icons.Default.Home, Color(0xFF8B5CF6), "rent")
+    SubscriptionPresetItem("Netflix", "Netflix", "ترفيه", Icons.Default.Movie, BrandNetflix, "subscription"),
+    SubscriptionPresetItem("Shahid", "MBC Shahid", "ترفيه", Icons.Default.LiveTv, BrandShahid, "subscription"),
+    SubscriptionPresetItem("Spotify", "Spotify", "موسيقى", Icons.Default.MusicNote, BrandSpotify, "subscription"),
+    SubscriptionPresetItem("YouTube Premium", "Google", "ترفيه", Icons.Default.SmartDisplay, BrandYouTube, "subscription"),
+    SubscriptionPresetItem("TOD", "TOD TV", "رياضة وترفيه", Icons.Default.LiveTv, BrandTod, "subscription"),
+    SubscriptionPresetItem("Watch IT", "Watch IT", "ترفيه", Icons.Default.Movie, BrandWatchIt, "subscription"),
+    SubscriptionPresetItem("تابي Tabby", "Tabby", "أقساط", Icons.Default.ShoppingBag, BrandTabby, "installment"),
+    SubscriptionPresetItem("تمارا Tamara", "Tamara", "أقساط", Icons.Default.ShoppingBag, BrandTamara, "installment"),
+    SubscriptionPresetItem("فاتورة كهرباء", "شركة الكهرباء", "فواتير", Icons.Default.Bolt, BrandElectricity, "utility"),
+    SubscriptionPresetItem("فاتورة مياه", "شركة المياه", "فواتير", Icons.Default.WaterDrop, BrandWater, "utility"),
+    SubscriptionPresetItem("فاتورة إنترنت", "شركة الاتصالات", "اتصالات", Icons.Default.Wifi, BrandInternet, "utility"),
+    SubscriptionPresetItem("إيجار البيت", "إيجار المنزل", "سكن", Icons.Default.Home, BrandRent, "rent")
 )
 
 private fun parseFlexibleRenewalDate(input: String): LocalDate? {

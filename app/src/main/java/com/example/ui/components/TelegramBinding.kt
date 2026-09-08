@@ -108,10 +108,10 @@ fun TelegramBindingSection() {
                 modifier = Modifier
                     .size(44.dp)
                     .clip(RoundedCornerShape(13.dp))
-                    .background(Color(0xFF229ED9).copy(alpha = 0.12f)),
+                    .background(BrandTelegram.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.Send, contentDescription = null, tint = Color(0xFF229ED9), modifier = Modifier.size(22.dp))
+                Icon(Icons.Default.Send, contentDescription = null, tint = BrandTelegram, modifier = Modifier.size(22.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -192,7 +192,7 @@ fun TelegramBindingSection() {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(stringResource(R.string.telegram_bot_handle_label), style = Typography.labelMedium, color = onSurfaceVariant)
-                    Text("@$TELEGRAM_BOT_USERNAME", style = Typography.labelLarge, fontWeight = FontWeight.Bold, color = Color(0xFF229ED9))
+                    Text("@$TELEGRAM_BOT_USERNAME", style = Typography.labelLarge, fontWeight = FontWeight.Bold, color = BrandTelegram)
                 }
 
                 Row(
@@ -232,7 +232,7 @@ fun TelegramBindingSection() {
                     },
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(999.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF229ED9), contentColor = Color.White)
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandTelegram, contentColor = Color.White)
                 ) {
                     Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
@@ -293,10 +293,10 @@ fun TelegramBotCard(onClick: () -> Unit) {
             modifier = Modifier
                 .size(44.dp)
                 .clip(RoundedCornerShape(13.dp))
-                .background(Color(0xFF229ED9).copy(alpha = 0.12f)),
+                .background(BrandTelegram.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.Send, contentDescription = null, tint = Color(0xFF229ED9), modifier = Modifier.size(22.dp))
+            Icon(Icons.Default.Send, contentDescription = null, tint = BrandTelegram, modifier = Modifier.size(22.dp))
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -365,10 +365,10 @@ fun ZadTelegramCommunityCard(modifier: Modifier = Modifier) {
             modifier = Modifier
                 .size(44.dp)
                 .clip(RoundedCornerShape(13.dp))
-                .background(Color(0xFF229ED9).copy(alpha = 0.14f)),
+                .background(BrandTelegram.copy(alpha = 0.14f)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.Send, contentDescription = null, tint = Color(0xFF229ED9), modifier = Modifier.size(22.dp))
+            Icon(Icons.Default.Send, contentDescription = null, tint = BrandTelegram, modifier = Modifier.size(22.dp))
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(

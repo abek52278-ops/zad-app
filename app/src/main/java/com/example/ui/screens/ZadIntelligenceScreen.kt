@@ -4225,7 +4225,7 @@ private fun ZadBrainAdGate(
             Text(
                 text = stringResource(R.string.brain_gate_subtitle),
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color(0xFF6EE7B7),
+                color = ZadMintAccent,
                 textAlign = TextAlign.Center
             )
 
@@ -4236,7 +4236,7 @@ private fun ZadBrainAdGate(
                         modifier = Modifier
                             .size(26.dp)
                             .clip(CircleShape)
-                            .background(if (idx < adsWatched) Color(0xFF10B981) else Color(0x33FFFFFF))
+                            .background(if (idx < adsWatched) ZadEmeraldAccent else Color(0x33FFFFFF))
                     )
                 }
             }
@@ -4264,7 +4264,7 @@ private fun ZadBrainAdGate(
                     )
                 },
                 enabled = !isShowingAd,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                colors = ButtonDefaults.buttonColors(containerColor = ZadEmeraldAccent),
                 modifier = Modifier.fillMaxWidth().height(54.dp)
             ) {
                 Text(
@@ -4282,14 +4282,14 @@ private fun ZadBrainAdGate(
             if (showBypassButton || !RewardedBrainAdManager.isAdReady()) {
                 OutlinedButton(
                     onClick = onUnlocked,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF6EE7B7)),
-                    border = BorderStroke(1.dp, Color(0xFF10B981)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ZadMintAccent),
+                    border = BorderStroke(1.dp, ZadEmeraldAccent),
                     modifier = Modifier.fillMaxWidth().height(50.dp)
                 ) {
                     Text(
                         text = stringResource(R.string.brain_gate_bypass),
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF6EE7B7)
+                        color = ZadMintAccent
                     )
                 }
             }
@@ -4297,7 +4297,7 @@ private fun ZadBrainAdGate(
             TextButton(onClick = onSubscribe) {
                 Text(
                     text = stringResource(R.string.brain_gate_subscribe),
-                    color = Color(0xFF6EE7B7)
+                    color = ZadMintAccent
                 )
             }
         }

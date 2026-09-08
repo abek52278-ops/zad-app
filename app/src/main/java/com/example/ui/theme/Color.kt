@@ -229,3 +229,29 @@ val ZadVoiceCyan = Color(0xFF38BDF8)
 val ZadVoiceAlertAmber = Color(0xFFFBBF24)
 val ZadVoiceAlertBrown = Color(0xFFB45309)
 
+// =========================================================================
+// Brand & Subscription Service Color Tokens
+// =========================================================================
+val BrandNetflix = Color(0xFFE50914)
+val BrandShahid = Color(0xFF00A651)
+val BrandSpotify = Color(0xFF1DB954)
+val BrandYouTube = Color(0xFFFF0000)
+val BrandTod = Color(0xFF10B981)
+val BrandWatchIt = Color(0xFFFF9900)
+val BrandTabby = Color(0xFF29E7CD)
+val BrandTamara = Color(0xFFFF7043)
+val BrandElectricity = Color(0xFFF59E0B)
+val BrandWater = Color(0xFF0EA5E9)
+val BrandInternet = Color(0xFF3B82F6)
+val BrandRent = Color(0xFF8B5CF6)
+val BrandGold = Color(0xFFFFD700)
+val BrandWarning = Color(0xFFF59E0B)
+val BrandTelegram = Color(0xFF229ED9)
+
+val ZadEmeraldAccent = Color(0xFF10B981)
+val ZadMintAccent = Color(0xFF6EE7B7)
+val ZadDarkSlate = Color(0xFF0F172A)
+val ZadHeartYellow = Color(0xFFFFF176)
+val ZadHeartRed = Color(0xFFDC2626)
+
+

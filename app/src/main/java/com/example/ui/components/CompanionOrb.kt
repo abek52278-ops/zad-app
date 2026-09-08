@@ -483,7 +483,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawCompanionEyes(
     when (state) {
         CompanionState.Happy, CompanionState.Celebrating -> {
             val heartHeight = radius * 0.44f * openAmount
-            val heartColor = if (state == CompanionState.Celebrating) Color(0xFFFFF176) else Color.White
+            val heartColor = if (state == CompanionState.Celebrating) ZadHeartYellow else Color.White
             if (openAmount > 0.25f) {
                 drawHeart(leftCenter, eyeWidth * 1.25f, heartHeight, heartColor)
                 drawHeart(rightCenter, eyeWidth * 1.25f, heartHeight, heartColor)
@@ -543,7 +543,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawExpressiveEye(
         val pupilRadius = minOf(width, height) * 0.36f
         val pCenter = center + pupilOffset
         drawCircle(
-            color = Color(0xFF0F172A),
+            color = ZadDarkSlate,
             radius = pupilRadius,
             center = pCenter
         )
@@ -590,7 +590,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawAlertEye(
         cornerRadius = cornerRadius
     )
     drawCircle(
-        color = Color(0xFFDC2626),
+        color = ZadHeartRed,
         radius = minOf(width, height) * 0.38f,
         center = center
     )

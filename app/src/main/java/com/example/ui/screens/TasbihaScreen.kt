@@ -788,7 +788,7 @@ private fun AnimatedTreeDisplay(
                     if (animatedCycleProgress > 0f) {
                         drawArc(
                             brush = Brush.sweepGradient(
-                                listOf(ringPrimary, Color(0xFF10B981), Color(0xFFFFD700), ringPrimary)
+                                listOf(ringPrimary, ZadEmeraldAccent, BrandGold, ringPrimary)
                             ),
                             startAngle = -90f,
                             sweepAngle = (animatedCycleProgress * 360f).coerceIn(0.5f, 360f),

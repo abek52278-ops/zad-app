@@ -355,7 +355,7 @@ fun ZadBottomNavBar(
                 .shadow(
                     elevation = 28.dp,
                     shape = pillShape,
-                    ambientColor = Color(0xFF0F172A).copy(alpha = 0.10f),
+                    ambientColor = ZadDarkSlate.copy(alpha = 0.10f),
                     spotColor  = Color(0xFF064E3B).copy(alpha = 0.18f)
                 )
                 .clip(pillShape)
@@ -458,7 +458,7 @@ private fun ZadCameraFabButton(
             .shadow(
                 elevation = 16.dp,
                 shape = CircleShape,
-                ambientColor = Color(0xFF0F172A).copy(alpha = 0.15f),
+                ambientColor = ZadDarkSlate.copy(alpha = 0.15f),
                 spotColor = primary.copy(alpha = 0.25f)
             )
             .clip(CircleShape)
