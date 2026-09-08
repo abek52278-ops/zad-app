@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ui.theme.*
 
 /**
  * منتقي الأقسام السريع المحدّث — شريط رقائق أفقي أنيق (Minimalist Glass Chips Carousel)
@@ -83,7 +84,7 @@ fun ZadCategoryChip(
             text = category.titleAr,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
-            color = Color(0xFF0F172A),
+            color = textPrimary,
             maxLines = 1
         )
     }

@@ -512,9 +512,9 @@ private fun FoodGlanceTile(
 ) {
     val progress = (item.daysLeft / 10f).coerceIn(0.1f, 1f)
     val tileGradient = Brush.horizontalGradient(
-        if (item.isLow) listOf(dangerColor, Color(0xFFF43F5E))
-        else if (item.daysLeft <= 4) listOf(warningColor, Color(0xFFFBBF24))
-        else listOf(primary, Color(0xFF10B981))
+        if (item.isLow) listOf(dangerColor, coral)
+        else if (item.daysLeft <= 4) listOf(warningColor, ZadMustardLight)
+        else listOf(primary, primaryLight)
     )
 
     Column(

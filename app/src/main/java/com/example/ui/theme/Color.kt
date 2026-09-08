@@ -191,3 +191,41 @@ val error: Color @Composable get() = MaterialTheme.colorScheme.error
 val onError: Color @Composable get() = MaterialTheme.colorScheme.onError
 val errorContainer: Color @Composable get() = MaterialTheme.colorScheme.errorContainer
 val onErrorContainer: Color @Composable get() = MaterialTheme.colorScheme.onErrorContainer
+
+// =========================================================================
+// Zad Mind / Sci-Fi Intelligence Dashboard Palette
+// =========================================================================
+val ZadSciFiBg = Color(0xFF08090C)
+val ZadSciFiGrid = Color(0xFF111D26)
+val ZadSciFiNeonGreen = Color(0xFF00FF88)
+val ZadSciFiCyanElectric = Color(0xFF00E5FF)
+val ZadSciFiCyanSoft = Color(0xFF67E8F9)
+val ZadSciFiAmber = Color(0xFFFFB300)
+val ZadSciFiTextPrimary = Color(0xFFE2F9FF)
+val ZadSciFiTextSecondary = Color(0xFF5A7985)
+val ZadSciFiCardBg = Color(0xFF0C131B)
+val ZadSciFiBorder = Color(0xFF14202B)
+val ZadSciFiEmeraldDark = Color(0xFF042F2E)
+val ZadSciFiNodeBg = Color(0xFF0C141D)
+val ZadSciFiSheetBg = Color(0xFF0D1620)
+val ZadSciFiButtonBg = Color(0xFF17242C)
+
+// =========================================================================
+// Zad Voice Live & Mesh Gradient Palette
+// =========================================================================
+val ZadOrbMeshMint = Color(0xFF6EE7B7)
+val ZadOrbMeshTeal = Color(0xFFA7F3D0)
+val ZadVoiceDarkSheetBg = Color(0xF2081120)
+val ZadVoiceWaveEmerald = Color(0xFF10B981)
+val ZadVoiceWaveMint = Color(0xFF6EE7B7)
+val ZadVoiceWaveTealDark = Color(0xFF047857)
+val ZadVoiceWaveInactiveTop = Color(0xFF475569)
+val ZadVoiceWaveInactiveBottom = Color(0xFF1E293B)
+val ZadVoiceTextSoft = Color(0xFF94A3B8)
+val ZadVoiceTextMint = Color(0xFFD1FAE5)
+val ZadVoiceDangerStart = Color(0xFFF43F5E)
+val ZadVoiceDangerEnd = Color(0xFF9F1239)
+val ZadVoiceCyan = Color(0xFF38BDF8)
+val ZadVoiceAlertAmber = Color(0xFFFBBF24)
+val ZadVoiceAlertBrown = Color(0xFFB45309)
+

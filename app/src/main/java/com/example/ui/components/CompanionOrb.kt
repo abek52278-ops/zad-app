@@ -36,6 +36,7 @@ import com.example.R
 import com.example.voice.LiveVoiceState
 import com.example.voice.ZadCutePetSoundFx
 import com.example.voice.VoiceState
+import com.example.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.sin
@@ -360,10 +361,10 @@ fun CompanionOrb(
             val meshSweepBrush = Brush.sweepGradient(
                 colors = listOf(
                     skyColor,
-                    Color(0xFF6EE7B7),
+                    ZadOrbMeshMint,
                     deepColor,
                     skyColor.copy(alpha = 0.9f),
-                    Color(0xFFA7F3D0),
+                    ZadOrbMeshTeal,
                     deepColor,
                     skyColor
                 ),

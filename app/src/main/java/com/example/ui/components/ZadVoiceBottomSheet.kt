@@ -39,6 +39,7 @@ import com.example.voice.VoiceState
 import com.example.voice.ZadCutePetSoundFx
 import com.example.voice.ZadLiveVoiceSession
 import com.example.voice.ZadVoiceManager
+import com.example.ui.theme.*
 
 /**
  * Siri / ChatGPT Advanced Voice style Live AI Voice Sheet.
@@ -207,7 +208,7 @@ fun ZadVoiceBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Color(0xF2081120),
+        containerColor = ZadVoiceDarkSheetBg,
         scrimColor = Color.Black.copy(alpha = 0.70f),
         dragHandle = {
             Box(
@@ -218,23 +219,22 @@ fun ZadVoiceBottomSheet(
                     .clip(RoundedCornerShape(9999.dp))
                     .background(Color.White.copy(alpha = 0.20f))
             )
-        }
+        },
+        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 10.dp)
-                .navigationBarsPadding(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Header Row with Glassmorphism Live Indicator
+            // Header: Status indicator + Live Mode Toggle + Close button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Sleek Live Indicator Badge
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -244,7 +244,7 @@ fun ZadVoiceBottomSheet(
                         .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(9999.dp))
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    val indicatorColor = if (isLiveMode) Color(0xFF34D399) else if (isListeningState) Color(0xFF38BDF8) else Color(0xFF94A3B8)
+                    val indicatorColor = if (isLiveMode) ZadVoiceWaveMint else if (isListeningState) ZadVoiceCyan else ZadVoiceTextSoft
                     Box(
                         modifier = Modifier
                             .size(8.dp)
@@ -265,10 +265,10 @@ fun ZadVoiceBottomSheet(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(9999.dp))
-                            .background(if (isLiveMode) Color(0xFF10B981).copy(alpha = 0.20f) else Color.White.copy(alpha = 0.08f))
+                            .background(if (isLiveMode) ZadVoiceWaveEmerald.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.08f))
                             .border(
                                 1.dp,
-                                if (isLiveMode) Color(0xFF10B981).copy(alpha = 0.5f) else Color.White.copy(alpha = 0.14f),
+                                if (isLiveMode) ZadVoiceWaveEmerald.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.14f),
                                 RoundedCornerShape(9999.dp)
                             )
                             .clickable { isLiveMode = !isLiveMode }
@@ -278,7 +278,7 @@ fun ZadVoiceBottomSheet(
                             text = if (isLiveMode) "⚡ وضع مباشر" else "مكالمة حية",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isLiveMode) Color(0xFF6EE7B7) else Color(0xFF94A3B8)
+                            color = if (isLiveMode) ZadVoiceWaveMint else ZadVoiceTextSoft
                         )
                     }
 
@@ -331,7 +331,7 @@ fun ZadVoiceBottomSheet(
                 },
                 fontSize = 14.5.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (recognizedLiveText.isNotBlank()) Color.White else Color(0xFF6EE7B7),
+                color = if (recognizedLiveText.isNotBlank()) Color.White else ZadVoiceWaveMint,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 14.dp)
             )
@@ -348,10 +348,10 @@ fun ZadVoiceBottomSheet(
                     .background(
                         brush = Brush.radialGradient(
                             colors = when {
-                                isLiveMode && isLiveConnected -> listOf(Color(0xFFF43F5E), Color(0xFF9F1239))
-                                !isLiveMode && isListeningState -> listOf(Color(0xFFF43F5E), Color(0xFF9F1239))
-                                isSpeakingState -> listOf(Color(0xFFFBBF24), Color(0xFFB45309))
-                                else -> listOf(Color(0xFF10B981), Color(0xFF047857))
+                                isLiveMode && isLiveConnected -> listOf(ZadVoiceDangerStart, ZadVoiceDangerEnd)
+                                !isLiveMode && isListeningState -> listOf(ZadVoiceDangerStart, ZadVoiceDangerEnd)
+                                isSpeakingState -> listOf(ZadVoiceAlertAmber, ZadVoiceAlertBrown)
+                                else -> listOf(ZadVoiceWaveEmerald, ZadVoiceWaveTealDark)
                             }
                         )
                     )
@@ -395,7 +395,7 @@ fun ZadVoiceBottomSheet(
                     text = stringResource(R.string.voice_tap_to_interrupt_hint),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFFFBBF24)
+                    color = ZadVoiceAlertAmber
                 )
             }
 
@@ -405,7 +405,7 @@ fun ZadVoiceBottomSheet(
                     text = "أو اختر سؤالاً جاهزاً:",
                     fontSize = 11.5.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF94A3B8)
+                    color = ZadVoiceTextSoft
                 )
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
@@ -429,7 +429,7 @@ fun ZadVoiceBottomSheet(
                                 text = chip,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFFD1FAE5)
+                                color = ZadVoiceTextMint
                             )
                         }
                     }
@@ -488,9 +488,9 @@ fun ZadAudioWavebars(
             drawRoundRect(
                 brush = Brush.verticalGradient(
                     colors = if (isListening) {
-                        listOf(Color(0xFF6EE7B7), Color(0xFF10B981), Color(0xFF047857))
+                        listOf(ZadVoiceWaveMint, ZadVoiceWaveEmerald, ZadVoiceWaveTealDark)
                     } else {
-                        listOf(Color(0xFF475569).copy(alpha = 0.5f), Color(0xFF1E293B).copy(alpha = 0.3f))
+                        listOf(ZadVoiceWaveInactiveTop.copy(alpha = 0.5f), ZadVoiceWaveInactiveBottom.copy(alpha = 0.3f))
                     }
                 ),
                 topLeft = Offset(x, y),

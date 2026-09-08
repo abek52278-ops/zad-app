@@ -69,13 +69,13 @@ import kotlin.math.sin
  * الشكل البصري (شبكة/توهج نيون داكن) مقصود لهذه الشاشة بالذات، بنفس منطق استثناء
  * Kids Mode في CLAUDE.md — ألوان ثابتة محلية لا تتسرب لمكونات مشتركة.
  */
-private val kmBg = Color(0xFF08090C)
-private val kmGrid = Color(0xFF111D26)
-private val kmNeonEmerald = Color(0xFF00FF88)
-private val kmCyanElectric = Color(0xFF00E5FF)
-private val kmAmberAlert = Color(0xFFFFB300)
-private val kmTextPrimary = Color(0xFFE2F9FF)
-private val kmTextSecondary = Color(0xFF5A7985)
+private val kmBg = ZadSciFiBg
+private val kmGrid = ZadSciFiGrid
+private val kmNeonEmerald = ZadSciFiNeonGreen
+private val kmCyanElectric = ZadSciFiCyanElectric
+private val kmAmberAlert = ZadSciFiAmber
+private val kmTextPrimary = ZadSciFiTextPrimary
+private val kmTextSecondary = ZadSciFiTextSecondary
 private val kmMono = FontFamily.Monospace
 
 // المجالات اللي ليها شاشة مخصصة فعلاً في ZadRoutes — obligations/debts مفيش لهم
@@ -396,7 +396,7 @@ private fun SciFiTelemetryBar(
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 4.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF0C131B).copy(alpha = 0.92f))
+            .background(ZadSciFiCardBg.copy(alpha = 0.92f))
             .border(1.dp, kmCyanElectric.copy(alpha = 0.28f), RoundedCornerShape(12.dp))
             .padding(horizontal = 12.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -483,7 +483,7 @@ private fun SciFiTelemetryBar(
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val strokeW = 3.dp.toPx()
                     drawArc(
-                        color = Color(0xFF14202B),
+                        color = ZadSciFiBorder,
                         startAngle = -90f,
                         sweepAngle = 360f,
                         useCenter = false,
@@ -677,7 +677,7 @@ internal fun DomainRing(
                     val sY = centerPx.y + dist * sin(rad).toFloat()
                     val starAlpha = (0.2f + 0.25f * sin((s * 3.14f + orbitAngle * 0.05f).toDouble()).toFloat()).coerceIn(0.1f, 0.6f)
                     drawCircle(
-                        color = Color(0xFF67E8F9).copy(alpha = starAlpha),
+                        color = ZadSciFiCyanSoft.copy(alpha = starAlpha),
                         radius = if (s % 3 == 0) 2.2.dp.toPx() else 1.4.dp.toPx(),
                         center = Offset(sX, sY)
                     )
@@ -817,7 +817,7 @@ internal fun DomainRing(
                             listOf(
                                 kmCyanElectric,
                                 kmNeonEmerald,
-                                Color(0xFF042F2E)
+                                ZadSciFiEmeraldDark
                             )
                         )
                     )
@@ -830,14 +830,14 @@ internal fun DomainRing(
                         style = Typography.titleMedium,
                         fontFamily = kmMono,
                         fontWeight = FontWeight.Black,
-                        color = Color(0xFF08090C)
+                        color = kmBg
                     )
                     Text(
                         text = "CORE.v2",
                         style = Typography.labelSmall,
                         fontFamily = kmMono,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF08090C).copy(alpha = 0.8f),
+                        color = kmBg.copy(alpha = 0.8f),
                         fontSize = 8.sp
                     )
                 }
@@ -877,7 +877,7 @@ internal fun DomainRing(
                             modifier = Modifier
                                 .size(58.dp)
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(Color(0xFF0C141D).copy(alpha = 0.90f))
+                                .background(ZadSciFiNodeBg.copy(alpha = 0.90f))
                                 .border(
                                     width = if (isLive) 1.5.dp else 1.dp,
                                     color = d.color.copy(alpha = if (isLive) 0.95f else 0.55f),
@@ -905,7 +905,7 @@ internal fun DomainRing(
                                     fontSize = 10.sp,
                                     fontFamily = kmMono,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF08090C)
+                                    color = kmBg
                                 )
                             }
                         }
@@ -917,7 +917,7 @@ internal fun DomainRing(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFF0D1620).copy(alpha = 0.92f))
+                            .background(ZadSciFiSheetBg.copy(alpha = 0.92f))
                             .border(1.dp, d.color.copy(alpha = 0.45f), RoundedCornerShape(6.dp))
                             .padding(horizontal = 7.dp, vertical = 2.dp)
                     ) {
@@ -948,7 +948,7 @@ internal fun DomainRing(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF17242C).copy(alpha = 0.85f))
+                    .background(ZadSciFiButtonBg.copy(alpha = 0.85f))
                     .border(1.dp, kmTextSecondary.copy(alpha = 0.3f), CircleShape)
             ) {
                 Icon(Icons.Default.Add, contentDescription = "تكبير", tint = kmTextPrimary, modifier = Modifier.size(18.dp))
@@ -958,7 +958,7 @@ internal fun DomainRing(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF17242C).copy(alpha = 0.85f))
+                    .background(ZadSciFiButtonBg.copy(alpha = 0.85f))
                     .border(1.dp, kmTextSecondary.copy(alpha = 0.3f), CircleShape)
             ) {
                 Icon(Icons.Default.Remove, contentDescription = "تصغير", tint = kmTextPrimary, modifier = Modifier.size(18.dp))
@@ -971,7 +971,7 @@ internal fun DomainRing(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF17242C).copy(alpha = 0.85f))
+                    .background(ZadSciFiButtonBg.copy(alpha = 0.85f))
                     .border(1.dp, kmTextSecondary.copy(alpha = 0.3f), CircleShape)
             ) {
                 Icon(Icons.Default.RestartAlt, contentDescription = "إعادة ضبط", tint = primaryLight, modifier = Modifier.size(18.dp))
