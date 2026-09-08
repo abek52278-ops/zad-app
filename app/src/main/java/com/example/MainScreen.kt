@@ -198,6 +198,7 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
     // صندوق الشات فيها مدفون بعد 40 كارت). ZadAgentOverlay مكوّن جاهز بالفعل ومعمول
     // لبالظبط الغرض ده، من onQuickChat القديم بتاع المسكوت اللي اتشال.
     var showAgentOverlay by remember { mutableStateOf(false) }
+    val companionMood by viewModel.companionMood.collectAsState()
 
     fun go(route: String) {
         navController.navigate(route) {
@@ -637,11 +638,15 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                     }
                 }
             }
-            // المسكوت العائم (الكورة الخضرا) اتشال من فوق كل الشاشات: كان zIndex(100f)
-            // فوق محتوى الـLazyColumn، فبيقطع أسماء الأدوية والمخزون في PharmacyScreen
-            // وInventoryScreen — ومكانش فيه أي padding في القوايم دي يخلي المحتوى يعدّيه.
-            // ZadAgentOverlay (شيت الشات السريع) فاضل — بقى مدخله زر "بوت زاد" العائم في
-            // الرئيسية (onOpenBotChat) بدل onQuickChat بتاع المسكوت اللي اتشال.
+            if (chromeVisible) {
+                com.example.ui.components.DraggableFloatingCompanion(
+                    companionMood = companionMood,
+                    bottomNavHeight = 80.dp,
+                    onOpenVoice = { showVoiceSheet = true },
+                    onOpenChat = { showAgentOverlay = true }
+                )
+            }
+
             com.example.ui.components.ZadAgentOverlay(
                 visible = showAgentOverlay,
                 viewModel = viewModel,

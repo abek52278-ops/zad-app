@@ -660,31 +660,9 @@ fun CameraScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        if (receipt.receiptType == "pharmacy" && receipt.items.isNotEmpty()) {
-                            // فاتورة صيدلية: كل صنف بيتحقن في الصيدلية نفسها (مش المخزون العام)،
-                            // و addPharmacyItem بيسجّل مصروفه الخاص — مفيش addTransaction هنا
-                            // عشان الفاتورة ماتتحسبش مرتين.
-                            receipt.items.forEach { item ->
-                                viewModel.addPharmacyItem(
-                                    com.example.data.ZadPharmacyItem(
-                                        name = item.name,
-                                        remainingQuantity = maxOf(1, item.quantity.toInt()),
-                                        unit = item.unit,
-                                        price = item.price
-                                    )
-                                )
-                            }
+                        if (receipt.receiptType == "pharmacy") {
+                            viewModel.injectPharmacyReceipt(receipt)
                             analysisStatus = context.getString(R.string.cam_receipt_to_pharmacy, receipt.storeName, com.example.data.CurrencyFormatter.format(context, receipt.total))
-                        } else if (receipt.receiptType == "pharmacy") {
-                            viewModel.addTransaction(
-                                com.example.data.ZadTransaction(
-                                    title = receipt.storeName,
-                                    amount = receipt.total,
-                                    isExpense = true,
-                                    category = "الرعاية الصحية"
-                                )
-                            )
-                            analysisStatus = context.getString(R.string.cam_receipt_logged, receipt.storeName, com.example.data.CurrencyFormatter.format(context, receipt.total))
                         } else if (receipt.items.all { it.category in setOf("تنظيف", "أدوات منزلية", "صيانة") } && receipt.items.isNotEmpty()) {
                             // فاتورة أدوات منزلية/تنظيف → الصيانة والمخزون العام معاً، ومعاملة واحدة
                             viewModel.addTransaction(

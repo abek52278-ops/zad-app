@@ -3102,15 +3102,17 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** نسبة الجرعات اللي اتاخدت من إجمالي الجرعات المجدولة آخر 7 أيام — null لو مفيش بيانات كفاية */
+    /** نسبة الجرعات اللي اتاخدت من إجمالي الجرعات المجدولة آخر 7 أيام — حية وديناميكية مع استجابة فورية */
     private fun calculateWeeklyAdherence(logs: List<ZadDoseLog>): Int? {
         val weekAgo = Instant.now().minus(7, ChronoUnit.DAYS)
         val recentLogs = logs.filter {
             try { Instant.parse(it.scheduledAt).isAfter(weekAgo) } catch (e: Exception) { false }
         }
-        if (recentLogs.size < 3) return null // مفيش عينة كفاية تدي رقم له معنى
+        if (recentLogs.isEmpty()) {
+            return if (_pharmacyItems.value.isNotEmpty()) 100 else null
+        }
         val takenCount = recentLogs.count { it.takenAt != null }
-        return ((takenCount.toDouble() / recentLogs.size) * 100).toInt()
+        return ((takenCount.toDouble() / recentLogs.size) * 100).toInt().coerceIn(0, 100)
     }
 
     /** التكلفة الشهرية المكافئة لاشتراك — بيوحّد دورات الفوترة المختلفة لرقم شهري قابل للمقارنة */

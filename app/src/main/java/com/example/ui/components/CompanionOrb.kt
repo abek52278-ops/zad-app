@@ -482,8 +482,8 @@ fun CompanionOrb(
             )
         )
 
-        // 6. Sleek Minimalist Robot Slit Eyes (Glow Arcs)
-        drawRobotSlitEyes(
+        // 6. Dynamic Expressive Living Eyes (Interactive Companion Orb)
+        drawCompanionEyes(
             state = state,
             center = center,
             radius = radius,
@@ -495,10 +495,9 @@ fun CompanionOrb(
 }
 
 /**
- * رسم اللمعات الأفقية المنحنية الحديثة للكائن التفاعلي (Sleek Minimalist Curved Slits / Glow Arcs)
- * كبديل عصري للعيون النقطية المشوهة، مع دعم الحركة والنبض مع نبرة الصوت.
+ * رسم العيون التعبيرية الحية للكائن التفاعلي حسب الحالة والمشاعر ونبرة الصوت
  */
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawRobotSlitEyes(
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawCompanionEyes(
     state: CompanionState,
     center: Offset,
     radius: Float,
@@ -506,111 +505,175 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawRobotSlitEyes(
     audioLevel: Float,
     sheenProgress: Float
 ) {
-    val eyeSpacing = radius * 0.34f
-    val baseEyeY = center.y - radius * 0.04f
+    val eyeSpacing = radius * 0.38f
+    val eyeWidth = radius * 0.22f
+    val baseEyeY = center.y - radius * 0.08f
     val leftCenter = Offset(center.x - eyeSpacing, baseEyeY)
     val rightCenter = Offset(center.x + eyeSpacing, baseEyeY)
-    val slitWidth = radius * 0.28f
-    val baseHeight = radius * 0.075f
-    val effectiveHeight = (baseHeight + radius * 0.05f * audioLevel) * openAmount.coerceAtLeast(0.06f)
 
     when (state) {
         CompanionState.Happy, CompanionState.Celebrating -> {
-            // لمعات مبتسمة للأعلى بانحناءة نيون زاهية
-            val glowCol = if (state == CompanionState.Celebrating) ZadHeartYellow else ZadOrbNeonMint
-            drawGlowArc(leftCenter, slitWidth, effectiveHeight, isSmiling = true, glowColor = glowCol)
-            drawGlowArc(rightCenter, slitWidth, effectiveHeight, isSmiling = true, glowColor = glowCol)
+            val heartHeight = radius * 0.44f * openAmount
+            val heartColor = if (state == CompanionState.Celebrating) ZadHeartYellow else Color.White
+            if (openAmount > 0.25f) {
+                drawHeart(leftCenter, eyeWidth * 1.25f, heartHeight, heartColor)
+                drawHeart(rightCenter, eyeWidth * 1.25f, heartHeight, heartColor)
+            } else {
+                drawSmilingArc(leftCenter, eyeWidth, radius * 0.12f)
+                drawSmilingArc(rightCenter, eyeWidth, radius * 0.12f)
+            }
         }
         CompanionState.Listening -> {
-            // لمعات يقظة ومائلة قليلاً للأعلى مع توهج سماوي كهربائي نابض
-            val listeningWidth = slitWidth * (1f + 0.15f * audioLevel)
-            drawGlowArc(leftCenter, listeningWidth, effectiveHeight * 1.15f, tilt = 3f, glowColor = ZadOrbNeonCyan)
-            drawGlowArc(rightCenter, listeningWidth, effectiveHeight * 1.15f, tilt = -3f, glowColor = ZadOrbNeonCyan)
+            val eyeHeight = (radius * 0.42f + radius * 0.14f * audioLevel) * openAmount
+            val pupilOffset = Offset(0f, -radius * 0.03f)
+            drawExpressiveEye(leftCenter, eyeWidth, eyeHeight, pupilOffset, openAmount)
+            drawExpressiveEye(rightCenter, eyeWidth, eyeHeight, pupilOffset, openAmount)
         }
         CompanionState.Speaking -> {
-            // لمعات متجاوبة أفقياً تهتز مع سعة الصوت الصادر
-            val voiceMod = 1f + 0.35f * sin(sheenProgress * Math.PI.toFloat() * 2f)
-            val speakingHeight = effectiveHeight * voiceMod
-            drawGlowArc(leftCenter, slitWidth * 1.05f, speakingHeight, glowColor = ZadOrbSlitGlow)
-            drawGlowArc(rightCenter, slitWidth * 1.05f, speakingHeight, glowColor = ZadOrbSlitGlow)
+            val eyeHeight = (radius * 0.38f + radius * 0.12f * audioLevel) * openAmount
+            val pupilOffset = Offset(0f, radius * 0.02f * sin(sheenProgress * Math.PI.toFloat()))
+            drawExpressiveEye(leftCenter, eyeWidth, eyeHeight, pupilOffset, openAmount)
+            drawExpressiveEye(rightCenter, eyeWidth, eyeHeight, pupilOffset, openAmount)
         }
         CompanionState.Focused -> {
-            // لمعات ليزرية أفقية رفيعة ومركزة
-            drawGlowArc(leftCenter, slitWidth * 1.1f, effectiveHeight * 0.70f, glowColor = ZadOrbFocusedSky)
-            drawGlowArc(rightCenter, slitWidth * 1.1f, effectiveHeight * 0.70f, glowColor = ZadOrbFocusedSky)
+            val eyeHeight = radius * 0.28f * openAmount
+            drawFocusedEye(leftCenter, eyeWidth * 1.15f, eyeHeight)
+            drawFocusedEye(rightCenter, eyeWidth * 1.15f, eyeHeight)
         }
         CompanionState.Alert -> {
-            // لمعات حادة مائلة مع توهج مرجاني تحذيري
-            drawGlowArc(leftCenter, slitWidth, effectiveHeight * 0.9f, tilt = -5f, glowColor = ZadOrbAlertSky)
-            drawGlowArc(rightCenter, slitWidth, effectiveHeight * 0.9f, tilt = 5f, glowColor = ZadOrbAlertSky)
+            val eyeHeight = radius * 0.45f * openAmount
+            drawAlertEye(leftCenter, eyeWidth, eyeHeight)
+            drawAlertEye(rightCenter, eyeWidth, eyeHeight)
         }
         CompanionState.Idle -> {
-            // لمعات روبوتية أفقية هادئة تتنفس بسلاسة
-            drawGlowArc(leftCenter, slitWidth, effectiveHeight, glowColor = ZadOrbNeonCyan)
-            drawGlowArc(rightCenter, slitWidth, effectiveHeight, glowColor = ZadOrbNeonCyan)
+            val eyeHeight = radius * 0.38f * openAmount
+            drawExpressiveEye(leftCenter, eyeWidth, eyeHeight, Offset.Zero, openAmount)
+            drawExpressiveEye(rightCenter, eyeWidth, eyeHeight, Offset.Zero, openAmount)
         }
     }
 }
 
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGlowArc(
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawExpressiveEye(
     center: Offset,
     width: Float,
     height: Float,
-    isSmiling: Boolean = false,
-    tilt: Float = 0f,
-    glowColor: Color = ZadOrbNeonCyan
+    pupilOffset: Offset,
+    openAmount: Float
 ) {
-    if (width < 2f) return
+    if (height < 2f) return
+    val cornerRadius = androidx.compose.ui.geometry.CornerRadius(width / 2f, minOf(width / 2f, height / 2f))
+    // Outer white sclera
+    drawRoundRect(
+        color = Color.White,
+        topLeft = Offset(center.x - width / 2f, center.y - height / 2f),
+        size = androidx.compose.ui.geometry.Size(width, height.coerceAtLeast(3f)),
+        cornerRadius = cornerRadius
+    )
+    // Dark expressive pupil
+    if (openAmount > 0.35f) {
+        val pupilRadius = minOf(width, height) * 0.36f
+        val pCenter = center + pupilOffset
+        drawCircle(
+            color = ZadDarkSlate,
+            radius = pupilRadius,
+            center = pCenter
+        )
+        // Specular reflection glint
+        drawCircle(
+            color = Color.White,
+            radius = pupilRadius * 0.38f,
+            center = pCenter - Offset(pupilRadius * 0.32f, pupilRadius * 0.32f)
+        )
+    }
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFocusedEye(
+    center: Offset,
+    width: Float,
+    height: Float
+) {
+    if (height < 2f) return
+    val cornerRadius = androidx.compose.ui.geometry.CornerRadius(width / 2f, height / 2f)
+    drawRoundRect(
+        color = Color.White,
+        topLeft = Offset(center.x - width / 2f, center.y - height / 2f),
+        size = androidx.compose.ui.geometry.Size(width, height.coerceAtLeast(3f)),
+        cornerRadius = cornerRadius
+    )
+    drawCircle(
+        color = ZadOrbFocusedDeep,
+        radius = minOf(width, height) * 0.32f,
+        center = center
+    )
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawAlertEye(
+    center: Offset,
+    width: Float,
+    height: Float
+) {
+    if (height < 2f) return
+    val cornerRadius = androidx.compose.ui.geometry.CornerRadius(width / 2f, height / 2f)
+    drawRoundRect(
+        color = Color.White,
+        topLeft = Offset(center.x - width / 2f, center.y - height / 2f),
+        size = androidx.compose.ui.geometry.Size(width, height.coerceAtLeast(3f)),
+        cornerRadius = cornerRadius
+    )
+    drawCircle(
+        color = ZadHeartRed,
+        radius = minOf(width, height) * 0.38f,
+        center = center
+    )
+    drawCircle(
+        color = Color.White,
+        radius = minOf(width, height) * 0.16f,
+        center = center - Offset(width * 0.1f, height * 0.1f)
+    )
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSmilingArc(
+    center: Offset,
+    width: Float,
+    height: Float
+) {
+    val path = Path().apply {
+        moveTo(center.x - width / 2f, center.y + height / 2f)
+        quadraticTo(center.x, center.y - height / 2f, center.x + width / 2f, center.y + height / 2f)
+    }
+    drawPath(
+        path = path,
+        color = Color.White,
+        style = androidx.compose.ui.graphics.drawscope.Stroke(
+            width = 3.5f,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round
+        )
+    )
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawHeart(
+    at: Offset,
+    width: Float,
+    height: Float,
+    color: Color = Color.White
+) {
+    if (height < 3f) return
     val hw = width / 2f
-    val path = Path()
-
-    if (isSmiling) {
-        val curveDepth = height * 1.2f
-        path.moveTo(center.x - hw, center.y + curveDepth * 0.25f)
-        path.quadraticTo(center.x, center.y + curveDepth + height, center.x + hw, center.y + curveDepth * 0.25f)
-        path.quadraticTo(center.x, center.y + curveDepth, center.x - hw, center.y + curveDepth * 0.25f)
-        path.close()
-    } else {
-        val bow = height * 0.25f
-        path.moveTo(center.x - hw, center.y)
-        path.quadraticTo(center.x, center.y - bow - height / 2f, center.x + hw, center.y)
-        path.quadraticTo(center.x, center.y + bow + height / 2f, center.x - hw, center.y)
-        path.close()
+    val path = Path().apply {
+        moveTo(at.x, at.y - height * 0.35f)
+        cubicTo(
+            at.x - hw * 1.1f, at.y - height * 0.85f,
+            at.x - hw * 1.3f, at.y + height * 0.05f,
+            at.x, at.y + height * 0.55f
+        )
+        cubicTo(
+            at.x + hw * 1.3f, at.y + height * 0.05f,
+            at.x + hw * 1.1f, at.y - height * 0.85f,
+            at.x, at.y - height * 0.35f
+        )
+        close()
     }
-
-    withTransform({
-        if (tilt != 0f) rotate(tilt, center)
-    }) {
-        // 1. هالة النيون الخارجية الناعمة
-        drawPath(
-            path = path,
-            color = glowColor.copy(alpha = 0.38f),
-            style = androidx.compose.ui.graphics.drawscope.Stroke(
-                width = height * 2.2f,
-                cap = androidx.compose.ui.graphics.StrokeCap.Round,
-                join = androidx.compose.ui.graphics.StrokeJoin.Round
-            )
-        )
-        // 2. جسم اللمعة النيون
-        drawPath(
-            path = path,
-            color = glowColor.copy(alpha = 0.85f)
-        )
-        // 3. قلب ليزري فائق النصوع
-        val corePath = Path().apply {
-            val coreHw = hw * 0.75f
-            moveTo(center.x - coreHw, center.y)
-            lineTo(center.x + coreHw, center.y)
-        }
-        drawPath(
-            path = corePath,
-            color = ZadOrbSlitCore,
-            style = androidx.compose.ui.graphics.drawscope.Stroke(
-                width = (height * 0.45f).coerceAtLeast(1.2f),
-                cap = androidx.compose.ui.graphics.StrokeCap.Round
-            )
-        )
-    }
+    drawPath(path, color = color)
 }
 
 /**

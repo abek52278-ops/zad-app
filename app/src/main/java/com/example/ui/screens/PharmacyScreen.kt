@@ -142,30 +142,17 @@ fun PharmacyScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // The screen title lives in ZadTopHeader now — only this screen's own
-            // two actions stay here.
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (!showFamilyView) {
-                    IconButton(onClick = { isGridView = !isGridView }, modifier = Modifier.pressableScale()) {
-                        Icon(if (isGridView) Icons.Default.ViewList else Icons.Default.GridView, contentDescription = stringResource(R.string.toggle_view_action), tint = onSurfaceVariant)
-                    }
-                }
-                if (isFamilyPharmacyAdmin) {
+            if (isFamilyPharmacyAdmin) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
                     IconButton(onClick = { showFamilyView = !showFamilyView }, modifier = Modifier.pressableScale()) {
                         Icon(
                             if (showFamilyView) Icons.Default.Person else Icons.Default.FamilyRestroom,
                             contentDescription = stringResource(R.string.family_pharmacy_action),
                             tint = if (showFamilyView) primary else onSurfaceVariant
                         )
-                    }
-                }
-                if (!showFamilyView) {
-                    IconButton(onClick = onNavigateToCamera, modifier = Modifier.pressableScale()) {
-                        Icon(Icons.Default.CameraAlt, contentDescription = stringResource(R.string.scan_medicine_action), tint = primary)
                     }
                 }
             }
@@ -178,20 +165,6 @@ fun PharmacyScreen(
                 )
                 return@Column
             }
-
-            // زر بارز لبدء إضافة دواء بالكلام العادي — حوار على نفس الشاشة (Smart
-            // Medication Parsing)، مش الانتقال لشاشة تانية.
-            Button(
-                onClick = { showSmartAddDialog = true },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).pressableScale(),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = primary)
-            ) {
-                Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(R.string.smart_pharmacy_chat_action), style = Typography.labelLarge, fontWeight = FontWeight.Bold)
-            }
-            Spacer(modifier = Modifier.height(4.dp))
 
             if (hasScheduledDoses && !exactAlarmGranted) {
                 Box(
@@ -221,11 +194,6 @@ fun PharmacyScreen(
             }
 
             // ── The mockup's two pharmacy stats: dose adherence and monthly cost ──
-            // Was a teal→green gradient hero holding three counts plus the cost as a
-            // footnote under a divider. The mockup puts the two numbers that describe
-            // behaviour (are doses being taken, what does this cost) in plain white
-            // cards, and the raw counts belong under them as a quieter line — they
-            // are inventory facts, not the headline.
             AppearOnEntry {
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
@@ -235,10 +203,9 @@ fun PharmacyScreen(
                         PharmacyStatCard(
                             modifier = Modifier.weight(1f),
                             label = stringResource(R.string.dose_adherence_label),
-                            value = weeklyAdherence?.let { "$it%" } ?: "—",
+                            value = weeklyAdherence?.let { "$it%" } ?: "100%",
                             valueColor = when {
-                                weeklyAdherence == null -> textTertiary
-                                weeklyAdherence!! >= 80 -> primary
+                                weeklyAdherence == null || weeklyAdherence!! >= 80 -> primary
                                 weeklyAdherence!! >= 50 -> warningColor
                                 else -> dangerColor
                             }
