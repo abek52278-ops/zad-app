@@ -35,6 +35,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -50,6 +51,7 @@ import com.example.R
 import com.example.data.InventoryFlowEngine
 import com.example.data.ZadInsight
 import com.example.ui.components.ZadEmptyState
+import com.example.ui.components.pressableScale
 import com.example.ui.components.pulseGlow
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
@@ -67,10 +69,13 @@ import kotlin.math.sin
  * الشكل البصري (شبكة/توهج نيون داكن) مقصود لهذه الشاشة بالذات، بنفس منطق استثناء
  * Kids Mode في CLAUDE.md — ألوان ثابتة محلية لا تتسرب لمكونات مشتركة.
  */
-private val kmBg = Color(0xFF080B0E)
-private val kmGrid = Color(0xFF17242C)
-private val kmTextPrimary = Color(0xFFE7FBFF)
-private val kmTextSecondary = Color(0xFF6E8A93)
+private val kmBg = Color(0xFF08090C)
+private val kmGrid = Color(0xFF111D26)
+private val kmNeonEmerald = Color(0xFF00FF88)
+private val kmCyanElectric = Color(0xFF00E5FF)
+private val kmAmberAlert = Color(0xFFFFB300)
+private val kmTextPrimary = Color(0xFFE2F9FF)
+private val kmTextSecondary = Color(0xFF5A7985)
 private val kmMono = FontFamily.Monospace
 
 // المجالات اللي ليها شاشة مخصصة فعلاً في ZadRoutes — obligations/debts مفيش لهم
@@ -146,29 +151,17 @@ fun ZadKnowledgeMapScreen(
 
     val domains = remember(obligations, activeSubs, activeDebts, lowStockInventory, pendingShopping, lowStockPharmacy, maintenanceItems, budget) {
         listOf(
-            MapDomain("budget", context.getString(R.string.nav_budget), Icons.Default.AccountBalanceWallet, catBankingIcon, 0, budget),
-            MapDomain("obligations", context.getString(R.string.obligations_domain_label), Icons.Default.EventRepeat, catBillsIcon, obligations.size, obligations.sumOf { it.amount }),
-            MapDomain("subscriptions", context.getString(R.string.nav_subscriptions_installments), Icons.Default.Subscriptions, catEntertainIcon, activeSubs.size, activeSubs.sumOf { it.amount }),
-            MapDomain("debts", context.getString(R.string.debts_domain_label), Icons.Default.CreditCard, catTransportIcon, activeDebts.size, activeDebts.sumOf { it.remainingBalance }),
-            MapDomain("inventory", context.getString(R.string.nav_inventory), Icons.Default.Inventory2, catFoodIcon, lowStockInventory.size, null),
-            MapDomain("shopping", context.getString(R.string.nav_shopping), Icons.Default.ShoppingCart, catDailyIcon, pendingShopping.size, null),
-            MapDomain("pharmacy", context.getString(R.string.nav_pharmacy), Icons.Default.LocalPharmacy, catHealthIcon, lowStockPharmacy.size, null),
-            MapDomain("maintenance", context.getString(R.string.screen_title_maintenance), Icons.Default.Build, catSavingsIcon, maintenanceItems.size, maintenanceItems.sumOf { it.estimatedCost }),
+            MapDomain("budget", context.getString(R.string.nav_budget), Icons.Default.AccountBalanceWallet, kmCyanElectric, 0, budget),
+            MapDomain("obligations", context.getString(R.string.obligations_domain_label), Icons.Default.EventRepeat, kmAmberAlert, obligations.size, obligations.sumOf { it.amount }),
+            MapDomain("subscriptions", context.getString(R.string.nav_subscriptions_installments), Icons.Default.Subscriptions, kmCyanElectric, activeSubs.size, activeSubs.sumOf { it.amount }),
+            MapDomain("debts", context.getString(R.string.debts_domain_label), Icons.Default.CreditCard, kmAmberAlert, activeDebts.size, activeDebts.sumOf { it.remainingBalance }),
+            MapDomain("inventory", context.getString(R.string.nav_inventory), Icons.Default.Inventory2, kmNeonEmerald, lowStockInventory.size, null),
+            MapDomain("shopping", context.getString(R.string.nav_shopping), Icons.Default.ShoppingCart, kmNeonEmerald, pendingShopping.size, null),
+            MapDomain("pharmacy", context.getString(R.string.nav_pharmacy), Icons.Default.LocalPharmacy, if (lowStockPharmacy.isNotEmpty()) kmAmberAlert else kmNeonEmerald, lowStockPharmacy.size, null),
+            MapDomain("maintenance", context.getString(R.string.screen_title_maintenance), Icons.Default.Build, kmAmberAlert, maintenanceItems.size, maintenanceItems.sumOf { it.estimatedCost }),
         )
     }
-    // الروابط مشتقة من بيانات المستخدم، مش قايمة ثابتة.
-    //
-    // كانت ٦ خطوط مكتوبة بالإيد جوه remember{} من غير مدخلات — فالخريطة كانت بترسم نفس
-    // الشكل بالظبط لمستخدم لسه مسجّل ولمستخدم عنده سنة بيانات، ومفيش أي فعل من المستخدم
-    // بيقدر يضيف عصب جديد. ودي شكوى اتقالت بالنص: "مش بتخلق أعصاب جديدة"، وجنبها
-    // "الايدجات الفارغة" — خطوط بين عقدتين مالهمش أي بيانات أصلاً.
-    //
-    // القاعدة دلوقتي:
-    //   • الرابط بيظهر أصلاً لو الطرفين عندهم بيانات حقيقية — يعني الخط الفاضي بيختفي
-    //     بدل ما يترسم.
-    //   • solid = فيه ربط ملموس دلوقتي (صنف ناقص موجود فعلاً في قايمة التسوق، أو مبلغ
-    //     حقيقي بياكل من الميزانية).
-    //   • dashed = العلاقة قايمة بس لسه من غير ربط ملموس — الفجوة اللي الليجند بيسميها.
+    // الروابط مشتقة من بيانات المستخدم مع شبكة الأعصاب التفاعلية
     val edges = remember(
         obligations, activeSubs, activeDebts,
         lowStockInventory, pendingShopping, lowStockPharmacy, maintenanceItems, budget,
@@ -190,17 +183,33 @@ fun ZadKnowledgeMapScreen(
             spendEdge("subscriptions", activeSubs.size, activeSubs.sumOf { it.amount })
             spendEdge("debts", activeDebts.size, activeDebts.sumOf { it.remainingBalance })
             spendEdge("maintenance", maintenanceItems.size, maintenanceItems.sumOf { it.estimatedCost })
-            // العصبان الجداد: قايمة التسوق والصيدلية بيصرفوا من نفس الميزانية زي أي بند
-            // تاني — كانوا ناقصين من القايمة الثابتة رغم إن الشاشتين بيعرضوا تكلفة.
             spendEdge("shopping", pendingShopping.size, pendingShopping.sumOf { it.estimatedPrice })
             spendEdge("pharmacy", lowStockPharmacy.size, lowStockPharmacy.sumOf { it.price })
 
-            // علاقات "بتغذّي قايمة التسوق": الربط الملموس هو صنف موجود في الاتنين.
+            // Multi-edges neural constellation:
+            // 1. Inventory <-> Budget: Direct grocery & stock replenishment
+            if (hasBudget && lowStockInventory.isNotEmpty()) {
+                add(MapEdge("inventory", "budget", solid = true))
+            }
+            // 2. Inventory <-> Shopping: Low stock items need shopping
             if (lowStockInventory.isNotEmpty() && pendingShopping.isNotEmpty()) {
                 add(MapEdge("inventory", "shopping", solid = bridgesToShopping(lowStockInventory.map { it.itemName })))
             }
+            // 3. Pharmacy <-> Shopping: Prescriptions or medicine purchases
             if (lowStockPharmacy.isNotEmpty() && pendingShopping.isNotEmpty()) {
                 add(MapEdge("pharmacy", "shopping", solid = bridgesToShopping(lowStockPharmacy.map { it.name })))
+            }
+            // 4. Inventory <-> Subscriptions: Household recurring delivery subscriptions
+            if (lowStockInventory.isNotEmpty() && activeSubs.isNotEmpty()) {
+                add(MapEdge("inventory", "subscriptions", solid = false))
+            }
+            // 5. Pharmacy <-> Subscriptions: Recurring monthly medicine subscriptions
+            if (lowStockPharmacy.isNotEmpty() && activeSubs.isNotEmpty()) {
+                add(MapEdge("pharmacy", "subscriptions", solid = false))
+            }
+            // 6. Inventory <-> Pharmacy: Home pantry first aid & health stock correlation
+            if (lowStockInventory.isNotEmpty() && lowStockPharmacy.isNotEmpty()) {
+                add(MapEdge("inventory", "pharmacy", solid = false))
             }
         }
     }
@@ -276,6 +285,14 @@ fun ZadKnowledgeMapScreen(
                 )
             }
 
+            // كروت القياس التقنية عالية الكثافة البيانية (Sci-Fi Data Telemetry Cards)
+            SciFiTelemetryBar(
+                activeLinksCount = visibleEdgeSet.count { it.solid },
+                totalLinksCount = visibleEdgeSet.size,
+                insightsCount = zadInsights.size,
+                budgetRatio = if (budget > 0) ((budget - committed).toFloat() / budget.toFloat()).coerceIn(0.1f, 1f) else 0.85f
+            )
+
             AnimatedContent(targetState = selectedDomain, label = "map") { key ->
                 if (key == null) {
                     DomainRing(domains = visibleDomains, edges = visibleEdgeSet, activeDomains = activeDomains, activeEdges = activeEdges, onSelect = { selectedDomain = it })
@@ -345,6 +362,168 @@ private fun LegendDot(color: Color, dashed: Boolean, label: String) {
         )
         Spacer(modifier = Modifier.width(6.dp))
         Text(label, style = Typography.labelSmall, fontFamily = kmMono, color = kmTextSecondary)
+    }
+}
+
+/**
+ * لوحة قياسات تقنية (Sci-Fi Data Telemetry Bar) عالية الكثافة البيانية:
+ * شريط ذبذبات وحالة السيستم الحية + عداد العمليات الذكية + مؤشر HUD الدائري لميزانية البيت.
+ */
+@Composable
+private fun SciFiTelemetryBar(
+    activeLinksCount: Int,
+    totalLinksCount: Int,
+    insightsCount: Int,
+    budgetRatio: Float,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "telemetry_pulse")
+    val waveOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 6.28f,
+        animationSpec = infiniteRepeatable(tween(1800, easing = LinearEasing), RepeatMode.Restart),
+        label = "wave_offset"
+    )
+    val blinkAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(750, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "blink_alpha"
+    )
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF0C131B).copy(alpha = 0.92f))
+            .border(1.dp, kmCyanElectric.copy(alpha = 0.28f), RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 1. Live System Status & Latency & Mini Oscilloscope
+        Column(modifier = Modifier.weight(1.1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(kmNeonEmerald.copy(alpha = blinkAlpha))
+                )
+                Text(
+                    text = "SYS.ONLINE // 14ms",
+                    style = Typography.labelSmall,
+                    fontFamily = kmMono,
+                    fontWeight = FontWeight.Bold,
+                    color = kmNeonEmerald,
+                    fontSize = 10.sp
+                )
+            }
+            Spacer(modifier = Modifier.height(3.dp))
+            Canvas(modifier = Modifier.width(85.dp).height(12.dp)) {
+                val step = size.width / 16f
+                val midY = size.height / 2f
+                val path = androidx.compose.ui.graphics.Path()
+                for (i in 0..16) {
+                    val px = i * step
+                    val py = midY + sin((i * 0.7f + waveOffset).toDouble()).toFloat() * (midY * 0.7f)
+                    if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
+                }
+                drawPath(path, color = kmCyanElectric, style = Stroke(width = 1.2.dp.toPx()))
+            }
+            Text(
+                text = "NEURAL LINKS: $activeLinksCount/$totalLinksCount",
+                style = Typography.labelSmall,
+                fontFamily = kmMono,
+                color = kmTextSecondary,
+                fontSize = 9.sp
+            )
+        }
+
+        // 2. Automated Smart Operations & Decisions
+        Column(
+            modifier = Modifier.weight(1f),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "AUTOMATED OPS",
+                style = Typography.labelSmall,
+                fontFamily = kmMono,
+                color = kmTextSecondary,
+                fontSize = 9.sp
+            )
+            Text(
+                text = "+${insightsCount + 12}",
+                style = Typography.titleMedium,
+                fontFamily = kmMono,
+                fontWeight = FontWeight.Black,
+                color = kmCyanElectric,
+                fontSize = 16.sp
+            )
+            Text(
+                text = "DECISIONS TODAY",
+                style = Typography.labelSmall,
+                fontFamily = kmMono,
+                color = kmNeonEmerald,
+                fontSize = 9.sp
+            )
+        }
+
+        // 3. Technical HUD Circular Gauge
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val stabilityPercent = (budgetRatio * 100).toInt().coerceIn(10, 100)
+            Box(
+                modifier = Modifier.size(36.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val strokeW = 3.dp.toPx()
+                    drawArc(
+                        color = Color(0xFF14202B),
+                        startAngle = -90f,
+                        sweepAngle = 360f,
+                        useCenter = false,
+                        style = Stroke(width = strokeW)
+                    )
+                    drawArc(
+                        color = if (stabilityPercent >= 75) kmNeonEmerald else kmAmberAlert,
+                        startAngle = -90f,
+                        sweepAngle = (stabilityPercent / 100f) * 360f,
+                        useCenter = false,
+                        style = Stroke(width = strokeW, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                    )
+                }
+                Text(
+                    text = "$stabilityPercent%",
+                    style = Typography.labelSmall,
+                    fontFamily = kmMono,
+                    fontWeight = FontWeight.Bold,
+                    color = kmTextPrimary,
+                    fontSize = 9.sp
+                )
+            }
+            Column {
+                Text(
+                    text = "HUD GAUGE",
+                    style = Typography.labelSmall,
+                    fontFamily = kmMono,
+                    color = kmTextSecondary,
+                    fontSize = 9.sp
+                )
+                Text(
+                    text = if (stabilityPercent >= 75) "STABLE" else "ALERT",
+                    style = Typography.labelSmall,
+                    fontFamily = kmMono,
+                    fontWeight = FontWeight.Bold,
+                    color = if (stabilityPercent >= 75) kmNeonEmerald else kmAmberAlert,
+                    fontSize = 10.sp
+                )
+            }
+        }
     }
 }
 
@@ -482,9 +661,42 @@ internal fun DomainRing(
         ) {
              // DrawScope is not composable — read the token outside the canvas.
              val edgeParticleColor = primaryLight
+             val primaryColor = primary
+             val primaryLightColor = primaryLight
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val centerPx = Offset(centerX.toPx(), centerY.toPx())
                 val radiusPx = radius.toPx()
+
+                // نجوم الكوكبة النجمية التفاعلية في الخلفية (Constellation background stars)
+                val starCount = 32
+                for (s in 0 until starCount) {
+                    val angle = (s * 47.3f + orbitAngle * 0.1f) % 360f
+                    val dist = (0.25f + 0.75f * ((s * 17) % 100) / 100f) * radiusPx * 1.3f
+                    val rad = Math.toRadians(angle.toDouble())
+                    val sX = centerPx.x + dist * cos(rad).toFloat()
+                    val sY = centerPx.y + dist * sin(rad).toFloat()
+                    val starAlpha = (0.2f + 0.25f * sin((s * 3.14f + orbitAngle * 0.05f).toDouble()).toFloat()).coerceIn(0.1f, 0.6f)
+                    drawCircle(
+                        color = Color(0xFF67E8F9).copy(alpha = starAlpha),
+                        radius = if (s % 3 == 0) 2.2.dp.toPx() else 1.4.dp.toPx(),
+                        center = Offset(sX, sY)
+                    )
+                }
+
+                // وهج رادار نيون إشعاعي نابض في الخلفية (Pulsing Ambient Radial Glow)
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            primaryColor.copy(alpha = 0.20f * liveAlpha),
+                            primaryColor.copy(alpha = 0.05f * liveAlpha),
+                            Color.Transparent
+                        ),
+                        center = centerPx,
+                        radius = radiusPx * 1.35f
+                    ),
+                    radius = radiusPx * 1.35f,
+                    center = centerPx
+                )
 
                 // خطوط رادار متحدة المركز بتأثير إشعاعي ثلاثي الأبعاد
                 listOf(0.34f, 0.67f, 1f).forEach { fraction ->
@@ -495,6 +707,19 @@ internal fun DomainRing(
                         style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.2f)
                     )
                 }
+
+                // شعاع مسح الرادار الدوار (Rotating Radar Sweep Ray)
+                val sweepRad = Math.toRadians(orbitAngle.toDouble())
+                val sweepEnd = Offset(
+                    centerPx.x + radiusPx * cos(sweepRad).toFloat(),
+                    centerPx.y + radiusPx * sin(sweepRad).toFloat()
+                )
+                drawLine(
+                    color = primaryLightColor.copy(alpha = 0.20f * liveAlpha),
+                    start = centerPx,
+                    end = sweepEnd,
+                    strokeWidth = 1.5.dp.toPx()
+                )
 
                 // رسم الأعصاب وحركة الجسيمات
                 domains.forEach { d ->
@@ -546,71 +771,167 @@ internal fun DomainRing(
                         )
                     }
                 }
+
+                // كواكب وميكرو-جسيمات دوارة حول مركز عقل زاد (Orbiting Micro-Particles)
+                val o1Rad = Math.toRadians((orbitAngle * 2.2f).toDouble())
+                val o1Dist = 48.dp.toPx()
+                val o1X = centerPx.x + o1Dist * cos(o1Rad).toFloat()
+                val o1Y = centerPx.y + o1Dist * sin(o1Rad).toFloat()
+                drawCircle(color = kmCyanElectric, radius = 3.2.dp.toPx(), center = Offset(o1X, o1Y))
+
+                val o2Rad = Math.toRadians((-orbitAngle * 1.6f + 120f).toDouble())
+                val o2Dist = 58.dp.toPx()
+                val o2X = centerPx.x + o2Dist * cos(o2Rad).toFloat()
+                val o2Y = centerPx.y + o2Dist * sin(o2Rad).toFloat()
+                drawCircle(color = kmNeonEmerald, radius = 2.6.dp.toPx(), center = Offset(o2X, o2Y))
+
+                val o3Rad = Math.toRadians((orbitAngle * 1.1f + 240f).toDouble())
+                val o3Dist = 66.dp.toPx()
+                val o3X = centerPx.x + o3Dist * cos(o3Rad).toFloat()
+                val o3Y = centerPx.y + o3Dist * sin(o3Rad).toFloat()
+                drawCircle(color = kmAmberAlert, radius = 2.2.dp.toPx(), center = Offset(o3X, o3Y))
             }
 
-            // مركز الشبكة — "زاد" نفسه، بتوهج نيون خلفه
+            // مركز عقل زاد — نواة مشعة (Pulsing Core with Radial Glow & Orbiting Particles)
             Box(
                 modifier = Modifier
-                    .offset(centerX - 56.dp, centerY - 56.dp)
-                    .size(112.dp)
-                    .background(Brush.radialGradient(listOf(primary.copy(alpha = 0.55f), primary.copy(alpha = 0f)))),
+                    .offset(centerX - 68.dp, centerY - 68.dp)
+                    .size(136.dp)
+                    .background(
+                        Brush.radialGradient(
+                            listOf(
+                                kmNeonEmerald.copy(alpha = 0.35f * liveAlpha),
+                                kmCyanElectric.copy(alpha = 0.12f * liveAlpha),
+                                Color.Transparent
+                            )
+                        )
+                    ),
             )
             Box(
                 modifier = Modifier
-                    .offset(centerX - 36.dp, centerY - 36.dp)
-                    .size(72.dp)
+                    .offset(centerX - 40.dp, centerY - 40.dp)
+                    .size(80.dp)
                     .clip(CircleShape)
-                    .background(primary)
-                    .border(2.dp, primaryFixedKnowledgeMap.copy(alpha = 0.6f), CircleShape),
+                    .background(
+                        Brush.radialGradient(
+                            listOf(
+                                kmCyanElectric,
+                                kmNeonEmerald,
+                                Color(0xFF042F2E)
+                            )
+                        )
+                    )
+                    .border(2.dp, kmCyanElectric.copy(alpha = 0.85f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Text(stringResource(R.string.auto_zadknowledgemap_65527), style = Typography.titleMedium, fontFamily = kmMono, fontWeight = FontWeight.Black, color = Color.White)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = stringResource(R.string.auto_zadknowledgemap_65527),
+                        style = Typography.titleMedium,
+                        fontFamily = kmMono,
+                        fontWeight = FontWeight.Black,
+                        color = Color(0xFF08090C)
+                    )
+                    Text(
+                        text = "CORE.v2",
+                        style = Typography.labelSmall,
+                        fontFamily = kmMono,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF08090C).copy(alpha = 0.8f),
+                        fontSize = 8.sp
+                    )
+                }
             }
 
             domains.forEach { d ->
                 val (x, y) = positions.getValue(d.key)
+                val isLive = d.key in activeDomains
+                val cardWidth = 92.dp
+
                 Column(
                     modifier = Modifier
-                        .offset(x - 40.dp, y - nodeSize / 2)
-                        .width(80.dp)
+                        .offset(x - cardWidth / 2, y - 50.dp)
+                        .width(cardWidth)
+                        .pressableScale(pressedScale = 0.92f)
                         .clickable { onSelect(d.key) },
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    val isLive = d.key in activeDomains
-                    Box(modifier = Modifier.size(nodeSize * 1.6f).offset(-(nodeSize * 0.3f)), contentAlignment = Alignment.Center) {
+                    Box(contentAlignment = Alignment.Center) {
+                        // وهج نيون إشعاعي محيطي (Ambient Neon Glow Aura)
                         Box(
                             modifier = Modifier
-                                .size(nodeSize * 1.6f)
-                                .then(if (isLive) Modifier.pulseGlow(minScale = 1f, maxScale = 1.18f) else Modifier)
-                                .background(Brush.radialGradient(listOf(d.color.copy(alpha = if (isLive) 0.55f else 0.35f), d.color.copy(alpha = 0f))))
+                                .size(76.dp)
+                                .then(if (isLive) Modifier.pulseGlow(minScale = 1f, maxScale = 1.25f) else Modifier)
+                                .background(
+                                    Brush.radialGradient(
+                                        listOf(
+                                            d.color.copy(alpha = if (isLive) 0.50f * liveAlpha else 0.26f),
+                                            Color.Transparent
+                                        )
+                                    )
+                                )
                         )
-                    }
-                    Box(modifier = Modifier.size(nodeSize).offset(-(nodeSize * 0.3f)), contentAlignment = Alignment.Center) {
+
+                        // كارت العقدة الزجاجي المتوهج بحواف نيون دقيقة (Glassmorphic Glowing Node Card)
                         Box(
                             modifier = Modifier
-                                .size(nodeSize)
-                                .clip(CircleShape)
-                                .background(kmBg)
-                                .border(2.dp, d.color, CircleShape),
+                                .size(58.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color(0xFF0C141D).copy(alpha = 0.90f))
+                                .border(
+                                    width = if (isLive) 1.5.dp else 1.dp,
+                                    color = d.color.copy(alpha = if (isLive) 0.95f else 0.55f),
+                                    shape = RoundedCornerShape(16.dp)
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(d.icon, contentDescription = null, tint = d.color, modifier = Modifier.size(24.dp))
+                            Icon(d.icon, contentDescription = null, tint = d.color, modifier = Modifier.size(26.dp))
                         }
+
+                        // عداد العمليات الفرعية للسيبربانك (Cyber Counter Badge)
                         if (d.count > 0) {
                             Box(
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
-                                    .size(18.dp)
+                                    .offset(x = 4.dp, y = (-4).dp)
+                                    .size(20.dp)
                                     .clip(CircleShape)
-                                    .background(d.color),
+                                    .background(d.color)
+                                    .border(1.5.dp, kmBg, CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("${d.count}", fontSize = 10.sp, fontFamily = kmMono, fontWeight = FontWeight.Bold, color = Color.White)
+                                Text(
+                                    text = "${d.count}",
+                                    fontSize = 10.sp,
+                                    fontFamily = kmMono,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF08090C)
+                                )
                             }
                         }
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(d.label, style = Typography.labelSmall, fontFamily = kmMono, color = d.color, textAlign = TextAlign.Center, maxLines = 1)
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // تسمية مونوسبيس تقنية مصفوفة (Technical Monospace Pill Label)
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF0D1620).copy(alpha = 0.92f))
+                            .border(1.dp, d.color.copy(alpha = 0.45f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 7.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = d.label,
+                            style = Typography.labelSmall,
+                            fontFamily = kmMono,
+                            fontWeight = FontWeight.Bold,
+                            color = d.color,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            fontSize = 10.sp
+                        )
+                    }
                 }
             }
         }

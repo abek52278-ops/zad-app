@@ -368,6 +368,23 @@ fun ZadFoodShortagesGlanceCard(
         }
     }
 
+    val lowStockCount = remember(inventory) { inventory.count { it.quantity <= 2 } }
+    val totalCount = inventory.size
+    val healthRatio = remember(inventory, lowStockCount, totalCount) {
+        if (totalCount > 0) ((totalCount - lowStockCount).toFloat() / totalCount).coerceIn(0f, 1f) else 1f
+    }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "pantry_pulse")
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pantry_pulse_alpha"
+    )
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -394,11 +411,77 @@ fun ZadFoodShortagesGlanceCard(
                     Text(stringResource(R.string.glance_inventory_health_sub), fontSize = 11.5.sp, color = textSecondary)
                 }
             }
-            TextButton(
-                onClick = onViewAllClick,
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Text(stringResource(R.string.glance_open_inventory), fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = primary)
+            if (lowStockCount > 0) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(9999.dp))
+                        .background(dangerColor.copy(alpha = 0.12f * pulseAlpha))
+                        .border(1.dp, dangerColor.copy(alpha = 0.45f * pulseAlpha), RoundedCornerShape(9999.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(dangerColor.copy(alpha = pulseAlpha))
+                    )
+                    Text(
+                        text = "$lowStockCount قارب النفاد",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = dangerColor
+                    )
+                }
+            } else {
+                TextButton(
+                    onClick = onViewAllClick,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(stringResource(R.string.glance_open_inventory), fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = primary)
+                }
+            }
+        }
+
+        // شريط مؤشر سلامة المخزون التدرجي
+        if (totalCount > 0) {
+            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("مؤشر سلامة المؤونة", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = textSecondary)
+                    Text(
+                        text = "${(healthRatio * 100).toInt()}% مكتمل",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (healthRatio < 0.6f) dangerColor else if (healthRatio < 0.85f) warningColor else primary
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(CircleShape)
+                        .background(outlineVariant)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(healthRatio)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        if (healthRatio < 0.6f) dangerColor else warningColor,
+                                        primary
+                                    )
+                                )
+                            )
+                    )
+                }
             }
         }
 
@@ -427,8 +510,12 @@ private fun FoodGlanceTile(
     modifier: Modifier = Modifier,
     onAddToCart: () -> Unit = {}
 ) {
-    val barColor = if (item.isLow) dangerColor else if (item.daysLeft <= 4) warningColor else primary
     val progress = (item.daysLeft / 10f).coerceIn(0.1f, 1f)
+    val tileGradient = Brush.horizontalGradient(
+        if (item.isLow) listOf(dangerColor, Color(0xFFF43F5E))
+        else if (item.daysLeft <= 4) listOf(warningColor, Color(0xFFFBBF24))
+        else listOf(primary, Color(0xFF10B981))
+    )
 
     Column(
         modifier = modifier
@@ -470,7 +557,7 @@ private fun FoodGlanceTile(
             overflow = TextOverflow.Ellipsis
         )
 
-        // Progress bar
+        // Progress bar with gradient
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -483,7 +570,7 @@ private fun FoodGlanceTile(
                     .fillMaxHeight()
                     .fillMaxWidth(progress)
                     .clip(CircleShape)
-                    .background(barColor)
+                    .background(tileGradient)
             )
         }
 
@@ -527,9 +614,10 @@ fun ZadSubscriptionsGlanceCard(
     val activeSubs = remember(subscriptions) { subscriptions.filter { it.isActive } }
     val totalAmount = remember(activeSubs) { activeSubs.sumOf { it.amount } }
 
-    // المبلغ بيفضل Double لحد ما يترسم — CurrencyFormatter.format() بتقرا
-    // MarketPrefs.currentMarket (Compose state)، فلو ناديناها جوّه remember كان النص
-    // هيتجمّد على عملة أول تركيب ومايتغيّرش لما المستخدم يبدّل السوق.
+    val nextCommitment = remember(activeSubs) {
+        activeSubs.minByOrNull { it.dueDay ?: 31 }
+    }
+
     val subAccentWarning = warningColor
     val subAccentDanger = dangerColor
     val subAccentPrimary = primary
@@ -583,9 +671,6 @@ fun ZadSubscriptionsGlanceCard(
         }
 
         if (displayList.isEmpty()) {
-            // كان هنا ٣ اشتراكات مخترعة (نتفليكس/STC TV/الجيم بالريال) بتتعرض لأي حساب
-            // فاضي — المستخدم كان بيشوف اشتراكات ما سجّلهاش وبعملة مش بتاعته. الحالة
-            // الفاضية الصح هي دي: بنقول مفيش، وبندي طريق للإضافة.
             ZadEmptyState(
                 icon = Icons.Default.CreditCard,
                 title = "مفيش اشتراكات لسه",
@@ -595,48 +680,160 @@ fun ZadSubscriptionsGlanceCard(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
             )
         } else {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            displayList.forEach { (name, amount, accentColor) ->
+            // رادار الالتزام القادم وموعد التجديد (Upcoming Commitment Radar Banner)
+            if (nextCommitment != null && (nextCommitment.dueDay != null || !nextCommitment.renewalDate.isNullOrBlank())) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(surfaceContainerLow)
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(infoColor.copy(alpha = 0.08f))
+                        .border(1.dp, infoColor.copy(alpha = 0.22f), RoundedCornerShape(14.dp))
+                        .padding(horizontal = 12.dp, vertical = 9.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(
-                            modifier = Modifier
-                                .width(4.dp)
-                                .height(22.dp)
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(accentColor)
-                        )
-                        Text(name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                            modifier = Modifier.size(26.dp).clip(CircleShape).background(infoColor.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.AccessTime, contentDescription = null, tint = infoColor, modifier = Modifier.size(14.dp))
+                        }
+                        Column {
+                            Text("التجديد القادم: ${nextCommitment.title}", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                            val dueStr = if (nextCommitment.dueDay != null) "يوم ${nextCommitment.dueDay} من الشهر"
+                                         else nextCommitment.renewalDate ?: "قريباً"
+                            Text(dueStr, fontSize = 11.sp, color = textSecondary)
+                        }
                     }
                     Text(
-                        com.example.data.CurrencyFormatter.format(context, amount),
-                        fontSize = 13.5.sp,
+                        text = "القسط: ${com.example.data.CurrencyFormatter.format(context, nextCommitment.amount)}",
+                        fontSize = 12.5.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = textPrimary
+                        color = infoColor
                     )
                 }
             }
-        }
+
+            // شريط نسب الإنفاق بين الالتزامات (Proportional Spend Bar)
+            if (totalAmount > 0) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(CircleShape)
+                        .background(surfaceContainerLow)
+                ) {
+                    activeSubs.take(4).forEachIndexed { idx, sub ->
+                        val weight = (sub.amount / totalAmount).toFloat().coerceAtLeast(0.06f)
+                        val barColor = when (idx) {
+                            0 -> infoColor
+                            1 -> primary
+                            2 -> warningColor
+                            else -> outline
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(weight)
+                                .fillMaxHeight()
+                                .background(barColor)
+                        )
+                    }
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                displayList.forEach { (name, amount, accentColor) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(surfaceContainerLow)
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .width(4.dp)
+                                    .height(22.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(accentColor)
+                            )
+                            Text(name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (totalAmount > 0) {
+                                val proportionPercent = ((amount / totalAmount) * 100).toInt()
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(accentColor.copy(alpha = 0.12f))
+                                        .padding(horizontal = 5.dp, vertical = 2.dp)
+                                ) {
+                                    Text("$proportionPercent%", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = accentColor)
+                                }
+                            }
+                            Text(
+                                com.example.data.CurrencyFormatter.format(context, amount),
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = textPrimary
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
 /**
+ * حلقة دائرية لمؤشر نسبة الالتزام الصحي بالجرعات
+ */
+@Composable
+private fun ZadAdherenceGauge(
+    percent: Int?,
+    modifier: Modifier = Modifier
+) {
+    val displayPercent = (percent ?: 100).coerceIn(0, 100)
+    val sweepAngle = (displayPercent / 100f) * 360f
+    val ringColor = if (percent == null) outlineVariant else if (displayPercent >= 80) primary else warningColor
+
+    Box(
+        modifier = modifier.size(46.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize().padding(3.dp)) {
+            val strokePx = 4.dp.toPx()
+            drawArc(
+                color = ringColor.copy(alpha = 0.16f),
+                startAngle = -90f,
+                sweepAngle = 360f,
+                useCenter = false,
+                style = Stroke(width = strokePx, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            )
+            drawArc(
+                color = ringColor,
+                startAngle = -90f,
+                sweepAngle = sweepAngle,
+                useCenter = false,
+                style = Stroke(width = strokePx, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            )
+        }
+        Text(
+            text = if (percent != null) "$percent%" else "--",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = if (percent != null) ringColor else textSecondary
+        )
+    }
+}
+
+/**
  * ── 4. إيدج الصيدلية والجرعات (Pharmacy & Doses Quick Glance) ──
- * الأدوية النشطة ونسبة الالتزام الحقيقية.
- *
- * [adherencePercent] بييجي من ZadViewModel.weeklyAdherencePercent، وهو `Int?` عن قصد:
- * null معناها "مفيش جرعات مسجّلة كفاية آخر ٧ أيام عشان نحسب نسبة" — مش صفر ومش رقم
- * مخمّن. كان مكتوب هنا "91% • منتظم" ثابت في الكود لأي حساب، حتى الحساب اللي مفيهوش
- * ولا دواء واحد.
+ * الأدوية النشطة ومؤشر دائري لنسبة الالتزام الحقيقية ومتابعة الجرعة القادمة.
  */
 @Composable
 fun ZadPharmacyGlanceCard(
@@ -680,8 +877,6 @@ fun ZadPharmacyGlanceCard(
                     Text(
                         text = adherenceLabel,
                         fontSize = 11.5.sp,
-                        // رمادي محايد لما مفيش بيانات — الأخضر بيقرا كأنه حالة كويسة،
-                        // و"مفيش أدوية مسجّلة" مش حالة كويسة ولا وحشة، دي غياب بيانات.
                         color = when {
                             pharmacyItems.isEmpty() -> textSecondary
                             adherencePercent == null -> textSecondary
@@ -692,31 +887,46 @@ fun ZadPharmacyGlanceCard(
                     )
                 }
             }
-            TextButton(
-                onClick = onViewAllClick,
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                Text(stringResource(R.string.glance_open_pharmacy), fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = dangerColor)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (pharmacyItems.isNotEmpty()) {
+                    ZadAdherenceGauge(percent = adherencePercent)
+                }
+                TextButton(
+                    onClick = onViewAllClick,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(stringResource(R.string.glance_open_pharmacy), fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = dangerColor)
+                }
             }
         }
 
-        // الجرعة التالية — أقرب موعد حقيقي من doseTimes، بزر تسجيل مباشر
+        // الجرعة التالية — موعد حقيقي بزر تسجيل سريع وتأثير نابضي
         if (nextDoseItem != null && nextDoseTime != null) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
                     .background(dangerColor.copy(alpha = 0.08f))
+                    .border(1.dp, dangerColor.copy(alpha = 0.22f), RoundedCornerShape(14.dp))
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.glance_next_dose), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = dangerColor)
-                    Text("${nextDoseItem.name} • $nextDoseTime", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
+                    Box(
+                        modifier = Modifier.size(28.dp).clip(CircleShape).background(dangerColor.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Medication, contentDescription = null, tint = dangerColor, modifier = Modifier.size(16.dp))
+                    }
+                    Column {
+                        Text(stringResource(R.string.glance_next_dose), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = dangerColor)
+                        Text("${nextDoseItem.name} • $nextDoseTime", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = textPrimary)
+                    }
                 }
                 Row(
                     modifier = Modifier
+                        .pressableScale()
                         .clip(RoundedCornerShape(99.dp))
                         .background(dangerColor)
                         .clickable { onTakeNextDose() }

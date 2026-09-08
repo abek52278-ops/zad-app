@@ -207,103 +207,112 @@ fun ZadVoiceBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Color(0xFF0F172A),
-        scrimColor = Color.Black.copy(alpha = 0.65f),
+        containerColor = Color(0xF2081120),
+        scrimColor = Color.Black.copy(alpha = 0.70f),
         dragHandle = {
             Box(
                 modifier = Modifier
-                    .padding(vertical = 10.dp)
-                    .width(42.dp)
+                    .padding(vertical = 12.dp)
+                    .width(44.dp)
                     .height(5.dp)
                     .clip(RoundedCornerShape(9999.dp))
-                    .background(Color.White.copy(alpha = 0.25f))
+                    .background(Color.White.copy(alpha = 0.20f))
             )
         }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 12.dp)
+                .padding(horizontal = 24.dp, vertical = 10.dp)
                 .navigationBarsPadding(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Header Row
+            // Header Row with Glassmorphism Live Indicator
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(if (isListeningState) Color(0xFF34D399) else Color(0xFFF59E0B)))
+                // Sleek Live Indicator Badge
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(9999.dp))
+                        .background(Color.White.copy(alpha = 0.07f))
+                        .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(9999.dp))
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    val indicatorColor = if (isLiveMode) Color(0xFF34D399) else if (isListeningState) Color(0xFF38BDF8) else Color(0xFF94A3B8)
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(indicatorColor)
+                            .then(if (isLiveMode || isListeningState) Modifier.pulseGlow(minScale = 0.85f, maxScale = 1.35f) else Modifier)
+                    )
                     Text(
-                        text = "مساعد زاد الصوتي الحي 🎙️",
-                        fontSize = 16.5.sp,
+                        text = if (isLiveMode) "عقل زاد • مباشر" else "مساعد زاد الصوتي",
+                        fontSize = 13.5.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color.White
                     )
                 }
+
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // بند 33.1 — مكالمة حية حقيقية (Gemini Live) بديل اختياري لمسار الدور-بدور
-                    // الافتراضي. تجريبي عن قصد: أول WebSocket خام في التطبيق، مفيش اختبار جهاز
-                    // حقيقي عليه (شوف تحذير ZadLiveVoiceSession.kt).
+                    // Toggle Live Mode Pill
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(9999.dp))
-                            .background(if (isLiveMode) Color(0xFFEF4444).copy(alpha = 0.25f) else Color.White.copy(alpha = 0.1f))
+                            .background(if (isLiveMode) Color(0xFF10B981).copy(alpha = 0.20f) else Color.White.copy(alpha = 0.08f))
                             .border(
                                 1.dp,
-                                if (isLiveMode) Color(0xFFEF4444) else Color.White.copy(alpha = 0.15f),
+                                if (isLiveMode) Color(0xFF10B981).copy(alpha = 0.5f) else Color.White.copy(alpha = 0.14f),
                                 RoundedCornerShape(9999.dp)
                             )
                             .clickable { isLiveMode = !isLiveMode }
-                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                            .padding(horizontal = 11.dp, vertical = 6.dp)
                     ) {
                         Text(
-                            text = if (isLiveMode) "🔴 مباشر" else "تجربة: مكالمة حية",
-                            fontSize = 10.5.sp,
+                            text = if (isLiveMode) "⚡ وضع مباشر" else "مكالمة حية",
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isLiveMode) Color.White else Color(0xFF94A3B8)
+                            color = if (isLiveMode) Color(0xFF6EE7B7) else Color(0xFF94A3B8)
                         )
                     }
+
                     IconButton(
                         onClick = onDismiss,
                         modifier = Modifier
                             .size(32.dp)
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.1f))
+                            .background(Color.White.copy(alpha = 0.08f))
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "إغلاق",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
+                            tint = Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.size(17.dp)
                         )
                     }
                 }
             }
 
-            // Central SmartBot Agent with Dynamic Listening Emotion
-            // الكورة بقت تنبض مع الصوت اللي بتسمعه فعلاً. قبل كده كانت الأعمدة تحت
-            // بترقص مع `soundLevel` والكورة فوقها بتتنفس على تايمر ثابت 2400ms مش
-            // سامعة حاجة — الحالة كانت بتغيّر اللون بس. السعة كانت متحسبة من زمان،
-            // ومحدش وصّلها للكورة.
+            // Central ElevenLabs-style Living Orb
             CompanionOrb(
-                size = 96.dp,
-                // مفيش ترجمة هنا خالص دلوقتي — نفس المزاج اللي الكورة العايمة في
-                // HomeScreen بتقراه. كان فيه نسختين من الـ when ده، واحدة هنا وواحدة
-                // في HomeScreen، والاتنين كانوا لازم يفضلوا متطابقين يدويًا.
+                size = 110.dp,
                 state = mood,
                 audioLevel = orbLevel
             )
 
-            // Dynamic Audio Waveform Bars responsive to soundLevel
+            // Dynamic Audio Waveform Bars responsive to soundLevel (26 thin bars)
             ZadAudioWavebars(
                 isListening = if (isLiveMode) liveState is LiveVoiceState.Listening || liveState is LiveVoiceState.ModelSpeaking else isListeningState,
                 soundLevel = if (isLiveMode) liveMicLevel else soundLevel,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp)
+                    .height(52.dp)
             )
 
             // Live Transcript text or listening hint
@@ -314,43 +323,39 @@ fun ZadVoiceBottomSheet(
                     isLiveMode && liveState is LiveVoiceState.Connecting -> "بيتّصل بعقل زاد المباشر…"
                     isLiveMode && liveState is LiveVoiceState.ModelSpeaking -> "زاد بيتكلم… اتكلم في أي وقت تقاطعه"
                     isLiveMode && liveState is LiveVoiceState.Listening -> "مكالمة مباشرة — اتكلم بحرية، زاد سامعك دلوقتي"
-                    isLiveMode -> "اضغط على المايك لبدء المكالمة المباشرة 🔴"
+                    isLiveMode -> "اضغط على المايك لبدء المكالمة المباشرة 🎙️"
                     recognizedLiveText.isNotBlank() -> recognizedLiveText
                     isListeningState -> "أنا أسمعك الآن… تكلّم مع زاد بحرية وسأجيبك فوراً"
                     voiceState is VoiceState.Thinking -> "عقل زاد يفكّر بالرد…"
                     else -> "اضغط على المايك لبدء التحدث 🎙️"
                 },
-                fontSize = 15.sp,
+                fontSize = 14.5.sp,
                 fontWeight = FontWeight.Bold,
                 color = if (recognizedLiveText.isNotBlank()) Color.White else Color(0xFF6EE7B7),
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 12.dp)
+                modifier = Modifier.padding(horizontal = 14.dp)
             )
 
-            // زاد بتتكلم؟ الزرار ده أصلاً بيقاطعها — startListening() بينده stopSpeaking()
-            // كأول سطر فيه (ZadVoiceManager.kt:51). الناقص كان بصري بس: الزرار كان بيبان
-            // نفسه بالظبط سواء زاد ساكتة أو بتتكلم، فمفيش حاجة بتقول "دوس تقاطعها". لون
-            // كهرماني نابض هنا بدل الأخضر الثابت — نفس الضغطة، بس بتقول للعميل إنها فرصة
-            // مقاطعة دلوقتي مش مجرد "ابدأ الكلام".
             val isSpeakingState = if (isLiveMode) liveState is LiveVoiceState.ModelSpeaking else voiceState is VoiceState.Speaking
             val isLiveConnected = liveState is LiveVoiceState.Listening || liveState is LiveVoiceState.ModelSpeaking
-            // Interactive Mic Push / Stop Button
+
+            // Glassmorphic Glowing Central Mic Button
             Box(
                 modifier = Modifier
-                    .size(60.dp)
-                    .then(if (isSpeakingState) Modifier.pulseGlow(minScale = 1f, maxScale = 1.08f) else Modifier)
+                    .size(68.dp)
+                    .then(if (isSpeakingState || isLiveConnected || isListeningState) Modifier.pulseGlow(minScale = 1f, maxScale = 1.07f) else Modifier)
                     .clip(CircleShape)
                     .background(
                         brush = Brush.radialGradient(
                             colors = when {
-                                isLiveMode && isLiveConnected -> listOf(Color(0xFFEF4444), Color(0xFF991B1B))
-                                !isLiveMode && isListeningState -> listOf(Color(0xFFEF4444), Color(0xFF991B1B))
+                                isLiveMode && isLiveConnected -> listOf(Color(0xFFF43F5E), Color(0xFF9F1239))
+                                !isLiveMode && isListeningState -> listOf(Color(0xFFF43F5E), Color(0xFF9F1239))
                                 isSpeakingState -> listOf(Color(0xFFFBBF24), Color(0xFFB45309))
-                                else -> listOf(Color(0xFF0F9B76), Color(0xFF064E3B))
+                                else -> listOf(Color(0xFF10B981), Color(0xFF047857))
                             }
                         )
                     )
-                    .border(2.dp, Color.White.copy(alpha = 0.4f), CircleShape)
+                    .border(2.dp, Color.White.copy(alpha = 0.35f), CircleShape)
                     .clickable {
                         if (isLiveMode) {
                             if (isLiveConnected || liveState is LiveVoiceState.Connecting) {
@@ -381,11 +386,11 @@ fun ZadVoiceBottomSheet(
                     imageVector = if ((isLiveMode && isLiveConnected) || (!isLiveMode && isListeningState)) Icons.Default.Stop else Icons.Default.Mic,
                     contentDescription = null,
                     tint = Color.White,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(30.dp)
                 )
             }
             if (isSpeakingState) {
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = stringResource(R.string.voice_tap_to_interrupt_hint),
                     fontSize = 11.sp,
@@ -394,42 +399,41 @@ fun ZadVoiceBottomSheet(
                 )
             }
 
-            // Quick contextual prompt chips — بترسل رسالة دور-بدور منفصلة، مش جزء من
-            // المكالمة الحية، فبتتخفى وقت isLiveMode عشان متتلخبطش مع الصوت المستمر.
+            // Quick contextual prompt chips
             if (!isLiveMode) {
-            Text(
-                text = "أو اختر سؤالاً جاهزاً:",
-                fontSize = 11.5.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF94A3B8)
-            )
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                quickChips.forEach { chip ->
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(9999.dp))
-                            .background(Color.White.copy(alpha = 0.10f))
-                            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(9999.dp))
-                            .clickable {
-                                ZadCutePetSoundFx.play(ZadCutePetSoundFx.PetSound.HappyChirp)
-                                recognizedLiveText = chip
-                                viewModel.sendAiChatMessage(chip, voiceMode = true)
-                            }
-                            .padding(horizontal = 12.dp, vertical = 7.dp)
-                    ) {
-                        Text(
-                            text = chip,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFD9F2E6)
-                        )
+                Text(
+                    text = "أو اختر سؤالاً جاهزاً:",
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF94A3B8)
+                )
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    quickChips.forEach { chip ->
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(9999.dp))
+                                .background(Color.White.copy(alpha = 0.08f))
+                                .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(9999.dp))
+                                .clickable {
+                                    ZadCutePetSoundFx.play(ZadCutePetSoundFx.PetSound.HappyChirp)
+                                    recognizedLiveText = chip
+                                    viewModel.sendAiChatMessage(chip, voiceMode = true)
+                                }
+                                .padding(horizontal = 12.dp, vertical = 7.dp)
+                        ) {
+                            Text(
+                                text = chip,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFD1FAE5)
+                            )
+                        }
                     }
                 }
-            }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -438,7 +442,7 @@ fun ZadVoiceBottomSheet(
 }
 
 /**
- * Animated Audio Wavebars simulating voice input responsive to microphone amplitude.
+ * Animated Audio Wavebars — مجموعة من 26 بار نحيف مع حركة تموج ونبض طبيعي متناسق الارتفاعات
  */
 @Composable
 fun ZadAudioWavebars(
@@ -449,41 +453,49 @@ fun ZadAudioWavebars(
     val infiniteTransition = rememberInfiniteTransition(label = "wavebars")
     val phase by infiniteTransition.animateFloat(
         initialValue = 0f,
-        targetValue = 6.28f,
-        animationSpec = infiniteRepeatable(tween(1200, easing = LinearEasing), RepeatMode.Restart),
+        targetValue = (2 * Math.PI).toFloat(),
+        animationSpec = infiniteRepeatable(tween(1400, easing = LinearEasing), RepeatMode.Restart),
         label = "phase"
     )
 
     Canvas(modifier = modifier) {
-        val count = 11
-        val barWidth = 5.dp.toPx()
-        val spacing = 7.dp.toPx()
+        val count = 26
+        val barWidth = 3.2.dp.toPx()
+        val spacing = 3.6.dp.toPx()
         val totalWidth = count * barWidth + (count - 1) * spacing
         val startX = (size.width - totalWidth) / 2f
         val centerY = size.height / 2f
 
         for (i in 0 until count) {
-            val dynamicWave = (kotlin.math.sin((phase + i * 0.6).toDouble()).toFloat().coerceIn(0.2f, 1f))
-            val amplitudeBoost = (soundLevel * 1.5f).coerceIn(0f, 1f)
-            val multiplier = if (isListening) {
-                (dynamicWave * 0.5f + amplitudeBoost * 0.5f).coerceIn(0.25f, 1f)
-            } else 0.18f
+            // Symmetrical parabolic envelope (taller in center, tapering to sides)
+            val normDist = (i - (count - 1) / 2f) / ((count - 1) / 2f)
+            val envelope = (1f - normDist * normDist * 0.72f).coerceIn(0.25f, 1f)
 
-            val barHeight = (size.height * multiplier).coerceAtLeast(6.dp.toPx())
+            val wave = kotlin.math.sin((phase + i * 0.42f).toDouble()).toFloat()
+            val ampBoost = (soundLevel * 1.8f).coerceIn(0f, 1f)
+            val dynamicScale = (0.28f + 0.35f * wave + 0.95f * ampBoost).coerceIn(0.12f, 1f)
+
+            val multiplier = if (isListening) {
+                (envelope * dynamicScale).coerceIn(0.18f, 1f)
+            } else {
+                (0.12f + 0.06f * wave).coerceIn(0.08f, 0.20f)
+            }
+
+            val barHeight = (size.height * 0.88f * multiplier).coerceAtLeast(4.dp.toPx())
             val x = startX + i * (barWidth + spacing)
             val y = centerY - barHeight / 2f
 
             drawRoundRect(
                 brush = Brush.verticalGradient(
                     colors = if (isListening) {
-                        listOf(Color(0xFF6EE7B7), Color(0xFF0F9B76))
+                        listOf(Color(0xFF6EE7B7), Color(0xFF10B981), Color(0xFF047857))
                     } else {
-                        listOf(Color(0xFF64748B), Color(0xFF334155))
+                        listOf(Color(0xFF475569).copy(alpha = 0.5f), Color(0xFF1E293B).copy(alpha = 0.3f))
                     }
                 ),
                 topLeft = Offset(x, y),
-                size = Size(barWidth, barHeight),
-                cornerRadius = CornerRadius(barWidth / 2f, barWidth / 2f)
+                size = androidx.compose.ui.geometry.Size(barWidth, barHeight),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(barWidth / 2f, barWidth / 2f)
             )
         }
     }

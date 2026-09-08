@@ -215,21 +215,16 @@ fun CompanionOrb(
 
     val breathScale: Float
     val blobPhase: Float
-    val eyeOpenAmount: Float
-    // 1 = صاحية تماماً، أقل من كده = جفون نازلة. منفصلة عن الرمشة عشان الاتنين ممكن
-    // يحصلوا مع بعض: بترمش وهي نعسانة برضه.
-    var drowsiness: Float = 1f
-    // 0 = ساكنة، 1 = في عزّ التمطّي. بتتمدّ رأسياً وتضيق أفقياً — ده اللي بيخلي الحركة
-    // تتقري "تثاؤب" مش مجرد تكبير.
-    var yawnStretch: Float = 0f
+    val rotationAngle: Float
+    val sheenProgress: Float
 
     if (animated) {
         val breathTransition = rememberInfiniteTransition(label = "orbBreath")
         breathScale = breathTransition.animateFloat(
-            initialValue = 1f,
-            targetValue = 1.035f,
+            initialValue = 0.98f,
+            targetValue = 1.05f,
             animationSpec = infiniteRepeatable(
-                animation = tween(2400, easing = FastOutSlowInEasing),
+                animation = tween(2600, easing = FastOutSlowInEasing),
                 repeatMode = RepeatMode.Reverse
             ),
             label = "orbBreathScale"
@@ -240,69 +235,37 @@ fun CompanionOrb(
             initialValue = 0f,
             targetValue = (2 * Math.PI).toFloat(),
             animationSpec = infiniteRepeatable(
-                animation = tween(7000, easing = LinearEasing)
+                animation = tween(6000, easing = LinearEasing)
             ),
             label = "orbBlobPhase"
         ).value
 
-        var eyeOpen by remember { mutableFloatStateOf(1f) }
-        val eyeOpenAnimated by animateFloatAsState(eyeOpen, tween(90), label = "orbBlink")
-        LaunchedEffect(Unit) {
-            while (true) {
-                delay(Random.nextLong(2200, 5000))
-                eyeOpen = 0.08f
-                delay(110)
-                eyeOpen = 1f
-            }
-        }
-        LaunchedEffect(effectiveBlink) {
-            if (effectiveBlink != 0L) {
-                repeat(2) {
-                    eyeOpen = 0.08f
-                    delay(90)
-                    eyeOpen = 1f
-                    delay(90)
-                }
-            }
-        }
+        val rotateTransition = rememberInfiniteTransition(label = "orbRotate")
+        rotationAngle = rotateTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(10000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "orbRotation"
+        ).value
 
-        // ── النعاس ──────────────────────────────────────────────────────────────
-        // لو محدش كلّمها ولا لمسها لفترة، بتنعس: العنين بتنّص، وبتتثاءب من وقت للتاني،
-        // وبتتنفس أعمق وأبطأ. أي لمسة أو تغيير حالة بيصحّيها فوراً.
-        //
-        // التثاؤب من غير صوت عن قصد. صوت بيطلع من نفسه من موبايل في جيب حد من غير ما
-        // يكون طلبه حاجة مزعجة مش لطيفة — الحركة لوحدها بتوصّل المعنى، والصوت محجوز
-        // للحظة اللي العميل بيتعامل فيها فعلاً (اللمس، النجاح، التنبيه).
-        //
-        // الحالات النشطة مابتنعسش: واحدة بتفكّر أو بتنبّه مش المفروض تنام في نص شغلها.
-        val canDoze = state == CompanionState.Idle || state == CompanionState.Happy
-        var drowsy by remember { mutableStateOf(false) }
-        var yawn by remember { mutableFloatStateOf(0f) }
-        val yawnAmount by animateFloatAsState(yawn, tween(520, easing = FastOutSlowInEasing), label = "orbYawn")
-        val lidTarget = if (drowsy) 0.45f else 1f
-        val sleepyLid by animateFloatAsState(lidTarget, tween(900, easing = FastOutSlowInEasing), label = "orbSleepyLid")
-
-        LaunchedEffect(effectiveBlink, effectiveGlow, state) {
-            drowsy = false
-            yawn = 0f
-            if (!canDoze) return@LaunchedEffect
-            delay(DOZE_AFTER_MS)
-            drowsy = true
-            while (true) {
-                delay(Random.nextLong(6000, 12000))
-                yawn = 1f           // تتمطّ وتقفل عينيها
-                delay(620)
-                yawn = 0f           // وترجع تستقر أنعس شوية
-                delay(520)
-            }
-        }
-        drowsiness = if (drowsy) sleepyLid else 1f
-        yawnStretch = yawnAmount
-        eyeOpenAmount = eyeOpenAnimated
+        val sheenTransition = rememberInfiniteTransition(label = "orbSheen")
+        sheenProgress = sheenTransition.animateFloat(
+            initialValue = 0.15f,
+            targetValue = 0.55f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(3200, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "orbSheen"
+        ).value
     } else {
         breathScale = 1f
         blobPhase = 0f
-        eyeOpenAmount = 1f
+        rotationAngle = 0f
+        sheenProgress = 0.3f
     }
 
     var glowTarget by remember { mutableFloatStateOf(0f) }
@@ -315,17 +278,13 @@ fun CompanionOrb(
         }
     }
 
-    // القفزة: نفس إحساس ZadSmartBotAgent اللي المكوّن ده حلّ محله — نابية وسريعة،
-    // فبتستخدم ZadSprings.Press بدل tween مكتوب بالإيد (قاعدة zad-compose-motion).
+    // القفزة النابية على اللمس
     val tapScale by animateFloatAsState(
         targetValue = if (glowTarget > 0f) 0.92f else 1f,
         animationSpec = ZadSprings.Press,
         label = "orbTapScale"
     )
 
-    // الوصف الصوتي بس على النسخ البارزة (animated=true — رأس الشاشة/الشات). نسخ فقاعات
-    // الشات (animated=false) عمداً من غير semantics عشان قارئ الشاشة ميكررش "زاد: ..." قبل كل
-    // رسالة رسالة في محادثة طويلة — اسم "زاد" ونص الرسالة نفسه أصلاً بيتقروا.
     val orbModifier = if (animated) {
         val description = companionStateDescription(state)
         modifier.size(size).semantics { contentDescription = description }
@@ -346,150 +305,136 @@ fun CompanionOrb(
     } else {
         orbModifier
     }
+
     Canvas(modifier = clickableModifier) {
-        // **القراءة الوحيدة للسعة، وهي هنا بقصد.** جوه الـdraw scope التغيير بيبطّل
-        // الرسم لوحده؛ لو اتقرت فوق في جسم الـcomposable كانت هتعمل recomposition
-        // مع كل بافر مايك (عشرات المرات في الثانية).
         val level = audioLevel().coerceIn(0f, 1f)
-
-        // النبض بيتضاف على التنفس مش بيستبدله: الكورة بتفضل بتتنفس وهي ساكتة،
-        // وبتكبر مع الصوت لما تسمع. 12% سقف — أكبر من كده بيتقري "بتتزنق" مش "بتنبض".
-        val radius = (this.size.minDimension / 2f) * breathScale * (1f + 0.12f * level)
         val center = Offset(this.size.width / 2f, this.size.height / 2f)
+        val baseRadius = (this.size.minDimension / 2f) * 0.72f
+        val radius = baseRadius * breathScale * (1f + 0.20f * level)
 
-        // glow behind the body — a few widening, fading rings instead of a real blur
-        drawCircle(color = skyColor.copy(alpha = 0.18f + 0.14f * level), radius = radius * (1.35f + 0.22f * level), center = center)
-        drawCircle(color = skyColor.copy(alpha = 0.28f + 0.12f * level), radius = radius * (1.15f + 0.12f * level), center = center)
+        // 1. Ambient Pulsing Outer Aura (ElevenLabs Glow Halo)
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    skyColor.copy(alpha = 0.25f + 0.35f * level),
+                    skyColor.copy(alpha = 0.08f + 0.15f * level),
+                    Color.Transparent
+                ),
+                center = center,
+                radius = radius * (1.65f + 0.35f * level)
+            ),
+            radius = radius * (1.65f + 0.35f * level),
+            center = center
+        )
 
-        // هالة اللمسة — بترسم فوق الهالة الساكنة وبتخبي لوحدها. صفر وقت السكون، فمفيش
-        // أي رسم زيادة إلا في نص الثانية اللي بعد الضغطة.
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    skyColor.copy(alpha = 0.40f + 0.30f * level),
+                    deepColor.copy(alpha = 0.15f + 0.10f * level),
+                    Color.Transparent
+                ),
+                center = center,
+                radius = radius * (1.28f + 0.20f * level)
+            ),
+            radius = radius * (1.28f + 0.20f * level),
+            center = center
+        )
+
+        // هالة الضغطة السريعة
         if (glow > 0.01f) {
-            drawCircle(color = skyColor.copy(alpha = 0.30f * glow), radius = radius * (1.35f + 0.55f * glow), center = center)
-            drawCircle(color = skyColor.copy(alpha = 0.22f * glow), radius = radius * (1.15f + 0.35f * glow), center = center)
+            drawCircle(
+                color = skyColor.copy(alpha = 0.45f * glow),
+                radius = radius * (1.4f + 0.5f * glow),
+                center = center
+            )
         }
 
-        // التمطّي: بتطول رأسياً وتضيق أفقياً في نفس اللحظة. لو كبّرناها في الاتجاهين كانت
-        // هتتقري "بتكبر" مش "بتتثاءب" — الفرق كله في إن الحجم بيتحفظ والشكل هو اللي بيتغيّر.
+        // 2. Organic Mesh Body with Fluid Dynamic Rotation
+        val bodyPath = organicOrbPath(center, radius, blobPhase, level)
+
         withTransform({
-            if (yawnStretch > 0.001f) {
-                scale(
-                    scaleX = 1f - 0.06f * yawnStretch,
-                    scaleY = 1f + 0.10f * yawnStretch,
-                    pivot = center,
-                )
-            }
+            rotate(degrees = rotationAngle, pivot = center)
         }) {
-            drawPath(
-                path = blobPath(center, radius, blobPhase, level),
-                brush = Brush.radialGradient(
-                    colors = listOf(skyColor, deepColor),
-                    center = center - Offset(radius * 0.3f, radius * 0.3f),
-                    radius = radius * 1.6f
-                )
+            // Silky Sweep Gradient Mesh Core
+            val meshSweepBrush = Brush.sweepGradient(
+                colors = listOf(
+                    skyColor,
+                    Color(0xFF6EE7B7),
+                    deepColor,
+                    skyColor.copy(alpha = 0.9f),
+                    Color(0xFFA7F3D0),
+                    deepColor,
+                    skyColor
+                ),
+                center = center
             )
-
-            // العين بتاخد أقل فتحة بين الرمشة والنعاس، والتثاؤب بيقفلها لآخرها — الواحدة
-            // مابتفتحش عينيها وهي بتتثاءب.
-            val lid = minOf(eyeOpenAmount, drowsiness) * (1f - 0.92f * yawnStretch)
-            drawEyes(state, center, radius, lid.coerceIn(0f, 1f))
-            drawBlushCheeks(state, center, radius)
-            drawCuteMouth(state, center, radius, yawnStretch)
+            drawPath(path = bodyPath, brush = meshSweepBrush)
         }
-    }
-}
 
-/**
- * خدود وردية لطيفة تظهر عند السعادة والاحتفال والمداعبة
- */
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBlushCheeks(
-    state: CompanionState,
-    center: Offset,
-    radius: Float
-) {
-    if (state == CompanionState.Happy || state == CompanionState.Celebrating) {
-        val blushSpacing = radius * 0.52f
-        val blushY = center.y + radius * 0.18f
-        val blushRadius = radius * 0.12f
-        val blushColor = Color(0xFFFF69B4).copy(alpha = 0.45f) // Pink blush
-
-        drawCircle(
-            color = blushColor,
-            radius = blushRadius,
-            center = Offset(center.x - blushSpacing, blushY)
-        )
-        drawCircle(
-            color = blushColor,
-            radius = blushRadius,
-            center = Offset(center.x + blushSpacing, blushY)
-        )
-    }
-}
-
-/**
- * ابتسامة قطة/أليف لطيفة مقوسة (Cute Cat Smile Arc)
- */
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawCuteMouth(
-    state: CompanionState,
-    center: Offset,
-    radius: Float,
-    yawnStretch: Float
-) {
-    val mouthY = center.y + radius * 0.28f
-    val mouthWidth = radius * 0.22f
-    val mouthPath = Path()
-
-    if (yawnStretch > 0.1f) {
-        // فم مفتوح للتثاؤب
-        val openYawn = radius * 0.18f * yawnStretch
-        mouthPath.addOval(
-            androidx.compose.ui.geometry.Rect(
-                center.x - mouthWidth / 2f,
-                mouthY - openYawn / 2f,
-                center.x + mouthWidth / 2f,
-                mouthY + openYawn / 2f
+        // 3. Volumetric Specular Depth & Light Source
+        val lightOffset = center - Offset(radius * 0.32f, radius * 0.35f)
+        drawPath(
+            path = bodyPath,
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.55f + 0.25f * level),
+                    skyColor.copy(alpha = 0.60f),
+                    deepColor.copy(alpha = 0.85f)
+                ),
+                center = lightOffset,
+                radius = radius * 1.45f
             )
         )
-        drawPath(mouthPath, color = Color(0xFF4A148C).copy(alpha = 0.6f))
-    } else if (state == CompanionState.Happy || state == CompanionState.Celebrating) {
-        // ابتسامة قطة لطيفة على شكل :3 أو قوس ناعم
-        val hw = mouthWidth / 2f
-        mouthPath.moveTo(center.x - hw, mouthY)
-        mouthPath.quadraticTo(center.x - hw / 2f, mouthY + radius * 0.08f, center.x, mouthY)
-        mouthPath.quadraticTo(center.x + hw / 2f, mouthY + radius * 0.08f, center.x + hw, mouthY)
 
+        // 4. Silky Highlight Crescent & Core Glow
+        val highlightCenter = center - Offset(radius * 0.25f, radius * 0.28f)
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = (sheenProgress + 0.25f * level).coerceIn(0f, 0.9f)),
+                    Color.White.copy(alpha = 0.15f),
+                    Color.Transparent
+                ),
+                center = highlightCenter,
+                radius = radius * 0.55f
+            ),
+            radius = radius * 0.55f,
+            center = highlightCenter
+        )
+
+        // 5. Rim Luminescence & Edge Glass Finish
         drawPath(
-            path = mouthPath,
-            color = Color.White.copy(alpha = 0.9f),
-            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            path = bodyPath,
+            brush = Brush.sweepGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.75f),
+                    skyColor.copy(alpha = 0.2f),
+                    Color.White.copy(alpha = 0.85f),
+                    deepColor.copy(alpha = 0.2f),
+                    Color.White.copy(alpha = 0.75f)
+                ),
+                center = center
+            ),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(
+                width = (1.5.dp.toPx() * (1f + 0.5f * level))
+            )
         )
     }
 }
 
 /**
- * بعد قد إيه من السكون تبدأ تنعس. ٢٥ ثانية: أطول من إن حد بيقرا الشاشة يخليها تنام في
- * وشه، وأقصر من إن حد سايب التليفون جنبه ما يلحقش يشوفها بتتثاءب.
+ * دالة مسار السائل العضوي — تموج جيب متعدد النغمات ينتج شكل هلامي انسيابي متطور
  */
-private const val DOZE_AFTER_MS = 25_000L
-
-private const val BLOB_POINTS = 8
-private const val BLOB_AMPLITUDE = 0.045f
-
-/**
- * شكل الكورة كسائل عضوي بدل دايرة ثابتة: نقط حوالين المحيط، كل واحدة نصف قطرها بيتموّج
- * بمعدل وطور مختلف عن التانية (موجات جيبية غير متزامنة)، متوصلة بمنحنيات ناعمة (quadratic
- * لكل نقطة نص المسافة للنقطة الجاية) بدل خطوط مستقيمة — نفس أسلوب "blob shape" الشائع.
- */
-/**
- * [level] = سعة الصوت 0..1؛ بتزوّد عمق التموّج لحد الضعف. الطور نفسه مابيتسرّعش —
- * تسريع الطور مع الصوت بيتقري "عصبية"، وزيادة العمق بتتقري "بتتجاوب".
- */
-private fun blobPath(center: Offset, baseRadius: Float, phase: Float, level: Float = 0f): Path {
-    val amplitude = BLOB_AMPLITUDE * (1f + level)
-    val points = (0 until BLOB_POINTS).map { i ->
-        val angle = (i.toFloat() / BLOB_POINTS) * 2 * Math.PI.toFloat()
-        val freq = 1.5f + (i % 3) * 0.7f
-        val wobble = 1f + amplitude * sin(phase * freq + i * 1.1f)
-        val r = baseRadius * wobble
+private fun organicOrbPath(center: Offset, baseRadius: Float, phase: Float, level: Float = 0f): Path {
+    val pointsCount = 12
+    val amplitude = 0.042f * (1f + 1.2f * level)
+    val points = (0 until pointsCount).map { i ->
+        val angle = (i.toFloat() / pointsCount) * 2 * Math.PI.toFloat()
+        val freq1 = 2.0f
+        val freq2 = 3.0f
+        val wave = sin(phase * freq1 + i * 0.8f) * 0.6f + cos(phase * freq2 + i * 1.2f) * 0.4f
+        val r = baseRadius * (1f + amplitude * wave.toFloat())
         Offset(center.x + r * cos(angle), center.y + r * sin(angle))
     }
 
@@ -506,46 +451,6 @@ private fun blobPath(center: Offset, baseRadius: Float, phase: Float, level: Flo
     return path
 }
 
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawEyes(
-    state: CompanionState,
-    center: Offset,
-    radius: Float,
-    openAmount: Float
-) {
-    val eyeSpacing = radius * 0.42f
-    val eyeWidth = radius * 0.26f
-    val leftCenter = center - Offset(eyeSpacing, 0f)
-    val rightCenter = center + Offset(eyeSpacing, 0f)
-
-    when (state) {
-        CompanionState.Happy, CompanionState.Celebrating -> {
-            val heartHeight = radius * 0.5f * openAmount
-            drawHeart(leftCenter, eyeWidth, heartHeight)
-            drawHeart(rightCenter, eyeWidth, heartHeight)
-        }
-        else -> {
-            val baseHeight = when (state) {
-                CompanionState.Focused -> radius * 0.32f
-                CompanionState.Alert -> radius * 0.44f
-                else -> radius * 0.42f
-            }
-            val eyeHeight = baseHeight * openAmount
-            drawRoundRect(
-                color = Color.White,
-                topLeft = leftCenter - Offset(eyeWidth / 2f, eyeHeight / 2f),
-                size = androidx.compose.ui.geometry.Size(eyeWidth, eyeHeight.coerceAtLeast(3f)),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(eyeWidth / 2f)
-            )
-            drawRoundRect(
-                color = Color.White,
-                topLeft = rightCenter - Offset(eyeWidth / 2f, eyeHeight / 2f),
-                size = androidx.compose.ui.geometry.Size(eyeWidth, eyeHeight.coerceAtLeast(3f)),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(eyeWidth / 2f)
-            )
-        }
-    }
-}
-
 private val alertToneWords = listOf("تنبيه", "تحذير", "خطر", "حذر", "تجاوزت", "نفاد", "أوشك", "قارب على النفاد")
 private val happyToneWords = listOf("ممتاز", "أحسنت", "تهانينا", "مبروك", "رائع", "وفرت", "نجحت", "تحقيق هدف")
 
@@ -554,28 +459,4 @@ fun companionStateForMessage(text: String): CompanionState = when {
     alertToneWords.any { text.contains(it) } -> CompanionState.Alert
     happyToneWords.any { text.contains(it) } -> CompanionState.Happy
     else -> CompanionState.Idle
-}
-
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawHeart(
-    at: Offset,
-    width: Float,
-    height: Float
-) {
-    if (height < 3f) return
-    val hw = width / 2f
-    val path = Path().apply {
-        moveTo(at.x, at.y - height * 0.35f)
-        cubicTo(
-            at.x - hw * 1.1f, at.y - height * 0.85f,
-            at.x - hw * 1.3f, at.y + height * 0.05f,
-            at.x, at.y + height * 0.55f
-        )
-        cubicTo(
-            at.x + hw * 1.3f, at.y + height * 0.05f,
-            at.x + hw * 1.1f, at.y - height * 0.85f,
-            at.x, at.y - height * 0.35f
-        )
-        close()
-    }
-    drawPath(path, color = Color.White)
 }

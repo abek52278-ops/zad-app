@@ -288,8 +288,6 @@ fun HomeScreen(
     val userName = userNameState ?: "..."
 
     var showAllTransactionsDialog by remember { mutableStateOf(false) }
-    var showAddTransactionDialog by remember { mutableStateOf(false) }
-    var showQuickDeductDialog by remember { mutableStateOf(false) }
     var showWhySheet by remember { mutableStateOf(false) }
     var showQuickExpenseSheet by remember { mutableStateOf(false) } // Task 27.2 — طول الضغط على "متاح"
     var showTelegramSheet by remember { mutableStateOf(false) } // بوت تليجرام — اتنقل من البروفايل للرئيسية
@@ -1086,98 +1084,11 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(18.dp))
                 }
 
-                // HomeScreen بتاعة Column().verticalScroll مش LazyColumn — فمفيش contentPadding
-                // تتحط عليها. الـSpacer ده هو المعادل بتاعها. مساحة الشريط السفلي نفسها
-                // محجوزة خلاص في MainScreen (Scaffold's innerPadding)، فده بس المساحة
-                // اللي المسكوت العائم محتاجها عشان مايقعدش فوق آخر كارت.
-                Spacer(modifier = Modifier.height(HomeOrbMetrics.reservedBottomSpace))
+                Spacer(modifier = Modifier.height(24.dp))
             } // closes inner Column
         } // closes else block (line 125)
     } // closes outer Column (line 103)
-
-        // المسكوت الأليف (الكرة الخضراء الحية) بدّل زر "بوت زاد" الجامد. مقفول في وضع
-        // الأطفال زي ما كان الزر القديم. مساحته محجوزة في ركن ثابت (نفس مكان الزر
-        // القديم بالظبط) — قابل للسحب بس *جوه* الصندوق ده بس، فمستحيل يتحرك فوق
-        // كروت المحتوى زي ما كان بيحصل قبل e2a4d22 (كان zIndex(100f) عائم فوق
-        // الشاشة كلها وبيقطع أسماء الأدوية والمخزون). الضغطة (مش السحبة) بتفتح مكالمة
-        // Gemini Live مباشرة.
-        if (!isChild) {
-            val density = LocalDensity.current
-            val safeZoneDp = HomeOrbMetrics.safeZone
-            val orbSizeDp = HomeOrbMetrics.orbSize
-            val maxOffsetPx = with(density) { (safeZoneDp - orbSizeDp).toPx() }
-            var dragOffset by remember { mutableStateOf(Offset.Zero) }
-            var isDragging by remember { mutableStateOf(false) }
-            // المزاج بيتقرا من الـViewModel بدل ما يتحسب هنا. الترجمة دي كانت
-            // متكررة حرفيًا هنا وفي ZadVoiceBottomSheet، والنسختين كانوا بيشوفوا
-            // الصوت بس — الكورة مكانتش تعرف حاجة عن تنبيهات الميزانية ولا الشات.
-            val restMood by viewModel.companionMood.collectAsState()
-            // نفس حارس الأداء: الفلو بيتجمّع جوه الهيلبر والقراءة في طور الرسم بس.
-            val homeOrbLevel = com.example.ui.components.rememberOrbAudioLevel(
-                com.example.voice.ZadLiveVoiceSession.micLevel
-            )
-
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 20.dp, bottom = HomeOrbMetrics.bottomPadding)
-                    .size(safeZoneDp)
-            ) {
-                // الكورة العايمة هي "الأليف" اللي المستخدم بيتعامل معاه، فهي اللي
-                // بتنبض مع الصوت. وبتكسب كمان النوم والتثاؤب والخدود اللي كانوا
-                // موجودين في CompanionOrb ومحدش شايفهم — كانت مستخدمة في شاشة
-                // عقل زاد بس، والرئيسية كانت على المكوّن الأفقر.
-                com.example.ui.components.CompanionOrb(
-                    size = orbSizeDp,
-                    state = if (isDragging) CompanionState.Happy else restMood,
-                    audioLevel = homeOrbLevel,
-                    onClick = onOpenVoiceLive,
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .offset { IntOffset(dragOffset.x.toInt(), dragOffset.y.toInt()) }
-                        .pointerInput(maxOffsetPx) {
-                            detectDragGestures(
-                                onDragStart = { isDragging = true },
-                                onDragEnd = { isDragging = false },
-                                onDragCancel = { isDragging = false }
-                            ) { change, drag ->
-                                change.consume()
-                                dragOffset = Offset(
-                                    x = (dragOffset.x + drag.x).coerceIn(-maxOffsetPx, 0f),
-                                    y = (dragOffset.y + drag.y).coerceIn(-maxOffsetPx, 0f)
-                                )
-                            }
-                        }
-                )
-            }
-        }
 } // closes Box
-    if (showQuickDeductDialog) {
-        QuickDeductDialog(
-            currentBalance = remainingBalance,
-            onDismiss = { showQuickDeductDialog = false },
-            onDeduct = { amount, note ->
-                Log.d(TAG_HOME, "QuickDeductDialog → amount=$amount")
-                viewModel.quickDeduct(amount, note)
-                showQuickDeductDialog = false
-            }
-        )
-    }
-
-    if (showAddTransactionDialog) {
-        AddTransactionDialog(
-            onDismiss = { showAddTransactionDialog = false },
-            onSave = { amount, title, isExpense, category ->
-                viewModel.addTransaction(
-                    com.example.data.ZadTransaction(
-                        amount = amount, title = title,
-                        isExpense = isExpense, category = category, isVerified = true
-                    )
-                )
-                showAddTransactionDialog = false
-            }
-        )
-    }
 
     if (showTelegramSheet) {
         com.example.ui.components.TelegramBotSheet(onDismiss = { showTelegramSheet = false })
