@@ -1811,4 +1811,8 @@
     <string name="ai_intel_category_distribution_subtitle">Kategori yüzdeleri ve akıllı davranışsal gözlemler</string>
     <string name="ai_intel_talk_to_zad">Zad ile konuş 💬</string>
     <string name="ai_intel_daily_spend_label">Ortalama günlük harcama</string>
+    <string name="sub_type_subscription_clean">Aylık Abonelik</string>
+    <string name="sub_type_installment_clean">Taksit</string>
+    <string name="sub_type_bill_clean">Fatura</string>
+    <string name="sub_type_obligation_clean">Yükümlülük</string>
 </resources>

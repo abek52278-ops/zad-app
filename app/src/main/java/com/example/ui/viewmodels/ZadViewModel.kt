@@ -3780,12 +3780,92 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
     ) {
         val monthStart = java.time.LocalDate.now().withDayOfMonth(1)
         val actuallySpent = transactions
-            .filter { it.txnKind == "expense" && it.category == PHARMACY_BUDGET_CATEGORY && (com.example.data.BudgetMath.txDate(it) ?: java.time.LocalDate.now()) >= monthStart }
+            .filter { (it.txnKind == "expense" || (it.txnKind == null && it.isExpense)) &&
+                      (it.category == PHARMACY_BUDGET_CATEGORY || it.category == "صيدلية" || it.category == "أدوية" || it.sourceType == "pharmacy") &&
+                      (com.example.data.BudgetMath.txDate(it) ?: java.time.LocalDate.now()) >= monthStart }
             .sumOf { it.amount }
-        val expectedRecurring = if (actuallySpent > 0.0) 0.0 else {
-            pharmacy.filter { it.isRecurring && it.price > 0.0 }.sumOf { it.price }
+        val medsCost = pharmacy.sumOf { item ->
+            val p = if (item.price > 0.0) item.price else com.example.data.PharmacyPricingEstimator.estimatePrice(item.name)
+            p
         }
-        _monthlyPharmaCost.value = (actuallySpent + expectedRecurring).asMoney()
+        val monthlyPharmaTotal = if (actuallySpent > 0.0) maxOf(actuallySpent, medsCost) else medsCost
+        _monthlyPharmaCost.value = monthlyPharmaTotal.asMoney()
+    }
+
+    /** حقن فاتورة صيدلية وتحديث أسعار الأدوية والكميات وتسجيل المصروف تلقائياً */
+    fun injectPharmacyReceipt(receipt: com.example.data.AiParsedReceipt) {
+        viewModelScope.launch {
+            Log.d(TAG, "injectPharmacyReceipt() → total=${receipt.total}, items=${receipt.items.size}")
+            val currentItems = _pharmacyItems.value.toMutableList()
+            for (receiptItem in receipt.items) {
+                val cleanName = receiptItem.name.trim()
+                val existingIndex = currentItems.indexOfFirst {
+                    it.name.trim().equals(cleanName, ignoreCase = true) ||
+                    it.name.contains(cleanName, ignoreCase = true) ||
+                    cleanName.contains(it.name, ignoreCase = true)
+                }
+                val itemQty = maxOf(1, receiptItem.quantity.toInt())
+                val unitPrice = if (receiptItem.price > 0.0) receiptItem.price else com.example.data.PharmacyPricingEstimator.estimatePrice(cleanName)
+
+                if (existingIndex >= 0) {
+                    val existing = currentItems[existingIndex]
+                    val updated = existing.copy(
+                        remainingQuantity = existing.remainingQuantity + itemQty,
+                        price = if (unitPrice > 0.0) unitPrice else existing.price
+                    )
+                    currentItems[existingIndex] = updated
+                    dao.insertPharmacyItem(updated)
+                    try {
+                        com.example.data.SupabaseRepo.addPharmacyItem(updated)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "injectPharmacyReceipt sync existing item failed: ${e.message}")
+                    }
+                } else {
+                    val newItem = com.example.data.ZadPharmacyItem(
+                        name = cleanName,
+                        remainingQuantity = itemQty,
+                        unit = receiptItem.unit.ifBlank { "علبة" },
+                        price = unitPrice,
+                        category = receiptItem.category.ifBlank { "عام" }
+                    )
+                    currentItems.add(newItem)
+                    dao.insertPharmacyItem(newItem)
+                    try {
+                        com.example.data.SupabaseRepo.addPharmacyItem(newItem)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "injectPharmacyReceipt sync new item failed: ${e.message}")
+                    }
+                }
+            }
+
+            // تحديث الأسعار التقديرية لباقي الأدوية التي ليس لها سعر
+            for (i in currentItems.indices) {
+                val item = currentItems[i]
+                if (item.price <= 0.0) {
+                    val est = com.example.data.PharmacyPricingEstimator.estimatePrice(item.name)
+                    val updated = item.copy(price = est)
+                    currentItems[i] = updated
+                    dao.insertPharmacyItem(updated)
+                }
+            }
+            _pharmacyItems.value = currentItems
+
+            // تسجيل معاملة المصروف للفاتورة كاملة
+            val totalExpense = if (receipt.total > 0.0) receipt.total else receipt.items.sumOf { it.price }
+            if (totalExpense > 0.0) {
+                addTransaction(
+                    com.example.data.ZadTransaction(
+                        title = receipt.storeName.ifBlank { "صيدلية" },
+                        amount = totalExpense,
+                        isExpense = true,
+                        category = PHARMACY_BUDGET_CATEGORY,
+                        createdAt = java.time.Instant.now().toString(),
+                        sourceType = "pharmacy"
+                    )
+                )
+            }
+            recalculateMonthlyPharmaCost(_transactions.value, currentItems)
+        }
     }
 
     fun addMaintenanceItem(item: ZadMaintenanceItem) {

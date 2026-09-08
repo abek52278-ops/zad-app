@@ -1813,5 +1813,9 @@
     <string name="ai_intel_category_distribution_title">Expense Distribution &amp; Behavioral Notes</string>
     <string name="ai_intel_category_distribution_subtitle">Actual category percentages and smart behavioral observations</string>
     <string name="ai_intel_talk_to_zad">Chat with Zad now 💬</string>
-    <string name="ai_intel_daily_spend_label">Avg. daily spend</string>
+    <string name="ai_intel_daily_spend_label">Average daily spend</string>
+    <string name="sub_type_subscription_clean">Monthly Subscription</string>
+    <string name="sub_type_installment_clean">Installment</string>
+    <string name="sub_type_bill_clean">Bill</string>
+    <string name="sub_type_obligation_clean">Obligation</string>
 </resources>

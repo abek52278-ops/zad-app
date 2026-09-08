@@ -1817,4 +1817,8 @@
     <string name="ai_intel_category_distribution_subtitle">تحليل نسب الصرف على الفئات والملاحظات السلوكية الذكية</string>
     <string name="ai_intel_talk_to_zad">تحدث مع زاد الآن 💬</string>
     <string name="ai_intel_daily_spend_label">متوسط الصرف اليومي</string>
+    <string name="sub_type_subscription_clean">اشتراك شهري</string>
+    <string name="sub_type_installment_clean">قسط</string>
+    <string name="sub_type_bill_clean">فاتورة</string>
+    <string name="sub_type_obligation_clean">التزام</string>
 </resources>

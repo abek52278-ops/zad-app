@@ -87,8 +87,8 @@ fun SubscriptionsScreen(
     val filtered: List<ZadSubscription> = when (selectedTab) {
         0 -> if (showInactive) subscriptions else activeSubs
         1 -> (if (showInactive) subscriptions else activeSubs).filter { it.type == "subscription" || it.category == "اشتراك" }
-        2 -> (if (showInactive) subscriptions else activeSubs).filter { it.category == "فواتير" || it.type == "bill" }
-        3 -> (if (showInactive) subscriptions else activeSubs).filter { it.category == "الأقساط" || it.type == "installment" }
+        2 -> (if (showInactive) subscriptions else activeSubs).filter { it.category == "فواتير" || it.type == "bill" || it.type == "utility" }
+        3 -> (if (showInactive) subscriptions else activeSubs).filter { it.category == "الأقساط" || it.category == "أقساط" || it.category == "التزامات" || it.type == "installment" || it.type == "rent" }
         else -> activeSubs
     }
 
@@ -549,18 +549,89 @@ private val commonSubscriptionPresets = listOf(
 private fun parseFlexibleRenewalDate(input: String): LocalDate? {
     val trimmed = input.trim()
     if (trimmed.isBlank()) return null
-    val patterns = listOf(
-        "yyyy-MM-dd",
-        "dd-MM-yyyy",
-        "yyyy/MM/dd",
-        "dd/MM/yyyy",
-        "d-M-yyyy",
-        "d/M/yyyy"
+    // تحويل الأرقام العربية والفارسية إلى أرقام إنجليزية قياسية
+    val normalized = buildString {
+        for (ch in trimmed) {
+            when (ch) {
+                in '٠'..'٩' -> append(ch - '٠')
+                in '۰'..'۹' -> append(ch - '۰')
+                else -> append(ch)
+            }
+        }
+    }
+    val standardPatterns = listOf(
+        "yyyy-MM-dd", "dd-MM-yyyy", "yyyy/MM/dd", "dd/MM/yyyy",
+        "d-M-yyyy", "d/M/yyyy", "yyyy-M-d", "yyyy/M/d"
     )
-    for (pattern in patterns) {
+    for (pattern in standardPatterns) {
         try {
-            return LocalDate.parse(trimmed, DateTimeFormatter.ofPattern(pattern))
+            return LocalDate.parse(normalized, DateTimeFormatter.ofPattern(pattern))
         } catch (_: Exception) {}
+    }
+    // تحليل الأنماط غير القياسية (مثل 2026_30-9 أو 30_9_2026)
+    val digits = normalized.split(Regex("[^0-9]+")).filter { it.isNotBlank() }
+    if (digits.size == 3) {
+        val p0 = digits[0].toIntOrNull() ?: return null
+        val p1 = digits[1].toIntOrNull() ?: return null
+        val p2 = digits[2].toIntOrNull() ?: return null
+        val year: Int
+        val month: Int
+        val day: Int
+        if (p0 >= 1000) {
+            // السنة أولاً: e.g. 2026_30-9 أو 2026-9-30
+            year = p0
+            if (p1 > 12) {
+                day = p1
+                month = p2
+            } else if (p2 > 12) {
+                month = p1
+                day = p2
+            } else {
+                month = p1
+                day = p2
+            }
+        } else if (p2 >= 1000) {
+            // السنة أخيراً: e.g. 30-9-2026 أو 9-30-2026
+            year = p2
+            if (p0 > 12) {
+                day = p0
+                month = p1
+            } else if (p1 > 12) {
+                month = p0
+                day = p1
+            } else {
+                day = p0
+                month = p1
+            }
+        } else {
+            val y = if (p0 in 20..99) p0 + 2000 else if (p2 in 20..99) p2 + 2000 else LocalDate.now().year
+            year = y
+            if (p0 >= 1000 || (p0 in 20..99 && y == p0 + 2000)) {
+                month = p1
+                day = p2
+            } else {
+                day = p0
+                month = p1
+            }
+        }
+        return try {
+            val safeYear = year.coerceIn(2000, 2100)
+            val safeMonth = month.coerceIn(1, 12)
+            val maxDay = java.time.YearMonth.of(safeYear, safeMonth).lengthOfMonth()
+            val safeDay = day.coerceIn(1, maxDay)
+            LocalDate.of(safeYear, safeMonth, safeDay)
+        } catch (_: Exception) { null }
+    } else if (digits.size == 2) {
+        val p0 = digits[0].toIntOrNull() ?: return null
+        val p1 = digits[1].toIntOrNull() ?: return null
+        val year = LocalDate.now().year
+        val (day, month) = if (p0 > 12) p0 to p1 else p1 to p0
+        return try {
+            val safeMonth = month.coerceIn(1, 12)
+            val maxDay = java.time.YearMonth.of(year, safeMonth).lengthOfMonth()
+            val safeDay = day.coerceIn(1, maxDay)
+            LocalDate.of(year, safeMonth, safeDay)
+        } catch (_: Exception) { null }
     }
     return null
 }
@@ -585,7 +656,7 @@ fun AddEditSubscriptionDialog(
     var remainingInstallmentsStr by remember { mutableStateOf("") }
     var provider by remember { mutableStateOf(subscription?.provider ?: "") }
     var category by remember { mutableStateOf(subscription?.category ?: "اشتراك") }
-    var renewalDate by remember { mutableStateOf(subscription?.renewalDate?.take(10) ?: "") }
+    var renewalDate by remember { mutableStateOf(subscription?.renewalDate?.take(10) ?: LocalDate.now().toString()) }
     var billingCycle by remember { mutableStateOf(subscription?.billingCycle?.uppercase() ?: "MONTHLY") }
     var showDatePicker by remember { mutableStateOf(false) }
 
@@ -594,8 +665,7 @@ fun AddEditSubscriptionDialog(
 
     val amount = amountStr.toDoubleOrNull()
     val parsedDate = remember(renewalDate) { parseFlexibleRenewalDate(renewalDate) }
-    val renewalDateValid = renewalDate.isBlank() || parsedDate != null
-    val canSave = title.isNotBlank() && amount != null && amount > 0.0 && renewalDateValid
+    val canSave = title.isNotBlank() && amount != null && amount > 0.0
 
     // Auto-calculate monthly installment amount if total and count are entered
     LaunchedEffect(totalInstallmentStr, remainingInstallmentsStr) {
@@ -728,10 +798,10 @@ fun AddEditSubscriptionDialog(
                     fontWeight = FontWeight.SemiBold
                 )
                 val typeOptions = listOf(
-                    "subscription" to stringResource(R.string.sub_type_digital),
-                    "installment" to stringResource(R.string.sub_type_installment),
-                    "rent" to stringResource(R.string.sub_type_rent),
-                    "utility" to stringResource(R.string.sub_type_utility)
+                    "subscription" to stringResource(R.string.sub_type_subscription_clean),
+                    "installment" to stringResource(R.string.sub_type_installment_clean),
+                    "utility" to stringResource(R.string.sub_type_bill_clean),
+                    "rent" to stringResource(R.string.sub_type_obligation_clean)
                 )
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     typeOptions.forEach { (typeKey, typeLabel) ->
@@ -805,10 +875,10 @@ fun AddEditSubscriptionDialog(
                     value = renewalDate,
                     onValueChange = { renewalDate = it },
                     label = { Text(stringResource(R.string.renewal_date_hint)) },
-                    placeholder = { Text("YYYY-MM-DD أو DD-MM-YYYY") },
+                    placeholder = { Text("YYYY-MM-DD") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    isError = !renewalDateValid,
+                    isError = false,
                     trailingIcon = {
                         IconButton(onClick = { showDatePicker = true }) {
                             Icon(Icons.Default.CalendarMonth, contentDescription = stringResource(R.string.pick_date_action), tint = primary)
@@ -845,10 +915,13 @@ fun AddEditSubscriptionDialog(
                 enabled = canSave,
                 onClick = {
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    val finalDate = parsedDate?.toString()
-                        ?: renewalDate.trim().ifBlank {
-                            nextRenewalDate(LocalDate.now(), billingCycle).toString()
-                        }
+                    val finalDate = (parsedDate ?: parseFlexibleRenewalDate(renewalDate) ?: LocalDate.now()).toString()
+                    val finalCategory = when (selectedType) {
+                        "installment" -> if (category == "اشتراك" || category.isBlank()) "أقساط" else category
+                        "utility" -> if (category == "اشتراك" || category.isBlank()) "فواتير" else category
+                        "rent" -> if (category == "اشتراك" || category.isBlank()) "التزامات" else category
+                        else -> if (category.isBlank()) "اشتراك" else category
+                    }
                     val finalTitle = if (selectedType == "installment" && remainingInstallmentsStr.isNotBlank() && !title.contains("قسط")) {
                         "$title ($remainingInstallmentsStr أقساط)"
                     } else title.trim()
@@ -858,7 +931,7 @@ fun AddEditSubscriptionDialog(
                         amount ?: 0.0,
                         finalDate,
                         provider.trim(),
-                        category,
+                        finalCategory,
                         billingCycle,
                         selectedType
                     )
