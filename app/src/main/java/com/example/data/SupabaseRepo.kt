@@ -84,7 +84,7 @@ object SupabaseRepo {
 
     /**
      * لو الـ.env كان ناقص وقت الـbuild، الـSecrets Gradle Plugin بيرجع لقيم .env.example
-     * الوهمية (SUPABASE_URL=https://your-project-ref.supabase.co) بصمت — الـAPK
+     * الوهمية (SUPABASE_URL=https://auuftqncrjsnyylolhbu.supabase.co) بصمت — الـAPK
      * بيتبني عادي، وأي نداء auth بعدين بيفشل بشكل غامض (فشل DNS أو اتصال) بدل ما يقول
      * إن المشكلة في الإعداد نفسه. اتكشف فعلياً 2026-09-01: android.yml (workflow التاني
      * اللي بيبني APK) كان مبيكتبش .env خالص، فكل APK طالع منه كان فيه رابط وهمي وتسجيل
