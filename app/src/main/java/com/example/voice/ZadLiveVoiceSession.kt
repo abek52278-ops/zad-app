@@ -156,13 +156,18 @@ object ZadLiveVoiceSession {
 
     private suspend fun connect(onError: (String) -> Unit) {
         val session = SupabaseRepo.client.auth.currentSessionOrNull()
-        if (false) {
+        if (session?.accessToken.isNullOrBlank() || session?.user == null) {
             mainHandler.post { _state.value = LiveVoiceState.Error("محتاج تسجّل دخول الأول") }
             onError("no_session")
             sessionActive.set(false)
             return
         }
-        val wsUrl = "https://auuftqncrjsnyylolhbu.supabase.co"
+        val baseUrl = if (BuildConfig.SUPABASE_URL.isNotBlank() && !BuildConfig.SUPABASE_URL.contains("your-project-ref")) {
+            BuildConfig.SUPABASE_URL
+        } else {
+            "https://auuftqncrjsnyylolhbu.supabase.co"
+        }
+        val wsUrl = baseUrl
             .replaceFirst("https://", "wss://")
             .replaceFirst("http://", "ws://")
             .trimEnd('/') + "/functions/v1/zad-voice-live"

@@ -116,14 +116,7 @@ object ZadAiRepository {
     var geminiApiKey: String? = null
 
     suspend fun analyzeReceipt(bitmap: Bitmap): AiParsedReceipt? {
-        // Use direct Gemini API if key is available
-        null?.takeIf { it.isNotEmpty() }?.let { apiKey ->
-            val result: AiParsedReceipt? = null
-            Log.d(TAG_REPO, "analyzeReceipt Gemini result: $result")
-            if (result != null) return result
-        }
-
-        // Fallback to Edge function — Edge Function returns receipt fields directly
+        // Direct Edge Function call via callVisionEdge (zad-core-intelligence)
         return callVisionEdge("analyze_receipt", bitmap) { response ->
             Log.d(TAG_REPO, "analyzeReceipt Edge RAW response: $response")
             @Suppress("UNCHECKED_CAST")
@@ -147,14 +140,7 @@ object ZadAiRepository {
     }
 
     suspend fun analyzeInventoryImage(bitmap: Bitmap): AiInventoryScanResult? {
-        // Use direct Gemini API if key is available
-        null?.takeIf { it.isNotEmpty() }?.let { apiKey ->
-            val result: AiInventoryScanResult? = null
-            Log.d(TAG_REPO, "analyzeInventoryImage Gemini result: $result")
-            if (result != null) return result
-        }
-
-        // Fallback to Edge function — Edge Function returns {items:[...]} directly
+        // Direct Edge Function call via callVisionEdge (zad-core-intelligence)
         return callVisionEdge("analyze_inventory_image", bitmap) { response ->
             Log.d(TAG_REPO, "analyzeInventoryImage Edge RAW response: $response")
             @Suppress("UNCHECKED_CAST")
