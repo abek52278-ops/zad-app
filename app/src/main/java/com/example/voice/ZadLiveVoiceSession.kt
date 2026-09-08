@@ -162,7 +162,7 @@ object ZadLiveVoiceSession {
             sessionActive.set(false)
             return
         }
-        val wsUrl = BuildConfig.SUPABASE_URL
+        val wsUrl = "https://auuftqncrjsnyylolhbu.supabase.co"
             .replaceFirst("https://", "wss://")
             .replaceFirst("http://", "ws://")
             .trimEnd('/') + "/functions/v1/zad-voice-live"
