@@ -504,6 +504,8 @@ class ZadNaturalVoiceEngine(private val context: Context) {
         activeCalls.clear()
         pendingFetches.forEach { it.cancel() }
         pendingFetches.clear()
+        abandonAudioFocus()
+        audioFocusOwnerGeneration = -1L
         val track = audioTrack
         audioTrack = null
         try {

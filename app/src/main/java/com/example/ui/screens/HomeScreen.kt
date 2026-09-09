@@ -18,6 +18,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -608,20 +609,6 @@ fun HomeScreen(
                 }
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // ── 3b. شريط الميزات الأفقي القابل للتمرير — كل الأقسام في LazyRow واحد ──
-                // بيتيح للمستخدم السحب أفقياً واستعراض كل الأقسام بحرية (§2.2)
-                com.example.ui.components.AppearOnEntry(delayMs = 55) {
-                    com.example.ui.components.ZadHorizontalShortcutsRail(
-                        onNavigateToInventory = onNavigateToInventory,
-                        onNavigateToShopping = onNavigateToShopping,
-                        onNavigateToFamily = onNavigateToFamily,
-                        onNavigateToSubscriptions = onNavigateToSubscriptions,
-                        onNavigateToPharmacy = onNavigateToPharmacy,
-                        onNavigateToMaintenance = onNavigateToMaintenance,
-                        onNavigateToTasbiha = onNavigateToTasbiha
-                    )
-                }
-                Spacer(modifier = Modifier.height(18.dp))
 
                 // ── 4. إيدج صحة المخزون والنواقص الحية (Food Health & Shortages) ──
                 com.example.ui.components.AppearOnEntry(delayMs = 65) {
@@ -913,7 +900,7 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             contentPadding = PaddingValues(vertical = 4.dp)
                         ) {
-                            items(displayAffiliatePicks, key = { it.product.id }) { pick ->
+                            itemsIndexed(displayAffiliatePicks, key = { index, pick -> "${pick.product.productNameAr}_${index}" }) { index, pick ->
                                 com.example.ui.widgets.ZadAmazonDealCard(
                                     product = pick.product,
                                     reason = pick.reason,
@@ -931,7 +918,7 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(vertical = 4.dp)
                         ) {
-                            items(effectiveSearchNeeds, key = { it.id }) { need ->
+                            itemsIndexed(effectiveSearchNeeds, key = { index, need -> "${need.itemName}_${index}" }) { index, need ->
                                 com.example.ui.widgets.ZadAmazonSearchChip(
                                     itemName = need.itemName,
                                     reason = need.reason,
@@ -2432,7 +2419,7 @@ fun KidsModeContent(
             }
             Spacer(modifier = Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(activeAffiliate.take(5), key = { it.id }) { product ->
+                itemsIndexed(activeAffiliate.take(5), key = { index, product -> "${product.productNameAr}_${index}" }) { index, product ->
                     com.example.ui.widgets.AffiliateProductCard(
                         product = product,
                         onBuyClick = {

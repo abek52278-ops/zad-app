@@ -83,6 +83,9 @@ object ZadVoiceManager {
 
     private var speechRecognizer: SpeechRecognizer? = null
 
+    private var pendingListeningRunnable: Runnable? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+
     fun startListening(onResult: (String) -> Unit) = startListening(silent = false, onResult = onResult)
 
     fun startListening(silent: Boolean = false, onResult: (String) -> Unit) {
@@ -91,19 +94,25 @@ object ZadVoiceManager {
             _voiceState.value = VoiceState.Error("خدمة الصوت لم تبدأ بعد")
             return
         }
-        val mainHandler = Handler(Looper.getMainLooper())
         mainHandler.post {
+            pendingListeningRunnable?.let { mainHandler.removeCallbacks(it) }
+
             if (!SpeechRecognizer.isRecognitionAvailable(context)) {
                 _voiceState.value = VoiceState.Error(context.getString(R.string.voice_error_unavailable))
                 return@post
             }
 
             try {
+                speechRecognizer?.cancel()
                 speechRecognizer?.destroy()
             } catch (_: Exception) {}
             speechRecognizer = null
 
-            mainHandler.postDelayed({ startListeningInternal(context, silent, onResult) }, 150)
+            val runnable = Runnable {
+                startListeningInternal(context, silent, onResult)
+            }
+            pendingListeningRunnable = runnable
+            mainHandler.postDelayed(runnable, 200)
         }
     }
 
@@ -154,13 +163,27 @@ object ZadVoiceManager {
 
                     override fun onError(error: Int) {
                         _isListening.value = false
+                        if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
+                            Log.w(TAG, "SpeechRecognizer busy, cleanly auto-recovering...")
+                            try {
+                                speechRecognizer?.cancel()
+                                speechRecognizer?.destroy()
+                            } catch (_: Exception) {}
+                            speechRecognizer = null
+
+                            val recoveryRunnable = Runnable {
+                                startListeningInternal(context, true, onResult)
+                            }
+                            pendingListeningRunnable = recoveryRunnable
+                            mainHandler.postDelayed(recoveryRunnable, 350)
+                            return
+                        }
                         val msg = when (error) {
                             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> context.getString(R.string.voice_error_permission)
                             SpeechRecognizer.ERROR_AUDIO -> context.getString(R.string.voice_error_audio)
                             SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> context.getString(R.string.voice_error_network)
                             SpeechRecognizer.ERROR_NO_MATCH -> context.getString(R.string.voice_error_no_match)
                             SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> context.getString(R.string.voice_error_timeout)
-                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> context.getString(R.string.voice_error_busy)
                             else -> context.getString(R.string.voice_error_generic)
                         }
                         Log.w(TAG, "SpeechRecognizer error: $error ($msg)")
@@ -202,7 +225,10 @@ object ZadVoiceManager {
     }
 
     fun stopListening() {
+        pendingListeningRunnable?.let { mainHandler.removeCallbacks(it) }
+        pendingListeningRunnable = null
         try {
+            speechRecognizer?.cancel()
             speechRecognizer?.stopListening()
         } catch (e: Exception) {
             Log.w(TAG, "stopListening error: ${e.message}")

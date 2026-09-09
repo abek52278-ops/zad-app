@@ -95,8 +95,9 @@ fun DraggableFloatingCompanion(
         Box(
             modifier = modifier
                 .fillMaxSize()
+                .navigationBarsPadding()
                 .zIndex(90f)
-                .padding(bottom = bottomNavHeight + 12.dp, start = 18.dp),
+                .padding(bottom = bottomNavHeight + 24.dp, start = 18.dp),
             contentAlignment = Alignment.BottomStart
         ) {
             Column(
@@ -253,7 +254,7 @@ fun DraggableFloatingCompanion(
                 ) {
                     CompanionOrb(
                         state = currentDisplayMood,
-                        size = 58.dp,
+                        size = 62.dp,
                         blinkTrigger = blinkTrigger,
                         glowTrigger = glowTrigger,
                         onClick = null

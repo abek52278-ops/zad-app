@@ -246,6 +246,10 @@ object ZadLiveVoiceSession {
     /** full-duplex حقيقي: الميكروفون بيفضل شغال طول عمر الجلسة، حتى وقت كلام الموديل —
      *  يفتح مرة واحدة فقط عند بدء الجلسة مع تفعيل AEC لمنع التقاط صوت السماعة. */
     private fun startMicStreaming() {
+        if (webSocket == null || !sessionActive.get()) {
+            Log.w(tag, "Cannot start mic streaming: connection not ready")
+            return
+        }
         if (recordingActive.getAndSet(true)) return
         scope.launch {
             val minBuf = AudioRecord.getMinBufferSize(
@@ -313,7 +317,13 @@ object ZadLiveVoiceSession {
             val buffer = ByteArray(minBuf)
             try {
                 record.startRecording()
-                while (sessionActive.get() && recordingActive.get()) {
+                if (record.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+                    Log.w(tag, "AudioRecord failed to start recording: ${record.recordingState}")
+                    recordingActive.set(false)
+                    failSession("تعذّر بدء التقاط الصوت")
+                    return@launch
+                }
+                while (sessionActive.get() && recordingActive.get() && webSocket != null) {
                     val read = record.read(buffer, 0, buffer.size)
                     if (read <= 0) {
                         if (read < 0) kotlinx.coroutines.delay(10)
