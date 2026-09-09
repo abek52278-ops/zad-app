@@ -530,47 +530,6 @@ fun HomeScreen(
                         kotlinx.coroutines.delay(30_000L)
                     }
                 }
-                // ── كارت شحن الرصيد ──────────────────────────────────────
-                // بيظهر لما الرصيد يقل عن ٥ بس. كارت دائم بيطلب مشاهدة إعلانات على
-                // الشاشة الرئيسية بيتقري إلحاح، والإلحاح بيتجاهَل — والعرض في لحظة
-                // الحاجة هو اللي بيخليه مفيد.
-                var adCredit by remember { mutableStateOf<com.example.data.SupabaseRepo.ZadEntitlementState?>(null) }
-                var adReady by remember { mutableStateOf(false) }
-                LaunchedEffect(Unit) {
-                    adCredit = com.example.ads.RewardedBrainAdManager.syncServerState(context)
-                    adReady = com.example.ads.RewardedBrainAdManager.isAdReady()
-                }
-                adCredit?.let { ent ->
-                    if (ent.tier == "free" && ent.chatLeft < 5) {
-                        com.example.ui.components.AdCreditCard(
-                            chatLeft = ent.chatLeft,
-                            // ٣ + عدد إعلانات اليوم، بسقف ١٠ — نفس معادلة
-                            // zad_ad_reward_grant. الرقم بيتعرض عشان التصاعد يشتغل
-                            // كحافز: العميل لازم يشوف إن الجاية أحسن من اللي فاتت.
-                            nextReward = minOf(3 + ent.adWatchCount, 10),
-                            adsToday = ent.adWatchCount,
-                            dailyCap = 10,
-                            isAdReady = adReady,
-                            onWatch = {
-                                val refresh: () -> Unit = {
-                                    scope.launch {
-                                        adCredit = com.example.ads.RewardedBrainAdManager.syncServerState(context)
-                                        adReady = com.example.ads.RewardedBrainAdManager.isAdReady()
-                                    }
-                                }
-                                com.example.ads.RewardedBrainAdManager.showRewardedEnergyAd(
-                                    context = context,
-                                    // بعد المشاهدة بنعيد القراءة من السيرفر مش بنزوّد
-                                    // محليًا — نفس سبب شيل الـfallback في 5563354: الرصيد
-                                    // بيتحدد عند السيرفر وبس.
-                                    onAdWatched = { _, _ -> refresh() },
-                                    onFailed = refresh,
-                                )
-                            },
-                        )
-                        Spacer(modifier = Modifier.height(14.dp))
-                    }
-                }
 
                 // بند استُبعد من الإجمالي عشان مافيش سعر صرف لعملته. الرقم اللي بينقص
                 // في صمت بيتقري «التطبيق غلطان»؛ العدد الصريح بيتقري «فيه سبب معروف».
@@ -645,6 +604,21 @@ fun HomeScreen(
                         shoppingCartCount = pendingShoppingCount,
                         familyMembersCount = familyMembersCount,
                         subscriptionsDueCount = subscriptionsDueCount
+                    )
+                }
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // ── 3b. شريط الميزات الأفقي القابل للتمرير — كل الأقسام في LazyRow واحد ──
+                // بيتيح للمستخدم السحب أفقياً واستعراض كل الأقسام بحرية (§2.2)
+                com.example.ui.components.AppearOnEntry(delayMs = 55) {
+                    com.example.ui.components.ZadHorizontalShortcutsRail(
+                        onNavigateToInventory = onNavigateToInventory,
+                        onNavigateToShopping = onNavigateToShopping,
+                        onNavigateToFamily = onNavigateToFamily,
+                        onNavigateToSubscriptions = onNavigateToSubscriptions,
+                        onNavigateToPharmacy = onNavigateToPharmacy,
+                        onNavigateToMaintenance = onNavigateToMaintenance,
+                        onNavigateToTasbiha = onNavigateToTasbiha
                     )
                 }
                 Spacer(modifier = Modifier.height(18.dp))
@@ -902,10 +876,11 @@ fun HomeScreen(
                 // ── 9. تسوق أمازون والعروض الموصى بها (Amazon Smart Deals Rail) ──
                 val effectiveSearchNeeds = remember(affiliateSearchNeeds, shoppingList) {
                     if (affiliateSearchNeeds.isNotEmpty()) {
-                        affiliateSearchNeeds
+                        affiliateSearchNeeds.distinctBy { it.itemName }
                     } else if (shoppingList.isNotEmpty()) {
-                        shoppingList.take(5).map { item ->
+                        shoppingList.distinctBy { it.itemName }.take(5).map { item ->
                             com.example.ui.viewmodels.ZadViewModel.AffiliateNeed(
+                                id = item.id,
                                 itemName = item.itemName,
                                 reason = "في قائمة التسوق",
                                 score = 1
@@ -913,11 +888,11 @@ fun HomeScreen(
                         }
                     } else {
                         listOf(
-                            com.example.ui.viewmodels.ZadViewModel.AffiliateNeed("زيت طهي عائلي", "عروض البقالة والتوفير", 1),
-                            com.example.ui.viewmodels.ZadViewModel.AffiliateNeed("منظفات ومعقمات منزلية", "أساسيات المنزل", 1),
-                            com.example.ui.viewmodels.ZadViewModel.AffiliateNeed("أرز بسمتي فاخر", "سلع تموينية مخفضة", 1),
-                            com.example.ui.viewmodels.ZadViewModel.AffiliateNeed("شاي وقهوة سريعة", "مستلزمات الضيافة", 1),
-                            com.example.ui.viewmodels.ZadViewModel.AffiliateNeed("مناديل وورقيات", "عبوات اقتصادية", 1)
+                            com.example.ui.viewmodels.ZadViewModel.AffiliateNeed(id = "default_oil", itemName = "زيت طهي عائلي", reason = "عروض البقالة والتوفير", score = 1),
+                            com.example.ui.viewmodels.ZadViewModel.AffiliateNeed(id = "default_cleaners", itemName = "منظفات ومعقمات منزلية", reason = "أساسيات المنزل", score = 1),
+                            com.example.ui.viewmodels.ZadViewModel.AffiliateNeed(id = "default_rice", itemName = "أرز بسمتي فاخر", reason = "سلع تموينية مخفضة", score = 1),
+                            com.example.ui.viewmodels.ZadViewModel.AffiliateNeed(id = "default_tea", itemName = "شاي وقهوة سريعة", reason = "مستلزمات الضيافة", score = 1),
+                            com.example.ui.viewmodels.ZadViewModel.AffiliateNeed(id = "default_tissues", itemName = "مناديل وورقيات", reason = "عبوات اقتصادية", score = 1)
                         )
                     }
                 }
@@ -956,7 +931,7 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(vertical = 4.dp)
                         ) {
-                            items(effectiveSearchNeeds, key = { it.itemName }) { need ->
+                            items(effectiveSearchNeeds, key = { it.id }) { need ->
                                 com.example.ui.widgets.ZadAmazonSearchChip(
                                     itemName = need.itemName,
                                     reason = need.reason,
@@ -2457,7 +2432,7 @@ fun KidsModeContent(
             }
             Spacer(modifier = Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(activeAffiliate.take(5)) { product ->
+                items(activeAffiliate.take(5), key = { it.id }) { product ->
                     com.example.ui.widgets.AffiliateProductCard(
                         product = product,
                         onBuyClick = {

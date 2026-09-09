@@ -159,7 +159,7 @@ fun NotificationCenterScreen(
                     Text(stringResource(R.string.notif_section_brain), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = primary)
                     Spacer(Modifier.height(8.dp))
                 }
-                items(brainAlerts) { alert ->
+                items(brainAlerts, key = { it.id }) { alert ->
                     if (alert.kind == "question") {
                         com.example.ui.widgets.ZadQuestionCard(
                             insight = alert,
@@ -193,7 +193,7 @@ fun NotificationCenterScreen(
                     Text(stringResource(R.string.app_notifications_title), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
                     Spacer(Modifier.height(8.dp))
                 }
-                items(notifications.sortedByDescending { it.createdAt }) { notif ->
+                items(notifications.sortedByDescending { it.createdAt }, key = { it.id }) { notif ->
                     NotificationCard(
                         title = notif.title,
                         message = notif.message,

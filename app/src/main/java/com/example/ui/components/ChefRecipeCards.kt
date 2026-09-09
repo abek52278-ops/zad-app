@@ -70,7 +70,7 @@ fun ChefRecipeRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp),
     ) {
-        items(recipes) { recipe ->
+        items(recipes, key = { recipe -> "${recipe.recipeName}_${recipes.indexOf(recipe)}" }) { recipe ->
             ChefRecipeCard(
                 recipe = recipe,
                 onAddMissingToShopping = onAddMissingToShopping,

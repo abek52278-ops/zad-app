@@ -5350,7 +5350,7 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
         }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** حاجة العميل محتاجها فعلاً ومفيش ليها صف في الكتالوج — بتتفتح كبحث على أمازون. */
-    data class AffiliateNeed(val itemName: String, val reason: String, val score: Int)
+    data class AffiliateNeed(val id: String = java.util.UUID.randomUUID().toString(), val itemName: String, val reason: String, val score: Int)
 
     /**
      * الجسر اللي كان ناقص بين "ترشيح حقيقي" و"القسم اختفى خالص".

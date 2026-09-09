@@ -494,7 +494,7 @@ fun ZadFoodShortagesGlanceCard(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(horizontal = 2.dp)
         ) {
-            items(sampleItems) { item ->
+            items(sampleItems, key = { item -> "${item.rawItem?.id ?: item.name}_${sampleItems.indexOf(item)}" }) { item ->
                 FoodGlanceTile(
                     item = item,
                     modifier = Modifier.width(155.dp),
@@ -1470,7 +1470,7 @@ fun Zad3DNeuralSphereWidget(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(horizontal = 2.dp)
         ) {
-            items(nodes3D) { node ->
+            items(nodes3D, key = { it.id }) { node ->
                 val isSelected = node.id == selectedNodeId
                 Box(
                     modifier = Modifier

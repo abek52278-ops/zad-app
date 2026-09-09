@@ -234,7 +234,7 @@ fun RecommendationsScreen(
         }
 
         // Recommendation Items
-        items(recommendations) { rec ->
+        items(recommendations, key = { it.id }) { rec ->
             RecommendationCard(
                 recommendation = rec,
                 onAction = { onAction(rec.id) },
