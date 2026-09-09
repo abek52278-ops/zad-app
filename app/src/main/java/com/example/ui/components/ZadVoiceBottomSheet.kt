@@ -99,14 +99,20 @@ fun ZadVoiceBottomSheet(
         )
     }
 
-    // إعادة الاستماع التلقائي: أخطاء التعرف (مهلة صمت/لا تطابق/تعرف مشغول) شائعة جداً —
-    // من غير retry العميل يشوف "خطأ" والشيت يبان ميت (معلق) رغم إنه سليم.
-    // إعادة الاستماع التلقائي: أخطاء التعرف (مهلة صمت/لا تطابق) —
-    // صامت تماماً بدون صوت رنين أو إزعاج مع مؤشر بصري فقط.
-    fun listen(silent: Boolean = false, onHeard: (String) -> Unit) {
-        voiceManager.startListening(silent = silent) { result ->
-            if (result.isNotBlank()) onHeard(result)
-        }
+    var retryAttempt by remember { mutableIntStateOf(0) }
+    var activeVoiceTurnId by remember { mutableStateOf<String?>(null) }
+
+    fun submitVoiceTurn(result: String) {
+        if (result.isBlank()) return
+        retryAttempt = 0
+        recognizedLiveText = result
+        voiceManager.markThinking()
+        activeVoiceTurnId = viewModel.sendAiChatMessage(result, voiceMode = true)
+    }
+
+    fun listen(silent: Boolean = false, resetRetry: Boolean = false) {
+        if (resetRetry) retryAttempt = 0
+        voiceManager.startListening(silent = silent) { result -> submitVoiceTurn(result) }
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -117,10 +123,7 @@ fun ZadVoiceBottomSheet(
             if (isLiveMode) {
                 liveSession.start { }
             } else {
-                listen { result ->
-                    recognizedLiveText = result
-                    viewModel.sendAiChatMessage(result, voiceMode = true)
-                }
+                listen(resetRetry = true)
             }
         }
     }
@@ -129,10 +132,7 @@ fun ZadVoiceBottomSheet(
     LaunchedEffect(hasAudioPermission, isLiveMode) {
         if (isLiveMode) return@LaunchedEffect
         if (hasAudioPermission) {
-            listen { result ->
-                recognizedLiveText = result
-                viewModel.sendAiChatMessage(result, voiceMode = true)
-            }
+            listen(resetRetry = true)
         } else {
             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
@@ -143,49 +143,34 @@ fun ZadVoiceBottomSheet(
     val isTyping by viewModel.isAiTyping.collectAsState()
     val messages by viewModel.aiChatMessages.collectAsState()
     var lastSpokenMessageId by remember { mutableStateOf<String?>(null) }
-    var replyCountAtSpeakStart by remember { mutableStateOf(0) }
-    LaunchedEffect(isTyping) {
-        if (isTyping) {
-            replyCountAtSpeakStart = messages.count { !it.isUser }
-        }
-    }
-    LaunchedEffect(isTyping, messages, isLiveMode) {
+    LaunchedEffect(isTyping, messages, isLiveMode, activeVoiceTurnId) {
         if (isLiveMode) return@LaunchedEffect
         if (isTyping) return@LaunchedEffect
-        val lastReply = messages.lastOrNull { !it.isUser } ?: return@LaunchedEffect
+        val lastReply = voiceReplyForTurn(messages, activeVoiceTurnId) ?: return@LaunchedEffect
         if (lastReply.text.isBlank()) return@LaunchedEffect
         if (lastReply.id == lastSpokenMessageId) return@LaunchedEffect
-        if (messages.count { !it.isUser } <= replyCountAtSpeakStart) return@LaunchedEffect
         lastSpokenMessageId = lastReply.id
+        activeVoiceTurnId = null
         voiceManager.stopListening()
-        voiceManager.speakHumanLike(lastReply.text) {
+        val resumeListening = {
             if (hasAudioPermission) {
-                listen { result ->
-                    recognizedLiveText = result
-                    viewModel.sendAiChatMessage(result, voiceMode = true)
-                }
+                listen(resetRetry = true)
             }
         }
+        voiceManager.speakHumanLike(lastReply.text, onDone = resumeListening, onFailed = resumeListening)
     }
 
-    // إعادة الاستماع التلقائي بصمت وبدون أي صوت إزعاج: مؤشر بصري فقط
-    var autoRetryCount by remember { mutableIntStateOf(0) }
+    // محاولة واحدة فقط للأخطاء العابرة. لا نُصفّر العداد عند Listening الناتجة
+    // عن المحاولة؛ وإلا يتحول timeout/no-match إلى حلقة مفتوحة بلا رد من الوكيل.
     LaunchedEffect(voiceState, isLiveMode) {
         if (isLiveMode) return@LaunchedEffect
-        if (voiceState is VoiceState.Error) {
-            if (autoRetryCount < 2) {
-                autoRetryCount++
-                kotlinx.coroutines.delay(1200)
-                if (hasAudioPermission && voiceState is VoiceState.Error) {
-                    listen(silent = true) { result ->
-                        autoRetryCount = 0
-                        recognizedLiveText = result
-                        viewModel.sendAiChatMessage(result, voiceMode = true)
-                    }
-                }
+        val error = voiceState as? VoiceState.Error ?: return@LaunchedEffect
+        if (retryAttempt == 0) {
+            retryAttempt = 1
+            kotlinx.coroutines.delay(1200)
+            if (hasAudioPermission && voiceManager.voiceState.value == error) {
+                listen(silent = true)
             }
-        } else if (voiceState is VoiceState.Recognized || voiceState is VoiceState.Listening) {
-            autoRetryCount = 0
         }
     }
 
@@ -371,12 +356,7 @@ fun ZadVoiceBottomSheet(
                             voiceManager.stopListening()
                         } else {
                             if (hasAudioPermission) {
-                                voiceManager.startListening { result ->
-                                    if (result.isNotBlank()) {
-                                        recognizedLiveText = result
-                                        viewModel.sendAiChatMessage(result, voiceMode = true)
-                                    }
-                                }
+                                listen(resetRetry = true)
                             } else {
                                 permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                             }
@@ -421,8 +401,7 @@ fun ZadVoiceBottomSheet(
                                 .background(Color.White.copy(alpha = 0.08f))
                                 .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(9999.dp))
                                 .clickable {
-                                    recognizedLiveText = chip
-                                    viewModel.sendAiChatMessage(chip, voiceMode = true)
+                                    submitVoiceTurn(chip)
                                 }
                                 .padding(horizontal = 12.dp, vertical = 7.dp)
                         ) {

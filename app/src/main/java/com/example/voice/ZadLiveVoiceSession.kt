@@ -297,7 +297,10 @@ object ZadLiveVoiceSession {
             if (!sessionActive.get() || webSocket !== connectedSocket) {
                 recordingActive.set(false)
                 try { record.release() } catch (_: Exception) {}
-                if (audioRecord === record) audioRecord = null
+                if (audioRecord === record) {
+                    audioRecord = null
+                    recordingActive.set(false)
+                }
                 return@launch
             }
 
@@ -358,6 +361,7 @@ object ZadLiveVoiceSession {
                 try { record.stop() } catch (_: Exception) {}
                 try { record.release() } catch (_: Exception) {}
                 if (audioRecord === record) audioRecord = null
+                recordingActive.set(false)
             }
         }
     }
