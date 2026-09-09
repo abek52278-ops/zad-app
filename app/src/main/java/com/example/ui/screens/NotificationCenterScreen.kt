@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.ui.components.ZadRoutes
 import com.example.ui.components.zadCardShadow
 import com.example.ui.theme.*
 import com.example.ui.viewmodels.ZadViewModel
@@ -42,7 +43,8 @@ private const val TAG_NOTIF = "NotificationCenter"
 @Composable
 fun NotificationCenterScreen(
     viewModel: ZadViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigate: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     // readAloud() is a plain function, not a composable, so the string has to be resolved
@@ -148,7 +150,15 @@ fun NotificationCenterScreen(
                         icon = Icons.Default.AutoAwesome,
                         color = primary,
                         isRead = true,
-                        onClick = {}
+                        onClick = {
+                            when {
+                                alert.actionType == "cancel_subscription" -> onNavigate(ZadRoutes.SUBS)
+                                alert.actionType == "increase_budget" -> onNavigate(ZadRoutes.BUDGET)
+                                alert.title.contains("دواء", ignoreCase = true) || alert.title.contains("جرعة", ignoreCase = true) -> onNavigate(ZadRoutes.PHARMACY)
+                                alert.title.contains("مخزون", ignoreCase = true) || alert.title.contains("طعام", ignoreCase = true) -> onNavigate(ZadRoutes.INVENTORY)
+                                else -> onNavigate(ZadRoutes.ASSISTANT)
+                            }
+                        }
                     )
                 }
                 item { Spacer(Modifier.height(20.dp)) }

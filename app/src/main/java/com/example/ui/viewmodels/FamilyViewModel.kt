@@ -14,6 +14,9 @@ import kotlinx.coroutines.flow.collectLatest
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
@@ -888,6 +891,32 @@ class FamilyViewModel(application: Application) : AndroidViewModel(application) 
                 val optsJson = Json.encodeToString(options)
                 val meta = """{"question":"$question","options":$optsJson,"votes":{}}"""
                 sendMessage("📊 $question", "POLL", meta)
+            }
+        }
+    }
+
+    fun votePoll(messageId: String, optionIndex: Int) {
+        viewModelScope.launch {
+            val curr = _state.value
+            if (curr is FamilyState.Active) {
+                val myId = curr.myMemberInfo.id
+                val msg = curr.messages.find { it.id == messageId } ?: return@launch
+                val meta = msg.metadata ?: return@launch
+                try {
+                    val root = json.parseToJsonElement(meta).jsonObject.toMutableMap()
+                    val votesObj = (root["votes"] as? JsonObject)?.toMutableMap() ?: mutableMapOf()
+                    votesObj[myId] = JsonPrimitive(optionIndex)
+                    root["votes"] = JsonObject(votesObj)
+                    val newMeta = JsonObject(root).toString()
+
+                    SupabaseRepo.updateMessageMetadata(messageId, newMeta)
+                    val updatedMessages = curr.messages.map {
+                        if (it.id == messageId) it.copy(metadata = newMeta) else it
+                    }
+                    _state.value = curr.copy(messages = updatedMessages)
+                } catch (e: Exception) {
+                    android.util.Log.e("FamilyViewModel", "votePoll failed: ${e.message}", e)
+                }
             }
         }
     }

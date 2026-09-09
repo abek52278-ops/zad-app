@@ -2025,7 +2025,7 @@ fun ChatTab(
                         when (msg.messageType) {
                             "SOS" -> SosBubble(msg, senderAlias)
                             "PURCHASE_REQUEST" -> PurchaseBubble(msg, senderAlias, myMemberInfo, isMe, onUpdateRequestStatus)
-                            "POLL" -> PollBubble(msg, senderAlias, members)
+                            "POLL" -> PollBubble(msg, senderAlias, members, myMemberInfo.id, onVote = { optIndex -> viewModel?.votePoll(msg.id, optIndex) })
                             else -> TextBubble(
                                 msg = msg, isMe = isMe, isAi = isAi, senderAlias = senderAlias,
                                 onPin = { viewModel?.togglePinMessage(msg.id) },
@@ -2419,16 +2419,40 @@ private fun PurchaseBubble(msg: ChatMessage, senderAlias: String, myMemberInfo: 
 }
 
 @Composable
-private fun PollBubble(msg: ChatMessage, senderAlias: String, members: List<com.example.data.FamilyMember>) {
+private fun PollBubble(
+    msg: ChatMessage,
+    senderAlias: String,
+    members: List<com.example.data.FamilyMember>,
+    myMemberId: String? = null,
+    onVote: ((Int) -> Unit)? = null
+) {
     val question = msg.metadata?.let {
         try { it.substringAfter("\"question\":\"").substringBefore("\"").replace("\\\"", "\"") } catch (e: Exception) { msg.message }
     } ?: msg.message
     val options = msg.metadata?.let {
         try {
-            val optsRaw = it.substringAfter("\"options\":").substringBefore("],\"votes")
+            val optsRaw = it.substringAfter("\"options\":").substringBefore("],\"votes") + "]"
             kotlinx.serialization.json.Json { ignoreUnknownKeys = true }.decodeFromString<List<String>>(optsRaw)
-        } catch (e: Exception) { emptyList() }
+        } catch (e: Exception) {
+            try {
+                val root = kotlinx.serialization.json.Json.parseToJsonElement(it) as? kotlinx.serialization.json.JsonObject
+                val optsArray = root?.get("options") as? kotlinx.serialization.json.JsonArray
+                optsArray?.map { opt -> opt.toString().trim('"') } ?: emptyList()
+            } catch (e2: Exception) { emptyList() }
+        }
     } ?: emptyList()
+
+    val votes: Map<String, Int> = msg.metadata?.let {
+        try {
+            val root = kotlinx.serialization.json.Json.parseToJsonElement(it) as? kotlinx.serialization.json.JsonObject
+            val votesObj = root?.get("votes") as? kotlinx.serialization.json.JsonObject
+            votesObj?.mapNotNull { (k, v) ->
+                v.toString().trim('"').toIntOrNull()?.let { opt -> k to opt }
+            }?.toMap() ?: emptyMap()
+        } catch (e: Exception) { emptyMap() }
+    } ?: emptyMap()
+
+    val totalVotes = votes.size
 
     Box(modifier = Modifier.fillMaxWidth(0.85f).clip(RoundedCornerShape(16.dp)).background(surfaceContainerHigh).border(1.dp, secondary, RoundedCornerShape(16.dp)).padding(16.dp)) {
         Column {
@@ -2441,8 +2465,34 @@ private fun PollBubble(msg: ChatMessage, senderAlias: String, members: List<com.
             Text(question.removePrefix("📊 ").removePrefix("POLL: "), fontWeight = FontWeight.Bold, color = onSurface)
             Spacer(modifier = Modifier.height(8.dp))
             options.forEachIndexed { i, opt ->
-                Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { }.background(surfaceContainer).padding(12.dp).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("${i + 1}. $opt", color = onSurface)
+                val optionVotes = votes.values.count { it == i }
+                val isSelected = myMemberId != null && votes[myMemberId] == i
+                val pct = if (totalVotes > 0) (optionVotes.toFloat() / totalVotes) else 0f
+                val borderMod = if (isSelected) Modifier.border(1.5.dp, secondary, RoundedCornerShape(8.dp)) else Modifier
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .then(borderMod)
+                        .clickable { onVote?.invoke(i) }
+                        .background(if (isSelected) secondary.copy(alpha = 0.15f) else surfaceContainer)
+                        .padding(12.dp)
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (isSelected) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = secondary, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+                    Text("${i + 1}. $opt", color = onSurface, modifier = Modifier.weight(1f))
+                    if (totalVotes > 0) {
+                        Text(
+                            text = "$optionVotes (${(pct * 100).toInt()}%)",
+                            style = Typography.labelSmall,
+                            color = if (isSelected) secondary else onSurfaceVariant,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.height(4.dp))
             }

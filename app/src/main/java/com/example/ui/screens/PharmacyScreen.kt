@@ -917,7 +917,7 @@ private fun AddPharmacyItemDialog(
                         items(doseTimesList) { time ->
                             InputChip(
                                 selected = false,
-                                onClick = {},
+                                onClick = { doseTimesList = doseTimesList - time },
                                 label = { Text(time, style = Typography.labelSmall) },
                                 trailingIcon = {
                                     Icon(

@@ -493,7 +493,8 @@ fun MainScreen(onLogout: () -> Unit = {}, pendingInviteCode: String? = null, ope
                         composable(ZadRoutes.NOTIFICATIONS) {
                             NotificationCenterScreen(
                                 viewModel = viewModel,
-                                onBack = { navController.popBackStack() }
+                                onBack = { navController.popBackStack() },
+                                onNavigate = { goGuarded(it) }
                             )
                         }
                         composable(ZadRoutes.INVENTORY) {
