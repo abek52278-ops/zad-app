@@ -13,12 +13,15 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -167,14 +170,16 @@ fun ZadQuickCategoryGrid(
         stringResource(R.string.shortcut_subscriptions_sub)
     }
 
-    Row(
+    LazyRow(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.Top
+            .padding(vertical = 4.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top,
     ) {
-        QuickShortcutItem(
+        item(key = "inventory") {
+            QuickShortcutItem(
             title = stringResource(R.string.shortcut_inventory),
             subtitle = inventorySubtitle,
             icon = Icons.Default.Inventory2,
@@ -183,10 +188,12 @@ fun ZadQuickCategoryGrid(
             floatOffset = floatOffset,
             badgeCount = inventoryShortageCount,
             badgeColor = dangerColor,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.width(132.dp),
             onClick = onNavigateToInventory
-        )
-        QuickShortcutItem(
+            )
+        }
+        item(key = "shopping") {
+            QuickShortcutItem(
             title = stringResource(R.string.shortcut_shopping),
             subtitle = shoppingSubtitle,
             icon = Icons.Default.ShoppingCart,
@@ -195,10 +202,12 @@ fun ZadQuickCategoryGrid(
             floatOffset = -floatOffset,
             badgeCount = shoppingCartCount,
             badgeColor = warningColor,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.width(132.dp),
             onClick = onNavigateToShopping
-        )
-        QuickShortcutItem(
+            )
+        }
+        item(key = "family") {
+            QuickShortcutItem(
             title = stringResource(R.string.shortcut_family),
             subtitle = familySubtitle,
             icon = Icons.Default.FamilyRestroom,
@@ -207,10 +216,12 @@ fun ZadQuickCategoryGrid(
             floatOffset = floatOffset,
             badgeCount = 0,
             badgeColor = primary,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.width(132.dp),
             onClick = onNavigateToFamily
-        )
-        QuickShortcutItem(
+            )
+        }
+        item(key = "subscriptions") {
+            QuickShortcutItem(
             title = stringResource(R.string.shortcut_subscriptions),
             subtitle = subscriptionsSubtitle,
             icon = Icons.Default.CreditCard,
@@ -219,9 +230,10 @@ fun ZadQuickCategoryGrid(
             floatOffset = -floatOffset,
             badgeCount = subscriptionsDueCount,
             badgeColor = dangerColor,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.width(132.dp),
             onClick = onNavigateToSubscriptions
-        )
+            )
+        }
     }
 }
 
@@ -374,4 +386,3 @@ private fun QuickShortcutItem(
         )
     }
 }
-

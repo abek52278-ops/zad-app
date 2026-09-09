@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddShoppingCart
@@ -70,7 +71,7 @@ fun ChefRecipeRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp),
     ) {
-        items(recipes, key = { recipe -> "${recipe.recipeName}_${recipes.indexOf(recipe)}" }) { recipe ->
+        itemsIndexed(recipes, key = { index, _ -> "recipe_$index" }) { _, recipe ->
             ChefRecipeCard(
                 recipe = recipe,
                 onAddMissingToShopping = onAddMissingToShopping,

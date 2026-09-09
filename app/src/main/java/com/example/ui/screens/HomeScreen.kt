@@ -900,7 +900,7 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             contentPadding = PaddingValues(vertical = 4.dp)
                         ) {
-                            itemsIndexed(displayAffiliatePicks, key = { index, pick -> "${pick.product.productNameAr}_${index}" }) { index, pick ->
+                            itemsIndexed(displayAffiliatePicks, key = { index, pick -> "${pick.product.id}_${index}" }) { index, pick ->
                                 com.example.ui.widgets.ZadAmazonDealCard(
                                     product = pick.product,
                                     reason = pick.reason,
@@ -918,7 +918,7 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(vertical = 4.dp)
                         ) {
-                            itemsIndexed(effectiveSearchNeeds, key = { index, need -> "${need.itemName}_${index}" }) { index, need ->
+                            itemsIndexed(effectiveSearchNeeds, key = { index, need -> "${need.id}_${index}" }) { index, need ->
                                 com.example.ui.widgets.ZadAmazonSearchChip(
                                     itemName = need.itemName,
                                     reason = need.reason,
@@ -2419,7 +2419,7 @@ fun KidsModeContent(
             }
             Spacer(modifier = Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                itemsIndexed(activeAffiliate.take(5), key = { index, product -> "${product.productNameAr}_${index}" }) { index, product ->
+                itemsIndexed(activeAffiliate.take(5), key = { index, product -> "${product.id}_${index}" }) { index, product ->
                     com.example.ui.widgets.AffiliateProductCard(
                         product = product,
                         onBuyClick = {

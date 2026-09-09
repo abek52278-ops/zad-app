@@ -97,7 +97,7 @@ fun DraggableFloatingCompanion(
                 .fillMaxSize()
                 .navigationBarsPadding()
                 .zIndex(90f)
-                .padding(bottom = bottomNavHeight + 24.dp, start = 18.dp),
+                .padding(bottom = bottomNavHeight + 36.dp, start = 18.dp),
             contentAlignment = Alignment.BottomStart
         ) {
             Column(

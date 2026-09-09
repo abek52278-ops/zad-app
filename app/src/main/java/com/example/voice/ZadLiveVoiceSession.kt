@@ -211,8 +211,9 @@ object ZadLiveVoiceSession {
         webSocket = wsClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.d(tag, "zad-voice-live connected")
-                mainHandler.post { _state.value = LiveVoiceState.Listening }
-                startMicStreaming()
+                // اتصال WebSocket وحده لا يعني أن المكالمة صارت جاهزة. ننتظر تهيئة
+                // AudioRecord ونجاح startRecording قبل إظهار حالة الاستماع.
+                startMicStreaming(webSocket)
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
@@ -245,8 +246,8 @@ object ZadLiveVoiceSession {
 
     /** full-duplex حقيقي: الميكروفون بيفضل شغال طول عمر الجلسة، حتى وقت كلام الموديل —
      *  يفتح مرة واحدة فقط عند بدء الجلسة مع تفعيل AEC لمنع التقاط صوت السماعة. */
-    private fun startMicStreaming() {
-        if (webSocket == null || !sessionActive.get()) {
+    private fun startMicStreaming(connectedSocket: WebSocket) {
+        if (webSocket !== connectedSocket || !sessionActive.get()) {
             Log.w(tag, "Cannot start mic streaming: connection not ready")
             return
         }
@@ -291,6 +292,15 @@ object ZadLiveVoiceSession {
             }
             audioRecord = record
 
+            // قد يكون المستخدم أغلق النافذة أثناء تجهيز AudioRecord. لا نبدأ جلسة
+            // متأخرة أو نلتقط الصوت لاتصال WebSocket لم يعد هو الاتصال الحالي.
+            if (!sessionActive.get() || webSocket !== connectedSocket) {
+                recordingActive.set(false)
+                try { record.release() } catch (_: Exception) {}
+                if (audioRecord === record) audioRecord = null
+                return@launch
+            }
+
             // تفعيل مانع الصدى وعازل الضوضاء على جلسة المايك
             val sessionId = record.audioSessionId
             if (sessionId != 0) {
@@ -323,7 +333,12 @@ object ZadLiveVoiceSession {
                     failSession("تعذّر بدء التقاط الصوت")
                     return@launch
                 }
-                while (sessionActive.get() && recordingActive.get() && webSocket != null) {
+                mainHandler.post {
+                    if (sessionActive.get() && webSocket === connectedSocket) {
+                        _state.value = LiveVoiceState.Listening
+                    }
+                }
+                while (sessionActive.get() && recordingActive.get() && webSocket === connectedSocket) {
                     val read = record.read(buffer, 0, buffer.size)
                     if (read <= 0) {
                         if (read < 0) kotlinx.coroutines.delay(10)
@@ -331,7 +346,7 @@ object ZadLiveVoiceSession {
                     }
                     val chunk = if (read == buffer.size) buffer else buffer.copyOf(read)
                     updateMicLevel(chunk)
-                    sendAudioChunk(chunk)
+                    sendAudioChunk(connectedSocket, chunk)
                 }
             } catch (e: Exception) {
                 Log.w(tag, "mic loop failed: ${e.message}")
@@ -365,8 +380,8 @@ object ZadLiveVoiceSession {
         _micLevel.value = (rms * 4.0).coerceIn(0.0, 1.0).toFloat()
     }
 
-    private fun sendAudioChunk(pcm: ByteArray) {
-        val ws = webSocket ?: return
+    private fun sendAudioChunk(ws: WebSocket, pcm: ByteArray) {
+        if (!sessionActive.get() || webSocket !== ws) return
         val b64 = Base64.encodeToString(pcm, Base64.NO_WRAP)
         val frame = JSONObject().apply {
             put("realtimeInput", JSONObject().apply {

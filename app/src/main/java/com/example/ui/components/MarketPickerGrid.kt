@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -69,7 +70,7 @@ fun MarketPickerGrid(
             verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp)
         ) {
-            items(filtered, key = { it.name }) { market ->
+            itemsIndexed(filtered, key = { index, market -> "${market.countryCode}_$index" }) { _, market ->
                 val isSelected = market == selected
                 val cellShape = RoundedCornerShape(16.dp)
                 Column(

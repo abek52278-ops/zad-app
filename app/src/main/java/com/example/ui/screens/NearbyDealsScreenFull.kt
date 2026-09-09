@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Icon
@@ -101,13 +102,13 @@ fun NearbyDealsScreen(onBack: () -> Unit) {
                 }
                 if (supermarkets.isNotEmpty()) {
                     item { SectionLabel(stringResource(R.string.deals_supermarkets)) }
-                    items(supermarkets, key = { it.name + it.lat }) { store ->
+                    itemsIndexed(supermarkets, key = { index, store -> "supermarket_${store.lat}_${index}" }) { _, store ->
                         AppearOnEntry { NearbyStoreCard(store, lowStockNames = emptyList(), isPharmacy = false) }
                     }
                 }
                 if (pharmacies.isNotEmpty()) {
                     item { SectionLabel(stringResource(R.string.deals_pharmacies)) }
-                    items(pharmacies, key = { it.name + it.lat }) { store ->
+                    itemsIndexed(pharmacies, key = { index, store -> "pharmacy_${store.lat}_${index}" }) { _, store ->
                         AppearOnEntry { NearbyStoreCard(store, lowStockNames = emptyList(), isPharmacy = true) }
                     }
                 }
