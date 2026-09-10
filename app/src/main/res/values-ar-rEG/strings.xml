@@ -1756,6 +1756,11 @@
     <string name="companion_state_happy">زاد: مبسوط</string>
     <string name="companion_state_alert">زاد: تنبيه</string>
     <string name="companion_state_celebrating">زاد: بيحتفل</string>
+    <string name="voice_pet_state_idle">زاد الأليف: هادئ يراقب</string>
+    <string name="voice_pet_state_listening">زاد الأليف: بيسمع بتركيز</string>
+    <string name="voice_pet_state_thinking">زاد الأليف: بيفكر في الرد</string>
+    <string name="voice_pet_state_speaking">زاد الأليف: بيتكلم معاك</string>
+    <string name="voice_pet_state_sleeping">زاد الأليف: نايم</string>
     <string name="outbox_stuck_title">إشعار ما وصلش لزاد</string>
     <string name="outbox_stuck_body_with_amount">وصل إشعار بمبلغ %1$s (%2$s) بس ما قدرناش نوصّله. أسجّله؟</string>
     <string name="outbox_stuck_body_no_amount">وصل إشعار (%1$s) وما قدرناش نقرا مبلغ منه. راجعه وضيفه يدوي لو معاملة.</string>

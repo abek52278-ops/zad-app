@@ -1,0 +1,6 @@
+{
+  "hermes.customEndpoint": "https://integrate.api.nvidia.com/v1",
+  "hermes.apiKey": "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",
+  "hermes.model": "moonshotai/kimi-k3",
+  "hermes.provider": "custom"
+}

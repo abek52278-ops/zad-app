@@ -81,6 +81,9 @@ object ZadVoiceManager {
 
     private val _soundLevel = MutableStateFlow(0f)
     val soundLevel: StateFlow<Float> = _soundLevel.asStateFlow()
+    
+    val currentPersona: StateFlow<ZadNaturalVoiceEngine.VoicePersona>
+        get() = engine?.currentPersona ?: MutableStateFlow(ZadNaturalVoiceEngine.VoicePersona.SARAH_STUDIO_WARM).asStateFlow()
 
     private var speechRecognizer: SpeechRecognizer? = null
 
@@ -266,6 +269,11 @@ object ZadVoiceManager {
             onDone()
             return
         }
+
+        // المقايضة العكسية لـ startListening(): وقت الكلام لازم المايك يتقفل صراحةً،
+        // وإلا صيد صوت الـTTS نفسه ويتحوّل لـSTT (echo/self-trigger loop). التماثل ده
+        // هو اللي يخلي الكلام والاستماع حالتين متعاقبتين مش متزامنتين على طول عمر الشيت.
+        stopListening()
 
         _voiceState.value = VoiceState.Speaking(text)
         _isSpeaking.value = true

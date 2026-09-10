@@ -236,10 +236,18 @@ object ZadAiRepository {
             )
         }
         val finalRecipes = recipes.ifEmpty {
-            if (available.isNotEmpty()) generateDeterministicChefRecipes(available) else emptyList()
+            // المخزون الفاضي (available.isEmpty()) كان بيرجع emptyList() مباشرة
+            // مابيلغيش generateDeterministicChefRecipes، واللي فيها الـfallback recipes
+            // الثابتة (شكشوكة، باستا، سلطة تونة) — خلينا ننادّيها دايماً، هي بتنزل
+            // للكليتين (فاضي/مش فاضي) وترجع fallback مناسب في الحالتين.
+            generateDeterministicChefRecipes(available)
         }
         val finalText = if (text == MEAL_SUGGESTIONS_FALLBACK && finalRecipes.isNotEmpty()) {
             "جمعتلك أفكار وصفات شهية تقدر تطبخها النهاردة من المخزون المتاح عندك! 🍳"
+        } else if (available.isEmpty()) {
+            // مخزون فاضي تماماً: رسالة توجّه المستخدم لسجل الأصناف بدل خطأ عام
+            "مخزونك فاضي حالياً. أضف أصناف من زرار \"إضافة صنف\" أو كاميرا المخزون، " +
+            "وشيف زاد هيقترحلك وجبات بالظبط من اللي عندك 🍳"
         } else text
         return ChefSuggestion(text = finalText, recipes = finalRecipes)
     }
