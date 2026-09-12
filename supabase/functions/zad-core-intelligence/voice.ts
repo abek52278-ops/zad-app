@@ -17,7 +17,13 @@
 // الإخراج: PCM 24kHz mono 16-bit (نفس فورمات مسار التشغيل في الأندرويد بالظبط).
 // المشاعر: النص بيتغلف بتعليمات أسلوب حسب سياق الرسالة (styleForText).
 
-export const GEMINI_TTS_MODEL = Deno.env.get("GEMINI_TTS_MODEL") ?? "gemini-2.0-flash";
+// ⚠️ الافتراضي لازم يفضل موديل TTS حقيقي. كان `gemini-2.0-flash` وده مش موديل صوت
+// أصلاً، وسلسلة الاحتياط كانت `gemini-2.0-flash-exp` و`gemini-1.5-flash` — التلاتة
+// بيرجّعوا 404 على المشروع ده، فكل نداء صوت كان بيخلص 502 والتطبيق بيسقط على TTS
+// أندرويد الآلي. `voice-selftest` كان افتراضيه صح طول الوقت، فالفحص الذاتي كان أخضر
+// والإنتاج ميت — نفس المتغير، افتراضيين مختلفين. متحقَّق حي 2026-09-12: الموديل ده
+// رجّع 77504 بايت صوت بصوت Aoede.
+export const GEMINI_TTS_MODEL = Deno.env.get("GEMINI_TTS_MODEL") ?? "gemini-2.5-flash-preview-tts";
 
 export const VOICE_IDS: Record<string, string> = {
   sarah_warm: "Aoede",
@@ -93,7 +99,7 @@ export async function requestGeminiVoiceWithPool(
   apiKeys: string[],
   fetcher: typeof fetch = fetch,
   dialectInstruction = "",
-  models: string[] = [GEMINI_TTS_MODEL, "gemini-2.0-flash-exp", "gemini-1.5-flash"],
+  models: string[] = [GEMINI_TTS_MODEL, "gemini-2.5-pro-preview-tts"],
 ): Promise<Response> {
   const attempts: Array<{ key_index: number; model: string; status: number | null }> = [];
   if (!apiKeys.length) {

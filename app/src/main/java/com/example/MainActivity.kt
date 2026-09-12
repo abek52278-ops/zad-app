@@ -163,6 +163,19 @@ class MainActivity : ComponentActivity() {
                     } catch (e: Exception) {
                         android.util.Log.e("MainActivity", "ZadAlertRouter.sync() on-open failed: ${e.message}")
                     }
+
+                    // توكن الإشعارات — نفس النمط المتكرر في المشروع: الآلية مبنية
+                    // بالكامل و**نقطة نداء واحدة بتتخطاها**. ZadFcmGate.syncTokenAfterLogin()
+                    // كانت متنادية من signIn(email, password) بس، يعني حساب سجّل دخول مرة
+                    // وبعد كده بيفتح التطبيق بجلسة محفوظة عمره ما كان بيرفع توكن —
+                    // وonNewToken بترجع بدري لو فاير-بيز دوّر التوكن قبل ما الجلسة تجهز.
+                    // القياس 2026-09-12: zad_fcm_tokens فاضي، يعني مفيش أي قناة إشعارات
+                    // للعقل غير تليجرام. هنا الجلسة مؤكَّدة، والرفع upsert فآمن للتكرار.
+                    try {
+                        com.example.services.ZadFcmGate.syncTokenAfterLogin()
+                    } catch (e: Exception) {
+                        android.util.Log.w("MainActivity", "FCM token sync on-open failed: ${e.message}")
+                    }
                 }
             }
         }

@@ -127,13 +127,25 @@ Deno.serve(async (req) => {
           }, { onConflict: "parent_user_id,child_user_id,week_start" });
           if (!error) digests++;
 
-          // إشعار insight للأب (بيظهر في جرس الإشعارات وفي شات العقل)
-          await sb.from("zad_insights").insert({
+          // إشعار insight للأب (بيظهر في جرس الإشعارات وفي شات العقل).
+          //
+          // ⚠️ الإدخال ده كان **بيفشل كل مرة من يوم ما اتكتب**: `kind` و`dedupe_key`
+          // الاتنين NOT NULL من غير قيمة افتراضية، والاتنين كانوا ناقصين — والنتيجة
+          // ماكانتش بتتفحص أصلاً (على عكس الـupsert اللي فوقه بالظبط). ده السبب إن
+          // `zad_parent_digests` و`zad_insights` مافيهمش ولا تقرير أب واحد رغم إن
+          // الكرون الأسبوعي شغّال. upsert على dedupe_key عشان إعادة تشغيل الكرون
+          // لنفس الأسبوع ماتكررش نفس التقرير.
+          const { error: insightError } = await sb.from("zad_insights").upsert({
             user_id: parent.user_id,
+            kind: "insight",
             title: `📊 تقرير ${child.alias} الأسبوعي`,
             body: summary,
             surface: "bell",
-          });
+            dedupe_key: `parent_digest:${child.user_id}:${ws}`,
+          }, { onConflict: "user_id,dedupe_key" });
+          if (insightError) {
+            console.error("[parent-digest] insight upsert failed:", insightError.message);
+          }
         }
       }
     }

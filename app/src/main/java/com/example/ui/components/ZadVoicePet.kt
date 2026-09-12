@@ -248,6 +248,16 @@ fun ZadVoicePet(
         val baseRadius = (this.size.minDimension / 2f) * 0.68f
         val radius = baseRadius * breathScale * (1f + 0.16f * level)
 
+        // كثافة الزخرفة (حلقات + جزيئات) بتتبع الحالة مش ثابتة. الكورة الساكنة
+        // المفروض تتقري ككرة مصمتة ليها عمق — الحلقات النيون الدايمة كانت بتحوّلها
+        // لرسم تقني. بتولع لما تسمع أو تتكلم، وبتخفت لما تكون ساكنة.
+        val decor = when (state) {
+            VoicePetState.Listening, VoicePetState.Speaking -> 1f
+            VoicePetState.Thinking -> 0.55f
+            VoicePetState.Idle -> 0.20f
+            VoicePetState.Sleeping -> 0.08f
+        }
+
         // 1. Ambient Atmospheric Neon Aura (breathes with audio)
         drawCircle(
             brush = Brush.radialGradient(
@@ -268,9 +278,9 @@ fun ZadVoicePet(
         drawCircle(
             brush = Brush.sweepGradient(
                 colors = listOf(
-                    ZadOrbNeonCyan.copy(alpha = 0.45f + 0.45f * level),
-                    ZadOrbNeonMint.copy(alpha = 0.20f),
-                    ZadOrbNeonCyan.copy(alpha = 0.45f + 0.45f * level)
+                    ZadOrbNeonCyan.copy(alpha = (0.45f + 0.45f * level) * decor),
+                    ZadOrbNeonMint.copy(alpha = 0.20f * decor),
+                    ZadOrbNeonCyan.copy(alpha = (0.45f + 0.45f * level) * decor)
                 ),
                 center = center
             ),
@@ -284,7 +294,7 @@ fun ZadVoicePet(
         // 3. Soundwave Ripple Ring (Outer Acoustic Ring) - prominent when Listening/Speaking
         val ring2Radius = radius * (1.46f + 0.26f * level)
         drawCircle(
-            color = ZadOrbNeonMint.copy(alpha = (0.16f + 0.32f * level).coerceIn(0f, 0.75f)),
+            color = ZadOrbNeonMint.copy(alpha = ((0.16f + 0.32f * level) * decor).coerceIn(0f, 0.75f)),
             radius = ring2Radius,
             center = center,
             style = androidx.compose.ui.graphics.drawscope.Stroke(
@@ -293,18 +303,20 @@ fun ZadVoicePet(
         )
 
         // 4. Luminous Orbital Motes (6 rotating energy particles)
-        for (i in 0 until 6) {
-            val moteAngle = (rotationAngle * 0.6f + i * 60f) * (Math.PI / 180.0)
-            val moteDist = radius * (1.35f + 0.10f * sin(blobPhase + i).toFloat() * (1f + level))
-            val moteCenter = Offset(
-                center.x + (moteDist * cos(moteAngle)).toFloat(),
-                center.y + (moteDist * sin(moteAngle)).toFloat()
-            )
-            drawCircle(
-                color = ZadOrbNeonCyan.copy(alpha = (0.35f + 0.45f * level).coerceIn(0f, 1f)),
-                radius = (1.8f + 1.2f * level).dp.toPx(),
-                center = moteCenter
-            )
+        if (decor > 0.25f) {
+            for (i in 0 until 6) {
+                val moteAngle = (rotationAngle * 0.6f + i * 60f) * (Math.PI / 180.0)
+                val moteDist = radius * (1.35f + 0.10f * sin(blobPhase + i).toFloat() * (1f + level))
+                val moteCenter = Offset(
+                    center.x + (moteDist * cos(moteAngle)).toFloat(),
+                    center.y + (moteDist * sin(moteAngle)).toFloat()
+                )
+                drawCircle(
+                    color = ZadOrbNeonCyan.copy(alpha = ((0.35f + 0.45f * level) * decor).coerceIn(0f, 1f)),
+                    radius = (1.8f + 1.2f * level).dp.toPx(),
+                    center = moteCenter
+                )
+            }
         }
 
         // 5. Quick Tap Glow Burst
@@ -340,15 +352,18 @@ fun ZadVoicePet(
         withTransform({
             rotate(degrees = rotationAngle, pivot = center)
         }) {
+            // شفافية أقل من الأول بقصد: الطبقة دي بتدي إحساس زجاج متحرك، لكن لما كانت
+            // تقيلة كانت بتغطي التدرج الكروي تحتها فالكورة تتقري سطح مرسوم مش جسم له
+            // عمق. الحجم اللي بيدي الإحساس ده جاي من 6a + الضوء المرتد في 6e.
             val meshSweepBrush = Brush.sweepGradient(
                 colors = listOf(
-                    skyColor.copy(alpha = 0.55f),
-                    ZadOrbMeshMint.copy(alpha = 0.45f),
-                    deepColor.copy(alpha = 0.75f),
-                    ZadOrbNeonCyan.copy(alpha = 0.60f),
-                    ZadOrbMeshTeal.copy(alpha = 0.45f),
-                    deepColor.copy(alpha = 0.75f),
-                    skyColor.copy(alpha = 0.55f)
+                    skyColor.copy(alpha = 0.26f),
+                    ZadOrbMeshMint.copy(alpha = 0.20f),
+                    deepColor.copy(alpha = 0.38f),
+                    ZadOrbNeonCyan.copy(alpha = 0.24f + 0.20f * level),
+                    ZadOrbMeshTeal.copy(alpha = 0.20f),
+                    deepColor.copy(alpha = 0.38f),
+                    skyColor.copy(alpha = 0.26f)
                 ),
                 center = center
             )
@@ -369,6 +384,24 @@ fun ZadVoicePet(
             ),
             radius = radius * 0.50f,
             center = highlightCenter
+        )
+
+        // 6e. الضوء المرتد من تحت (bounce light) — ده اللي بيخلي الكورة تتقري كجسم
+        // كروي مش كدايرة ملونة: مصدر ضوء أساسي فوق-شمال (6a) + انعكاس خافت تحت-يمين
+        // من الأرضية. من غيره النص السفلي بيتقري مسطّح.
+        val bounceCenter = center + Offset(radius * 0.30f, radius * 0.44f)
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    skyColor.copy(alpha = 0.34f),
+                    skyColor.copy(alpha = 0.10f),
+                    Color.Transparent
+                ),
+                center = bounceCenter,
+                radius = radius * 0.62f
+            ),
+            radius = radius * 0.62f,
+            center = bounceCenter
         )
 
         // 6d. Fresnel Edge Glass Rim
@@ -464,29 +497,29 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawExpressiveEye(
 ) {
     if (height < 2f) return
     val cornerRadius = androidx.compose.ui.geometry.CornerRadius(width / 2f, minOf(width / 2f, height / 2f))
-    // Outer white sclera
+    // عين كبسولة بيضا صافية من غير بؤبؤ داكن — ده شكل المرجع اللي المستخدم بعته،
+    // وهو كمان بيقرا أنضف على حجم 56dp في الرئيسية (البؤبؤ + اللمعة كانوا بيتحوّلوا
+    // لبقعتين رماديتين). الاتجاه بيتنقل بإزاحة الكبسولة نفسها مش بحركة بؤبؤ جواها.
+    val eyeCenter = center + pupilOffset * openAmount
+    val eyeSize = androidx.compose.ui.geometry.Size(width, height.coerceAtLeast(3f))
+    val eyeTopLeft = Offset(eyeCenter.x - width / 2f, eyeCenter.y - eyeSize.height / 2f)
     drawRoundRect(
         color = Color.White,
-        topLeft = Offset(center.x - width / 2f, center.y - height / 2f),
-        size = androidx.compose.ui.geometry.Size(width, height.coerceAtLeast(3f)),
+        topLeft = eyeTopLeft,
+        size = eyeSize,
         cornerRadius = cornerRadius
     )
-    // Dark expressive pupil
-    if (openAmount > 0.35f) {
-        val pupilRadius = minOf(width, height) * 0.36f
-        val pCenter = center + pupilOffset
-        drawCircle(
-            color = ZadDarkSlate,
-            radius = pupilRadius,
-            center = pCenter
-        )
-        // Specular reflection glint
-        drawCircle(
-            color = Color.White,
-            radius = pupilRadius * 0.38f,
-            center = pCenter - Offset(pupilRadius * 0.32f, pupilRadius * 0.32f)
-        )
-    }
+    // ظل داخلي خفيف تحت — بيمنع الكبسولة إنها تتقري ستيكر مسطّح ملزوق على الكورة.
+    drawRoundRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(Color.Transparent, ZadDarkSlate.copy(alpha = 0.12f)),
+            startY = eyeTopLeft.y + eyeSize.height * 0.45f,
+            endY = eyeTopLeft.y + eyeSize.height
+        ),
+        topLeft = eyeTopLeft,
+        size = eyeSize,
+        cornerRadius = cornerRadius
+    )
 }
 
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFocusedEye(

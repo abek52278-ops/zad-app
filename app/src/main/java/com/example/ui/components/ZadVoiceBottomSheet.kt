@@ -47,6 +47,8 @@ import com.example.ui.viewmodels.AiChatMessage
 import kotlinx.coroutines.launch
 import kotlin.math.sin
 
+private const val MAX_TRANSIENT_RETRIES = 3
+
 /**
  * New Zad Voice Bottom Sheet using ZadVoicePet and ZadVoiceController.
  * Clean audio pipeline: no echo loops, proper mic mute during model speech,
@@ -74,11 +76,17 @@ fun ZadVoiceBottomSheet(
     val companionMood by viewModel.companionMood.collectAsState()
     val currentPersona by voiceManager.currentPersona.collectAsState()
     
+    // ⚠️ بيتقرا من `isLiveMode` (الحالة المتغيرة) مش `initialLiveMode` (الباراميتر
+    // الثابت). كان على الباراميتر، فلما العميل كان بيقلب الوضع الحي يدوي من الزرار
+    // الكورة كانت تفضل تقرا `soundLevel` بتاع المسار القديم — وهو صفر في الوضع الحي،
+    // يعني كورة ساكنة والمكالمة شغالة.
+    var isLiveMode by remember { mutableStateOf(initialLiveMode) }
+
     // Pet audio level (smoothed, read in draw scope)
     val petAudioLevel = rememberPetAudioLevel(
-        if (initialLiveMode) voiceController.micLevel else voiceManager.soundLevel
+        if (isLiveMode) voiceController.micLevel else voiceManager.soundLevel
     )
-    
+
     var recognizedLiveText by remember { mutableStateOf("") }
     var hasAudioPermission by remember {
         mutableStateOf(
@@ -90,18 +98,17 @@ fun ZadVoiceBottomSheet(
     }
     var retryAttempt by remember { mutableIntStateOf(0) }
     var activeVoiceTurnId by remember { mutableStateOf<String?>(null) }
-    var isLiveMode by remember { mutableStateOf(initialLiveMode) }
     var showSettings by remember { mutableStateOf(false) }
-    
+
     // Submit voice turn to AI
     fun submitVoiceTurn(result: String) {
         if (result.isBlank()) return
+        // في المكالمة الحية جيميناي هو اللي بيسمع ويرد — أي نتيجة متأخرة جاية من
+        // المتعرِّف المحلي دي بقايا من قبل التحويل، مش طلب جديد. كانت بتقطع المكالمة
+        // وترجّع الوضع دور-بدور من غير ما العميل يفهم ليه.
+        if (isLiveMode) return
         retryAttempt = 0
         recognizedLiveText = result
-        if (isLiveMode) {
-            voiceController.stop() // Stop live mode, fall back to turn-based
-            isLiveMode = false
-        }
         voiceManager.markThinking()
         activeVoiceTurnId = viewModel.sendAiChatMessage(result, voiceMode = true)
     }
@@ -161,24 +168,28 @@ fun ZadVoiceBottomSheet(
         lastSpokenMessageId = lastReply.id
         activeVoiceTurnId = null
         voiceManager.stopListening()
+        // صامت: النغمة بتتشغّل مرة واحدة أول ما الشيت يفتح. لما كانت بتتشغّل مع كل
+        // استئناف، اللفة (اسمع ← رد ← اسمع) كانت بتسمع كأن المايك بيفتح ويقفل باستمرار.
         val resumeListening = {
             if (hasAudioPermission) {
-                listen(resetRetry = true)
+                listen(silent = true, resetRetry = true)
             }
         }
         voiceManager.speakHumanLike(lastReply.text, onDone = resumeListening, onFailed = resumeListening)
     }
     
-    // Error retry (once)
+    // استئناف بعد الفشل العابر — بسقف. كان محاولة واحدة بس لأي نوع خطأ، ولإن
+    // NO_MATCH/SPEECH_TIMEOUT عاديين جداً في العربي، غلطتين ورا بعض كانوا بيسيبوا
+    // الشيت واقف على رسالة خطأ للأبد. الأخطاء غير العابرة (صلاحية/مايك مشغول/شبكة)
+    // مابتتعادش أصلاً — إعادتها بتعمل لوب مايفكش.
     LaunchedEffect(voiceState, isLiveMode) {
         if (isLiveMode) return@LaunchedEffect
         val error = voiceState as? VoiceState.Error ?: return@LaunchedEffect
-        if (retryAttempt == 0) {
-            retryAttempt = 1
-            kotlinx.coroutines.delay(1200)
-            if (hasAudioPermission && voiceManager.voiceState.value == error) {
-                listen(silent = true)
-            }
+        if (!error.transient || retryAttempt >= MAX_TRANSIENT_RETRIES) return@LaunchedEffect
+        retryAttempt += 1
+        kotlinx.coroutines.delay(1200)
+        if (hasAudioPermission && voiceManager.voiceState.value == error) {
+            listen(silent = true)
         }
     }
     

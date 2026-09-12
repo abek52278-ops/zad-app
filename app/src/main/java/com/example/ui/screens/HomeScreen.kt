@@ -393,7 +393,7 @@ fun HomeScreen(
                             .border(0.5.dp, com.example.ui.theme.ZadLuxe.hairline, com.example.ui.theme.ZadLuxe.squircle)
                             .clickable {
                                 com.example.voice.ZadCutePetSoundFx.play(com.example.voice.ZadCutePetSoundFx.PetSound.HappyChirp)
-                                onOpenVoice()
+                                onOpenVoiceLive()
                             }
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -402,7 +402,7 @@ fun HomeScreen(
                         com.example.ui.components.CompanionOrb(
                             size = 56.dp,
                             state = companionMood,
-                            onClick = onOpenVoice
+                            onClick = onOpenVoiceLive
                         )
                         Spacer(modifier = Modifier.width(14.dp))
                         Column(modifier = Modifier.weight(1f)) {

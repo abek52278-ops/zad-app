@@ -21,7 +21,12 @@ sealed class VoiceState {
     data class Recognized(val text: String) : VoiceState()
     object Thinking : VoiceState()
     data class Speaking(val text: String) : VoiceState()
-    data class Error(val message: String) : VoiceState()
+    /**
+     * [transient] = فشل عابر (ماسمعش حاجة / خلص الوقت) واللفة تقدر تستأنف صامت.
+     * غير العابر (صلاحية، مايك مشغول، شبكة) لازم يوقف ويتعرض — الاستئناف عليه
+     * بيعمل لوب صامت المستخدم مش فاهم ليه بيسمع نغمة كل شوية.
+     */
+    data class Error(val message: String, val transient: Boolean = false) : VoiceState()
 }
 
 /**
@@ -195,8 +200,10 @@ object ZadVoiceManager {
                             else -> context.getString(R.string.voice_error_generic)
                         }
                         Log.w(TAG, "SpeechRecognizer error: $error ($msg)")
+                        val transient = error == SpeechRecognizer.ERROR_NO_MATCH ||
+                            error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
                         // أخطاء التعرف حالة واجهة، مش كلام المستخدم — عمرها ما تتبعت للوكيل.
-                        _voiceState.value = VoiceState.Error(msg)
+                        _voiceState.value = VoiceState.Error(msg, transient)
                     }
 
                     override fun onResults(results: Bundle?) {
