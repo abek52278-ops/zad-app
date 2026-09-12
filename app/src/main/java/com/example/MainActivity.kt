@@ -176,6 +176,30 @@ class MainActivity : ComponentActivity() {
                     } catch (e: Exception) {
                         android.util.Log.w("MainActivity", "FCM token sync on-open failed: ${e.message}")
                     }
+
+                    // ترميم بلد الحساب. syncMarketProfile نفسها بتشرح ليه الصف بيفضل
+                    // فاضي: اختيار السوق بيحصل **قبل** التسجيل، فصف zad_users ساعتها
+                    // ممكن يكون لسه ما اتعملش، والعملية بتضيع. مكانش فيه أي مسار بيرمّم
+                    // الحسابات اللي حصل لها كده — المقيس 2026-09-12: ٤ من ٦ حسابات
+                    // country = null. والعمود ده هو مصدر اللهجة الوحيد للمكالمة الصوتية
+                    // الحية (zad-voice-live/persona.ts) وللشات، فحساب فاضي معناه رد
+                    // بعربية محايدة بدل لهجة العميل. الكتابة بتحصل بس لو العمود فاضي.
+                    try {
+                        val userId = SupabaseRepo.client.auth.currentUserOrNull()?.id
+                        if (userId != null) {
+                            val (_, storedCountry) = SupabaseRepo.getMarketProfile(userId)
+                            if (storedCountry.isNullOrBlank()) {
+                                val market = com.example.data.MarketPrefs.getMarket(applicationContext)
+                                if (!SupabaseRepo.syncMarketProfile(market)) {
+                                    com.example.data.SyncOutbox.enqueueMarketProfile(
+                                        applicationContext, market.currencyCode, market.countryCode,
+                                    )
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.w("MainActivity", "market profile backfill failed: ${e.message}")
+                    }
                 }
             }
         }

@@ -40,6 +40,7 @@
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { buildVoiceSystemInstruction } from "./persona.ts";
+import { formatVoiceContext, loadVoiceContext } from "./context.ts";
 import { describeVoiceProposal, isConfirmRequired, VOICE_TOOL_USAGE_INSTRUCTION, VOICE_TOOLS } from "./tools.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -158,10 +159,35 @@ Deno.serve(async (req) => {
 
   // بند 33.3 — نفس مصدر اللهجة اللي buildChatSystemPrompt بيقراه (zad_users.country)،
   // عشان الصوت يتكلم بنفس لهجة العميل اللي الشات المكتوب بيتكلم بيها بالظبط.
-  const { data: userRow } = await sb.from("zad_users").select("country").eq("id", userId).maybeSingle();
-  const systemInstructionText =
-    buildVoiceSystemInstruction((userRow as { country?: string } | null)?.country)
-    + "\n\n" + VOICE_TOOL_USAGE_INSTRUCTION;
+  //
+  // والسياق معاها: الجلسة الحية كانت بتاخد أدوات كتابة بس، فـ«سجّلي ٥٠ قهوة» تشتغل
+  // و«كام فاضل في الميزانية؟» مالهاش مصدر — الصوت كان أحسن حاجة في المنتج وأقلهم معرفة.
+  // الفشل هنا مش بيوقّف المكالمة: مكالمة بشخصية وصوت من غير أرقام أحسن من مكالمة
+  // مابتفتحش (loadVoiceContext بيقرا ٧ جداول، أي واحد فيهم ممكن يتأخر).
+  const [userRow, voiceContext] = await Promise.all([
+    (async () => {
+      try {
+        const { data } = await sb.from("zad_users").select("country").eq("id", userId).maybeSingle();
+        return data as { country?: string } | null;
+      } catch {
+        return null;
+      }
+    })(),
+    (async () => {
+      try {
+        return formatVoiceContext(await loadVoiceContext(sb, userId));
+      } catch (e) {
+        console.error("[voice-live] context load failed:", (e as Error)?.message);
+        return "";
+      }
+    })(),
+  ]);
+
+  const systemInstructionText = [
+    buildVoiceSystemInstruction(userRow?.country),
+    VOICE_TOOL_USAGE_INSTRUCTION,
+    voiceContext,
+  ].filter((part) => part && part.length > 0).join("\n\n");
 
   const { socket: clientSocket, response } = Deno.upgradeWebSocket(req);
 
