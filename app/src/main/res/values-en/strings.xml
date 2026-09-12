@@ -1005,7 +1005,7 @@
     <string name="nearby_deals_title">Zad Nearby</string>
     <string name="location_permission_rationale">Zad needs location access to show you nearby supermarkets — it\'s only used while this screen is open, no background tracking.</string>
     <string name="allow_location_action">Allow Location Access</string>
-    <string name="nearby_deals_disclaimer">Data is from the OpenStreetMap community — it may not be complete. There are no real prices or deals here, just a comparison based on geographic proximity and your inventory shortages.</string>
+    <string name="nearby_deals_disclaimer">Real distances from the OpenStreetMap community — they may be incomplete. This screen shows how close stores are and what your pantry is missing, not live prices or offers.</string>
     <string name="location_unavailable_hint">Couldn\'t determine your location — make sure GPS is enabled and try again.</string>
     <string name="no_nearby_stores_hint">No nearby supermarkets found</string>
     <string name="low_stock_reminder_hint">You\'re low on: %1$s</string>
@@ -1073,7 +1073,7 @@
     <string name="screen_title_assistant">Zad Mind</string>
     <string name="screen_title_pharmacy">Pharmacy</string>
     <string name="screen_title_maintenance">Maintenance</string>
-    <string name="screen_title_deals">Nearby Deals</string>
+    <string name="screen_title_deals">Nearby Stores &amp; Markets</string>
     <string name="screen_title_profile">My Account</string>
     <string name="nav_tab_home">Home</string>
     <string name="nav_more">More</string>
@@ -1462,7 +1462,7 @@
     <string name="auto_comp_pinpromptdialog_347" translatable="false">إلغاء</string>
     <string name="recent_tx_title">Recent transactions</string>
     <string name="see_all">See all</string>
-    <string name="nav_deals">Nearby deals</string>
+    <string name="nav_deals">Nearby Stores &amp; Markets</string>
     <string name="no_stores_found">No stores found nearby — check location permission.</string>
     <string name="deals_supermarkets">Supermarkets</string>
     <string name="deals_pharmacies">Pharmacies</string>
@@ -1850,4 +1850,7 @@
     <string name="cam_scan_medicine">Scan Medicine Box</string>
     <string name="cam_medicine_extracted">Identified: %1$s</string>
     <string name="cam_save_to_pharmacy">Save to Pharmacy</string>
+    <string name="home_no_transactions_hint">Start with your first expense — snap a receipt or just tell Zad</string>
+    <string name="distance_meters">%1$d m</string>
+    <string name="distance_km">%1$s km</string>
 </resources>

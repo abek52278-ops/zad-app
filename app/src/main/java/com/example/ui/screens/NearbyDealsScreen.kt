@@ -77,9 +77,17 @@ internal fun NearbyStoreCard(store: NearbyStore, lowStockNames: List<String>, is
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.NearMe, contentDescription = null, tint = onSurfaceVariant, modifier = Modifier.size(11.dp))
                     Spacer(modifier = Modifier.width(3.dp))
+                    // الوحدة نص واجهة مش بيانات — كانت "م"/"كم" مكتوبة في الكود، فالشاشة
+                    // كانت بتعرض وحدة عربية جوه واجهة إنجليزية.
                     Text(
-                        if (store.distanceMeters < 1000) "${store.distanceMeters} م" else "${"%.1f".format(store.distanceMeters / 1000.0)} كم",
-                        style = Typography.labelSmall, color = onSurfaceVariant
+                        if (store.distanceMeters < 1000) {
+                            stringResource(R.string.distance_meters, store.distanceMeters)
+                        } else {
+                            stringResource(R.string.distance_km, "%.1f".format(store.distanceMeters / 1000.0))
+                        },
+                        style = Typography.labelSmall,
+                        color = onSurfaceVariant,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
                 if (lowStockNames.isNotEmpty()) {

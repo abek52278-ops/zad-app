@@ -1328,11 +1328,13 @@ fun BudgetEditSheet(
             Spacer(modifier = Modifier.height(4.dp))
 
             if (expenseTransactions.isEmpty()) {
-                Text(
-                    stringResource(R.string.no_transactions),
-                    style = Typography.bodySmall,
-                    color = onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 12.dp)
+                // سطر نص أعزل مش حالة فاضية: قاعدة الواجهة في CLAUDE.md بتقول أيقونة +
+                // عنوان + إرشاد قصير، وde النمط اللي ZadEmptyState بيطبّقه في باقي الشاشات.
+                com.example.ui.components.ZadEmptyState(
+                    title = stringResource(R.string.no_transactions),
+                    subtitle = stringResource(R.string.home_no_transactions_hint),
+                    icon = Icons.Default.ReceiptLong,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
                 )
             } else {
                 Spacer(modifier = Modifier.height(8.dp))

@@ -898,7 +898,7 @@
     <string name="screen_title_assistant">عقل زاد</string>
     <string name="screen_title_pharmacy">الصيدلية</string>
     <string name="screen_title_maintenance">الصيانة</string>
-    <string name="screen_title_deals">عروض قريبة</string>
+    <string name="screen_title_deals">المتاجر والأسواق القريبة</string>
     <string name="screen_title_profile">حسابي</string>
     <string name="nav_tab_home">الرئيسية</string>
     <string name="nav_more">المزيد</string>
@@ -1230,7 +1230,7 @@
     <string name="nearby_deals_title">زاد القريب</string>
     <string name="location_permission_rationale">زاد محتاج إذن الموقع عشان يوريك السوبرماركتس القريبة منك — بيتستخدم بس وقت ما تفتح الشاشة دي، مفيش مراقبة في الخلفية.</string>
     <string name="allow_location_action">السماح بالوصول للموقع</string>
-    <string name="nearby_deals_disclaimer">البيانات من خرائط OpenStreetMap المجتمعية — ممكن متكونش كاملة. مفيش أسعار أو عروض حقيقية هنا، بس مقارنة بالقرب الجغرافي ونواقص مخزونك.</string>
+    <string name="nearby_deals_disclaimer">مسافات حقيقية من خرائط OpenStreetMap المجتمعية — قد لا تكون كاملة. هذي الشاشة تعرض قرب المتاجر ونواقص مخزونك، مو أسعار ولا عروض لحظية.</string>
     <string name="location_unavailable_hint">مقدرناش نحدد موقعك — اتأكد إن الـ GPS شغال وجرب تاني.</string>
     <string name="no_nearby_stores_hint">مفيش سوبرماركتس قريبة اتلاقت</string>
     <string name="nearby_pharmacies_section_title">صيدليات قريبة</string>
@@ -1425,7 +1425,7 @@
     <string name="auto_comp_pinpromptdialog_347">إلغاء</string>
     <string name="recent_tx_title">آخر المعاملات</string>
     <string name="see_all">عرض الكل</string>
-    <string name="nav_deals">عروض قريبة</string>
+    <string name="nav_deals">المتاجر والأسواق القريبة</string>
     <string name="no_stores_found">لا توجد متاجر قريبة — تأكد من صلاحية الموقع.</string>
     <string name="deals_supermarkets">سوبرماركتات</string>
     <string name="deals_pharmacies">صيدليات</string>
@@ -1839,4 +1839,7 @@
     <string name="cam_scan_medicine">مسح علبة دواء</string>
     <string name="cam_medicine_extracted">تم التعرف على: %1$s</string>
     <string name="cam_save_to_pharmacy">حفظ في الصيدلية</string>
+    <string name="home_no_transactions_hint">ابدأ بتسجيل أول مصروف — صوّر فاتورة أو كلّم زاد</string>
+    <string name="distance_meters">%1$d م</string>
+    <string name="distance_km">%1$s كم</string>
 </resources>
