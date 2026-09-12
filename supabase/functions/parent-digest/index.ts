@@ -35,6 +35,39 @@ const CORS = {
   "access-control-allow-headers": "authorization, content-type, x-parent-digest-cron-secret",
 };
 
+// ترويسة الملف بتقول «يبعت إشعار تليجرام/insight للأب» من يوم ما اتكتبت — والـinsight بس
+// هو اللي كان موجود، **مفيش ولا نداء تليجرام واحد في الملف كله**. ونفس الوقت تريجر
+// الفان-أوت من zad_insights بيشترط kind='question' أو priority='critical'، وصف التقرير
+// مايطابقش ولا واحد (وصح إنه مايطابقش: تقرير أسبوعي مش سؤال ولا حالة حرجة). فالطريق
+// الأمين هو النداء المباشر على نفس نقطة realtime_push اللي خمس تريجرات بتستخدمها.
+//
+// السر مشترك على مستوى المشروع (نفس اللي البوت بيتحقق منه في `ZAD_REALTIME_PUSH_SECRET`).
+// لو مش مظبوط: نسجّل ونكمّل — التقرير نفسه اتخزن وظهر في الجرس، والفشل هنا مايستاهلش
+// يوقّع الدالة كلها.
+const REALTIME_PUSH_SECRET = Deno.env.get("ZAD_REALTIME_PUSH_SECRET") ?? "";
+
+async function pushToTelegram(userId: string, title: string, body: string) {
+  if (!REALTIME_PUSH_SECRET) {
+    console.warn("[parent-digest] ZAD_REALTIME_PUSH_SECRET not set — insight written, telegram skipped");
+    return;
+  }
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/zad-telegram-bot?job=realtime_push`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Realtime-Push-Secret": REALTIME_PUSH_SECRET,
+      },
+      body: JSON.stringify({ user_id: userId, title, body }),
+    });
+    if (!res.ok) {
+      console.error(`[parent-digest] telegram push failed: HTTP ${res.status}`);
+    }
+  } catch (e) {
+    console.error("[parent-digest] telegram push threw:", (e as Error)?.message);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
@@ -146,6 +179,8 @@ Deno.serve(async (req) => {
           if (insightError) {
             console.error("[parent-digest] insight upsert failed:", insightError.message);
           }
+
+          await pushToTelegram(parent.user_id, `📊 تقرير ${child.alias} الأسبوعي`, summary);
         }
       }
     }
