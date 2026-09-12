@@ -37,10 +37,6 @@ begin
     select u.id,
            (u.limit_confirmed_at is not null and coalesce(u.monthly_limit, 0) > 0)
     from public.zad_users u
-    where not exists (
-      select 1 from public.user_alert_snooze s
-      where s.user_id = u.id and s.snoozed_until > now()
-    )
   loop
     begin
       v_scanned := v_scanned + 1;
@@ -67,10 +63,6 @@ begin
     for v_user in
       select distinct p.user_id from public.zad_pharmacy_items p
       where coalesce(p.is_recurring, false) is true
-        and not exists (
-          select 1 from public.user_alert_snooze s
-          where s.user_id = p.user_id and s.snoozed_until > now()
-        )
     loop
       begin
         perform public._agent_med_followup_for_user(v_user);
