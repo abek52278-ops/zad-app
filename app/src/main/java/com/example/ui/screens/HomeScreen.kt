@@ -1474,17 +1474,17 @@ fun UrgentRecipeCard(
 ) {
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = Color(0xFFFFF7ED),
+        color = MaterialTheme.colorScheme.tertiaryContainer,
         modifier = Modifier.fillMaxWidth(),
         onClick = onOpenChat
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFFFED7AA)),
+                    modifier = Modifier.size(36.dp).clip(CircleShape).background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.18f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.HourglassTop, contentDescription = null, tint = Color(0xFFC2410C), modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.HourglassTop, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(18.dp))
                 }
                 Spacer(modifier = Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
@@ -1495,12 +1495,12 @@ fun UrgentRecipeCard(
                         ),
                         style = Typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF9A3412)
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
                     Text(
                         stringResource(if (isStagnantOnly) R.string.suggested_recipes_use_it_up else R.string.suggested_recipes_before_expiry),
                         style = Typography.labelSmall,
-                        color = Color(0xFFC2410C)
+                        color = MaterialTheme.colorScheme.tertiary
                     )
                 }
             }
@@ -1508,12 +1508,12 @@ fun UrgentRecipeCard(
             Text(
                 text.take(220),
                 style = Typography.bodySmall,
-                color = Color(0xFF7C2D12),
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
                 lineHeight = 18.sp,
                 maxLines = 5
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Text(stringResource(R.string.tap_for_more_in_chat), style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFFC2410C))
+            Text(stringResource(R.string.tap_for_more_in_chat), style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
         }
     }
 }
