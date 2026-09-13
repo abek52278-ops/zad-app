@@ -82,6 +82,36 @@ data class ZadExtendedColors(
     val alertBannerContainer: Color,
     val onAlertBanner: Color,
     /**
+     * هوية الذكاء — البنفسجي الرسمي (قرار المستخدم 2026-09-13، المرحلة ٣).
+     *
+     * شاشة العقل كانت فيها ٢٣ هيكس بنفسجي من غير أي تعريف: `#9333EA` لوحده ١٢ مرة، وصناديق
+     * سرد الذكاء لافندر ثابت `#F5F3FF` بيفضل فاتح في الدارك مود. القرار كان بين إن البنفسجي
+     * يتشال لصالح الزمردي أو يتعلن هوية للذكاء — واتعلن. فاللايت بيفضل **نفس القيم بالظبط**
+     * (مفيش تغيير بصري)، والدارك بياخد درجات مقروءة على الأرضية الداكنة. ولو القرار اتغيّر
+     * بعدين، التحويل للزمردي بيبقى هنا بس.
+     *
+     * - `aiAccent`: نص/أيقونة/حاوية زرار. لايت #9333EA (5.38 على السطح، 4.51 على شريحة ١٢٪)،
+     *   دارك #C084FC (6.45 / 5.37).
+     * - `aiAccentEnd`: الطرف التاني من جراديانت الهوية، ثابت.
+     * - `onAiAccent`: فوق `aiAccent`. أبيض في اللايت (5.38)، بس الأبيض على بنفسجي الدارك
+     *   **2.64:1** — فالدارك نص غامق (6.87، و4.1 على الطرف التاني من الجراديانت).
+     * - `aiAccentSoft`: نبضة العقدة في كانفس الشبكة — زخرفة، ثابتة.
+     * - `aiNarrativeContainer`/`onAiNarrative`: صندوق سرد الذكاء. لايت 9.99:1، دارك 11.09:1
+     *   (الحاوية بقت بنفسجي غامق بدل ما تفضل لافندر فاتح وسط شاشة داكنة).
+     */
+    val aiAccent: Color,
+    val aiAccentEnd: Color,
+    val onAiAccent: Color,
+    val aiAccentSoft: Color,
+    val aiNarrativeContainer: Color,
+    val onAiNarrative: Color,
+    /**
+     * درجة «كويس» في مقياس صحة البيت (بين success وsecondary). كان ليموني Tailwind
+     * `#84CC16` = **1.98:1** على الأبيض، والرقم نفسه (22sp Black، نص كبير عتبته 3:1)
+     * بيتلوّن بيه. لايت #4D7C0F = 4.99، دارك #A3E635.
+     */
+    val scoreGood: Color,
+    /**
      * نص شريحة الحالة فوق حاوية بنفس درجتها بشفافية ١٢٪.
      *
      * `coral` نفسه مابيعديش هنا: نص بنفس درجة لون الحاوية بيدي **٣٫٣٨:١** في
@@ -135,6 +165,13 @@ val ZadExtendedColorsLight = ZadExtendedColors(
     agentPanelBrand = Color(0xFF95D9B5),
     alertBannerContainer = Color(0xFFFDECEA),
     onAlertBanner = ZadTerracottaDark,
+    aiAccent = Color(0xFF9333EA),
+    aiAccentEnd = Color(0xFF6C63FF),
+    onAiAccent = Color(0xFFFFFFFF),
+    aiAccentSoft = Color(0xFFC084FC),
+    aiNarrativeContainer = Color(0xFFF5F3FF),
+    onAiNarrative = Color(0xFF4C1D95),
+    scoreGood = Color(0xFF4D7C0F),
     onStatusPill = Color(0xFFA63F1B),
     // Exactly the values CategoryBreakdownCard used as ZadV3.green600 / info / warn /
     // danger / violet, in the same order — so the light rendering is unchanged.
@@ -186,6 +223,13 @@ val ZadExtendedColorsDark = ZadExtendedColors(
     agentPanelBrand = Color(0xFF95D9B5),
     alertBannerContainer = Color(0xFF3A1E16),
     onAlertBanner = ZadTerracottaOnDark,
+    aiAccent = Color(0xFFC084FC),
+    aiAccentEnd = Color(0xFF6C63FF),
+    onAiAccent = Color(0xFF1E0B36),
+    aiAccentSoft = Color(0xFFC084FC),
+    aiNarrativeContainer = Color(0xFF261B3D),
+    onAiNarrative = Color(0xFFDDD0FB),
+    scoreGood = Color(0xFFA3E635),
     onStatusPill = Color(0xFFEA764B),
     // Same five hues, lifted to read on a dark ground. The light values are mid-tones
     // chosen against white; on near-black they lose separation and #B45309 in particular

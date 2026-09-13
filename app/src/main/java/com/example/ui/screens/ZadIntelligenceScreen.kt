@@ -1609,11 +1609,11 @@ fun WhatIfSimulatorCard(viewModel: ZadViewModel, predictedMonthlySpend: Double) 
                         Text(stringResource(R.string.whatif_ai_loading), style = Typography.labelSmall, color = onSurfaceVariant)
                     }
                 } else if (aiNarrative != null) {
-                    Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFF5F3FF), modifier = Modifier.fillMaxWidth()) {
+                    Surface(shape = RoundedCornerShape(12.dp), color = aiNarrativeContainer, modifier = Modifier.fillMaxWidth()) {
                         Row(modifier = Modifier.padding(12.dp)) {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color(0xFF8B5CF6), modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = aiAccent, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(aiNarrative ?: "", style = Typography.bodySmall, color = Color(0xFF4C1D95))
+                            Text(aiNarrative ?: "", style = Typography.bodySmall, color = onAiNarrative)
                         }
                     }
                 }
@@ -2212,11 +2212,11 @@ fun AiNarrativeSection(narrative: String?, isLoading: Boolean, onExplain: (() ->
             Spacer(modifier = Modifier.width(8.dp))
             Text(stringResource(R.string.ai_narrative_loading), style = Typography.labelSmall, color = onSurfaceVariant)
         }
-        narrative != null -> Surface(shape = RoundedCornerShape(12.dp), color = Color(0xFFF5F3FF), modifier = Modifier.fillMaxWidth()) {
+        narrative != null -> Surface(shape = RoundedCornerShape(12.dp), color = aiNarrativeContainer, modifier = Modifier.fillMaxWidth()) {
             Row(modifier = Modifier.padding(12.dp)) {
-                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color(0xFF8B5CF6), modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = aiAccent, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(narrative, style = Typography.bodySmall, color = Color(0xFF4C1D95))
+                Text(narrative, style = Typography.bodySmall, color = onAiNarrative)
             }
         }
         onExplain != null -> TextButton(onClick = onExplain) {
@@ -3650,7 +3650,7 @@ private fun HealthScoreCard(report: com.example.data.ZadCentralBrain.BrainReport
     val context = androidx.compose.ui.platform.LocalContext.current
     val scoreColor = when {
         report.healthScore >= 85 -> successColor
-        report.healthScore >= 65 -> Color(0xFF84CC16)
+        report.healthScore >= 65 -> scoreGood
         report.healthScore >= 40 -> secondary
         else -> dangerColor
     }
@@ -3805,10 +3805,10 @@ fun FamilyNeuralMeshCard(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(Brush.linearGradient(listOf(Color(0xFF9333EA), Color(0xFF6C63FF)))),
+                            .background(Brush.linearGradient(listOf(aiAccent, aiAccentEnd))),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Filled.Hub, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Filled.Hub, contentDescription = null, tint = onAiAccent, modifier = Modifier.size(20.dp))
                     }
                     Spacer(Modifier.width(10.dp))
                     Column {
@@ -3819,10 +3819,10 @@ fun FamilyNeuralMeshCard(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFF9333EA).copy(alpha = 0.12f))
+                        .background(aiAccent.copy(alpha = 0.12f))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
-                    Text(stringResource(R.string.auto_zadintelligence_37663, memberCount), style = Typography.labelSmall, color = Color(0xFF9333EA), fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                    Text(stringResource(R.string.auto_zadintelligence_37663, memberCount), style = Typography.labelSmall, color = aiAccent, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                 }
             }
 
@@ -3875,12 +3875,12 @@ fun FamilyNeuralMeshCard(
                     onClick = onOpenReport,
                     modifier = Modifier.weight(1f).height(38.dp).pressableScale(),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF9333EA)),
+                    colors = ButtonDefaults.buttonColors(containerColor = aiAccent),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
                 ) {
-                    Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = onAiAccent, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.auto_zadintelligence_16928), style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(stringResource(R.string.auto_zadintelligence_16928), style = Typography.labelSmall, fontWeight = FontWeight.Bold, color = onAiAccent)
                 }
                 OutlinedButton(
                     onClick = onNavigateToFamily,
@@ -3928,6 +3928,11 @@ private fun FamilyNeuralNetworkCanvas(
         label = "neuralMeshBreathe"
     )
 
+    // التوكنات `@Composable get()`، وجوه DrawScope مش سياق composable — فبتتقرا هنا مرة.
+    val neuralAccent = aiAccent
+    val neuralAccentEnd = aiAccentEnd
+    val neuralAccentSoft = aiAccentSoft
+
     Canvas(
         modifier = modifier
             .fillMaxWidth()
@@ -3953,7 +3958,7 @@ private fun FamilyNeuralNetworkCanvas(
                 y = center.y + ringRadius * kotlin.math.sin(angleRad).toFloat() * 0.55f,
             )
 
-            val baseLineColor = if (member.isOnline) Color(0xFF9333EA) else Color(0xFF9333EA).copy(alpha = 0.28f)
+            val baseLineColor = if (member.isOnline) neuralAccent else neuralAccent.copy(alpha = 0.28f)
             drawLine(
                 color = baseLineColor.copy(alpha = baseLineColor.alpha * (0.4f + depth * 0.4f)),
                 start = center,
@@ -3964,7 +3969,7 @@ private fun FamilyNeuralNetworkCanvas(
             if (member.isOnline) {
                 val t = (pulsePhase + index * 0.19f) % 1f
                 drawCircle(
-                    color = Color(0xFFC084FC),
+                    color = neuralAccentSoft,
                     radius = 3.dp.toPx(),
                     center = Offset(
                         x = center.x + (nodePos.x - center.x) * t,
@@ -3975,7 +3980,7 @@ private fun FamilyNeuralNetworkCanvas(
 
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFF9333EA), Color(0xFF6C63FF)),
+                    colors = listOf(neuralAccent, neuralAccentEnd),
                     center = nodePos,
                     radius = nodeRadius * depthScale,
                 ),
@@ -4003,7 +4008,7 @@ private fun FamilyNeuralNetworkCanvas(
 
         // العقل المركزي — نفس ثابت طول الوقت، الأفراد هم اللي بيلفوا حواليه.
         drawCircle(
-            brush = Brush.radialGradient(listOf(Color(0xFF9333EA), Color(0xFF6C63FF))),
+            brush = Brush.radialGradient(listOf(neuralAccent, neuralAccentEnd)),
             radius = hubRadius,
             center = center,
         )
@@ -4050,10 +4055,10 @@ fun FamilyNeuralReportBottomSheet(
                         modifier = Modifier
                             .size(38.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF9333EA).copy(alpha = 0.12f)),
+                            .background(aiAccent.copy(alpha = 0.12f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Filled.Hub, contentDescription = null, tint = Color(0xFF9333EA), modifier = Modifier.size(22.dp))
+                        Icon(Icons.Filled.Hub, contentDescription = null, tint = aiAccent, modifier = Modifier.size(22.dp))
                     }
                     Spacer(Modifier.width(10.dp))
                     Column {
@@ -4152,13 +4157,13 @@ fun FamilyNeuralReportBottomSheet(
                 Spacer(Modifier.height(16.dp))
 
                 // 3. توصيات مبنية على البيانات الفعلية — لا نصوص ثابتة وهمية
-                Text(stringResource(R.string.auto_zadintelligence_53103), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = Color(0xFF9333EA))
+                Text(stringResource(R.string.auto_zadintelligence_53103), style = Typography.titleSmall, fontWeight = FontWeight.Bold, color = aiAccent)
                 Spacer(Modifier.height(8.dp))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFF9333EA).copy(alpha = 0.08f))
+                        .background(aiAccent.copy(alpha = 0.08f))
                         .padding(14.dp)
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

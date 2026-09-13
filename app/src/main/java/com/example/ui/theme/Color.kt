@@ -103,6 +103,14 @@ val agentPanelBrand: Color @Composable get() = LocalZadExtendedColors.current.ag
 /** بانر تنبيه الذكاء — حاوية ونص بيتقلبوا مع بعض (AA في الوضعين). */
 val alertBannerContainer: Color @Composable get() = LocalZadExtendedColors.current.alertBannerContainer
 val onAlertBanner: Color @Composable get() = LocalZadExtendedColors.current.onAlertBanner
+/** هوية الذكاء — البنفسجي الرسمي، بيتقلب مع الثيم. شوف التعليق في ZadExtendedColors. */
+val aiAccent: Color @Composable get() = LocalZadExtendedColors.current.aiAccent
+val aiAccentEnd: Color @Composable get() = LocalZadExtendedColors.current.aiAccentEnd
+val onAiAccent: Color @Composable get() = LocalZadExtendedColors.current.onAiAccent
+val aiAccentSoft: Color @Composable get() = LocalZadExtendedColors.current.aiAccentSoft
+val aiNarrativeContainer: Color @Composable get() = LocalZadExtendedColors.current.aiNarrativeContainer
+val onAiNarrative: Color @Composable get() = LocalZadExtendedColors.current.onAiNarrative
+val scoreGood: Color @Composable get() = LocalZadExtendedColors.current.scoreGood
 /** نص شريحة الحالة — أغمق من coral في اللايت عشان يعدّي AA فوق حاوية ١٢٪. */
 val onStatusPill: Color @Composable get() = LocalZadExtendedColors.current.onStatusPill
 val secondaryLight: Color @Composable get() = LocalZadExtendedColors.current.secondaryLight
