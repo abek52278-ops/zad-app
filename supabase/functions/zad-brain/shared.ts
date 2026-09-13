@@ -22,6 +22,34 @@ export function normalizeBrainTrigger(raw: unknown): "daily" | "event" | "chat" 
 }
 
 /**
+ * بيحوّل رد `agent_proactive_scan()` لرد الإندبوينت. `ok` = مفيش ولا فشل.
+ *
+ * `null`/شكل مش متوقع (الدالة لسه `void` قبل ما ميجريشن 20260913161000 توصل) بيتعامل
+ * كصفر فشل — نفس سلوك الإندبوينت القديم بالظبط، عشان ترتيب النشر (فانكشن قبل ميجريشن
+ * أو العكس) مايكسرش حاجة. أي رقم فشل موجب لازم يطلع `ok: false`.
+ */
+export function summarizeProactiveScan(raw: unknown): {
+  ok: boolean;
+  scanned: number;
+  failed: number;
+  failed_users: number;
+  skipped_orphans: number;
+  errors: unknown[];
+} {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  const failed = num(r.failed);
+  return {
+    ok: failed <= 0,
+    scanned: num(r.scanned),
+    failed,
+    failed_users: num(r.failed_users),
+    skipped_orphans: num(r.skipped_orphans),
+    errors: Array.isArray(r.errors) ? r.errors : [],
+  };
+}
+
+/**
  * Task 16.3: on exhausted retries, what to do. `chat` never queues silently — the user
  * is waiting right now, so it gets an honest message instead of a generic {queued:true}
  * with no reply. Every other trigger (daily/event) queues for the drain cron.

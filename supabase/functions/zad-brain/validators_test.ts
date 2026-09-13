@@ -57,7 +57,7 @@ import {
   validateLearnSkill,
 } from "./validators.ts";
 import { callModelWithRetry } from "./retry.ts";
-import { decideOnBrainFailure, hasRecentMutatingRun, normalizeBrainTrigger } from "./shared.ts";
+import { decideOnBrainFailure, hasRecentMutatingRun, normalizeBrainTrigger, summarizeProactiveScan } from "./shared.ts";
 
 const healthySnapshot = {
   budget: 3000, spent: 500, remaining: 2500, velocity: 0.4,
@@ -188,6 +188,32 @@ Deno.test("normalizeBrainTrigger only ever returns a value zad_brain_runs_trigge
   for (const raw of [undefined, null, "", "DAILY", 42, {}, "daily "]) {
     assert(allowed.has(normalizeBrainTrigger(raw)), `raw=${String(raw)}`);
     assertEquals(normalizeBrainTrigger(raw), "event");
+  }
+});
+
+// 10c. الماسح الاستباقي كان بيرجّع ok:true دايمًا. أي فشل جوّاه لازم يطلع ok:false.
+Deno.test("summarizeProactiveScan reports failure whenever the scan counted any", () => {
+  // الشكل اللي اتقاس فعلاً في التجربة الجافة على الإنتاج قبل استبعاد الحسابات اليتيمة.
+  const broken = summarizeProactiveScan({
+    scanned: 6, failed: 1, failed_users: 1, cost_pct: 0, skipped_orphans: 0,
+    errors: [{ stage: "home_weekly_digest", sqlstate: "23503", error: "violates foreign key constraint" }],
+  });
+  assertEquals(broken.ok, false);
+  assertEquals(broken.failed, 1);
+  assertEquals(broken.errors.length, 1);
+
+  const clean = summarizeProactiveScan({ scanned: 4, failed: 0, failed_users: 0, skipped_orphans: 2, errors: [] });
+  assertEquals(clean.ok, true);
+  assertEquals(clean.skipped_orphans, 2);
+});
+
+Deno.test("summarizeProactiveScan tolerates the old void return during deploy ordering", () => {
+  // الفانكشن ممكن توصل قبل الميجريشن: rpc بيرجّع null ساعتها. لازم نفس السلوك القديم.
+  for (const raw of [null, undefined, "", 0, [], { failed: "3" }]) {
+    const s = summarizeProactiveScan(raw);
+    assertEquals(s.ok, true, `raw=${JSON.stringify(raw)}`);
+    assertEquals(s.failed, 0);
+    assert(Array.isArray(s.errors));
   }
 });
 

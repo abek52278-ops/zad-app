@@ -56,7 +56,7 @@
 import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { CONFIRM_REQUIRED_TOOLS, freshContext, looksLikeAnsweredQuestion, RunContext, validateTool } from "./validators.ts";
 import { callModel, embedText, embedSelfTest, smokeTestTools, Turn, ToolDef } from "./callModel.ts";
-import { decideOnBrainFailure, hasRecentMutatingRun, normalizeBrainTrigger, normalizeDoseTimes } from "./shared.ts";
+import { decideOnBrainFailure, hasRecentMutatingRun, normalizeBrainTrigger, normalizeDoseTimes, summarizeProactiveScan } from "./shared.ts";
 import { type FastIntent, formatBalanceReply, parseFastPath } from "./fastPath.ts";
 import { AgentSource, AuditScope, recordAction, writeRows } from "./audit.ts";
 import { redactNotificationText } from "./redact.ts";
@@ -5336,11 +5336,19 @@ Deno.serve(async (req: Request) => {
         return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: CORS_HEADERS });
       }
       const sbScan = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-      const { error } = await sbScan.rpc("agent_proactive_scan");
+      const { data: scanData, error } = await sbScan.rpc("agent_proactive_scan");
       if (error) {
         return new Response(JSON.stringify({ ok: false, error: error.message }), { status: 500, headers: CORS_HEADERS });
       }
-      return new Response(JSON.stringify({ ok: true }), { headers: CORS_HEADERS });
+      // قبل 20260913161000 الدالة كانت void والرد كان `ok:true` دايمًا مهما فشل جوّاها.
+      // دلوقتي بترجّع أرقام، وأي فشل = 500 + لوج، عشان يبان في function_edge_logs بدل ما
+      // يتبلع. `scanData` ممكن يبقى null لو الفانكشن اتنشرت قبل الميجريشن — ده بيتعامل
+      // كصفر فشل، نفس السلوك القديم بالظبط، لحد ما الميجريشن توصل.
+      const summary = summarizeProactiveScan(scanData);
+      if (!summary.ok) {
+        console.error(`[proactive_scan] ${summary.failed} failure(s) across ${summary.failed_users} user(s):`, JSON.stringify(summary.errors));
+      }
+      return new Response(JSON.stringify(summary), { status: summary.ok ? 200 : 500, headers: CORS_HEADERS });
     }
 
     // ── حلقة التأمل الليلي المستقلة (Nightly Autonomous Dream & Memory Synthesis) ──
