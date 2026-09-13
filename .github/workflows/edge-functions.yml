@@ -13,6 +13,10 @@ name: Edge Functions
 # الـ workflow أصلاً، يعني migration جديد ممكن يتدمج في main ويقعد مستني للأبد لحد ما حد
 # يصادف إنه يعدّل فانكشن. `config.toml` مضافة لنفس السبب — هي اللي فيها verify_jwt
 # وproject id، وتغييرها لازم يوصل الإنتاج.
+#
+# هذا السطر (تعديل هذا الملف) هو التشغيلة الأولى للـCI على seam1010x-lab/zad-app بعد
+# تفعيل Actions وإضافة SUPABASE_ACCESS_TOKEN/SUPABASE_DB_PASSWORD هناك (٢٠٢٦-٠٩-١٣) —
+# الريبو الصح، مش abek52278-ops اللي كان موثّق غلط قبل كده.
 on:
   push:
     branches: [main]
