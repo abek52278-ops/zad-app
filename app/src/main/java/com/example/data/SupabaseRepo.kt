@@ -18,6 +18,7 @@ import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.json.buildJsonObject
@@ -1484,6 +1485,246 @@ object SupabaseRepo {
         } catch (e: Exception) {
             Log.e(TAG, "undoAgentAction() FAILED: ${e.message}")
             UndoActionResult(ok = false, error = e.message)
+        }
+    }
+
+    // ─── المرحلة 4: صحة العقل الاستباقي ───────────────────────────────────
+    // بتقرا جداول المراقبة اللي كانت متوصّلة بالسيرفر بس ومحدش في التطبيق بيشوفها.
+    // المنطق نفسه في BrainHealth.kt (ملف صافي متغطّى بـunit test) — هنا القراءة بس.
+    //
+    // كله `select` عادي بـ`eq("user_id", …)`: الـRLS على الجداول دي بتسمح لليوزر
+    // يقرا صفوفه بالفعل (متحقَّق منه في pg_policy يوم 2026-09-13)، فمفيش داعي لأي
+    // RPC ولا ميجريشن جديدة. `zad_brain_health_alerts` **مش هنا** لأنها admin-only
+    // ومفيهاش `user_id` أصلاً — دي صحة النظام كله مش صحة مستخدم.
+    //
+    // خطة الاستعلام اتغيّرت (2026-09-13): إشارة الحياة بقت `agent_tasks.kind !=
+    // "reminder"` بدل نشاط أي جدول (الشات كان بيصفّر عدّاد السكوت بغلط). السبب
+    // الكامل في BrainHealth.kt's doc comment، مش متكرر هنا.
+
+    /** سقف `zad_brain_runs` وعيّنة الإيقاع الاستباقي (آخر ~٥٠٠ مهمة، أي `kind`). */
+    private const val BRAIN_HEALTH_RUN_LIMIT = 500L
+    private const val BRAIN_HEALTH_CADENCE_LIMIT = 500L
+
+    /** مهام `pending`/`running` حاليًا — عادة قليلة جدًا، ٢٠٠ أمان زيادة. */
+    private const val BRAIN_HEALTH_OPEN_TASKS_LIMIT = 200L
+
+    /** سقف باقي الاستعلامات (فشل، طابور، insights، drift، أهداف) — أكبر بكتير من أي أسبوع واقعي. */
+    private const val BRAIN_HEALTH_ROW_LIMIT = 300L
+
+    @Serializable
+    private data class BrainRunHealthRow(
+        @SerialName("started_at") val startedAt: String,
+        val status: String,
+        val error: String? = null,
+    )
+
+    /** إشارة الإيقاع الاستباقي — `kind` هو اللي بيفرّق "استباقي" عن "reminder" (الفلترة في BrainHealth.kt). */
+    @Serializable
+    private data class TaskCadenceRow(
+        val kind: String,
+        @SerialName("created_at") val createdAt: String,
+    )
+
+    /** مهام مفتوحة (`pending`/`running`) — أي عمر. */
+    @Serializable
+    private data class TaskOpenRow(
+        val status: String,
+        @SerialName("scheduled_for") val scheduledFor: String? = null,
+        @SerialName("updated_at") val updatedAt: String,
+    )
+
+    /** أصغر إسقاط يكفي للعدّ — مش محتاجين غير وجود الصف. */
+    @Serializable
+    private data class TaskFailedRow(val id: String)
+
+    /** `zad_brain_queue` write-only فعليًا — العدّ بس مهم هنا، مش `attempts`/`last_error`. */
+    @Serializable
+    private data class QueueRow(@SerialName("created_at") val createdAt: String)
+
+    @Serializable
+    private data class InsightHealthRow(
+        @SerialName("created_at") val createdAt: String,
+        val status: String,
+    )
+
+    @Serializable
+    private data class DriftHealthRow(@SerialName("created_at") val createdAt: String)
+
+    @Serializable
+    private data class GoalHealthRow(val status: String)
+
+    @Serializable
+    private data class UsageHealthRow(
+        @SerialName("request_count") val requestCount: Int,
+        @SerialName("input_tokens") val inputTokens: Int,
+        @SerialName("output_tokens") val outputTokens: Int,
+    )
+
+    /** `timestamptz` جاي من postgrest → epoch millis. بيرجّع null لو النص مش مفهوم. */
+    private fun parseTimestampMillis(iso: String?): Long? = try {
+        iso?.let { java.time.OffsetDateTime.parse(it).toInstant().toEpochMilli() }
+    } catch (e: Exception) {
+        Log.w(TAG, "parseTimestampMillis() couldn't read '$iso': ${e.message}")
+        null
+    }
+
+    /**
+     * لقطة صحة العقل الاستباقي. **بترجّع `null` لو القراءة نفسها فشلت** — مش لقطة
+     * أصفار.
+     *
+     * الفرق ده مقصود وهو جوهر الشاشة: لو رجّعنا لقطة فاضية عند الفشل، شاشة
+     * المراقبة نفسها تبقى بتكدب بنفس الطريقة اللي اتعملت عشان تمنعها — "كل حاجة
+     * تمام" بينما إحنا أصلاً مش شايفين حاجة. عشان كده التسع استعلامات جوه
+     * `coroutineScope` واحد من غير try/catch فردي: أي واحد يفشل يفشّل القراءة
+     * كلها، والواجهة تقول "معرفتش أقرا" بدل "مفيش مشاكل". القراءة هنا بتجمّع
+     * عيّنات خام بس وتسيبها لـ[evaluateBrainHealth] في BrainHealth.kt، عشان
+     * المنطق (مين فشل، مين "استباقي"، عتبة السكوت) يتغطى بـunit test بعيد عن Android/Supabase.
+     */
+    suspend fun getBrainHealth(): BrainHealth? {
+        val userId = client.auth.currentUserOrNull()?.id ?: return null
+        val now = System.currentTimeMillis()
+        val weekAgoMillis = now - 7L * 24 * 60 * 60 * 1000
+        val weekAgoIso = java.time.Instant.ofEpochMilli(weekAgoMillis).toString()
+        // السيرفر بيكتب usage_date بـ`new Date().toISOString().slice(0,10)` يعني UTC،
+        // فلازم نسأل بنفس التوقيت وإلا بعد منتصف الليل بتوقيت مصر نقرا يوم غلط.
+        val todayUtc = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
+
+        return try {
+            coroutineScope {
+                val runsAsync = async {
+                    client.postgrest["zad_brain_runs"]
+                        .select(Columns.list("started_at", "status", "error")) {
+                            filter {
+                                eq("user_id", userId)
+                                gte("started_at", weekAgoIso)
+                            }
+                            order("started_at", Order.DESCENDING)
+                            limit(BRAIN_HEALTH_RUN_LIMIT)
+                        }.decodeList<BrainRunHealthRow>()
+                }
+                // من غير فلتر زمني عمدًا — BrainHealth.kt محتاج آخر مهمة استباقية
+                // حقيقية حتى لو أقدم من ٧ أيام. سقف الـ٥٠٠ صف ده حد عملي مش ضمان
+                // صحة: مستخدم تقيل جدًا معظم مهامه `reminder` ممكن يكون تاريخه
+                // الاستباقي الحقيقي خارج الـ٥٠٠ دول — تريد-أوف متقبَّل مش باج.
+                val cadenceTasksAsync = async {
+                    client.postgrest["agent_tasks"]
+                        .select(Columns.list("kind", "created_at")) {
+                            filter { eq("user_id", userId) }
+                            order("created_at", Order.DESCENDING)
+                            limit(BRAIN_HEALTH_CADENCE_LIMIT)
+                        }.decodeList<TaskCadenceRow>()
+                }
+                val openTasksAsync = async {
+                    client.postgrest["agent_tasks"]
+                        .select(Columns.list("status", "scheduled_for", "updated_at")) {
+                            filter {
+                                eq("user_id", userId)
+                                isIn("status", listOf("pending", "running"))
+                            }
+                            limit(BRAIN_HEALTH_OPEN_TASKS_LIMIT)
+                        }.decodeList<TaskOpenRow>()
+                }
+                val failedTasksAsync = async {
+                    client.postgrest["agent_tasks"]
+                        .select(Columns.list("id")) {
+                            filter {
+                                eq("user_id", userId)
+                                eq("status", "failed")
+                                gte("updated_at", weekAgoIso)
+                            }
+                            limit(BRAIN_HEALTH_ROW_LIMIT)
+                        }.decodeList<TaskFailedRow>()
+                }
+                val queueAsync = async {
+                    client.postgrest["zad_brain_queue"]
+                        .select(Columns.list("created_at")) {
+                            filter {
+                                eq("user_id", userId)
+                                gte("created_at", weekAgoIso)
+                            }
+                            limit(BRAIN_HEALTH_ROW_LIMIT)
+                        }.decodeList<QueueRow>()
+                }
+                val insightsAsync = async {
+                    client.postgrest["zad_insights"]
+                        .select(Columns.list("created_at", "status")) {
+                            filter { eq("user_id", userId) }
+                            order("created_at", Order.DESCENDING)
+                            limit(BRAIN_HEALTH_ROW_LIMIT)
+                        }.decodeList<InsightHealthRow>()
+                }
+                val driftAsync = async {
+                    client.postgrest["agent_drift_events"]
+                        .select(Columns.list("created_at")) {
+                            filter {
+                                eq("user_id", userId)
+                                gte("created_at", weekAgoIso)
+                            }
+                            limit(BRAIN_HEALTH_ROW_LIMIT)
+                        }.decodeList<DriftHealthRow>()
+                }
+                val goalsAsync = async {
+                    client.postgrest["agent_goals"]
+                        .select(Columns.list("status")) {
+                            filter { eq("user_id", userId) }
+                            limit(BRAIN_HEALTH_ROW_LIMIT)
+                        }.decodeList<GoalHealthRow>()
+                }
+                val usageAsync = async {
+                    client.postgrest["agent_usage"]
+                        .select(Columns.list("request_count", "input_tokens", "output_tokens")) {
+                            filter {
+                                eq("user_id", userId)
+                                eq("usage_date", todayUtc)
+                            }
+                            limit(1L)
+                        }.decodeList<UsageHealthRow>()
+                }
+
+                val runs = runsAsync.await()
+                val cadenceTasks = cadenceTasksAsync.await()
+                val openTasks = openTasksAsync.await()
+                val failedTasksLast7Days = failedTasksAsync.await().size
+                val queueRowsLast7Days = queueAsync.await().size
+                val insights = insightsAsync.await()
+                val drift = driftAsync.await()
+                val goals = goalsAsync.await()
+                val usage = usageAsync.await().firstOrNull()
+
+                val input = BrainHealthInput(
+                    nowMillis = now,
+                    recentRuns = runs.map {
+                        RunSample(
+                            startedAtMillis = parseTimestampMillis(it.startedAt) ?: 0L,
+                            status = it.status,
+                            error = it.error,
+                        )
+                    },
+                    recentTasksForCadence = cadenceTasks.map {
+                        TaskSample(kind = it.kind, createdAtMillis = parseTimestampMillis(it.createdAt) ?: 0L)
+                    },
+                    openTasks = openTasks.map {
+                        TaskSample(
+                            status = it.status,
+                            scheduledForMillis = parseTimestampMillis(it.scheduledFor),
+                            updatedAtMillis = parseTimestampMillis(it.updatedAt) ?: 0L,
+                        )
+                    },
+                    failedTasksLast7Days = failedTasksLast7Days,
+                    queueRowsLast7Days = queueRowsLast7Days,
+                    insightsLast7Days = insights.count { (parseTimestampMillis(it.createdAt) ?: 0L) >= weekAgoMillis },
+                    pendingInsights = insights.count { it.status == "pending" },
+                    driftLast7Days = drift.size,
+                    activeGoals = goals.count { it.status == "active" },
+                    requestsToday = usage?.requestCount ?: 0,
+                    tokensToday = (usage?.inputTokens ?: 0) + (usage?.outputTokens ?: 0),
+                )
+
+                evaluateBrainHealth(input)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "getBrainHealth() FAILED: ${e.message}")
+            null
         }
     }
 

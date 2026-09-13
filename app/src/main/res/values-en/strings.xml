@@ -1853,4 +1853,55 @@
     <string name="home_no_transactions_hint">Start with your first expense — snap a receipt or just tell Zad</string>
     <string name="distance_meters">%1$d m</string>
     <string name="distance_km">%1$s km</string>
+
+    <!-- Phase 4 — proactive brain health (monitoring screen) -->
+    <string name="brain_health_title">Brain Health</string>
+    <string name="brain_health_retry">Try again</string>
+    <string name="brain_health_error_message">Couldn\'t read the brain\'s status right now. That doesn\'t mean everything is fine — it means I can\'t check.</string>
+    <string name="brain_health_status_healthy">Brain is running fine</string>
+    <string name="brain_health_status_quiet">Worth a look</string>
+    <string name="brain_health_status_stalled">Brain needs attention</string>
+    <string name="brain_health_all_clear">Nothing wrong detected. Zad is running in the background and logging every pass.</string>
+    <string name="brain_health_never">Never</string>
+    <string name="brain_health_just_now">Just now</string>
+    <string name="brain_health_number">%1$d</string>
+    <string name="brain_health_section_activity">Activity</string>
+    <string name="brain_health_section_tasks">Tasks &amp; queue</string>
+    <string name="brain_health_section_chat_usage">Chat usage</string>
+    <string name="brain_health_section_learning">Learning</string>
+    <string name="brain_health_last_proactive">Last proactive alert</string>
+    <string name="brain_health_runs_7d">Runs in the last 7 days</string>
+    <string name="brain_health_failed_runs">Of those, failed</string>
+    <string name="brain_health_insights_7d">Insights in the last 7 days</string>
+    <string name="brain_health_pending_insights">Insights you haven\'t seen</string>
+    <string name="brain_health_failure_kind_label">Last failure type</string>
+    <string name="brain_health_failure_provider_busy">Provider busy</string>
+    <string name="brain_health_failure_configuration">Configuration issue</string>
+    <string name="brain_health_failure_other">Unknown</string>
+    <string name="brain_health_tasks_backed_up">Tasks backed up or overdue</string>
+    <string name="brain_health_pending_tasks">Tasks waiting</string>
+    <string name="brain_health_failed_tasks_7d">Tasks failed in the last 7 days</string>
+    <string name="brain_health_requests_not_retried">Requests never retried</string>
+    <string name="brain_health_used_of_limit">%1$s of %2$s</string>
+    <string name="brain_health_requests_label">Requests</string>
+    <string name="brain_health_tokens_label">Reply volume</string>
+    <string name="brain_health_quota_note">This is chat replies only — it resets daily at UTC midnight and is separate from background activity</string>
+    <string name="brain_health_active_goals">Goals Zad is working on</string>
+    <string name="brain_health_unexpected_behavior_7d">Unexpected Zad behavior in the last 7 days</string>
+    <string name="brain_health_reason_no_proactive_yet">Zad is still getting to know you — proactive alerts will start after a bit more use</string>
+    <string name="brain_health_reason_proactive_silent">Zad has stopped sending proactive alerts — it\'s been %1$s</string>
+    <string name="brain_health_reason_tasks_backed_up">Tasks backed up or overdue: %1$d</string>
+    <string name="brain_health_reason_runs_failing">Failed runs: %1$d of %2$d</string>
+    <string name="brain_health_reason_tasks_failed">Tasks that failed: %1$d</string>
+    <string name="brain_health_reason_requests_not_retried">Requests never retried: %1$d</string>
+    <string name="brain_health_reason_chat_quota_near_limit">Chat usage is near today\'s limit (%1$d%%) — replies may pause until tomorrow</string>
+
+    <plurals name="brain_health_hours">
+        <item quantity="one">%1$d hour</item>
+        <item quantity="other">%1$d hours</item>
+    </plurals>
+    <plurals name="brain_health_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
 </resources>

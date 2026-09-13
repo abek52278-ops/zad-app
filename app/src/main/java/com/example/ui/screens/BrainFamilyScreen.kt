@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Hub
+import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Park
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Savings
@@ -109,7 +110,7 @@ fun BrainFamilyScreen(
     }
 }
 
-private enum class BrainSubView { MAIN, MEMORY, KNOWLEDGE_MAP, AGENT_LOG }
+private enum class BrainSubView { MAIN, MEMORY, KNOWLEDGE_MAP, AGENT_LOG, HEALTH }
 
 /**
  * تاب "عقل زاد" — ZadIntelligenceScreen (التحليلات + الدردشة + الرؤى الاستباقية،
@@ -136,6 +137,7 @@ private fun BrainIntelligenceBody(
                 SideViewIconButton(Icons.Default.Psychology, stringResource(R.string.zad_memory_title)) { subView = BrainSubView.MEMORY }
                 SideViewIconButton(Icons.Default.Hub, stringResource(R.string.knowledge_map_title)) { subView = BrainSubView.KNOWLEDGE_MAP }
                 SideViewIconButton(Icons.Default.History, stringResource(R.string.agent_action_log_title)) { subView = BrainSubView.AGENT_LOG }
+                SideViewIconButton(Icons.Default.MonitorHeart, stringResource(R.string.brain_health_title)) { subView = BrainSubView.HEALTH }
             }
         }
         Box(modifier = Modifier.fillMaxSize()) {
@@ -154,6 +156,7 @@ private fun BrainIntelligenceBody(
                     onNavigateToRoute = onNavigateToRoute
                 )
                 BrainSubView.AGENT_LOG -> AgentActionLogScreen(onBack = { subView = BrainSubView.MAIN })
+                BrainSubView.HEALTH -> BrainHealthScreen(onBack = { subView = BrainSubView.MAIN })
             }
         }
     }
@@ -220,7 +223,7 @@ private fun FamilyHubBody(
 
 @Composable
 private fun SideViewIconButton(icon: androidx.compose.ui.graphics.vector.ImageVector, contentDescription: String, onClick: () -> Unit) {
-    IconButton(onClick = onClick, modifier = Modifier.size(36.dp)) {
+    IconButton(onClick = onClick) {
         Icon(icon, contentDescription = contentDescription, tint = onSurfaceVariant, modifier = Modifier.size(20.dp))
     }
 }

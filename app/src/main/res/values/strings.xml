@@ -1856,4 +1856,63 @@
     <string name="home_no_transactions_hint">ابدأ بتسجيل أول مصروف — صوّر فاتورة أو اطلب من زاد</string>
     <string name="distance_meters">%1$d م</string>
     <string name="distance_km">%1$s كم</string>
+
+    <!-- المرحلة 4 — صحة العقل الاستباقي (شاشة المراقبة، نسخة ٢ — راجع BrainHealth.kt) -->
+    <string name="brain_health_title">صحة عقل زاد</string>
+    <string name="brain_health_retry">جرب تاني</string>
+    <string name="brain_health_error_message">معرفتش أقرا حالة العقل دلوقتي. ده مش معناه إن كل حاجة تمام — معناه إني مش شايف.</string>
+    <string name="brain_health_status_healthy">العقل شغال تمام</string>
+    <string name="brain_health_status_quiet">فيه حاجة تستاهل نظرة</string>
+    <string name="brain_health_status_stalled">العقل واقف ومحتاج تدخّل</string>
+    <string name="brain_health_all_clear">مفيش أي مشكلة مرصودة. زاد بيشتغل في الخلفية وبيسجّل كل خطوة.</string>
+    <string name="brain_health_never">ولا مرة</string>
+    <string name="brain_health_just_now">دلوقتي</string>
+    <string name="brain_health_number">%1$d</string>
+    <string name="brain_health_section_activity">النشاط</string>
+    <string name="brain_health_section_tasks">المهام والطابور</string>
+    <string name="brain_health_section_chat_usage">استخدام الشات</string>
+    <string name="brain_health_section_learning">التعلّم</string>
+    <string name="brain_health_last_proactive">آخر تنبيه استباقي</string>
+    <string name="brain_health_runs_7d">تشغيلات آخر ٧ أيام</string>
+    <string name="brain_health_failed_runs">منها فشلت</string>
+    <string name="brain_health_insights_7d">رؤى آخر ٧ أيام</string>
+    <string name="brain_health_pending_insights">رؤى لسه مشوفتهاش</string>
+    <string name="brain_health_failure_kind_label">نوع آخر عطل</string>
+    <string name="brain_health_failure_provider_busy">المزوّد مشغول</string>
+    <string name="brain_health_failure_configuration">مشكلة إعداد</string>
+    <string name="brain_health_failure_other">غير معروف</string>
+    <string name="brain_health_tasks_backed_up">مهام واقفة أو متأخرة</string>
+    <string name="brain_health_pending_tasks">مهام مستنية دورها</string>
+    <string name="brain_health_failed_tasks_7d">مهام فشلت آخر ٧ أيام</string>
+    <string name="brain_health_requests_not_retried">طلبات ماتعادتش</string>
+    <string name="brain_health_used_of_limit">%1$s من %2$s</string>
+    <string name="brain_health_requests_label">الطلبات</string>
+    <string name="brain_health_tokens_label">حجم الردود</string>
+    <string name="brain_health_quota_note">الرصيد ده بتاع ردود الشات بس، وبيتصفّر كل يوم بتوقيت جرينتش — مالوش علاقة بشغل زاد في الخلفية</string>
+    <string name="brain_health_active_goals">أهداف زاد شغال عليها</string>
+    <string name="brain_health_unexpected_behavior_7d">تصرفات غير متوقعة من زاد آخر ٧ أيام</string>
+    <string name="brain_health_reason_no_proactive_yet">زاد لسه بيتعرف عليك، وهيبدأ يبعتلك تنبيهات استباقية بعد شوية استخدام</string>
+    <string name="brain_health_reason_proactive_silent">زاد بطّل يبعت تنبيهات استباقية من %1$s</string>
+    <string name="brain_health_reason_tasks_backed_up">عدد المهام الواقفة أو المتأخرة: %1$d</string>
+    <string name="brain_health_reason_runs_failing">عدد التشغيلات الفاشلة: %1$d من %2$d</string>
+    <string name="brain_health_reason_tasks_failed">عدد المهام اللي فشلت: %1$d</string>
+    <string name="brain_health_reason_requests_not_retried">عدد الطلبات اللي ماتعادتش: %1$d</string>
+    <string name="brain_health_reason_chat_quota_near_limit">استخدام الشات قرب من الحد اليومي (%1$d%%) — ممكن الردود تقف لحد بكرة</string>
+
+    <plurals name="brain_health_hours">
+        <item quantity="zero">أقل من ساعة</item>
+        <item quantity="one">ساعة واحدة</item>
+        <item quantity="two">ساعتين</item>
+        <item quantity="few">%1$d ساعات</item>
+        <item quantity="many">%1$d ساعة</item>
+        <item quantity="other">%1$d ساعة</item>
+    </plurals>
+    <plurals name="brain_health_days">
+        <item quantity="zero">أقل من يوم</item>
+        <item quantity="one">يوم واحد</item>
+        <item quantity="two">يومين</item>
+        <item quantity="few">%1$d أيام</item>
+        <item quantity="many">%1$d يوم</item>
+        <item quantity="other">%1$d يوم</item>
+    </plurals>
 </resources>
