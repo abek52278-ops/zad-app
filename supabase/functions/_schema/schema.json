@@ -689,6 +689,8 @@
     "last_seen",
     "note",
     "scope",
+    "subject_kind",
+    "suppress_until",
     "user_id"
   ],
   "zad_memory_links": [
