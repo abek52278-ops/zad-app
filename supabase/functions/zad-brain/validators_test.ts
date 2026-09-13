@@ -57,7 +57,7 @@ import {
   validateLearnSkill,
 } from "./validators.ts";
 import { callModelWithRetry } from "./retry.ts";
-import { agentTaskNotice, decideOnBrainFailure, hasRecentMutatingRun, normalizeBrainTrigger, summarizeProactiveScan } from "./shared.ts";
+import { agentTaskNotice, decideOnBrainFailure, hasRecentMutatingRun, normalizeBrainTrigger, pickDuplicateProposalSibling, summarizeProactiveScan } from "./shared.ts";
 
 const healthySnapshot = {
   budget: 3000, spent: 500, remaining: 2500, velocity: 0.4,
@@ -1168,4 +1168,34 @@ Deno.test("learn_skill بتحافظ على حدود remember (طول الملا�
   const ctx = freshContext("u");
   assertEquals((await validateLearnSkill({ skill_key: "med_tone", note: "قصيرة" }, {}, ctx)).ok, false);
   assertEquals((await validateLearnSkill({ skill_key: "med_tone", note: "ا".repeat(201) }, {}, ctx)).ok, false);
+});
+
+// ── تكرار الإشعار عبر المصادر (20260913213000) ──
+
+Deno.test("pickDuplicateProposalSibling: bank + InstaPay for the same payment → oldest is the origin", () => {
+  const siblings = [
+    { id: "insta", status: "awaiting_confirmation", txn_kind: "expense", transaction_id: null, created_at: "2026-09-13T10:02:00Z" },
+    { id: "bank", status: "awaiting_confirmation", txn_kind: "expense", transaction_id: null, created_at: "2026-09-13T10:00:00Z" },
+  ];
+  assertEquals(pickDuplicateProposalSibling(siblings, "expense"), { id: "bank" });
+});
+
+Deno.test("pickDuplicateProposalSibling: opposite known directions are not the same payment", () => {
+  const siblings = [
+    { id: "in", status: "awaiting_confirmation", txn_kind: "income", transaction_id: null, created_at: "2026-09-13T10:00:00Z" },
+  ];
+  assertEquals(pickDuplicateProposalSibling(siblings, "expense"), null);
+  // اتجاه مش معروف في أي طرف = ممكن يكون نفسها، يتسأل.
+  assertEquals(pickDuplicateProposalSibling(siblings, null), { id: "in" });
+});
+
+Deno.test("pickDuplicateProposalSibling: closed or un-posted siblings are not origins", () => {
+  const siblings = [
+    { id: "rejected", status: "rejected", txn_kind: "expense", transaction_id: null, created_at: "2026-09-13T10:00:00Z" },
+    { id: "merged", status: "merged", txn_kind: "expense", transaction_id: null, created_at: "2026-09-13T10:00:00Z" },
+    { id: "deleted-posting", status: "posted", txn_kind: "expense", transaction_id: null, created_at: "2026-09-13T10:00:00Z" },
+  ];
+  assertEquals(pickDuplicateProposalSibling(siblings, "expense"), null);
+  const posted = [{ id: "posted", status: "posted", txn_kind: "expense", transaction_id: "t1", created_at: "2026-09-13T10:00:00Z" }];
+  assertEquals(pickDuplicateProposalSibling(posted, "expense"), { id: "posted" });
 });

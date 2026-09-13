@@ -123,6 +123,21 @@ fun TransactionProposalCard(
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.bank_proposal_processing), style = Typography.labelMedium)
                 }
+            } else if (proposal.asksDuplicateQuestion) {
+                Text(
+                    text = stringResource(R.string.bank_proposal_duplicate_question),
+                    style = Typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = onSurface
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { onDecision("duplicate") }, modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.bank_proposal_duplicate_same))
+                    }
+                    OutlinedButton(onClick = { onDecision("separate") }, modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.bank_proposal_duplicate_separate))
+                    }
+                }
             } else if (proposal.status == "needs_classification") {
                 DirectionButtons(onDecision = onDecision)
                 OutlinedButton(onClick = { onDecision("reject") }, modifier = Modifier.fillMaxWidth()) {

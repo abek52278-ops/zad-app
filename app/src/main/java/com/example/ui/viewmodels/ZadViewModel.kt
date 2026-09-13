@@ -2220,11 +2220,16 @@ class ZadViewModel(application: Application) : AndroidViewModel(application) {
             _resolvingTransactionProposals.value += proposalId
             _failedTransactionProposals.value -= proposalId
             val result = SupabaseRepo.resolveTransactionProposal(proposalId, decision)
-            if (result?.status == "posted" || result?.status == "rejected" || result?.status == "expired") {
-                _transactionProposals.value = _transactionProposals.value.filterNot { it.id == proposalId }
-                if (result.status == "posted") syncData()
-            } else {
-                _failedTransactionProposals.value += proposalId
+            when (result?.status) {
+                "posted", "rejected", "expired", "merged" -> {
+                    _transactionProposals.value = _transactionProposals.value.filterNot { it.id == proposalId }
+                    if (result.status == "posted") syncData()
+                }
+                // مش فشل: السيرفر ماقيدش لأن فيه معاملة بنفس المبلغ من ربع ساعة، وعلّم الصف.
+                // إعادة التحميل بتجيب العلامة فالكارت يسأل "هل دي نفس المعاملة؟". وكذلك
+                // "عملية تانية" على اقتراح اتجاهه لسه مش معروف بترجع لسؤال الاتجاه.
+                "duplicate_suspected", "needs_classification" -> loadTransactionProposals()
+                else -> _failedTransactionProposals.value += proposalId
             }
             _resolvingTransactionProposals.value -= proposalId
         }

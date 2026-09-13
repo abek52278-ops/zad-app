@@ -132,8 +132,16 @@ data class ZadTransactionProposal(
     @SerialName("bank_name") val bankName: String? = null,
     val confidence: Double? = null,
     @SerialName("created_at") val createdAt: String? = null,
-    @SerialName("expires_at") val expiresAt: String? = null
-)
+    @SerialName("expires_at") val expiresAt: String? = null,
+    // وصل إشعار تاني (أو معاملة من الشات) بنفس المبلغ خلال ١٥ دقيقة — الكارت بيسأل
+    // "هل دي نفس المعاملة؟" لحد ما العميل يرد. السيرفر هو اللي بيحط العلامة وبيمسحها.
+    @SerialName("duplicate_of_proposal_id") val duplicateOfProposalId: String? = null,
+    @SerialName("duplicate_of_transaction_id") val duplicateOfTransactionId: String? = null,
+    @SerialName("duplicate_cleared_at") val duplicateClearedAt: String? = null
+) {
+    val asksDuplicateQuestion: Boolean
+        get() = duplicateClearedAt == null && (duplicateOfProposalId != null || duplicateOfTransactionId != null)
+}
 
 @Serializable
 data class ZadTransactionProposalResult(

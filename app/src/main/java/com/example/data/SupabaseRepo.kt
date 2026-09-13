@@ -2370,7 +2370,7 @@ object SupabaseRepo {
         proposalId: String,
         decision: String
     ): ZadTransactionProposalResult? {
-        if (decision !in setOf("confirm", "reject", "expense", "income", "transfer")) return null
+        if (decision !in setOf("confirm", "reject", "expense", "income", "transfer", "duplicate", "separate")) return null
         return try {
             client.postgrest.rpc(
                 "zad_resolve_transaction_proposal",

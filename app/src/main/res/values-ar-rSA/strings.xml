@@ -1158,6 +1158,9 @@
     <string name="bank_proposal_correct_direction">الاتجاه غير صحيح؟</string>
     <string name="bank_proposal_processing">جارٍ تنفيذ القرار…</string>
     <string name="bank_proposal_failed">تعذر تنفيذ القرار. حاول مرة أخرى.</string>
+    <string name="bank_proposal_duplicate_question">توجد عملية أخرى بنفس المبلغ في نفس الوقت تقريبًا. هل هذه نفس المعاملة؟</string>
+    <string name="bank_proposal_duplicate_same">نفس المعاملة</string>
+    <string name="bank_proposal_duplicate_separate">عملية أخرى</string>
     <string name="wake_service_title">زاد يسمع</string>
     <string name="wake_service_body">قل "يا زاد" لفتح المساعد الصوتي</string>
     <string name="activation_done_hint">كل شي جاهز! 🎉 جرب قل لزاد \"صرفت ٥٠ ريال بقالة\" بالصوت أو من بوت تليجرام — بيسألك تأكيد ويسجلها.</string>

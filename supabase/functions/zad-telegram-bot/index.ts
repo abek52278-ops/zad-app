@@ -27,6 +27,7 @@ import {
   formatBalanceMessage, type BudgetStateRow, formatTransactionsMessage, formatInsightTitle,
   confirmSpendKeyboard, parseSpendCallback,
   transactionProposalKeyboard, parseTransactionProposalCallback,
+  duplicateProposalKeyboard, duplicateProposalMessage,
   notificationReviewMessage,
   notificationReviewKeyboard,
   parseNotificationReviewCallback,
@@ -126,6 +127,54 @@ async function resolveChatId(sb: SupabaseClient, userId: string): Promise<number
 
 /** Direct Telegram API call, not a grammY ctx.reply — this fires OUTSIDE any inbound
  * webhook update (the cron job below has no ctx to reply through). */
+/**
+ * بيبعت سؤال "هل دي نفس المعاملة؟" لو الاقتراح متعلّم مكرر ولسه العميل ماردش عليه.
+ * بيرجع false لو الاقتراح مش متعلّم (أو اتحسم، أو ماتقريش) — والنادي بيكمل بالرسالة
+ * العادية. التوأم ممكن يكون اقتراح تاني (إشعار من تطبيق تاني) أو معاملة اتسجلت من الشات.
+ */
+async function sendDuplicateProposalQuestion(
+  sb: SupabaseClient, chatId: number, userId: string, proposalId: string,
+): Promise<boolean> {
+  const { data, error } = await sb.from("zad_transaction_proposals")
+    .select("id,status,amount,title,currency,duplicate_of_proposal_id,duplicate_of_transaction_id,duplicate_cleared_at")
+    .eq("id", proposalId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  const row = data as {
+    id: string; status: string; amount: number; title: string; currency: string | null;
+    duplicate_of_proposal_id: string | null; duplicate_of_transaction_id: string | null;
+    duplicate_cleared_at: string | null;
+  } | null;
+  if (error || !row) {
+    if (error) console.error("duplicate proposal fetch failed:", error.message);
+    return false;
+  }
+  if (row.status !== "needs_classification" && row.status !== "awaiting_confirmation") return false;
+  if (row.duplicate_cleared_at || (!row.duplicate_of_proposal_id && !row.duplicate_of_transaction_id)) return false;
+
+  let twinTitle: string | null = null;
+  if (row.duplicate_of_proposal_id) {
+    const { data: twin } = await sb.from("zad_transaction_proposals")
+      .select("title").eq("id", row.duplicate_of_proposal_id).eq("user_id", userId).maybeSingle();
+    twinTitle = (twin as { title?: string } | null)?.title ?? null;
+  } else if (row.duplicate_of_transaction_id) {
+    const { data: twin } = await sb.from("zad_transactions")
+      .select("title").eq("id", row.duplicate_of_transaction_id).eq("user_id", userId).maybeSingle();
+    twinTitle = (twin as { title?: string } | null)?.title ?? null;
+  }
+
+  const { data: u } = await sb.from("zad_users").select("currency").eq("id", userId).maybeSingle();
+  const cur = row.currency || (u as { currency?: string } | null)?.currency || "غير معروف";
+  const text = duplicateProposalMessage({
+    amountText: isolate(money(row.amount, cur)),
+    title: isolate(sanitizeName(row.title)),
+    twinTitle: twinTitle ? isolate(sanitizeName(twinTitle)) : null,
+    twinSource: row.duplicate_of_proposal_id ? "notification" : "transaction",
+  });
+  await sendTelegramMessage(chatId, clampForTelegram(text), duplicateProposalKeyboard(row.id));
+  return true;
+}
+
 async function sendTelegramMessage(chatId: number, text: string, keyboard?: InlineKeyboardButton[][]): Promise<void> {
   const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
     method: "POST",
@@ -1439,6 +1488,24 @@ bot.on("callback_query:data", async (ctx) => {
       return;
     }
     const resolved = result as { ok?: boolean; status?: string; already_resolved?: boolean };
+    if (resolved.status === "duplicate_suspected") {
+      // الدالة ماقيدتش: فيه معاملة متسجلة بنفس المبلغ من ربع ساعة. نفس السؤال اللي بيظهر
+      // في التطبيق، والقرار التالي (pd/ps) بيرجع لنفس الدالة.
+      if (!(await sendDuplicateProposalQuestion(sb, chatId, userId, proposalCallback.proposalId))) {
+        await ctx.reply("فيه عملية متسجلة بنفس المبلغ في نفس الوقت تقريبًا. افتح التطبيق وقولي دي نفس المعاملة ولا لأ.");
+      }
+      return;
+    }
+    if (resolved.status === "merged") {
+      await ctx.reply(resolved.already_resolved ? "اتحسبت مرة واحدة بالفعل." : "تمام، اعتبرتهم معاملة واحدة ومش هتتحسب مرتين.");
+      return;
+    }
+    if (resolved.status === "needs_classification") {
+      // "عملية تانية" على اقتراح اتجاهه لسه مش معروف — مايتقيدش بتخمين.
+      await sendTelegramMessage(chatId, "تمام، عملية تانية. دي مصروف ولا دخل ولا تحويل؟",
+        transactionProposalKeyboard(proposalCallback.proposalId, "needs_classification"));
+      return;
+    }
     if (resolved.status === "expired") {
       await ctx.reply("الطلب ده انتهت صلاحيته.");
       return;
@@ -2031,6 +2098,14 @@ Deno.serve(async (req: Request) => {
       }
       if (row.status !== "needs_classification" && row.status !== "awaiting_confirmation") {
         return new Response(JSON.stringify({ ok: true, delivered: false, reason: "already resolved" }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      // إشعار بنفس مبلغ إشعار تاني خلال ربع ساعة: السؤال نفسه بيتغير لـ"هل دي نفس المعاملة؟"
+      // بدل "أكد؟" — من غير كده العميل بيشوف رسالتين تأكيد لنفس الدفعة ويأكد الاتنين.
+      if (await sendDuplicateProposalQuestion(sb, chatId, user_id, row.id)) {
+        return new Response(JSON.stringify({ ok: true, delivered: true, kind: "duplicate_question" }), {
           headers: { "Content-Type": "application/json" },
         });
       }

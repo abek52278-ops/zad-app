@@ -5,6 +5,7 @@ import {
   checkInKeyboard, parseCheckInCallback, checkInPromptMessage,
   confirmToolKeyboard, parseToolCallback,
   transactionProposalKeyboard, parseTransactionProposalCallback,
+  duplicateProposalKeyboard, duplicateProposalMessage,
   notificationReviewMessage,
   adCreditKeyboard,
   proactiveDismissKeyboard, parseProactiveDismissCallback, arabicDays, proactiveDismissReply,
@@ -210,6 +211,33 @@ Deno.test("parseTransactionProposalCallback maps every proposal decision", () =>
   assertEquals(parseTransactionProposalCallback(`pe:${id}`), { decision: "expense", proposalId: id });
   assertEquals(parseTransactionProposalCallback(`pi:${id}`), { decision: "income", proposalId: id });
   assertEquals(parseTransactionProposalCallback(`pt:${id}`), { decision: "transfer", proposalId: id });
+});
+
+Deno.test("duplicate proposal keyboard maps to duplicate/separate and fits Telegram's limit", () => {
+  const id = "3f1a2b4c-5d6e-4f70-8a91-b2c3d4e5f607";
+  const buttons = duplicateProposalKeyboard(id).flat();
+  assertEquals(buttons.map((b) => parseTransactionProposalCallback(b.callback_data ?? "")), [
+    { decision: "duplicate", proposalId: id },
+    { decision: "separate", proposalId: id },
+  ]);
+  for (const b of buttons) assert(new TextEncoder().encode(b.callback_data).length <= 64);
+  // pd: محجوزة لرفض المبادرات الاستباقية — زرار "نفس المعاملة" لازم مايتقراش كرفض مبادرة.
+  for (const b of buttons) assertEquals(parseProactiveDismissCallback(b.callback_data ?? ""), null);
+  assertEquals(parseTransactionProposalCallback(proactiveDismissKeyboard(id)[0][0].callback_data ?? ""), null);
+});
+
+Deno.test("duplicate proposal message asks the same-transaction question and names both sides", () => {
+  const text = duplicateProposalMessage({ amountText: "500 ج.م", title: "فاتورة الإنترنت", twinTitle: "CIB خصم", twinSource: "notification" });
+  assert(text.includes("هل دي نفس المعاملة؟"));
+  assert(text.includes("500 ج.م"));
+  assert(text.includes("الأول: CIB خصم"));
+  assert(text.includes("التاني: فاتورة الإنترنت"));
+  // من غير اسم التوأم (معاملة ماتقريتش) السطر بيتشال بدل ما يطلع "الأول: null".
+  assert(!duplicateProposalMessage({ amountText: "1", title: "x", twinTitle: null, twinSource: "notification" }).includes("الأول"));
+  // التوأم معاملة من الشات مش إشعار — "وصلني إشعارين" هيبقى كذب.
+  const manual = duplicateProposalMessage({ amountText: "300 ج.م", title: "SMS", twinTitle: "دفعت النت", twinSource: "transaction" });
+  assert(!manual.includes("إشعارين"));
+  assert(manual.includes("المتسجلة: دفعت النت"));
 });
 
 Deno.test("parseTransactionProposalCallback rejects malformed and unrelated callbacks", () => {

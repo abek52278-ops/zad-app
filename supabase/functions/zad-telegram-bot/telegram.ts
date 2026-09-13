@@ -136,7 +136,38 @@ export function parseSpendCallback(data: string): { action: "confirm" | "cancel"
   return { action: parts[0] === "x" ? "confirm" : "cancel", pendingId: parts[1] };
 }
 
-export type TransactionProposalDecision = "confirm" | "reject" | "expense" | "income" | "transfer";
+export type TransactionProposalDecision =
+  | "confirm" | "reject" | "expense" | "income" | "transfer" | "duplicate" | "separate";
+
+/**
+ * سؤال "هل دي نفس المعاملة؟" — لما إشعارين بنفس المبلغ يوصلوا خلال ١٥ دقيقة (البنك
+ * وInstaPay عن نفس الدفعة مثلًا)، أو لما دالة الحسم تلاقي معاملة متقيدة بنفس المبلغ.
+ * القيم هنا متنسقة ومعزولة جاهزة من index.ts؛ الدالة بتركّب النص بس.
+ */
+export function duplicateProposalMessage(input: {
+  amountText: string;
+  title: string;
+  twinTitle?: string | null;
+  /** notification = إشعار تاني (بنك/محفظة)؛ transaction = معاملة اتسجلت من الشات أو يدوي. */
+  twinSource: "notification" | "transaction";
+}): string {
+  const fromNotification = input.twinSource === "notification";
+  return [
+    fromNotification
+      ? `وصلني إشعارين بمبلغ ${input.amountText} في نفس الوقت تقريبًا — هل دي نفس المعاملة؟`
+      : `فيه عملية متسجلة بمبلغ ${input.amountText} في نفس الوقت تقريبًا — هل الإشعار ده هو نفس المعاملة؟`,
+    input.twinTitle ? `${fromNotification ? "الأول" : "المتسجلة"}: ${input.twinTitle}` : "",
+    `${fromNotification ? "التاني" : "الإشعار"}: ${input.title}`,
+    "لو نفس المعاملة هتتحسب مرة واحدة بس.",
+  ].filter(Boolean).join("\n");
+}
+
+export function duplicateProposalKeyboard(proposalId: string): InlineKeyboardButton[][] {
+  return [
+    [{ text: "نفس المعاملة — متتحسبش تاني", callback_data: `pm:${proposalId}` }],
+    [{ text: "لأ، دي عملية تانية", callback_data: `ps:${proposalId}` }],
+  ];
+}
 
 /** A bank-notification proposal is shared with Android, so Telegram only carries the
  * proposal id and the customer's decision. The amount never lives in callback_data. */
@@ -178,6 +209,7 @@ export function parseTransactionProposalCallback(
   if (parts.length !== 2 || !/^[0-9a-fA-F-]{36}$/.test(parts[1])) return null;
   const decisions: Record<string, TransactionProposalDecision> = {
     pc: "confirm", pr: "reject", pe: "expense", pi: "income", pt: "transfer",
+    pm: "duplicate", ps: "separate",
   };
   const decision = decisions[parts[0]];
   return decision ? { decision, proposalId: parts[1] } : null;

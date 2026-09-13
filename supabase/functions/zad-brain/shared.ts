@@ -161,3 +161,35 @@ export function normalizeDoseTimes(
   const anchor = DOSE_TIME_ANCHORS[parsed.length] ?? DOSE_TIME_ANCHORS[wanted] ?? DOSE_TIME_ANCHORS[1];
   return anchor.join(",");
 }
+
+/** نافذة "نفس الدفعة" بين إشعارين — لازم تفضل مطابقة لـ interval '15 minutes' في
+ *  private.zad_resolve_transaction_proposal_impl (20260913213000). */
+export const DUPLICATE_PROPOSAL_WINDOW_MS = 15 * 60 * 1000;
+
+/**
+ * من اقتراحات نفس العميل بنفس المبلغ خلال النافذة، أنهي واحد الإشعار الجديد مكرر منه؟
+ *
+ * البنك بيقول "تم خصم 500 من بطاقتك" وInstaPay بيقول "تم دفع فاتورة الإنترنت 500" —
+ * مافيش بينهم ولا كلمة مشتركة، فالمبلغ والوقت هما الإشارة الوحيدة المتاحة. ده سؤال
+ * للعميل مش حكم: الاقتراح الجديد بيتعمل عادي وبيتعلّم بس، والتطبيق وتيليجرام بيسألوا
+ * "هل دي نفس المعاملة؟".
+ *
+ * - اتجاه معروف ومختلف (خصم 500 وإيداع 500) = مش نفس الدفعة.
+ * - اتجاه مش معروف في أي طرف = ممكن، يتسأل.
+ * - الأقدم هو الأصل، مش الأحدث: لو تلات إشعارات لنفس الدفعة، التاني والتالت يشاوروا
+ *   على الأول، مش سلسلة (تالت ← تاني ← أول) تتقطع لو التاني اترفض.
+ */
+export function pickDuplicateProposalSibling(
+  siblings: Array<{ id: string; status: string; txn_kind: string | null; transaction_id: string | null; created_at: string }>,
+  txnKind: string | null,
+): { id: string } | null {
+  const candidates = siblings
+    .filter((s) =>
+      ["awaiting_confirmation", "needs_classification"].includes(s.status) ||
+      // متقيد والعميل مسح معاملته بعدين = مابقاش بيعدّ في الرصيد، مش أصل تكرار.
+      (s.status === "posted" && s.transaction_id != null)
+    )
+    .filter((s) => s.txn_kind == null || txnKind == null || s.txn_kind === txnKind)
+    .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
+  return candidates.length > 0 ? { id: candidates[0].id } : null;
+}

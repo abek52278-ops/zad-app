@@ -56,7 +56,7 @@
 import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { CONFIRM_REQUIRED_TOOLS, freshContext, looksLikeAnsweredQuestion, RunContext, validateTool } from "./validators.ts";
 import { callModel, embedText, embedSelfTest, smokeTestTools, Turn, ToolDef } from "./callModel.ts";
-import { agentTaskNotice, decideOnBrainFailure, hasRecentMutatingRun, normalizeBrainTrigger, normalizeDoseTimes, summarizeProactiveScan } from "./shared.ts";
+import { agentTaskNotice, decideOnBrainFailure, DUPLICATE_PROPOSAL_WINDOW_MS, hasRecentMutatingRun, normalizeBrainTrigger, normalizeDoseTimes, pickDuplicateProposalSibling, summarizeProactiveScan } from "./shared.ts";
 import { type FastIntent, formatBalanceReply, parseFastPath } from "./fastPath.ts";
 import { AgentSource, AuditScope, recordAction, writeRows } from "./audit.ts";
 import { redactNotificationText } from "./redact.ts";
@@ -4980,8 +4980,27 @@ async function handleNotificationIngest(sb: SupabaseClient, userId: string, body
     }), { headers: CORS_HEADERS });
   }
   if (!proposal) {
+    // ─── تكرار عبر المصادر: نفس المبلغ خلال ١٥ دقيقة من أي تطبيق ───
+    // الطبقة الضبابية فوق محتاجة كلمة تاجر مشتركة، ورسالة البنك ورسالة InstaPay عن نفس
+    // الدفعة غالبًا مافيهمش. الاقتراح بيتعمل عادي بس بيتعلّم، فسؤاله بيبقى "هل دي نفس
+    // المعاملة؟" — ومهما ضغط العميل، دالة الحسم نفسها بتمنع القيد التاني (20260913213000).
+    // فشل الاستعلام ده مايوقفش الاستلام: الحارس الحقيقي في دالة الحسم مش هنا.
+    const { data: amountSiblings, error: amountSiblingsError } = await sb.from("zad_transaction_proposals")
+      .select("id,status,txn_kind,transaction_id,created_at")
+      .eq("user_id", userId)
+      .eq("amount", proposalRow.amount)
+      .neq("idempotency_key", dedupeHash)
+      .in("status", ["awaiting_confirmation", "needs_classification", "posted"])
+      .gte("created_at", new Date(Date.now() - DUPLICATE_PROPOSAL_WINDOW_MS).toISOString())
+      .limit(10);
+    if (amountSiblingsError) console.error("duplicate sibling lookup failed:", amountSiblingsError.message);
+    const duplicateOf = pickDuplicateProposalSibling(
+      (amountSiblings ?? []) as Array<{ id: string; status: string; txn_kind: string | null; transaction_id: string | null; created_at: string }>,
+      txnKind,
+    );
+
     const { data: insertedProposal, error: proposalError } = await sb.from("zad_transaction_proposals")
-      .insert(proposalRow)
+      .insert({ ...proposalRow, duplicate_of_proposal_id: duplicateOf?.id ?? null })
       .select("id,status")
       .single();
     if ((proposalError as { code?: string } | null)?.code === "23505") {
