@@ -56,7 +56,7 @@
 import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { CONFIRM_REQUIRED_TOOLS, freshContext, looksLikeAnsweredQuestion, RunContext, validateTool } from "./validators.ts";
 import { callModel, embedText, embedSelfTest, smokeTestTools, Turn, ToolDef } from "./callModel.ts";
-import { agentTaskNotice, decideOnBrainFailure, postponeForSuppression, DUPLICATE_PROPOSAL_WINDOW_MS, hasRecentMutatingRun, normalizeBrainTrigger, normalizeDoseTimes, pickDuplicateProposalSibling, summarizeProactiveScan } from "./shared.ts";
+import { agentTaskNotice, buildStoreArrivalMessage, decideOnBrainFailure, postponeForSuppression, DUPLICATE_PROPOSAL_WINDOW_MS, hasRecentMutatingRun, normalizeBrainTrigger, normalizeDoseTimes, normalizeStoreCategory, pickDuplicateProposalSibling, sanitizeItemHints, sanitizeStoreName, storeArrivalBlock, storeArrivalDescription, summarizeProactiveScan } from "./shared.ts";
 import { type FastIntent, formatBalanceReply, parseFastPath } from "./fastPath.ts";
 import { AgentSource, AuditScope, recordAction, writeRows } from "./audit.ts";
 import { redactNotificationText } from "./redact.ts";
@@ -3997,6 +3997,96 @@ function describeProposal(tool: string, input: any, currency: string): string {
  * عميل حاضر يأكد، فمفيش تنفيذ. الموديل بياخد رسالة توضيحية عشان يعرف يقول للعميل
  * إن الجزء ده محتاج تأكيده هو لما يفتح التطبيق، مش يتجاهله بصمت.
  */
+/**
+ * مرحلة ٢ بند ٣ — العميل دخل نطاق سوبرماركت/مول/صيدلية (GeofenceBroadcastReceiver).
+ *
+ * قبل كده الجهاز كان بيبعت `geofence_enter` لمسار التحليل: نداء موديل كامل، ورده بيرجع في
+ * الـHTTP response والتطبيق بيتجاهله — لا تليجرام ولا رؤية، يعني تكلفة من غير أي أثر. هنا
+ * القايمة بتتبني من البيانات مباشرة (من غير موديل) وبتتبعت تليجرام فورًا بأزرار الرفض.
+ *
+ * الهوية من الـJWT بس (زي agent_turn)، والحراسات: الكتم في zad_memory، ومحل واحد كل
+ * STORE_ARRIVAL_SAME_STORE_HOURS ساعة، وSTORE_ARRIVAL_DAILY_CAP رسايل في اليوم. كل رسالة
+ * بتتسجّل صف agent_tasks (kind=store_arrival, status=done) — للمراقبة، ولأن أزرار الرفض
+ * محتاجة معرّف مهمة.
+ */
+async function handleStoreArrival(sb: SupabaseClient, userId: string, body: any): Promise<Response> {
+  const json = (payload: Record<string, unknown>, status = 200) =>
+    new Response(JSON.stringify(payload), { status, headers: CORS_HEADERS });
+
+  const category = normalizeStoreCategory(body?.category);
+  const storeName = sanitizeStoreName(body?.store_name);
+  if (!category || !storeName) return json({ ok: false, error: "bad_request" }, 400);
+
+  const nowIso = new Date().toISOString();
+  const { data: mutes, error: muteErr } = await sb.from("zad_memory")
+    .select("suppress_until").eq("user_id", userId).eq("subject_kind", "store_arrival").gt("suppress_until", nowIso);
+  if (muteErr) console.error("[store_arrival] mute lookup failed:", muteErr.message);
+  if ((mutes ?? []).length > 0) return json({ ok: true, sent: false, reason: "muted" });
+
+  const { data: recent, error: recentErr } = await sb.from("agent_tasks")
+    .select("created_at,task_description")
+    .eq("user_id", userId).eq("kind", "store_arrival")
+    .gte("created_at", new Date(Date.now() - 24 * 3_600_000).toISOString());
+  if (recentErr) console.error("[store_arrival] recent lookup failed:", recentErr.message);
+  const blocked = storeArrivalBlock((recent ?? []) as Array<{ created_at: string; task_description: string }>, storeName, Date.now());
+  if (blocked) return json({ ok: true, sent: false, reason: blocked });
+
+  let shopping: string[] = [];
+  let lowStock: string[] = [];
+  if (category === "pharmacy") {
+    const { data: meds, error } = await sb.from("zad_pharmacy_items")
+      .select("name,remaining_quantity,daily_dose_count").eq("user_id", userId);
+    if (error) console.error("[store_arrival] pharmacy lookup failed:", error.message);
+    // نفس عتبة ملخص البيت (_agent_home_weekly_digest_for_user): ٥ أيام أو أقل.
+    lowStock = ((meds ?? []) as Array<{ name: string; remaining_quantity: number | null; daily_dose_count: number | null }>)
+      .filter((m) => (m.remaining_quantity ?? 0) <= (m.daily_dose_count ?? 1) * 5)
+      .map((m) => m.name);
+  } else {
+    const { data: list, error: listErr } = await sb.from("zad_shopping_list")
+      .select("item_name").eq("user_id", userId).eq("is_purchased", false).limit(50);
+    if (listErr) console.error("[store_arrival] shopping lookup failed:", listErr.message);
+    shopping = ((list ?? []) as Array<{ item_name: string }>).map((r) => r.item_name);
+
+    // المخزون موحّد مع العيلة (Task 30): الناقص عند العيلة ناقص عند العميل كمان.
+    const { data: memberships } = await sb.from("family_members").select("family_id").eq("user_id", userId);
+    const familyIds = ((memberships ?? []) as Array<{ family_id: string | null }>)
+      .map((m) => m.family_id).filter((id): id is string => !!id);
+    let invQuery = sb.from("zad_inventory").select("item_name,quantity,low_stock_threshold").limit(200);
+    invQuery = familyIds.length > 0
+      ? invQuery.or(`user_id.eq.${userId},family_id.in.(${familyIds.join(",")})`)
+      : invQuery.eq("user_id", userId);
+    const { data: inv, error: invErr } = await invQuery;
+    if (invErr) console.error("[store_arrival] inventory lookup failed:", invErr.message);
+    lowStock = ((inv ?? []) as Array<{ item_name: string; quantity: number | null; low_stock_threshold: number | null }>)
+      .filter((i) => (i.quantity ?? 0) <= (i.low_stock_threshold ?? 1))
+      .map((i) => i.item_name);
+  }
+
+  const message = buildStoreArrivalMessage({
+    storeName, category, shopping, lowStock, clientHints: sanitizeItemHints(body?.client_items),
+  });
+  if (!message) return json({ ok: true, sent: false, reason: "nothing_missing" });
+
+  const { data: taskRow, error: taskErr } = await sb.from("agent_tasks").insert({
+    user_id: userId,
+    kind: "store_arrival",
+    status: "done",
+    scheduled_for: nowIso,
+    task_description: storeArrivalDescription(storeName, category),
+    result: message.body,
+  }).select("id").single();
+  if (taskErr) {
+    // من غير الصف ده الحارس (محل/يوم) مابيشوفش الرسالة — فمابنبعتش بدل ما نسبّم.
+    console.error("[store_arrival] task insert failed — not sending:", taskErr.message);
+    return json({ ok: false, error: "record_failed" }, 500);
+  }
+
+  const taskId = (taskRow as { id: string }).id;
+  const telegram = await pushToTelegram(userId, message.title, message.body, fetch, taskId);
+  console.log(`[store_arrival] ${category} «${storeName}» items=${message.itemCount} → telegram: ${telegram}`);
+  return json({ ok: true, sent: telegram === "delivered", telegram, items: message.itemCount, task_id: taskId });
+}
+
 async function processDueAgentTasks(sb: SupabaseClient): Promise<{ processed: number; failed: number; postponed: number }> {
   const { data: due } = await sb.from("agent_tasks")
     .select("id,user_id,task_description,goal_id,recurrence,scheduled_for,kind")
@@ -5534,7 +5624,7 @@ Deno.serve(async (req: Request) => {
     // user_id من جسم الطلب (سلوك قديم، بيتنادى من workers ومن الكلاينت بجلسته)؛ المسار
     // ده بيكتب معاملات مالية، فبياخد الهوية من الـ JWT بس. لو أخدها من الجسم كان أي حد
     // معاه توكن صالح يقدر يكتب في دفتر أي مستخدم تاني بمجرد إنه يبعت الـ id بتاعه.
-    if (body.action === "agent_turn" || body.action === "agent_turn_stream" || body.action === "agent_confirm" || body.action === "agent_execute" || body.action === "notification_ingest") {
+    if (body.action === "agent_turn" || body.action === "agent_turn_stream" || body.action === "agent_confirm" || body.action === "agent_execute" || body.action === "notification_ingest" || body.action === "store_arrival") {
       const authedUserId = await resolveRequestUserId(req, body);
       if (!authedUserId) {
         return new Response(
@@ -5547,6 +5637,7 @@ Deno.serve(async (req: Request) => {
       if (body.action === "agent_turn_stream") return await handleAgentTurnStream(sbChat, authedUserId, body);
       if (body.action === "agent_confirm") return await handleAgentConfirm(sbChat, authedUserId, body);
       if (body.action === "notification_ingest") return await handleNotificationIngest(sbChat, authedUserId, body);
+      if (body.action === "store_arrival") return await handleStoreArrival(sbChat, authedUserId, body);
       return await handleAgentExecute(sbChat, authedUserId, body);
     }
 

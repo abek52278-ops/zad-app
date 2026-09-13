@@ -84,6 +84,23 @@ class BrainHealthTest {
         assertEquals(BrainHealthStatus.STALLED, h.status)
     }
 
+    @Test
+    fun `a store visit or a delivery test does not mask a dead proactive brain`() {
+        // store_arrival بيتولد من حركة العميل (دخول نطاق محل) مش من الماسح، وdelivery_test صف
+        // اختبار. لو اتحسبوا إشارة حياة، زيارة محل النهاردة كانت هتخبّي ماسح ساكت من ٥ أيام —
+        // نفس فخ الشات فوق. نفس القايمة في zad_proactive_silence_check (20260913230000).
+        val cadenceTasks = (0..10L).map { d ->
+            TaskSample(kind = "home_weekly_digest", createdAtMillis = daysAgo(5) - d * dayMs)
+        }
+        val fresh = listOf(
+            TaskSample(kind = "store_arrival", createdAtMillis = hoursAgo(1)),
+            TaskSample(kind = "delivery_test", createdAtMillis = hoursAgo(2)),
+        )
+        val h = evaluateBrainHealth(baseInput().copy(recentTasksForCadence = fresh + cadenceTasks))
+        assertTrue(h.reasons.contains(BrainHealthReason.PROACTIVE_SILENT))
+        assertEquals(BrainHealthStatus.STALLED, h.status)
+    }
+
     // ---------------------------------------------------------------------
     // 3. queued = فشل، زي failed بالظبط
     // ---------------------------------------------------------------------

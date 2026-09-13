@@ -57,7 +57,7 @@ import {
   validateLearnSkill,
 } from "./validators.ts";
 import { callModelWithRetry } from "./retry.ts";
-import { agentTaskNotice, decideOnBrainFailure, hasRecentMutatingRun, normalizeBrainTrigger, pickDuplicateProposalSibling, postponeForSuppression, summarizeProactiveScan } from "./shared.ts";
+import { agentTaskNotice, buildStoreArrivalMessage, decideOnBrainFailure, hasRecentMutatingRun, itemKey, normalizeBrainTrigger, normalizeStoreCategory, pickDuplicateProposalSibling, postponeForSuppression, sanitizeItemHints, sanitizeStoreName, storeArrivalBlock, storeArrivalDescription, summarizeProactiveScan } from "./shared.ts";
 
 const healthySnapshot = {
   budget: 3000, spent: 500, remaining: 2500, velocity: 0.4,
@@ -271,6 +271,69 @@ Deno.test("postponeForSuppression never delays the user's own reminders or runs 
   assertEquals(postponeForSuppression("goal_review", [], now), null);
   assertEquals(postponeForSuppression("goal_review", [{ suppress_until: "2026-09-13T20:59:59Z" }], now), null);
   assertEquals(postponeForSuppression("goal_review", [{ suppress_until: "not a date" }], now), null);
+});
+
+// 10f. وصول لمحل: قايمة من البيانات من غير موديل، بحراسات ضد السبام.
+Deno.test("store arrival merges the shopping list, low stock and device hints without duplicates", () => {
+  const msg = buildStoreArrivalMessage({
+    storeName: "كارفور",
+    category: "supermarket",
+    shopping: ["لبن", "عيش"],
+    lowStock: ["لَبن", "سكر"],            // «لَبن» نفس «لبن» بعد شيل التشكيل
+    clientHints: ["عيش ", "زيت"],          // تلميح الجهاز فيه تكرار ومسافة زايدة
+  })!;
+  assertEquals(msg.itemCount, 4);
+  assertEquals(msg.title, "🛒 أنت جنب «كارفور»");
+  assertEquals(msg.body, "ناقص في البيت، لو هتشتري:\n• لبن\n• عيش\n• سكر\n• زيت");
+});
+
+Deno.test("store arrival lists ten items and counts the rest, and says nothing when nothing is missing", () => {
+  const many = Array.from({ length: 14 }, (_, i) => `صنف ${i + 1}`);
+  const msg = buildStoreArrivalMessage({ storeName: "مول", category: "mall", shopping: many, lowStock: [], clientHints: [] })!;
+  assertEquals(msg.itemCount, 14);
+  assertStringIncludes(msg.title, "🛍️");
+  assertEquals(msg.body.split("\n").filter((l) => l.startsWith("• ")).length, 10);
+  assertStringIncludes(msg.body, "… و4 كمان");
+  // قايمة فاضية = مفيش رسالة خالص، مش رسالة «ناقص:» فاضية.
+  assertEquals(buildStoreArrivalMessage({ storeName: "مول", category: "mall", shopping: [], lowStock: ["  "], clientHints: [] }), null);
+});
+
+Deno.test("pharmacy arrival uses medication wording", () => {
+  const msg = buildStoreArrivalMessage({ storeName: "صيدلية العزبي", category: "pharmacy", shopping: [], lowStock: ["بنادول"], clientHints: [] })!;
+  assertStringIncludes(msg.title, "💊");
+  assertStringIncludes(msg.body, "أدوية قربت تخلص");
+});
+
+Deno.test("store arrival input from the device is cleaned before it reaches Telegram", () => {
+  assertEquals(normalizeStoreCategory("SuperMarket"), "supermarket");
+  assertEquals(normalizeStoreCategory("bank"), null);
+  assertEquals(sanitizeStoreName("  «كارفور»\nمعادي  "), "كارفور معادي");
+  assertEquals(sanitizeStoreName(42), "");
+  const hints = sanitizeItemHints(["لبن", 7, "", "س".repeat(90), ...Array.from({ length: 40 }, () => "x")]);
+  assertEquals(hints[0], "لبن");
+  assertEquals(hints[1].length, 60);                 // اتقص
+  assert(hints.length <= 30);
+  assertEquals(sanitizeItemHints("not a list"), []);
+  assertEquals(itemKey("إيد  آخر"), itemKey("ايد اخر"));
+  assertEquals(itemKey("سلطة"), itemKey("سلطه"));
+});
+
+Deno.test("store arrival blocks the same store within six hours and caps a day at three", () => {
+  const now = Date.parse("2026-09-13T21:00:00Z");
+  const at = (h: number) => new Date(now - h * 3_600_000).toISOString();
+  const carrefour = storeArrivalDescription("كارفور", "supermarket");
+  assertEquals(storeArrivalBlock([{ created_at: at(2), task_description: carrefour }], "كارفور", now), "same_store_recently");
+  assertEquals(storeArrivalBlock([{ created_at: at(7), task_description: carrefour }], "كارفور", now), null);
+  assertEquals(storeArrivalBlock([{ created_at: at(2), task_description: carrefour }], "سبينيس", now), null);
+  const three = [1, 3, 8].map((h) => ({ created_at: at(h), task_description: storeArrivalDescription(`محل ${h}`, "mall") }));
+  assertEquals(storeArrivalBlock(three, "محل جديد", now), "daily_cap");
+  assertEquals(storeArrivalBlock([...three.slice(0, 2), { created_at: at(30), task_description: carrefour }], "محل جديد", now), null);
+});
+
+Deno.test("store_arrival is a proactive kind with its own title", () => {
+  const n = agentTaskNotice("store_arrival");
+  assertEquals(n.proactive, true);
+  assert(!n.title.includes("طلبتها"));
 });
 
 // 11. Exhausted retries → decideOnBrainFailure says to queue (non-chat) and never a 500

@@ -46,6 +46,7 @@ export function agentTaskNotice(kind: string | null | undefined): { title: strin
     warranty_reminder: "🛡️ زاد بيفكّرك بضمان قرب ينتهي",
     listener_gap_alert: "🔔 زاد لاحظ إن إشعارات البنك وقفت",
     goal_review: "🎯 زاد بيتابع هدفك",
+    store_arrival: "🛒 زاد لاحظ إنك جنب محل",
   };
   return { title: titles[k] ?? "💡 زاد لاحظ حاجة تهمّك", proactive: true };
 }
@@ -71,6 +72,115 @@ export function postponeForSuppression(
     if (Number.isFinite(t) && t > nowMs && t > latest) latest = t;
   }
   return Number.isFinite(latest) ? new Date(latest).toISOString() : null;
+}
+
+// ── وصول لمحل (مرحلة ٢ بند ٣) ─────────────────────────────────────────────
+// دخول نطاق سوبرماركت/مول/صيدلية كان بيبعت `geofence_enter` لمسار التحليل: نداء موديل
+// ورده بيرجع في الـHTTP response والتطبيق بيتجاهله — لا تليجرام ولا رؤية. القايمة هنا
+// بتتبني من البيانات مباشرة (قايمة الشراء + المخزون الناقص + الأدوية القربت)، من غير موديل.
+
+export type StoreCategory = "supermarket" | "mall" | "pharmacy";
+
+/** ساعات بين رسالتين لنفس المحل، وأقصى عدد رسايل في ٢٤ ساعة — عشان التنقل في مول مايبقاش سبام. */
+export const STORE_ARRIVAL_SAME_STORE_HOURS = 6;
+export const STORE_ARRIVAL_DAILY_CAP = 3;
+const STORE_ARRIVAL_MAX_LISTED = 10;
+
+export function normalizeStoreCategory(raw: unknown): StoreCategory | null {
+  const v = String(raw ?? "").trim().toLowerCase();
+  return v === "supermarket" || v === "mall" || v === "pharmacy" ? v : null;
+}
+
+/** اسم محل أو صنف جاي من الجهاز: نص بس، من غير control chars ولا «»، بطول معقول. */
+function cleanText(raw: unknown, max: number): string {
+  if (typeof raw !== "string") return "";
+  return raw.replace(/[\u0000-\u001f\u007f\u00ab\u00bb]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+export function sanitizeStoreName(raw: unknown): string {
+  return cleanText(raw, 60);
+}
+
+/** قايمة الجهاز تلميح بس (ممكن تكون أحدث من السيرفر لو كان أوفلاين) — مقصوصة ومنضّفة. */
+export function sanitizeItemHints(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.slice(0, 30).map((x) => cleanText(x, 60)).filter((x) => x.length > 0);
+}
+
+/**
+ * مفتاح مقارنة للأصناف: «لبن» و«لَبن» و«لبن » نفس الصنف. بيشيل التشكيل والتطويل وبيوحّد
+ * الألف والياء والتاء المربوطة — للمقارنة بس، الاسم المعروض بيفضل زي ما العميل كتبه.
+ */
+export function itemKey(name: string): string {
+  return name
+    .replace(/[\u064B-\u0652\u0640]/g, "")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+export function storeArrivalDescription(storeName: string, category: StoreCategory): string {
+  return `وصول لـ«${storeName}» (${category})`;
+}
+
+/**
+ * هل الرسالة دي لازم تتمنع؟ `recent` = مهام store_arrival آخر ٢٤ ساعة للعميل ده.
+ * اسم المحل بيتقرا من الوصف اللي `storeArrivalDescription` كتبته.
+ */
+export function storeArrivalBlock(
+  recent: Array<{ created_at: string; task_description: string }>,
+  storeName: string,
+  nowMs: number,
+): "same_store_recently" | "daily_cap" | null {
+  const dayAgo = nowMs - 24 * 3_600_000;
+  const inDay = recent.filter((r) => Date.parse(r.created_at) >= dayAgo);
+  const wanted = itemKey(storeName);
+  const windowStart = nowMs - STORE_ARRIVAL_SAME_STORE_HOURS * 3_600_000;
+  const sameStore = inDay.some((r) => {
+    const m = /«([^»]*)»/.exec(r.task_description ?? "");
+    return m !== null && itemKey(m[1]) === wanted && Date.parse(r.created_at) >= windowStart;
+  });
+  if (sameStore) return "same_store_recently";
+  if (inDay.length >= STORE_ARRIVAL_DAILY_CAP) return "daily_cap";
+  return null;
+}
+
+/**
+ * نص الرسالة. الترتيب مقصود: قايمة الشراء الأول (العميل كتبها بنفسه)، بعدين المخزون الناقص،
+ * بعدين تلميح الجهاز. `null` = مفيش حاجة ناقصة — ساعتها مابنبعتش خالص بدل رسالة فاضية.
+ */
+export function buildStoreArrivalMessage(input: {
+  storeName: string;
+  category: StoreCategory;
+  shopping: string[];
+  lowStock: string[];
+  clientHints: string[];
+}): { title: string; body: string; itemCount: number } | null {
+  const seen = new Set<string>();
+  const items: string[] = [];
+  for (const raw of [...input.shopping, ...input.lowStock, ...input.clientHints]) {
+    const name = cleanText(raw, 60);
+    const key = itemKey(name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    items.push(name);
+  }
+  if (items.length === 0) return null;
+
+  const store = sanitizeStoreName(input.storeName) || "محل قريب";
+  const title = input.category === "pharmacy"
+    ? `💊 أنت جنب «${store}»`
+    : input.category === "mall"
+      ? `🛍️ أنت في «${store}»`
+      : `🛒 أنت جنب «${store}»`;
+  const intro = input.category === "pharmacy" ? "أدوية قربت تخلص عندك:" : "ناقص في البيت، لو هتشتري:";
+  const listed = items.slice(0, STORE_ARRIVAL_MAX_LISTED).map((i) => `• ${i}`);
+  const more = items.length - listed.length;
+  const body = [intro, ...listed, ...(more > 0 ? [`… و${more} كمان`] : [])].join("\n");
+  return { title, body, itemCount: items.length };
 }
 
 /**

@@ -79,24 +79,34 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     }
 
     /**
-     * مرحلة ٤ — إشعار عقل زاد بالدخول لنطاق المحل أو المول ليرسل نصيحة ميزانية فورية
-     * عبر بوت تليجرام وقنوات التنبيهات الموحدة في الخلفية دائماً.
+     * بيبلّغ السيرفر بالدخول لنطاق المحل (`store_arrival`)، والسيرفر بيبعت قايمة النواقص
+     * تليجرام لو العميل مربوط وفيه حاجة ناقصة ومش مكتوم. التعليق القديم هنا كان بيقول إن
+     * العقل بيبعت نصيحة تليجرام — ده عمره ماحصل: رد مسار التحليل كان بيرجع هنا وبيتجاهل.
      */
     private suspend fun notifyBrain(context: Context, storeName: String, category: GeofenceCategory, missingItems: List<String>) {
         try {
             val userId = com.example.data.SupabaseRepo.client.auth.currentUserOrNull()?.id ?: return
-            val kind = when (category) {
-                GeofenceCategory.PHARMACY -> "صيدلية"
-                GeofenceCategory.MALL -> "مول / مركز تسوق"
-                GeofenceCategory.SUPERMARKET -> "سوبرماركت"
+            // مرحلة ٢ بند ٣: قبل كده كان `geofence_enter` لمسار التحليل — نداء موديل كامل ورده
+            // بيرجع هنا وبيتجاهل (لا تليجرام ولا رؤية). `store_arrival` بيبني قايمة النواقص من
+            // داتا السيرفر (قايمة الشراء + المخزون الناقص + الأدوية) من غير موديل وبيبعتها
+            // تليجرام فورًا. القايمة المحلية بتتبعت تلميح بس (ممكن تكون أحدث لو الجهاز كان أوفلاين).
+            // الهوية من الـJWT على السيرفر، مش من الجسم.
+            val categoryKey = when (category) {
+                GeofenceCategory.PHARMACY -> "pharmacy"
+                GeofenceCategory.MALL -> "mall"
+                GeofenceCategory.SUPERMARKET -> "supermarket"
             }
-            val userMessage = "المستخدم دلوقتي في $storeName ($kind). ${if (missingItems.isNotEmpty()) "النواقص المعروفة: " + missingItems.joinToString("، ") else "لا توجد نواقص مسجلة"}. وجّه له نصيحة ميزانية وتوفير فورية مناسبة للمكان."
-            com.example.data.SupabaseRepo.callEdgeFunction(
+            val result = com.example.data.SupabaseRepo.callEdgeFunction(
                 "zad-brain",
-                mapOf("user_id" to userId, "trigger" to "geofence_enter", "user_message" to userMessage)
+                mapOf(
+                    "action" to "store_arrival",
+                    "store_name" to storeName,
+                    "category" to categoryKey,
+                    "client_items" to missingItems.take(30),
+                )
             )
             ZadAlertRouter.sync(context, userId)
-            Log.d(TAG, "notifyBrain() → geofence_enter sent for $storeName")
+            Log.d(TAG, "notifyBrain() → store_arrival for $storeName: sent=${result["sent"]} reason=${result["reason"]} telegram=${result["telegram"]}")
         } catch (e: Exception) {
             Log.e(TAG, "notifyBrain() FAILED: ${e.message}")
         }

@@ -232,6 +232,13 @@ data class BrainHealth(
     val tasksBackedUp: Int get() = overdueTasks + stuckRunningTasks
 }
 
+/**
+ * أنواع مهام مش إشارة إن العقل الاستباقي شغال — نفس القايمة في `zad_proactive_silence_check`
+ * (20260913230000). `reminder` = طلب العميل. `store_arrival` بيتولد من حركة العميل (دخول نطاق
+ * محل) مش من الماسح، فزيارة محل كانت هتخبّي ماسح ميت. `delivery_test` = صفوف اختبار التوصيل.
+ */
+internal val NON_PROACTIVE_SIGNAL_KINDS = setOf("reminder", "store_arrival", "delivery_test")
+
 internal const val MILLIS_PER_MINUTE = 60_000L
 internal const val MILLIS_PER_HOUR = 60 * MILLIS_PER_MINUTE
 internal const val MILLIS_PER_DAY = 24 * MILLIS_PER_HOUR
@@ -267,7 +274,7 @@ fun evaluateBrainHealth(input: BrainHealthInput): BrainHealth {
     // "استباقي" = أي نوع مهمة غير reminder. القرار ده هنا (مش في استعلام الـrepo)
     // عشان يتغطى بتست — ده بالظبط الفرق بين النسخة دي والنسخة اللي كانت بتنخدع
     // بنشاط الشات.
-    val proactive = input.recentTasksForCadence.filter { it.kind.isNotBlank() && it.kind != "reminder" }
+    val proactive = input.recentTasksForCadence.filter { it.kind.isNotBlank() && it.kind !in NON_PROACTIVE_SIGNAL_KINDS }
     val lastProactive = proactive.maxOfOrNull { it.createdAtMillis }
     val proactiveInWindow = proactive.filter { it.createdAtMillis >= windowStart }.map { it.createdAtMillis }
     val expectedSilence = expectedProactiveSilenceHours(proactiveInWindow)
