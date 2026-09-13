@@ -57,7 +57,7 @@ import {
   validateLearnSkill,
 } from "./validators.ts";
 import { callModelWithRetry } from "./retry.ts";
-import { decideOnBrainFailure, hasRecentMutatingRun, normalizeBrainTrigger, summarizeProactiveScan } from "./shared.ts";
+import { agentTaskNotice, decideOnBrainFailure, hasRecentMutatingRun, normalizeBrainTrigger, summarizeProactiveScan } from "./shared.ts";
 
 const healthySnapshot = {
   budget: 3000, spent: 500, remaining: 2500, velocity: 0.4,
@@ -215,6 +215,28 @@ Deno.test("summarizeProactiveScan tolerates the old void return during deploy or
     assertEquals(s.failed, 0);
     assert(Array.isArray(s.errors));
   }
+});
+
+// 10d. نتايج المهام الاستباقية كانت بتطلع «مهمة كنت طلبتها» ومابتروحش تليجرام.
+Deno.test("agentTaskNotice separates the user's own requests from Zad's initiatives", () => {
+  // reminder هو الافتراضي على العمود — أي صف اتدرج من غير kind طلب عميل مش مبادرة.
+  for (const kind of ["reminder", "", null, undefined, "  reminder  "]) {
+    const n = agentTaskNotice(kind);
+    assertEquals(n.proactive, false, `kind=${String(kind)}`);
+    assertStringIncludes(n.title, "كنت طلبتها");
+  }
+  // كل الأنواع اللي agent_proactive_scan بيكتبها فعلاً (مقيسة من الجدول 2026-09-13).
+  for (const kind of ["home_weekly_digest", "spend_forecast", "spending_ahead", "med_followup",
+                      "bill_reminder", "warranty_reminder", "listener_gap_alert"]) {
+    const n = agentTaskNotice(kind);
+    assertEquals(n.proactive, true, kind);
+    assert(!n.title.includes("طلبتها"), `${kind}: مبادرة زاد مش طلب العميل`);
+    assertStringIncludes(n.title, "زاد");
+  }
+  // نوع استباقي جديد لسه محدش سمّاه: يتبعت برضه، بعنوان عام صادق.
+  const unknown = agentTaskNotice("some_future_kind");
+  assertEquals(unknown.proactive, true);
+  assert(!unknown.title.includes("طلبتها"));
 });
 
 // 11. Exhausted retries → decideOnBrainFailure says to queue (non-chat) and never a 500

@@ -22,6 +22,34 @@ export function normalizeBrainTrigger(raw: unknown): "daily" | "event" | "chat" 
 }
 
 /**
+ * عنوان إشعار نتيجة مهمة `agent_tasks`، وهل هي مبادرة من زاد ولا طلب من العميل.
+ *
+ * كل النتايج كانت بتطلع بعنوان «زاد خلّص مهمة كنت طلبتها» — حتى المهام اللي الماسح
+ * الاستباقي كتبها والعميل عمره ماطلبها (ملخص البيت، توقّع الصرف، متابعة الدوا…). ده
+ * كذب صغير بيبوّظ ثقة، وبيخبّي إن زاد هو اللي بادر.
+ *
+ * `reminder` (وهو الافتراضي على العمود) = طلب العميل. أي نوع تاني = مبادرة، ودي اللي
+ * بتتبعت لتليجرام كمان (3 من 4 مستخدمين حقيقيين مربوطين، وFCM صفر توكن — يعني قبل كده
+ * النتيجة الاستباقية كانت بتقف في قايمة إشعارات جوه التطبيق محدش بيفتحها).
+ */
+export function agentTaskNotice(kind: string | null | undefined): { title: string; proactive: boolean } {
+  const k = (kind ?? "").trim();
+  if (k === "" || k === "reminder") {
+    return { title: "زاد خلّص مهمة كنت طلبتها ✅", proactive: false };
+  }
+  const titles: Record<string, string> = {
+    home_weekly_digest: "📋 ملخص البيت من زاد",
+    spend_forecast: "📈 زاد بيتوقّع مصروف الأسبوع",
+    spending_ahead: "⚠️ زاد لاحظ إن الصرف أسرع من الميزانية",
+    med_followup: "💊 زاد بيتابع معاك الدوا",
+    bill_reminder: "🧾 زاد بيفكّرك بفاتورة قربت",
+    warranty_reminder: "🛡️ زاد بيفكّرك بضمان قرب ينتهي",
+    listener_gap_alert: "🔔 زاد لاحظ إن إشعارات البنك وقفت",
+  };
+  return { title: titles[k] ?? "💡 زاد لاحظ حاجة تهمّك", proactive: true };
+}
+
+/**
  * بيحوّل رد `agent_proactive_scan()` لرد الإندبوينت. `ok` = مفيش ولا فشل.
  *
  * `null`/شكل مش متوقع (الدالة لسه `void` قبل ما ميجريشن 20260913161000 توصل) بيتعامل

@@ -170,3 +170,50 @@ export async function pushToDevice(
     return "failed";
   }
 }
+
+export type TelegramDelivery = "delivered" | "not_linked" | "no_secret" | "failed";
+
+/**
+ * بيبعت العنوان والنص لتليجرام العميل عن طريق `zad-telegram-bot?job=realtime_push` —
+ * نفس المسار اللي تريجرات الداتابيز بتستخدمه. الفانكشن دي مابتعرفش توكن البوت ولا
+ * chat_id: البوت هو اللي بيحلّ الربط وبيبعت، وبيرجّع `delivered:false` لو العميل مش مربوط.
+ *
+ * ليه موجودة: نتايج المهام الاستباقية كانت بتروح لـ`app_notifications` وFCM بس. قياس
+ * 2026-09-13: FCM صفر توكن، يعني ٥ مهام استباقية اتنفذت النهاردة ووقفت في قايمة جوه
+ * التطبيق — و3 من 4 مستخدمين حقيقيين مربوطين تليجرام من غير مايوصلهم حاجة.
+ *
+ * fire-and-forget زي `pushToDevice`: المهمة اتنفذت خلاص، فشل التوصيل مايرجّعهاش.
+ * بس الفشل بيتسجّل بصوت (مش بيتبلع) — نفس درس المراقبة اللي اتقفل النهاردة.
+ */
+export async function pushToTelegram(
+  userId: string,
+  title: string,
+  body: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<TelegramDelivery> {
+  const secret = Deno.env.get("ZAD_REALTIME_PUSH_SECRET");
+  const baseUrl = Deno.env.get("SUPABASE_URL");
+  if (!secret || !baseUrl) {
+    console.error("[pushToTelegram] ZAD_REALTIME_PUSH_SECRET or SUPABASE_URL not set — skipping Telegram delivery.");
+    return "no_secret";
+  }
+  try {
+    const res = await fetchImpl(`${baseUrl}/functions/v1/zad-telegram-bot?job=realtime_push`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Realtime-Push-Secret": secret },
+      // حد تليجرام 4096 حرف للرسالة كلها (العنوان + سطرين + النص).
+      body: JSON.stringify({ user_id: userId, title, body: body.slice(0, 3500) }),
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      console.error(`[pushToTelegram] realtime_push HTTP ${res.status}: ${text.slice(0, 200)}`);
+      return "failed";
+    }
+    let parsed: { delivered?: boolean } = {};
+    try { parsed = JSON.parse(text); } catch { /* رد مش JSON = مش متوقع */ }
+    return parsed.delivered === true ? "delivered" : "not_linked";
+  } catch (e) {
+    console.error("[pushToTelegram] failed:", e);
+    return "failed";
+  }
+}

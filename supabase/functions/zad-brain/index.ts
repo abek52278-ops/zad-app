@@ -56,7 +56,7 @@
 import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { CONFIRM_REQUIRED_TOOLS, freshContext, looksLikeAnsweredQuestion, RunContext, validateTool } from "./validators.ts";
 import { callModel, embedText, embedSelfTest, smokeTestTools, Turn, ToolDef } from "./callModel.ts";
-import { decideOnBrainFailure, hasRecentMutatingRun, normalizeBrainTrigger, normalizeDoseTimes, summarizeProactiveScan } from "./shared.ts";
+import { agentTaskNotice, decideOnBrainFailure, hasRecentMutatingRun, normalizeBrainTrigger, normalizeDoseTimes, summarizeProactiveScan } from "./shared.ts";
 import { type FastIntent, formatBalanceReply, parseFastPath } from "./fastPath.ts";
 import { AgentSource, AuditScope, recordAction, writeRows } from "./audit.ts";
 import { redactNotificationText } from "./redact.ts";
@@ -72,7 +72,7 @@ import { agentMailBlock, agentSenderFor, fetchUnreadAgentMail, sendAgentReport }
 import { soulBlock } from "./soul.ts";
 import { loadSkills, skillsBlock } from "./skills.ts";
 // FCM — إشعار فوري للجهاز (الوعي اللحظي حتى والتطبيق مقفول).
-import { pushToDevice } from "./push.ts";
+import { pushToDevice, pushToTelegram } from "./push.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -3999,14 +3999,14 @@ function describeProposal(tool: string, input: any, currency: string): string {
  */
 async function processDueAgentTasks(sb: SupabaseClient): Promise<{ processed: number; failed: number }> {
   const { data: due } = await sb.from("agent_tasks")
-    .select("id,user_id,task_description,goal_id,recurrence,scheduled_for")
+    .select("id,user_id,task_description,goal_id,recurrence,scheduled_for,kind")
     .eq("status", "pending")
     .lte("scheduled_for", new Date().toISOString())
     .order("scheduled_for", { ascending: true })
     .limit(20);
 
   let processed = 0, failed = 0;
-  for (const task of (due ?? []) as Array<{ id: string; user_id: string; task_description: string; goal_id: string | null; recurrence: string | null; scheduled_for: string }>) {
+  for (const task of (due ?? []) as Array<{ id: string; user_id: string; task_description: string; goal_id: string | null; recurrence: string | null; kind: string | null; scheduled_for: string }>) {
     await sb.from("agent_tasks").update({ status: "running", updated_at: new Date().toISOString() }).eq("id", task.id);
     try {
       const snap = await buildSnapshot(sb, task.user_id);
@@ -4075,11 +4075,19 @@ async function processDueAgentTasks(sb: SupabaseClient): Promise<{ processed: nu
           });
         }
       }
+      // العنوان بيفرّق بين طلب العميل (reminder) ومبادرة زاد — كان «مهمة كنت طلبتها» للكل.
+      const notice = agentTaskNotice(task.kind);
       await sb.from("app_notifications").insert({
-        user_id: task.user_id, title: "زاد خلّص مهمة كنت طلبتها", message: finalText,
+        user_id: task.user_id, title: notice.title, message: finalText,
       });
       // FCM — الإشعار يوصل الجهاز فوراً حتى والتطبيق مقفول (fire-and-forget).
-      await pushToDevice(sb, task.user_id, "زاد خلّص مهمة كنت طلبتها ✅", finalText.slice(0, 180));
+      await pushToDevice(sb, task.user_id, notice.title, finalText.slice(0, 180));
+      // المبادرات بتروح تليجرام كمان: من غيرها كانت بتقف في قايمة جوه التطبيق (FCM صفر
+      // توكن). الطلبات مابتروحش — العميل غالبًا طلبها من نفس القناة اللي هيشوف ردها فيها.
+      if (notice.proactive) {
+        const tg = await pushToTelegram(task.user_id, notice.title, finalText);
+        console.log(`[agent_tasks] proactive ${task.kind} for task ${task.id} → telegram: ${tg}`);
+      }
       processed++;
     } catch (e) {
       console.error("processDueAgentTasks failed for task", task.id, e);
