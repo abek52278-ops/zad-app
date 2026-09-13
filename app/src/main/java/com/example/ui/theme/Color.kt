@@ -99,6 +99,7 @@ val agentPanelEnd: Color @Composable get() = LocalZadExtendedColors.current.agen
 val agentPanelSuccess: Color @Composable get() = LocalZadExtendedColors.current.agentPanelSuccess
 val agentPanelWarning: Color @Composable get() = LocalZadExtendedColors.current.agentPanelWarning
 val agentPanelInfo: Color @Composable get() = LocalZadExtendedColors.current.agentPanelInfo
+val agentPanelBrand: Color @Composable get() = LocalZadExtendedColors.current.agentPanelBrand
 /** بانر تنبيه الذكاء — حاوية ونص بيتقلبوا مع بعض (AA في الوضعين). */
 val alertBannerContainer: Color @Composable get() = LocalZadExtendedColors.current.alertBannerContainer
 val onAlertBanner: Color @Composable get() = LocalZadExtendedColors.current.onAlertBanner

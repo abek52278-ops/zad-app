@@ -99,6 +99,7 @@ class AgentPanelContrastTest {
         assertEquals(ZadExtendedColorsLight.agentPanelSuccess, ZadExtendedColorsDark.agentPanelSuccess)
         assertEquals(ZadExtendedColorsLight.agentPanelWarning, ZadExtendedColorsDark.agentPanelWarning)
         assertEquals(ZadExtendedColorsLight.agentPanelInfo, ZadExtendedColorsDark.agentPanelInfo)
+        assertEquals(ZadExtendedColorsLight.agentPanelBrand, ZadExtendedColorsDark.agentPanelBrand)
     }
 
     @Test
@@ -110,6 +111,8 @@ class AgentPanelContrastTest {
             "success" to ZadExtendedColorsLight.agentPanelSuccess,
             "warning" to ZadExtendedColorsLight.agentPanelWarning,
             "info" to ZadExtendedColorsLight.agentPanelInfo,
+            // كانت primary: 1.17:1 في اللايت. اتكشفت من لقطة Roborazzi.
+            "brand" to ZadExtendedColorsLight.agentPanelBrand,
         )
         for ((name, accent) in accents) {
             for (stop in stops) {

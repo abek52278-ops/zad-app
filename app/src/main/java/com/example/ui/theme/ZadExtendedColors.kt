@@ -66,6 +66,12 @@ data class ZadExtendedColors(
     val agentPanelWarning: Color,
     val agentPanelInfo: Color,
     /**
+     * هوية زاد فوق اللوحة (نجمة الـsparkle + كلمة «Zad Agent»). كانت `primary`، ودي في
+     * اللايت #1B4332 = **1.17:1** فوق اللوحة — مش باينة خالص (اتكشفت من لقطة Roborazzi
+     * مش من القراية). المنت ده هو primaryLight بتاع الدارك، والبروتوتايب نفسه كاتبه «mint»: 7.97:1.
+     */
+    val agentPanelBrand: Color,
+    /**
      * بانر تنبيه الذكاء في الرئيسية (`AiAlertBanner`): حاوية + نص.
      *
      * كان `Color(0xFFFDECEA)` ثابت مع نص `dangerColor`، وتعليقه بيقول إن الحاوية
@@ -126,6 +132,7 @@ val ZadExtendedColorsLight = ZadExtendedColors(
     agentPanelSuccess = Color(0xFF4FBF87),
     agentPanelWarning = ZadMustardLight,
     agentPanelInfo = Color(0xFF7FB3E8),
+    agentPanelBrand = Color(0xFF95D9B5),
     alertBannerContainer = Color(0xFFFDECEA),
     onAlertBanner = ZadTerracottaDark,
     onStatusPill = Color(0xFFA63F1B),
@@ -176,6 +183,7 @@ val ZadExtendedColorsDark = ZadExtendedColors(
     agentPanelSuccess = Color(0xFF4FBF87),
     agentPanelWarning = ZadMustardLight,
     agentPanelInfo = Color(0xFF7FB3E8),
+    agentPanelBrand = Color(0xFF95D9B5),
     alertBannerContainer = Color(0xFF3A1E16),
     onAlertBanner = ZadTerracottaOnDark,
     onStatusPill = Color(0xFFEA764B),

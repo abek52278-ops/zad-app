@@ -408,7 +408,7 @@ fun HomeScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 stringResource(R.string.greeting_hi_name, userName),
-                                fontSize = 17.sp,
+                                style = Typography.titleMedium,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = com.example.ui.theme.ZadLuxe.emerald
                             )
@@ -423,7 +423,7 @@ fun HomeScreen(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     stringResource(R.string.home_brain_active),
-                                    fontSize = 12.5.sp,
+                                    style = Typography.labelMedium,
                                     fontWeight = FontWeight.SemiBold,
                                     color = com.example.ui.theme.ZadLuxe.emerald.copy(alpha = 0.75f)
                                 )
@@ -760,7 +760,7 @@ fun HomeScreen(
                             val accent = if (isCritical) dangerColor else primary
                             com.example.ui.components.GlassCard(
                                 shape = RoundedCornerShape(16.dp),
-                                containerColor = Color.White.copy(alpha = 0.85f),
+                                containerColor = surface.copy(alpha = 0.85f),
                                 contentPadding = 0.dp,
                                 modifier = Modifier.clickable { onNavigateToNotifications() }
                             ) {
@@ -890,7 +890,7 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("🛍️", fontSize = 16.sp)
+                            Text("🛍️", style = Typography.bodyLarge)
                             Text(stringResource(R.string.shop_from_amazon), style = Typography.titleMedium, fontWeight = FontWeight.Bold, color = onSurface)
                         }
                     }
@@ -1641,14 +1641,14 @@ fun AgentSummaryCard(
                     Icon(
                         painter = androidx.compose.ui.res.painterResource(R.drawable.ic_zad_sparkle),
                         contentDescription = null,
-                        tint = primary,
+                        tint = agentPanelBrand,
                         modifier = Modifier.size(14.dp)
                     )
                     Text(
                         stringResource(R.string.zad_agent),
-                        color = primary,
+                        color = agentPanelBrand,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.5.sp
+                        style = Typography.labelMedium
                     )
                 }
                 IconButton(onClick = onRefresh, modifier = Modifier.size(24.dp)) {
@@ -1666,7 +1666,7 @@ fun AgentSummaryCard(
                     strokeWidth = 2.dp
                 )
             } else if (agentSummary != null) {
-                Text(agentSummary.summary, color = Color.White, fontSize = 14.sp, lineHeight = 22.sp)
+                Text(agentSummary.summary, color = Color.White, style = Typography.bodyMedium)
 
                 if (agentSummary.alerts.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
@@ -1680,7 +1680,7 @@ fun AgentSummaryCard(
                                 modifier = Modifier.size(14.dp)
                             )
                             Spacer(Modifier.width(6.dp))
-                            Text(alert.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text(alert.title, color = Color.White, fontWeight = FontWeight.Bold, style = Typography.labelMedium)
                         }
                     }
                 }
@@ -1703,7 +1703,7 @@ fun AgentSummaryCard(
                                         else -> onNavigateToAssistant()
                                     }
                                 }.padding(horizontal = 12.dp, vertical = 6.dp)
-                            ) { Text(suggestion.reason, color = Color.White, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) }
+                            ) { Text(suggestion.reason, color = Color.White, style = Typography.labelSmall, fontWeight = FontWeight.SemiBold, maxLines = 1) }
                         }
                     }
                 }
@@ -1721,7 +1721,7 @@ fun AgentSummaryCard(
                     }
                 }
             } else {
-                Text(stringResource(R.string.zad_analyzing_now), color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
+                Text(stringResource(R.string.zad_analyzing_now), color = Color.White.copy(alpha = 0.7f), style = Typography.bodySmall)
             }
     }
 }
@@ -1748,7 +1748,7 @@ fun AutoSuggestionsCard(suggestions: List<com.example.data.ZadAiRepository.AutoS
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             sorted.forEach { suggestion ->
                 Row(verticalAlignment = Alignment.Top) {
-                    Text(suggestion.emoji, fontSize = 18.sp)
+                    Text(suggestion.emoji, style = Typography.titleMedium)
                     Spacer(Modifier.width(8.dp))
                     Column {
                         Text(suggestion.title, style = Typography.bodyMedium, fontWeight = FontWeight.Bold, color = onSurface)
@@ -1765,8 +1765,8 @@ fun AutoSuggestionsCard(suggestions: List<com.example.data.ZadAiRepository.AutoS
 @Composable
 private fun StatItem(label: String, value: String, valueColor: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, color = valueColor, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        Text(label, color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
+        Text(value, color = valueColor, fontWeight = FontWeight.Bold, style = Typography.titleMedium)
+        Text(label, color = Color.White.copy(alpha = 0.7f), style = Typography.labelSmall)
     }
 }
 
@@ -1794,9 +1794,9 @@ fun PredictionCard(prediction: com.example.data.AiExpensePrediction, budget: Dou
         Text(stringResource(R.string.zad_prediction_total_spend_subtitle), style = Typography.bodySmall, color = onSurfaceVariant)
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(com.example.data.CurrencyFormatter.format(context, prediction.predictedTotal), color = color, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp)
+            Text(com.example.data.CurrencyFormatter.format(context, prediction.predictedTotal), color = color, fontWeight = FontWeight.ExtraBold, style = Typography.headlineMedium)
             Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.prediction_confidence, (prediction.confidence * 100).toInt()), color = onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp))
+            Text(stringResource(R.string.prediction_confidence, (prediction.confidence * 100).toInt()), color = onSurfaceVariant, style = Typography.labelMedium, modifier = Modifier.padding(bottom = 4.dp))
         }
         if (prediction.warnings.isNotEmpty()) {
             Spacer(Modifier.height(6.dp))
@@ -1804,7 +1804,7 @@ fun PredictionCard(prediction: com.example.data.AiExpensePrediction, budget: Dou
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 1.dp)) {
                     Icon(Icons.Default.Warning, contentDescription = null, tint = dangerColor, modifier = Modifier.size(12.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text(w, color = onSurfaceVariant, fontSize = 11.sp)
+                    Text(w, color = onSurfaceVariant, style = Typography.labelSmall)
                 }
             }
         }
@@ -1814,7 +1814,7 @@ fun PredictionCard(prediction: com.example.data.AiExpensePrediction, budget: Dou
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 1.dp)) {
                     Icon(Icons.Default.Lightbulb, contentDescription = null, tint = warningColor, modifier = Modifier.size(12.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text(tip, color = onSurfaceVariant, fontSize = 11.sp)
+                    Text(tip, color = onSurfaceVariant, style = Typography.labelSmall)
                 }
             }
         }
@@ -1889,21 +1889,21 @@ fun EventsRadarCard(forecasts: List<com.example.data.AiSeasonalForecast>) {
         Text(
             text = if (nameResId != null) stringResource(nameResId) else next.slug ?: "",
             fontWeight = FontWeight.Bold,
-            fontSize = 16.sp
+            style = Typography.titleSmall
         )
-        Text(stringResource(R.string.events_radar_days_until, next.daysUntil), color = onSurfaceVariant, fontSize = 12.sp)
+        Text(stringResource(R.string.events_radar_days_until, next.daysUntil), color = onSurfaceVariant, style = Typography.labelMedium)
         Spacer(Modifier.height(4.dp))
         Row(verticalAlignment = Alignment.Bottom) {
-            Text(com.example.data.CurrencyFormatter.format(context, next.predictedTotal), color = dangerColor, fontWeight = FontWeight.ExtraBold, fontSize = 24.sp)
+            Text(com.example.data.CurrencyFormatter.format(context, next.predictedTotal), color = dangerColor, fontWeight = FontWeight.ExtraBold, style = Typography.headlineMedium)
             Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.prediction_confidence, (next.confidence * 100).toInt()), color = onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp))
+            Text(stringResource(R.string.prediction_confidence, (next.confidence * 100).toInt()), color = onSurfaceVariant, style = Typography.labelMedium, modifier = Modifier.padding(bottom = 4.dp))
         }
         if (next.tip.isNotBlank()) {
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Lightbulb, contentDescription = null, tint = warningColor, modifier = Modifier.size(12.dp))
                 Spacer(Modifier.width(4.dp))
-                Text(next.tip, color = onSurfaceVariant, fontSize = 11.sp)
+                Text(next.tip, color = onSurfaceVariant, style = Typography.labelSmall)
             }
         }
     }
@@ -1931,7 +1931,7 @@ fun NotificationPermissionCard(onClick: () -> Unit) {
                 Text(stringResource(R.string.enable_bank_notifications), fontWeight = FontWeight.Bold, color = onSurface)
                 Text(
                     stringResource(R.string.enable_bank_notifications_desc),
-                    fontSize = 12.sp,
+                    style = Typography.labelMedium,
                     color = onSurfaceVariant
                 )
             }
@@ -1944,7 +1944,7 @@ fun NotificationPermissionCard(onClick: () -> Unit) {
                 colors = ButtonDefaults.buttonColors(containerColor = primary),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
             ) {
-                Text(stringResource(R.string.enable), fontSize = 12.sp)
+                Text(stringResource(R.string.enable), style = Typography.labelMedium)
             }
         }
     }
@@ -1968,7 +1968,7 @@ fun OfflineBanner() {
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(stringResource(R.string.offline_banner_title), fontWeight = FontWeight.Bold, color = onSurface)
-                Text(stringResource(R.string.offline_banner_subtitle), fontSize = 12.sp, color = onSurfaceVariant)
+                Text(stringResource(R.string.offline_banner_subtitle), style = Typography.labelMedium, color = onSurfaceVariant)
             }
         }
     }
@@ -1995,7 +1995,7 @@ fun AiAlertBanner(title: String, description: String) {
                 Text(title, fontWeight = FontWeight.Bold, color = onAlertBanner)
                 Text(
                     description,
-                    fontSize = 12.sp,
+                    style = Typography.labelMedium,
                     color = onAlertBanner
                 )
             }
@@ -2039,7 +2039,7 @@ fun AddTransactionDialog(
             Box(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     if (isExpense) stringResource(R.string.add_expense_title) else stringResource(R.string.add_income_title),
-                    fontSize = 18.sp,
+                    style = Typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = textPrimary,
                     modifier = Modifier.align(Alignment.Center)
@@ -2142,7 +2142,7 @@ fun AddTransactionDialog(
             ) {
                 Text(
                     if (isExpense) stringResource(R.string.deduct_amount) else stringResource(R.string.add_amount),
-                    fontSize = 15.sp,
+                    style = Typography.titleSmall,
                     fontWeight = FontWeight.Bold
                 )
             }
