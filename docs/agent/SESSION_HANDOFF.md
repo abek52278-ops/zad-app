@@ -303,19 +303,34 @@ RLS عادية في `SupabaseRepo.getBrainHealth()` — **مفيش ميجريش�
 - مسار التحليل بيكتب الفشل `status:"queued"` مش `"failed"` — ونهائي.
 - `zad_brain_queue` write-only: مفيش حاجة بتقراه أو بتعيد تنفيذه.
 
-**فجوات سيرفر اتلاقت ومش في الكومِت ده (محتاجة شغل منفصل):**
-1. **`geofence_enter` بيكسر تسجيل التشغيلة:** `GeofenceBroadcastReceiver.kt:96` بيبعت
-   trigger مش مسموح في `zad_brain_runs_trigger_check` (daily/event/chat بس) →
-   الإدراج بيفشل، `runId` undefined، الموديل بيشتغل والتحديثات مابتلمسش حاجة. محتاج
-   mapping للـtrigger قبل الإدراج في `zad-brain/index.ts` (~سطر 5521).
-2. **`agent_brain_cost_guard()` بيجمع عمود مش موجود** (`zad_brain_runs.created_at` —
-   العمود اسمه `started_at`) → الـexception handler بيرجّع 0 → حارس الـ95% عمره
-   ماهيشتغل. ميجريشن تصليح.
-3. **`agent_proactive_scan` بيبلع الفشل لكل مستخدم** ويرجّع `200 {"ok":true}` — عدد
-   الفشل في لوج Postgres بس. الـ`net.http_post` async كمان، فالكرون أخضر دايمًا.
-4. **`zad_brain_health_alerts`** (admin-only) مافيهاش صفوف `proactive_silence` خالص —
-   الفحص على السيرفر مابيراقبش سكوت المهام الاستباقية أصلاً.
-5. تحذير رصيد الشات مبني على افتراضيات السقف؛ مابيعرفش المستخدم مشترك ولا لأ
-   (المشتركين مالهمش سقف) — تحسين محتمل بقراءة الاستحقاق.
+**فجوات السيرفر — ✅ اتقفلت نفس اليوم (٤ كومِتات، متحقَّق منها على الداتابيز بعد نشر CI):**
+1. ✅ **`geofence_enter`** (`d4c3f99f`): `normalizeBrainTrigger()` في `shared.ts` بتحوّل أي
+   trigger مش معروف لـ`event`، وخطأ إدراج `zad_brain_runs` بقى بيتسجّل بدل ما يتبلع.
+2. ✅ **حارس الكلفة** (`c19882e4`، ميجريشن `20260913160000`): `started_at` بدل `created_at`
+   المش موجود، والـcatch-all اتشال. بقى بيرجّع **1%** فعلي على الإنتاج (كان 0% دايمًا).
+3. ✅ **الماسح الاستباقي** (`b42a0223`، `20260913161000`): الدوال المساعدة بترمي بدل ما
+   تبلع، كل دالة في subtransaction لوحدها، الماسح بيرجّع jsonb، أي فشل = صف
+   `proactive_scan_failure` + تنبيه أدمن يومي + HTTP 500 من الإندبوينت. ومفتاح
+   `zad_brain_health_alerts` بقى `(alert_date, kind)` — كان بيكسر `proactive_silence` بصمت.
+4. ✅ **أمان** (`71cc2dd7`، `20260913162000`): `_agent_spend_forecast_for_user` و
+   `zad_proactive_silence_check` كانوا قابلين للنداء بالـanon key (security definer).
+
+**التحقق بعد النشر (٢٠٢٦-٠٩-١٣ 16:35 UTC):** الميجريشنز الـ٣ في `schema_migrations`، و`zad-brain`
+v229 من الـrunner. استدعاء يدوي بنفس أمر كرون `agent-proactive-scan-hourly` بالظبط (السر
+من Vault جوه SQL، ماخرجش) → `net._http_response` id 11035: **HTTP 200**
+`{"ok":true,"scanned":4,"failed":0,"failed_users":0,"skipped_orphans":2,"errors":[]}`، ولوج
+Postgres: `agent_proactive_scan: {... "cost_pct": 1 ...}` — أول مرة الرقم مش صفر. إصلاح
+`geofence_enter` متغطّي بتست + نفس الـbundle، بس ماتجرّبش حيًّا (محتاج JWT مستخدم حقيقي
+ودخول نطاق فعلي).
+
+**اتكشف أثناء الإصلاح ومحتاج قرار منك (مش متصلّح):**
+- **٢ صفوف يتيمة في `zad_users`** (٦ صفوف مقابل ٤ في `auth.users`، ومفيش FK بينهم).
+  `home_weekly_digest` كان بيقع عليهم كل ساعة بـ23503 من غير أي أثر. الماسح دلوقتي
+  بيتخطّاهم وبيرجّع `skipped_orphans: 2`. **المسح نفسه قرار بيانات مستخدم** — مش من
+  `delete-account` (بيمسح zad_users الأول)، غالبًا حسابات اتمسحت من الداشبورد. الحل
+  الجذري: FK `zad_users.id → auth.users(id) on delete cascade` بعد تنضيف اليتامى.
+- تحذير رصيد الشات مابيعرفش المستخدم مشترك ولا لأ (تحسين محتمل، مش عطل).
+- `zad_proactive_silence_check` بيعتبر أي `zad_insights` إشارة حياة، فرؤى الشات ممكن
+  تخبّي سكوت المهام الاستباقية على مستوى النظام (نفس فخ النسخة الأولى من الشاشة).
 
 **✅ اتعمل:** حذف `ZadMindScreen.kt` (alias ميت لـ`ZadKnowledgeMapScreen`، صفر نقاط نداء) في كومِت منفصل.
