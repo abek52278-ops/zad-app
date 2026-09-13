@@ -44,6 +44,57 @@ export function dismissKeyboard(insightId: string): InlineKeyboardButton[][] {
   }))];
 }
 
+/**
+ * أزرار الرفض تحت رسالة مبادرة (مهمة استباقية من agent_tasks) — نفس التلات أسباب ونفس
+ * الأسامي بتوع Task 28، بس بمعرّف المهمة مش الرؤية، وبادئة `pd:` مختلفة عن `d:` عشان
+ * الراوتر يفرّقهم قبل ما يلمس أي جدول. `pd:` + uuid (36) + `:` + كود حرف = 41 بايت، تحت
+ * سقف تليجرام 64 لـcallback_data.
+ */
+export function proactiveDismissKeyboard(taskId: string): InlineKeyboardButton[][] {
+  return [Object.keys(DISMISS_REASON_LABELS).map((code) => ({
+    text: DISMISS_REASON_LABELS[code],
+    callback_data: `pd:${taskId}:${code}`,
+  }))];
+}
+
+/** "pd:<task uuid>:<n|w|t>" — أي حاجة تانية null، عشان زرار مضروب مايوصلش للداتابيز. */
+export function parseProactiveDismissCallback(data: string): { taskId: string; reason: string } | null {
+  const parts = data.split(":");
+  if (parts.length !== 3 || parts[0] !== "pd") return null;
+  if (!/^[0-9a-fA-F-]{36}$/.test(parts[1])) return null;
+  const reason = DISMISS_REASON_CODES[parts[2]];
+  if (!reason) return null;
+  return { taskId: parts[1], reason };
+}
+
+/** عدد أيام بعربي سليم للمدد اللي الكتم ممكن يطلعها (3/7/30/60/120/180 وأي رقم تاني). */
+export function arabicDays(n: number): string {
+  if (n === 1) return "يوم واحد";
+  if (n === 2) return "يومين";
+  if (n >= 3 && n <= 10) return `${n} أيام`;
+  return `${n} يوم`;
+}
+
+/**
+ * رد البوت بعد ما العميل يرفض مبادرة. بياخد رد `zad_memory_record_proactive_dismissal`
+ * زي ما هو. أي فشل بيتقال صراحة — العميل مايفتكرش إن الكتم اتسجّل وهو ماتسجّلش.
+ */
+export function proactiveDismissReply(
+  result: { ok?: boolean; label?: string; reason?: string; days?: number } | null,
+): string {
+  if (!result?.ok || typeof result.days !== "number") {
+    return "معرفتش أسجّل ده دلوقتي — جرّب تاني بعد شوية.";
+  }
+  const label = result.label ? `«${result.label}»` : "التنبيه ده";
+  const period = arabicDays(result.days);
+  switch (result.reason) {
+    case "not_relevant": return `تمام ✅ مش هبعتلك ${label} تاني لمدة ${period}.`;
+    case "timing":       return `تمام ✅ فهمت إنك عارف، ومش هكرر ${label} قبل ${period}.`;
+    case "wrong_data":   return `شكرًا إنك نبهتني ✅ هعتبر أرقام ${label} محتاجة مراجعة، ومش هبعته قبل ${period}.`;
+    default:             return `تمام ✅ مش هبعتلك ${label} لمدة ${period}.`;
+  }
+}
+
 /** Task 28's dismiss reason → zad_memory note. Mirrors DismissalMemory.kt (client) and
  * zad-brain/validators.ts's own dismissal handling — same intentional small duplication
  * as BudgetMath.kt/buildSnapshot's cycle math (different runtimes, not worth a shared

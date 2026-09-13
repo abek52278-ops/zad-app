@@ -205,6 +205,11 @@ Deno.test("summarizeProactiveScan reports failure whenever the scan counted any"
   const clean = summarizeProactiveScan({ scanned: 4, failed: 0, failed_users: 0, skipped_orphans: 2, errors: [] });
   assertEquals(clean.ok, true);
   assertEquals(clean.skipped_orphans, 2);
+
+  // مراحل اتكتمت برفض العميل مش فشل — ok يفضل true، بس الرقم لازم يطلع.
+  const muted = summarizeProactiveScan({ scanned: 4, failed: 0, suppressed: 5, errors: [] });
+  assertEquals(muted.ok, true);
+  assertEquals(muted.suppressed, 5);
 });
 
 Deno.test("summarizeProactiveScan tolerates the old void return during deploy ordering", () => {

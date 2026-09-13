@@ -190,6 +190,9 @@ export async function pushToTelegram(
   title: string,
   body: string,
   fetchImpl: typeof fetch = fetch,
+  // معرّف المهمة الاستباقية: البوت بيحط تحت الرسالة أزرار رفض بتكتب في zad_memory
+  // (20260913190000)، والماسح بيقرا الكتم ده. من غيره الرسالة بتتبعت من غير أزرار.
+  dismissTaskId?: string,
 ): Promise<TelegramDelivery> {
   const secret = Deno.env.get("ZAD_REALTIME_PUSH_SECRET");
   const baseUrl = Deno.env.get("SUPABASE_URL");
@@ -202,7 +205,10 @@ export async function pushToTelegram(
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Realtime-Push-Secret": secret },
       // حد تليجرام 4096 حرف للرسالة كلها (العنوان + سطرين + النص).
-      body: JSON.stringify({ user_id: userId, title, body: body.slice(0, 3500) }),
+      body: JSON.stringify({
+        user_id: userId, title, body: body.slice(0, 3500),
+        ...(dismissTaskId ? { dismiss_task_id: dismissTaskId } : {}),
+      }),
     });
     const text = await res.text();
     if (!res.ok) {

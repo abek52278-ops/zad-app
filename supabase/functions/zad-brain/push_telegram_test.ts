@@ -86,3 +86,11 @@ Deno.test("long bodies are trimmed under Telegram's 4096-character message limit
   assertEquals(sent.body.length, 3500);
   assertStringIncludes(sent.title, "عنوان");
 });
+
+Deno.test("a proactive task id rides along so the bot can attach dismiss buttons", async () => {
+  const seen: { url?: string; init?: RequestInit }[] = [];
+  await withEnv({ ZAD_REALTIME_PUSH_SECRET: SECRET, SUPABASE_URL: BASE }, () =>
+    pushToTelegram("user-7", "t", "b", fakeFetch(200, '{"delivered":true}', seen), "f89dc384-81d1-41a7-98d2-ffb6d5c79923")
+  );
+  assertEquals(JSON.parse(String(seen[0].init?.body)).dismiss_task_id, "f89dc384-81d1-41a7-98d2-ffb6d5c79923");
+});

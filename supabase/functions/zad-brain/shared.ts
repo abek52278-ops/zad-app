@@ -62,6 +62,7 @@ export function summarizeProactiveScan(raw: unknown): {
   failed: number;
   failed_users: number;
   skipped_orphans: number;
+  suppressed: number;
   errors: unknown[];
 } {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
@@ -73,6 +74,8 @@ export function summarizeProactiveScan(raw: unknown): {
     failed,
     failed_users: num(r.failed_users),
     skipped_orphans: num(r.skipped_orphans),
+    // مراحل الماسح اتخطّت لأن العميل رفض النوع ده (20260913190000) — مش فشل، بس لازم يبان.
+    suppressed: num(r.suppressed),
     errors: Array.isArray(r.errors) ? r.errors : [],
   };
 }

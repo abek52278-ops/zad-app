@@ -7,6 +7,7 @@ import {
   transactionProposalKeyboard, parseTransactionProposalCallback,
   notificationReviewMessage,
   adCreditKeyboard,
+  proactiveDismissKeyboard, parseProactiveDismissCallback, arabicDays, proactiveDismissReply,
 } from "./telegram.ts";
 
 Deno.test("normalizeBindingCode uppercases a valid code", () => {
@@ -260,4 +261,68 @@ Deno.test("adCreditKeyboard is a single link button, not a callback button", () 
   assertEquals(button.callback_data, undefined);
   // تليجرام بيرفض السكيمات المخصصة (zad://) في أزرار الروابط، فلازم https.
   assert(button.url!.startsWith("https://"), `expected https url, got ${button.url}`);
+});
+
+// ── رفض المبادرات الاستباقية (20260913190000) ─────────────────────────────────
+const TASK = "f89dc384-81d1-41a7-98d2-ffb6d5c79923";
+
+Deno.test("proactive dismiss keyboard: same three reasons, pd: prefix, under Telegram's 64-byte cap", () => {
+  const rows = proactiveDismissKeyboard(TASK);
+  assertEquals(rows.length, 1);
+  assertEquals(rows[0].length, 3);
+  for (const btn of rows[0]) {
+    assert(btn.callback_data!.startsWith(`pd:${TASK}:`));
+    assert(new TextEncoder().encode(btn.callback_data!).length <= 64, btn.callback_data);
+    // كل زرار لازم يرجع يتقري لسبب معروف — زرار مايتقريش = رفض بيضيع بصمت.
+    assert(parseProactiveDismissCallback(btn.callback_data!) !== null, btn.callback_data);
+  }
+  // نفس أسامي Task 28، مش أسامي جديدة يتعلمها العميل.
+  assertEquals(rows[0].map((b) => b.text), dismissKeyboard("x")[0].map((b) => b.text));
+});
+
+Deno.test("parseProactiveDismissCallback maps codes to the reasons the SQL function accepts", () => {
+  assertEquals(parseProactiveDismissCallback(`pd:${TASK}:n`), { taskId: TASK, reason: "not_relevant" });
+  assertEquals(parseProactiveDismissCallback(`pd:${TASK}:w`), { taskId: TASK, reason: "wrong_data" });
+  assertEquals(parseProactiveDismissCallback(`pd:${TASK}:t`), { taskId: TASK, reason: "timing" });
+});
+
+Deno.test("parseProactiveDismissCallback rejects anything malformed before it reaches the database", () => {
+  for (const bad of [
+    `d:${TASK}:n`,          // رفض رؤية (Task 28) مش مبادرة — لازم يروح للمعالج التاني
+    `pd:not-a-uuid:n`,
+    `pd:${TASK}:x`,         // كود سبب مش موجود
+    `pd:${TASK}:n:extra`,
+    `pd:${TASK}`,
+    "",
+  ]) {
+    assertEquals(parseProactiveDismissCallback(bad), null, bad);
+  }
+});
+
+Deno.test("arabicDays agrees in number for every suppression length", () => {
+  assertEquals(arabicDays(1), "يوم واحد");
+  assertEquals(arabicDays(2), "يومين");
+  assertEquals(arabicDays(3), "3 أيام");
+  assertEquals(arabicDays(7), "7 أيام");
+  assertEquals(arabicDays(10), "10 أيام");
+  assertEquals(arabicDays(11), "11 يوم");
+  assertEquals(arabicDays(30), "30 يوم");
+  assertEquals(arabicDays(180), "180 يوم");
+});
+
+Deno.test("proactiveDismissReply names the alert and the real period, per reason", () => {
+  const base = { ok: true, label: "توقّع مصروف الأسبوع" };
+  const notRelevant = proactiveDismissReply({ ...base, reason: "not_relevant", days: 30 });
+  assert(notRelevant.includes("«توقّع مصروف الأسبوع»") && notRelevant.includes("30 يوم"), notRelevant);
+  const timing = proactiveDismissReply({ ...base, reason: "timing", days: 3 });
+  assert(timing.includes("3 أيام"), timing);
+  const wrong = proactiveDismissReply({ ...base, reason: "wrong_data", days: 7 });
+  assert(wrong.includes("مراجعة") && wrong.includes("7 أيام"), wrong);
+});
+
+Deno.test("proactiveDismissReply never claims success when the write failed", () => {
+  for (const result of [null, { ok: false }, { ok: true }, { ok: false, days: 30 }]) {
+    const reply = proactiveDismissReply(result as Parameters<typeof proactiveDismissReply>[0]);
+    assert(!reply.includes("✅"), JSON.stringify(result));
+  }
 });

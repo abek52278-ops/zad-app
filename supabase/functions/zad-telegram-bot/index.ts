@@ -22,6 +22,7 @@ import { mediaGate } from "./entitlement.ts";
 import {
   adCreditKeyboard,
   InlineKeyboardButton, mainMenuKeyboard, dismissKeyboard,
+  proactiveDismissKeyboard, parseProactiveDismissCallback, proactiveDismissReply,
   reasonForCode, parseDismissCallback, normalizeBindingCode, memoryNoteForDismissal,
   formatBalanceMessage, type BudgetStateRow, formatTransactionsMessage, formatInsightTitle,
   confirmSpendKeyboard, parseSpendCallback,
@@ -1377,6 +1378,21 @@ bot.on("callback_query:data", async (ctx) => {
 
   const data = ctx.callbackQuery.data;
 
+  // رفض مبادرة استباقية ← ذاكرة مهيكلة الماسح بيقراها (subject_kind/suppress_until).
+  // الملكية بتتحقق جوه الدالة نفسها (المهمة لازم تكون بتاعة userId المحلول من الشات).
+  const proactiveDismiss = parseProactiveDismissCallback(data);
+  if (proactiveDismiss) {
+    const { data: result, error } = await sb.rpc("zad_memory_record_proactive_dismissal", {
+      p_user: userId, p_task_id: proactiveDismiss.taskId, p_reason: proactiveDismiss.reason,
+    });
+    if (error) console.error("[proactive_dismissal] rpc failed:", error.message);
+    else if (!(result as { ok?: boolean } | null)?.ok) console.error("[proactive_dismissal] rejected:", JSON.stringify(result));
+    // الأزرار بتتشال عشان نفس الرسالة ماتترفضش مرتين بسببين مختلفين.
+    await ctx.editMessageReplyMarkup({ reply_markup: { inline_keyboard: [] } }).catch(() => {});
+    await ctx.reply(proactiveDismissReply(error ? null : result as Parameters<typeof proactiveDismissReply>[0]));
+    return;
+  }
+
   // رد سريع على الإشعار البنكي الغامض (أزرار مصروف/إيداع/تجاهل) — بيبعت نص جاهز
   // لنفس مسار agent_turn، فبياخد تأكيد وaudit زي أي رسالة عادية.
   const reviewCallback = parseNotificationReviewCallback(data);
@@ -1897,7 +1913,9 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ ok: false, reason: "bot not configured" }), { status: 503 });
     }
     try {
-      const { user_id, title, body } = await req.json() as { user_id?: string; title?: string; body?: string };
+      const { user_id, title, body, dismiss_task_id } = await req.json() as {
+        user_id?: string; title?: string; body?: string; dismiss_task_id?: string;
+      };
       if (!user_id || !title || !body) {
         return new Response(JSON.stringify({ ok: false, reason: "missing user_id/title/body" }), { status: 400 });
       }
@@ -1906,7 +1924,12 @@ Deno.serve(async (req: Request) => {
       if (chatId === null) {
         return new Response(JSON.stringify({ ok: true, delivered: false, reason: "not linked" }), { headers: { "Content-Type": "application/json" } });
       }
-      await sendTelegramMessage(chatId, `${title}\n\n${body}`);
+      // اختياري: لو الرسالة مبادرة من مهمة استباقية، بتاخد أزرار رفض (pd:<task>). تريجرات
+      // الداتابيز مابتبعتش الحقل ده، فرسايلهم بتفضل زي ما هي من غير أزرار.
+      const keyboard = dismiss_task_id && /^[0-9a-fA-F-]{36}$/.test(dismiss_task_id)
+        ? proactiveDismissKeyboard(dismiss_task_id)
+        : undefined;
+      await sendTelegramMessage(chatId, `${title}\n\n${body}`, keyboard);
       return new Response(JSON.stringify({ ok: true, delivered: true }), { headers: { "Content-Type": "application/json" } });
     } catch (e) {
       console.error("realtime_push failed:", e);
