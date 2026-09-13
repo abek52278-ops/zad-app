@@ -126,29 +126,23 @@ Scoped to this app's actual attack surface (Android client + Supabase backend + 
   either leaves `main` green and **skips the deploy** with a warning annotation and a run
   summary line — deliberately visible, since a silently skipped deploy is how the drift
   started. The project ref comes from `supabase/config.toml`, not a secret.
-- ⚠️ **As of 2026-09-13, `SUPABASE_ACCESS_TOKEN` is invalid** — this is a harder failure
-  than "missing": the `deploy` job's `Push migrations` step reaches `supabase link` and
-  gets `Unexpected error retrieving remote project status: {"message":"Unauthorized"}`,
-  exit 1, red rather than skipped. `check` (deno check + tests) still passes and stays
-  green on `main`; only `deploy` fails, and it fails at the very first step, so **nothing
-  from any commit since has reached the remote project** — migrations included. Verified
-  directly against the DB: zero of the eight migrations from that range are in
-  `supabase_migrations.schema_migrations`. Fixing this needs a new Supabase personal
-  access token in `Settings → Secrets → Actions → SUPABASE_ACCESS_TOKEN`; no tool
-  available to this session can set a repository secret. See
-  `docs/agent/SESSION_HANDOFF.md` for the exact commit range this blocks and what not to
-  do until it's fixed (rotating `ZAD_AGENT_TASKS_CRON_SECRET` before this deploys would
-  break the one cron job that secret guards — the migration that moves its header source
-  to Vault hasn't shipped yet, so the job still sends the old value).
-- ⚠️ **Correction, 2026-09-13: the above was measured against `abek52278-ops/zad-app`,
-  which is not the repo this project ships from.** `seam1010x-lab/zad-app` is — it's a
-  fork of `abek52278-ops/zad-app`, and GitHub disables Actions on a fork by default and
-  never copies the parent's secrets to it. So on the actual repo, the blocker isn't an
-  invalid token, it's a step earlier: `seam1010x-lab/zad-app` has **zero CI runs ever**,
-  Actions has to be enabled by hand (repo → Actions tab → "I understand my workflows, go
-  ahead and enable them"), then both secrets added there fresh. See the correction note
-  at the top of `docs/agent/SESSION_HANDOFF.md` for detail — don't `gh run list` against
-  `abek52278-ops/zad-app` expecting it to reflect this project's deploy state.
+- ✅ **RESOLVED 2026-09-13.** The deploy was blocked most of 2026-09-13, but by two
+  *different* causes in sequence, and this file's own earlier notes about it were about
+  the wrong repo — worth knowing since the same shape of mistake (checking CI on the
+  fork's upstream, `abek52278-ops/zad-app`, instead of the actual ship repo,
+  `seam1010x-lab/zad-app`, which is a fork of it) could recur. First cause: Actions is
+  off by default on a fork and doesn't inherit the parent's secrets, so
+  `seam1010x-lab/zad-app` had **zero CI runs ever** despite the workflow files being
+  present. Second cause (only visible once Actions was on): `SUPABASE_ACCESS_TOKEN` was
+  invalid there too. Both fixed by hand (repo → Actions tab → enable, then add
+  `SUPABASE_ACCESS_TOKEN`/`SUPABASE_DB_PASSWORD`) — no tool in this environment, gh CLI
+  or GitHub MCP, has Actions read/write permission on this repo, so that step always
+  needs a human. After both were fixed, `Edge Functions` ran green and **all 8 pending
+  migrations landed, verified directly against the DB** (not just CI's color):
+  `supabase_migrations.schema_migrations` has `20260912210000`..`20260913003000`, the 8
+  restored tables exist, and the proactive-scan cron's first post-deploy run returned
+  `200 {"ok":true}` with no `42P01`. Full verification trail in
+  `docs/agent/SESSION_HANDOFF.md`'s "النشر خلص بنجاح" section.
 - A **GitHub Actions artifact storage quota** failure on `Build Debug APK` is a separate,
   unrelated thing worth not confusing with a code regression: on 2026-09-12 every real
   step passed (unit tests, lint, the Ktor/supabase dependency-alignment guard, the debug
