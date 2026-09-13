@@ -29,10 +29,18 @@ Deno.test("a missing header rejects", async () => {
   assert(!(await withSecret(VALUE, () => secretMatches("", ENV))));
 });
 
-Deno.test("whitespace is not silently tolerated", async () => {
-  // مسافة زايدة لازم ترفض — بس اللوج بيقول trimmed match=true فالسبب بيبان.
-  assert(!(await withSecret(VALUE, () => secretMatches(VALUE + "\n", ENV))));
-  assert(!(await withSecret(VALUE, () => secretMatches(" " + VALUE, ENV))));
+Deno.test("surrounding whitespace on either side is tolerated", async () => {
+  // مسافة/سطر جديد زايد على أي طرف لازم يتقبل — دي بالظبط الحالة اللي استهلكت
+  // محاولات رفض يدوية متعددة (ZAD_FX_CRON_SECRET يوم 2026-09-07،
+  // ZAD_AGENT_TASKS_CRON_SECRET يوم 2026-09-13) قبل ما الحل يبقى تلقائي.
+  assert(await withSecret(VALUE, () => secretMatches(VALUE + "\n", ENV)));
+  assert(await withSecret(VALUE, () => secretMatches(" " + VALUE, ENV)));
+  assert(await withSecret(VALUE + "\n", () => secretMatches(VALUE, ENV)));
+});
+
+Deno.test("whitespace-only received value still rejects", async () => {
+  // لازم القيمة تحتوي على حاجة غير المسافات بعد الـtrim، وإلا سر فاضي هيتقبل.
+  assert(!(await withSecret(VALUE, () => secretMatches("   \n", ENV))));
 });
 
 Deno.test("a different value of the same length rejects", async () => {

@@ -61,7 +61,7 @@ import { type FastIntent, formatBalanceReply, parseFastPath } from "./fastPath.t
 import { AgentSource, AuditScope, recordAction, writeRows } from "./audit.ts";
 import { redactNotificationText } from "./redact.ts";
 import { classifyMessage, consume as consumeEntitlement, lockedReply } from "./entitlement.ts";
-import { hasConfiguredSecret, hasServiceRoleAuthorization, resolveAuthedUserId } from "./auth.ts";
+import { hasServiceRoleAuthorization, resolveAuthedUserId } from "./auth.ts";
 import { secretMatches } from "../_shared/cronSecret.ts";
 import { conversationProfile, voiceModeInstruction } from "./persona.ts";
 // المرحلة ٣ — الوكلاء المتخصصون: توجيه + هوية في البرومبت + trace في zad_brain_runs.
@@ -111,14 +111,13 @@ const NOTIFICATION_CONFIRM_SECRET = Deno.env.get("ZAD_CONFIRM_TRANSACTION_SECRET
 // is exactly why this change does not touch ZAD_MODEL_ROUTINE's value. Set ZAD_MODEL_AGENT
 // as a secret to override; callModel() falls through the rest of the chain from here.
 const MODEL_ROUTINE = Deno.env.get("ZAD_MODEL_AGENT") ?? "gemini-3.5-flash-lite";
-// W8 — بيحرس action=process_agent_tasks (pg_cron بينادي ده، مش عميل بـ JWT). لازم
-// يطابق السيكريت المكتوب في migration الـ agent_tasks (cron.schedule command).
-// بيتفحص بـ secretMatches() جوه الهاندلر نفسه (مش هنا) — قرا Deno.env.get() وقت
-// النداء وبيسجّل طول+بصمة لو فيه اختلاف، عشان تدوير 2026-09-13 اللي فضل يرجّع 401
-// من غير أي سبب في اللوج (hasConfiguredSecret القديمة ماكانتش بتسجّل حاجة).
-// W9 — بيحرس action=run_proactive_scan (pg_cron كل ساعة، مش عميل بـ JWT). قيمة
-// منفصلة عن ZAD_AGENT_TASKS_CRON_SECRET عشان سريان/تسريب أي واحدة ميخليش التانية مكشوفة.
-const PROACTIVE_CRON_SECRET = Deno.env.get("ZAD_PROACTIVE_CRON_SECRET") ?? "";
+// W8/W9/nightly_dream_reflection's cron leg — كلهم بيتفحصوا بـ secretMatches()
+// (_shared/cronSecret.ts) جوه الهاندلر نفسه، مش بثابت هنا: بتقرا Deno.env.get()
+// وقت النداء، بتسجّل طول+بصمة لو فيه اختلاف، وبقت (2026-09-13) بتتسامح مع مسافة
+// بيضاء زيادة بدل ما ترفض قيمة صح اتلصقت بسطر جديد زيادة. W8 يطابق
+// ZAD_AGENT_TASKS_CRON_SECRET (migration الـ agent_tasks)، W9/nightly_dream
+// يطابقوا ZAD_PROACTIVE_CRON_SECRET — قيمة منفصلة عمدًا عشان سريان/تسريب أي
+// واحدة ميخليش التانية مكشوفة.
 
 // المرحلة ٣ (حلقة الأدوات متعددة الخطوات) — سقف اللفات وسقف التوكنز الإجمالي، مشتركين
 // بين حلقة الشات (agent_turn) وحلقة التحليل الخلفي (daily/event). كانت اللفات محدودة بـ٢
@@ -5333,7 +5332,7 @@ Deno.serve(async (req: Request) => {
     // 20260810200000) — هنا بنناديها بس، بنفس فصل "البيانات والقرار في الـ DB والفانكشن
     // توصيل" اللي realtime_push بيشتغل بيه.
     if (body.action === "run_proactive_scan") {
-      if (!hasConfiguredSecret(req.headers.get("ZAD-PROACTIVE-CRON-SECRET"), PROACTIVE_CRON_SECRET)) {
+      if (!(await secretMatches(req.headers.get("ZAD-PROACTIVE-CRON-SECRET"), "ZAD_PROACTIVE_CRON_SECRET"))) {
         return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: CORS_HEADERS });
       }
       const sbScan = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
@@ -5351,8 +5350,8 @@ Deno.serve(async (req: Request) => {
     // الصلاحية: service-role bearer (للاستدعاء اليدوي/الإداري) أو ZAD-PROACTIVE-CRON-SECRET
     // (لـ pg_cron — نفس سيكريت الفحص الاستباقي المختوم في vault، بنفس نمط W9 بالظبط).
     if (body.action === "nightly_dream_reflection") {
-      const dreamCronAuthorized = hasConfiguredSecret(
-        req.headers.get("ZAD-PROACTIVE-CRON-SECRET"), PROACTIVE_CRON_SECRET,
+      const dreamCronAuthorized = await secretMatches(
+        req.headers.get("ZAD-PROACTIVE-CRON-SECRET"), "ZAD_PROACTIVE_CRON_SECRET",
       );
       if (!hasServiceRoleAuthorization(req, SERVICE_ROLE_KEY) && !dreamCronAuthorized) {
         return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: CORS_HEADERS });
