@@ -45,6 +45,7 @@ fun HomeActivationCard(
     onSetBalance: () -> Unit,
     onEnableBankReading: () -> Unit,
     onAddInventoryItem: () -> Unit,
+    onSetFirstGoal: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // الرحلة اكتملت؟ ماختفيش — نعرض تهنئة + تلميح أول تجربة (صوت/بوت تليجرام)
@@ -140,6 +141,12 @@ fun HomeActivationCard(
                 description = stringResource(R.string.home_activation_inventory_desc),
                 complete = progress.isComplete(HomeActivationStep.ADD_FIRST_INVENTORY_ITEM),
                 onClick = onAddInventoryItem,
+            )
+            ActivationStepRow(
+                title = stringResource(R.string.home_activation_goal_title),
+                description = stringResource(R.string.home_activation_goal_desc),
+                complete = progress.isComplete(HomeActivationStep.SET_FIRST_GOAL),
+                onClick = onSetFirstGoal,
             )
         }
     }

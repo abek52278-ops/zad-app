@@ -1276,7 +1276,7 @@
     <string name="voice_persona_karim">Karim</string>
     <string name="voice_persona_zad">Playful Zad</string>
     <string name="home_activation_title">Set up Zad for your home</string>
-    <string name="home_activation_subtitle">Three steps make balances, alerts, and predictions useful from day one</string>
+    <string name="home_activation_subtitle">Four steps make balances, alerts, and predictions useful from day one</string>
     <string name="home_activation_progress">%1$d of %2$d</string>
     <string name="home_activation_balance_title">Set your starting balance</string>
     <string name="home_activation_balance_desc">Enter what you have now so withdrawals and deposits stay accurate</string>
@@ -1907,4 +1907,25 @@
         <item quantity="one">%1$d day</item>
         <item quantity="other">%1$d days</item>
     </plurals>
+
+    <!-- Phase 2 item 2 — first life goal (home activation step) -->
+    <string name="home_activation_goal_title">Set your home\'s first goal</string>
+    <string name="home_activation_goal_desc">Zad will check in on it with you every week</string>
+    <string name="life_goal_sheet_title">What matters most for your home right now?</string>
+    <string name="life_goal_sheet_subtitle">Pick one — Zad will check in on it every week for 3 months, and you can cancel it any time.</string>
+    <string name="life_goal_preset_save_title">Save a set amount every month</string>
+    <string name="life_goal_preset_save_desc">Set the amount, and Zad watches your spending to get you there</string>
+    <string name="life_goal_preset_budget_title">Stay within my monthly budget</string>
+    <string name="life_goal_preset_budget_desc">Zad warns you before spending outpaces the budget</string>
+    <string name="life_goal_preset_debts_title">Pay off my debts</string>
+    <string name="life_goal_preset_debts_desc">Zad keeps track of what\'s left and the next installment</string>
+    <string name="life_goal_preset_waste_title">Waste less food at home</string>
+    <string name="life_goal_preset_waste_desc">Zad reminds you about items before they go off</string>
+    <string name="life_goal_preset_custom_title">Something else, in my words</string>
+    <string name="life_goal_preset_custom_desc">Write it the way you\'d say it</string>
+    <string name="life_goal_amount_label">Monthly amount</string>
+    <string name="life_goal_custom_label">Write your goal</string>
+    <string name="life_goal_save">Start this goal</string>
+    <string name="life_goal_error_too_many">You have 5 active goals — finish or cancel one first</string>
+    <string name="life_goal_error_generic">Couldn\'t save the goal — try again</string>
 </resources>

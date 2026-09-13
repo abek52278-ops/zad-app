@@ -45,8 +45,32 @@ export function agentTaskNotice(kind: string | null | undefined): { title: strin
     bill_reminder: "🧾 زاد بيفكّرك بفاتورة قربت",
     warranty_reminder: "🛡️ زاد بيفكّرك بضمان قرب ينتهي",
     listener_gap_alert: "🔔 زاد لاحظ إن إشعارات البنك وقفت",
+    goal_review: "🎯 زاد بيتابع هدفك",
   };
   return { title: titles[k] ?? "💡 زاد لاحظ حاجة تهمّك", proactive: true };
+}
+
+/**
+ * لو مبادرة مستحقة نوعها مكتوم (رفض العميل من تليجرام، 20260913190000)، بترجّع إمتى تتأجل —
+ * آخر `suppress_until` لسه في المستقبل. `null` = نفّذ عادي.
+ *
+ * ليه تأجيل مش إلغاء: الكتم كان بيتقرا في الماسح بس، ومنفّذ المهام مابيشوفوش. فمتابعة هدف
+ * أسبوعية (`goal_review`، مهمة متكررة مش من الماسح) كانت هتتبعت تاني رغم الرفض. والإلغاء كان
+ * هيقتل السلسلة المتكررة كلها بعد كتم ٣ أيام بس («عرفت خلاص») — التأجيل لنهاية الكتم بيحترم
+ * الرفض ويسيب الهدف عايش. طلبات العميل (`reminder`) عمرها ما بتتأجل بكتم.
+ */
+export function postponeForSuppression(
+  kind: string | null | undefined,
+  mutes: Array<{ suppress_until: string | null }>,
+  nowMs: number,
+): string | null {
+  if (!agentTaskNotice(kind).proactive) return null;
+  let latest = -Infinity;
+  for (const m of mutes) {
+    const t = m.suppress_until ? Date.parse(m.suppress_until) : NaN;
+    if (Number.isFinite(t) && t > nowMs && t > latest) latest = t;
+  }
+  return Number.isFinite(latest) ? new Date(latest).toISOString() : null;
 }
 
 /**

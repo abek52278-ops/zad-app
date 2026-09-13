@@ -1124,7 +1124,7 @@
     <string name="voice_persona_karim">كريم</string>
     <string name="voice_persona_zad">زاد المرح</string>
     <string name="home_activation_title">جهّز زاد لبيتك</string>
-    <string name="home_activation_subtitle">ثلاث خطوات تجعل الرصيد والتنبيهات والتوقعات مفيدة من أول يوم</string>
+    <string name="home_activation_subtitle">أربع خطوات تجعل الرصيد والتنبيهات والتوقعات مفيدة من أول يوم</string>
     <string name="home_activation_progress">%1$d من %2$d</string>
     <string name="home_activation_balance_title">ثبّت رصيد البداية</string>
     <string name="home_activation_balance_desc">أدخل المبلغ الموجود الآن ليحسب زاد السحب والإيداع بدقة</string>
@@ -1904,4 +1904,25 @@
         <item quantity="many">%1$d يوم</item>
         <item quantity="other">%1$d يوم</item>
     </plurals>
+
+    <!-- مرحلة ٢ بند ٢ — أول هدف حياة (خطوة تفعيل الرئيسية) -->
+    <string name="home_activation_goal_title">حدّد أول هدف لبيتك</string>
+    <string name="home_activation_goal_desc">سيتابعه زاد معك كل أسبوع</string>
+    <string name="life_goal_sheet_title">ما أهم هدف لبيتك الآن؟</string>
+    <string name="life_goal_sheet_subtitle">اختر هدفًا واحدًا — سيتابعه زاد معك كل أسبوع لمدة ٣ أشهر، ويمكنك إلغاؤه في أي وقت.</string>
+    <string name="life_goal_preset_save_title">أوفّر مبلغًا كل شهر</string>
+    <string name="life_goal_preset_save_desc">حدّد المبلغ، وسيتابع زاد إنفاقك لتصل إليه</string>
+    <string name="life_goal_preset_budget_title">ألتزم بميزانية الشهر</string>
+    <string name="life_goal_preset_budget_desc">ينبّهك زاد قبل أن يسبق الإنفاقُ الميزانية</string>
+    <string name="life_goal_preset_debts_title">أسدّد ديوني</string>
+    <string name="life_goal_preset_debts_desc">يتابع زاد معك المتبقي وأقرب قسط</string>
+    <string name="life_goal_preset_waste_title">أقلّل هدر المطبخ</string>
+    <string name="life_goal_preset_waste_desc">يذكّرك زاد بالأصناف قبل أن تفسد</string>
+    <string name="life_goal_preset_custom_title">هدف آخر بكلماتي</string>
+    <string name="life_goal_preset_custom_desc">اكتبه كما تقوله</string>
+    <string name="life_goal_amount_label">المبلغ الشهري</string>
+    <string name="life_goal_custom_label">اكتب هدفك</string>
+    <string name="life_goal_save">ابدأ الهدف</string>
+    <string name="life_goal_error_too_many">لديك ٥ أهداف نشطة — أنجز أحدها أو ألغِه أولًا</string>
+    <string name="life_goal_error_generic">تعذّر تسجيل الهدف — حاول مرة أخرى</string>
 </resources>

@@ -56,7 +56,7 @@
 import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { CONFIRM_REQUIRED_TOOLS, freshContext, looksLikeAnsweredQuestion, RunContext, validateTool } from "./validators.ts";
 import { callModel, embedText, embedSelfTest, smokeTestTools, Turn, ToolDef } from "./callModel.ts";
-import { agentTaskNotice, decideOnBrainFailure, DUPLICATE_PROPOSAL_WINDOW_MS, hasRecentMutatingRun, normalizeBrainTrigger, normalizeDoseTimes, pickDuplicateProposalSibling, summarizeProactiveScan } from "./shared.ts";
+import { agentTaskNotice, decideOnBrainFailure, postponeForSuppression, DUPLICATE_PROPOSAL_WINDOW_MS, hasRecentMutatingRun, normalizeBrainTrigger, normalizeDoseTimes, pickDuplicateProposalSibling, summarizeProactiveScan } from "./shared.ts";
 import { type FastIntent, formatBalanceReply, parseFastPath } from "./fastPath.ts";
 import { AgentSource, AuditScope, recordAction, writeRows } from "./audit.ts";
 import { redactNotificationText } from "./redact.ts";
@@ -3997,7 +3997,7 @@ function describeProposal(tool: string, input: any, currency: string): string {
  * عميل حاضر يأكد، فمفيش تنفيذ. الموديل بياخد رسالة توضيحية عشان يعرف يقول للعميل
  * إن الجزء ده محتاج تأكيده هو لما يفتح التطبيق، مش يتجاهله بصمت.
  */
-async function processDueAgentTasks(sb: SupabaseClient): Promise<{ processed: number; failed: number }> {
+async function processDueAgentTasks(sb: SupabaseClient): Promise<{ processed: number; failed: number; postponed: number }> {
   const { data: due } = await sb.from("agent_tasks")
     .select("id,user_id,task_description,goal_id,recurrence,scheduled_for,kind")
     .eq("status", "pending")
@@ -4005,8 +4005,25 @@ async function processDueAgentTasks(sb: SupabaseClient): Promise<{ processed: nu
     .order("scheduled_for", { ascending: true })
     .limit(20);
 
-  let processed = 0, failed = 0;
+  let processed = 0, failed = 0, postponed = 0;
   for (const task of (due ?? []) as Array<{ id: string; user_id: string; task_description: string; goal_id: string | null; recurrence: string | null; kind: string | null; scheduled_for: string }>) {
+    // الكتم (رفض من تليجرام) كان بيتقرا في الماسح بس — المهام المتكررة زي متابعة الهدف
+    // كانت بتعدّيه. التأجيل لنهاية الكتم بيحترم الرفض من غير ما يقتل السلسلة.
+    if (agentTaskNotice(task.kind).proactive) {
+      const { data: mutes, error: muteErr } = await sb.from("zad_memory")
+        .select("suppress_until")
+        .eq("user_id", task.user_id)
+        .eq("subject_kind", task.kind)
+        .gt("suppress_until", new Date().toISOString());
+      if (muteErr) console.error(`[agent_tasks] mute lookup failed for task ${task.id}:`, muteErr.message);
+      const until = postponeForSuppression(task.kind, (mutes ?? []) as Array<{ suppress_until: string | null }>, Date.now());
+      if (until) {
+        await sb.from("agent_tasks").update({ scheduled_for: until, updated_at: new Date().toISOString() }).eq("id", task.id);
+        console.log(`[agent_tasks] ${task.kind} task ${task.id} postponed to ${until} (muted by the user)`);
+        postponed++;
+        continue;
+      }
+    }
     await sb.from("agent_tasks").update({ status: "running", updated_at: new Date().toISOString() }).eq("id", task.id);
     try {
       const snap = await buildSnapshot(sb, task.user_id);
@@ -4072,6 +4089,9 @@ async function processDueAgentTasks(sb: SupabaseClient): Promise<{ processed: nu
             scheduled_for: next.toISOString(),
             goal_id: task.goal_id,
             recurrence: rec,
+            // من غير kind، العمود بيرجع للافتراضي 'reminder': متابعة الهدف كانت هتتحول من الأسبوع
+            // التاني لـ«مهمة كنت طلبتها» ومابتروحش تليجرام، والكتم مابيشوفهاش.
+            kind: task.kind ?? "reminder",
           });
         }
       }
@@ -4097,7 +4117,7 @@ async function processDueAgentTasks(sb: SupabaseClient): Promise<{ processed: nu
       failed++;
     }
   }
-  return { processed, failed };
+  return { processed, failed, postponed };
 }
 
 /**

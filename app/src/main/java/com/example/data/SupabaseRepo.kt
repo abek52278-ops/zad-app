@@ -1728,6 +1728,62 @@ object SupabaseRepo {
         }
     }
 
+    // ─── أهداف الحياة (خطوة التفعيل) ──────────────────────────────────────
+
+    @Serializable
+    private data class GoalIdRow(val id: String)
+
+    /**
+     * فيه هدف نشط؟ `null` = مش عارفين (مفيش مستخدم أو القراءة فشلت) — الواجهة بتعامل ده
+     * كـ"مكتمل" عشان خطوة التفعيل ماتظهرش وتختفي على شبكة وحشة. قراءة داتابيز عادية (RLS
+     * لصاحب الصف)، مفيش نداء موديل.
+     */
+    suspend fun hasActiveLifeGoal(): Boolean? {
+        return try {
+            val userId = client.auth.currentUserOrNull()?.id ?: return null
+            client.postgrest["agent_goals"]
+                .select(Columns.list("id")) {
+                    filter {
+                        eq("user_id", userId)
+                        eq("status", "active")
+                    }
+                    limit(1L)
+                }.decodeList<GoalIdRow>().isNotEmpty()
+        } catch (e: Exception) {
+            Log.e(TAG, "hasActiveLifeGoal() FAILED: ${e.message}")
+            null
+        }
+    }
+
+    @Serializable
+    data class SeedLifeGoalResult(
+        val ok: Boolean,
+        val error: String? = null,
+        @SerialName("goal_id") val goalId: String? = null,
+    )
+
+    /**
+     * بيسجّل الهدف + مهمة متابعة أسبوعية مربوطة بيه عن طريق `zad_seed_life_goal`
+     * (20260913220000). حتمي من غير موديل: مسار «هدف جديد» القديم بيطلب من الموديل يسجّل،
+     * و`set_life_goal` عمره مااتنادى فعليًا. الدالة بتشتغل على auth.uid() بس.
+     */
+    suspend fun seedLifeGoal(seed: LifeGoalSeed): SeedLifeGoalResult {
+        return try {
+            client.postgrest.rpc(
+                "zad_seed_life_goal",
+                buildJsonObject {
+                    put("p_title", seed.title)
+                    put("p_metric", seed.metric)
+                    put("p_target_value", seed.targetValue)
+                    put("p_deadline", seed.deadline.toString())
+                }
+            ).decodeAs<SeedLifeGoalResult>()
+        } catch (e: Exception) {
+            Log.e(TAG, "seedLifeGoal() FAILED: ${e.message}")
+            SeedLifeGoalResult(ok = false, error = "request_failed")
+        }
+    }
+
     // ─── Family ─────────────────────────────────────────────────────────
     suspend fun createFamilyGroup(): FamilyGroup? {
         return try {

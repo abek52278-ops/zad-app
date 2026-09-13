@@ -448,11 +448,27 @@ fun HomeScreen(
                 }
                 Spacer(modifier = Modifier.height(16.dp))
 
+                // أول هدف حياة: قراءة داتابيز عادية (مش نداء موديل). null = مش عارفين بعد أو القراءة
+                // فشلت، وبيتعامل كـ"مكتمل" عشان الخطوة ماتظهرش وتختفي على شبكة وحشة.
+                var hasActiveGoal by remember { mutableStateOf<Boolean?>(null) }
+                var showGoalPicker by remember { mutableStateOf(false) }
+                LaunchedEffect(Unit) { hasActiveGoal = com.example.data.SupabaseRepo.hasActiveLifeGoal() }
+
                 val activationProgress = buildHomeActivationProgress(
                     hasConfirmedBalance = budgetConfirmed && balanceFigure != null,
                     bankReadingEnabled = isNotificationAccessGranted && bankReaderConnectedAt != null,
                     hasInventory = inventory.isNotEmpty(),
+                    hasActiveGoal = hasActiveGoal ?: true,
                 )
+                if (showGoalPicker) {
+                    com.example.ui.components.LifeGoalPickerSheet(
+                        onDismiss = { showGoalPicker = false },
+                        onGoalSaved = {
+                            showGoalPicker = false
+                            hasActiveGoal = true
+                        },
+                    )
+                }
                 if (!activationProgress.isComplete) {
                     com.example.ui.components.HomeActivationCard(
                         progress = activationProgress,
@@ -462,6 +478,7 @@ fun HomeScreen(
                         // القرارات المتكررة.
                         onEnableBankReading = { com.example.data.BankReadingStatus.repairListening(context) },
                         onAddInventoryItem = onNavigateToInventory,
+                        onSetFirstGoal = { showGoalPicker = true },
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                 }

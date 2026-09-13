@@ -57,7 +57,7 @@ import {
   validateLearnSkill,
 } from "./validators.ts";
 import { callModelWithRetry } from "./retry.ts";
-import { agentTaskNotice, decideOnBrainFailure, hasRecentMutatingRun, normalizeBrainTrigger, pickDuplicateProposalSibling, summarizeProactiveScan } from "./shared.ts";
+import { agentTaskNotice, decideOnBrainFailure, hasRecentMutatingRun, normalizeBrainTrigger, pickDuplicateProposalSibling, postponeForSuppression, summarizeProactiveScan } from "./shared.ts";
 
 const healthySnapshot = {
   budget: 3000, spent: 500, remaining: 2500, velocity: 0.4,
@@ -242,6 +242,35 @@ Deno.test("agentTaskNotice separates the user's own requests from Zad's initiati
   const unknown = agentTaskNotice("some_future_kind");
   assertEquals(unknown.proactive, true);
   assert(!unknown.title.includes("طلبتها"));
+});
+
+// 10e. متابعة الهدف مبادرة بعنوان خاص، والكتم بيأجّل المبادرات المستحقة مش بيلغيها.
+Deno.test("goal_review is a proactive initiative with its own title", () => {
+  const n = agentTaskNotice("goal_review");
+  assertEquals(n.proactive, true);
+  assertStringIncludes(n.title, "هدف");
+  assert(!n.title.includes("طلبتها"));
+});
+
+Deno.test("postponeForSuppression delays a muted initiative to the end of its latest mute", () => {
+  const now = Date.parse("2026-09-13T21:00:00Z");
+  const mutes = [
+    { suppress_until: "2026-09-16T21:00:00Z" },  // عرفت خلاص (٣ أيام)
+    { suppress_until: "2026-10-13T21:00:00Z" },  // مش مهم (٣٠ يوم) — الأبعد يكسب
+    { suppress_until: "2026-09-10T21:00:00Z" },  // كتم منتهي — مايتحسبش
+    { suppress_until: null },
+  ];
+  assertEquals(postponeForSuppression("goal_review", mutes, now), "2026-10-13T21:00:00.000Z");
+});
+
+Deno.test("postponeForSuppression never delays the user's own reminders or runs with no live mute", () => {
+  const now = Date.parse("2026-09-13T21:00:00Z");
+  const live = [{ suppress_until: "2026-10-13T21:00:00Z" }];
+  assertEquals(postponeForSuppression("reminder", live, now), null);
+  assertEquals(postponeForSuppression(null, live, now), null);
+  assertEquals(postponeForSuppression("goal_review", [], now), null);
+  assertEquals(postponeForSuppression("goal_review", [{ suppress_until: "2026-09-13T20:59:59Z" }], now), null);
+  assertEquals(postponeForSuppression("goal_review", [{ suppress_until: "not a date" }], now), null);
 });
 
 // 11. Exhausted retries → decideOnBrainFailure says to queue (non-chat) and never a 500
