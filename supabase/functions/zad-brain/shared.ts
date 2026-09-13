@@ -7,6 +7,21 @@ export function hasRecentMutatingRun(runs: Array<{ mutations: unknown }>): boole
 }
 
 /**
+ * بيطبّع `trigger` الجاي من الطلب لقيمة يقبلها `zad_brain_runs_trigger_check`
+ * (`daily`/`event`/`chat` بس).
+ *
+ * ليه: `GeofenceBroadcastReceiver` بيبعت `"geofence_enter"`، والنوع `Trigger` في
+ * index.ts كان cast من غير تحقق وقت التشغيل. الإدراج في `zad_brain_runs` كان بيقع على
+ * الـCHECK، والخطأ مكانش بيتقرا: `runId` بيبقى undefined، الموديل بيشتغل عادي، وكل
+ * تحديث بعد كده (`success`/`queued`) بيطابق صفر صفوف. يعني تشغيلات الجيوفينس كانت
+ * **بتختفي من المراقبة كليًا** — لا نجاح ولا فشل. أي قيمة مش معروفة = حدث، وده صح
+ * دلاليًا (دخول نطاق محل حدث فعلاً)، ومطابق لما `scope.source` كان بيعمله أصلاً.
+ */
+export function normalizeBrainTrigger(raw: unknown): "daily" | "event" | "chat" {
+  return raw === "daily" || raw === "chat" ? raw : "event";
+}
+
+/**
  * Task 16.3: on exhausted retries, what to do. `chat` never queues silently — the user
  * is waiting right now, so it gets an honest message instead of a generic {queued:true}
  * with no reply. Every other trigger (daily/event) queues for the drain cron.

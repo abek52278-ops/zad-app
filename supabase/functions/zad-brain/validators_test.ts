@@ -57,7 +57,7 @@ import {
   validateLearnSkill,
 } from "./validators.ts";
 import { callModelWithRetry } from "./retry.ts";
-import { decideOnBrainFailure, hasRecentMutatingRun } from "./shared.ts";
+import { decideOnBrainFailure, hasRecentMutatingRun, normalizeBrainTrigger } from "./shared.ts";
 
 const healthySnapshot = {
   budget: 3000, spent: 500, remaining: 2500, velocity: 0.4,
@@ -175,6 +175,20 @@ Deno.test("callModelWithRetry throws immediately on 401 without retrying", async
     () => callModelWithRetry({}, { url: "https://example.test/api", headers: { "Authorization": "Bearer bad" }, fetchFn: fakeFetch, sleepFn: () => Promise.resolve() }),
   );
   assertEquals(calls, 1);
+});
+
+// 10b. أي trigger لازم يوصل لـzad_brain_runs بقيمة يقبلها الـCHECK (daily/event/chat).
+// geofence_enter كان بيتكتب زي ما هو، الإدراج بيقع، والتشغيلة بتختفي من المراقبة.
+Deno.test("normalizeBrainTrigger only ever returns a value zad_brain_runs_trigger_check accepts", () => {
+  const allowed = new Set(["daily", "event", "chat"]);
+  assertEquals(normalizeBrainTrigger("daily"), "daily");
+  assertEquals(normalizeBrainTrigger("chat"), "chat");
+  assertEquals(normalizeBrainTrigger("event"), "event");
+  assertEquals(normalizeBrainTrigger("geofence_enter"), "event");
+  for (const raw of [undefined, null, "", "DAILY", 42, {}, "daily "]) {
+    assert(allowed.has(normalizeBrainTrigger(raw)), `raw=${String(raw)}`);
+    assertEquals(normalizeBrainTrigger(raw), "event");
+  }
 });
 
 // 11. Exhausted retries → decideOnBrainFailure says to queue (non-chat) and never a 500

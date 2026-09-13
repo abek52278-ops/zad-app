@@ -56,7 +56,7 @@
 import { createClient, SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { CONFIRM_REQUIRED_TOOLS, freshContext, looksLikeAnsweredQuestion, RunContext, validateTool } from "./validators.ts";
 import { callModel, embedText, embedSelfTest, smokeTestTools, Turn, ToolDef } from "./callModel.ts";
-import { decideOnBrainFailure, hasRecentMutatingRun, normalizeDoseTimes } from "./shared.ts";
+import { decideOnBrainFailure, hasRecentMutatingRun, normalizeBrainTrigger, normalizeDoseTimes } from "./shared.ts";
 import { type FastIntent, formatBalanceReply, parseFastPath } from "./fastPath.ts";
 import { AgentSource, AuditScope, recordAction, writeRows } from "./audit.ts";
 import { redactNotificationText } from "./redact.ts";
@@ -5498,7 +5498,8 @@ Deno.serve(async (req: Request) => {
     // التحليل اليومي/الحدثي يقرأ ويكتب بيانات العميل أيضاً، لذلك هويته لازم تكون من
     // JWT موثوق مثل مسار المحادثة. service-role فقط مسموح له اختيار user_id صراحة.
     const userId = await resolveRequestUserId(req, body);
-    const trigger: Trigger = body.trigger ?? "event";
+    // تطبيع وقت التشغيل مش cast — شوف normalizeBrainTrigger في shared.ts (geofence_enter).
+    const trigger: Trigger = normalizeBrainTrigger(body.trigger);
     const userMessage: string | undefined = body.user_message;
 
     if (!userId) {
@@ -5518,12 +5519,15 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const { data: runRow } = await sb.from("zad_brain_runs").insert({ user_id: userId, trigger, status: "running" }).select("id").single();
+    const { data: runRow, error: runInsertError } = await sb.from("zad_brain_runs").insert({ user_id: userId, trigger, status: "running" }).select("id").single();
     const runId = runRow?.id;
-    // trigger مكتوب Trigger بس مش متحقق وقت التشغيل — نداءات زي geofence_enter بتوصل
-    // بقيمة مش في ("daily"|"event"|"chat") فعلاً. أي حاجة غير "daily" بترجع "event"،
-    // عشان تفضل جوه allowlist agent_actions.source (نفس منطق zad_brain_runs.trigger's
-    // CHECK constraint اللي بيرفض أي حاجة غيرهم أصلاً).
+    // الخطأ ده كان بيتجاهل: رفض الـCHECK على geofence_enter خلّى runId undefined وكل
+    // تحديث بعده يطابق صفر صفوف، فالتشغيلة اختفت من المراقبة من غير أي أثر. التشغيلة
+    // نفسها بتكمّل (المستخدم مستني نصيحة)، بس الفشل لازم يبان في اللوج.
+    if (runInsertError || !runId) {
+      console.error(`[zad-brain] zad_brain_runs insert failed (trigger=${trigger}, raw=${body.trigger}) — this run will not be tracked:`, runInsertError);
+    }
+    // agent_actions.source بيقبل daily/event بس (مش chat) في المسار ده.
     const scope: AuditScope = { source: trigger === "daily" ? "daily" : "event", runId };
 
     const snap = await buildSnapshot(sb, userId);
