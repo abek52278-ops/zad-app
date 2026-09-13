@@ -1303,6 +1303,12 @@
       "skillPath": "engineering/karpathy-coder/skills/karpathy-coder/SKILL.md",
       "computedHash": "79991fad2fcec49c45565e7fcf3fff69b778e0787b94f9db3e179000ae45042c"
     },
+    "knap": {
+      "source": "kepano/obsidian-skills",
+      "sourceType": "github",
+      "skillPath": "skills/knap/SKILL.md",
+      "computedHash": "e376a3f24ed9c48a00afff39372dae304e18c89f5c8bd69d4d6e1819d6333145"
+    },
     "knowledge-ops": {
       "source": "alirezarezvani/claude-skills",
       "sourceType": "github",
@@ -2364,12 +2370,6 @@
       "sourceType": "github",
       "skillPath": "engineering/universal-scraping-architect/skills/universal-scraping-architect/SKILL.md",
       "computedHash": "8c90fdb582461cbecb5f7c14235669154efc46a1766249d504af0b0dfad01411"
-    },
-    "using-superpowers": {
-      "source": "obra/superpowers",
-      "sourceType": "github",
-      "skillPath": "skills/using-superpowers/SKILL.md",
-      "computedHash": "a77a803b7fc1a19c87605cf7a5ef318c5adc233de10b9ebeecb2ee2609f5454e"
     },
     "ux-researcher-designer": {
       "source": "alirezarezvani/claude-skills",
