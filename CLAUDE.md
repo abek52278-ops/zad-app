@@ -126,6 +126,25 @@ Scoped to this app's actual attack surface (Android client + Supabase backend + 
   either leaves `main` green and **skips the deploy** with a warning annotation and a run
   summary line — deliberately visible, since a silently skipped deploy is how the drift
   started. The project ref comes from `supabase/config.toml`, not a secret.
+- ⚠️ **As of 2026-09-13, `SUPABASE_ACCESS_TOKEN` is invalid** — this is a harder failure
+  than "missing": the `deploy` job's `Push migrations` step reaches `supabase link` and
+  gets `Unexpected error retrieving remote project status: {"message":"Unauthorized"}`,
+  exit 1, red rather than skipped. `check` (deno check + tests) still passes and stays
+  green on `main`; only `deploy` fails, and it fails at the very first step, so **nothing
+  from any commit since has reached the remote project** — migrations included. Verified
+  directly against the DB: zero of the eight migrations from that range are in
+  `supabase_migrations.schema_migrations`. Fixing this needs a new Supabase personal
+  access token in `Settings → Secrets → Actions → SUPABASE_ACCESS_TOKEN`; no tool
+  available to this session can set a repository secret. See
+  `docs/agent/SESSION_HANDOFF.md` for the exact commit range this blocks and what not to
+  do until it's fixed (rotating `ZAD_AGENT_TASKS_CRON_SECRET` before this deploys would
+  break the one cron job that secret guards — the migration that moves its header source
+  to Vault hasn't shipped yet, so the job still sends the old value).
+- A **GitHub Actions artifact storage quota** failure on `Build Debug APK` is a separate,
+  unrelated thing worth not confusing with a code regression: on 2026-09-12 every real
+  step passed (unit tests, lint, the Ktor/supabase dependency-alignment guard, the debug
+  build itself) and only the artifact *upload* failed with "Artifact storage quota has
+  been hit." The run shows red; the code is fine.
 - **`supabase/config.toml` declares `verify_jwt` per function and that is load-bearing.**
   `supabase functions deploy` applies these on every deploy and defaults to `true` for
   anything undeclared. `zad-brain` and `zad-telegram-bot` both run with it **off** on
@@ -173,6 +192,12 @@ already knowing where things stand instead of re-deriving it from commit history
 `SESSION_2026_07_26_epic19.md` is archived (Epic 1+4, tasks 19-24, closed); Epic 2
 (`EPIC_2_ai_screen.md`) closed 2026-07-30.
 
+- `docs/agent/SESSION_HANDOFF.md` — **اقرأه هو الأول، قبل أي حاجة تانية في القائمة دي.**
+  حالة ١٣ كومِت اتدفعوا لـ`main` في ٢٠٢٦-٠٩-١٢/١٣ (مسار الصوت الحي بالكامل، سياق
+  المكالمة، العقل الاستباقي، ٨ جداول ناقصة من الريبو، إصلاحات واجهة) والنشر متوقف على
+  `SUPABASE_ACCESS_TOKEN` — راجع البند فوق في قسم Deployment. فيه خطوات "ابدأ من هنا"
+  صريحة لأي جلسة جديدة، وقرارات مفتوحة (تدوير سرّ، تسلسل النشر) محتاجة انتباه قبل أي
+  شغل تاني على `zad-brain`/الكرون.
 - `docs/agent/SESSION_2026_09_06_device_test.md` — **اقرأه قبل أي شغل جديد.** حالة الجلسة
   الأخيرة: نتايج **أول اختبار على جهاز حقيقي** بأسبابها الجذرية، وخطة الموجات، والمؤجَّل
   بقرار المستخدم. وفيه نمط اتكرر ٤ مرات في يوم واحد يستاهل تقراه قبل ما تبني أي حاجة:

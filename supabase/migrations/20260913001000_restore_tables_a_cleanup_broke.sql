@@ -27,9 +27,16 @@
 --     الكوتلن)، فالحذف كان صح والغلط إن الدوال ما اتحدّثتش. الشرط اتشال من
 --     `agent_proactive_scan` (في 20260912210000) و`_agent_user_snoozed` بقت بترجع
 --     false صراحةً.
---   * التلات دوال الباقية (`zad_brain_stats`, `zad_domain_observations`,
---     `zad_log_inventory_waste`) لسه مكسورة ومسجّلة هنا عن قصد — كل واحدة محتاجة
---     قرار منتج (ترجع الجدول ولا تتشال الميزة)، مش تخمين في ميجريشن.
+--
+-- تصحيح (كُتب بعد هذا الملف، في نفس الجلسة): الفقرة دي في الأصل سابت
+-- `zad_brain_stats`، `zad_domain_observations`، و`zad_log_inventory_waste` مكسورين
+-- بقصد. الاتنين الأخيرين رجعوا فعلاً في `20260913002000_restore_waste_log.sql`
+-- (بترجّع `zad_waste_log` نفسه — كاتب حي `trigger_log_inventory_waste` وقارئ حي
+-- `zad_domain_observations`). و`zad_brain_stats` طلعت **إنذار كاذب** أصلاً: الفحص
+-- طابق اسم المتغيّر `v_active_nodes` مش جدول `nodes` — في بوستجرس `\b` في الريجيكس
+-- معناها backspace مش حدّ كلمة. يعني بعد `20260913002000` **مفيش دالة متبقية
+-- مكسورة** من تنضيف ٢٠٢٦-٠٩-٠٥؛ الملف ده يُقرأ كخطوة أولى في سلسلة اتقفلت بالكامل،
+-- مش كقرار نهائي.
 
 create table if not exists public.sent_budget_alerts (
   id uuid primary key default gen_random_uuid(),
