@@ -4,6 +4,8 @@ import android.content.Intent
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -331,6 +333,68 @@ fun TelegramBotSheet(onDismiss: () -> Unit) {
     ) {
         Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 28.dp)) {
             TelegramBindingSection()
+        }
+    }
+}
+
+/**
+ * تنبيه الربط اللي بيظهر أول دخول للرئيسية ([com.example.data.TelegramLinkPrompt]).
+ *
+ * نفس [TelegramBindingSection] بالظبط — مفيش مسار ربط تاني — بس قبله سطور بتقول العميل
+ * هيكسب إيه، لأن "ربط تليجرام" لوحده مابيقولش ليه. كل سطر هنا ميزة بتوصل البوت فعلاً
+ * النهاردة (تأكيد الاقتراح البنكي، live_checkin للنواقص، نتايج agent_tasks الاستباقية،
+ * تسجيل مصروف برسالة) — متضيفش سطر لميزة لسه مابتوصلش.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TelegramLinkPromptSheet(onDismiss: () -> Unit) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = surfaceContainerLow,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(start = 20.dp, end = 20.dp, bottom = 28.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    stringResource(R.string.telegram_prompt_title),
+                    style = Typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = onSurface
+                )
+                Text(
+                    stringResource(R.string.telegram_prompt_subtitle),
+                    style = Typography.bodyMedium,
+                    color = onSurfaceVariant
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    R.string.telegram_prompt_benefit_confirm,
+                    R.string.telegram_prompt_benefit_alerts,
+                    R.string.telegram_prompt_benefit_forecast,
+                    R.string.telegram_prompt_benefit_log,
+                ).forEach { benefit ->
+                    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .padding(top = 8.dp)
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(BrandTelegram)
+                        )
+                        Text(stringResource(benefit), style = Typography.bodyMedium, color = onSurface)
+                    }
+                }
+            }
+            TelegramBindingSection()
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth().height(48.dp)) {
+                Text(stringResource(R.string.telegram_prompt_later), color = onSurfaceVariant)
+            }
         }
     }
 }

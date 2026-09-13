@@ -1939,4 +1939,11 @@
     <string name="life_goal_save">ابدأ الهدف</string>
     <string name="life_goal_error_too_many">عندك ٥ أهداف شغالة — خلّص واحد أو ألغيه الأول</string>
     <string name="life_goal_error_generic">معرفتش أسجل الهدف — جرّب تاني</string>
+    <string name="telegram_prompt_title">خلّي زاد يكلمك على تيليجرام</string>
+    <string name="telegram_prompt_subtitle">اربط حسابك مرة واحدة، وزاد يوصلك بالمهم حتى لو التطبيق مقفول.</string>
+    <string name="telegram_prompt_benefit_confirm">يأكد معاك أي حركة بنكية قبل ما تتحسب من رصيدك</string>
+    <string name="telegram_prompt_benefit_alerts">ينبهك بالنواقص والفواتير اللي قربت</string>
+    <string name="telegram_prompt_benefit_forecast">يبعتلك ملخص البيت وتوقع الصرف</string>
+    <string name="telegram_prompt_benefit_log">تسجل مصروفك برسالة واحدة</string>
+    <string name="telegram_prompt_later">مش دلوقتي</string>
 </resources>

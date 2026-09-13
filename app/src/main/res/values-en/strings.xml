@@ -1928,4 +1928,11 @@
     <string name="life_goal_save">Start this goal</string>
     <string name="life_goal_error_too_many">You have 5 active goals — finish or cancel one first</string>
     <string name="life_goal_error_generic">Couldn\'t save the goal — try again</string>
+    <string name="telegram_prompt_title">Let Zad reach you on Telegram</string>
+    <string name="telegram_prompt_subtitle">Link once, and Zad can reach you with what matters even when the app is closed.</string>
+    <string name="telegram_prompt_benefit_confirm">Confirms every bank transaction with you before it touches your balance</string>
+    <string name="telegram_prompt_benefit_alerts">Alerts you to running-low items and upcoming bills</string>
+    <string name="telegram_prompt_benefit_forecast">Sends your home summary and spending forecast</string>
+    <string name="telegram_prompt_benefit_log">Log an expense with a single message</string>
+    <string name="telegram_prompt_later">Not now</string>
 </resources>

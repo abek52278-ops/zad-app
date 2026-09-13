@@ -2847,15 +2847,21 @@ object SupabaseRepo {
     }
 
     /** true لو المستخدم عنده تليجرام مربوط فعلاً (فيه صف bound_at مش null) */
-    suspend fun isTelegramLinked(): Boolean {
+    suspend fun isTelegramLinked(): Boolean = telegramLinkStatus() ?: false
+
+    /**
+     * زي [isTelegramLinked] بس بيفرّق الفشل: null = معرفناش (شبكة/مش مسجل دخول). تنبيه
+     * الربط محتاج الفرق ده — من غيره عميل مربوط فاتح التطبيق من غير نت هيتسأل يربط.
+     */
+    suspend fun telegramLinkStatus(): Boolean? {
         return try {
-            val userId = client.auth.currentUserOrNull()?.id ?: return false
+            val userId = client.auth.currentUserOrNull()?.id ?: return null
             client.postgrest["telegram_bindings"].select(Columns.list("bound_at")) {
                 filter { eq("user_id", userId) }
             }.decodeList<TelegramBindingRow>().any { it.boundAt != null }
         } catch (e: Exception) {
-            Log.e(TAG, "isTelegramLinked() FAILED: ${e.message}")
-            false
+            Log.e(TAG, "telegramLinkStatus() FAILED: ${e.message}")
+            null
         }
     }
 

@@ -291,6 +291,17 @@ fun HomeScreen(
     var showWhySheet by remember { mutableStateOf(false) }
     var showQuickExpenseSheet by remember { mutableStateOf(false) } // Task 27.2 — طول الضغط على "متاح"
     var showTelegramSheet by remember { mutableStateOf(false) } // بوت تليجرام — اتنقل من البروفايل للرئيسية
+    // تنبيه ربط تليجرام أول دخول (TelegramLinkPrompt): الفحص المحلي الأول، ونداء الشبكة بس
+    // لو التنبيه مستحق. حالة ربط مش معروفة (من غير نت) = مانعرضش — عميل مربوط مايتسألش.
+    var telegramPromptDue by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (!com.example.data.TelegramLinkPrompt.isDue(context)) return@LaunchedEffect
+        when (com.example.data.SupabaseRepo.telegramLinkStatus()) {
+            false -> telegramPromptDue = true
+            true -> com.example.data.TelegramLinkPrompt.recordLinked(context)
+            null -> Unit
+        }
+    }
     var selectedRecipeTitle by remember { mutableStateOf<String?>(null) }
     var showRecipeDialog by remember { mutableStateOf(false) }
     var showTasbihaReminder by remember { mutableStateOf(false) }
@@ -1007,6 +1018,21 @@ fun HomeScreen(
 
     if (showTelegramSheet) {
         com.example.ui.components.TelegramBotSheet(onDismiss = { showTelegramSheet = false })
+    }
+
+    // الطفل مابيربطش بوت بيأكد حركات بنكية، وماينفعش شيت فوق شيت الرصيد لو العميل فتحه.
+    val showTelegramPrompt = telegramPromptDue && !isChild && !showBudgetDialog && !showTelegramSheet
+    var telegramPromptCounted by remember { mutableStateOf(false) }
+    LaunchedEffect(showTelegramPrompt) {
+        // بيتعد لما يظهر فعلاً، مش لما يبقى مستحق — اللي اتأجل بسبب شيت تاني مايتحسبش.
+        // ومرة واحدة في الجلسة: لو اختفى ورا شيت الرصيد ورجع، مايحرقش المرتين مع بعض.
+        if (showTelegramPrompt && !telegramPromptCounted) {
+            com.example.data.TelegramLinkPrompt.recordShown(context)
+            telegramPromptCounted = true
+        }
+    }
+    if (showTelegramPrompt) {
+        com.example.ui.components.TelegramLinkPromptSheet(onDismiss = { telegramPromptDue = false })
     }
 
     
