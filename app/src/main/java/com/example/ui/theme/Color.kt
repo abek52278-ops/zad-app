@@ -95,6 +95,13 @@ val secondaryDark: Color @Composable get() = LocalZadExtendedColors.current.seco
 /** لوحة الأيجنت — داكنة في الوضعين، شوف التعليق في ZadExtendedColors. */
 val agentPanelStart: Color @Composable get() = LocalZadExtendedColors.current.agentPanelStart
 val agentPanelEnd: Color @Composable get() = LocalZadExtendedColors.current.agentPanelEnd
+/** ألوان الحالة فوق لوحة الأيجنت — ثابتة في الوضعين، شوف التعليق في ZadExtendedColors. */
+val agentPanelSuccess: Color @Composable get() = LocalZadExtendedColors.current.agentPanelSuccess
+val agentPanelWarning: Color @Composable get() = LocalZadExtendedColors.current.agentPanelWarning
+val agentPanelInfo: Color @Composable get() = LocalZadExtendedColors.current.agentPanelInfo
+/** بانر تنبيه الذكاء — حاوية ونص بيتقلبوا مع بعض (AA في الوضعين). */
+val alertBannerContainer: Color @Composable get() = LocalZadExtendedColors.current.alertBannerContainer
+val onAlertBanner: Color @Composable get() = LocalZadExtendedColors.current.onAlertBanner
 /** نص شريحة الحالة — أغمق من coral في اللايت عشان يعدّي AA فوق حاوية ١٢٪. */
 val onStatusPill: Color @Composable get() = LocalZadExtendedColors.current.onStatusPill
 val secondaryLight: Color @Composable get() = LocalZadExtendedColors.current.secondaryLight

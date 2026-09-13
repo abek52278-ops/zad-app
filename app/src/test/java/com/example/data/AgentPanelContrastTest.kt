@@ -95,5 +95,42 @@ class AgentPanelContrastTest {
         // مش سهو: الكارت لوحة ليلية، والتقليب مع الثيم هو اللي كسره أصلاً.
         assertEquals(ZadExtendedColorsLight.agentPanelStart, ZadExtendedColorsDark.agentPanelStart)
         assertEquals(ZadExtendedColorsLight.agentPanelEnd, ZadExtendedColorsDark.agentPanelEnd)
+        // وألوان الحالة فوقها نفس الحكاية: لو اتقلبت، success اللايت (#238652) = 2.85:1.
+        assertEquals(ZadExtendedColorsLight.agentPanelSuccess, ZadExtendedColorsDark.agentPanelSuccess)
+        assertEquals(ZadExtendedColorsLight.agentPanelWarning, ZadExtendedColorsDark.agentPanelWarning)
+        assertEquals(ZadExtendedColorsLight.agentPanelInfo, ZadExtendedColorsDark.agentPanelInfo)
+    }
+
+    @Test
+    fun `status accents on the panel clear AA against every gradient stop`() {
+        // المرحلة ٣: كانوا هيكسات ماتيريال، و#2196F3 (cook_meal) كان 4.16:1. رقم «قرب ينتهي»
+        // في StatItem نص فعلي بلون warning، فالعتبة 4.5 مش 3.
+        val stops = listOf(ZadExtendedColorsLight.agentPanelStart, ZadExtendedColorsLight.agentPanelEnd)
+        val accents = listOf(
+            "success" to ZadExtendedColorsLight.agentPanelSuccess,
+            "warning" to ZadExtendedColorsLight.agentPanelWarning,
+            "info" to ZadExtendedColorsLight.agentPanelInfo,
+        )
+        for ((name, accent) in accents) {
+            for (stop in stops) {
+                val ratio = contrast(argb(accent) and 0xFFFFFF, argb(stop) and 0xFFFFFF)
+                assertTrue("$name فوق اللوحة تباينه ${"%.2f".format(ratio)}:1 — تحت 4.5:1", ratio >= 4.5)
+            }
+        }
+    }
+
+    @Test
+    fun `the AI alert banner text clears AA in both themes`() {
+        // كان #FDECEA ثابت + dangerColor: 3.44:1 لايت و2.55:1 دارك (الكارت بيفضل وردي).
+        // الوصف 12sp يعني مش «نص كبير»، فالعتبة 4.5:1.
+        val cases = listOf(
+            "light" to (ZadExtendedColorsLight.onAlertBanner to ZadExtendedColorsLight.alertBannerContainer),
+            "dark" to (ZadExtendedColorsDark.onAlertBanner to ZadExtendedColorsDark.alertBannerContainer),
+        )
+        for ((name, pair) in cases) {
+            val (fg, bg) = pair
+            val ratio = contrast(argb(fg) and 0xFFFFFF, argb(bg) and 0xFFFFFF)
+            assertTrue("$name: نص البانر تباينه ${"%.2f".format(ratio)}:1 — تحت 4.5:1", ratio >= 4.5)
+        }
     }
 }

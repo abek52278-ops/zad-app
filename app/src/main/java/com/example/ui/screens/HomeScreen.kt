@@ -1675,7 +1675,7 @@ fun AgentSummaryCard(
                             Icon(
                                 when (alert.type) { "warning" -> Icons.Default.Warning; "success" -> Icons.Default.CheckCircle; else -> Icons.Default.Info },
                                 contentDescription = null, tint = when (alert.type) {
-                                    "warning" -> Color(0xFFFF9800); "success" -> Color(0xFF4CAF50); else -> Color.White.copy(alpha = 0.7f)
+                                    "warning" -> agentPanelWarning; "success" -> agentPanelSuccess; else -> Color.White.copy(alpha = 0.7f)
                                 },
                                 modifier = Modifier.size(14.dp)
                             )
@@ -1690,9 +1690,9 @@ fun AgentSummaryCard(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         agentSummary.suggestions.take(3).forEach { suggestion ->
                             val suggestionColor = when (suggestion.action) {
-                                "add_to_shopping" -> Color(0xFF4CAF50)
-                                "check_budget" -> Color(0xFFFF9800)
-                                "cook_meal" -> Color(0xFF2196F3)
+                                "add_to_shopping" -> agentPanelSuccess
+                                "check_budget" -> agentPanelWarning
+                                "cook_meal" -> agentPanelInfo
                                 else -> Color.White.copy(alpha = 0.3f)
                             }
                             Box(
@@ -1716,7 +1716,7 @@ fun AgentSummaryCard(
                     ) {
                         StatItem(stringResource(R.string.nav_inventory), "${agentSummary.stats.inventoryCount}", Color.White)
                         StatItem(stringResource(R.string.expiring_soon_stat_label), "${agentSummary.stats.expiringSoon}",
-                            if (agentSummary.stats.expiringSoon > 0) Color(0xFFFF9800) else Color.White.copy(alpha = 0.6f))
+                            if (agentSummary.stats.expiringSoon > 0) agentPanelWarning else Color.White.copy(alpha = 0.6f))
                         StatItem(stringResource(R.string.subscriptions), "${agentSummary.stats.subscriptionsActive}", Color.White)
                     }
                 }
@@ -1775,7 +1775,8 @@ fun PredictionCard(prediction: com.example.data.AiExpensePrediction, budget: Dou
     val context = LocalContext.current
     val color = when {
         prediction.predictedTotal > budget -> dangerColor
-        prediction.predictedTotal > budget * 0.8 -> Color(0xFFF9A825)
+        // warningColor مش #F9A825: الرقم ده 24sp (نص كبير، عتبة 3:1) والكهرماني كان 1.97:1 على الأبيض.
+        prediction.predictedTotal > budget * 0.8 -> warningColor
         else -> successColor
     }
     GlassCard(
@@ -1811,7 +1812,7 @@ fun PredictionCard(prediction: com.example.data.AiExpensePrediction, budget: Dou
             Spacer(Modifier.height(6.dp))
             prediction.tips.take(2).forEach { tip ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 1.dp)) {
-                    Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Color(0xFFF9A825), modifier = Modifier.size(12.dp))
+                    Icon(Icons.Default.Lightbulb, contentDescription = null, tint = warningColor, modifier = Modifier.size(12.dp))
                     Spacer(Modifier.width(4.dp))
                     Text(tip, color = onSurfaceVariant, fontSize = 11.sp)
                 }
@@ -1900,7 +1901,7 @@ fun EventsRadarCard(forecasts: List<com.example.data.AiSeasonalForecast>) {
         if (next.tip.isNotBlank()) {
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Lightbulb, contentDescription = null, tint = Color(0xFFF9A825), modifier = Modifier.size(12.dp))
+                Icon(Icons.Default.Lightbulb, contentDescription = null, tint = warningColor, modifier = Modifier.size(12.dp))
                 Spacer(Modifier.width(4.dp))
                 Text(next.tip, color = onSurfaceVariant, fontSize = 11.sp)
             }
@@ -1975,11 +1976,10 @@ fun OfflineBanner() {
 
 @Composable
 fun AiAlertBanner(title: String, description: String) {
-    // errorContainer (0x1AF87171 — 10% alpha) composited over the light canvas leaves
-    // dangerColor text at ~3.2:1 contrast, under the 4.5:1 AA bar for small text — worse
-    // still once description dropped to 80% alpha on top of that. This card needs its
-    // own solid, opaque tint instead of the shared low-alpha token.
-    com.example.ui.components.ZadListCard(containerColor = Color(0xFFFDECEA), contentPadding = 0.dp) {
+    // الحاوية المصمتة (بدل errorContainer بشفافية ١٠٪) كانت خطوة صح بس مش كفاية: #FDECEA
+    // مع نص dangerColor طلع 3.44:1 في اللايت و2.55:1 في الدارك (الكارت بيفضل وردي فاتح).
+    // الزوج alertBannerContainer/onAlertBanner بيتقلب مع الثيم: 4.79:1 لايت، 5.22:1 دارك.
+    com.example.ui.components.ZadListCard(containerColor = alertBannerContainer, contentPadding = 0.dp) {
         Row(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -1987,16 +1987,16 @@ fun AiAlertBanner(title: String, description: String) {
             Icon(
                 imageVector = Icons.Default.Warning,
                 contentDescription = null,
-                tint = dangerColor,
+                tint = onAlertBanner,
                 modifier = Modifier.size(32.dp)
             )
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, fontWeight = FontWeight.Bold, color = dangerColor)
+                Text(title, fontWeight = FontWeight.Bold, color = onAlertBanner)
                 Text(
                     description,
                     fontSize = 12.sp,
-                    color = dangerColor
+                    color = onAlertBanner
                 )
             }
         }

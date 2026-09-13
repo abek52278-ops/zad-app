@@ -53,6 +53,29 @@ data class ZadExtendedColors(
     val agentPanelStart: Color,
     val agentPanelEnd: Color,
     /**
+     * ألوان الحالة **فوق لوحة الأيجنت** (أيقونات تنبيه، شرائح اقتراحات، رقم «قرب ينتهي»).
+     *
+     * نفس منطق `agentPanelStart`: اللوحة داكنة في الوضعين، فالرموز دي ماينفعش تتقلب مع
+     * الثيم. `successColor` العادي في اللايت (#238652) بيدّي **2.85:1** فوق اللوحة — مش
+     * مقروء. فالقيم هنا هي درجات العلامة المصمَّمة للأرضيات الداكنة (success/info بتوع
+     * الدارك + الأوكر الفاتح)، ثابتة في الوضعين. بتحلّ محل هيكسات ماتيريال
+     * `#4CAF50`/`#FF9800`/`#2196F3` اللي كانت مش من العلامة، و`#2196F3` كان **4.16:1** تحت AA.
+     * القياس على أسوأ stop في الجراديانت: warning 6.28، info 5.89، success 5.66.
+     */
+    val agentPanelSuccess: Color,
+    val agentPanelWarning: Color,
+    val agentPanelInfo: Color,
+    /**
+     * بانر تنبيه الذكاء في الرئيسية (`AiAlertBanner`): حاوية + نص.
+     *
+     * كان `Color(0xFFFDECEA)` ثابت مع نص `dangerColor`، وتعليقه بيقول إن الحاوية
+     * المصمتة بتعدّي AA. القياس بيقول غير كده: لايت **3.44:1** (الوصف 12sp عتبته 4.5)،
+     * ودارك أسوأ — الكارت بيفضل وردي فاتح والنص بيبقى `#EA764B` = **2.55:1**. فالحاوية
+     * والنص بقوا زوج واحد بيتقلب مع بعض: لايت 4.79:1، دارك 5.22:1.
+     */
+    val alertBannerContainer: Color,
+    val onAlertBanner: Color,
+    /**
      * نص شريحة الحالة فوق حاوية بنفس درجتها بشفافية ١٢٪.
      *
      * `coral` نفسه مابيعديش هنا: نص بنفس درجة لون الحاوية بيدي **٣٫٣٨:١** في
@@ -100,6 +123,11 @@ val ZadExtendedColorsLight = ZadExtendedColors(
     authWashCool = Color(0xFFBFE3D1),
     agentPanelStart = Color(0xFF052E16),
     agentPanelEnd = Color(0xFF0A382C),
+    agentPanelSuccess = Color(0xFF4FBF87),
+    agentPanelWarning = ZadMustardLight,
+    agentPanelInfo = Color(0xFF7FB3E8),
+    alertBannerContainer = Color(0xFFFDECEA),
+    onAlertBanner = ZadTerracottaDark,
     onStatusPill = Color(0xFFA63F1B),
     // Exactly the values CategoryBreakdownCard used as ZadV3.green600 / info / warn /
     // danger / violet, in the same order — so the light rendering is unchanged.
@@ -145,6 +173,11 @@ val ZadExtendedColorsDark = ZadExtendedColors(
     authWashCool = Color(0xFF14302A),
     agentPanelStart = Color(0xFF052E16),
     agentPanelEnd = Color(0xFF0A382C),
+    agentPanelSuccess = Color(0xFF4FBF87),
+    agentPanelWarning = ZadMustardLight,
+    agentPanelInfo = Color(0xFF7FB3E8),
+    alertBannerContainer = Color(0xFF3A1E16),
+    onAlertBanner = ZadTerracottaOnDark,
     onStatusPill = Color(0xFFEA764B),
     // Same five hues, lifted to read on a dark ground. The light values are mid-tones
     // chosen against white; on near-black they lose separation and #B45309 in particular
