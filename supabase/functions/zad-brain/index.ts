@@ -62,6 +62,7 @@ import { AgentSource, AuditScope, recordAction, writeRows } from "./audit.ts";
 import { redactNotificationText } from "./redact.ts";
 import { classifyMessage, consume as consumeEntitlement, lockedReply } from "./entitlement.ts";
 import { hasConfiguredSecret, hasServiceRoleAuthorization, resolveAuthedUserId } from "./auth.ts";
+import { secretMatches } from "../_shared/cronSecret.ts";
 import { conversationProfile, voiceModeInstruction } from "./persona.ts";
 // المرحلة ٣ — الوكلاء المتخصصون: توجيه + هوية في البرومبت + trace في zad_brain_runs.
 import { recordSpecialistTrace, routeSpecialists, specialistPromptBlock, scopeToolsForSpecialist } from "./specialists.ts";
@@ -112,12 +113,11 @@ const NOTIFICATION_CONFIRM_SECRET = Deno.env.get("ZAD_CONFIRM_TRANSACTION_SECRET
 const MODEL_ROUTINE = Deno.env.get("ZAD_MODEL_AGENT") ?? "gemini-3.5-flash-lite";
 // W8 — بيحرس action=process_agent_tasks (pg_cron بينادي ده، مش عميل بـ JWT). لازم
 // يطابق السيكريت المكتوب في migration الـ agent_tasks (cron.schedule command).
-// دُوِّر 2026-09-13 بعد ما cron.job بقى بيقرا من Vault (20260913003000) — القيمة
-// الجديدة اتحطت كسرّ مشروع، وهذا التعديل هو اللي بيجبر إعادة نشر zad-brain (نسخة
-// جديدة، مش بس سرّ محدَّث) عشان أي نسخة شغّالة ساخنة تاخد القيمة الجديدة فعليًا.
-const AGENT_TASKS_CRON_SECRET = Deno.env.get("ZAD_AGENT_TASKS_CRON_SECRET") ?? "";
+// بيتفحص بـ secretMatches() جوه الهاندلر نفسه (مش هنا) — قرا Deno.env.get() وقت
+// النداء وبيسجّل طول+بصمة لو فيه اختلاف، عشان تدوير 2026-09-13 اللي فضل يرجّع 401
+// من غير أي سبب في اللوج (hasConfiguredSecret القديمة ماكانتش بتسجّل حاجة).
 // W9 — بيحرس action=run_proactive_scan (pg_cron كل ساعة، مش عميل بـ JWT). قيمة
-// منفصلة عن AGENT_TASKS_CRON_SECRET عشان سريان/تسريب أي واحدة ميخليش التانية مكشوفة.
+// منفصلة عن ZAD_AGENT_TASKS_CRON_SECRET عشان سريان/تسريب أي واحدة ميخليش التانية مكشوفة.
 const PROACTIVE_CRON_SECRET = Deno.env.get("ZAD_PROACTIVE_CRON_SECRET") ?? "";
 
 // المرحلة ٣ (حلقة الأدوات متعددة الخطوات) — سقف اللفات وسقف التوكنز الإجمالي، مشتركين
@@ -5316,7 +5316,10 @@ Deno.serve(async (req: Request) => {
     // ده كل ٥ دقايق، فالتحقق بسيكريت هيدر مخصص، نفس نمط X-Checkin-Cron-Secret/
     // X-Subscription-Cron-Secret في zad-telegram-bot بالظبط.
     if (body.action === "process_agent_tasks") {
-      if (!hasConfiguredSecret(req.headers.get("X-Agent-Tasks-Cron-Secret"), AGENT_TASKS_CRON_SECRET)) {
+      // secretMatches() (لا hasConfiguredSecret) هنا عمدًا: بيقرا Deno.env.get() وقت
+      // النداء نفسه مش وقت تحميل الموديول، وبيسجّل الطول+البصمة في اللوج لو فيه اختلاف —
+      // ده اللي كان ناقص وقت تدوير 2026-09-13 (401 ثلاث مرات من غير أي سبب في اللوج).
+      if (!(await secretMatches(req.headers.get("X-Agent-Tasks-Cron-Secret"), "ZAD_AGENT_TASKS_CRON_SECRET"))) {
         return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: CORS_HEADERS });
       }
       const sbTasks = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
