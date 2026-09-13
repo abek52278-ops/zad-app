@@ -4,6 +4,25 @@
 تانية — بما فيها `docs/agent/SESSION_2026_09_06_device_test.md` والباقي. الملف ده بيقول
 فين إحنا واقفين بالظبط، مش تلخيص — كل رقم فيه اتقاس مش اتفترض.
 
+## تصحيح ٢٠٢٦-٠٩-١٣: الريبو الصح
+
+القسم ده كله (والـ`gh run list` اللي فيه) كان بيتكلم عن `abek52278-ops/zad-app`. ده
+**غلط** — `seam1010x-lab/zad-app` هو المستودع الخاص بالمستخدم، و`abek52278-ops/zad-app`
+مجرد الأصل اللي هو `fork` منه (`gh api repos/seam1010x-lab/zad-app --jq .parent.full_name`
+رجع `abek52278-ops/zad-app`). كل أمر `gh` تحت لازم يستخدم `seam1010x-lab/zad-app`.
+
+فروكات جيت هاب بتيجي بالـ Actions **مقفولة افتراضيًا**، وده يفسّر ليه `seam1010x-lab`
+معندهاش ولا تشغيلة CI واحدة رغم إن ملفات الـworkflow موجودة ومسجّلة فيها. لازم:
+1. تفعيل Actions يدويًا من تاب Actions في `seam1010x-lab/zad-app` ("I understand my
+   workflows, go ahead and enable them").
+2. إضافة السرّين `SUPABASE_ACCESS_TOKEN` و`SUPABASE_DB_PASSWORD` كـ repository secrets
+   هناك (`Settings → Secrets and variables → Actions`) — الفروكات **مش** بترث أسرار
+   الأصل تلقائيًا.
+
+مفيش أداة في بيئة التطوير دي بتقدر تعمل الخطوتين دول (توكن الجلسة App-scoped، `403
+Resource not accessible by integration` على أي endpoint بتاع Actions permissions/secrets
+حتى لو الـREST بيقول `admin: true` على الريبو نفسه).
+
 ## ٠. لو مش هتقرا غير فقرة واحدة
 
 **١٣ كومِت اتدفعوا لـ`main` (٢٠٢٦-٠٩-١٢/١٣)، الكود متحقَّق منه محليًا وعلى CI، والنشر
@@ -120,7 +139,7 @@ where ...`).
 ## ٣. حالة CI/CD الفعلية (متحقَّق منها الآن، ٢٠٢٦-٠٩-١٣)
 
 ```
-gh run list --repo abek52278-ops/zad-app --limit 2
+gh run list --repo seam1010x-lab/zad-app --limit 2
 ```
 
 | الووركفلو | النتيجة | التفصيل |
@@ -129,12 +148,12 @@ gh run list --repo abek52278-ops/zad-app --limit 2
 | **Build Debug APK** | ❌ فشل (شكليًا) | كل خطوة كود حقيقية نجحت: Unit tests ✓، Lint ✓، **Check dependency alignment (حارس Ktor/supabase) ✓**، Build debug APK ✓. الفشل الوحيد: `Failed to CreateArtifact: Artifact storage quota has been hit` — حصة تخزين GitHub Actions، **مالوش علاقة بالكود خالص**. |
 
 **لازم يتصلّح قبل أي حاجة تانية:** `SUPABASE_ACCESS_TOKEN` في
-`Settings → Secrets and variables → Actions` بمستودع `abek52278-ops/zad-app`. محتاج
+`Settings → Secrets and variables → Actions` بمستودع `seam1010x-lab/zad-app`. محتاج
 Personal Access Token جديد من لوحة تحكم Supabase. **مفيش أداة في بيئة التطوير دي بتضبط
 سرّ مستودع** — ده لازم يتعمل من لوحة GitHub مباشرة أو `gh secret set` بصلاحية إدارية.
 
 بعد ما يتصلّح: إعادة تشغيل الووركفلو الفاشل (`gh run rerun 34723494451 --repo
-abek52278-ops/zad-app`) أو دفعة كومِت جديد كافية تبدأ تشغيلة جديدة.
+seam1010x-lab/zad-app`) أو دفعة كومِت جديد كافية تبدأ تشغيلة جديدة.
 
 ---
 
@@ -200,7 +219,7 @@ Vault بدل النص الصريح، **ومحتاجة تُنشر الأول** (�
 2. اقرا `docs/agent/SESSION_2026_09_12_silent_failures.md` للتفاصيل التقنية والقياسات.
 3. `cd /workspaces/zad-app && git log --oneline -15 | cat` — تأكد إن آخر كومِت لسه
    `ba7ceb97` أو بعده (لو فيه كومِتات جديدة، ده معناه حد كمّل من هنا).
-4. `gh run list --repo abek52278-ops/zad-app --limit 3` — شوف هل `SUPABASE_ACCESS_TOKEN`
+4. `gh run list --repo seam1010x-lab/zad-app --limit 3` — شوف هل `SUPABASE_ACCESS_TOKEN`
    اتصلّح ولا لسه. لو `deploy` بقى ناجح، روح مباشرة لقسم ٤ وابدأ تسلسل تدوير السرّ.
 5. لو محتاج تبني محلي: راجع قسم "Heap" في `CLAUDE.md` — التوزيع المتحقَّق منه آخر مرة
    `-Xmx800m..900m` للجرادل + `-Xmx1900m..2000m` لكوتلن، `--max-workers=1`،

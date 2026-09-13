@@ -140,6 +140,15 @@ Scoped to this app's actual attack surface (Android client + Supabase backend + 
   do until it's fixed (rotating `ZAD_AGENT_TASKS_CRON_SECRET` before this deploys would
   break the one cron job that secret guards — the migration that moves its header source
   to Vault hasn't shipped yet, so the job still sends the old value).
+- ⚠️ **Correction, 2026-09-13: the above was measured against `abek52278-ops/zad-app`,
+  which is not the repo this project ships from.** `seam1010x-lab/zad-app` is — it's a
+  fork of `abek52278-ops/zad-app`, and GitHub disables Actions on a fork by default and
+  never copies the parent's secrets to it. So on the actual repo, the blocker isn't an
+  invalid token, it's a step earlier: `seam1010x-lab/zad-app` has **zero CI runs ever**,
+  Actions has to be enabled by hand (repo → Actions tab → "I understand my workflows, go
+  ahead and enable them"), then both secrets added there fresh. See the correction note
+  at the top of `docs/agent/SESSION_HANDOFF.md` for detail — don't `gh run list` against
+  `abek52278-ops/zad-app` expecting it to reflect this project's deploy state.
 - A **GitHub Actions artifact storage quota** failure on `Build Debug APK` is a separate,
   unrelated thing worth not confusing with a code regression: on 2026-09-12 every real
   step passed (unit tests, lint, the Ktor/supabase dependency-alignment guard, the debug
