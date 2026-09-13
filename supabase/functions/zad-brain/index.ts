@@ -112,6 +112,9 @@ const NOTIFICATION_CONFIRM_SECRET = Deno.env.get("ZAD_CONFIRM_TRANSACTION_SECRET
 const MODEL_ROUTINE = Deno.env.get("ZAD_MODEL_AGENT") ?? "gemini-3.5-flash-lite";
 // W8 — بيحرس action=process_agent_tasks (pg_cron بينادي ده، مش عميل بـ JWT). لازم
 // يطابق السيكريت المكتوب في migration الـ agent_tasks (cron.schedule command).
+// دُوِّر 2026-09-13 بعد ما cron.job بقى بيقرا من Vault (20260913003000) — القيمة
+// الجديدة اتحطت كسرّ مشروع، وهذا التعديل هو اللي بيجبر إعادة نشر zad-brain (نسخة
+// جديدة، مش بس سرّ محدَّث) عشان أي نسخة شغّالة ساخنة تاخد القيمة الجديدة فعليًا.
 const AGENT_TASKS_CRON_SECRET = Deno.env.get("ZAD_AGENT_TASKS_CRON_SECRET") ?? "";
 // W9 — بيحرس action=run_proactive_scan (pg_cron كل ساعة، مش عميل بـ JWT). قيمة
 // منفصلة عن AGENT_TASKS_CRON_SECRET عشان سريان/تسريب أي واحدة ميخليش التانية مكشوفة.
